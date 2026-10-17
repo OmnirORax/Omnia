@@ -10,7 +10,7 @@ import {
   applyNodeChanges,
   useReactFlow,
 } from "@xyflow/react";
-import type { Node, NodeProps, NodeChange, Connection } from "@xyflow/react";
+import type { Node, NodeProps, NodeChange, Connection, Viewport } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./workbench.css";
 import { descendants, emptyAtlas, newId, parseAtlas, removeNode, reparent } from "./graph/model";
@@ -18,6 +18,9 @@ import type { Atlas, AtlasNode } from "./graph/model";
 import { projectAtlas } from "./graph/projection";
 
 const STORAGE_KEY = "omnium.atlas.v1";
+const VIEW_STORAGE_KEY = "omnium.view.v1";
+const DEFAULT_GRID = 24;
+type ViewConfig = { format: "omnium-ui-template"; version: 1; atlas: Atlas; viewport: Viewport; snapEnabled: boolean; gridSize: number };
 type Selection = { kind: "node" | "relationship"; id: string } | null;
 type Card = Node<
   { label: string; collapsed: boolean; childCount: number; toggle: () => void },
@@ -86,8 +89,23 @@ function Workbench() {
   const [future, setFuture] = useState<Atlas[]>([]);
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [gridSize, setGridSize] = useState(DEFAULT_GRID);
+  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const fileInput = useRef<HTMLInputElement>(null);
+  const templateInput = useRef<HTMLInputElement>(null);
   const flow = useReactFlow<Card>();
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_STORAGE_KEY);
+      if (saved) {
+        const value = JSON.parse(saved) as Partial<ViewConfig>;
+        if (value.viewport && typeof value.viewport.x === "number" && typeof value.viewport.y === "number" && typeof value.viewport.zoom === "number") setViewport(value.viewport);
+        if (typeof value.snapEnabled === "boolean") setSnapEnabled(value.snapEnabled);
+        if (typeof value.gridSize === "number" && [8, 12, 16, 24, 32, 48, 64].includes(value.gridSize)) setGridSize(value.gridSize);
+      }
+    } catch { /* use defaults */ }
+  }, []);
   function commit(next: Atlas) {
     try {
       const validated = parseAtlas(JSON.stringify(next));
@@ -110,6 +128,9 @@ function Workbench() {
       setError("Local storage is unavailable or full. Export JSON now to keep your work.");
     }
   }, [atlas, revision, autosave]);
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ viewport, snapEnabled, gridSize })); } catch { /* view persistence is best effort */ }
+  }, [viewport, snapEnabled, gridSize]);
   const projection = useMemo(() => projectAtlas(atlas), [atlas]);
   const renderedNodes: Card[] = projection.nodes.map((n) => ({
     id: n.id,
@@ -231,6 +252,25 @@ function Workbench() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function exportTemplate() {
+    const template: ViewConfig = { format: "omnium-ui-template", version: 1, atlas, viewport, snapEnabled, gridSize };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a"); link.href = url; link.download = "omnium-ui-template.json"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function importTemplate(file?: File) {
+    if (!file) return;
+    try {
+      if (file.size > 5_000_000) throw new Error("UI template exceeds the 5 MB import limit.");
+      const value: unknown = JSON.parse(await file.text());
+      if (!value || typeof value !== "object" || (value as ViewConfig).format !== "omnium-ui-template" || (value as ViewConfig).version !== 1) throw new Error("Expected an Omnium UI template version 1.");
+      const template = value as ViewConfig;
+      const next = parseAtlas(JSON.stringify(template.atlas));
+      if (atlas.nodes.length && !window.confirm("Replace the current atlas and UI layout with this template? You can undo this action.")) return;
+      commit(next); setViewport(template.viewport); setSnapEnabled(Boolean(template.snapEnabled)); setGridSize([8, 12, 16, 24, 32, 48, 64].includes(template.gridSize) ? template.gridSize : DEFAULT_GRID); setSelection(null); setTimeout(() => { flow.setViewport(template.viewport, { duration: 180 }); }, 80);
+    } catch (e) { setError(`Template import failed. Your atlas was not changed. ${message(e)}`); }
+    finally { if (templateInput.current) templateInput.current.value = ""; }
+  }
   async function importJSON(file?: File) {
     if (!file) return;
     try {
@@ -329,7 +369,9 @@ function Workbench() {
             Redo
           </button>
           <button onClick={exportJSON}>Export JSON</button>
+          <button onClick={exportTemplate}>Save UI template</button>
           <button onClick={() => fileInput.current?.click()}>Import JSON</button>
+          <button onClick={() => templateInput.current?.click()}>Load UI template</button>
           <input
             ref={fileInput}
             type="file"
@@ -339,6 +381,11 @@ function Workbench() {
               void importJSON(e.target.files?.[0]);
             }}
           />
+          <input ref={templateInput} type="file" accept=".json,application/json" hidden onChange={(e) => { void importTemplate(e.target.files?.[0]); }} />
+        </div>
+        <div className="snap-controls" aria-label="Canvas snapping controls">
+          <label className="snap-toggle"><input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} /> Snap</label>
+          <label className="grid-select">Grid<select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>{[8, 12, 16, 24, 32, 48, 64].map(size => <option key={size} value={size}>{size}px</option>)}</select></label>
         </div>
         <span className="save-status" role="status">
           {saveStatus} · {atlas.nodes.length} nodes · {atlas.relationships.length} relationships
@@ -596,11 +643,14 @@ function Workbench() {
             onNodesChange={(changes: NodeChange<Card>[]) =>
               setViewNodes((nodes) => applyNodeChanges(changes, nodes))
             }
+            snapToGrid={snapEnabled}
+            snapGrid={[gridSize, gridSize]}
+            onMoveEnd={(_, nextViewport) => setViewport(nextViewport)}
             onNodeDragStop={(_, node) =>
               patchNode(node.id, {
                 position: node.parentId
-                  ? { x: Math.max(24, node.position.x), y: Math.max(96, node.position.y) }
-                  : node.position,
+                  ? { x: Math.max(24, snapEnabled ? Math.round(node.position.x / gridSize) * gridSize : node.position.x), y: Math.max(96, snapEnabled ? Math.round(node.position.y / gridSize) * gridSize : node.position.y) }
+                  : { x: snapEnabled ? Math.round(node.position.x / gridSize) * gridSize : node.position.x, y: snapEnabled ? Math.round(node.position.y / gridSize) * gridSize : node.position.y },
               })
             }
             onConnect={connect}
@@ -612,7 +662,7 @@ function Workbench() {
             selectionKeyCode={null}
             minZoom={0.08}
             maxZoom={2}
-            fitView
+            defaultViewport={viewport}
           >
             <Background gap={24} size={1} color="#cbd2dc" />
             <Controls showInteractive={false} />
