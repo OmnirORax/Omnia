@@ -120,7 +120,7 @@ try {
   assert.deepEqual(JSON.parse(exported), await read());
   const beforeBadImport = await read();
   await page
-    .locator("input[type=file]")
+    .locator("input[type=file]").first()
     .setInputFiles({
       name: "bad.json",
       mimeType: "application/json",
@@ -130,7 +130,7 @@ try {
   assert.deepEqual(await read(), beforeBadImport);
   page.on("dialog", (dialog) => dialog.accept());
   await page
-    .locator("input[type=file]")
+    .locator("input[type=file]").first()
     .setInputFiles({
       name: "empty.json",
       mimeType: "application/json",
@@ -145,7 +145,7 @@ try {
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await count(0);
   await page
-    .locator("input[type=file]")
+    .locator("input[type=file]").first()
     .setInputFiles({
       name: "atlas.json",
       mimeType: "application/json",

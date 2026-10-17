@@ -72,8 +72,13 @@ textarea:focus-visible {
   gap: 6px;
   flex-wrap: wrap;
 }
+.snap-controls { display: flex; align-items: center; gap: 9px; margin-left: auto; font-size: 12px; color: #65748a; }
+.snap-toggle { display: flex; flex-direction: row; align-items: center; gap: 5px; margin: 0; color: #44556c; }
+.snap-toggle input { width: auto; }
+.grid-select { display: flex; flex-direction: row; align-items: center; gap: 5px; margin: 0; }
+.grid-select select { width: auto; padding: 5px 7px; }
 .save-status {
-  margin-left: auto;
+  margin-left: 0;
 }
 .workspace {
   flex: 1;

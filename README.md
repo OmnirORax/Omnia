@@ -18,10 +18,12 @@ In the prepared Codex cloud environment, use `/workspace/.tools/yarn/node_module
 - **+ Node** adds a root. Select it to edit its name and notes.
 - **+ Child node** adds a nested node. **Parent** changes containment or promotes a node to the root. Moving nodes on the canvas changes layout, not containment.
 - Drag nodes to arrange them. Parent containers resize around their children. Use canvas controls to zoom or fit the graph.
+- Nodes can be freely moved on the canvas. **Snap** is enabled by default; choose an 8–64 px grid or turn it off for unconstrained placement. Canvas pan and zoom are also retained locally.
 - Use a branch arrow to collapse/expand it. External connections attach to the visible collapsed ancestor with a dashed line and ↗ label; original endpoints remain intact. Internal connections are hidden on the canvas while collapsed. The relationship list always retains every relationship.
 - Draw a directed relationship from a node's right handle to another's left handle, or use **Connect nodes**. Select a line or relationship-list entry to edit its label/endpoints or delete it. Labels are free text. Parallel relationships, reciprocal connections and self-relationships are allowed.
 - Deleting a node asks for confirmation and removes its descendants and all affected relationships. **Undo/Redo** retains up to 50 recent edit snapshots in memory, including imports and deletions. History does not survive reload.
 - Edits autosave to this browser's local storage under `omnium.atlas.v1`. **Export JSON** creates a portable backup. **Import JSON** validates before replacing the atlas and asks before replacing a nonempty document. Import replacement can be undone.
+- **Save UI template** exports the atlas together with node layout, collapsed state, snap settings, grid size, and canvas viewport. **Load UI template** restores that complete working arrangement after validation. It is a portable starting configuration, not a separate server-side workspace.
 
 Local storage is specific to the browser and origin; it is not cloud storage or collaboration. Export regularly and before changing origins. Storage failures are reported. Unreadable local data is preserved with autosave paused until explicitly replaced.
 
