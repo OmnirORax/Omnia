@@ -1,71 +1,35 @@
-# Omnium atlas workbench
+# Omnium structural workbench
 
-A local workbench for manually constructing Omnia's hierarchical coupling atlas. It has a 2D editor and an interactive 3D workspace over the same graph. React + TypeScript + React Flow + Three.js, using the existing Vite Plus setup. Opens with an empty graph; no ontology or architecture is pre-populated. See [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md) for long-term constraints.
+A local, interactive 3D atlas for charting systems. React, TypeScript, Three.js and Vite Plus power the current workbench. Its version-2 JSON document is independent of the renderer and provisional English labels. [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md) records the long-term constraints.
 
-## Run
+## Run and verify
 
-Use Node 24 and the pinned Yarn 4.18.1 (`packageManager` in `package.json`).
+Use Node 24 and Yarn 4.18.1, then run `yarn install --immutable` and `yarn dev`. In the prepared Codex cloud environment, Yarn is at `/workspace/.tools/yarn/node_modules/.bin/yarn`; existing dependencies are installed. Verify with `yarn test`, `yarn typecheck`, `yarn build`, `yarn test:browser`, and `yarn test:3d`. Browser checks require the dev server and Chromium (default `/usr/bin/chromium`; override with `CHROMIUM_PATH`).
 
-```sh
-yarn install --immutable
-yarn dev
-```
+The app opens directly in 3D. Drag empty space to rotate, right-drag to pan, scroll to zoom, and drag a node to move it. Use **Fit 3D view** to recenter. The inspector edits XYZ directly. All edits autosave in this browser under `omnium.atlas.v2`; export JSON for a portable backup. Version-1 local saves and imports migrate into version 2 without overwriting the original `omnium.atlas.v1` key. Existing 2D positions survive as legacy layout fields and as an XYZ fallback, although the 2D editor is retired. Version-1 UI templates still import; new templates store the version-2 atlas and placement layout.
 
-In the prepared Codex cloud environment, use `/workspace/.tools/yarn/node_modules/.bin/yarn` instead of `yarn`. For dependency installation, pass the existing platform proxy bindings as `YARN_HTTP_PROXY="$HTTP_PROXY" YARN_HTTPS_PROXY="$HTTPS_PROXY"` and use `YARN_GLOBAL_FOLDER=/workspace/.cache/yarn`. Never disable TLS or checksum validation.
+## Authoring
 
-## Use
+- **+ Node** creates a structural identity and its first placement. **+ Child node** additionally charts structural containment. A placement's **Parent** only changes visual nesting; **Structural container** edits the authored composition fact separately.
+- **Reuse identity** finds an existing identity by ID, label or alias and adds another placement. Its original knowledge and internals are not copied. The inspector shows identity and placement IDs, charted contents and relations, and can navigate to another placement or a subsystem component. Hiding or removing one placement leaves the identity and other references intact. **Delete identity and all references** is a separate, undoable operation.
+- **Connect nodes** charts a relationship between identities, independent of the connector. Define provisional relationship types with stable IDs, role IDs, names, symbols and definitions. Select a relationship from the list to change its type, roles, endpoints or annotation. Parallel, reciprocal, cyclic and cross-boundary relationships are valid.
+- **Investigative frames** select existing identities and relationships around a question or objective. Select a node before starting to anchor the frame; use lookup to include more identities, choose relationships, adjust depth, exclude, lock, reopen, restore earlier scope, promote or discard. Frames reference knowledge without copying it. Locking affects the frame scope, not the atlas. Reopening reports missing entity references. An unpromoted frame persists until explicitly discarded.
+- **External AI proposal** accepts a JSON change set, validates it, shows the operation preview, and requires explicit approval before atomic application. Undo is available. Structural validation does not establish that a claim is true.
 
-Use the **2D / 3D** buttons in the toolbar to switch views. The 2D editor remains available while the 3D workspace develops. In 3D, drag empty space to rotate, right-drag to pan, scroll to zoom, and use **Fit 3D view** to recenter. Click a node to select it; drag it to change its XYZ position. The selected node's inspector also exposes numeric local X, Y and Z fields. Children appear within translucent 3D containment volumes, and relationships render as directed links. Collapsing a branch keeps its connections attached to the visible ancestor.
+Local storage is browser- and origin-specific, with no account or backend. Export before changing origins. If a local save is unreadable, autosave pauses and preserves the unreadable value until the user explicitly replaces it. Undo/redo retains up to 50 snapshots in memory; it does not survive reload.
 
-- **+ Node** adds a root. Select it to edit its name and notes.
-- **+ Child node** adds a nested node. **Parent** changes containment or promotes a node to the root. Moving nodes on the canvas changes layout, not containment.
-- Drag nodes to arrange them. Parent containers resize around their children. Use canvas controls to zoom or fit the graph.
-- Nodes can be freely moved on the canvas. **Snap** is enabled by default; choose an 8–64 px grid or turn it off for unconstrained placement. Canvas pan and zoom are also retained locally.
-- Use a branch arrow to collapse/expand it. External connections attach to the visible collapsed ancestor with a dashed line and ↗ label; original endpoints remain intact. Internal connections are hidden on the canvas while collapsed. The relationship list always retains every relationship.
-- Draw a directed relationship from a node's right handle to another's left handle, or use **Connect nodes**. Select a line or relationship-list entry to edit its label/endpoints or delete it. Labels are free text. Parallel relationships, reciprocal connections and self-relationships are allowed.
-- Deleting a node asks for confirmation and removes its descendants and all affected relationships. **Undo/Redo** retains up to 50 recent edit snapshots in memory, including imports and deletions. History does not survive reload.
-- Edits autosave to this browser's local storage under `omnium.atlas.v1`. **Export JSON** creates a portable backup. **Import JSON** validates before replacing the atlas and asks before replacing a nonempty document. Import replacement can be undone.
-- **Save UI template** exports the atlas together with node layout, collapsed state, snap settings, grid size, and canvas viewport. **Load UI template** restores that complete working arrangement after validation. It is a portable starting configuration, not a separate server-side workspace.
+## Data and AI contract
 
-Local storage is specific to the browser and origin; it is not cloud storage or collaboration. Export regularly and before changing origins. Storage failures are reported. Unreadable local data is preserved with autosave paused until explicitly replaced.
+`src/graph/structural.ts` defines version-2 `omnium-atlas` documents. `entities` hold canonical identity, label, aliases and notes. `compositions` chart structural containment by entity ID. `placements` separately hold placement IDs, identity references, visual parent, 2D/3D coordinates, collapsed and hidden state. `relationshipTypes` hold stable types and participant roles. `relationships` hold typed instances with entity participants and optional qualifier IDs. `frames` hold references, exclusions, depth, lock/promotion state, saved revision and scope history. `revision` changes on each committed edit. No meaning is inferred from position, visual parent, label or symbol.
 
-## Data boundary
+`src/graph/model.ts` retains the version-1 parser and editor adapter for migration. `src/graph/spatial.ts` derives the 3D projection from placements; `src/SpatialWorkspace.tsx` renders it. If one identity has multiple visible placements, connectors deterministically use the visible placement with the lowest lexical placement ID. When a nested endpoint is collapsed, the connector uses its visible ancestor; the relationship instance never changes. Replacing the 3D renderer requires no migration of identities or relationships.
 
-`src/graph/model.ts` defines the renderer-independent version-1 `omnium-atlas` JSON contract:
+An external AI can export/read the atlas and submit an `omnium-changeset` with `version: 1`, a stable proposal `id`, `baseRevision` matching the atlas, and an `operations` array. Supported operations: `createEntity`, `addPlacement` (including reuse of an existing entity), `addComposition`, `createRelationshipType`, `createRelationship`, `updateRelationship`, `updatePlacement`, `createFrame`, and `refineFrame`. Updates include an exact `expected` object or `expectedScope` precondition. See [changeset.ts](src/graph/changeset.ts) and [round-trip test](tests/structural.test.mjs) for the executable contract. Operations validate in order, so referenced entities/types must already exist or be created earlier in the same change set. Stale or invalid proposals leave the atlas unchanged. A proposal can be pasted into the UI, reviewed, approved and exported as a new atlas.
 
-- `nodes`: stable `id`, editable `label`/`notes`, nullable `parentId`, parent-relative 2D `position: {x,y}`, optional parent-relative `spatialPosition: {x,y,z}`, and `collapsed` view state.
-- `relationships`: stable `id`, original `source`/`target` node IDs, and editable `label`.
-- Containment is a single-parent forest. Relationships are independently directed and can cross any branches or form cycles.
+The v1 migration records each old `parentId` as both visual nesting and structural composition, preserving authored containment. Old untyped relationship labels remain instance annotations under the stable `legacy-untyped` type; migration does not guess whether “requires” meant causal dependency. The current 3D XYZ positions are parent-local; changing that convention later would require a placement-layout migration. Types, participants, identities and frames are renderer independent and do not fix Omnic grammar.
 
-`src/graph/projection.ts` derives the 2D view. `src/graph/spatial.ts` derives world XYZ coordinates and visible 3D relationships. `src/App.tsx` adapts the former into React Flow; `src/SpatialWorkspace.tsx` renders the latter with Three.js. Neither renderer determines node identity or relationship meaning. Three.js loads only when 3D is opened. Renderer internals are not serialized.
-
-Old version-1 files have no XYZ fields and load unchanged. Their initial 3D layout is derived from 2D X/Y plus hierarchy depth; this is a visual fallback, not semantic data. Editing a 3D position persists an optional XYZ field without changing 2D coordinates. XYZ is local to the parent, so moving a parent carries its descendants. Reparenting an authored XYZ node preserves its world location. This parent-local coordinate convention is the main decision that would require a migration if changed later. The axes and fallback spacing can evolve without changing graph identities. Layout fields are explicit and could be extracted into separate view documents later.
-
-Imports reject unsupported versions, cycles, duplicate IDs, missing references and invalid fields. Prototype safety limits: 5 MB JSON, 2,000 nodes, 10,000 relationships and nesting depth 50. These are validation ceilings, not measured performance guarantees. Child coordinates reserve the parent header (`x >= 24`, `y >= 96`).
-
-This document represents a manually authored private atlas. It does not declare globally accepted concepts or implement canonical entity resolution, AI, quests, governance, shared persistence or a final Omnic grammar. A renderer replacement can reuse the document. Future format changes should introduce an explicit version migration.
-
-## Verify
-
-```sh
-yarn test          # Native Node tests for model invariants and collapse projection
-yarn typecheck
-yarn build
-yarn test:browser  # With yarn dev running; uses system Chromium
-yarn test:3d      # With yarn dev running; uses Chromium with WebGL
-```
-
-Browser tests use Playwright Core with Chromium at `/usr/bin/chromium`. Set `CHROMIUM_PATH` to another installed Chromium executable and `ATLAS_URL` to a different server address if needed. Tests use a fresh isolated browser context and do not touch an existing user's atlas. They exercise editing, nested containment, collapse, handle connections, reparenting, dragging, reload, JSON export/import, bad imports, undo/redo, deletion and corrupt-save recovery.
-The 3D check exercises rendering, rotation, panning, zooming, XYZ persistence, and switching back to 2D. Browsers need WebGL for the 3D workspace; the 2D editor remains usable if WebGL is unavailable.
-
-The existing Vite Plus alias produces a Yarn peer-version warning; typecheck, build and browser checks verify the actual integration.
+The app enforces a 5 MB JSON import limit, 2,000 identities, 4,000 placements, 10,000 relationships, and maximum visual nesting depth 50. It provides structural/reference validation, deterministic lookup, and human approval, but no automatic entity matching, epistemic verification, simulation, online collaboration or final Omnic notation.
 
 ## Hosted entry point
 
-The production output is a static website in `dist/`. Asset URLs are relative, so the same build can run at a domain root or under a repository path. No server-side application or API key is needed.
-
-`.github/workflows/deploy-pages.yml` builds and deploys `master` to GitHub Pages after tests pass. The repository's Pages source is already configured to use GitHub Actions.
-
-The current entry point is `https://omnirorax.github.io/Omnia/`. The published app shell is accessible to whoever can access the site; atlas contents remain in each visitor's own browser and are not published with the app.
-
-A move to a different origin does not carry browser-local data across. Export JSON before changing hosts and import it at the new origin. The hosted workbench currently has no account login or cross-device sync.
+`.github/workflows/deploy-pages.yml` builds and deploys `master` to GitHub Pages. The current static entry point is `https://omnirorax.github.io/Omnia/`. Each visitor's atlas remains in that visitor's browser and is not published with the app.
