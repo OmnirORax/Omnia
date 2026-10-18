@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./workbench.css";
-import { descendants, newId, parseAtlas, reparent } from "./graph/model";
+import { descendants, newId, parseAtlas } from "./graph/model";
 import type { Atlas, AtlasNode } from "./graph/model";
 import {
   emptyDocument,
@@ -14,6 +14,9 @@ import {
   type FrameScope,
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
+import { compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -54,9 +57,24 @@ function Workbench() {
   const [frameLookup, setFrameLookup] = useState("");
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
+  const [settings, setSettings] = useState<WorkspaceSettings>(loadSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [capturing, setCapturing] = useState<ActionId | null>(null);
+  const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
+  const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
+  const [connectionSource, setConnectionSource] = useState<string | null>(null);
+  const [insertContext, setInsertContext] = useState<{ parentId: string | null; world?: { x: number; y: number; z: number } } | null>(null);
+  const [insertQuery, setInsertQuery] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const templateInput = useRef<HTMLInputElement>(null);
   const proposalInput = useRef<HTMLInputElement>(null);
+  function navigate(kind: NavigationCommand["kind"], id?: string) {
+    setNavCommand((old) => ({ sequence: (old?.sequence ?? 0) + 1, kind, id }));
+  }
+  useEffect(() => {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+    catch { /* Settings are optional; atlas persistence is reported separately. */ }
+  }, [settings]);
   function commitDocument(next: AtlasDocument) {
     try {
       const validated = validateDocument({ ...next, revision: document.revision + 1 });
@@ -100,36 +118,39 @@ function Workbench() {
     }
   }, [document, revision, autosave]);
   function patchNode(id: string, changes: Partial<AtlasNode>) {
+    if (changes.spatialPosition) {
+      try { commitDocument(movePlacement(document, id, changes.spatialPosition, settings.spatial)); }
+      catch (e) { setError(message(e)); }
+      return;
+    }
     commit({ ...atlas, nodes: atlas.nodes.map((n) => (n.id === id ? { ...n, ...changes } : n)) });
   }
   function fit() {
-    /* The 3D workspace has its own fit control. */
+    navigate("local", selection?.kind === "node" ? selection.id : undefined);
   }
-  function addNode(parentId: string | null) {
-    const id = newId();
-    const siblings = atlas.nodes.filter((n) => n.parentId === parentId);
-    const y = Math.max(104, ...siblings.map((n) => n.position.y + 112));
-    commit({
-      ...atlas,
-      nodes: [
-        ...atlas.nodes.map((n) => (n.id === parentId ? { ...n, collapsed: false } : n)),
-        {
-          id,
-          label: "New node",
-          notes: "",
-          parentId,
-          collapsed: false,
-          position: parentId
-            ? { x: 28, y }
-            : {
-                x: Math.max(60, ...siblings.map((n) => n.position.x + 232 + 68)),
-                y: 60,
-              },
-        },
-      ],
-    });
-    setSelection({ kind: "node", id });
-    fit();
+  function addNode(parentId: string | null, atWorld?: { x: number; y: number; z: number }) {
+    try {
+      const entityId = newId();
+      const next = structuredClone(document);
+      next.entities.push({ id: entityId, label: "New node", aliases: [], notes: "" });
+      if (parentId) {
+        const parent = next.placements.find((p) => p.id === parentId);
+        if (!parent) throw new Error("Parent placement missing.");
+        next.compositions.push({ id: newId(), parentId: parent.entityId, childId: entityId });
+        parent.collapsed = false;
+      }
+      const desired = atWorld && parentId ? (() => {
+        const origin = worldPositions(next).get(parentId)!;
+        return { x: atWorld.x - origin.x, y: atWorld.y - origin.y, z: atWorld.z - origin.z };
+      })() : atWorld;
+      const placed = createPlacement(next, entityId, parentId, settings.spatial, desired);
+      const frame = placed.next.frames.find((f) => f.id === placed.next.activeFrameId);
+      if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
+      if (frame?.locked) placed.next.activeFrameId = null;
+      commitDocument(placed.next);
+      setSelection({ kind: "node", id: placed.placementId });
+      navigate("focus", placed.placementId);
+    } catch (e) { setError(message(e)); }
   }
   function connect(connection: { source: string | null; target: string | null }) {
     if (!connection.source || !connection.target) return;
@@ -263,7 +284,7 @@ function Workbench() {
         nodes: atlas.nodes.map((n) => (ancestors.has(n.id) ? { ...n, collapsed: false } : n)),
       });
     setSelection({ kind: "node", id });
-    fit();
+    navigate("focus", id);
   }
   function options() {
     return atlas.nodes.map((n) => (
@@ -272,32 +293,32 @@ function Workbench() {
       </option>
     ));
   }
-  function insertExisting(entityId: string) {
+  function insertExisting(entityId: string, parentId: string | null = null, atWorld?: { x: number; y: number; z: number }) {
     const entity = document.entities.find((e) => e.id === entityId);
     if (!entity) {
       setError("Choose an existing identity.");
       return;
     }
-    const id = newId();
-    const next = structuredClone(document);
-    next.placements.push({
-      id,
-      entityId,
-      parentId: null,
-      position: {
-        x: 80 + document.placements.length * 28,
-        y: 80 + document.placements.length * 28,
-      },
-      collapsed: true,
-      hidden: false,
-    });
-    const frame = next.frames.find((f) => f.id === next.activeFrameId);
-    if (frame && !frame.locked && !frame.scope.entityIds.includes(entityId))
-      frame.scope.entityIds.push(entityId);
-    if (frame?.locked) next.activeFrameId = null;
-    commitDocument(next);
-    setSelection({ kind: "node", id });
-    fit();
+    try {
+      const next = structuredClone(document);
+      if (parentId) {
+        const parent = next.placements.find((p) => p.id === parentId);
+        if (!parent) throw new Error("Parent placement missing.");
+        parent.collapsed = false;
+      }
+      const desired = atWorld && parentId ? (() => {
+        const origin = worldPositions(next).get(parentId)!;
+        return { x: atWorld.x - origin.x, y: atWorld.y - origin.y, z: atWorld.z - origin.z };
+      })() : atWorld;
+      const placed = createPlacement(next, entityId, parentId, settings.spatial, desired);
+      const frame = placed.next.frames.find((f) => f.id === placed.next.activeFrameId);
+      if (frame && !frame.locked && !frame.scope.entityIds.includes(entityId)) frame.scope.entityIds.push(entityId);
+      if (frame?.locked) placed.next.activeFrameId = null;
+      commitDocument(placed.next);
+      setSelection({ kind: "node", id: placed.placementId });
+      navigate("focus", placed.placementId);
+      setInsertContext(null);
+    } catch (e) { setError(message(e)); }
   }
   function removePlacement(id: string) {
     commitDocument({
@@ -361,6 +382,7 @@ function Workbench() {
         ),
       });
       setSelection({ kind: "node", id: other.id });
+      navigate("focus", other.id);
     } else
       setError(
         "This identity has no other placement. Its charted relationships remain available in the inspector.",
@@ -465,6 +487,105 @@ function Workbench() {
       setError(`Proposal rejected. ${message(e)}`);
     }
   }
+  function toggleNode(id: string) {
+    const placement = document.placements.find((p) => p.id === id);
+    if (!placement) return;
+    if (placement.collapsed) {
+      try { commitDocument(expandPlacement(document, id)); }
+      catch (e) { setError(message(e)); }
+    } else commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, collapsed: true } : p) });
+  }
+  function nodeClicked(id: string) {
+    if (connectionSource) {
+      if (connectionSource !== id) connect({ source: connectionSource, target: id });
+      setConnectionSource(null);
+      return;
+    }
+    setSelection({ kind: "node", id });
+    const placement = document.placements.find((p) => p.id === id);
+    if (placement && document.compositions.some((c) => c.parentId === placement.entityId)) toggleNode(id);
+    navigate("focus", id);
+  }
+  function compact(scope: ReflowScope) {
+    try { commitDocument(compactLayout(document, scope, settings.spatial)); navigate("local", selection?.kind === "node" ? selection.id : undefined); }
+    catch (e) { setError(message(e)); }
+  }
+  function nestReason(id: string, targetId: string): string | null {
+    try { reparentStructure(document, id, targetId, settings.spatial); return null; }
+    catch (e) { return message(e); }
+  }
+  function nest(id: string, targetId: string) {
+    try {
+      commitDocument(reparentStructure(document, id, targetId, settings.spatial));
+      setSelection({ kind: "node", id }); navigate("focus", targetId);
+    } catch (e) { setError(message(e)); }
+  }
+  function contextAction(action: ContextAction, target: ContextTarget) {
+    const id = target.kind === "node" ? target.id : null;
+    switch (action) {
+      case "createChild": if (id) addNode(id); break;
+      case "createAt": if (target.kind === "space") addNode(null, target.world); break;
+      case "insertExisting": setInsertQuery(""); setInsertContext({ parentId: id, world: target.kind === "space" ? target.world : undefined }); break;
+      case "connect": if (id) { setConnectionSource(id); setSelection({ kind: "node", id }); } break;
+      case "toggle": if (id) toggleNode(id); break;
+      case "focus": if (id) { setSelection({ kind: "node", id }); navigate("focus", id); } break;
+      case "edit": if (id) { setSelection({ kind: "node", id }); navigate("focus", id); setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0); } break;
+      case "removePlacement": if (id) removePlacement(id); break;
+      case "deleteIdentity": if (id) { const entityId = document.placements.find((p) => p.id === id)?.entityId; if (entityId) deleteIdentity(entityId); } break;
+      case "compact": compact(activeFrame ? { kind: "frame", frameId: activeFrame.id } : { kind: "all" }); break;
+      case "fitAll": navigate("all"); break;
+      case "settings": setSettingsOpen(true); break;
+    }
+  }
+  function runAction(action: ActionId) {
+    switch (action) {
+      case "focus": if (selection?.kind === "node") navigate("focus", selection.id); break;
+      case "fitLocal": navigate("local", selection?.kind === "node" ? selection.id : undefined); break;
+      case "fitAll": navigate("all"); break;
+      case "back": navigate("back"); break;
+      case "newNode": addNode(null); break;
+      case "newChild": if (selection?.kind === "node") addNode(selection.id); break;
+      case "connect": if (selection?.kind === "node") setConnectionSource(selection.id); break;
+      case "expand": if (selection?.kind === "node") toggleNode(selection.id); break;
+      case "toggleSnap": setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: old.spatial.spacing ? 0 : 2 } })); break;
+      case "axisX": setConstraintAxis("x"); break;
+      case "axisY": setConstraintAxis("y"); break;
+      case "axisZ": setConstraintAxis("z"); break;
+      case "compactSelected": if (selection?.kind === "node") compact({ kind: "subsystem", placementId: selection.id }); break;
+      case "compactFrame": if (activeFrame) compact({ kind: "frame", frameId: activeFrame.id }); break;
+      case "compactAll": compact({ kind: "all" }); break;
+      case "undo": undo(); break;
+      case "redo": redo(); break;
+      case "cancel": setConnectionSource(null); setInsertContext(null); setSettingsOpen(false); navigate("cancel"); break;
+      case "settings": setSettingsOpen(true); break;
+    }
+  }
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (capturing) {
+        event.preventDefault();
+        const key = normalizeKey(event);
+        if (key === "Esc") { setCapturing(null); return; }
+        if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
+        const conflict = keyConflict(settings.bindings, capturing, key);
+        if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label}.`); return; }
+        setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key } }));
+        setCapturing(null); setError(""); return;
+      }
+      if (isTypingTarget(event.target)) return;
+      const action = actionForKey(settings.bindings, normalizeKey(event));
+      if (!action || event.repeat) return;
+      if ((settingsOpen || insertContext) && action !== "cancel") return;
+      event.preventDefault(); runAction(action);
+    };
+    const keyup = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
+      const action = actionForKey(settings.bindings, normalizeKey(event));
+      if (action === "axisX" || action === "axisY" || action === "axisZ") setConstraintAxis(null);
+    };
+    window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
+    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); };
+  });
   function outline(parentId: string | null): React.ReactNode {
     return (
       <ul>
@@ -506,6 +627,12 @@ function Workbench() {
         </div>
         <div className="toolbar-actions">
           <button onClick={() => addNode(null)}>+ Node</button>
+          <label className="toolbar-snap">Snap
+            <select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>
+              {[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}
+            </select>
+          </label>
+          <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>
           <button onClick={undo} disabled={!past.length}>
             Undo
           </button>
@@ -938,32 +1065,13 @@ function Workbench() {
                   />
                 </label>
                 <label>
-                  Parent
+                  Visual parent (placement only)
                   <select
                     aria-label="Node parent"
                     value={selectedNode.parentId ?? ""}
                     onChange={(e) => {
-                      const moved = reparent(
-                        atlas,
-                        selectedNode.id,
-                        e.target.value || null,
-                      ).nodes.find((n) => n.id === selectedNode.id)!;
-                      commitDocument({
-                        ...document,
-                        placements: document.placements.map((p) =>
-                          p.id === selectedNode.id
-                            ? {
-                                ...p,
-                                parentId: moved.parentId,
-                                position: moved.position,
-                                spatialPosition: moved.spatialPosition,
-                              }
-                            : p.id === moved.parentId
-                              ? { ...p, collapsed: false }
-                              : p,
-                        ),
-                      });
-                      fit();
+                      try { commitDocument(reparentVisual(document, selectedNode.id, e.target.value || null, settings.spatial)); navigate("focus", selectedNode.id); }
+                      catch (error) { setError(message(error)); }
                     }}
                   >
                     <option value="">None (root)</option>
@@ -1057,9 +1165,13 @@ function Workbench() {
                   })}
                   {selectedNode.spatialPosition && (
                     <button
-                      onClick={() => patchNode(selectedNode.id, { spatialPosition: undefined })}
+                      onClick={() => patchNode(selectedNode.id, { spatialPosition: {
+                        x: selectedNode.position.x / 100,
+                        y: selectedNode.parentId ? -2 : 0,
+                        z: selectedNode.position.y / 100,
+                      } })}
                     >
-                      Use 2D-derived position
+                      Move near legacy 2D position
                     </button>
                   )}
                 </div>
@@ -1392,9 +1504,11 @@ function Workbench() {
           )}
           <section className="help">
             <p>
-              Drag nodes to arrange them in 3D. Use Parent to change containment. Drag empty space
-              to rotate, right-drag to pan, and scroll to zoom.
+              Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a sphere to move it. Shift-drag it onto another sphere to nest. Right-click for charting actions.
             </p>
+            <button onClick={() => compact({ kind: "all" })}>Compact entire atlas</button>
+            <button disabled={selection?.kind !== "node"} onClick={() => selection?.kind === "node" && compact({ kind: "subsystem", placementId: selection.id })}>Compact selected subsystem</button>
+            <button disabled={!activeFrame} onClick={() => activeFrame && compact({ kind: "frame", frameId: activeFrame.id })}>Compact current frame</button>
             <p>
               Autosave is specific to this browser and origin. Export JSON for a portable backup.
               This is a private local atlas.
@@ -1406,8 +1520,15 @@ function Workbench() {
             <SpatialWorkspace
               atlas={atlas}
               selectedId={selection?.kind === "node" ? selection.id : null}
-              onSelect={(id) => setSelection(id ? { kind: "node", id } : null)}
-              onMove={(id, spatialPosition) => patchNode(id, { spatialPosition })}
+              settings={settings}
+              command={navCommand}
+              constraintAxis={constraintAxis}
+              onNodeClick={nodeClicked}
+              resolveMove={(id, local) => nearestFree(document, id, local, settings.spatial)}
+              onMove={(id, local) => { try { commitDocument(movePlacement(document, id, local, settings.spatial)); } catch (e) { setError(message(e)); } }}
+              canNest={nestReason}
+              onNest={nest}
+              onContextAction={contextAction}
             />
           </Suspense>
           {!atlas.nodes.length && (
@@ -1418,6 +1539,24 @@ function Workbench() {
           )}
         </div>
       </main>
+      {connectionSource && <div className="operation-banner" role="status">Select another sphere to connect from {atlas.nodes.find((n) => n.id === connectionSource)?.label || "selected node"}. <button onClick={() => setConnectionSource(null)}>Cancel</button></div>}
+      {insertContext && <div className="workspace-dialog-backdrop" onClick={() => setInsertContext(null)}><div className="workspace-dialog" role="dialog" aria-label="Insert existing entity" onClick={(event) => event.stopPropagation()}>
+        <h2>Insert existing entity or subsystem</h2>
+        <input autoFocus aria-label="Search existing entities" value={insertQuery} onChange={(event) => setInsertQuery(event.target.value)} placeholder="Search label, alias, or ID" />
+        <div className="entity-results">{document.entities.filter((entity) => `${entity.id} ${entity.label} ${entity.aliases.join(" ")}`.toLowerCase().includes(insertQuery.toLowerCase())).slice(0, 30).map((entity) => <button key={entity.id} onClick={() => insertExisting(entity.id, insertContext.parentId, insertContext.world)}>{entity.label || entity.id}<small>{entity.id}</small></button>)}</div>
+        <button onClick={() => setInsertContext(null)}>Close</button>
+      </div></div>}
+      {settingsOpen && <div className="workspace-dialog-backdrop" onClick={() => setSettingsOpen(false)}><div className="workspace-dialog settings-dialog" role="dialog" aria-label="Workspace settings" onClick={(event) => event.stopPropagation()}>
+        <h2>Workspace settings</h2>
+        <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>
+        <label>Sphere radius<input type="number" min="0.25" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.25, Math.min(3, Number(event.target.value) || 0.25)) } }))} /></label>
+        <label>Collision clearance<input type="number" min="0" max="2" step="0.05" value={settings.spatial.clearance} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, clearance: Math.max(0, Math.min(2, Number(event.target.value) || 0)) } }))} /></label>
+        {(["leftEmpty", "rightEmpty"] as const).map((button) => <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>)}
+        <h2>Keyboard actions</h2>
+        {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
+        {Array.from(new Set(ACTIONS.map((action) => action.category))).map((category) => <div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter((action) => action.category === category).map((action) => <div key={action.id} className="binding-row"><span>{action.label}</span><button onClick={() => setCapturing(action.id)}>{capturing === action.id ? "Press a key…" : settings.bindings[action.id] || "Unassigned"}</button><button aria-label={`Clear ${action.label} binding`} onClick={() => setSettings((old) => ({ ...old, bindings: { ...old.bindings, [action.id]: "" } }))}>×</button></div>)}</div>)}
+        <div className="dialog-actions"><button onClick={() => { setSettings(defaultSettings()); setCapturing(null); }}>Restore defaults</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
+      </div></div>}
     </div>
   );
 }
