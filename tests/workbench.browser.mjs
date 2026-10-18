@@ -32,6 +32,7 @@ try {
   await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.entities.length === 4);
   const initial = await read();
   const entity = (name) => initial.entities.find((e) => e.label === name).id;
+  const placement = (name) => initial.placements.find((p) => p.entityId === entity(name)).id;
   assert.deepEqual(
     initial.compositions.map((c) => [c.parentId, c.childId]),
     [
@@ -56,8 +57,8 @@ try {
   );
   const typeId = (await read()).relationshipTypes.find((t) => t.name === "Dependency").id;
   await page.getByLabel(`Type symbol ${typeId}`).fill("⇢");
-  await page.getByLabel("New relationship source").selectOption(entity("Subsystem"));
-  await page.getByLabel("New relationship target").selectOption(entity("Neighbor"));
+  await page.getByLabel("New relationship source").selectOption(placement("Subsystem"));
+  await page.getByLabel("New relationship target").selectOption(placement("Neighbor"));
   await page.getByRole("button", { name: "Add relationship", exact: true }).click();
   await page.getByLabel("Relationship type").selectOption(typeId);
   await saved(
