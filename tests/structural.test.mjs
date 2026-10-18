@@ -4,6 +4,7 @@ import {
   emptyDocument,
   parseDocument,
   editorView,
+  expandPlacement,
   reconcileEditor,
   validateDocument,
 } from "../src/graph/structural.ts";
@@ -101,6 +102,40 @@ test("one identity supports multiple placements; connector choice is lexical and
     "subsystem",
   );
   assert.equal(JSON.stringify(doc.relationships), original);
+});
+
+test("expanding a subsystem reference reveals existing components through new placements only", () => {
+  const doc = parse(legacy());
+  doc.placements.push({
+    id: "reference",
+    entityId: "subsystem",
+    parentId: null,
+    position: { x: 400, y: 400 },
+    collapsed: true,
+    hidden: false,
+  });
+  const before = JSON.stringify({
+    entities: doc.entities,
+    compositions: doc.compositions,
+    relationships: doc.relationships,
+  });
+  const expanded = expandPlacement(doc, "reference");
+  const child = expanded.placements.find((p) => p.parentId === "reference");
+  assert.equal(child.entityId, "part");
+  assert.equal(expanded.entities.filter((e) => e.id === "part").length, 1);
+  assert.equal(expanded.placements.find((p) => p.id === "reference").collapsed, false);
+  assert.equal(
+    JSON.stringify({
+      entities: expanded.entities,
+      compositions: expanded.compositions,
+      relationships: expanded.relationships,
+    }),
+    before,
+  );
+  assert.equal(
+    expandPlacement(expanded, "reference").placements.length,
+    expanded.placements.length,
+  );
 });
 
 test("renderer edits update placements; visual reparenting alone adds no structural fact", () => {

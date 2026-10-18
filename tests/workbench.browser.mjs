@@ -25,22 +25,30 @@ try {
   await page.getByLabel("Node name", { exact: true }).fill("System");
   await page.getByRole("button", { name: "+ Child node" }).click();
   await page.getByLabel("Node name", { exact: true }).fill("Subsystem");
+  await page.getByRole("button", { name: "+ Child node" }).click();
+  await page.getByLabel("Node name", { exact: true }).fill("Part");
   await page.getByRole("button", { name: "+ Node", exact: true }).click();
   await page.getByLabel("Node name", { exact: true }).fill("Neighbor");
-  await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.entities.length === 3);
+  await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.entities.length === 4);
   const initial = await read();
   const entity = (name) => initial.entities.find((e) => e.label === name).id;
   assert.deepEqual(
     initial.compositions.map((c) => [c.parentId, c.childId]),
-    [[entity("System"), entity("Subsystem")]],
+    [
+      [entity("System"), entity("Subsystem")],
+      [entity("Subsystem"), entity("Part")],
+    ],
   );
   await page.getByLabel("Find existing identity").fill("Subsystem");
   await page.getByRole("button", { name: /Insert Subsystem/ }).click();
-  await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.placements.length === 4);
-  assert.equal((await read()).entities.length, 3);
+  await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.placements.length === 5);
+  assert.equal((await read()).entities.length, 4);
+  await page.getByRole("button", { name: "Expand structural contents" }).click();
+  await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.placements.length === 6);
+  assert.equal((await read()).entities.filter((e) => e.id === entity("Part")).length, 1);
   await page.getByRole("button", { name: "Remove this placement" }).click();
-  await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.placements.length === 3);
-  assert.equal((await read()).entities.length, 3);
+  await saved(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))?.placements.length === 5);
+  assert.equal((await read()).entities.length, 4);
   page.once("dialog", (dialog) => dialog.accept("Dependency"));
   await page.getByRole("button", { name: "+ Define type" }).click();
   await saved(
@@ -112,7 +120,7 @@ try {
       (p) => p.id === "ai-reference",
     ),
   );
-  assert.equal((await read()).entities.length, 3);
+  assert.equal((await read()).entities.length, 4);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   assert.equal(
     (await read()).placements.some((p) => p.id === "ai-reference"),

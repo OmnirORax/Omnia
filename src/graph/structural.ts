@@ -382,6 +382,41 @@ export function editorView(doc: Document): LegacyAtlas {
   return { format: "omnium-atlas", version: 1, nodes, relationships };
 }
 
+/** Reveals direct charted components as placements, never as copied identities or facts. */
+export function expandPlacement(doc: Document, placementId: string): Document {
+  const next = structuredClone(doc);
+  const parent = next.placements.find((p) => p.id === placementId);
+  if (!parent) throw new Error(`Missing placement: ${placementId}`);
+  const components = next.compositions.filter((c) => c.parentId === parent.entityId);
+  const activeFrame = next.frames.find((f) => f.id === next.activeFrameId);
+  if (activeFrame && !activeFrame.locked) {
+    const added = components.filter((c) => !activeFrame.scope.entityIds.includes(c.childId));
+    if (added.length) {
+      activeFrame.history.push({
+        revision: doc.revision,
+        scope: structuredClone(activeFrame.scope),
+      });
+      activeFrame.scope.entityIds.push(...added.map((c) => c.childId));
+    }
+  }
+  for (const component of components) {
+    if (next.placements.some((p) => p.parentId === placementId && p.entityId === component.childId))
+      continue;
+    const index = next.placements.filter((p) => p.parentId === placementId).length;
+    next.placements.push({
+      id: crypto.randomUUID(),
+      entityId: component.childId,
+      parentId: placementId,
+      position: { x: 28, y: 104 + index * 112 },
+      spatialPosition: { x: (index % 4) * 2.8, y: -2, z: Math.floor(index / 4) * 2.8 },
+      collapsed: true,
+      hidden: false,
+    });
+  }
+  parent.collapsed = false;
+  return validateDocument(next);
+}
+
 /** Reconcile edits from the pre-existing editor while keeping semantic identity separate. */
 export function reconcileEditor(doc: Document, before: LegacyAtlas, after: LegacyAtlas): Document {
   const next = structuredClone(doc);

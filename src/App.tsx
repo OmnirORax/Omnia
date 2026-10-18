@@ -5,6 +5,7 @@ import type { Atlas, AtlasNode } from "./graph/model";
 import {
   emptyDocument,
   editorView,
+  expandPlacement,
   parseDocument,
   reconcileEditor,
   validateDocument,
@@ -864,7 +865,9 @@ function Workbench() {
                   <>
                     <button
                       onClick={() =>
-                        patchNode(selectedNode.id, { collapsed: !selectedNode.collapsed })
+                        selectedNode.collapsed
+                          ? commitDocument(expandPlacement(document, selectedNode.id))
+                          : patchNode(selectedNode.id, { collapsed: true })
                       }
                     >
                       {selectedNode.collapsed
