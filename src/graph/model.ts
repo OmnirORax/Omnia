@@ -5,6 +5,7 @@ export interface AtlasNode {
   notes: string;
   parentId: string | null;
   position: { x: number; y: number }; // Local to parent; root positions are canvas coordinates.
+  spatialPosition?: { x: number; y: number; z: number }; // Optional local XYZ layout, independent of 2D.
   collapsed: boolean;
 }
 
@@ -50,6 +51,20 @@ export function reparent(atlas: Atlas, id: string, parentId: string | null): Atl
     throw new Error("A node cannot contain itself or its ancestor.");
   if (parentId && !atlas.nodes.some((n) => n.id === parentId)) throw new Error("Parent not found.");
   const siblings = atlas.nodes.filter((n) => n.parentId === parentId && n.id !== id);
+  // Keep an authored 3D world location when changing containment.
+  const world = (nodeId: string | null): { x: number; y: number; z: number } => {
+    if (!nodeId) return { x: 0, y: 0, z: 0 };
+    const node = atlas.nodes.find((n) => n.id === nodeId)!;
+    const parent = world(node.parentId);
+    const local = node.spatialPosition ?? {
+      x: node.position.x / 100,
+      y: node.parentId ? -2 : 0,
+      z: node.position.y / 100,
+    };
+    return { x: parent.x + local.x, y: parent.y + local.y, z: parent.z + local.z };
+  };
+  const oldWorld = atlas.nodes.find((n) => n.id === id)?.spatialPosition ? world(id) : null;
+  const nextParentWorld = oldWorld ? world(parentId) : null;
   return {
     ...atlas,
     nodes: atlas.nodes.map((n) =>
@@ -57,6 +72,14 @@ export function reparent(atlas: Atlas, id: string, parentId: string | null): Atl
         ? {
             ...n,
             parentId,
+            spatialPosition:
+              oldWorld && nextParentWorld
+                ? {
+                    x: oldWorld.x - nextParentWorld.x,
+                    y: oldWorld.y - nextParentWorld.y,
+                    z: oldWorld.z - nextParentWorld.z,
+                  }
+                : undefined,
             position: parentId
               ? { x: 28, y: 104 + siblings.length * 112 }
               : { x: 60, y: 60 + siblings.length * 120 },
@@ -82,6 +105,17 @@ export function removeNode(atlas: Atlas, id: string): Atlas {
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function xyz(value: unknown): value is { x: number; y: number; z: number } {
+  return (
+    record(value) &&
+    ["x", "y", "z"].every(
+      (axis) =>
+        typeof value[axis] === "number" &&
+        Number.isFinite(value[axis]) &&
+        Math.abs(value[axis]) <= 10000,
+    )
+  );
 }
 const text = (v: unknown, max = 10000): v is string => typeof v === "string" && v.length <= max;
 const identifier = (v: unknown): v is string => text(v, 200) && v.length > 0;
@@ -116,6 +150,8 @@ export function parseAtlas(input: string): Atlas {
       Math.abs(n.position.y) > 1_000_000
     )
       throw new Error("Invalid node fields or position.");
+    if (n.spatialPosition !== undefined && !xyz(n.spatialPosition))
+      throw new Error("Invalid 3D node position.");
     if (n.parentId && (n.position.x < 24 || n.position.y < 96))
       throw new Error("Child positions must leave room for the parent header (x ≥ 24, y ≥ 96).");
     return {
@@ -125,6 +161,15 @@ export function parseAtlas(input: string): Atlas {
       parentId: n.parentId,
       collapsed: n.collapsed,
       position: { x: n.position.x, y: n.position.y },
+      ...(n.spatialPosition
+        ? {
+            spatialPosition: {
+              x: n.spatialPosition.x,
+              y: n.spatialPosition.y,
+              z: n.spatialPosition.z,
+            },
+          }
+        : {}),
     };
   });
   const byId = new Map(nodes.map((n) => [n.id, n]));

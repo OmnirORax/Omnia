@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyAtlas, parseAtlas, descendants, removeNode, reparent } from "../src/graph/model.ts";
 import { projectAtlas } from "../src/graph/projection.ts";
+import { projectSpatial } from "../src/graph/spatial.ts";
 const node = (id, parentId = null, collapsed = false) => ({
   id,
   label: id,
@@ -121,4 +122,52 @@ test("a hidden self-relationship is internal to its collapsed branch", () => {
     projectAtlas(a).relationships.map((r) => r.id),
     ["r"],
   );
+});
+test("old 2D documents derive XYZ without changing 2D data", () => {
+  const atlas = fixture();
+  const original = JSON.stringify(atlas);
+  const projected = projectSpatial(parse(atlas));
+  assert.deepEqual(projected.nodes.find((n) => n.id === "a").world, { x: 0, y: 0, z: 0 });
+  assert.deepEqual(projected.nodes.find((n) => n.id === "b").world, { x: 0.28, y: -2, z: 1.04 });
+  assert.equal(JSON.stringify(atlas), original);
+  assert.equal(parse(atlas).nodes[0].spatialPosition, undefined);
+});
+test("authored XYZ round trips without altering 2D positions or graph references", () => {
+  const atlas = fixture();
+  atlas.nodes[1].spatialPosition = { x: 4, y: 1.5, z: -3 };
+  const loaded = parse(atlas);
+  assert.deepEqual(loaded.nodes[1].spatialPosition, atlas.nodes[1].spatialPosition);
+  assert.deepEqual(loaded.nodes[1].position, atlas.nodes[1].position);
+  assert.deepEqual(loaded.relationships, atlas.relationships);
+  assert.deepEqual(projectSpatial(loaded).nodes.find((n) => n.id === "b").world, {
+    x: 4,
+    y: 1.5,
+    z: -3,
+  });
+});
+test("3D projection preserves original endpoints across collapsed nesting", () => {
+  const atlas = fixture();
+  atlas.nodes[0].collapsed = true;
+  const projection = projectSpatial(atlas);
+  assert.deepEqual(
+    projection.nodes.filter((n) => n.visible).map((n) => n.id),
+    ["a", "d"],
+  );
+  assert.deepEqual(
+    projection.relationships.map((r) => [r.source, r.target]),
+    [["a", "d"]],
+  );
+  assert.equal(atlas.relationships[0].source, "c");
+});
+test("reparenting an authored XYZ node preserves its world position", () => {
+  const atlas = fixture();
+  atlas.nodes[1].spatialPosition = { x: 4, y: 1, z: 2 };
+  const before = projectSpatial(atlas).nodes.find((n) => n.id === "b").world;
+  const moved = reparent(atlas, "b", "d");
+  assert.deepEqual(projectSpatial(moved).nodes.find((n) => n.id === "b").world, before);
+});
+test("invalid XYZ is rejected without altering existing 2D data", () => {
+  const atlas = fixture();
+  atlas.nodes[0].spatialPosition = { x: 0, y: 0, z: Infinity };
+  assert.throws(() => parse(atlas), /3D/);
 });
