@@ -88,7 +88,7 @@ export default function SpatialWorkspace({ atlas, selectedId, onSelect, onMove }
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     } catch {
-      setError("3D rendering is unavailable in this browser. The 2D editor remains available.");
+      setError("3D rendering is unavailable in this browser.");
       return;
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));

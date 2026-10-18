@@ -9,3 +9,5 @@ Omnia is intended to become a shared environment where humans and AI construct, 
 - **Extensibility:** Omnic should be able to grow without repeatedly rebuilding Omnium.
 
 For each task, implement the requested capability with the smallest compatible change. Preserve existing functionality and user data. Keep semantic graph data distinct from view state, make costly-to-reverse decisions explicit, and avoid speculative features or abstractions.
+
+The current workbench is 3D only. Its version-2 document separates identity, charted composition and typed relationships, placements, and investigative frames. A visual parent is not a semantic parent. Version-1 authored `parentId` values migrate into both kinds of link. External AI contributes through revision-checked JSON operations that require human review; structurally valid proposals do not establish epistemic truth. Retain legacy 2D coordinates in imported data, but do not rebuild a 2D editor unless the user requests one.
