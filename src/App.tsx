@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -16,11 +16,19 @@ import "./workbench.css";
 import { descendants, emptyAtlas, newId, parseAtlas, removeNode, reparent } from "./graph/model";
 import type { Atlas, AtlasNode } from "./graph/model";
 import { projectAtlas } from "./graph/projection";
+const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v1";
 const VIEW_STORAGE_KEY = "omnium.view.v1";
 const DEFAULT_GRID = 24;
-type ViewConfig = { format: "omnium-ui-template"; version: 1; atlas: Atlas; viewport: Viewport; snapEnabled: boolean; gridSize: number };
+type ViewConfig = {
+  format: "omnium-ui-template";
+  version: 1;
+  atlas: Atlas;
+  viewport: Viewport;
+  snapEnabled: boolean;
+  gridSize: number;
+};
 type Selection = { kind: "node" | "relationship"; id: string } | null;
 type Card = Node<
   { label: string; collapsed: boolean; childCount: number; toggle: () => void },
@@ -89,6 +97,13 @@ function Workbench() {
   const [future, setFuture] = useState<Atlas[]>([]);
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
+  const [workspaceView, setWorkspaceView] = useState<"2d" | "3d">(() => {
+    try {
+      return localStorage.getItem("omnium.workspace.view.v1") === "3d" ? "3d" : "2d";
+    } catch {
+      return "2d";
+    }
+  });
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [gridSize, setGridSize] = useState(DEFAULT_GRID);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -97,14 +112,33 @@ function Workbench() {
   const flow = useReactFlow<Card>();
   useEffect(() => {
     try {
+      localStorage.setItem("omnium.workspace.view.v1", workspaceView);
+    } catch {
+      /* view preference is optional */
+    }
+  }, [workspaceView]);
+  useEffect(() => {
+    try {
       const saved = localStorage.getItem(VIEW_STORAGE_KEY);
       if (saved) {
         const value = JSON.parse(saved) as Partial<ViewConfig>;
-        if (value.viewport && typeof value.viewport.x === "number" && typeof value.viewport.y === "number" && typeof value.viewport.zoom === "number") setViewport(value.viewport);
+        if (
+          value.viewport &&
+          typeof value.viewport.x === "number" &&
+          typeof value.viewport.y === "number" &&
+          typeof value.viewport.zoom === "number"
+        )
+          setViewport(value.viewport);
         if (typeof value.snapEnabled === "boolean") setSnapEnabled(value.snapEnabled);
-        if (typeof value.gridSize === "number" && [8, 12, 16, 24, 32, 48, 64].includes(value.gridSize)) setGridSize(value.gridSize);
+        if (
+          typeof value.gridSize === "number" &&
+          [8, 12, 16, 24, 32, 48, 64].includes(value.gridSize)
+        )
+          setGridSize(value.gridSize);
       }
-    } catch { /* use defaults */ }
+    } catch {
+      /* use defaults */
+    }
   }, []);
   function commit(next: Atlas) {
     try {
@@ -129,7 +163,11 @@ function Workbench() {
     }
   }, [atlas, revision, autosave]);
   useEffect(() => {
-    try { localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ viewport, snapEnabled, gridSize })); } catch { /* view persistence is best effort */ }
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ viewport, snapEnabled, gridSize }));
+    } catch {
+      /* view persistence is best effort */
+    }
   }, [viewport, snapEnabled, gridSize]);
   const projection = useMemo(() => projectAtlas(atlas), [atlas]);
   const renderedNodes: Card[] = projection.nodes.map((n) => ({
@@ -253,9 +291,21 @@ function Workbench() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function exportTemplate() {
-    const template: ViewConfig = { format: "omnium-ui-template", version: 1, atlas, viewport, snapEnabled, gridSize };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }));
-    const link = document.createElement("a"); link.href = url; link.download = "omnium-ui-template.json"; link.click();
+    const template: ViewConfig = {
+      format: "omnium-ui-template",
+      version: 1,
+      atlas,
+      viewport,
+      snapEnabled,
+      gridSize,
+    };
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "omnium-ui-template.json";
+    link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async function importTemplate(file?: File) {
@@ -263,13 +313,37 @@ function Workbench() {
     try {
       if (file.size > 5_000_000) throw new Error("UI template exceeds the 5 MB import limit.");
       const value: unknown = JSON.parse(await file.text());
-      if (!value || typeof value !== "object" || (value as ViewConfig).format !== "omnium-ui-template" || (value as ViewConfig).version !== 1) throw new Error("Expected an Omnium UI template version 1.");
+      if (
+        !value ||
+        typeof value !== "object" ||
+        (value as ViewConfig).format !== "omnium-ui-template" ||
+        (value as ViewConfig).version !== 1
+      )
+        throw new Error("Expected an Omnium UI template version 1.");
       const template = value as ViewConfig;
       const next = parseAtlas(JSON.stringify(template.atlas));
-      if (atlas.nodes.length && !window.confirm("Replace the current atlas and UI layout with this template? You can undo this action.")) return;
-      commit(next); setViewport(template.viewport); setSnapEnabled(Boolean(template.snapEnabled)); setGridSize([8, 12, 16, 24, 32, 48, 64].includes(template.gridSize) ? template.gridSize : DEFAULT_GRID); setSelection(null); setTimeout(() => { flow.setViewport(template.viewport, { duration: 180 }); }, 80);
-    } catch (e) { setError(`Template import failed. Your atlas was not changed. ${message(e)}`); }
-    finally { if (templateInput.current) templateInput.current.value = ""; }
+      if (
+        atlas.nodes.length &&
+        !window.confirm(
+          "Replace the current atlas and UI layout with this template? You can undo this action.",
+        )
+      )
+        return;
+      commit(next);
+      setViewport(template.viewport);
+      setSnapEnabled(Boolean(template.snapEnabled));
+      setGridSize(
+        [8, 12, 16, 24, 32, 48, 64].includes(template.gridSize) ? template.gridSize : DEFAULT_GRID,
+      );
+      setSelection(null);
+      setTimeout(() => {
+        flow.setViewport(template.viewport, { duration: 180 });
+      }, 80);
+    } catch (e) {
+      setError(`Template import failed. Your atlas was not changed. ${message(e)}`);
+    } finally {
+      if (templateInput.current) templateInput.current.value = "";
+    }
   }
   async function importJSON(file?: File) {
     if (!file) return;
@@ -361,6 +435,22 @@ function Workbench() {
           <span>Atlas workbench</span>
         </div>
         <div className="toolbar-actions">
+          <div className="view-switch" aria-label="Workspace view">
+            <button
+              className={workspaceView === "2d" ? "active" : ""}
+              aria-pressed={workspaceView === "2d"}
+              onClick={() => setWorkspaceView("2d")}
+            >
+              2D
+            </button>
+            <button
+              className={workspaceView === "3d" ? "active" : ""}
+              aria-pressed={workspaceView === "3d"}
+              onClick={() => setWorkspaceView("3d")}
+            >
+              3D
+            </button>
+          </div>
           <button onClick={() => addNode(null)}>+ Node</button>
           <button onClick={undo} disabled={!past.length}>
             Undo
@@ -381,12 +471,38 @@ function Workbench() {
               void importJSON(e.target.files?.[0]);
             }}
           />
-          <input ref={templateInput} type="file" accept=".json,application/json" hidden onChange={(e) => { void importTemplate(e.target.files?.[0]); }} />
+          <input
+            ref={templateInput}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => {
+              void importTemplate(e.target.files?.[0]);
+            }}
+          />
         </div>
-        <div className="snap-controls" aria-label="Canvas snapping controls">
-          <label className="snap-toggle"><input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} /> Snap</label>
-          <label className="grid-select">Grid<select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>{[8, 12, 16, 24, 32, 48, 64].map(size => <option key={size} value={size}>{size}px</option>)}</select></label>
-        </div>
+        {workspaceView === "2d" && (
+          <div className="snap-controls" aria-label="Canvas snapping controls">
+            <label className="snap-toggle">
+              <input
+                type="checkbox"
+                checked={snapEnabled}
+                onChange={(e) => setSnapEnabled(e.target.checked)}
+              />{" "}
+              Snap
+            </label>
+            <label className="grid-select">
+              Grid
+              <select value={gridSize} onChange={(e) => setGridSize(Number(e.target.value))}>
+                {[8, 12, 16, 24, 32, 48, 64].map((size) => (
+                  <option key={size} value={size}>
+                    {size}px
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
         <span className="save-status" role="status">
           {saveStatus} · {atlas.nodes.length} nodes · {atlas.relationships.length} relationships
         </span>
@@ -468,6 +584,46 @@ function Workbench() {
                       ))}
                   </select>
                 </label>
+                {workspaceView === "3d" && (
+                  <div className="spatial-fields" aria-label="3D position">
+                    <h3>3D position (local XYZ)</h3>
+                    {(["x", "y", "z"] as const).map((axis) => {
+                      const fallback = {
+                        x: selectedNode.position.x / 100,
+                        y: selectedNode.parentId ? -2 : 0,
+                        z: selectedNode.position.y / 100,
+                      };
+                      const coordinates = selectedNode.spatialPosition ?? fallback;
+                      return (
+                        <label key={axis}>
+                          {axis.toUpperCase()}
+                          <input
+                            aria-label={`3D ${axis.toUpperCase()} position`}
+                            type="number"
+                            step="0.1"
+                            min="-10000"
+                            max="10000"
+                            value={coordinates[axis]}
+                            onChange={(event) => {
+                              const value = Number(event.target.value);
+                              if (Number.isFinite(value) && Math.abs(value) <= 10000)
+                                patchNode(selectedNode.id, {
+                                  spatialPosition: { ...coordinates, [axis]: value },
+                                });
+                            }}
+                          />
+                        </label>
+                      );
+                    })}
+                    {selectedNode.spatialPosition && (
+                      <button
+                        onClick={() => patchNode(selectedNode.id, { spatialPosition: undefined })}
+                      >
+                        Use 2D-derived position
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button onClick={() => addNode(selectedNode.id)}>+ Child node</button>
                 {forbiddenParents.size > 0 && (
                   <button
@@ -568,7 +724,11 @@ function Workbench() {
           </section>
           <section>
             <h2>Connect nodes</h2>
-            <p>Drag from a right handle to a left handle, or choose endpoints below.</p>
+            <p>
+              {workspaceView === "2d"
+                ? "Drag from a right handle to a left handle, or choose endpoints below."
+                : "Choose endpoints below to add a directed relationship."}
+            </p>
             <label>
               From
               <select
@@ -605,8 +765,10 @@ function Workbench() {
             <section>
               <h2>Relationships</h2>
               <p>
-                Dashed canvas edges (↗) connect through collapsed ancestors. This list retains every
-                relationship.
+                {workspaceView === "2d"
+                  ? "Dashed canvas edges (↗) connect through collapsed ancestors."
+                  : "3D links connect through collapsed ancestors."}{" "}
+                This list retains every relationship.
               </p>
               <ul className="relationship-list">
                 {atlas.relationships.map((r) => (
@@ -626,8 +788,9 @@ function Workbench() {
           )}
           <section className="help">
             <p>
-              Drag nodes to arrange. Use Parent to change containment. Scroll to zoom; drag the
-              canvas to pan. Fit view using the canvas controls.
+              {workspaceView === "2d"
+                ? "Drag nodes to arrange. Use Parent to change containment. Scroll to zoom; drag the canvas to pan."
+                : "Drag nodes to arrange them in 3D. Use Parent to change containment. Drag empty space to rotate, right-drag to pan, and scroll to zoom."}
             </p>
             <p>
               Autosave is specific to this browser and origin. Export JSON for a portable backup.
@@ -636,47 +799,80 @@ function Workbench() {
           </section>
         </aside>
         <div className="canvas" aria-label="Atlas canvas">
-          <ReactFlow<Card>
-            nodes={viewNodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={(changes: NodeChange<Card>[]) =>
-              setViewNodes((nodes) => applyNodeChanges(changes, nodes))
-            }
-            snapToGrid={snapEnabled}
-            snapGrid={[gridSize, gridSize]}
-            onMoveEnd={(_, nextViewport) => setViewport(nextViewport)}
-            onNodeDragStop={(_, node) =>
-              patchNode(node.id, {
-                position: node.parentId
-                  ? { x: Math.max(24, snapEnabled ? Math.round(node.position.x / gridSize) * gridSize : node.position.x), y: Math.max(96, snapEnabled ? Math.round(node.position.y / gridSize) * gridSize : node.position.y) }
-                  : { x: snapEnabled ? Math.round(node.position.x / gridSize) * gridSize : node.position.x, y: snapEnabled ? Math.round(node.position.y / gridSize) * gridSize : node.position.y },
-              })
-            }
-            onConnect={connect}
-            onNodeClick={(_, node) => setSelection({ kind: "node", id: node.id })}
-            onEdgeClick={(_, edge) => setSelection({ kind: "relationship", id: edge.id })}
-            onPaneClick={() => setSelection(null)}
-            deleteKeyCode={null}
-            multiSelectionKeyCode={null}
-            selectionKeyCode={null}
-            minZoom={0.08}
-            maxZoom={2}
-            defaultViewport={viewport}
-          >
-            <Background gap={24} size={1} color="#cbd2dc" />
-            <Controls showInteractive={false} />
-          </ReactFlow>
-          {!atlas.nodes.length && (
-            <div className="empty-state">
-              <h1>Build your atlas</h1>
-              <p>
-                Add a node, name it, and add children.
-                <br />
-                Connect nodes across branches as the structure develops.
-              </p>
-              <button onClick={() => addNode(null)}>+ Add first node</button>
-            </div>
+          {workspaceView === "3d" ? (
+            <Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
+              <SpatialWorkspace
+                atlas={atlas}
+                selectedId={selection?.kind === "node" ? selection.id : null}
+                onSelect={(id) => setSelection(id ? { kind: "node", id } : null)}
+                onMove={(id, spatialPosition) => patchNode(id, { spatialPosition })}
+              />
+            </Suspense>
+          ) : (
+            <>
+              <ReactFlow<Card>
+                nodes={viewNodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                onNodesChange={(changes: NodeChange<Card>[]) =>
+                  setViewNodes((nodes) => applyNodeChanges(changes, nodes))
+                }
+                snapToGrid={snapEnabled}
+                snapGrid={[gridSize, gridSize]}
+                onMoveEnd={(_, nextViewport) => setViewport(nextViewport)}
+                onNodeDragStop={(_, node) =>
+                  patchNode(node.id, {
+                    position: node.parentId
+                      ? {
+                          x: Math.max(
+                            24,
+                            snapEnabled
+                              ? Math.round(node.position.x / gridSize) * gridSize
+                              : node.position.x,
+                          ),
+                          y: Math.max(
+                            96,
+                            snapEnabled
+                              ? Math.round(node.position.y / gridSize) * gridSize
+                              : node.position.y,
+                          ),
+                        }
+                      : {
+                          x: snapEnabled
+                            ? Math.round(node.position.x / gridSize) * gridSize
+                            : node.position.x,
+                          y: snapEnabled
+                            ? Math.round(node.position.y / gridSize) * gridSize
+                            : node.position.y,
+                        },
+                  })
+                }
+                onConnect={connect}
+                onNodeClick={(_, node) => setSelection({ kind: "node", id: node.id })}
+                onEdgeClick={(_, edge) => setSelection({ kind: "relationship", id: edge.id })}
+                onPaneClick={() => setSelection(null)}
+                deleteKeyCode={null}
+                multiSelectionKeyCode={null}
+                selectionKeyCode={null}
+                minZoom={0.08}
+                maxZoom={2}
+                defaultViewport={viewport}
+              >
+                <Background gap={24} size={1} color="#cbd2dc" />
+                <Controls showInteractive={false} />
+              </ReactFlow>
+              {!atlas.nodes.length && (
+                <div className="empty-state">
+                  <h1>Build your atlas</h1>
+                  <p>
+                    Add a node, name it, and add children.
+                    <br />
+                    Connect nodes across branches as the structure develops.
+                  </p>
+                  <button onClick={() => addNode(null)}>+ Add first node</button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>

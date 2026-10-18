@@ -1,7 +1,7 @@
 {
   "name": "vite-min-template",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vp dev",
@@ -9,18 +9,21 @@
     "preview": "vp preview",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/model.test.mjs",
-    "test:browser": "node tests/workbench.browser.mjs"
+    "test:browser": "node tests/workbench.browser.mjs",
+    "test:3d": "node tests/workspace3d.browser.mjs"
   },
   "dependencies": {
     "@mantine/core": "9.7.2",
     "@mantine/hooks": "9.7.2",
     "@xyflow/react": "^12.12.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.0.1",
     "playwright-core": "1.61.1",
     "postcss": "^8.5.8",
