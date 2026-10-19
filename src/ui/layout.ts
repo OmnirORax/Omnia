@@ -1,0 +1,618 @@
+import type { VisualAsset } from "../graph/assets.ts";
+import { validateAsset } from "../graph/assets.ts";
+export type UIArrangement = {
+  mode: "free" | "snap";
+  grid?: { anchor: string; origin: Cell; pitch: Cell };
+};
+export type UISize = { width: number; height: number };
+export type Cell = { x: number; y: number };
+export type WindowState = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  collapsed: boolean;
+  pinned: boolean;
+  members?: UIResident[];
+  chrome?: FrameChrome;
+  magnetic?: boolean;
+  arrangement?: UIArrangement;
+  bodyOffset?: Cell;
+};
+export type UIResident = {
+  kind: "function" | "frame" | "window";
+  id: string;
+  breakBefore?: boolean;
+  position?: Cell;
+  size?: UISize;
+};
+export type FrameChrome = {
+  style?: FunctionStyle;
+  handle?: Cell;
+  controls?: Partial<Record<"collapse" | "pin" | "close", Cell>>;
+  controlStyles?: Partial<Record<"collapse" | "pin" | "close", FunctionStyle>>;
+};
+export type FunctionStyle = {
+  mode: "text" | "icon";
+  geometry: "circle" | "square" | "triangle";
+  character?: string;
+  assetId?: string;
+};
+export type UIItem = {
+  x: number;
+  y: number;
+  home?: boolean;
+  frameId?: string;
+  cell?: Cell;
+  style?: FunctionStyle;
+  pinned?: boolean;
+  anchorId?: string;
+};
+export type UIFrame = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  cellSize: number;
+  collapsed: boolean;
+  pinned: boolean;
+  members?: UIResident[];
+  width?: number;
+  chrome?: FrameChrome;
+  magnetic?: boolean;
+  arrangement?: UIArrangement;
+  bodyOffset?: Cell;
+};
+export type UILayout = {
+  version: 1 | 2;
+  windows: Record<string, WindowState>;
+  items: Record<string, UIItem>;
+  frames: UIFrame[];
+  menus: Record<string, Record<string, Cell>>;
+  panels: Record<string, boolean>;
+  assets: VisualAsset[];
+  arrangement?: UIArrangement;
+  nativeOrders?: Record<string, string[]>;
+};
+export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
+export const emptyUILayout = (): UILayout => ({
+  version: 2,
+  windows: {},
+  items: {},
+  frames: [],
+  menus: {},
+  panels: {},
+  assets: [],
+});
+const record = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
+const numeric = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= 100000;
+const cell = (v: unknown): v is Cell =>
+  record(v) &&
+  Number.isInteger(v.x) &&
+  Number.isInteger(v.y) &&
+  Math.abs(v.x as number) < 100 &&
+  Math.abs(v.y as number) < 100;
+export function validateUILayout(value: unknown): UILayout {
+  if (
+    !record(value) ||
+    ![1, 2].includes(value.version as number) ||
+    !record(value.windows) ||
+    !record(value.items) ||
+    !Array.isArray(value.frames) ||
+    !record(value.menus) ||
+    !record(value.panels) ||
+    !Array.isArray(value.assets)
+  )
+    throw new Error("Invalid UI layout.");
+  const layout = value as UILayout;
+  if (
+    layout.nativeOrders &&
+    (!record(layout.nativeOrders) ||
+      Object.keys(layout.nativeOrders).length > 500 ||
+      Object.entries(layout.nativeOrders).some(
+        ([id, order]) =>
+          !id ||
+          !Array.isArray(order) ||
+          order.length > 500 ||
+          order.some((item) => typeof item !== "string" || !item || item.length > 200) ||
+          new Set(order).size !== order.length,
+      ))
+  )
+    throw new Error("Invalid native UI order.");
+  if (layout.arrangement) validateArrangement(layout.arrangement);
+  if (
+    Object.keys(layout.items).length > 500 ||
+    layout.frames.length > 100 ||
+    Object.keys(layout.windows).length > 100 ||
+    Object.keys(layout.menus).length > 50 ||
+    layout.assets.length > 100
+  )
+    throw new Error("UI layout exceeds its size limits.");
+  layout.assets.forEach(validateAsset);
+  if (
+    new Set(layout.assets.map((a) => a.id)).size !== layout.assets.length ||
+    layout.assets.some((a) => a.kind !== "image") ||
+    layout.assets.reduce((sum, a) => sum + a.dataUrl.length, 0) > 3_500_000
+  )
+    throw new Error("Invalid UI icon assets.");
+  for (const w of Object.values(layout.windows))
+    if (
+      !record(w) ||
+      ![w.x, w.y, w.width, w.height].every(numeric) ||
+      w.width < 120 ||
+      w.height < 40 ||
+      typeof w.collapsed !== "boolean" ||
+      typeof w.pinned !== "boolean"
+    )
+      throw new Error("Invalid window geometry.");
+  const frameIds = new Set<string>();
+  for (const f of layout.frames) {
+    if (
+      !record(f) ||
+      typeof f.id !== "string" ||
+      !f.id ||
+      frameIds.has(f.id) ||
+      typeof f.name !== "string" ||
+      f.name.length > 200 ||
+      ![f.x, f.y, f.cellSize].every(numeric) ||
+      f.cellSize < 48 ||
+      f.cellSize > 220 ||
+      typeof f.collapsed !== "boolean" ||
+      typeof f.pinned !== "boolean"
+    )
+      throw new Error("Invalid UI frame.");
+    frameIds.add(f.id);
+  }
+  const occupied = new Set<string>();
+  for (const [id, item] of Object.entries(layout.items)) {
+    if (
+      !id ||
+      id.length > 200 ||
+      !record(item) ||
+      !numeric(item.x) ||
+      !numeric(item.y) ||
+      (item.home !== undefined && typeof item.home !== "boolean") ||
+      (item.pinned !== undefined && typeof item.pinned !== "boolean") ||
+      (item.anchorId !== undefined &&
+        (typeof item.anchorId !== "string" || !item.anchorId || item.anchorId.length > 500))
+    )
+      throw new Error("Invalid function placement.");
+    if (item.frameId !== undefined) {
+      if (layout.version === 2)
+        throw new Error("Version-2 UI residents use frame membership, not legacy cells.");
+      if (item.home || !frameIds.has(item.frameId) || !cell(item.cell))
+        throw new Error("Missing UI frame or slot.");
+      const slot = `${item.frameId}:${item.cell.x}:${item.cell.y}`;
+      if (occupied.has(slot)) throw new Error("Two functions occupy the same slot.");
+      occupied.add(slot);
+    }
+    if (item.style) {
+      const s = item.style;
+      if (
+        !["text", "icon"].includes(s.mode) ||
+        !["circle", "square", "triangle"].includes(s.geometry) ||
+        (s.character !== undefined &&
+          (typeof s.character !== "string" || s.character.length > 64)) ||
+        (s.assetId !== undefined && !layout.assets.some((a) => a.id === s.assetId))
+      )
+        throw new Error("Invalid function appearance.");
+    }
+  }
+  for (const menu of Object.values(layout.menus))
+    if (
+      !record(menu) ||
+      Object.keys(menu).length > 60 ||
+      !Object.values(menu).every(cell) ||
+      new Set(Object.values(menu).map((p) => `${p.x}:${p.y}`)).size !== Object.keys(menu).length
+    )
+      throw new Error("Invalid context menu layout.");
+  if (Object.values(layout.panels).some((v) => typeof v !== "boolean"))
+    throw new Error("Invalid panel layout.");
+  if (layout.version === 1) {
+    const next = structuredClone(layout);
+    next.version = 2;
+    for (const f of next.frames) {
+      const items = Object.entries(next.items)
+        .filter(([, i]) => i.frameId === f.id)
+        .sort((a, b) => a[1].cell!.y - b[1].cell!.y || a[1].cell!.x - b[1].cell!.x);
+      f.width = Math.max(160, (Math.max(0, ...items.map(([, i]) => i.cell!.x)) + 1) * f.cellSize);
+      f.members = items.map(([id, item], index) => ({
+        kind: "function",
+        id,
+        breakBefore: index > 0 && item.cell!.y !== items[index - 1][1].cell!.y,
+      }));
+    }
+    for (const item of Object.values(next.items)) {
+      delete item.frameId;
+      delete item.cell;
+    }
+    return validateUILayout(next);
+  }
+  const owners = new Map<string, string>();
+  for (const [key, container] of containers(layout)) {
+    if (
+      container.bodyOffset &&
+      (!record(container.bodyOffset) ||
+        !numeric(container.bodyOffset.x) ||
+        !numeric(container.bodyOffset.y))
+    )
+      throw new Error("Invalid UI body offset.");
+    if (container.arrangement) {
+      validateArrangement(container.arrangement);
+    }
+    if (container.magnetic !== undefined && typeof container.magnetic !== "boolean")
+      throw new Error("Invalid frame magnetism.");
+    if (
+      "width" in container &&
+      container.width !== undefined &&
+      (!numeric(container.width) || container.width < 120)
+    )
+      throw new Error("Invalid frame width.");
+    const chrome = container.chrome;
+    if (chrome) {
+      if (!record(chrome)) throw new Error("Invalid frame controls.");
+      const points = [chrome.handle, ...Object.values(chrome.controls ?? {})].filter(
+        (p) => p !== undefined,
+      );
+      if (points.some((p) => !record(p) || !numeric(p.x) || !numeric(p.y)))
+        throw new Error("Invalid frame control position.");
+      if (
+        chrome.controls &&
+        Object.keys(chrome.controls).some((k) => !["collapse", "pin", "close"].includes(k))
+      )
+        throw new Error("Invalid frame control.");
+      if (chrome.style) validateStyle(chrome.style, layout);
+      if (chrome.controlStyles) {
+        if (
+          !record(chrome.controlStyles) ||
+          Object.keys(chrome.controlStyles).some((k) => !["collapse", "pin", "close"].includes(k))
+        )
+          throw new Error("Invalid frame control styles.");
+        Object.values(chrome.controlStyles).forEach((style) => validateStyle(style, layout));
+      }
+    }
+    if (
+      container.members !== undefined &&
+      (!Array.isArray(container.members) || container.members.length > 500)
+    )
+      throw new Error("Invalid frame members.");
+    for (const member of container.members ?? []) {
+      if (!record(member)) throw new Error("Invalid frame member.");
+      if (
+        member.position &&
+        (!record(member.position) || !numeric(member.position.x) || !numeric(member.position.y))
+      )
+        throw new Error("Invalid UI resident position.");
+      if (
+        member.size &&
+        (!record(member.size) ||
+          !numeric(member.size.width) ||
+          !numeric(member.size.height) ||
+          member.size.width < 1 ||
+          member.size.height < 1)
+      )
+        throw new Error("Invalid UI resident size.");
+      if (
+        !record(member) ||
+        !["function", "frame", "window"].includes(member.kind) ||
+        typeof member.id !== "string" ||
+        !member.id ||
+        member.id.length > 200 ||
+        (member.breakBefore !== undefined && typeof member.breakBefore !== "boolean")
+      )
+        throw new Error("Invalid frame member.");
+      if (member.kind === "frame" && !frameIds.has(member.id))
+        throw new Error("Missing nested UI frame.");
+      if (member.kind === "window" && !layout.windows[member.id])
+        throw new Error("Missing nested UI window.");
+      const token = residentKey(member);
+      if (member.kind === "function" && layout.items[member.id]?.anchorId)
+        throw new Error("A function cannot be both anchored and frame-owned.");
+      if (owners.has(token)) throw new Error("A UI resident cannot belong to two frames.");
+      owners.set(token, key);
+    }
+  }
+  for (const start of owners.keys()) {
+    let key: string | undefined = start;
+    const seen = new Set<string>();
+    while (key) {
+      if (seen.has(key)) throw new Error("Circular UI frame nesting is not allowed.");
+      seen.add(key);
+      if (seen.size > 16) throw new Error("UI nesting exceeds 16 levels.");
+      key = owners.get(key);
+    }
+  }
+  return layout;
+}
+function validateArrangement(a: UIArrangement) {
+  if (!record(a) || !["free", "snap"].includes(a.mode))
+    throw new Error("Invalid UI arrangement mode.");
+  if (
+    a.grid &&
+    (!record(a.grid) ||
+      typeof a.grid.anchor !== "string" ||
+      !a.grid.anchor ||
+      !record(a.grid.origin) ||
+      !record(a.grid.pitch) ||
+      ![a.grid.origin.x, a.grid.origin.y, a.grid.pitch.x, a.grid.pitch.y].every(numeric) ||
+      a.grid.pitch.x < 16 ||
+      a.grid.pitch.y < 16)
+  )
+    throw new Error("Invalid UI snap grid.");
+}
+function validateStyle(style: FunctionStyle, layout: UILayout) {
+  if (
+    !record(style) ||
+    !["text", "icon"].includes(style.mode) ||
+    !["circle", "square", "triangle"].includes(style.geometry) ||
+    (style.character !== undefined &&
+      (typeof style.character !== "string" || style.character.length > 64)) ||
+    (style.assetId !== undefined && !layout.assets.some((a) => a.id === style.assetId))
+  )
+    throw new Error("Invalid frame appearance.");
+}
+export const residentKey = (member: Pick<UIResident, "kind" | "id">) =>
+  `${member.kind}:${member.id}`;
+export const readResident = (key: string): UIResident => ({
+  kind: key.slice(0, key.indexOf(":")) as UIResident["kind"],
+  id: key.slice(key.indexOf(":") + 1),
+});
+export function containers(layout: UILayout): [string, UIFrame | WindowState][] {
+  return [
+    ...layout.frames.map((f) => [`frame:${f.id}`, f] as [string, UIFrame]),
+    ...Object.entries(layout.windows).map(
+      ([id, w]) => [`window:${id}`, w] as [string, WindowState],
+    ),
+  ];
+}
+export function getContainer(layout: UILayout, key: string) {
+  return containers(layout).find(([id]) => id === key)?.[1];
+}
+export function ownerOf(layout: UILayout, key: string) {
+  return containers(layout).find(([, c]) => c.members?.some((m) => residentKey(m) === key))?.[0];
+}
+export function residentPinned(layout: UILayout, key: string): boolean {
+  const seen = new Set<string>();
+  let current: string | undefined = key;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const m = readResident(current);
+    if ((m.kind === "function" ? layout.items[m.id] : getContainer(layout, current))?.pinned)
+      return true;
+    current = ownerOf(layout, current);
+  }
+  return false;
+}
+export function updateContainer(
+  layout: UILayout,
+  key: string,
+  patch: Partial<UIFrame & WindowState>,
+): UILayout {
+  const m = readResident(key);
+  if (m.kind === "frame")
+    return {
+      ...layout,
+      frames: layout.frames.map((f) => (f.id === m.id ? { ...f, ...patch } : f)),
+    };
+  if (!layout.windows[m.id]) return layout;
+  return {
+    ...layout,
+    windows: { ...layout.windows, [m.id]: { ...layout.windows[m.id], ...patch } },
+  };
+}
+export function canDock(layout: UILayout, resident: string, target: string) {
+  if (
+    resident === target ||
+    !getContainer(layout, target) ||
+    residentPinned(layout, resident) ||
+    residentPinned(layout, target)
+  )
+    return false;
+  let key: string | undefined = target;
+  while (key) {
+    if (key === resident) return false;
+    key = ownerOf(layout, key);
+  }
+  return true;
+}
+export function releaseResident(layout: UILayout, key: string): UILayout {
+  let next = layout;
+  const resident = readResident(key);
+  if (resident.kind === "function" && layout.items[resident.id]?.anchorId) {
+    const { anchorId: _anchor, ...item } = layout.items[resident.id];
+    next = { ...next, items: { ...next.items, [resident.id]: item } };
+  }
+  for (const [id, c] of containers(layout))
+    if (c.members?.some((m) => residentKey(m) === key))
+      next = updateContainer(next, id, {
+        members: c.members.filter((m) => residentKey(m) !== key),
+      });
+  return next;
+}
+/** Reorder native controls as siblings; a field never becomes another field's container. */
+export function orderNativeFunction(
+  layout: UILayout,
+  id: string,
+  anchor: string,
+  homeId: string,
+  target: string,
+  after: boolean,
+): UILayout {
+  if (functionPinned(layout, id) || functionPinned(layout, target)) return layout;
+  const next = releaseResident(layout, `function:${id}`);
+  const peers = Object.keys(next.items).filter((key) => next.items[key].anchorId === anchor);
+  const order = [...new Set([...(next.nativeOrders?.[anchor] ?? []), homeId, ...peers])].filter(
+    (key) => key !== id && (key === homeId || peers.includes(key)),
+  );
+  const index = order.indexOf(target);
+  if (index < 0) return layout;
+  order.splice(index + (after ? 1 : 0), 0, id);
+  const item = {
+    ...next.items[id],
+    x: next.items[id]?.x ?? 24,
+    y: next.items[id]?.y ?? 180,
+    home: id === homeId,
+    ...(id === homeId ? {} : { anchorId: anchor }),
+  };
+  return validateUILayout({
+    ...next,
+    items: { ...next.items, [id]: item },
+    nativeOrders: { ...next.nativeOrders, [anchor]: order },
+  });
+}
+export function dockResident(
+  layout: UILayout,
+  key: string,
+  target: string,
+  index: number,
+  breakBefore = false,
+): UILayout {
+  if (!canDock(layout, key, target)) return layout;
+  const before = getContainer(layout, target)!.members ?? [];
+  const adjusted = index - before.slice(0, index).filter((m) => residentKey(m) === key).length;
+  let next = releaseResident(layout, key);
+  const members = [...(getContainer(next, target)!.members ?? [])];
+  members.splice(Math.max(0, Math.min(members.length, adjusted)), 0, {
+    ...readResident(key),
+    breakBefore,
+  });
+  next = updateContainer(next, target, { members });
+  if (readResident(key).kind === "function") {
+    const id = readResident(key).id;
+    next = {
+      ...next,
+      items: {
+        ...next.items,
+        [id]: {
+          ...next.items[id],
+          home: false,
+          x: next.items[id]?.x ?? 0,
+          y: next.items[id]?.y ?? 0,
+        },
+      },
+    };
+  }
+  return validateUILayout(next);
+}
+export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
+  if (residentPinned(layout, key)) return layout;
+  const next = releaseResident(layout, key),
+    m = readResident(key);
+  if (m.kind === "function")
+    return validateUILayout({
+      ...next,
+      items: { ...next.items, [m.id]: { ...next.items[m.id], home: false, x, y } },
+    });
+  return validateUILayout(updateContainer(next, key, { x, y }));
+}
+export function resetContainer(layout: UILayout, key: string): UILayout {
+  if (residentPinned(layout, key)) return layout;
+  const c = getContainer(layout, key);
+  if (!c) return layout;
+  return validateUILayout(
+    updateContainer(layout, key, {
+      chrome: c.chrome?.style ? { style: c.chrome.style } : undefined,
+      members: (c.members ?? []).map(({ position: _position, size: _size, ...m }) => ({
+        ...m,
+        breakBefore: false,
+      })),
+      arrangement: undefined,
+      bodyOffset: undefined,
+      ...(key.startsWith("frame:") ? { width: 280 } : { width: 420, height: 560 }),
+    }),
+  );
+}
+export function loadUILayout(fallback = emptyUILayout()): UILayout {
+  try {
+    const raw = localStorage.getItem(UI_LAYOUT_KEY);
+    return raw ? validateUILayout(JSON.parse(raw)) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+export function fitWindow(w: WindowState, width: number, height: number): WindowState {
+  const minWidth = Math.min(240, Math.max(120, width - 16));
+  const next = {
+    ...w,
+    width: Math.min(Math.max(minWidth, w.width), Math.max(120, width - 16)),
+    height: Math.min(Math.max(120, w.height), Math.max(120, height - 16)),
+  };
+  next.x = Math.max(0, Math.min(next.x, Math.max(0, width - next.width)));
+  next.y = Math.max(0, Math.min(next.y, Math.max(0, height - (next.collapsed ? 44 : next.height))));
+  return next;
+}
+export function nearestSlot(occupied: Cell[], desired: Cell): Cell {
+  if (!occupied.length) return { x: 0, y: 0 };
+  const taken = new Set(occupied.map((c) => `${c.x}:${c.y}`));
+  const candidates = occupied
+    .flatMap((c) => [
+      { x: c.x - 1, y: c.y },
+      { x: c.x + 1, y: c.y },
+      { x: c.x, y: c.y - 1 },
+      { x: c.x, y: c.y + 1 },
+    ])
+    .filter((c) => !taken.has(`${c.x}:${c.y}`) && Math.abs(c.x) < 99 && Math.abs(c.y) < 99);
+  candidates.sort(
+    (a, b) =>
+      Math.hypot(a.x - desired.x, a.y - desired.y) - Math.hypot(b.x - desired.x, b.y - desired.y) ||
+      a.y - b.y ||
+      a.x - b.x,
+  );
+  if (!candidates[0]) throw new Error("No available neighboring UI slot.");
+  return candidates[0];
+}
+export function functionPinned(layout: UILayout, id: string) {
+  return residentPinned(layout, `function:${id}`);
+}
+export function groupFunctions(
+  layout: UILayout,
+  a: string,
+  b: string,
+  x: number,
+  y: number,
+): UILayout {
+  if (a === b || functionPinned(layout, a) || functionPinned(layout, b)) return layout;
+  const id = crypto.randomUUID();
+  const released = releaseResident(releaseResident(layout, `function:${a}`), `function:${b}`);
+  return validateUILayout({
+    ...released,
+    frames: [
+      ...released.frames,
+      {
+        id,
+        name: "New frame",
+        x,
+        y,
+        cellSize: 96,
+        width: 280,
+        collapsed: true,
+        pinned: false,
+        members: [
+          { kind: "function", id: a },
+          { kind: "function", id: b },
+        ],
+      },
+    ],
+    items: {
+      ...released.items,
+      [a]: { ...released.items[a], home: false, x: 0, y: 0 },
+      [b]: { ...released.items[b], home: false, x: 0, y: 0 },
+    },
+  });
+}
+export function detachFunction(
+  layout: UILayout,
+  id: string,
+  x: number,
+  y: number,
+  reset = false,
+): UILayout {
+  if (functionPinned(layout, id)) return layout;
+  const released = releaseResident(layout, `function:${id}`),
+    items = { ...released.items };
+  if (reset) delete items[id];
+  else items[id] = { ...items[id], home: false, x, y };
+  return validateUILayout({ ...released, items });
+}

@@ -12,10 +12,12 @@ import { buildTextScene, type TextScene } from "./textScene";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
+import { EntityMenu } from "./ui/EntityMenu";
+import { FunctionControl } from "./ui/UIWorkspace";
 
 export type NavigationCommand = { sequence: number; kind: "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
-export type ContextAction = "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
-export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ };
+export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
+export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
   atlas: Atlas;
   document: Document;
@@ -349,7 +351,7 @@ export default function SpatialWorkspace(props: Props) {
         if (Math.hypot(event.clientX - right.x, event.clientY - right.y) < CLICK_THRESHOLD) {
           const rect = host.getBoundingClientRect();
           setMenu({ x: Math.min(event.clientX - rect.left, rect.width - 215), y: Math.min(event.clientY - rect.top, rect.height - 360),
-            target: callbacks.current.selectedIds.size > 1 && (!right.id || callbacks.current.selectedIds.has(right.id)) ? { kind: "selection", ids: [...callbacks.current.selectedIds] } : right.id ? { kind: "node", id: right.id } : { kind: "space", world: right.world } });
+            target: callbacks.current.selectedIds.size > 1 && (!right.id || callbacks.current.selectedIds.has(right.id)) ? { kind: "selection", ids: [...callbacks.current.selectedIds] } : right.id ? { kind: "node", id: right.id } : { kind: "space", world: right.world, screen: { x: event.clientX, y: event.clientY } } });
         }
       }
       if (event.button === 0) finishDrag(event);
@@ -410,7 +412,7 @@ export default function SpatialWorkspace(props: Props) {
     ["removePlacement", "Remove placement"], ["deleteIdentity", "Delete identity…"],
   ];
   const spaceMenu: [ContextAction, string][] = [
-    ["createAt", "Create node here"], ["insertExisting", "Insert existing entity"],
+    ["createAt", "Create node here"], ["insertExisting", "Insert existing entity"], ["createUIFrame", "Create UI frame"],
     ["compact", "Compact layout"], ["fitAll", "Fit entire atlas"], ["settings", "Workspace settings"],
   ];
   const selectionMenu: [ContextAction, string][] = [["focus", "Focus selection"], ["expand", "Expand selected"], ["collapse", "Collapse selected"], ["compact", "Compact selection"], ["deleteIdentity", "Delete selected concepts and subnodes…"]];
@@ -425,17 +427,11 @@ export default function SpatialWorkspace(props: Props) {
       </div>)}
     </div>}
     <div className="spatial-controls">
-      <button onClick={() => stateRef.current?.focus("focus", selectedId ?? undefined)} disabled={!selectedId}>Focus selected</button>
-      <button onClick={() => stateRef.current?.focus("local", selectedId ?? undefined)}>Fit local system</button>
-      <button onClick={() => stateRef.current?.focus("all")}>Fit entire atlas</button>
-      <button onClick={() => stateRef.current?.focus("back")}>Back</button>
+      <FunctionControl id="focus" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
     </div>
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}
     {!!props.selectedIds.size && <div className="selection-status" role="status">{props.selectedIds.size} selected <button onClick={() => props.onAction("focus")}>Focus</button><button onClick={() => props.onAction("deleteSelected")}>Delete</button><button onClick={() => props.onSelection([])}>Clear</button></div>}
     {feedback && <div className="spatial-feedback" role="status">{feedback}</div>}
-    {menu && <div className="spatial-menu" role="menu" style={{ left: Math.max(0, menu.x), top: Math.max(0, menu.y) }}>
-      {menuItems.map(([action, label]) =>
-        <button key={action} role="menuitem" onClick={() => { callbacks.current.onContextAction(action, menu.target); setMenu(null); }}>{label}</button>)}
-    </div>}
+    {menu && <EntityMenu kind={menu.target.kind} x={Math.max(0, menu.x)} y={Math.max(0, menu.y)} bounds={{ width: hostRef.current?.clientWidth ?? window.innerWidth, height: hostRef.current?.clientHeight ?? window.innerHeight }} items={menuItems} onChoose={(action) => { callbacks.current.onContextAction(action, menu.target); setMenu(null); }} />}
   </div>;
 }

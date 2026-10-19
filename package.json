@@ -8,9 +8,11 @@
     "build": "tsc && vp build",
     "preview": "vp preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/model.test.mjs tests/structural.test.mjs tests/layout3d.test.mjs tests/presentation.test.mjs tests/variants.test.mjs tests/subtree.test.mjs tests/visuals-selection.test.mjs",
+    "test": "node --test tests/model.test.mjs tests/structural.test.mjs tests/layout3d.test.mjs tests/presentation.test.mjs tests/variants.test.mjs tests/subtree.test.mjs tests/visuals-selection.test.mjs tests/ui-layout.test.mjs tests/ui-nesting.test.mjs tests/ui-positioning.test.mjs",
     "test:browser": "node tests/workbench.browser.mjs",
-    "test:3d": "node tests/workspace3d.browser.mjs && node tests/textWorkspace.browser.mjs && node tests/variants.browser.mjs && node tests/visuals-selection.browser.mjs"
+    "test:3d": "node tests/workspace3d.browser.mjs && node tests/textWorkspace.browser.mjs && node tests/variants.browser.mjs && node tests/visuals-selection.browser.mjs",
+    "test:ui": "node tests/ui-layout.browser.mjs && node tests/ui-nesting.browser.mjs && node tests/ui-positioning.browser.mjs",
+    "test:usability": "node tests/usability-fixes.browser.mjs"
   },
   "dependencies": {
     "@iconify-json/lucide": "1.2.146",
@@ -18,6 +20,7 @@
     "@mantine/hooks": "9.7.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-rnd": "10.5.3",
     "three": "^0.186.1"
   },
   "devDependencies": {

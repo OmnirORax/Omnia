@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_ASSET_BYTES, validateAsset, type Visual, type VisualAsset } from "./graph/assets";
+import { UIField } from "./ui/UIField";
 
 const encodeSVG = (svg: string) =>
   `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
@@ -9,12 +10,16 @@ export function VisualControls({
   assets,
   onChange,
   onAsset,
+  allowModels = true,
+  iconColor = "#c8dfff",
 }: {
   label: string;
   value?: Visual;
   assets: VisualAsset[];
   onChange: (visual: Visual) => void;
   onAsset: (asset: VisualAsset, visual: Visual) => void;
+  allowModels?: boolean;
+  iconColor?: string;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ id: string; svg?: string }[]>([]);
@@ -48,7 +53,7 @@ export function VisualControls({
           .slice(0, 60)
           .map(([name, icon]) => ({
             id: `lucide:${name}`,
-            svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${catalog.width} ${catalog.height}" color="#c8dfff">${icon.body}</svg>`,
+            svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${catalog.width} ${catalog.height}" color="${iconColor}">${icon.body}</svg>`,
           }));
         if (controller.signal.aborted) return;
         setResults(local);
@@ -84,14 +89,14 @@ export function VisualControls({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, picker]);
+  }, [query, picker, iconColor]);
   async function choose(icon: { id: string; svg?: string }) {
     try {
       const [prefix, name] = icon.id.split(":");
       const response = icon.svg
         ? null
         : await fetch(
-            `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg?color=%23c8dfff`,
+            `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg?color=${encodeURIComponent(iconColor)}`,
           );
       if (response && !response.ok) throw new Error("Could not download icon.");
       const asset: VisualAsset = {
@@ -114,6 +119,8 @@ export function VisualControls({
     try {
       if (file.size > MAX_ASSET_BYTES) throw new Error("Choose a file under 900 KB.");
       const kind = /\.glb$/i.test(file.name) ? "glb" : "image";
+      if (kind === "glb" && !allowModels)
+        throw new Error("UI function buttons use image icons or characters.");
       const mime =
         kind === "glb"
           ? "model/gltf-binary"
@@ -155,15 +162,21 @@ export function VisualControls({
   return (
     <fieldset className="visual-controls">
       <legend>{label} visual</legend>
-      <label>
-        Character / symbol
-        <input
-          aria-label={`${label} symbol`}
-          maxLength={64}
-          value={value.character ?? ""}
-          onChange={(e) => onChange({ ...value, assetId: undefined, character: e.target.value })}
-        />
-      </label>
+      <UIField
+        id={`visual:${label}:symbol`}
+        label={`${label} symbol`}
+        category={label === "Node" ? "Nodes" : "Relationships"}
+      >
+        <label>
+          Character / symbol
+          <input
+            aria-label={`${label} symbol`}
+            maxLength={64}
+            value={value.character ?? ""}
+            onChange={(e) => onChange({ ...value, assetId: undefined, character: e.target.value })}
+          />
+        </label>
+      </UIField>
       <button onClick={() => setPicker(!picker)}>Search Iconify for {label.toLowerCase()}</button>
       {picker && (
         <div className="icon-picker">
@@ -186,7 +199,7 @@ export function VisualControls({
                   src={
                     icon.svg
                       ? encodeSVG(icon.svg)
-                      : `https://api.iconify.design/${icon.id.replace(":", "/")}.svg?color=%23c8dfff`
+                      : `https://api.iconify.design/${icon.id.replace(":", "/")}.svg?color=${encodeURIComponent(iconColor)}`
                   }
                 />
                 <small>{icon.id}</small>
@@ -195,58 +208,82 @@ export function VisualControls({
           </div>
         </div>
       )}
-      <label>
-        Import SVG / PNG / GLB
-        <input
-          aria-label={`${label} asset file`}
-          type="file"
-          accept=".svg,.png,.jpg,.jpeg,.webp,.glb"
-          onChange={(e) => {
-            void upload(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-      </label>
-      {!!assets.length && (
+      <UIField
+        id={`visual:${label}:asset`}
+        label={`${label} asset import`}
+        category={label === "Node" ? "Nodes" : "Relationships"}
+      >
         <label>
-          Saved asset
-          <select
-            aria-label={`${label} saved asset`}
-            value={value.assetId ?? ""}
-            onChange={(e) =>
-              onChange({ ...value, character: undefined, assetId: e.target.value || undefined })
-            }
-          >
-            <option value="">No asset</option>
-            {assets.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+          {allowModels ? "Import SVG / PNG / GLB" : "Import SVG / PNG icon"}
+          <input
+            aria-label={`${label} asset file`}
+            type="file"
+            accept={allowModels ? ".svg,.png,.jpg,.jpeg,.webp,.glb" : ".svg,.png,.jpg,.jpeg,.webp"}
+            onChange={(e) => {
+              void upload(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
         </label>
+      </UIField>
+      {!!assets.length && (
+        <UIField
+          id={`visual:${label}:saved`}
+          label={`${label} saved asset`}
+          category={label === "Node" ? "Nodes" : "Relationships"}
+        >
+          <label>
+            Saved asset
+            <select
+              aria-label={`${label} saved asset`}
+              value={value.assetId ?? ""}
+              onChange={(e) =>
+                onChange({ ...value, character: undefined, assetId: e.target.value || undefined })
+              }
+            >
+              <option value="">No asset</option>
+              {assets.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </UIField>
       )}
-      <label>
-        <input
-          type="checkbox"
-          aria-label={`${label} show text`}
-          checked={value.showText !== false}
-          onChange={(e) => onChange({ ...value, showText: e.target.checked })}
-        />{" "}
-        Show text alongside visual
-      </label>
-      <label>
-        Visual size
-        <input
-          aria-label={`${label} visual size`}
-          type="range"
-          min="0.3"
-          max="5"
-          step="0.1"
-          value={value.size ?? 1.4}
-          onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
-        />
-      </label>
+      <UIField
+        id={`visual:${label}:text`}
+        label={`${label} show text`}
+        category={label === "Node" ? "Nodes" : "Relationships"}
+      >
+        <label>
+          <input
+            type="checkbox"
+            aria-label={`${label} show text`}
+            checked={value.showText !== false}
+            onChange={(e) => onChange({ ...value, showText: e.target.checked })}
+          />{" "}
+          Show text alongside visual
+        </label>
+      </UIField>
+      <UIField
+        id={`visual:${label}:size`}
+        label={`${label} visual size`}
+        category={label === "Node" ? "Nodes" : "Relationships"}
+      >
+        <label>
+          Visual size
+          <input
+            aria-label={`${label} visual size`}
+            type="range"
+            min="0.3"
+            max="5"
+            step="0.1"
+            value={value.size ?? 1.4}
+            onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
+          />
+        </label>
+      </UIField>
       <button onClick={() => onChange({ showText: true })}>
         Reset {label.toLowerCase()} visual
       </button>

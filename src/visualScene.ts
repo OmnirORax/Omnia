@@ -32,16 +32,38 @@ export function visualObject(
           texture.dispose();
           return;
         }
-        texture.colorSpace = THREE.SRGBColorSpace;
+        // SVGs can decode correctly in HTML/canvas yet upload blank to WebGL.
+        // Rasterize their portable source once before creating the sprite texture.
+        let map: THREE.Texture = texture;
+        if (asset.dataUrl.startsWith("data:image/svg+xml")) {
+          const image = texture.image as HTMLImageElement;
+          const canvas = document.createElement("canvas");
+          const width = image.naturalWidth || image.width || 256,
+            height = image.naturalHeight || image.height || 256;
+          const scale = 512 / Math.max(width, height);
+          canvas.width = Math.max(1, Math.round(width * scale));
+          canvas.height = Math.max(1, Math.round(height * scale));
+          const context = canvas.getContext("2d");
+          if (!context) {
+            texture.dispose();
+            fallback();
+            return;
+          }
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          map = new THREE.CanvasTexture(canvas);
+          texture.dispose();
+        }
+        map.colorSpace = THREE.SRGBColorSpace;
         const sprite = new THREE.Sprite(
           new THREE.SpriteMaterial({
-            map: texture,
+            map,
             transparent: true,
             depthWrite: false,
             depthTest: false,
           }),
         );
-        const aspect = texture.image.width / texture.image.height;
+        const dimensions = map.image as { width: number; height: number };
+        const aspect = dimensions.width / dimensions.height;
         sprite.scale.set(Math.min(1, aspect), Math.min(1, 1 / aspect), 1);
         group.add(sprite);
         requestRender();

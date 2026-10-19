@@ -1,0 +1,13 @@
+{
+  "format": "omnium-ui-template",
+  "version": 3,
+  "layout": {
+    "version": 1,
+    "windows": {},
+    "items": {},
+    "frames": [],
+    "menus": {},
+    "panels": {},
+    "assets": []
+  }
+}
