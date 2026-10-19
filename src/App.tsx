@@ -104,6 +104,7 @@ function Workbench() {
     root.style.setProperty("--omnium-font", fontFamily(a.font));
     const base = a.theme === "neon" ? a.background : "#f8faff";
     root.style.setProperty("--omnium-accent", a.accent);
+    root.style.setProperty("--omnium-base", base);
     root.style.setProperty("--omnium-frame-fill", a.theme === "neon" ? a.accent : "#b6d4f2");
     root.style.setProperty("--omnium-panel", `color-mix(in srgb, ${base} ${a.windowOpacity * a.opacity * 100}%, transparent)`);
     root.style.setProperty("--omnium-handle", `color-mix(in srgb, color-mix(in srgb, ${a.theme === "neon" ? a.accent : "#e6eef8"} ${a.theme === "neon" ? 12 : 100}%, ${base}) ${a.windowOpacity * a.opacity * 100}%, transparent)`);
