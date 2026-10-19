@@ -53,6 +53,8 @@ export const LIBRARY_CATEGORIES = [
   "Investigations",
   "AI",
   "Settings",
+  "Appearance",
+  "Animations",
   "Shortcuts",
   "Interface",
 ];

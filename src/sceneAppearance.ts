@@ -3,7 +3,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SceneGlow } from "./sceneGlow";
 import { createStructuralSparkles } from "./structuralSparkles";
-import { effectVisible, resolveSparkles } from "./graph/effects";
+import { effectVisible, resolveTargetSparkles } from "./graph/effects";
 import type { TextScene } from "./textScene";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
@@ -22,7 +22,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     const glow = context.createRadialGradient(32, 32, 0, 32, 32, 30);
     glow.addColorStop(0, "#ffffff"); glow.addColorStop(0.16, "#ffffffd0"); glow.addColorStop(1, "#ffffff00");
     context.fillStyle = glow; context.fillRect(0, 0, 64, 64);
-    if (effect === "stars") {
+    if (effect === "stars" || effect === "falling-stars") {
       context.strokeStyle = "#ffffffaa"; context.lineWidth = 2;
       context.beginPath(); context.moveTo(32, 8); context.lineTo(32, 56); context.moveTo(8, 32); context.lineTo(56, 32); context.stroke();
     } else if (effect === "sparks") {
@@ -40,9 +40,9 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
   let timer: ReturnType<typeof setTimeout> | undefined, redraw: (() => void) | undefined;
   const moving = () => {
     if (appearance.opacity === 0 || reducedMotion.matches) return false;
-    const source = sources(), fx = [resolveSparkles(appearance, appearance.nodes.effects), resolveSparkles(appearance, appearance.binders.effects)];
+    const source = sources(), fx = [resolveTargetSparkles(appearance, "nodes"), resolveTargetSparkles(appearance, "binders"), resolveTargetSparkles(appearance, "background")];
     if (appearance.motion > 0 && [...(source?.nodes.values() ?? [])].some(node => node.selected)) return true;
-    return appearance.theme === "neon" && fx.some((value, index) => effectVisible(value) && value.motion > 0 && (index === 0 ? source?.nodes.size : source?.connectors.length));
+    return appearance.theme === "neon" && fx.some((value, index) => effectVisible(value) && value.motion > 0 && (index === 0 ? source?.nodes.size : index === 1 ? source?.connectors.length : true));
   };
   const schedule = () => {
     if (timer !== undefined) clearTimeout(timer); timer = undefined;
@@ -68,7 +68,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
       if (moving()) phase += Math.min(0.1, previousTime ? (now - previousTime) / 1000 : 0);
       previousTime = now;
       sources()?.animateSelection(camera, phase, !reducedMotion.matches && appearance.motion > 0);
-      structural.update(appearance, sources(), reducedMotion.matches ? 0 : phase, textureFor);
+      structural.update(appearance, sources(), reducedMotion.matches ? 0 : phase, camera, textureFor);
       if (timer === undefined) schedule();
       if (appearance.theme === "neon" && appearance.glow > 0 && !failed) {
         try {

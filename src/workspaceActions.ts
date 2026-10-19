@@ -1,4 +1,5 @@
 import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from "./graph/layout3d.ts";
+import { ANIMATION_TARGETS, EFFECT_KINDS, normalizeSparkleOverrides, type AnimationTarget, type SurfaceTarget, type SparkleStyle, type EffectKind } from "./graph/effects.ts";
 import type { StyleDefaults } from "./graph/appearance.ts";
 
 export const ACTIONS = [
@@ -47,14 +48,14 @@ export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
   spatial: SpatialSettings;
   isolateFocus: boolean;
-  appearance: { theme: "neon" | "classic"; accent: string; background: string; opacity: number; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effect: "stars" | "dust" | "sparks" | "off"; effectIntensity: number; density: number; motion: number; windowOpacity: number; blur: number };
+  appearance: { theme: "neon" | "classic"; accent: string; background: string; opacity: number; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effect: EffectKind; effectTargets: Record<AnimationTarget, boolean>; surfaceEffects: Partial<Record<SurfaceTarget, Partial<SparkleStyle>>>; effectIntensity: number; density: number; motion: number; windowOpacity: number; blur: number };
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
   bindings: Record<string, string>;
   buttonLabels: Record<string, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectIntensity: 0.35, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
     buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -90,18 +91,17 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
       const style = value.appearance?.[group];
       if (/^#[0-9a-f]{6}$/i.test(style?.color ?? "")) defaults.appearance[group].color = style!.color;
       for (const key of ["opacity", "glow"] as const) if (typeof style?.[key] === "number" && Number.isFinite(style[key])) defaults.appearance[group][key] = Math.max(0, Math.min(key === "glow" ? 2 : 1, style[key]));
-      if (style?.effects) {
-        const fx: NonNullable<StyleDefaults["effects"]> = {};
-        if (["stars", "dust", "sparks", "off"].includes(style.effects.effect ?? "")) fx.effect = style.effects.effect;
-        for (const key of ["intensity", "density", "motion"] as const) if (typeof style.effects[key] === "number" && Number.isFinite(style.effects[key])) fx[key] = Math.max(0, Math.min(1, style.effects[key]));
-        if (Object.keys(fx).length) defaults.appearance[group].effects = fx;
-      }
+      if (style?.effects) defaults.appearance[group].effects = normalizeSparkleOverrides(style.effects);
     }
     for (const key of ["accent", "background"] as const) if (/^#[0-9a-f]{6}$/i.test(value.appearance?.[key] ?? "")) defaults.appearance[key] = value.appearance![key];
-    if (["stars", "dust", "sparks", "off"].includes(value.appearance?.effect ?? "")) defaults.appearance.effect = value.appearance!.effect;
+    if (EFFECT_KINDS.includes(value.appearance?.effect as EffectKind)) defaults.appearance.effect = value.appearance!.effect;
     for (const key of ["opacity", "effectIntensity", "density", "motion", "windowOpacity", "blur"] as const) {
       const n = value.appearance?.[key];
       if (typeof n === "number" && Number.isFinite(n)) defaults.appearance[key] = Math.max(0, Math.min(key === "blur" ? 20 : 1, n));
+    }
+    for (const target of ANIMATION_TARGETS) {
+      if (typeof value.appearance?.effectTargets?.[target] === "boolean") defaults.appearance.effectTargets[target] = value.appearance.effectTargets[target];
+      if (target !== "nodes" && target !== "binders" && value.appearance?.surfaceEffects?.[target]) defaults.appearance.surfaceEffects[target] = normalizeSparkleOverrides(value.appearance.surfaceEffects[target]);
     }
     const spacing = value.spatial?.spacing;
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
