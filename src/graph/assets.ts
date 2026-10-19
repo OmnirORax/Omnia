@@ -1,4 +1,5 @@
 /** Portable presentation resources, never concept identities or relationship semantics. */
+export const DEFAULT_SPHERE_DIAMETER = 0.2;
 export type VisualAsset = {
   id: string;
   name: string;
@@ -55,7 +56,7 @@ export function validateVisual(visual: Visual | undefined, assets: VisualAsset[]
       (typeof visual.character !== "string" || visual.character.length > 64)) ||
     (visual.showText !== undefined && typeof visual.showText !== "boolean") ||
     (visual.size !== undefined &&
-      (!Number.isFinite(visual.size) || visual.size < 0.3 || visual.size > 5)) ||
+      (!Number.isFinite(visual.size) || visual.size < 0.1 || visual.size > 5)) ||
     (visual.assetId !== undefined && !assets.some((a) => a.id === visual.assetId))
   )
     throw new Error("Invalid visual or missing asset reference.");
@@ -108,7 +109,7 @@ export function validateGLB(buffer: ArrayBuffer) {
 }
 export function visualFootprint(label: { width: number; height: number }, visual?: Visual) {
   const hasObject = !!(visual?.assetId || visual?.character),
-    size = visual?.size ?? (hasObject ? 1.4 : 1);
+    size = visual?.size ?? (hasObject ? 1.4 : DEFAULT_SPHERE_DIAMETER);
   const showText = label.width > 0 && label.height > 0 && visual?.showText !== false;
   const sphere = !hasObject && !showText;
   return {

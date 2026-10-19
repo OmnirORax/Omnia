@@ -8,7 +8,7 @@ import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
 import { visualObject } from "./visualScene";
 import type { Document } from "./graph/structural";
-import { visualFootprint } from "./graph/assets";
+import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./graph/assets";
 import { resolveAppearance } from "./graph/appearance";
 import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
@@ -154,7 +154,7 @@ export function buildTextScene(
       sprite,
       anchor: group.position.clone(),
       size: labelSize(node.label),
-      text, visual, visualSize: placement?.visual?.size ?? (hasVisual ? 1.4 : 1), showText: !!node.label.trim() && placement?.visual?.showText !== false,
+      text, visual, visualSize: placement?.visual?.size ?? (hasVisual ? 1.4 : DEFAULT_SPHERE_DIAMETER), showText: !!node.label.trim() && placement?.visual?.showText !== false,
       depth: doc.assets?.find(a => a.id === placement?.visual?.assetId)?.kind === "glb" ? placement?.visual?.size ?? 1.4 : 0.05,
       sphere: footprint.sphere, outline, selected, color: style.color, opacity: style.opacity,
     });

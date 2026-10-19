@@ -106,7 +106,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     const spacing = value.spatial?.spacing;
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
     if (spacing !== undefined && permitted.includes(spacing)) defaults.spatial.spacing = spacing;
-    if (typeof value.spatial?.radius === "number" && value.spatial.radius >= 0.25 && value.spatial.radius <= 3) defaults.spatial.radius = value.spatial.radius;
+    if (typeof value.spatial?.radius === "number" && value.spatial.radius >= 0.1 && value.spatial.radius <= 3) defaults.spatial.radius = value.spatial.radius;
     if (typeof value.spatial?.clearance === "number" && value.spatial.clearance >= 0 && value.spatial.clearance <= 2) defaults.spatial.clearance = value.spatial.clearance;
     if (["pan", "rotate", "none"].includes(value.mouse?.leftEmpty ?? "")) defaults.mouse.leftEmpty = value.mouse!.leftEmpty;
     if (["pan", "rotate", "none"].includes(value.mouse?.rightEmpty ?? "")) defaults.mouse.rightEmpty = value.mouse!.rightEmpty;

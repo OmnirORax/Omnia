@@ -1,6 +1,6 @@
 import { editorView, ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { labelSize } from "./labels.ts";
-import { visualFootprint } from "./assets.ts";
+import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./assets.ts";
 import { contractAlongRay, enclosingBox, translateBox, type Box3 } from "./packing.ts";
 import { localPosition, worldPositions } from "./coordinates.ts";
 import { chartedBinders, type DisplayBinder } from "./binders.ts";
@@ -10,7 +10,7 @@ export { localPosition, worldPositions } from "./coordinates.ts";
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
 export type SpatialSettings = { spacing: GridSpacing; radius: number; clearance: number };
-export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, radius: 0.5, clearance: 0.35 };
+export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, radius: DEFAULT_SPHERE_DIAMETER / 2, clearance: 0.35 };
 const origin = (): XYZ => ({ x: 0, y: 0, z: 0 });
 const add = (a: XYZ, b: XYZ): XYZ => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
 const distance = (a: XYZ, b: XYZ) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
