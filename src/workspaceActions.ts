@@ -55,7 +55,7 @@ export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
   spatial: SpatialSettings;
   isolateFocus: boolean;
-  appearance: { theme: "neon" | "classic"; accent: string; background: string; opacity: number; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effect: EffectKind; effectTargets: Record<AnimationTarget, boolean>; surfaceEffects: Partial<Record<SurfaceTarget, Partial<SparkleStyle>>>; effectIntensity: number; density: number; motion: number; windowOpacity: number; blur: number };
+  appearance: { theme: "neon" | "classic"; accent: string; background: string; opacity: number; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effectColor?: string; effect: EffectKind; effectTargets: Record<AnimationTarget, boolean>; surfaceEffects: Partial<Record<SurfaceTarget, Partial<SparkleStyle>>>; effectIntensity: number; density: number; motion: number; windowOpacity: number; blur: number };
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
   bindings: Record<string, string>;
   buttonLabels: Record<string, string>;
@@ -100,7 +100,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
       for (const key of ["opacity", "glow"] as const) if (typeof style?.[key] === "number" && Number.isFinite(style[key])) defaults.appearance[group][key] = Math.max(0, Math.min(key === "glow" ? 2 : 1, style[key]));
       if (style?.effects) defaults.appearance[group].effects = normalizeSparkleOverrides(style.effects);
     }
-    for (const key of ["accent", "background"] as const) if (/^#[0-9a-f]{6}$/i.test(value.appearance?.[key] ?? "")) defaults.appearance[key] = value.appearance![key];
+    for (const key of ["accent", "background", "effectColor"] as const) if (/^#[0-9a-f]{6}$/i.test(value.appearance?.[key] ?? "")) defaults.appearance[key] = value.appearance![key]!;
     if (EFFECT_KINDS.includes(value.appearance?.effect as EffectKind)) defaults.appearance.effect = value.appearance!.effect;
     for (const key of ["opacity", "effectIntensity", "density", "motion", "windowOpacity", "blur"] as const) {
       const n = value.appearance?.[key];

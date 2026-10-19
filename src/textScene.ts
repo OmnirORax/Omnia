@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
-import { ARROW_LENGTH, binderGap, operatorSize } from "./graph/binderGeometry";
+import { arrowLength, binderGap, operatorSize } from "./graph/binderGeometry";
 import { labelLines, labelSize } from "./graph/labels";
 import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
@@ -274,7 +274,7 @@ export function buildTextScene(
         b.arrow.scale.setScalar(markerSize);
         b.markerHit.scale.set(markerSize, markerSize, 1);
         b.markerHit.position.copy(center);
-      } else b.arrow.scale.set(0.08, ARROW_LENGTH, 0.08);
+      } else { const length = arrowLength(b.data.visual); b.arrow.scale.set(length / 3, length, length / 3); }
       b.arrow.position.copy(center);
       if (!b.markerHit) b.arrow.quaternion.setFromUnitVectors(up, tangent);
       const fade = b.related ? 1 : 0.28;

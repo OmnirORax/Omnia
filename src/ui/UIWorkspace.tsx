@@ -30,6 +30,7 @@ import {
   type FunctionStyle,
 } from "./layout";
 import { VisualControls } from "../VisualControls";
+import { ShortcutHint } from "./ShortcutHint";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
 import { DockHost } from "./DockHost";
@@ -106,6 +107,7 @@ function FunctionElement({
     item = ui.layout.items[fn.id],
     style = item?.style ?? defaultStyle;
   const [controlOpen, setControlOpen] = useState(false);
+  const shortcut = ui.shortcutBindings?.[buttonShortcutId(fn.id)];
   const asset = ui.layout.assets.find((a) => a.id === style.assetId);
   const content =
     palette || (resident && style.mode === "text") ? (
@@ -125,6 +127,7 @@ function FunctionElement({
     onMouseEnter?: () => void;
   }>;
   const shared = {
+    "aria-keyshortcuts": shortcut?.replace(/Ctrl/g, "Control").replace(/Esc/g, "Escape"),
     "data-ui-function": fn.id,
     "data-ui-palette": palette ? "true" : undefined,
     "data-ui-resident": resident ? "true" : undefined,
@@ -164,6 +167,7 @@ function FunctionElement({
           />
         ))}
         {fn.element}
+        <ShortcutHint binding={shortcut} />
       </div>
     ) : (
       cloneElement(fn.control ? <button onClick={() => setControlOpen(true)} /> : original, {
@@ -184,12 +188,12 @@ function FunctionElement({
           : (original.props["aria-label" as keyof typeof original.props] ??
             (resident || style.mode === "icon" ? fn.label : undefined)),
         className: `${original.props.className ?? ""} ui-function ${modeClass} ${!palette && ui.selectedFunctions.has(fn.id) ? "ui-selected" : ""}`,
-        children: content,
+        children: <>{content}{(palette || style.mode === "text") && <ShortcutHint binding={shortcut} />}</>,
       })
     );
   return (
     <>
-      {button}
+      {shortcut && !palette && style.mode === "icon" ? <span className="ui-icon-shortcut">{button}<ShortcutHint binding={shortcut} /></span> : button}
       {controlOpen && (
         <FloatingWindow
           id={`control:${fn.id}`}

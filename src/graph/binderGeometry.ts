@@ -7,13 +7,14 @@ import type { Document, Placement, XYZ } from "./structural.ts";
 export const ARROW_LENGTH = 0.24;
 export const OPERATOR_SCALE = 0.45;
 export const BINDER_LENGTH_RATIO = 3;
+export const arrowLength = (visual?: Visual) => ARROW_LENGTH * (visual?.size ?? 1);
 export function operatorSize(visual?: Visual) {
   return OPERATOR_SCALE * (visual?.size ?? 1.4);
 }
 /** Custom assets are normalized to a unit box; character visuals may be three units wide.
  * Use their occupied envelope so sizing does not depend on asynchronous asset loading. */
 export function operatorExtent(visual?: Visual) {
-  if (!visual?.assetId && !visual?.character) return ARROW_LENGTH;
+  if (!visual?.assetId && !visual?.character) return arrowLength(visual);
   return operatorSize(visual) * Math.hypot(visual.character ? 3 : 1, 1, visual.assetId ? 1 : 0);
 }
 export function binderGap(binder: Pick<DisplayBinder, "visual" | "label">, direction?: XYZ) {

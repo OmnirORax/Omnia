@@ -682,3 +682,7 @@ button.active,
 
 .animation-toggle { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .animation-toggle input { width: auto; flex: 0 0 auto; }
+
+.ui-shortcut-label { display: inline; margin-left: 5px; font-size: 0.85em; line-height: 1.2; font-weight: 400; opacity: 0.8; white-space: nowrap; pointer-events: none; }
+.ui-icon-shortcut { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
+.ui-icon-shortcut > .ui-shortcut-label { margin-left: 0; font-size: 11px; }

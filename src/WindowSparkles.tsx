@@ -24,10 +24,11 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
       if (surface.width !== Math.round(width * ratio) || surface.height !== Math.round(height * ratio)) { surface.width = Math.round(width * ratio); surface.height = Math.round(height * ratio); }
       context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
       if (document.hidden || a.theme !== "neon" || a.opacity === 0) return;
-      context.strokeStyle = context.fillStyle = context.shadowColor = a.accent; context.shadowBlur = a.glow * 12;
+      context.shadowBlur = a.glow * 12;
       let moving = false;
       for (const [target, selector] of selectors) {
         const fx = resolveTargetSparkles(a, target); if (!effectVisible(fx)) continue;
+        context.strokeStyle = context.fillStyle = context.shadowColor = fx.color ?? a.accent;
         const time = phase * fx.motion;
         const candidates = [...document.querySelectorAll<HTMLElement>(selector)];
         for (let index = 0; index < Math.min(100, candidates.length); index++) {

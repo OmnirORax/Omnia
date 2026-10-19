@@ -41,7 +41,7 @@ export function createStructuralSparkles(scene: THREE.Scene) {
       if (source && nodes.visible) for (const [id, item] of source.nodes) {
         if (!item.sprite.visible) continue;
         const seed = effectSeed(id), n = Math.ceil(nodeFx.density * 8), time = seconds * nodeFx.motion;
-        color.set(item.color);
+        color.set(nodeFx.color ?? item.color);
         for (let i = 0; i < n && count < maximum; i++) {
           const u = seed + i / n + time * 0.035;
           const snow = nodeFx.effect === "falling-stars", falling = fallingStar(seed, i, time);
@@ -63,7 +63,7 @@ export function createStructuralSparkles(scene: THREE.Scene) {
       if (source && binders.visible) for (const item of source.connectors) {
         if (!item.path) continue;
         const seed = effectSeed(item.data.key), n = Math.ceil(binderFx.density * 7), time = seconds * binderFx.motion;
-        color.copy(item.line.material.color);
+        if (binderFx.color) color.set(binderFx.color); else color.copy(item.line.material.color);
         for (let i = 0; i < n && count < maximum; i++) {
           const snow = binderFx.effect === "falling-stars", falling = fallingStar(seed, i, time);
           point.copy(item.path.getPoint((seed + i / n + (snow ? 0 : time * 0.06)) % 1));
@@ -77,7 +77,7 @@ export function createStructuralSparkles(scene: THREE.Scene) {
         // A camera-relative backdrop behind charted geometry, independent of atlas bounds.
         const depth = camera.far * 0.9, halfHeight = depth * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV() / 2));
         background.position.copy(camera.position); background.quaternion.copy(camera.quaternion);
-        color.set(theme.accent);
+        color.set(backgroundFx.color ?? theme.accent);
         const time = seconds * backgroundFx.motion, n = Math.ceil(backgroundFx.density * 400);
         for (let i = 0; i < n; i++) {
           const seed = effectSeed(`background:${i}`), falling = fallingStar(seed, i, time);

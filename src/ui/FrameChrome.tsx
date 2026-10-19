@@ -1,4 +1,5 @@
 import { useLayoutEffect } from "react";
+import { ShortcutHint } from "./ShortcutHint";
 import { useUI } from "./context";
 import { startResidentDrag } from "./drag";
 import type { WindowState } from "./layout";
@@ -69,6 +70,7 @@ export function FrameChrome({
           ) : (
             <strong>{title}</strong>
           )}
+          <ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${container}`]} />
         </button>
       </div>
     </header>
