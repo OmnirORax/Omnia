@@ -1,5 +1,6 @@
 import { parseAtlas as parseLegacyAtlas, type Atlas as LegacyAtlas } from "./model.ts";
 import { defaultNodeOffset } from "./labels.ts";
+import { worldPositions } from "./coordinates.ts";
 import { validateAsset, validateVisual, type Visual, type VisualAsset } from "./assets.ts";
 
 export type XY = { x: number; y: number };
@@ -477,6 +478,7 @@ export function editorView(doc: Document, expandedVariants: ReadonlySet<string> 
     (p) => canReveal(p) && !p.hidden && !excluded.has(p.entityId) && (!allowed || allowed.has(p.entityId)),
   );
   const visibleIds = new Set(visible.map((p) => p.id));
+  const worlds = worldPositions(doc);
   const nodes = visible.map((p) => {
     const e = doc.entities.find((x) => x.id === p.entityId)!;
     return {
@@ -485,7 +487,7 @@ export function editorView(doc: Document, expandedVariants: ReadonlySet<string> 
       notes: e.notes,
       parentId: p.parentId && visibleIds.has(p.parentId) ? p.parentId : null,
       position: p.position,
-      ...(p.spatialPosition ? { spatialPosition: p.spatialPosition } : {}),
+      ...(p.parentId && !visibleIds.has(p.parentId) ? { spatialPosition: worlds.get(p.id)! } : p.spatialPosition ? { spatialPosition: p.spatialPosition } : {}),
       collapsed: p.collapsed,
       ...(p.variantOwner ? { variantOwnerId: p.variantOwner.placementId } : {}),
     };
@@ -610,7 +612,11 @@ export function reconcileEditor(doc: Document, before: LegacyAtlas, after: Legac
       e.notes = n.notes;
       if (prior.parentId !== n.parentId) p.parentId = n.parentId;
       p.position = n.position;
-      p.spatialPosition = n.spatialPosition;
+      // Unchanged projected world coordinates must not overwrite canonical local coordinates.
+      if (JSON.stringify(prior.spatialPosition) !== JSON.stringify(n.spatialPosition)) {
+        const parent = p.parentId && !oldNodes.has(p.parentId) ? worldPositions(doc).get(p.parentId) : undefined;
+        p.spatialPosition = n.spatialPosition && parent ? { x: n.spatialPosition.x - parent.x, y: n.spatialPosition.y - parent.y, z: n.spatialPosition.z - parent.z } : n.spatialPosition;
+      }
       p.collapsed = n.collapsed;
     }
   }

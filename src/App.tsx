@@ -170,9 +170,6 @@ function Workbench() {
     }
     commit({ ...atlas, nodes: atlas.nodes.map((n) => (n.id === id ? { ...n, ...changes } : n)) });
   }
-  function fit() {
-    navigate("local", selection?.kind === "node" ? selection.id : undefined);
-  }
   function addNode(parentId: string | null, atWorld?: { x: number; y: number; z: number }) {
     try {
       const entityId = newId();
@@ -194,7 +191,6 @@ function Workbench() {
       if (frame?.locked) placed.next.activeFrameId = null;
       commitDocument(placed.next);
       setSelection({ kind: "node", id: placed.placementId });
-      navigate("focus", placed.placementId);
     } catch (e) { setError(message(e)); }
   }
   function connect(connection: { source: string | null; target: string | null }) {
@@ -305,7 +301,6 @@ function Workbench() {
       commitDocument(next);
       setSelection(null);
       setOptionNodeId(null); setExpandedVariants(new Set());
-      fit();
     } catch (e) {
       setError(`Import failed. Your atlas was not changed. ${message(e)}`);
     } finally {
@@ -331,14 +326,13 @@ function Workbench() {
   const flowType = document.relationshipTypes.find((t) => t.id === flowOrder.typeId) ?? document.relationshipTypes[0];
   const resolvedOrder = { typeId: flowType?.id ?? "", fromRoleId: flowOrder.fromRoleId || flowType?.roles[0]?.id || "", toRoleId: flowOrder.toRoleId || flowType?.roles[1]?.id || "" };
   function switchView(id: string) {
-    try { commitDocument(switchLayoutView(document, id)); navigate(["hierarchy", "flow"].includes(document.layoutViews?.find((v) => v.id === id)?.rule ?? "") ? "hierarchy" : "local", selection?.kind === "node" ? selection.id : undefined); }
+    try { commitDocument(switchLayoutView(document, id)); }
     catch (e) { setError(message(e)); }
   }
   function newView() {
     try {
       const name = layoutRule === "hierarchy" ? "Hierarchy" : layoutRule === "compact" ? "Compact" : layoutRule === "flow" ? "Directed flow" : "Manual";
       commitDocument(createLayoutView(document, layoutRule, `${name} ${(document.layoutViews?.length ?? 0) + 1}`, settings.spatial, resolvedOrder));
-      navigate(["hierarchy", "flow"].includes(layoutRule) ? "hierarchy" : "local", selection?.kind === "node" ? selection.id : undefined);
     } catch (e) { setError(message(e)); }
   }
   function reapplyView() {
@@ -346,7 +340,6 @@ function Workbench() {
     try {
       const next = activeLayout.rule === "hierarchy" ? hierarchyLayout(document) : activeLayout.rule === "flow" ? flowLayout(document, activeLayout.ordering) : compactLayout(document, { kind: "all" }, settings.spatial);
       commitDocument(next);
-      navigate(["hierarchy", "flow"].includes(activeLayout.rule) ? "hierarchy" : "local");
     } catch (e) { setError(message(e)); }
   }
   function removeView() {
@@ -355,7 +348,6 @@ function Workbench() {
       const fallback = document.layoutViews?.find((v) => v.id !== activeLayout.id)?.id;
       const restored = fallback ? switchLayoutView(document, fallback) : { ...document, activeLayoutViewId: null };
       commitDocument({ ...restored, layoutViews: restored.layoutViews?.filter((v) => v.id !== activeLayout.id) });
-      navigate("local");
     } catch (e) { setError(message(e)); }
   }
   const forbiddenParents = selectedNode ? descendants(atlas, selectedNode.id) : new Set<string>();
@@ -373,7 +365,6 @@ function Workbench() {
         nodes: atlas.nodes.map((n) => (ancestors.has(n.id) ? { ...n, collapsed: false } : n)),
       });
     setSelection({ kind: "node", id });
-    navigate("focus", id);
   }
   function options() {
     return atlas.nodes.map((n) => (
@@ -405,7 +396,6 @@ function Workbench() {
       if (frame?.locked) placed.next.activeFrameId = null;
       commitDocument(placed.next);
       setSelection({ kind: "node", id: placed.placementId });
-      navigate("focus", placed.placementId);
       setInsertContext(null);
     } catch (e) { setError(message(e)); }
   }
@@ -587,7 +577,6 @@ function Workbench() {
     setSelection({ kind: "node", id });
     setOptionNodeId(id);
     revealVariants(id);
-    navigate("variants", id);
   }
   function nodeDoubleClicked(id: string) {
     setOptionNodeId(null);
@@ -595,7 +584,6 @@ function Workbench() {
     setSelection({ kind: "node", id });
     const placement = document.placements.find((p) => p.id === id);
     if (placement && (document.compositions.some((c) => c.parentId === placement.entityId) || document.placements.some((p) => p.parentId === id && !p.variantOwner))) toggleNode(id);
-    navigate("focus", id);
   }
   function nodeSubtreeClicked(id: string) {
     if (!document.placements.some((p) => p.id === id)) return;
@@ -604,7 +592,6 @@ function Workbench() {
       if (next !== document) commitDocument(next);
       setSelection({ kind: "node", id }); setOptionNodeId(null);
       setExpandedVariants((current) => { const remaining = new Set(current); remaining.delete(id); return remaining; });
-      navigate("local", id);
     } catch (e) { setError(message(e)); }
   }
   function revealVariants(id: string) {
@@ -633,7 +620,6 @@ function Workbench() {
       if (frame && !frame.locked) frame.scope.entityIds.push(variant.entityId);
       if (frame?.locked) next.activeFrameId = null;
       commitDocument(next); setExpandedVariants(expanded); setOptionNodeId(ownerNodeId);
-      navigate("variants", ownerNodeId);
       if (instance) { setSelection({ kind: "node", id: instance.id }); }
       setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0);
     } catch (e) { setError(message(e)); }
@@ -642,12 +628,15 @@ function Workbench() {
     // Hidden variant branches must not block the active workspace's drag targets.
     const visibleIds = new Set(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id));
     const collisionDoc = { ...document, placements: document.placements.map((p) => ({ ...p, hidden: p.hidden || !visibleIds.has(p.id) })) };
-    const local = nearestFree(collisionDoc, id, position, settings.spatial);
+    const placement = document.placements.find(p => p.id === id)!;
+    const parent = placement.parentId && !structuralGraph.nodes.find(n => n.id === id)?.parentId ? worldPositions(document).get(placement.parentId) : undefined;
+    const desired = parent ? { x: position.x - parent.x, y: position.y - parent.y, z: position.z - parent.z } : position;
+    const local = nearestFree(collisionDoc, id, desired, settings.spatial);
     if (!preview) commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
-    return local;
+    return parent ? { x: local.x + parent.x, y: local.y + parent.y, z: local.z + parent.z } : local;
   }
   function compact(scope: ReflowScope) {
-    try { commitDocument(compactLayout(document, scope, settings.spatial)); navigate(scope.kind === "selection" && scope.placementIds.length > 1 ? "selection" : "local", selection?.kind === "node" ? selection.id : undefined); }
+    try { commitDocument(compactLayout(document, scope, settings.spatial)); }
     catch (e) { setError(message(e)); }
   }
   function nestReason(id: string, targetId: string): string | null {
@@ -657,7 +646,7 @@ function Workbench() {
   function nest(id: string, targetId: string) {
     try {
       commitDocument(reparentStructure(document, id, targetId, settings.spatial));
-      setSelection({ kind: "node", id }); navigate("focus", targetId);
+      setSelection({ kind: "node", id });
     } catch (e) { setError(message(e)); }
   }
   function contextAction(action: ContextAction, target: ContextTarget) {
@@ -670,7 +659,7 @@ function Workbench() {
         if (action === "collapse") next = { ...next, placements: next.placements.map((p) => target.ids.includes(p.id) ? { ...p, collapsed: true } : p) };
         commitDocument(next);
       }
-      if (action === "compact") { commitDocument(compactLayout(document, { kind: "selection", placementIds: target.ids }, settings.spatial)); navigate("selection"); }
+      if (action === "compact") { commitDocument(compactLayout(document, { kind: "selection", placementIds: target.ids }, settings.spatial)); }
       return;
     }
     const id = target.kind === "node" ? target.id : null;
@@ -682,7 +671,7 @@ function Workbench() {
       case "connect": if (id) { setConnectionSource(id); setSelection({ kind: "node", id }); } break;
       case "toggle": if (id) toggleNode(id); break;
       case "focus": if (id) { setSelection({ kind: "node", id }); navigate("focus", id); } break;
-      case "edit": if (id) { setSelection({ kind: "node", id }); navigate("focus", id); setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0); } break;
+      case "edit": if (id) { setSelection({ kind: "node", id }); setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0); } break;
       case "removePlacement": if (id) removePlacement(id); break;
       case "deleteIdentity": if (id) { const entityId = document.placements.find((p) => p.id === id)?.entityId; if (entityId) deleteIdentity(entityId); } break;
       case "compact": compact(activeFrame ? { kind: "frame", frameId: activeFrame.id } : { kind: "all" }); break;
@@ -704,11 +693,12 @@ function Workbench() {
       case "focus": if (selectedIds.size > 1) navigate("selection"); else if (selection?.kind === "node") navigate("focus", selection.id); break;
       case "isolateFocus":
         setSettings(old => ({ ...old, isolateFocus: !old.isolateFocus }));
-        if (!settings.isolateFocus && selection?.kind === "node") navigate(selectedIds.size > 1 ? "selection" : "focus", selection.id);
+        if (!settings.isolateFocus && selection?.kind === "node") setFocusContextIds(selectedIds.size > 1 ? [...selectedIds] : [selection.id]);
         break;
       case "fitLocal": navigate("local", selection?.kind === "node" ? selection.id : undefined); break;
       case "fitAll": navigate("all"); break;
       case "back": navigate("back"); break;
+      case "zoom100": case "cameraOrigin": case "rollLeft": case "rollRight": navigate(action); break;
       case "newNode": addNode(null); break;
       case "newChild": if (selection?.kind === "node") addNode(selection.id); break;
       case "connect": if (selection?.kind === "node") setConnectionSource(selection.id); break;
@@ -796,7 +786,7 @@ function Workbench() {
   }
   const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, category: a.category, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
   uiFunctions.find(fn => fn.id === "compactAll")!.element = <button onClick={() => runAction("compactAll")}>{selectedIds.size ? "Compact selection" : "Compact all"}</button>;
-  uiFunctions.find(fn => fn.id === "isolateFocus")!.element = <button aria-pressed={settings.isolateFocus} title="On focus, show only that node and its subtree. Fit entire atlas shows everything again." onClick={() => runAction("isolateFocus")}>Focus context only: {settings.isolateFocus ? "On" : "Off"}</button>;
+  uiFunctions.find(fn => fn.id === "isolateFocus")!.element = <button aria-pressed={settings.isolateFocus} title="On explicit focus, show that node, its subtree and its ancestor path. Fit entire atlas shows everything again." onClick={() => runAction("isolateFocus")}>Focus context only: {settings.isolateFocus ? "On" : "Off"}</button>;
   for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
@@ -810,6 +800,10 @@ function Workbench() {
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
   replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!past.length}>Undo</button>);
   replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!future.length}>Redo</button>);
+  replaceFunction("zoom100", "Reset zoom to 100%", <button title="Reset zoom to 100% at the current orbit target" onClick={() => runAction("zoom100")}>100%</button>);
+  replaceFunction("cameraOrigin", "Go to world origin", <button onClick={() => runAction("cameraOrigin")}>Origin</button>);
+  replaceFunction("rollLeft", "Roll view left 90°", <button onClick={() => runAction("rollLeft")}>↶ 90°</button>);
+  replaceFunction("rollRight", "Roll view right 90°", <button onClick={() => runAction("rollRight")}>↷ 90°</button>);
   replaceFunction("ui:undo", "Undo UI", <button onClick={() => ui.undo()} disabled={!ui.canUndo}>Undo UI</button>);
   replaceFunction("ui:redo", "Redo UI", <button onClick={() => ui.redo()} disabled={!ui.canRedo}>Redo UI</button>);
   replaceFunction("ui:newView", "New layout view", <button onClick={newView}>+ Layout view</button>);
@@ -1309,7 +1303,7 @@ function Workbench() {
                     aria-label="Node parent"
                     value={selectedNode.parentId ?? ""}
                     onChange={(e) => {
-                      try { commitDocument(reparentVisual(document, selectedNode.id, e.target.value || null, settings.spatial)); navigate("focus", selectedNode.id); }
+                      try { commitDocument(reparentVisual(document, selectedNode.id, e.target.value || null, settings.spatial)); }
                       catch (error) { setError(message(error)); }
                     }}
                   >
@@ -1443,7 +1437,6 @@ function Workbench() {
                   <button
                     onClick={() => {
                       patchNode(selectedNode.id, { collapsed: !selectedNode.collapsed });
-                      fit();
                     }}
                   >
                     {selectedNode.collapsed ? "Expand children" : "Collapse children"}

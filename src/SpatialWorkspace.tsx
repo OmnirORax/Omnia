@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Atlas } from "./graph/model";
@@ -7,15 +7,16 @@ import { disposeVisual } from "./visualScene";
 import type { ActionId, WorkspaceSettings } from "./workspaceActions";
 import type { Document } from "./graph/structural";
 import { chartedBinders } from "./graph/presentation";
-import { occupiedRadii } from "./graph/layout3d";
-import { buildTextScene, type TextScene } from "./textScene";
+import { occupiedRadii, worldPositions } from "./graph/layout3d";
+import { buildTextScene, type LabelMesh, type TextScene } from "./textScene";
+import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
 import { EntityMenu } from "./ui/EntityMenu";
 import { FunctionControl } from "./ui/UIWorkspace";
 
-export type NavigationCommand = { sequence: number; kind: "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
+export type NavigationCommand = { sequence: number; kind: "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
@@ -46,7 +47,7 @@ type Props = {
   onNest: (id: string, targetId: string) => void;
   onContextAction: (action: ContextAction, target: ContextTarget) => void;
 };
-type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; contextIds: readonly string[] | null };
+type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; up: THREE.Vector3; contextIds: readonly string[] | null };
 type SceneState = {
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
@@ -60,6 +61,13 @@ const CLICK_THRESHOLD = 5;
 const MOVE_DURATION = 380;
 const asVector = (p: XYZ) => new THREE.Vector3(p.x, p.y, p.z);
 const asXYZ = (p: THREE.Vector3): XYZ => ({ x: p.x, y: p.y, z: p.z });
+const screenBounds = (object: THREE.Object3D, camera: THREE.PerspectiveCamera, width: number, height: number) => {
+  const box = new THREE.Box3().setFromObject(object), points: THREE.Vector3[] = [];
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z])
+    points.push(new THREE.Vector3(x, y, z).project(camera));
+  const x = Math.min(...points.map(p => (p.x + 1) * width / 2)), y = Math.min(...points.map(p => (1 - p.y) * height / 2));
+  return { x, y, width: Math.max(...points.map(p => (p.x + 1) * width / 2)) - x, height: Math.max(...points.map(p => (1 - p.y) * height / 2)) - y };
+};
 
 function disposeContent(group: THREE.Group) {
   disposeVisual(group);
@@ -76,11 +84,17 @@ export default function SpatialWorkspace(props: Props) {
   const graph = isolateSpatialContext(baseGraph, settings.isolateFocus ? props.focusContextIds : null);
   const fullGraphRef = useRef(baseGraph); fullGraphRef.current = baseGraph;
   const graphRef = useRef(graph); graphRef.current = graph;
-  const meshes = useRef<THREE.Sprite[]>([]);
+  const meshes = useRef<LabelMesh[]>([]);
   const groups = useRef(new Map<string, THREE.Group>());
   const textScene = useRef<TextScene | null>(null);
   const volumeRadii = useRef(new Map<string, number>());
-  const firstFocus = useRef(false);
+  const guides = useRef(new Set<HTMLDivElement>());
+  const worldCoordinates = useRef(new Map<string, XYZ>());
+  const attachGuide = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    guides.current.add(node); stateRef.current?.requestRender();
+    return () => { guides.current.delete(node); };
+  }, []);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -96,21 +110,21 @@ export default function SpatialWorkspace(props: Props) {
     renderer.setClearColor(0x101927);
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0x101927);
-    const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 100000);
-    camera.position.set(7, 5, 9);
-    const controls = new OrbitControls(camera, renderer.domElement);
+    const camera = new THREE.PerspectiveCamera(DEFAULT_CAMERA_FOV, 1, 0.05, 100000);
+    camera.position.copy(DEFAULT_CAMERA_POSITION);
+    let controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false; controls.enablePan = true;
     controls.minDistance = 1.2; controls.maxDistance = 100000;
     const content = new THREE.Group(); scene.add(content);
+    const originAxes = new THREE.AxesHelper(2); scene.add(originAxes);
     scene.add(new THREE.AmbientLight(0xffffff, 2.1));
     const light = new THREE.DirectionalLight(0xffffff, 2.2); light.position.set(5, 12, 9); scene.add(light);
     let pendingRender = 0, animation = 0;
     const cameraHistory: CameraPose[] = [];
-    let activeFocusContext = callbacks.current.focusContextIds;
     const changeFocusContext = (ids: readonly string[] | null) => {
-      activeFocusContext = ids;
       callbacks.current.onFocusContextChange(ids);
     };
+    const rememberCamera = () => cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone(), up: camera.up.clone(), contextIds: callbacks.current.focusContextIds });
     const requestRender = () => {
       if (pendingRender) return;
       pendingRender = requestAnimationFrame(() => {
@@ -123,19 +137,33 @@ export default function SpatialWorkspace(props: Props) {
           const p = item.group.position.clone().project(camera);
           element.style.visibility = p.z > -1 && p.z < 1 ? "visible" : "hidden";
           element.style.left = `${(p.x + 1) * host.clientWidth / 2}px`;
-          const depth = -item.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z;
-          const labelHeight = item.sprite.scale.y * host.clientHeight / (2 * Math.max(camera.near, depth) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+          const labelHeight = screenBounds(item.sprite, camera, host.clientWidth, host.clientHeight).height;
           element.style.top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
         };
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
+        const selected = worldCoordinates.current.get(callbacks.current.selectedId ?? "");
+        for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
         renderer.render(scene, camera);
       });
     };
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
+    // OrbitControls caches its up-axis basis on construction. Rebind through its
+    // public API after a discrete roll, without touching private engine fields.
+    const rebindOrbit = () => {
+      const previous = controls, target = previous.target.clone();
+      previous.removeEventListener("change", requestRender); previous.removeEventListener("start", stopAnimation); previous.dispose();
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.copy(target); controls.enableDamping = false;
+      controls.minDistance = previous.minDistance; controls.maxDistance = previous.maxDistance;
+      controls.mouseButtons = { ...previous.mouseButtons }; controls.enabled = previous.enabled;
+      controls.addEventListener("change", requestRender); controls.addEventListener("start", stopAnimation);
+      if (stateRef.current) stateRef.current.controls = controls;
+      controls.update();
+    };
     const clicks = nodeClicks((id) => callbacks.current.onNodeClick(id), (id) => callbacks.current.onNodeDoubleClick(id));
     const animate = (target: THREE.Vector3, distance: number, remember = true, facing?: THREE.Vector3) => {
       stopAnimation();
-      if (remember) cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone(), contextIds: activeFocusContext });
+      if (remember) rememberCamera();
       const fromPosition = camera.position.clone(), fromTarget = controls.target.clone();
       const direction = facing ?? camera.position.clone().sub(controls.target).normalize();
       if (direction.lengthSq() < 0.001) direction.set(1, 0.7, 1).normalize();
@@ -153,9 +181,21 @@ export default function SpatialWorkspace(props: Props) {
     };
     const focus = (kind: NavigationCommand["kind"], requestedId?: string) => {
       if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = true; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
+      if (kind === "rollLeft" || kind === "rollRight") {
+        stopAnimation(); rememberCamera();
+        camera.up.applyAxisAngle(camera.getWorldDirection(new THREE.Vector3()), kind === "rollLeft" ? Math.PI / 2 : -Math.PI / 2).normalize();
+        rebindOrbit(); requestRender(); return;
+      }
+      if (kind === "zoom100") { animate(controls.target.clone(), DEFAULT_CAMERA_POSITION.length()); return; }
+      if (kind === "cameraOrigin") {
+        stopAnimation(); rememberCamera(); camera.up.set(0, 1, 0); rebindOrbit();
+        animate(new THREE.Vector3(), DEFAULT_CAMERA_POSITION.length(), false, DEFAULT_CAMERA_POSITION.clone().normalize());
+        changeFocusContext(null); return;
+      }
       if (kind === "back") {
         const pose = cameraHistory.pop(); if (!pose) return;
         stopAnimation();
+        if (camera.up.distanceTo(pose.up) > 1e-6) { camera.up.copy(pose.up); rebindOrbit(); }
         changeFocusContext(pose.contextIds);
         const fromPosition = camera.position.clone(), fromTarget = controls.target.clone();
         const start = performance.now();
@@ -175,9 +215,9 @@ export default function SpatialWorkspace(props: Props) {
         : primary ? [primary.id] : null;
       const nodes = isolateSpatialContext(fullGraphRef.current, callbacks.current.settings.isolateFocus ? contextIds : null).nodes.filter(n => n.visible);
       if (!nodes.length) return;
-      if (kind === "all" || kind === "hierarchy" || kind === "variants" || kind === "selection") {
+      if (kind === "all" || kind === "hierarchy" || kind === "variants" || kind === "selection" || callbacks.current.settings.isolateFocus) {
         const bounds = new THREE.Box3();
-        const framing = kind === "selection" ? nodes.filter((n) => callbacks.current.selectedIds.has(n.id)) : kind === "variants" ? nodes.filter((n) => n.id === requestedId || n.variantOwnerId === requestedId) : nodes;
+        const framing = callbacks.current.settings.isolateFocus ? nodes : kind === "selection" ? nodes.filter((n) => callbacks.current.selectedIds.has(n.id)) : kind === "variants" ? nodes.filter((n) => n.id === requestedId || n.variantOwnerId === requestedId) : nodes;
         if (!framing.length) return;
         for (const node of framing) {
           const center = asVector(node.world), r = callbacks.current.settings.spatial.radius;
@@ -228,8 +268,8 @@ export default function SpatialWorkspace(props: Props) {
     let binderDown: { id: string; kind: "composition" | "relationship" | "variant" | "visual"; x: number; y: number } | null = null;
     let selecting: { x: number; y: number; clientX: number; clientY: number; id?: string; additive: boolean } | null = null;
     raycaster.params.Line.threshold = 0.08;
-    let hovered: THREE.Sprite | null = null;
-    const paintHover = (mesh: THREE.Sprite | null) => {
+    let hovered: LabelMesh | null = null;
+    const paintHover = (mesh: LabelMesh | null) => {
       if (hovered === mesh) return;
       if (hovered) { hovered.material.color.setHex(0xffffff); if (hovered.userData.visualProxy) hovered.material.opacity = hovered.userData.baseOpacity; }
       hovered = mesh;
@@ -282,7 +322,7 @@ export default function SpatialWorkspace(props: Props) {
         const rect = host.getBoundingClientRect(), x = event.clientX - rect.left, y = event.clientY - rect.top;
         setSelectionRect({ x: Math.min(x, selecting.x), y: Math.min(y, selecting.y), width: Math.abs(x - selecting.x), height: Math.abs(y - selecting.y) }); return;
       }
-      if (!drag) { if (event.buttons === 0) paintHover((hits(event)[0]?.object as THREE.Sprite) ?? null); return; }
+      if (!drag) { if (event.buttons === 0) paintHover((hits(event)[0]?.object as LabelMesh) ?? null); return; }
       if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) >= CLICK_THRESHOLD) clicks.cancel();
       aim(event);
       const intersection = raycaster.ray.intersectPlane(drag.plane, new THREE.Vector3()); if (!intersection) return;
@@ -351,10 +391,8 @@ export default function SpatialWorkspace(props: Props) {
         for (const [id, item] of textScene.current?.nodes ?? []) {
           const center = item.group.position.clone().project(camera);
           if (!item.sprite.visible || center.z < -1 || center.z > 1) continue;
-          const depth = -item.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z;
-          const pixel = 2 * Math.max(camera.near, depth) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / rect.height;
-          const x = (center.x + 1) * rect.width / 2, y = (1 - center.y) * rect.height / 2;
-          if (x + item.sprite.scale.x / pixel / 2 >= x1 && x - item.sprite.scale.x / pixel / 2 <= x2 && y + item.sprite.scale.y / pixel / 2 >= y1 && y - item.sprite.scale.y / pixel / 2 <= y2) ids.add(id);
+          const box = screenBounds(item.sprite, camera, rect.width, rect.height);
+          if (box.x + box.width >= x1 && box.x <= x2 && box.y + box.height >= y1 && box.y <= y2) ids.add(id);
         }
         callbacks.current.onSelection([...ids]); return;
       }
@@ -389,7 +427,7 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.removeEventListener("pointerup", up);
       renderer.domElement.removeEventListener("pointercancel", cancel);
       renderer.domElement.removeEventListener("contextmenu", preventMenu);
-      observer.disconnect(); controls.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
+      observer.disconnect(); controls.dispose(); originAxes.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
     };
   }, []);
 
@@ -416,11 +454,8 @@ export default function SpatialWorkspace(props: Props) {
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
+    worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-    if (!firstFocus.current && visible.length) {
-      firstFocus.current = true;
-      state.focus("local", visible.find((n) => n.parentId === null)?.id ?? visible[0].id);
-    }
   }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
@@ -447,6 +482,7 @@ export default function SpatialWorkspace(props: Props) {
     <div className="spatial-controls">
       <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
     </div>
+    <div className="camera-guide-home"><CameraGuide attach={attachGuide} /></div>
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}
     {!!props.selectedIds.size && <div className="selection-status" role="status">{props.selectedIds.size} selected <button onClick={() => props.onAction("focus")}>Focus</button><button onClick={() => props.onAction("deleteSelected")}>Delete</button><button onClick={() => props.onSelection([])}>Clear</button></div>}
     {feedback && <div className="spatial-feedback" role="status">{feedback}</div>}
