@@ -56,6 +56,13 @@ export function textSprite(value: string, color: string, selected = false, node 
       side: THREE.DoubleSide,
     }),
   );
+  sprite.userData.lightningMask = () => {
+    const mask = document.createElement("canvas"); mask.width = canvas.width; mask.height = canvas.height;
+    const ink = mask.getContext("2d")!; ink.font = "500 36px system-ui, sans-serif";
+    ink.textAlign = "center"; ink.textBaseline = "middle"; ink.fillStyle = "white";
+    lines.forEach((line, i) => ink.fillText(line, mask.width / 2, 10 + 24 + i * 48));
+    return mask;
+  };
   sprite.userData.label = value;
   sprite.userData.aspect = canvas.width / canvas.height;
   sprite.userData.lines = lines.length;

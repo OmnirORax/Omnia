@@ -18,7 +18,7 @@ export function createStructuralSparkles(scene: THREE.Scene) {
   nodes.name = "Node outline sparkles"; binders.name = "Binder path sparkles";
   background.name = "Background animation"; background.renderOrder = -1000;
   const configure = (points: typeof nodes, fx: SparkleStyle, active: boolean, texture: (kind: EffectKind) => THREE.Texture) => {
-    points.visible = active && effectVisible(fx);
+    points.visible = active && fx.effect !== "lightning" && effectVisible(fx);
     const map = texture(fx.effect);
     if (points.material.map !== map) { points.material.map = map; points.material.needsUpdate = true; }
     points.material.size = fx.effect === "sparks" ? 9 : fx.effect === "dust" ? 3 : 5;

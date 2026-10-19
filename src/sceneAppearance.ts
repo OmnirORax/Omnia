@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SceneGlow } from "./sceneGlow";
+import { createSceneLightning } from "./sceneLightning";
 import { createStructuralSparkles } from "./structuralSparkles";
 import { effectVisible, resolveTargetSparkles } from "./graph/effects";
 import type { TextScene } from "./textScene";
@@ -33,7 +34,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     }
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; textures.set(effect, texture); return texture;
   };
-  const structural = createStructuralSparkles(scene);
+  const structural = createStructuralSparkles(scene), lightning = createSceneLightning(scene);
   let sources: () => TextScene | null = () => null;
   const disposeBloom = () => { bloom?.dispose(); output?.dispose(); composer?.dispose(); bloom = null; output = null; composer = null; };
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -69,6 +70,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
       previousTime = now;
       sources()?.animateSelection(camera, phase, !reducedMotion.matches && appearance.motion > 0);
       structural.update(appearance, sources(), reducedMotion.matches ? 0 : phase, camera, textureFor);
+      lightning.update(appearance, sources(), phase, camera, width, height, reducedMotion.matches);
       if (timer === undefined) schedule();
       if (appearance.theme === "neon" && appearance.glow > 0 && !failed) {
         try {
@@ -91,7 +93,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     dispose() {
       if (timer !== undefined) clearTimeout(timer);
       document.removeEventListener("visibilitychange", resume); reducedMotion.removeEventListener("change", resume);
-      redraw = undefined; disposeBloom(); structural.dispose();
+      redraw = undefined; disposeBloom(); structural.dispose(); lightning.dispose();
       for (const texture of textures.values()) texture.dispose();
     },
   };

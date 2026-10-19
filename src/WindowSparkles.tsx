@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { WorkspaceSettings } from "./workspaceActions";
+import { drawUILightning } from "./uiLightning";
 import { effectSeed, effectVisible, fallingStar, perimeterPoint, resolveTargetSparkles, type SurfaceTarget } from "./graph/effects";
 
 /** Pointer-transparent decoration follows live UI bounds, including portalled windows. */
@@ -25,7 +26,7 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
       context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
       if (document.hidden || a.theme !== "neon" || a.opacity === 0) return;
       context.shadowBlur = a.glow * 12;
-      let moving = false;
+      let moving = false, lightningBudget = 1800;
       for (const [target, selector] of selectors) {
         const fx = resolveTargetSparkles(a, target); if (!effectVisible(fx)) continue;
         context.strokeStyle = context.fillStyle = context.shadowColor = fx.color ?? a.accent;
@@ -36,6 +37,10 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
           const r = element.getBoundingClientRect(); if (!r.width || !r.height || r.bottom < 0 || r.top > height || r.right < 0 || r.left > width) continue;
           moving ||= fx.motion > 0;
           const seed = effectSeed(`${target}:${element.dataset.uiFunction ?? element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? `${element.className}:${index}`}`);
+          if (fx.effect === "lightning") {
+            lightningBudget -= drawUILightning(context, element, r, fx, time, seed, a.opacity, !reduced.matches && fx.motion > 0, lightningBudget);
+            continue;
+          }
           const snow = fx.effect === "falling-stars";
           const count = Math.ceil(fx.density * Math.min(snow ? 40 : 12, Math.max(3, snow ? r.width * r.height / 1800 : (r.width + r.height) / 90)));
           for (let i = 0; i < count; i++) {
@@ -58,8 +63,8 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
     const resume = () => { previous = 0; request(); };
     const observer = new MutationObserver(() => { if (current.current.theme === "neon" && selectors.some(([target]) => effectVisible(resolveTargetSparkles(current.current, target)))) request(); });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
-    window.addEventListener("resize", request); document.addEventListener("visibilitychange", resume); reduced.addEventListener("change", resume); request();
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); if (timer !== undefined) clearTimeout(timer); window.removeEventListener("resize", request); document.removeEventListener("visibilitychange", resume); reduced.removeEventListener("change", resume); redraw.current = () => {}; };
+    window.addEventListener("resize", request); document.addEventListener("load", request, true); document.addEventListener("scroll", request, true); document.addEventListener("input", request, true); document.addEventListener("visibilitychange", resume); reduced.addEventListener("change", resume); request();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); if (timer !== undefined) clearTimeout(timer); window.removeEventListener("resize", request); document.removeEventListener("load", request, true); document.removeEventListener("scroll", request, true); document.removeEventListener("input", request, true); document.removeEventListener("visibilitychange", resume); reduced.removeEventListener("change", resume); redraw.current = () => {}; };
   }, []);
   useEffect(() => { redraw.current(); }, [appearance]);
   return <canvas ref={canvas} className="window-sparkles" aria-hidden="true" />;
