@@ -4,17 +4,23 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Atlas } from "./graph/model";
 import { projectSpatial, type XYZ } from "./graph/spatial";
 import type { WorkspaceSettings } from "./workspaceActions";
+import type { Document } from "./graph/structural";
+import { chartedBinders } from "./graph/presentation";
+import { occupiedRadii } from "./graph/layout3d";
+import { buildTextScene, type TextScene } from "./textScene";
 
-export type NavigationCommand = { sequence: number; kind: "focus" | "local" | "all" | "back" | "cancel"; id?: string };
+export type NavigationCommand = { sequence: number; kind: "focus" | "local" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
 export type ContextAction = "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "node"; id: string } | { kind: "space"; world: XYZ };
 type Props = {
   atlas: Atlas;
+  document: Document;
   selectedId: string | null;
   settings: WorkspaceSettings;
   command: NavigationCommand | null;
   constraintAxis: "x" | "y" | "z" | null;
   onNodeClick: (id: string) => void;
+  onBinderSelect: (id: string, kind: "composition" | "relationship") => void;
   onMove: (id: string, local: XYZ) => void;
   resolveMove: (id: string, local: XYZ) => XYZ;
   canNest: (id: string, targetId: string) => string | null;
@@ -36,20 +42,6 @@ const MOVE_DURATION = 380;
 const asVector = (p: XYZ) => new THREE.Vector3(p.x, p.y, p.z);
 const asXYZ = (p: THREE.Vector3): XYZ => ({ x: p.x, y: p.y, z: p.z });
 
-function labelSprite(value: string, color: string) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512; canvas.height = 128;
-  const context = canvas.getContext("2d")!;
-  context.font = "600 38px system-ui, sans-serif";
-  context.fillStyle = color; context.textAlign = "center"; context.textBaseline = "middle";
-  let label = value || "Untitled";
-  while (context.measureText(label).width > 470 && label.length > 2) label = `${label.slice(0, -2)}…`;
-  context.fillText(label, 256, 64);
-  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: true }));
-  sprite.scale.set(2.15, 0.54, 1);
-  return sprite;
-}
 function disposeContent(group: THREE.Group) {
   group.traverse((object) => {
     if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Sprite) {
@@ -62,15 +54,15 @@ function disposeContent(group: THREE.Group) {
 }
 
 export default function SpatialWorkspace(props: Props) {
-  const { atlas, selectedId, settings, command } = props;
+  const { atlas, selectedId, settings, command, document: doc } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const graph = projectSpatial(atlas);
   const graphRef = useRef(graph); graphRef.current = graph;
-  const meshes = useRef<THREE.Mesh[]>([]);
+  const meshes = useRef<THREE.Sprite[]>([]);
   const groups = useRef(new Map<string, THREE.Group>());
-  const labels = useRef<{ sprite: THREE.Sprite; point: THREE.Vector3; selected: boolean }[]>([]);
+  const textScene = useRef<TextScene | null>(null);
   const volumeRadii = useRef(new Map<string, number>());
   const firstFocus = useRef(false);
   const [ready, setReady] = useState(false);
@@ -101,28 +93,16 @@ export default function SpatialWorkspace(props: Props) {
       if (pendingRender) return;
       pendingRender = requestAnimationFrame(() => {
         pendingRender = 0;
-        content.updateMatrixWorld(true);
-        const occupied: { x: number; y: number }[] = [];
-        const ordered = labels.current.map((item) => ({ item, distance: camera.position.distanceTo(item.point) }))
-          .sort((a, b) => Number(b.item.selected) - Number(a.item.selected) || a.distance - b.distance);
-        for (const { item, distance } of ordered) {
-          if (!item.selected && distance >= 32) { item.sprite.visible = false; continue; }
-          const projected = item.sprite.getWorldPosition(new THREE.Vector3()).project(camera);
-          const x = (projected.x + 1) * renderer.domElement.width / 2;
-          const y = (1 - projected.y) * renderer.domElement.height / 2;
-          const overlaps = occupied.some((other) => Math.abs(other.x - x) < 115 && Math.abs(other.y - y) < 26);
-          item.sprite.visible = item.selected || !overlaps;
-          if (item.sprite.visible) occupied.push({ x, y });
-        }
+        textScene.current?.update(camera, host.clientWidth, host.clientHeight);
         renderer.render(scene, camera);
       });
     };
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
-    const animate = (target: THREE.Vector3, distance: number, remember = true) => {
+    const animate = (target: THREE.Vector3, distance: number, remember = true, facing?: THREE.Vector3) => {
       stopAnimation();
       if (remember) cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone() });
       const fromPosition = camera.position.clone(), fromTarget = controls.target.clone();
-      const direction = camera.position.clone().sub(controls.target).normalize();
+      const direction = facing ?? camera.position.clone().sub(controls.target).normalize();
       if (direction.lengthSq() < 0.001) direction.set(1, 0.7, 1).normalize();
       const toPosition = target.clone().addScaledVector(direction, Math.max(2.8, distance));
       const start = performance.now();
@@ -154,14 +134,14 @@ export default function SpatialWorkspace(props: Props) {
       }
       const nodes = graphRef.current.nodes.filter((n) => n.visible);
       if (!nodes.length) return;
-      if (kind === "all") {
+      if (kind === "all" || kind === "hierarchy") {
         const bounds = new THREE.Box3();
         for (const node of nodes) {
           const center = asVector(node.world), r = callbacks.current.settings.spatial.radius;
           bounds.expandByPoint(center.clone().addScalar(r)); bounds.expandByPoint(center.clone().addScalar(-r));
         }
         const center = bounds.getCenter(new THREE.Vector3());
-        animate(center, Math.max(6, bounds.getSize(new THREE.Vector3()).length() * 1.2)); return;
+        animate(center, Math.max(6, bounds.getSize(new THREE.Vector3()).length() * 1.2), true, kind === "hierarchy" ? new THREE.Vector3(0, 0, 1) : undefined); return;
       }
       const node = nodes.find((n) => n.id === requestedId) ?? nodes.find((n) => n.parentId === null) ?? nodes[0];
       const point = asVector(node.world);
@@ -189,7 +169,7 @@ export default function SpatialWorkspace(props: Props) {
     };
     const hits = (event: PointerEvent, except?: string) => {
       aim(event);
-      return raycaster.intersectObjects(meshes.current, false).filter((hit) => hit.object.userData.nodeId !== except);
+      return raycaster.intersectObjects(meshes.current.filter((mesh) => mesh.visible), false).filter((hit) => hit.object.userData.nodeId !== except);
     };
     const cursorWorld = (event: PointerEvent) => {
       aim(event);
@@ -200,12 +180,14 @@ export default function SpatialWorkspace(props: Props) {
       startX: number; startY: number; startWorld: THREE.Vector3; local: XYZ | null; nestTarget: string | null;
       marker: THREE.Mesh; } | null = null;
     let rightDown: { x: number; y: number; id: string | null; world: XYZ } | null = null;
-    let hovered: THREE.Mesh | null = null;
-    const paintHover = (mesh: THREE.Mesh | null) => {
+    let binderDown: { id: string; kind: "composition" | "relationship"; x: number; y: number } | null = null;
+    raycaster.params.Line.threshold = 0.08;
+    let hovered: THREE.Sprite | null = null;
+    const paintHover = (mesh: THREE.Sprite | null) => {
       if (hovered === mesh) return;
-      if (hovered) (hovered.material as THREE.MeshStandardMaterial).emissive.setHex(hovered.userData.nodeId === callbacks.current.selectedId ? 0x204a7a : 0x000000);
+      if (hovered) hovered.material.color.setHex(0xffffff);
       hovered = mesh;
-      if (hovered) (hovered.material as THREE.MeshStandardMaterial).emissive.setHex(0x386ea8);
+      if (hovered) hovered.material.color.setHex(0xb8dcff);
       renderer.domElement.style.cursor = hovered ? "grab" : "default";
       requestRender();
     };
@@ -216,19 +198,26 @@ export default function SpatialWorkspace(props: Props) {
         return;
       }
       if (event.button !== 0) return;
-      const hit = hits(event)[0]; if (!hit) return;
+      const hit = hits(event)[0];
+      if (!hit) {
+        const binder = raycaster.intersectObjects(textScene.current?.binderHits.filter((object) => object.visible) ?? [], false)[0]?.object;
+        if (binder && binder.userData.binderKind !== "visual") binderDown = { id: binder.userData.binderId, kind: binder.userData.binderKind, x: event.clientX, y: event.clientY };
+        return;
+      }
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), group.position);
       const intersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3()); if (!intersection) return;
-      const radius = volumeRadii.current.get(id) ?? callbacks.current.settings.spatial.radius;
-      const marker = new THREE.Mesh(new THREE.SphereGeometry(radius, 20, 12), new THREE.MeshBasicMaterial({ color: 0x6cdbdf, wireframe: true, transparent: true, opacity: 0.5, depthWrite: false }));
+      const label = textScene.current?.nodes.get(id)?.sprite;
+      const marker = new THREE.Mesh(new THREE.PlaneGeometry(label?.scale.x ?? 2, label?.scale.y ?? 0.5), new THREE.MeshBasicMaterial({ color: 0x6cdbdf, wireframe: true, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }));
+      marker.quaternion.copy(camera.quaternion);
       marker.position.copy(group.position); marker.visible = false; scene.add(marker);
-      drag = { id, group, plane, offset: group.position.clone().sub(intersection), startX: event.clientX,
-        startY: event.clientY, startWorld: group.position.clone(), local: null, nestTarget: null, marker };
+      const anchor = asVector(graphRef.current.nodes.find((n) => n.id === id)!.world);
+      drag = { id, group, plane, offset: anchor.clone().sub(intersection), startX: event.clientX,
+        startY: event.clientY, startWorld: anchor, local: null, nestTarget: null, marker };
       controls.enabled = false; renderer.domElement.setPointerCapture(event.pointerId);
     };
     const move = (event: PointerEvent) => {
-      if (!drag) { if (event.buttons === 0) paintHover((hits(event)[0]?.object as THREE.Mesh) ?? null); return; }
+      if (!drag) { if (event.buttons === 0) paintHover((hits(event)[0]?.object as THREE.Sprite) ?? null); return; }
       aim(event);
       const intersection = raycaster.ray.intersectPlane(drag.plane, new THREE.Vector3()); if (!intersection) return;
       const wanted = intersection.add(drag.offset);
@@ -239,13 +228,13 @@ export default function SpatialWorkspace(props: Props) {
       const parentWorld = parent ? asVector(parent.world) : new THREE.Vector3();
       if (event.shiftKey) {
         const target = hits(event, drag.id)[0]?.object.userData.nodeId as string | undefined;
-        const reason = target ? callbacks.current.canNest(drag.id, target) : "Drop onto a sphere to nest";
+        const reason = target ? callbacks.current.canNest(drag.id, target) : "Drop onto a name to nest";
         drag.nestTarget = target && !reason ? target : null;
         drag.local = null;
         drag.marker.visible = Boolean(target);
         if (target) drag.marker.position.copy(groups.current.get(target)!.position);
         (drag.marker.material as THREE.MeshBasicMaterial).color.setHex(reason ? 0xe46868 : 0x6cdbdf);
-        setFeedback(target ? reason || `Nest inside ${graphRef.current.nodes.find((n) => n.id === target)?.label}` : "Drop onto a sphere to nest");
+        setFeedback(target ? reason || `Nest inside ${graphRef.current.nodes.find((n) => n.id === target)?.label}` : "Drop onto a name to nest");
       } else {
         drag.nestTarget = null;
         try {
@@ -277,6 +266,10 @@ export default function SpatialWorkspace(props: Props) {
       requestRender();
     };
     const up = (event: PointerEvent) => {
+      if (event.button === 0 && binderDown) {
+        const b = binderDown; binderDown = null;
+        if (Math.hypot(event.clientX - b.x, event.clientY - b.y) < CLICK_THRESHOLD) callbacks.current.onBinderSelect(b.id, b.kind);
+      }
       if (event.button === 2 && rightDown) {
         const right = rightDown; rightDown = null;
         if (Math.hypot(event.clientX - right.x, event.clientY - right.y) < CLICK_THRESHOLD) {
@@ -314,100 +307,25 @@ export default function SpatialWorkspace(props: Props) {
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
-    disposeContent(state.content); meshes.current = []; groups.current = new Map(); labels.current = [];
+    disposeContent(state.content);
     const visible = graph.nodes.filter((n) => n.visible);
-    const byId = new Map(visible.map((n) => [n.id, n]));
-    const radii = new Map<string, number>();
-    const radiusFor = (id: string): number => {
-      const cached = radii.get(id); if (cached !== undefined) return cached;
-      const parent = byId.get(id)!;
-      let radius = settings.spatial.radius;
-      if (!parent.collapsed) for (const child of visible.filter((n) => n.parentId === id))
-        radius = Math.max(radius, asVector(parent.world).distanceTo(asVector(child.world)) + radiusFor(child.id) + settings.spatial.clearance);
-      radii.set(id, radius); return radius;
-    };
-    for (const node of visible) radiusFor(node.id);
-    volumeRadii.current = radii;
-    for (const node of visible) {
-      const group = new THREE.Group(); group.position.copy(asVector(node.world));
-      const selected = selectedId === node.id;
-      const material = new THREE.MeshStandardMaterial({ color: selected ? 0x5c91de : 0x3a6390,
-        emissive: selected ? 0x204a7a : 0x000000, roughness: 0.42, metalness: 0.08 });
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(settings.spatial.radius, 32, 24), material);
-      mesh.userData.nodeId = node.id; group.add(mesh);
-      const label = labelSprite(node.label, selected ? "#ffffff" : "#dce9fa");
-      label.position.y = settings.spatial.radius + 0.39; group.add(label);
-      labels.current.push({ sprite: label, point: group.position, selected });
-      state.content.add(group); meshes.current.push(mesh); groups.current.set(node.id, group);
-    }
-    for (const node of visible) {
-      const r = radii.get(node.id)!;
-      if (node.collapsed || r <= settings.spatial.radius + 0.01) continue;
-      const boundary = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20),
-        new THREE.MeshBasicMaterial({ color: selectedId === node.id ? 0x7ac7d7 : 0x6b9bd7,
-          transparent: true, opacity: 0.055, depthWrite: false, side: THREE.BackSide }));
-      boundary.position.copy(asVector(node.world)); state.content.add(boundary);
-    }
-    const pairTotals = new Map<string, number>(), pairIndex = new Map<string, number>();
-    const pairKey = (a: string, b: string) => [a, b].sort().join("\u0000");
-    for (const relationship of graph.relationships) {
-      const key = pairKey(relationship.source, relationship.target);
-      pairTotals.set(key, (pairTotals.get(key) ?? 0) + 1);
-    }
-    for (const relationship of graph.relationships) {
-      const from = byId.get(relationship.source), to = byId.get(relationship.target);
-      if (!from || !to) continue;
-      const fromPoint = asVector(from.world), toPoint = asVector(to.world);
-      const direction = toPoint.clone().sub(fromPoint), length = direction.length();
-      const radius = settings.spatial.radius;
-      const related = !selectedId || relationship.source === selectedId || relationship.target === selectedId;
-      const color = !related ? 0x516076 : relationship.projected ? 0xe0a86c : 0x9fc4e9;
-      const key = pairKey(relationship.source, relationship.target);
-      const index = pairIndex.get(key) ?? 0; pairIndex.set(key, index + 1);
-      const spread = index - ((pairTotals.get(key) ?? 1) - 1) / 2;
-      let points: THREE.Vector3[];
-      if (length < 0.01) {
-        const loop = radius * (1.9 + Math.abs(spread) * 0.4);
-        const path = new THREE.CatmullRomCurve3([
-          fromPoint.clone().add(new THREE.Vector3(radius, 0, 0)),
-          fromPoint.clone().add(new THREE.Vector3(loop, loop, 0.3 + spread * 0.4)),
-          fromPoint.clone().add(new THREE.Vector3(0, loop * 1.7, 0.3 + spread * 0.4)),
-          fromPoint.clone().add(new THREE.Vector3(-loop, loop, 0.3 + spread * 0.4)),
-          fromPoint.clone().add(new THREE.Vector3(-radius, 0, 0)),
-        ]);
-        points = path.getPoints(32);
-      } else {
-        direction.normalize();
-        const start = fromPoint.clone().addScaledVector(direction, radius);
-        const end = toPoint.clone().addScaledVector(direction, -radius);
-        const lateral = new THREE.Vector3().crossVectors(direction, new THREE.Vector3(0, 1, 0));
-        if (lateral.lengthSq() < 0.01) lateral.set(1, 0, 0);
-        lateral.normalize().multiplyScalar(spread * 0.6);
-        const mid = start.clone().add(end).multiplyScalar(0.5).add(lateral);
-        points = new THREE.QuadraticBezierCurve3(start, mid, end).getPoints(24);
-      }
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color, transparent: true, opacity: related ? 0.85 : 0.16, depthWrite: false }));
-      state.content.add(line);
-      const end = points.at(-1)!;
-      const tangent = end.clone().sub(points.at(-3)!).normalize();
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.32, 12), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: related ? 0.85 : 0.16, depthWrite: false }));
-      cone.position.copy(end).addScaledVector(tangent, -0.16);
-      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
-      state.content.add(cone);
-      if (relationship.label && related) {
-        const label = labelSprite(relationship.label, "#f2c58f");
-        label.scale.set(1.48, 0.37, 1);
-        label.position.copy(points[Math.floor(points.length / 2)]).add(new THREE.Vector3(0, 0.34, 0));
-        state.content.add(label);
-        labels.current.push({ sprite: label, point: label.position, selected: false });
-      }
-    }
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    const binders = chartedBinders(doc).flatMap((b) => {
+      const from = byId.get(b.source), to = byId.get(b.target);
+      if (!from || !to || (from.representative === to.representative && (!from.visible || !to.visible))) return [];
+      return [{ ...b, source: from.representative, target: to.representative }];
+    });
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId);
+    textScene.current = built;
+    meshes.current = built.nodeHits;
+    groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
+    volumeRadii.current = occupiedRadii(doc, settings.spatial);
     state.requestRender();
     if (!firstFocus.current && visible.length) {
       firstFocus.current = true;
       state.focus("local", visible.find((n) => n.parentId === null)?.id ?? visible[0].id);
     }
-  }, [atlas, selectedId, ready, settings.spatial.radius, settings.spatial.clearance]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
@@ -421,7 +339,7 @@ export default function SpatialWorkspace(props: Props) {
   ];
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
-    <div className="spatial-help">Left-drag space: pan · right-drag: rotate · scroll: zoom · drag sphere: move · Shift-drag onto sphere: nest</div>
+    <div className="spatial-help">Left-drag space: pan · right-drag: rotate · scroll: zoom · drag name: move · Shift-drag onto name: nest · click binder: edit</div>
     <div className="spatial-controls">
       <button onClick={() => stateRef.current?.focus("focus", selectedId ?? undefined)} disabled={!selectedId}>Focus selected</button>
       <button onClick={() => stateRef.current?.focus("local", selectedId ?? undefined)}>Fit local system</button>

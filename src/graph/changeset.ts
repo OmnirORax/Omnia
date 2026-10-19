@@ -7,12 +7,13 @@ import {
   type StructuralRelationship,
   type Frame,
   type FrameScope,
+  type Composition,
 } from "./structural.ts";
 
 export type Operation =
   | { op: "createEntity"; entity: Entity }
   | { op: "addPlacement"; placement: Placement }
-  | { op: "addComposition"; composition: { id: string; parentId: string; childId: string } }
+  | { op: "addComposition"; composition: Composition }
   | { op: "createRelationshipType"; relationshipType: RelationshipType }
   | { op: "createRelationship"; relationship: StructuralRelationship }
   | {

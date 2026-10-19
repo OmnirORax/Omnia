@@ -141,6 +141,12 @@ textarea:focus-visible {
 .binding-row { display: grid; grid-template-columns: minmax(0, 1fr) 125px 36px; align-items: center; gap: 5px; padding: 3px 0; font-size: 12px; }
 .binding-row button { padding: 5px; }
 .dialog-actions { display: flex; justify-content: space-between; margin-top: 16px; }
+.appearance-controls { border: 1px solid #dce1e8; border-radius: 6px; margin: 12px 0; display: flex; gap: 10px; }
+.appearance-controls label { flex: 1; margin: 0; }
+.appearance-controls input[type="color"] { height: 34px; padding: 3px; }
+.appearance-controls input[type="range"] { padding: 5px 0; }
+.operator-row { display: flex; align-items: center; gap: 5px; }
+.operator-row label { flex: 1; }
 .spatial-error {
   position: absolute;
   inset: 35% 10%;
@@ -256,9 +262,8 @@ nav > ul {
 }
 .outline-row .outline-name {
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
   flex: 1;
 }
 .outline-spacer {

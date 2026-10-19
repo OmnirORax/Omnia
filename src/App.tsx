@@ -17,6 +17,8 @@ import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changes
 import { compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
+import { AppearanceControls, BinderControls } from "./AppearanceControls";
+import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView } from "./graph/presentation";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -26,7 +28,7 @@ type ViewConfig = {
   version: 1 | 2;
   atlas: AtlasDocument | Atlas;
 };
-type Selection = { kind: "node" | "relationship"; id: string } | null;
+type Selection = { kind: "node" | "relationship" | "composition"; id: string } | null;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function loadInitial(): { atlas: AtlasDocument; error: string } {
   try {
@@ -59,6 +61,8 @@ function Workbench() {
   const [target, setTarget] = useState("");
   const [settings, setSettings] = useState<WorkspaceSettings>(loadSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
+  const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
   const [capturing, setCapturing] = useState<ActionId | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
@@ -77,7 +81,8 @@ function Workbench() {
   }, [settings]);
   function commitDocument(next: AtlasDocument) {
     try {
-      const validated = validateDocument({ ...next, revision: document.revision + 1 });
+      const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
+      const validated = validateDocument({ ...synced, revision: document.revision + 1 });
       setPast((p) => [...p.slice(-49), document]);
       setFuture([]);
       setDocument(validated);
@@ -270,6 +275,38 @@ function Workbench() {
     (r) => r.id === selectedRelationship?.id,
   );
   const activeFrame = document.frames.find((f) => f.id === document.activeFrameId);
+  const selectedComposition = selection?.kind === "composition" ? document.compositions.find((c) => c.id === selection.id) : undefined;
+  const activeLayout = document.layoutViews?.find((v) => v.id === document.activeLayoutViewId);
+  const flowType = document.relationshipTypes.find((t) => t.id === flowOrder.typeId) ?? document.relationshipTypes[0];
+  const resolvedOrder = { typeId: flowType?.id ?? "", fromRoleId: flowOrder.fromRoleId || flowType?.roles[0]?.id || "", toRoleId: flowOrder.toRoleId || flowType?.roles[1]?.id || "" };
+  function switchView(id: string) {
+    try { commitDocument(switchLayoutView(document, id)); navigate(["hierarchy", "flow"].includes(document.layoutViews?.find((v) => v.id === id)?.rule ?? "") ? "hierarchy" : "local", selection?.kind === "node" ? selection.id : undefined); }
+    catch (e) { setError(message(e)); }
+  }
+  function newView() {
+    try {
+      const name = layoutRule === "hierarchy" ? "Hierarchy" : layoutRule === "compact" ? "Compact" : layoutRule === "flow" ? "Directed flow" : "Manual";
+      commitDocument(createLayoutView(document, layoutRule, `${name} ${(document.layoutViews?.length ?? 0) + 1}`, settings.spatial, resolvedOrder));
+      navigate(["hierarchy", "flow"].includes(layoutRule) ? "hierarchy" : "local", selection?.kind === "node" ? selection.id : undefined);
+    } catch (e) { setError(message(e)); }
+  }
+  function reapplyView() {
+    if (!activeLayout) return;
+    try {
+      const next = activeLayout.rule === "hierarchy" ? hierarchyLayout(document) : activeLayout.rule === "flow" ? flowLayout(document, activeLayout.ordering) : compactLayout(document, { kind: "all" }, settings.spatial);
+      commitDocument(next);
+      navigate(["hierarchy", "flow"].includes(activeLayout.rule) ? "hierarchy" : "local");
+    } catch (e) { setError(message(e)); }
+  }
+  function removeView() {
+    if (!activeLayout || activeLayout.id === "authored-layout") return;
+    try {
+      const fallback = document.layoutViews?.find((v) => v.id !== activeLayout.id)?.id;
+      const restored = fallback ? switchLayoutView(document, fallback) : { ...document, activeLayoutViewId: null };
+      commitDocument({ ...restored, layoutViews: restored.layoutViews?.filter((v) => v.id !== activeLayout.id) });
+      navigate("local");
+    } catch (e) { setError(message(e)); }
+  }
   const forbiddenParents = selectedNode ? descendants(atlas, selectedNode.id) : new Set<string>();
   function reveal(id: string) {
     const ancestors = new Set<string>();
@@ -626,6 +663,17 @@ function Workbench() {
           <span>Atlas workbench</span>
         </div>
         <div className="toolbar-actions">
+          <label className="toolbar-snap">View<select aria-label="Layout view" value={document.activeLayoutViewId ?? "authored-layout"} onChange={(event) => switchView(event.target.value)}>
+            {!document.layoutViews?.some((v) => v.id === "authored-layout") && <option value="authored-layout">Authored layout</option>}
+            {document.layoutViews?.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}
+          </select></label>
+          <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(event) => setLayoutRule(event.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>
+          {layoutRule === "flow" && flowType && <>
+            <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+            <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+            <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+          </>}
+          <button onClick={newView}>+ Layout view</button>
           <button onClick={() => addNode(null)}>+ Node</button>
           <label className="toolbar-snap">Snap
             <select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>
@@ -742,6 +790,7 @@ function Workbench() {
           </section>
           <section>
             <h2>Hierarchy</h2>
+            {activeLayout && <><label>View name<input aria-label="View name" value={activeLayout.name} onChange={(event) => commitDocument({ ...document, layoutViews: document.layoutViews?.map((v) => v.id === activeLayout.id ? { ...v, name: event.target.value } : v) })} /></label><p>Rule: {activeLayout.rule}. Switching views preserves the arrangement you leave.</p>{activeLayout.rule !== "manual" && <button onClick={reapplyView}>Reapply view rule</button>}{activeLayout.id !== "authored-layout" && <button onClick={removeView}>Remove view</button>}</>}
             {atlas.nodes.length ? (
               <nav aria-label="Node hierarchy">{outline(null)}</nav>
             ) : (
@@ -969,7 +1018,7 @@ function Workbench() {
             )}
           </section>
           <section className="inspector">
-            <h2>{selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
+            <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
             {selectedNode ? (
               <>
                 <p>
@@ -1005,9 +1054,9 @@ function Workbench() {
                       document.compositions
                         .filter((c) => c.parentId === selectedEntity?.id)
                         .map((c) => (
-                          <button key={c.id} onClick={() => navigateIdentity(c.childId)}>
+                          <div key={c.id} className="structural-parent-row"><button onClick={() => navigateIdentity(c.childId)}>
                             {document.entities.find((e) => e.id === c.childId)?.label || c.childId}
-                          </button>
+                          </button><button onClick={() => setSelection({ kind: "composition", id: c.id })}>Edit composition binder</button></div>
                         ))}
                   </>
                 )}
@@ -1030,6 +1079,7 @@ function Workbench() {
                     onChange={(e) => patchNode(selectedNode.id, { label: e.target.value })}
                   />
                 </label>
+                <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={{ color: "#dce9fa", opacity: 1 }} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
                 <label>
                   Aliases (comma-separated)
                   <input
@@ -1211,11 +1261,18 @@ function Workbench() {
                   </button>
                 )}
               </>
+            ) : selectedComposition ? (
+              <>
+                <p>{document.entities.find((e) => e.id === selectedComposition.parentId)?.label} → {document.entities.find((e) => e.id === selectedComposition.childId)?.label}</p>
+                <p>Authored structural composition. This binder is independent of spatial positioning.</p>
+                <BinderControls composition value={selectedComposition} onChange={(changes) => commitDocument({ ...document, compositions: document.compositions.map((c) => c.id === selectedComposition.id ? { ...c, ...changes } : c) })} />
+              </>
             ) : selectedRelationship ? (
               <>
                 <p>
                   Relationship ID: <code>{selectedRelationship.id}</code>
                 </p>
+                {selectedRelationData && <BinderControls value={selectedRelationData} onChange={updateRelation} />}
                 <label>
                   Type
                   <select
@@ -1504,7 +1561,7 @@ function Workbench() {
           )}
           <section className="help">
             <p>
-              Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a sphere to move it. Shift-drag it onto another sphere to nest. Right-click for charting actions.
+              Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a name to move it. Shift-drag it onto another name to nest. Click a binder to edit its operators and appearance.
             </p>
             <button onClick={() => compact({ kind: "all" })}>Compact entire atlas</button>
             <button disabled={selection?.kind !== "node"} onClick={() => selection?.kind === "node" && compact({ kind: "subsystem", placementId: selection.id })}>Compact selected subsystem</button>
@@ -1519,11 +1576,13 @@ function Workbench() {
           <Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
             <SpatialWorkspace
               atlas={atlas}
+              document={document}
               selectedId={selection?.kind === "node" ? selection.id : null}
               settings={settings}
               command={navCommand}
               constraintAxis={constraintAxis}
               onNodeClick={nodeClicked}
+              onBinderSelect={(id, kind) => setSelection({ kind, id })}
               resolveMove={(id, local) => nearestFree(document, id, local, settings.spatial)}
               onMove={(id, local) => { try { commitDocument(movePlacement(document, id, local, settings.spatial)); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}
@@ -1539,7 +1598,7 @@ function Workbench() {
           )}
         </div>
       </main>
-      {connectionSource && <div className="operation-banner" role="status">Select another sphere to connect from {atlas.nodes.find((n) => n.id === connectionSource)?.label || "selected node"}. <button onClick={() => setConnectionSource(null)}>Cancel</button></div>}
+      {connectionSource && <div className="operation-banner" role="status">Select another name to connect from {atlas.nodes.find((n) => n.id === connectionSource)?.label || "selected node"}. <button onClick={() => setConnectionSource(null)}>Cancel</button></div>}
       {insertContext && <div className="workspace-dialog-backdrop" onClick={() => setInsertContext(null)}><div className="workspace-dialog" role="dialog" aria-label="Insert existing entity" onClick={(event) => event.stopPropagation()}>
         <h2>Insert existing entity or subsystem</h2>
         <input autoFocus aria-label="Search existing entities" value={insertQuery} onChange={(event) => setInsertQuery(event.target.value)} placeholder="Search label, alias, or ID" />
@@ -1549,7 +1608,7 @@ function Workbench() {
       {settingsOpen && <div className="workspace-dialog-backdrop" onClick={() => setSettingsOpen(false)}><div className="workspace-dialog settings-dialog" role="dialog" aria-label="Workspace settings" onClick={(event) => event.stopPropagation()}>
         <h2>Workspace settings</h2>
         <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>
-        <label>Sphere radius<input type="number" min="0.25" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.25, Math.min(3, Number(event.target.value) || 0.25)) } }))} /></label>
+        <label>Minimum placement clearance radius<input type="number" min="0.25" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.25, Math.min(3, Number(event.target.value) || 0.25)) } }))} /></label>
         <label>Collision clearance<input type="number" min="0" max="2" step="0.05" value={settings.spatial.clearance} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, clearance: Math.max(0, Math.min(2, Number(event.target.value) || 0)) } }))} /></label>
         {(["leftEmpty", "rightEmpty"] as const).map((button) => <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>)}
         <h2>Keyboard actions</h2>
