@@ -2,12 +2,74 @@
   "format": "omnium-ui-template",
   "version": 3,
   "layout": {
-    "version": 1,
-    "windows": {},
+    "version": 2,
+    "windows": {
+      "panel:menu:file": {
+        "x": 320, "y": 100, "width": 300, "height": 400, "collapsed": true, "pinned": false,
+        "members": [
+          { "kind": "function", "id": "ui:import" },
+          { "kind": "function", "id": "ui:export" },
+          { "kind": "function", "id": "ui:saveTemplate" },
+          { "kind": "function", "id": "ui:loadTemplate" }
+        ]
+      },
+      "panel:menu:create": {
+        "x": 320, "y": 100, "width": 300, "height": 440, "collapsed": true, "pinned": false,
+        "members": [
+          { "kind": "function", "id": "panel:reuse" },
+          { "kind": "function", "id": "panel:connections" },
+          { "kind": "function", "id": "panel:types" },
+          { "kind": "function", "id": "panel:frames" },
+          { "kind": "function", "id": "panel:ai" },
+          { "kind": "function", "id": "ui:snap" }
+        ]
+      },
+      "panel:menu:view": {
+        "x": 320, "y": 100, "width": 340, "height": 560, "collapsed": true, "pinned": false,
+        "members": [
+          { "kind": "function", "id": "ui:view" },
+          { "kind": "function", "id": "ui:viewRule" },
+          { "kind": "function", "id": "ui:newView" },
+          { "kind": "function", "id": "fitAll" },
+          { "kind": "function", "id": "panel:hierarchy" },
+          { "kind": "function", "id": "panel:inspector" },
+          { "kind": "function", "id": "panel:relationships" },
+          { "kind": "function", "id": "panel:help" }
+        ]
+      },
+      "panel:menu:workspace": {
+        "x": 320, "y": 100, "width": 340, "height": 560, "collapsed": true, "pinned": false,
+        "members": [
+          { "kind": "function", "id": "settings" },
+          { "kind": "function", "id": "shortcuts" },
+          { "kind": "function", "id": "ui:arrange" },
+          { "kind": "function", "id": "ui:createFrame" },
+          { "kind": "function", "id": "ui:select" },
+          { "kind": "function", "id": "ui:compact" },
+          { "kind": "function", "id": "ui:align" },
+          { "kind": "function", "id": "ui:placementMode" },
+          { "kind": "function", "id": "ui:undo" },
+          { "kind": "function", "id": "ui:redo" },
+          { "kind": "function", "id": "ui:reset" }
+        ]
+      },
+      "panel:hierarchy": { "x": 320, "y": 140, "width": 400, "height": 560, "collapsed": false, "pinned": false },
+      "panel:inspector": { "x": 740, "y": 140, "width": 400, "height": 560, "collapsed": false, "pinned": false },
+      "panel:reuse": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false },
+      "panel:connections": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false },
+      "panel:frames": { "x": 320, "y": 140, "width": 440, "height": 560, "collapsed": true, "pinned": false },
+      "panel:types": { "x": 320, "y": 140, "width": 440, "height": 560, "collapsed": true, "pinned": false },
+      "panel:relationships": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false },
+      "panel:ai": { "x": 320, "y": 140, "width": 480, "height": 560, "collapsed": true, "pinned": false },
+      "panel:help": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false }
+    },
     "items": {},
     "frames": [],
     "menus": {},
-    "panels": {},
-    "assets": []
+    "panels": { "@organized": true },
+    "assets": [],
+    "nativeOrders": {
+      "@sidebar": ["hierarchy", "inspector", "reuse", "connections", "frames", "types", "relationships", "ai", "help"]
+    }
   }
 }

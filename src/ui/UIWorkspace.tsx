@@ -23,7 +23,6 @@ import { useDragActivationGuard } from "./activationGuard";
 import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
 import { FloatingWindow } from "./FloatingWindow";
 import {
-  emptyUILayout,
   detachFunction,
   functionPinned,
   type UILayout,
@@ -208,25 +207,50 @@ export function UIPanel({
   title,
   children,
   className = "",
+  menu = false,
 }: {
   id: string;
   title: string;
   children: ReactNode;
   className?: string;
+  menu?: boolean;
 }) {
   const ui = useUI();
   const key = `window:panel:${id}`,
     owner = ownerOf(ui.layout, key);
+  const root = useRef<HTMLElement>(null);
+  const initial: WindowState = { x: 320, y: 160, width: menu ? 320 : 400, height: 560, collapsed: menu, pinned: false };
+  const state = ui.layout.windows[`panel:${id}`] ?? initial;
+  const [popup, setPopup] = useState({ left: 0, height: 480 });
+  const patch = (change: Partial<WindowState>) => ui.update(layout => ({
+    ...layout,
+    windows: { ...layout.windows, [`panel:${id}`]: { ...(layout.windows[`panel:${id}`] ?? initial), ...change } },
+  }));
+  useLayoutEffect(() => {
+    if (!menu || state.collapsed || owner || ui.layout.panels[id]) return;
+    const fit = () => {
+      const r = root.current?.getBoundingClientRect(); if (!r) return;
+      const width = Math.min(state.width, window.innerWidth - 24);
+      setPopup({ left: Math.max(8 - r.left, Math.min(0, window.innerWidth - r.left - width - 12)), height: Math.max(100, window.innerHeight - r.bottom - 12) });
+    };
+    fit(); window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [menu, state.collapsed, state.width, owner, ui.layout.panels[id]]);
+  useEffect(() => {
+    if (!menu || state.collapsed || ui.layout.panels[id] || owner) return;
+    const close = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key !== "Escape" : root.current?.contains(event.target as Node)) return;
+      // Do not unmount an active native drag source, or close over a child editor.
+      if (event instanceof PointerEvent && (event.buttons !== 1 || (event.target as Element).closest(".floating-window,.ui-background-menu,.ui-selection-tools"))) return;
+      patch({ collapsed: true });
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
+  }, [menu, state.collapsed, ui.layout.panels[id], owner]);
   useLayoutEffect(() => {
     if (ui.layout.panels[id] || owner) return;
-    ui.defaults.set(`panel:${id}`, {
-      x: 320,
-      y: 160,
-      width: 400,
-      height: 560,
-      collapsed: false,
-      pinned: false,
-    });
+    ui.defaults.set(`panel:${id}`, initial);
     return () => {
       ui.defaults.delete(`panel:${id}`);
     };
@@ -248,9 +272,24 @@ export function UIPanel({
         <section className={className}>{children}</section>
       </FloatingWindow>
     );
-  return (
+  if (!menu && !ui.layout.panels["@organized"]) return (
     <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
-      <button
+      <button className="detach-panel" title={`Float ${title}`} aria-label={`Undock ${id} panel`} data-ui-drag={key} draggable onDragStart={e => startResidentDrag(e, key)} onClick={() => float(true)}>↗</button>
+      <UIHomeContext.Provider value={key}>{children}<DockArea container={key} contour={false} /></UIHomeContext.Provider>
+    </section>
+  );
+  return (
+    <section
+      ref={root}
+      className={`ui-docked-panel ${menu ? "ui-menu-panel" : ""}`}
+      data-ui-resident-root={key}
+      style={{ order: menu ? undefined : ui.layout.nativeOrders?.["@sidebar"]?.indexOf(id) }}
+      onClick={event => {
+        if (menu && !event.defaultPrevented && !event.ctrlKey && !event.metaKey && !ui.selectingUI && !ui.selectedFunctions.size && (event.target as Element).closest("button[data-ui-function]")) patch({ collapsed: true });
+      }}
+    >
+      <FrameChrome container={key} title={title} state={state} onChange={patch} />
+      {!menu && <button
         className="detach-panel"
         title={`Float ${title}`}
         aria-label={`Undock ${id} panel`}
@@ -258,13 +297,13 @@ export function UIPanel({
         draggable
         onDragStart={(e) => startResidentDrag(e, key)}
         onClick={() => float(true)}
-      >
-        ↗
-      </button>
+      >↗</button>}
+      <div className={`ui-panel-body ${className}`} hidden={state.collapsed} style={menu ? { width: Math.min(state.width, window.innerWidth - 24), left: popup.left, maxHeight: popup.height } : undefined}>
       <UIHomeContext.Provider value={key}>
         {children}
         <DockArea container={key} contour={false} />
       </UIHomeContext.Provider>
+      </div>
     </section>
   );
 }
@@ -379,12 +418,14 @@ export function UIWorkspace({
   functions: definitions,
   children,
   command,
+  onReset,
 }: {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
   functions: UIFunction[];
   children: ReactNode;
   command?: UICommand | null;
+  onReset: () => void;
 }) {
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
@@ -492,6 +533,14 @@ export function UIWorkspace({
     command,
     suppress: suppressActivation,
   });
+  const reset = () => {
+    buttonSelection.clear();
+    configure(null); configureFrame(null); configureControl(null);
+    setAnchorTarget(null); setPreview(null); setMenu(null); setQuery("");
+    onReset();
+  };
+  const resetRef = useRef(reset); resetRef.current = reset;
+  useEffect(() => { if (command?.action === "reset") resetRef.current(); }, [command?.sequence]);
   const chooseMode = (owner: string, mode: "free" | "snap") => {
     setMenu(null);
     if (mode === "snap") {
@@ -1439,14 +1488,7 @@ export function UIWorkspace({
                 .includes(query.toLowerCase()),
             ) && <p>No matching controls.</p>}
           </div>
-          <button
-            onClick={() => {
-              if (window.confirm("Reset only the UI arrangement? Your graph will be preserved."))
-                update(() => emptyUILayout());
-            }}
-          >
-            Reset UI arrangement
-          </button>
+          <button onClick={reset}>Reset to default</button>
         </FloatingWindow>
       )}
       {(selected || selectedContainer) && (

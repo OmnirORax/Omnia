@@ -31,7 +31,7 @@ import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPlacementControl, UIPanel } from "./ui/UIWorkspace";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
-import { loadUILayout, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
+import { loadUILayout, ownerOf, updateContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
 import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
@@ -61,7 +61,7 @@ function loadInitial(): { atlas: AtlasDocument; error: string } {
 function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
-  const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(websiteTemplate.layout)), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
+  const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
   const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
   const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
   useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
@@ -695,6 +695,7 @@ function Workbench() {
       case "ui:undo": ui.undo(steps); break;
       case "ui:redo": ui.redo(steps); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
+      case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
       case "ui:createFrame": updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: 120, y: 180, cellSize: 96, collapsed: false, pinned: false }] })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
@@ -829,22 +830,53 @@ function Workbench() {
   replaceFunction("ui:flowType", "View relationship type", flowType ? <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowFrom", "View upstream role", flowType ? <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
-  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, [id]: true } }))}>{title}</button>);
+  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => {
+    updateUI(layout => {
+      const key = `window:panel:${id}`;
+      const saved = layout.windows[`panel:${id}`] ?? { x: 320, y: 140, width: 400, height: 560, collapsed: false, pinned: false };
+      let next: typeof layout = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: { ...saved, collapsed: false } } };
+      let owner = ownerOf(next, key);
+      while (owner) { next = updateContainer(next, owner, { collapsed: false }); owner = ownerOf(next, owner); }
+      return next;
+    });
+    requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+  }}>{title}</button>);
   return (
-    <UIWorkspace layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand}><div className="workbench">
+    <UIWorkspace layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
       <header className="toolbar">
         <div className="brand">
           <strong>Omnium</strong>
           <span>Atlas workbench</span>
         </div>
         <div className="toolbar-actions">
-          <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
-          {layoutRule === "flow" && flowType && <>
+          {uiLayout.panels["@organized"] ? <>
+          <UIPanel id="menu:file" title="File" menu>
+            {["ui:import", "ui:export", "ui:saveTemplate", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
+          </UIPanel>
+          <UIPanel id="menu:create" title="Create" menu>
+            {["panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
+          </UIPanel>
+          <UIPanel id="menu:view" title="View" menu>
+            <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
+            {layoutRule === "flow" && flowType && <>
             <FunctionControl id="ui:flowType" />
             <FunctionControl id="ui:flowFrom" />
             <FunctionControl id="ui:flowTo" />
+            </>}
+            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
+          </UIPanel>
+          <UIPanel id="menu:workspace" title="Workspace" menu>
+            {["settings", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:placementMode", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
+          </UIPanel>
+          <div className="primary-charting-actions" role="toolbar" aria-label="Charting actions">
+            {["newNode", "newChild", "connect", "compactAll", "undo", "redo"].map(id => <FunctionControl id={id} key={id} />)}
+          </div>
+          </> : <>
+            <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
+            {layoutRule === "flow" && flowType && <><FunctionControl id="ui:flowType" /><FunctionControl id="ui:flowFrom" /><FunctionControl id="ui:flowTo" /></>}
+            {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
+            <UIArrangeButtons /><FunctionControl id="ui:reset" />
           </>}
-          {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map((id) => <FunctionControl id={id} key={id} />)}<UIArrangeButtons />
           <input
             ref={fileInput}
             type="file"
@@ -1694,12 +1726,13 @@ function Workbench() {
               </div>
             )}
           </UIPanel>
-          {atlas.relationships.length > 0 && (
+          {
             <UIPanel id="relationships" title="Relationships">
               <h2>Relationships</h2>
               <p>
                 3D links connect through collapsed ancestors. This list retains every relationship.
               </p>
+              {!atlas.relationships.length && <p>No relationships yet.</p>}
               <ul className="relationship-list">
                 {atlas.relationships.map((r) => (
                   <li key={r.id}>
@@ -1715,7 +1748,7 @@ function Workbench() {
                 ))}
               </ul>
             </UIPanel>
-          )}
+          }
           <UIPanel id="help" title="Workspace help" className="help">
             <p>
               Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a name to move it. Shift-drag it onto another name to nest. Click a binder to edit its operators and appearance.
@@ -1790,7 +1823,7 @@ function Workbench() {
         <h2>Keyboard actions</h2>
         {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
         {Array.from(new Set(ACTIONS.map(action=>action.category))).map(category=><div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter(action=>action.category===category).map(action=><FunctionControl key={action.id} id={`shortcut:${action.id}`}/>)}</div>)}
-        <div className="dialog-actions"><button onClick={() => { setSettings(defaultSettings()); setCapturing(null); }}>Restore defaults</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
+        <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(defaultSettings()); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
     </div></UIWorkspace>
   );

@@ -45,6 +45,24 @@
 .floating-backdrop { position: fixed; inset: 0; background: #07121e88; }
 .window-resize-grip { display: block; width: 14px; height: 14px; border-right: 2px solid #738da6; border-bottom: 2px solid #738da6; }
 .ui-docked-panel { position: relative; }
+.ui-docked-panel { flex: 0 0 auto; padding: 10px 12px; }
+.ui-docked-panel > .frame-chrome.floating-title { min-height: 34px; height: 34px; margin-bottom: 4px; }
+.ui-panel-body[hidden] { display: none !important; }
+.ui-panel-body > h2:first-child { display: none; }
+.ui-panel-body > .ui-dock-area { padding: 6px 0; gap: 6px; }
+.ui-menu-panel { padding: 0; border: 0; }
+.ui-menu-panel > .frame-chrome.floating-title { width: auto; margin: 0; }
+.ui-menu-panel > .frame-chrome > .ui-frame-handle { position: relative; min-width: 0; background: transparent; border-color: transparent; }
+.ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button { padding: 7px 9px; }
+.ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button::after { content: "▾"; margin-left: 6px; font-size: 9px; }
+.ui-menu-panel:has(> .ui-panel-body:not([hidden])) { z-index: 90; }
+.ui-menu-panel:has(> .ui-panel-body:not([hidden])) > .frame-chrome .ui-frame-handle { background: #e6eef8; }
+.ui-menu-panel > .ui-panel-body { position: absolute; top: calc(100% + 4px); z-index: 90; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; overflow: auto; box-sizing: border-box; border: 1px solid #b4c5d5; border-radius: 7px; background: #f8faff; color: #233348; box-shadow: 0 8px 24px #0003; }
+.ui-menu-panel > .ui-panel-body > .ui-dock-area { flex-direction: column; gap: 6px; padding: 0; }
+.ui-menu-panel .ui-form-control { width: 100%; }
+.ui-menu-panel .ui-form-control > label { display: flex; flex-direction: column; gap: 4px; margin: 0 0 6px; font-size: 12px; }
+.ui-menu-panel :is(input,select,textarea) { max-width: 100%; min-width: 0; box-sizing: border-box; }
+.primary-charting-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; border-left: 1px solid #cad7e5; padding-left: 10px; margin-left: 4px; }
 .detach-panel { position: absolute; right: 8px; top: 9px; font-size: 11px; padding: 2px 5px; }
 .ui-workspace-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
 .ui-free-function { position: absolute; pointer-events: auto; max-width: 190px; }
@@ -350,6 +368,8 @@ textarea:focus-visible {
   background: #fff;
   border-right: 1px solid #dce1e8;
   font-size: 13px;
+  display: flex;
+  flex-direction: column;
 }
 section {
   padding: 18px;

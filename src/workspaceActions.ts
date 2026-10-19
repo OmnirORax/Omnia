@@ -3,6 +3,7 @@ import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from
 export const ACTIONS = [
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
+  { id: "ui:reset", category: "Workspace", label: "Reset to default", defaultKey: "" },
   { id: "ui:undo", category: "UI history", label: "Undo UI", defaultKey: "" },
   { id: "ui:redo", category: "UI history", label: "Redo UI", defaultKey: "" },
   { id: "ui:select", category: "UI editing", label: "Select UI buttons", defaultKey: "" },
