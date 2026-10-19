@@ -32,6 +32,7 @@ import {
 import { VisualControls } from "../VisualControls";
 import { ShortcutHint } from "./ShortcutHint";
 import { FrameChrome } from "./FrameChrome";
+import { FrameSearch } from "./FrameSearch";
 import { DockArea } from "./DockArea";
 import { DockHost } from "./DockHost";
 import {
@@ -280,6 +281,7 @@ export function UIPanel({
     );
   if (!menu && !ui.layout.panels["@organized"]) return (
     <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
+      <div className="ui-legacy-search"><FrameSearch container={key} title={title} expand={() => {}} /></div>
       <button className="detach-panel" title={`Float ${title}`} aria-label={`Undock ${id} panel`} data-ui-drag={key} draggable onDragStart={e => startResidentDrag(e, key)} onClick={() => float(true)}>↗</button>
       <UIHomeContext.Provider value={key}>{children}<DockArea container={key} contour={false} /></UIHomeContext.Provider>
     </section>
