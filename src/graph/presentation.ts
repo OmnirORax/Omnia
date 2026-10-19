@@ -223,7 +223,7 @@ export function createLayoutView(
 export type DisplayBinder = {
   key: string;
   id: string;
-  kind: "relationship" | "composition" | "visual";
+  kind: "relationship" | "composition" | "visual" | "variant";
   source: string;
   target: string;
   label: string;

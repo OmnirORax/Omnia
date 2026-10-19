@@ -8,18 +8,29 @@ import type { Document } from "./graph/structural";
 import { chartedBinders } from "./graph/presentation";
 import { occupiedRadii } from "./graph/layout3d";
 import { buildTextScene, type TextScene } from "./textScene";
+import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
+import { nodeClicks } from "./nodeClicks";
+import { subtreeGesture } from "./workspaceActions";
 
-export type NavigationCommand = { sequence: number; kind: "focus" | "local" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
-export type ContextAction = "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
+export type NavigationCommand = { sequence: number; kind: "focus" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
+export type ContextAction = "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "removeVariant" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "node"; id: string } | { kind: "space"; world: XYZ };
 type Props = {
   atlas: Atlas;
   document: Document;
+  variantDisplay: ReturnType<typeof projectVariants>;
+  expandedVariants: ReadonlySet<string>;
+  optionNodeId: string | null;
+  onToggleVariants: (id: string) => void;
+  onAddVariant: (id: string) => void;
+  onDismissOptions: () => void;
   selectedId: string | null;
   settings: WorkspaceSettings;
   command: NavigationCommand | null;
   constraintAxis: "x" | "y" | "z" | null;
   onNodeClick: (id: string) => void;
+  onNodeDoubleClick: (id: string) => void;
+  onSubtreeClick: (id: string) => void;
   onBinderSelect: (id: string, kind: "composition" | "relationship") => void;
   onMove: (id: string, local: XYZ) => void;
   resolveMove: (id: string, local: XYZ) => XYZ;
@@ -56,9 +67,12 @@ function disposeContent(group: THREE.Group) {
 export default function SpatialWorkspace(props: Props) {
   const { atlas, selectedId, settings, command, document: doc } = props;
   const hostRef = useRef<HTMLDivElement>(null);
+  const optionBarRef = useRef<HTMLDivElement>(null);
+  const addButtons = useRef(new Map<string, HTMLButtonElement>());
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
-  const graph = projectSpatial(atlas);
+  const baseGraph = projectSpatial(atlas);
+  const graph = { ...baseGraph, nodes: [...baseGraph.nodes, ...props.variantDisplay.nodes] };
   const graphRef = useRef(graph); graphRef.current = graph;
   const meshes = useRef<THREE.Sprite[]>([]);
   const groups = useRef(new Map<string, THREE.Group>());
@@ -94,10 +108,24 @@ export default function SpatialWorkspace(props: Props) {
       pendingRender = requestAnimationFrame(() => {
         pendingRender = 0;
         textScene.current?.update(camera, host.clientWidth, host.clientHeight);
+        const anchorElement = (element: HTMLElement | undefined | null, id: string, below = false) => {
+          if (!element) return;
+          const item = textScene.current?.nodes.get(id);
+          if (!item || !item.sprite.visible) { element.style.visibility = "hidden"; return; }
+          const p = item.group.position.clone().project(camera);
+          element.style.visibility = p.z > -1 && p.z < 1 ? "visible" : "hidden";
+          element.style.left = `${(p.x + 1) * host.clientWidth / 2}px`;
+          const depth = -item.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z;
+          const labelHeight = item.sprite.scale.y * host.clientHeight / (2 * Math.max(camera.near, depth) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+          element.style.top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
+        };
+        anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
+        for (const [id, button] of addButtons.current) anchorElement(button, id);
         renderer.render(scene, camera);
       });
     };
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
+    const clicks = nodeClicks((id) => callbacks.current.onNodeClick(id), (id) => callbacks.current.onNodeDoubleClick(id));
     const animate = (target: THREE.Vector3, distance: number, remember = true, facing?: THREE.Vector3) => {
       stopAnimation();
       if (remember) cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone() });
@@ -117,7 +145,7 @@ export default function SpatialWorkspace(props: Props) {
       animation = requestAnimationFrame(tick);
     };
     const focus = (kind: NavigationCommand["kind"], requestedId?: string) => {
-      if (kind === "cancel") { stopAnimation(); setMenu(null); setFeedback(""); return; }
+      if (kind === "cancel") { clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
       if (kind === "back") {
         const pose = cameraHistory.pop(); if (!pose) return;
         stopAnimation();
@@ -134,9 +162,11 @@ export default function SpatialWorkspace(props: Props) {
       }
       const nodes = graphRef.current.nodes.filter((n) => n.visible);
       if (!nodes.length) return;
-      if (kind === "all" || kind === "hierarchy") {
+      if (kind === "all" || kind === "hierarchy" || kind === "variants") {
         const bounds = new THREE.Box3();
-        for (const node of nodes) {
+        const framing = kind === "variants" ? nodes.filter((n) => n.id === requestedId || callbacks.current.variantDisplay.instances.get(n.id)?.ownerNodeId === requestedId) : nodes;
+        if (!framing.length) return;
+        for (const node of framing) {
           const center = asVector(node.world), r = callbacks.current.settings.spatial.radius;
           bounds.expandByPoint(center.clone().addScalar(r)); bounds.expandByPoint(center.clone().addScalar(-r));
         }
@@ -194,17 +224,25 @@ export default function SpatialWorkspace(props: Props) {
     const down = (event: PointerEvent) => {
       stopAnimation(); setMenu(null);
       if (event.button === 2) {
-        rightDown = { x: event.clientX, y: event.clientY, id: hits(event)[0]?.object.userData.nodeId ?? null, world: cursorWorld(event) };
+        clicks.cancel();
+        callbacks.current.onDismissOptions();
+        const hit = hits(event)[0]?.object;
+        if (callbacks.current.variantDisplay.instances.get(hit?.userData.nodeId)?.kind === "add") return;
+        rightDown = { x: event.clientX, y: event.clientY, id: hit?.userData.nodeId ?? null, world: cursorWorld(event) };
         return;
       }
       if (event.button !== 0) return;
       const hit = hits(event)[0];
       if (!hit) {
+        clicks.cancel();
+        callbacks.current.onDismissOptions();
         const binder = raycaster.intersectObjects(textScene.current?.binderHits.filter((object) => object.visible) ?? [], false)[0]?.object;
-        if (binder && binder.userData.binderKind !== "visual") binderDown = { id: binder.userData.binderId, kind: binder.userData.binderKind, x: event.clientX, y: event.clientY };
+        if (binder && ["composition", "relationship"].includes(binder.userData.binderKind)) binderDown = { id: binder.userData.binderId, kind: binder.userData.binderKind, x: event.clientX, y: event.clientY };
         return;
       }
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
+      const instance = callbacks.current.variantDisplay.instances.get(id);
+      if (instance?.kind === "add") { clicks.cancel(); callbacks.current.onAddVariant(instance.ownerNodeId); return; }
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), group.position);
       const intersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3()); if (!intersection) return;
       const label = textScene.current?.nodes.get(id)?.sprite;
@@ -218,6 +256,7 @@ export default function SpatialWorkspace(props: Props) {
     };
     const move = (event: PointerEvent) => {
       if (!drag) { if (event.buttons === 0) paintHover((hits(event)[0]?.object as THREE.Sprite) ?? null); return; }
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) >= CLICK_THRESHOLD) clicks.cancel();
       aim(event);
       const intersection = raycaster.ray.intersectPlane(drag.plane, new THREE.Vector3()); if (!intersection) return;
       const wanted = intersection.add(drag.offset);
@@ -259,7 +298,10 @@ export default function SpatialWorkspace(props: Props) {
       scene.remove(current.marker); current.marker.geometry.dispose(); (current.marker.material as THREE.Material).dispose();
       setFeedback("");
       if (!cancelled) {
-        if (Math.hypot(event.clientX - current.startX, event.clientY - current.startY) < CLICK_THRESHOLD) callbacks.current.onNodeClick(current.id);
+        if (Math.hypot(event.clientX - current.startX, event.clientY - current.startY) < CLICK_THRESHOLD) {
+          if (subtreeGesture(event, callbacks.current.settings.mouse.subtreeModifier)) { clicks.cancel(); callbacks.current.onSubtreeClick(current.id); }
+          else clicks.click(current.id);
+        }
         else if (event.shiftKey && current.nestTarget) callbacks.current.onNest(current.id, current.nestTarget);
         else if (!event.shiftKey && current.local) callbacks.current.onMove(current.id, current.local);
       }
@@ -280,7 +322,7 @@ export default function SpatialWorkspace(props: Props) {
       }
       if (event.button === 0) finishDrag(event);
     };
-    const cancel = (event: PointerEvent) => finishDrag(event, true);
+    const cancel = (event: PointerEvent) => { clicks.cancel(); finishDrag(event, true); };
     const preventMenu = (event: MouseEvent) => event.preventDefault();
     renderer.domElement.addEventListener("pointerdown", down);
     renderer.domElement.addEventListener("pointermove", move);
@@ -289,7 +331,7 @@ export default function SpatialWorkspace(props: Props) {
     renderer.domElement.addEventListener("contextmenu", preventMenu);
     setReady(true);
     return () => {
-      stopAnimation(); cancelAnimationFrame(pendingRender);
+      clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
       renderer.domElement.removeEventListener("pointerdown", down);
       renderer.domElement.removeEventListener("pointermove", move);
       renderer.domElement.removeEventListener("pointerup", up);
@@ -310,7 +352,7 @@ export default function SpatialWorkspace(props: Props) {
     disposeContent(state.content);
     const visible = graph.nodes.filter((n) => n.visible);
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    const binders = chartedBinders(doc).flatMap((b) => {
+    const binders = [...chartedBinders(doc), ...props.variantDisplay.binders].flatMap((b) => {
       const from = byId.get(b.source), to = byId.get(b.target);
       if (!from || !to || (from.representative === to.representative && (!from.visible || !to.visible))) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
@@ -325,7 +367,7 @@ export default function SpatialWorkspace(props: Props) {
       firstFocus.current = true;
       state.focus("local", visible.find((n) => n.parentId === null)?.id ?? visible[0].id);
     }
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, props.variantDisplay]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
@@ -337,9 +379,15 @@ export default function SpatialWorkspace(props: Props) {
     ["createAt", "Create node here"], ["insertExisting", "Insert existing entity"],
     ["compact", "Compact layout"], ["fitAll", "Fit entire atlas"], ["settings", "Workspace settings"],
   ];
+  const variantMenu: [ContextAction, string][] = [["focus", "Focus"], ["edit", "Rename / edit in inspector"], ["removeVariant", "Remove variant from owner"], ["deleteIdentity", "Delete identity…"]];
+  const menuItems = menu?.target.kind === "node" ? props.variantDisplay.instances.get(menu.target.id)?.kind === "variant" ? variantMenu : nodeMenu : spaceMenu;
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
-    <div className="spatial-help">Left-drag space: pan · right-drag: rotate · scroll: zoom · drag name: move · Shift-drag onto name: nest · click binder: edit</div>
+    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}Shift-drag: nest · right-drag: rotate</div>
+    {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
+      {NODE_OPTIONS.map((option) => <button key={option.id} aria-expanded={props.expandedVariants.has(props.optionNodeId!)} onClick={() => props.onToggleVariants(props.optionNodeId!)}>{option.label}</button>)}
+    </div>}
+    {[...props.variantDisplay.instances].filter(([, item]) => item.kind === "add").map(([id, item]) => <button key={id} className="variant-add" ref={(element) => { if (element) addButtons.current.set(id, element); else addButtons.current.delete(id); }} aria-label={`Add variant for ${graph.nodes.find((n) => n.id === item.ownerNodeId)?.label || "node"}`} onContextMenu={(event) => event.preventDefault()} onClick={() => props.onAddVariant(item.ownerNodeId)}>+</button>)}
     <div className="spatial-controls">
       <button onClick={() => stateRef.current?.focus("focus", selectedId ?? undefined)} disabled={!selectedId}>Focus selected</button>
       <button onClick={() => stateRef.current?.focus("local", selectedId ?? undefined)}>Fit local system</button>
@@ -348,7 +396,7 @@ export default function SpatialWorkspace(props: Props) {
     </div>
     {feedback && <div className="spatial-feedback" role="status">{feedback}</div>}
     {menu && <div className="spatial-menu" role="menu" style={{ left: Math.max(0, menu.x), top: Math.max(0, menu.y) }}>
-      {(menu.target.kind === "node" ? nodeMenu : spaceMenu).map(([action, label]) =>
+      {menuItems.map(([action, label]) =>
         <button key={action} role="menuitem" onClick={() => { callbacks.current.onContextAction(action, menu.target); setMenu(null); }}>{label}</button>)}
     </div>}
   </div>;
