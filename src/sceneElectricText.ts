@@ -62,7 +62,7 @@ export function createSceneElectricText() {
           if (!state) { state = configure(root, root.material); states.set(root, state); }
           const uniforms = state.uniforms;
           uniforms.omniumInk.value = texture; uniforms.omniumInkStrength.value = fx.intensity;
-          uniforms.omniumInkColor.value.set(fx.color ?? color); uniforms.omniumInkSeed.value = seed;
+          uniforms.omniumInkColor.value.set(fx.color ?? root.userData.textColor ?? color); uniforms.omniumInkSeed.value = seed;
         }
         for (const child of root.children) apply(child, fx, texture, color, seed);
       };

@@ -43,6 +43,7 @@ import type { UIFunction } from "./ui/context";
 import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
 import { useInterfaceState } from "./ui/useInterfaceState";
+import { useControlGlow } from "./ui/useControlGlow";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -95,6 +96,10 @@ function Workbench() {
     root.dataset.omniumTheme = a.theme;
     root.dataset.omniumMotion = a.motion > 0 ? "on" : "off";
     root.dataset.omniumTextGlow = a.textGlow > 0 ? "on" : "off";
+    root.dataset.omniumTextColor = a.textColor ? "on" : "off";
+    root.style.setProperty("--omnium-text-color", a.textColor ?? "inherit");
+    root.dataset.omniumControlGlow = a.controlGlow > 0 ? "on" : "off";
+    root.style.setProperty("--omnium-control-glow", String(a.controlGlow));
     root.style.setProperty("--omnium-text-shadow", a.textGlow > 0 ? `0 0 ${1 + a.textGlow * 2}px color-mix(in srgb, currentColor ${a.textGlow * 100}%, transparent), 0 0 ${a.textGlow * 10}px color-mix(in srgb, currentColor ${a.textGlow * 70}%, transparent)` : "0 0 0 transparent");
     root.style.setProperty("--omnium-font", fontFamily(a.font));
     const base = a.theme === "neon" ? a.background : "#f8faff";
@@ -107,6 +112,7 @@ function Workbench() {
     root.style.setProperty("--omnium-glow", String(a.glow));
     root.style.setProperty("--omnium-frame-opacity", String(a.windowOpacity * a.opacity * 0.22));
   }, [settings.appearance]);
+  useControlGlow(settings.appearance.controlGlow, settings.appearance.accent, settings.appearance.theme);
   const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
   useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
@@ -980,6 +986,8 @@ function Workbench() {
   for (const [key, label, id] of [["intensity", "Effect intensity", "effectIntensity"], ["density", "Density", "density"], ["motion", "Animation speed", "motion"]] as const) replaceFunction(`ui:appearance:${id}`, label, <label>{label}: {Math.round(scopedEffects[key] * 100)}%<input aria-label={label} disabled={useSharedAnimation} type="range" min="0" max="1" step="0.05" value={scopedEffects[key]} onChange={event => editEffects({ [key]: Number(event.target.value) })} /></label>, true);
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => editAppearance({ theme: event.target.value as WorkspaceSettings["appearance"]["theme"] })}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>, true);
   replaceFunction("ui:appearance:textGlow", "All text glow", <label>All text glow: {Math.round(settings.appearance.textGlow * 100)}%<input aria-label="All text glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.textGlow} onChange={event => editAppearance({ textGlow: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:textColor", "All text color", <div><label>All text color<input aria-label="All text color" type="color" title="Changes displayed lettering without overwriting authored colors." value={settings.appearance.textColor ?? (settings.appearance.theme === "neon" ? "#d7f3f7" : "#233348")} onChange={event => editAppearance({ textColor: event.target.value })} /></label><button disabled={!settings.appearance.textColor} onClick={() => editAppearance({ textColor: undefined })}>Original colors</button></div>, true);
+  replaceFunction("ui:appearance:controlGlow", "Bars and sliders glow", <label>Bars and sliders glow: {Math.round(settings.appearance.controlGlow * 100)}%<input aria-label="Bars and sliders glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.controlGlow} onChange={event => editAppearance({ controlGlow: Number(event.target.value) })} /></label>, true);
   replaceFunction("ui:appearance:font", "All text font", <label>All text font<select aria-label="All text font" value={settings.appearance.font} onChange={event => editAppearance({ font: event.target.value as FontId })}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}{customFonts.map(font => <option key={font.id} value={font.id}>{font.name}</option>)}{isCustomFont(settings.appearance.font) && !customFonts.some(font => font.id === settings.appearance.font) && <option value={settings.appearance.font}>Custom font (not loaded)</option>}</select></label>, true);
   replaceFunction("ui:appearance:importFont", "Import font", <button title="Import WOFF2, WOFF, TTF or OTF, up to 10 MB. Applies to all text." disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
   replaceFunction("ui:appearance:background", "Background color", <label>Background color<input aria-label="Background color" type="color" value={settings.appearance.background} onChange={event => editAppearance({ background: event.target.value })} /></label>, true);
@@ -2016,9 +2024,9 @@ function Workbench() {
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
-        <p>Authored node and binder colors take precedence. Effects appear in Neon.</p>
+        <p>All text color overrides lettering; authored colors still apply to other visuals. Effects appear in Neon.</p>
         <section aria-label="Appearance"><h3>Appearance</h3>
-          {["ui:appearance:theme", "ui:appearance:font", "ui:appearance:importFont", "ui:appearance:textGlow", "ui:appearance:background", "ui:appearance:scope", "ui:appearance:accent", "ui:appearance:opacity", "ui:glow", "ui:appearance:glowSpread", "ui:appearance:inherit", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:appearance:theme", "ui:appearance:font", "ui:appearance:textColor", "ui:appearance:importFont", "ui:appearance:textGlow", "ui:appearance:controlGlow", "ui:appearance:background", "ui:appearance:scope", "ui:appearance:accent", "ui:appearance:opacity", "ui:glow", "ui:appearance:glowSpread", "ui:appearance:inherit", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
         </section>
         <section aria-label="Windows"><h3>Windows</h3>
           <FunctionControl id="ui:appearance:windowOpacity" /><FunctionControl id="ui:appearance:blur" />

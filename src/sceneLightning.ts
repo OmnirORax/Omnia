@@ -68,7 +68,7 @@ export function createSceneLightning(scene: THREE.Scene) {
               matrix.compose(object.getWorldPosition(new THREE.Vector3()), camera.quaternion, object.getWorldScale(new THREE.Vector3()));
             }
             const bolts = lightningBolts(paths, seed, seconds * fx.motion, fx.density, fx.boltLength, !reduced && fx.motion > 0);
-            const base = new THREE.Color(fx.color ?? color);
+            const base = new THREE.Color(fx.color ?? object.userData.textColor ?? color);
             for (const bolt of bolts) {
               for (let i = 0; i < bolt.points.length; i++) {
                 const p = bolt.points[i]; point.set(p.x, p.y, 0.015).applyMatrix4(matrix);

@@ -29,7 +29,7 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
       let moving = false, lightningBudget = 1800, electricBudget = 1_200_000;
       for (const [target, selector] of selectors) {
         const fx = resolveTargetSparkles(a, target); if (!effectVisible(fx)) continue;
-        context.strokeStyle = context.fillStyle = context.shadowColor = fx.color ?? a.accent;
+        context.strokeStyle = context.fillStyle = context.shadowColor = fx.color ?? (fx.effect === "electric-text" ? a.textColor : undefined) ?? a.accent;
         const time = phase * fx.motion;
         const candidates = [...document.querySelectorAll<HTMLElement>(selector)];
         for (let index = 0; index < Math.min(100, candidates.length); index++) {

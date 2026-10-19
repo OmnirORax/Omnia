@@ -715,3 +715,12 @@ button.active,
 .ui-search-found { outline: 2px solid var(--omnium-accent, #386991) !important; outline-offset: 3px; }
 .ui-legacy-search { position: absolute; top: 8px; right: 36px; }
 .ui-frame-tools > .ui-frame-handle.icon-handle { flex-shrink: 0; }
+
+/* Shared typography overrides leave authored graph colors and control fills intact. */
+:root[data-omnium-text-color="on"] body * { color: var(--omnium-text-color) !important; }
+:root[data-omnium-control-glow="on"] :is(input[type="color"],input[type="range"],progress,meter) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 0 calc(2px * var(--omnium-control-glow)) var(--omnium-control-color, var(--omnium-accent))) drop-shadow(0 0 calc(6px * var(--omnium-control-glow)) var(--omnium-control-color, var(--omnium-accent)));
+}
