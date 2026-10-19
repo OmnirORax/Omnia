@@ -29,6 +29,7 @@ import type { Visual, VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPlacementControl, UIPanel } from "./ui/UIWorkspace";
+import { UIFrameStrip } from "./ui/UIFrameStrip";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { loadUILayout, ownerOf, updateContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
@@ -871,6 +872,7 @@ function Workbench() {
         </div>
         <div className="toolbar-actions">
           {uiLayout.panels["@organized"] ? <>
+          <UIFrameStrip id="@toolbarFrames">
           <UIPanel id="menu:file" title="File" menu>
             {["ui:import", "ui:export", "ui:saveTemplate", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
@@ -891,6 +893,7 @@ function Workbench() {
           <UIPanel id="menu:workspace" title="Workspace" menu>
             {["settings", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:placementMode", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
+          </UIFrameStrip>
           <div className="primary-charting-actions" role="toolbar" aria-label="Charting actions">
             {["newNode", "newChild", "connect", "compactAll", "undo", "redo"].map(id => <FunctionControl id={id} key={id} />)}
           </div>
@@ -949,6 +952,7 @@ function Workbench() {
       )}
       <main className="workspace">
         <aside className="sidebar">
+          <UIFrameStrip id="@sidebar" vertical>
           <UIPanel id="reuse" title="Reuse identity">
             <h2>Reuse identity</h2>
             {field("field:find-existing-identity", "Find existing identity", <label>
@@ -1782,6 +1786,7 @@ function Workbench() {
               This is a private local atlas.
             </p>
           </UIPanel>
+          </UIFrameStrip>
         </aside>
         <div className="canvas" aria-label="Atlas canvas">
           <Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>

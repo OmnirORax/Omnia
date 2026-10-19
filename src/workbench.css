@@ -51,6 +51,10 @@
 .ui-panel-body > h2:first-child { display: none; }
 .ui-panel-body > .ui-dock-area { padding: 6px 0; gap: 6px; }
 .ui-menu-panel { padding: 0; border: 0; }
+.ui-frame-strip { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.ui-frame-strip.is-vertical { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0; }
+.ui-native-frame-slot { min-width: 0; position: relative; }
+.ui-native-frame-slot.is-away { display: contents; }
 .ui-menu-panel > .frame-chrome.floating-title { width: auto; margin: 0; }
 .ui-menu-panel > .frame-chrome > .ui-frame-handle { position: relative; min-width: 0; background: transparent; border-color: transparent; }
 .ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button { padding: 7px 9px; }
