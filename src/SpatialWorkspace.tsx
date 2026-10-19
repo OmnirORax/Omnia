@@ -10,6 +10,7 @@ import { chartedBinders } from "./graph/presentation";
 import { occupiedRadii, worldPositions } from "./graph/layout3d";
 import { buildTextScene, type LabelMesh, type TextScene } from "./textScene";
 import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
+import { createSceneAppearance } from "./sceneAppearance";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
@@ -53,6 +54,7 @@ type SceneState = {
   controls: OrbitControls;
   renderer: THREE.WebGLRenderer;
   content: THREE.Group;
+  appearance: ReturnType<typeof createSceneAppearance>;
   requestRender: () => void;
   focus: (kind: NavigationCommand["kind"], id?: string) => void;
 };
@@ -119,6 +121,8 @@ export default function SpatialWorkspace(props: Props) {
     const originAxes = new THREE.AxesHelper(2); scene.add(originAxes);
     scene.add(new THREE.AmbientLight(0xffffff, 2.1));
     const light = new THREE.DirectionalLight(0xffffff, 2.2); light.position.set(5, 12, 9); scene.add(light);
+    const appearance = createSceneAppearance(renderer, scene, camera);
+    appearance.configure(callbacks.current.settings.appearance);
     let pendingRender = 0, animation = 0;
     const cameraHistory: CameraPose[] = [];
     const changeFocusContext = (ids: readonly string[] | null) => {
@@ -143,7 +147,7 @@ export default function SpatialWorkspace(props: Props) {
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
         const selected = worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
-        renderer.render(scene, camera);
+        appearance.render();
       });
     };
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
@@ -238,10 +242,11 @@ export default function SpatialWorkspace(props: Props) {
       animate(point, Math.max(4, radius / Math.tan(fov / 2) * 1.5));
       changeFocusContext(contextIds);
     };
-    stateRef.current = { camera, controls, renderer, content, requestRender, focus };
+    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, focus };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
+      appearance.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
     };
     const observer = new ResizeObserver(resize); observer.observe(host); resize();
     controls.addEventListener("change", requestRender);
@@ -427,7 +432,7 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.removeEventListener("pointerup", up);
       renderer.domElement.removeEventListener("pointercancel", cancel);
       renderer.domElement.removeEventListener("contextmenu", preventMenu);
-      observer.disconnect(); controls.dispose(); originAxes.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
+      observer.disconnect(); controls.dispose(); appearance.dispose(); originAxes.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
     };
   }, []);
 
@@ -436,6 +441,10 @@ export default function SpatialWorkspace(props: Props) {
     const button = (action: "pan" | "rotate" | "none") => action === "pan" ? THREE.MOUSE.PAN : action === "rotate" ? THREE.MOUSE.ROTATE : null;
     state.controls.mouseButtons = { LEFT: button(settings.mouse.leftEmpty), MIDDLE: THREE.MOUSE.DOLLY, RIGHT: button(settings.mouse.rightEmpty) };
   }, [ready, settings.mouse.leftEmpty, settings.mouse.rightEmpty]);
+  useEffect(() => {
+    const state = stateRef.current; if (!state || !ready) return;
+    state.appearance.configure(settings.appearance); state.requestRender();
+  }, [ready, settings.appearance.theme, settings.appearance.glow, settings.appearance.atmosphere]);
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
@@ -449,14 +458,14 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance.theme === "neon");
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.theme]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [

@@ -27,6 +27,7 @@
       "panel:menu:view": {
         "x": 320, "y": 100, "width": 340, "height": 560, "collapsed": true, "pinned": false,
         "members": [
+          { "kind": "function", "id": "theme" },
           { "kind": "function", "id": "ui:view" },
           { "kind": "function", "id": "ui:viewRule" },
           { "kind": "function", "id": "ui:newView" },

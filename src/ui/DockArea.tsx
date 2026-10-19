@@ -259,7 +259,7 @@ export function DockArea({ container, contour = true }: { container: string; con
               Math.abs(Math.min(-12, (handle?.y ?? 0) - 12)) +
               12
             }
-            fill="#b6d4f2"
+            fill="var(--omnium-frame-fill, #b6d4f2)"
             opacity=".2"
             mask={`url(#${mask})`}
           />
