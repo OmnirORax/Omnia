@@ -4,9 +4,9 @@ import {
   emptyUILayout,
   validateUILayout,
   groupFunctions,
-  placeInFrame,
+  dockResident,
   detachFunction,
-  frameCells,
+  ownerOf,
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
@@ -15,54 +15,65 @@ test("grouping retains function identity and creates a named, initially collapse
     grouped = groupFunctions(original, "focus", "undo", 96, 144);
   assert.equal(grouped.frames.length, 1);
   assert.equal(grouped.frames[0].collapsed, true);
-  assert.equal(grouped.items.focus.frameId, grouped.items.undo.frameId);
+  assert.equal(ownerOf(grouped, "function:focus"), ownerOf(grouped, "function:undo"));
   assert.deepEqual(original.items, {});
-  const more = placeInFrame(grouped, "redo", grouped.frames[0].id, { x: 0, y: 1 });
-  assert.deepEqual(
-    frameCells(more, grouped.frames[0].id).sort((a, b) => a.y - b.y || a.x - b.x),
-    [
-      { x: 0, y: 0 },
-      { x: 1, y: 0 },
-      { x: 0, y: 1 },
-    ],
-  );
+  const more = dockResident(grouped, "function:redo", `frame:${grouped.frames[0].id}`, 2, true);
+  assert.deepEqual(more.frames[0].members, [
+    { kind: "function", id: "focus" },
+    { kind: "function", id: "undo" },
+    { kind: "function", id: "redo", breakBefore: true },
+  ]);
   assert.deepEqual(validateUILayout(JSON.parse(JSON.stringify(more))), more);
 });
-test("snapping is deterministic, chooses empty neighbors and normalizes negative extension", () => {
+test("context-menu snapping stays deterministic, and removing a resident retains its neighbors", () => {
   assert.deepEqual(nearestSlot([{ x: 0, y: 0 }], { x: 0, y: 0 }), { x: 0, y: -1 });
   const grouped = groupFunctions(emptyUILayout(), "a", "b", 20, 30),
     id = grouped.frames[0].id;
-  const left = placeInFrame(grouped, "c", id, { x: -1, y: 0 });
-  assert.deepEqual(left.items.c.cell, { x: 0, y: 0 });
-  assert.deepEqual(left.items.a.cell, { x: 1, y: 0 });
-  assert.equal(
-    left.frames[0].x + left.items.a.cell.x * left.frames[0].cellSize,
-    grouped.frames[0].x,
+  const left = dockResident(grouped, "function:c", `frame:${id}`, 0);
+  assert.deepEqual(
+    left.frames[0].members.map((m) => m.id),
+    ["c", "a", "b"],
   );
   const detached = detachFunction(left, "c", 400, 300);
-  assert.deepEqual(detached.items.a.cell, { x: 0, y: 0 });
+  assert.deepEqual(
+    detached.frames[0].members.map((m) => m.id),
+    ["a", "b"],
+  );
   assert.equal(detached.frames[0].x, grouped.frames[0].x);
   assert.equal(detached.items.c.frameId, undefined);
-  const occupied = Object.values(left.items).map((i) => `${i.cell.x}:${i.cell.y}`);
+  const occupied = left.frames[0].members.map((i) => `${i.kind}:${i.id}`);
   assert.equal(new Set(occupied).size, 3);
 });
 test("pinned functions and frames reject rearrangement", () => {
   let layout = groupFunctions(emptyUILayout(), "a", "b", 20, 30),
     id = layout.frames[0].id;
   layout.frames[0].pinned = true;
-  assert.equal(placeInFrame(layout, "c", id, { x: 0, y: 1 }), layout);
+  assert.equal(dockResident(layout, "function:c", `frame:${id}`, 0), layout);
   layout.frames[0].pinned = false;
   layout.items.a.pinned = true;
   assert.equal(groupFunctions(layout, "a", "c", 0, 0), layout);
-  assert.equal(placeInFrame(layout, "a", id, { x: 1, y: 0 }), layout);
+  assert.equal(dockResident(layout, "function:a", `frame:${id}`, 1), layout);
 });
-test("malformed templates reject missing frames, duplicate cells, invalid assets and unsafe geometry", () => {
+test("malformed templates reject missing frames, duplicate residents, invalid assets and unsafe geometry", () => {
   const valid = groupFunctions(emptyUILayout(), "a", "b", 20, 30),
     before = structuredClone(valid);
-  assert.throws(() => validateUILayout({ ...valid, frames: [] }), /Missing UI frame/);
   assert.throws(
-    () => validateUILayout({ ...valid, items: { ...valid.items, c: { ...valid.items.a } } }),
-    /same slot/,
+    () =>
+      validateUILayout({
+        ...valid,
+        frames: [{ ...valid.frames[0], members: [{ kind: "frame", id: "missing" }] }],
+      }),
+    /Missing nested/,
+  );
+  assert.throws(
+    () =>
+      validateUILayout({
+        ...valid,
+        frames: [
+          { ...valid.frames[0], members: [...valid.frames[0].members, valid.frames[0].members[0]] },
+        ],
+      }),
+    /two frames/,
   );
   assert.throws(
     () =>

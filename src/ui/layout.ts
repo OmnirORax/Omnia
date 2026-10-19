@@ -8,6 +8,19 @@ export type WindowState = {
   height: number;
   collapsed: boolean;
   pinned: boolean;
+  members?: UIResident[];
+  chrome?: FrameChrome;
+  magnetic?: boolean;
+};
+export type UIResident = {
+  kind: "function" | "frame" | "window";
+  id: string;
+  breakBefore?: boolean;
+};
+export type FrameChrome = {
+  style?: FunctionStyle;
+  handle?: Cell;
+  controls?: Partial<Record<"collapse" | "pin" | "close", Cell>>;
 };
 export type FunctionStyle = {
   mode: "text" | "icon";
@@ -32,9 +45,13 @@ export type UIFrame = {
   cellSize: number;
   collapsed: boolean;
   pinned: boolean;
+  members?: UIResident[];
+  width?: number;
+  chrome?: FrameChrome;
+  magnetic?: boolean;
 };
 export type UILayout = {
-  version: 1;
+  version: 1 | 2;
   windows: Record<string, WindowState>;
   items: Record<string, UIItem>;
   frames: UIFrame[];
@@ -44,7 +61,7 @@ export type UILayout = {
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
-  version: 1,
+  version: 2,
   windows: {},
   items: {},
   frames: [],
@@ -65,7 +82,7 @@ const cell = (v: unknown): v is Cell =>
 export function validateUILayout(value: unknown): UILayout {
   if (
     !record(value) ||
-    value.version !== 1 ||
+    ![1, 2].includes(value.version as number) ||
     !record(value.windows) ||
     !record(value.items) ||
     !Array.isArray(value.frames) ||
@@ -131,6 +148,8 @@ export function validateUILayout(value: unknown): UILayout {
     )
       throw new Error("Invalid function placement.");
     if (item.frameId !== undefined) {
+      if (layout.version === 2)
+        throw new Error("Version-2 UI residents use frame membership, not legacy cells.");
       if (item.home || !frameIds.has(item.frameId) || !cell(item.cell))
         throw new Error("Missing UI frame or slot.");
       const slot = `${item.frameId}:${item.cell.x}:${item.cell.y}`;
@@ -159,7 +178,227 @@ export function validateUILayout(value: unknown): UILayout {
       throw new Error("Invalid context menu layout.");
   if (Object.values(layout.panels).some((v) => typeof v !== "boolean"))
     throw new Error("Invalid panel layout.");
+  if (layout.version === 1) {
+    const next = structuredClone(layout);
+    next.version = 2;
+    for (const f of next.frames) {
+      const items = Object.entries(next.items)
+        .filter(([, i]) => i.frameId === f.id)
+        .sort((a, b) => a[1].cell!.y - b[1].cell!.y || a[1].cell!.x - b[1].cell!.x);
+      f.width = Math.max(160, (Math.max(0, ...items.map(([, i]) => i.cell!.x)) + 1) * f.cellSize);
+      f.members = items.map(([id, item], index) => ({
+        kind: "function",
+        id,
+        breakBefore: index > 0 && item.cell!.y !== items[index - 1][1].cell!.y,
+      }));
+    }
+    for (const item of Object.values(next.items)) {
+      delete item.frameId;
+      delete item.cell;
+    }
+    return validateUILayout(next);
+  }
+  const owners = new Map<string, string>();
+  for (const [key, container] of containers(layout)) {
+    if (container.magnetic !== undefined && typeof container.magnetic !== "boolean")
+      throw new Error("Invalid frame magnetism.");
+    if (
+      "width" in container &&
+      container.width !== undefined &&
+      (!numeric(container.width) || container.width < 120)
+    )
+      throw new Error("Invalid frame width.");
+    const chrome = container.chrome;
+    if (chrome) {
+      if (!record(chrome)) throw new Error("Invalid frame controls.");
+      const points = [chrome.handle, ...Object.values(chrome.controls ?? {})].filter(
+        (p) => p !== undefined,
+      );
+      if (points.some((p) => !record(p) || !numeric(p.x) || !numeric(p.y)))
+        throw new Error("Invalid frame control position.");
+      if (
+        chrome.controls &&
+        Object.keys(chrome.controls).some((k) => !["collapse", "pin", "close"].includes(k))
+      )
+        throw new Error("Invalid frame control.");
+      if (chrome.style) validateStyle(chrome.style, layout);
+    }
+    if (
+      container.members !== undefined &&
+      (!Array.isArray(container.members) || container.members.length > 500)
+    )
+      throw new Error("Invalid frame members.");
+    for (const member of container.members ?? []) {
+      if (
+        !record(member) ||
+        !["function", "frame", "window"].includes(member.kind) ||
+        typeof member.id !== "string" ||
+        !member.id ||
+        member.id.length > 200 ||
+        (member.breakBefore !== undefined && typeof member.breakBefore !== "boolean")
+      )
+        throw new Error("Invalid frame member.");
+      if (member.kind === "frame" && !frameIds.has(member.id))
+        throw new Error("Missing nested UI frame.");
+      if (member.kind === "window" && !layout.windows[member.id])
+        throw new Error("Missing nested UI window.");
+      const token = residentKey(member);
+      if (owners.has(token)) throw new Error("A UI resident cannot belong to two frames.");
+      owners.set(token, key);
+    }
+  }
+  for (const start of owners.keys()) {
+    let key: string | undefined = start;
+    const seen = new Set<string>();
+    while (key) {
+      if (seen.has(key)) throw new Error("Circular UI frame nesting is not allowed.");
+      seen.add(key);
+      if (seen.size > 16) throw new Error("UI nesting exceeds 16 levels.");
+      key = owners.get(key);
+    }
+  }
   return layout;
+}
+function validateStyle(style: FunctionStyle, layout: UILayout) {
+  if (
+    !record(style) ||
+    !["text", "icon"].includes(style.mode) ||
+    !["circle", "square", "triangle"].includes(style.geometry) ||
+    (style.character !== undefined &&
+      (typeof style.character !== "string" || style.character.length > 64)) ||
+    (style.assetId !== undefined && !layout.assets.some((a) => a.id === style.assetId))
+  )
+    throw new Error("Invalid frame appearance.");
+}
+export const residentKey = (member: Pick<UIResident, "kind" | "id">) =>
+  `${member.kind}:${member.id}`;
+export const readResident = (key: string): UIResident => ({
+  kind: key.slice(0, key.indexOf(":")) as UIResident["kind"],
+  id: key.slice(key.indexOf(":") + 1),
+});
+export function containers(layout: UILayout): [string, UIFrame | WindowState][] {
+  return [
+    ...layout.frames.map((f) => [`frame:${f.id}`, f] as [string, UIFrame]),
+    ...Object.entries(layout.windows).map(
+      ([id, w]) => [`window:${id}`, w] as [string, WindowState],
+    ),
+  ];
+}
+export function getContainer(layout: UILayout, key: string) {
+  return containers(layout).find(([id]) => id === key)?.[1];
+}
+export function ownerOf(layout: UILayout, key: string) {
+  return containers(layout).find(([, c]) => c.members?.some((m) => residentKey(m) === key))?.[0];
+}
+export function residentPinned(layout: UILayout, key: string): boolean {
+  const seen = new Set<string>();
+  let current: string | undefined = key;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const m = readResident(current);
+    if ((m.kind === "function" ? layout.items[m.id] : getContainer(layout, current))?.pinned)
+      return true;
+    current = ownerOf(layout, current);
+  }
+  return false;
+}
+export function updateContainer(
+  layout: UILayout,
+  key: string,
+  patch: Partial<UIFrame & WindowState>,
+): UILayout {
+  const m = readResident(key);
+  if (m.kind === "frame")
+    return {
+      ...layout,
+      frames: layout.frames.map((f) => (f.id === m.id ? { ...f, ...patch } : f)),
+    };
+  if (!layout.windows[m.id]) return layout;
+  return {
+    ...layout,
+    windows: { ...layout.windows, [m.id]: { ...layout.windows[m.id], ...patch } },
+  };
+}
+export function canDock(layout: UILayout, resident: string, target: string) {
+  if (
+    resident === target ||
+    !getContainer(layout, target) ||
+    residentPinned(layout, resident) ||
+    residentPinned(layout, target)
+  )
+    return false;
+  let key: string | undefined = target;
+  while (key) {
+    if (key === resident) return false;
+    key = ownerOf(layout, key);
+  }
+  return true;
+}
+export function releaseResident(layout: UILayout, key: string): UILayout {
+  let next = layout;
+  for (const [id, c] of containers(layout))
+    if (c.members?.some((m) => residentKey(m) === key))
+      next = updateContainer(next, id, {
+        members: c.members.filter((m) => residentKey(m) !== key),
+      });
+  return next;
+}
+export function dockResident(
+  layout: UILayout,
+  key: string,
+  target: string,
+  index: number,
+  breakBefore = false,
+): UILayout {
+  if (!canDock(layout, key, target)) return layout;
+  const before = getContainer(layout, target)!.members ?? [];
+  const adjusted = index - before.slice(0, index).filter((m) => residentKey(m) === key).length;
+  let next = releaseResident(layout, key);
+  const members = [...(getContainer(next, target)!.members ?? [])];
+  members.splice(Math.max(0, Math.min(members.length, adjusted)), 0, {
+    ...readResident(key),
+    breakBefore,
+  });
+  next = updateContainer(next, target, { members });
+  if (readResident(key).kind === "function") {
+    const id = readResident(key).id;
+    next = {
+      ...next,
+      items: {
+        ...next.items,
+        [id]: {
+          ...next.items[id],
+          home: false,
+          x: next.items[id]?.x ?? 0,
+          y: next.items[id]?.y ?? 0,
+        },
+      },
+    };
+  }
+  return validateUILayout(next);
+}
+export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
+  if (residentPinned(layout, key)) return layout;
+  const next = releaseResident(layout, key),
+    m = readResident(key);
+  if (m.kind === "function")
+    return validateUILayout({
+      ...next,
+      items: { ...next.items, [m.id]: { ...next.items[m.id], home: false, x, y } },
+    });
+  return validateUILayout(updateContainer(next, key, { x, y }));
+}
+export function resetContainer(layout: UILayout, key: string): UILayout {
+  if (residentPinned(layout, key)) return layout;
+  const c = getContainer(layout, key);
+  if (!c) return layout;
+  return validateUILayout(
+    updateContainer(layout, key, {
+      chrome: c.chrome?.style ? { style: c.chrome.style } : undefined,
+      members: (c.members ?? []).map((m) => ({ ...m, breakBefore: false })),
+      ...(key.startsWith("frame:") ? { width: 280 } : { width: 420, height: 560 }),
+    }),
+  );
 }
 export function loadUILayout(fallback = emptyUILayout()): UILayout {
   try {
@@ -200,63 +439,8 @@ export function nearestSlot(occupied: Cell[], desired: Cell): Cell {
   if (!candidates[0]) throw new Error("No available neighboring UI slot.");
   return candidates[0];
 }
-export function frameCells(layout: UILayout, id: string) {
-  return Object.values(layout.items)
-    .filter((i) => i.frameId === id)
-    .map((i) => i.cell!);
-}
 export function functionPinned(layout: UILayout, id: string) {
-  return !!(
-    layout.items[id]?.pinned ||
-    layout.frames.find((f) => f.id === layout.items[id]?.frameId)?.pinned
-  );
-}
-export function normalizeFrame(layout: UILayout, id: string): UILayout {
-  const cells = frameCells(layout, id);
-  if (!cells.length) return layout;
-  const dx = Math.min(...cells.map((c) => c.x)),
-    dy = Math.min(...cells.map((c) => c.y));
-  return {
-    ...layout,
-    frames: layout.frames.map((f) =>
-      f.id === id ? { ...f, x: f.x + dx * f.cellSize, y: f.y + dy * f.cellSize } : f,
-    ),
-    items: Object.fromEntries(
-      Object.entries(layout.items).map(([key, i]) => [
-        key,
-        i.frameId === id ? { ...i, cell: { x: i.cell!.x - dx, y: i.cell!.y - dy } } : i,
-      ]),
-    ),
-  };
-}
-export function placeInFrame(
-  layout: UILayout,
-  functionId: string,
-  frameId: string,
-  desired: Cell,
-): UILayout {
-  if (
-    !layout.frames.some((f) => f.id === frameId && !f.pinned) ||
-    functionPinned(layout, functionId)
-  )
-    return layout;
-  const others = Object.entries(layout.items)
-    .filter(([id, i]) => id !== functionId && i.frameId === frameId)
-    .map(([, i]) => i.cell!);
-  const slot = nearestSlot(others, desired);
-  let next = normalizeFrame(
-    {
-      ...layout,
-      items: {
-        ...layout.items,
-        [functionId]: { ...layout.items[functionId], home: false, x: 0, y: 0, frameId, cell: slot },
-      },
-    },
-    frameId,
-  );
-  if (layout.items[functionId]?.frameId && layout.items[functionId].frameId !== frameId)
-    next = normalizeFrame(next, layout.items[functionId].frameId!);
-  return validateUILayout(next);
+  return residentPinned(layout, `function:${id}`);
 }
 export function groupFunctions(
   layout: UILayout,
@@ -267,21 +451,32 @@ export function groupFunctions(
 ): UILayout {
   if (a === b || functionPinned(layout, a) || functionPinned(layout, b)) return layout;
   const id = crypto.randomUUID();
-  let next = {
-    ...layout,
+  const released = releaseResident(releaseResident(layout, `function:${a}`), `function:${b}`);
+  return validateUILayout({
+    ...released,
     frames: [
-      ...layout.frames,
-      { id, name: "New frame", x, y, cellSize: 96, collapsed: true, pinned: false },
+      ...released.frames,
+      {
+        id,
+        name: "New frame",
+        x,
+        y,
+        cellSize: 96,
+        width: 280,
+        collapsed: true,
+        pinned: false,
+        members: [
+          { kind: "function", id: a },
+          { kind: "function", id: b },
+        ],
+      },
     ],
     items: {
-      ...layout.items,
-      [a]: { ...layout.items[a], home: false, x: 0, y: 0, frameId: id, cell: { x: 0, y: 0 } },
-      [b]: { ...layout.items[b], home: false, x: 0, y: 0, frameId: id, cell: { x: 1, y: 0 } },
+      ...released.items,
+      [a]: { ...layout.items[a], home: false, x: 0, y: 0 },
+      [b]: { ...layout.items[b], home: false, x: 0, y: 0 },
     },
-  };
-  for (const old of new Set([layout.items[a]?.frameId, layout.items[b]?.frameId]))
-    if (old) next = normalizeFrame(next, old);
-  return validateUILayout(next);
+  });
 }
 export function detachFunction(
   layout: UILayout,
@@ -291,10 +486,9 @@ export function detachFunction(
   reset = false,
 ): UILayout {
   if (functionPinned(layout, id)) return layout;
-  const oldFrame = layout.items[id]?.frameId,
-    items = { ...layout.items };
+  const released = releaseResident(layout, `function:${id}`),
+    items = { ...released.items };
   if (reset) delete items[id];
-  else items[id] = { ...items[id], home: false, frameId: undefined, cell: undefined, x, y };
-  const next = { ...layout, items };
-  return validateUILayout(oldFrame ? normalizeFrame(next, oldFrame) : next);
+  else items[id] = { ...items[id], home: false, x, y };
+  return validateUILayout({ ...released, items });
 }

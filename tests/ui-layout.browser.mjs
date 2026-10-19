@@ -107,8 +107,10 @@ try {
   await page.mouse.down();
   await page.mouse.move(500, 240, { steps: 8 });
   await page.mouse.up();
-  const slots = await frame.locator(".ui-frame-slots").boundingBox();
+  const slots = await frame.locator(".ui-dock-area").boundingBox();
   const settingsSource = await page.locator('[data-ui-function="settings"]').boundingBox();
+  await frame.locator(".ui-frame-handle").click({ button: "right" });
+  await page.getByRole("menuitemcheckbox", { name: "Category magnetism: On" }).click();
   await page.mouse.move(
     settingsSource.x + settingsSource.width / 2,
     settingsSource.y + settingsSource.height / 2,
@@ -120,23 +122,23 @@ try {
   );
   await page.mouse.move(slots.x + 40, slots.y + slots.height + 2, { steps: 12 });
   await page.mouse.move(slots.x + 41, slots.y + slots.height + 2);
+  await page.locator(".ui-drop-ghost").waitFor();
   await page.mouse.up();
   await page.waitForFunction(
     (id) =>
-      Object.values(JSON.parse(localStorage.getItem("omnium.ui.layout.v1")).items).filter(
-        (i) => i.frameId === id,
-      ).length === 3,
+      JSON.parse(localStorage.getItem("omnium.ui.layout.v1")).frames.find((f) => f.id === id)
+        .members.length === 3,
     frameId,
   );
   saved = await layout();
-  const cells = Object.values(saved.items)
-    .filter((i) => i.frameId === frameId)
-    .map((i) => i.cell);
-  assert.equal(new Set(cells.map((c) => c.y)).size, 2);
   assert.equal(
-    await frame.locator("svg.frame-shape rect").count(),
+    saved.frames[0].members.some((m) => m.breakBefore),
+    true,
+  );
+  assert.equal(
+    await frame.locator(":scope > .ui-frame-root > .ui-dock-area > .ui-resident-slot").count(),
     3,
-    "frame paints only its three occupied cells, leaving the fourth corner empty",
+    "frame sizes its three residents without fixed square cells",
   );
   await frame.locator('[data-ui-function="settings"]').click({ button: "right" });
   const config = page.getByRole("dialog", { name: "Arrange: Workspace settings", exact: true });
@@ -227,7 +229,7 @@ try {
   );
   const good = await other.evaluate(() => localStorage.getItem("omnium.ui.layout.v1"));
   const invalid = structuredClone(template);
-  invalid.layout.items.bad = { ...invalid.layout.items.newNode };
+  invalid.layout.frames[0].members.push({ ...invalid.layout.frames[0].members[0] });
   await other
     .locator("input[type=file]")
     .nth(1)

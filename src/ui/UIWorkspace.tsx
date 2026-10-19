@@ -1,6 +1,7 @@
 import {
   cloneElement,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type DragEvent,
@@ -12,9 +13,6 @@ import { UIContext, useUI, type UIFunction } from "./context";
 import { FloatingWindow } from "./FloatingWindow";
 import {
   emptyUILayout,
-  frameCells,
-  groupFunctions,
-  placeInFrame,
   detachFunction,
   functionPinned,
   type UILayout,
@@ -22,13 +20,43 @@ import {
   type FunctionStyle,
 } from "./layout";
 import { VisualControls } from "../VisualControls";
+import { FrameChrome } from "./FrameChrome";
+import { DockArea } from "./DockArea";
+import { DockHost } from "./DockHost";
+import {
+  canDock,
+  dockResident,
+  floatResident,
+  ownerOf,
+  getContainer,
+  updateContainer,
+  releaseResident,
+  residentKey,
+  readResident,
+  residentPinned,
+  resetContainer,
+  validateUILayout,
+  type WindowState,
+  type UIResident,
+} from "./layout";
+import {
+  DOCK_DISTANCE,
+  MAGNET_DISTANCE,
+  magnetActive,
+  rectDistance,
+  startResidentDrag,
+  type DockPreview,
+  type Rect,
+} from "./drag";
+import type { VisualAsset } from "../graph/assets";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
     item = ui.layout.items[id];
-  if (!fn || (!palette && item && !item.home)) return null;
+  if (!fn || (!palette && (ownerOf(ui.layout, `function:${id}`) || (item && !item.home))))
+    return null;
   return <FunctionElement fn={fn} palette={palette} />;
 }
 function FunctionElement({
@@ -67,8 +95,10 @@ function FunctionElement({
     "data-ui-palette": palette ? "true" : undefined,
     "data-ui-resident": resident ? "true" : undefined,
     title: `${fn.label}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
-    draggable: !item?.pinned && !ui.layout.frames.find((f) => f.id === item?.frameId)?.pinned,
+    draggable:
+      (!fn.control || palette || style.mode === "icon") && !functionPinned(ui.layout, fn.id),
     onDragStart: (e: DragEvent) => {
+      if ((e.target as Element).closest("input,select,textarea")) return;
       e.dataTransfer.setData(MIME, fn.id);
       e.dataTransfer.effectAllowed = "move";
     },
@@ -83,6 +113,16 @@ function FunctionElement({
   const button =
     fn.control && !palette && style.mode === "text" ? (
       <div {...shared} className="ui-form-control">
+        <span
+          className="ui-field-grip"
+          title={`Drag ${fn.label}`}
+          aria-label="Move field"
+          data-ui-drag={`function:${fn.id}`}
+          draggable={!functionPinned(ui.layout, fn.id)}
+          onDragStart={(e) => startResidentDrag(e, `function:${fn.id}`)}
+        >
+          ⠿
+        </span>
         {fn.element}
       </div>
     ) : (
@@ -132,36 +172,54 @@ export function UIPanel({
   className?: string;
 }) {
   const ui = useUI();
+  const key = `window:panel:${id}`,
+    owner = ownerOf(ui.layout, key);
+  useLayoutEffect(() => {
+    if (ui.layout.panels[id] || owner) return;
+    ui.defaults.set(`panel:${id}`, {
+      x: 320,
+      y: 160,
+      width: 400,
+      height: 560,
+      collapsed: false,
+      pinned: false,
+    });
+    return () => {
+      ui.defaults.delete(`panel:${id}`);
+    };
+  }, [id, ui.layout.panels[id], owner]);
   const float = (value: boolean) =>
     ui.update((layout) => ({ ...layout, panels: { ...layout.panels, [id]: value } }));
-  if (ui.layout.panels[id])
+  if (ui.layout.panels[id] || owner)
     return (
       <FloatingWindow
         id={`panel:${id}`}
         title={title}
         width={400}
         height={560}
-        onClose={() => float(false)}
+        onClose={() =>
+          ui.update((s) => ({ ...releaseResident(s, key), panels: { ...s.panels, [id]: false } }))
+        }
         closeLabel={`Dock ${title}`}
       >
         <section className={className}>{children}</section>
       </FloatingWindow>
     );
   return (
-    <section className={`ui-docked-panel ${className}`}>
+    <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
       <button
         className="detach-panel"
         title={`Float ${title}`}
         aria-label={`Undock ${id} panel`}
+        data-ui-drag={key}
         draggable
-        onDragStart={(e) => {
-          e.dataTransfer.setData(MIME, `panel:${id}`);
-        }}
+        onDragStart={(e) => startResidentDrag(e, key)}
         onClick={() => float(true)}
       >
         ↗
       </button>
       {children}
+      <DockArea container={key} contour={false} />
     </section>
   );
 }
@@ -192,153 +250,101 @@ export function FrameShape({ cells, size }: { cells: { x: number; y: number }[];
 }
 function FunctionFrame({ frame }: { frame: UIFrame }) {
   const ui = useUI(),
-    members = Object.entries(ui.layout.items).filter(([, i]) => i.frameId === frame.id);
-  const cells = frameCells(ui.layout, frame.id),
-    occupied = cells.length ? cells : [{ x: 0, y: 0 }];
-  const columns = Math.max(...occupied.map((c) => c.x)) + 1,
-    rows = Math.max(...occupied.map((c) => c.y)) + 1;
-  const frameWidth = Math.min(
-      window.innerWidth - 16,
-      frame.collapsed ? 240 : Math.max(240, columns * frame.cellSize),
-    ),
-    frameHeight = Math.min(
-      window.innerHeight - 16,
-      frame.collapsed ? 44 : rows * frame.cellSize + 44,
-    );
-  const change = (patch: Partial<UIFrame>) =>
-    ui.update((layout) => ({
-      ...layout,
-      frames: layout.frames.map((f) => (f.id === frame.id ? { ...f, ...patch } : f)),
-    }));
+    key = `frame:${frame.id}`,
+    nested = !!ownerOf(ui.layout, key),
+    width = Math.max(160, Math.min(frame.width ?? 280, window.innerWidth - 24));
+  const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
   return (
     <Rnd
-      className={`function-frame ${frame.collapsed ? "collapsed" : ""}`}
+      className={`function-frame contour-frame ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
       style={
         {
-          zIndex: 70,
           pointerEvents: "none",
-          "--ui-cell-size": `${frame.cellSize}px`,
+          position: nested ? "relative" : "fixed",
+          zIndex: 70,
+          "--ui-frame-top": `${Math.max(8, Math.min(frame.y, window.innerHeight - 60))}px`,
         } as React.CSSProperties
       }
-      position={{
-        x: Math.max(0, Math.min(frame.x, window.innerWidth - frameWidth)),
-        y: Math.max(0, Math.min(frame.y, window.innerHeight - frameHeight)),
-      }}
-      size={{ width: frameWidth, height: frameHeight }}
-      disableDragging={frame.pinned}
-      enableResizing={!frame.pinned && !frame.collapsed ? { bottomRight: true } : false}
-      resizeHandleStyles={{ bottomRight: { pointerEvents: "auto" } }}
-      minWidth={Math.min(window.innerWidth - 16, Math.max(240, columns * 48))}
-      minHeight={frame.collapsed ? 44 : Math.min(window.innerHeight - 16, rows * 48 + 44)}
-      dragHandleClassName="ui-frame-header"
-      cancel="button,input"
-      dragGrid={[8, 8]}
-      onDragStop={(_, d) => change({ x: Math.max(0, d.x), y: Math.max(0, d.y) })}
-      onResizeStop={(_, __, ref, delta) =>
-        change({
-          cellSize: Math.min(
-            220,
-            Math.max(
-              48,
-              Math.round(
-                (Math.abs(delta.width / columns) >= Math.abs(delta.height / rows)
-                  ? ref.offsetWidth / columns
-                  : (ref.offsetHeight - 44) / rows) / 4,
-              ) * 4,
-            ),
-          ),
-        })
+      position={
+        nested
+          ? { x: 0, y: 0 }
+          : {
+              x: Math.max(8, Math.min(frame.x, window.innerWidth - width - 8)),
+              y: Math.max(8, Math.min(frame.y, window.innerHeight - 60)),
+            }
       }
+      size={{ width, height: "auto" }}
+      disableDragging
+      enableResizing={
+        !residentPinned(ui.layout, key) && !frame.collapsed
+          ? { right: true, bottomRight: true }
+          : false
+      }
+      resizeHandleStyles={{
+        right: { pointerEvents: "auto" },
+        bottomRight: { pointerEvents: "auto" },
+      }}
+      minWidth={160}
+      maxWidth={window.innerWidth - 24}
+      onResizeStop={(_, __, element) => patch({ width: element.offsetWidth })}
     >
-      <div
-        className="ui-frame-header"
-        data-ui-frame={frame.id}
-        title={frame.pinned ? "Unpin to rearrange this frame" : "Drag frame header to move"}
-      >
-        <span className="ui-frame-grip" title="Drag UI frame">
-          ⠿
-        </span>
-        <input
-          aria-label="UI frame name"
+      <div className="ui-frame-root" data-ui-resident-root={key}>
+        <FrameChrome
+          container={key}
           title={frame.name}
-          value={frame.name}
-          maxLength={200}
-          onChange={(e) => change({ name: e.target.value })}
-        />
-        <button
-          aria-label={`${frame.collapsed ? "Expand" : "Collapse"} UI frame ${frame.name}`}
-          onClick={() => change({ collapsed: !frame.collapsed })}
-        >
-          {frame.collapsed ? "+" : "−"}
-        </button>
-        <button
-          aria-label={`${frame.pinned ? "Unpin" : "Pin"} UI frame ${frame.name}`}
-          onClick={() => change({ pinned: !frame.pinned })}
-        >
-          {frame.pinned ? "Unpin" : "Pin"}
-        </button>
-        <button
-          aria-label={`Remove UI frame ${frame.name}`}
-          disabled={frame.pinned}
-          onClick={() => {
+          label={`UI frame ${frame.name}`}
+          state={frame}
+          className="ui-frame-header"
+          onChange={patch}
+          onRename={(name) => patch({ name })}
+          closeLabel={`Remove UI frame ${frame.name}`}
+          onClose={() => {
+            if (residentPinned(ui.layout, key)) return;
             if (
-              members.length &&
+              (frame.members?.length ?? 0) &&
               !window.confirm(
-                "Remove this UI frame and return its functions to their default locations? Your graph will not change.",
+                "Remove this frame? Its functions return to their default locations; nested frames and windows remain available. Your graph will not change.",
               )
             )
               return;
-            ui.update((s) => ({
-              ...s,
-              frames: s.frames.filter((f) => f.id !== frame.id),
-              items: Object.fromEntries(
-                Object.entries(s.items).filter(([, i]) => i.frameId !== frame.id),
-              ),
-            }));
+            ui.update((s) => {
+              let next = releaseResident(s, key);
+              for (const member of frame.members ?? []) {
+                const memberKey = residentKey(member);
+                next = releaseResident(next, memberKey);
+                if (member.kind === "function") {
+                  const items = { ...next.items };
+                  delete items[member.id];
+                  next = { ...next, items };
+                } else
+                  next = updateContainer(next, memberKey, { x: frame.x + 24, y: frame.y + 64 });
+              }
+              return { ...next, frames: next.frames.filter((f) => f.id !== frame.id) };
+            });
           }}
-        >
-          ×
-        </button>
+        />
+        {!frame.collapsed && <DockArea container={key} />}
       </div>
-      {!frame.collapsed && (
-        <div
-          className="ui-frame-slots"
-          data-ui-frame={frame.id}
-          data-cell-size={frame.cellSize}
-          style={{ width: columns * frame.cellSize, height: rows * frame.cellSize }}
-        >
-          <FrameShape cells={occupied} size={frame.cellSize} />
-          {!members.length && (
-            <div
-              className="empty-ui-slot"
-              style={{ width: frame.cellSize, height: frame.cellSize }}
-            >
-              Drop a function here
-            </div>
-          )}
-          {members.map(([id, item]) => (
-            <div
-              key={id}
-              className="ui-frame-cell"
-              style={{
-                left: item.cell!.x * frame.cellSize,
-                top: item.cell!.y * frame.cellSize,
-                width: frame.cellSize,
-                height: frame.cellSize,
-              }}
-            >
-              {ui.functions.find((f) => f.id === id) ? (
-                <FunctionElement fn={ui.functions.find((f) => f.id === id)!} resident />
-              ) : (
-                <span>Unavailable function: {id}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </Rnd>
   );
 }
+type Preview = {
+  dock?: DockPreview;
+  rect?: Rect;
+  text: string;
+  group?: string;
+  control?: { owner: string; control: string; x: number; y: number };
+};
+type DragState = {
+  key: string;
+  width: number;
+  height: number;
+  dx: number;
+  dy: number;
+  slots: Map<string, { key: string; r: Rect }[]>;
+  cancelled?: boolean;
+  control?: { owner: string; control: string };
+};
 export function UIWorkspace({
   layout,
   update,
@@ -354,11 +360,17 @@ export function UIWorkspace({
   const setLibraryOpen = (value: boolean) =>
     update((s) => ({ ...s, panels: { ...s.panels, "@library": value } }));
   const [query, setQuery] = useState(""),
-    [configured, configure] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ x: number; y: number; text: string } | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const current = useRef({ layout, update });
-  current.current = { layout, update };
+    [configured, configure] = useState<string | null>(null),
+    [configuredFrame, configureFrame] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null),
+    previewRef = useRef(preview);
+  previewRef.current = preview;
+  const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
+  const defaults = useRef(new Map<string, WindowState>()).current;
+  const current = useRef({ layout, update, functions });
+  current.current = { layout, update, functions };
+  const drag = useRef<DragState | null>(null);
+  const frameMenu = (owner: string, x: number, y: number) => setMenu({ owner, x, y });
   const createFrame = (x: number, y: number) =>
     update((s) => ({
       ...s,
@@ -367,153 +379,399 @@ export function UIWorkspace({
         {
           id: crypto.randomUUID(),
           name: "New frame",
-          x: Math.max(0, Math.round(x / 8) * 8),
-          y: Math.max(0, Math.round(y / 8) * 8),
+          x: Math.max(8, Math.round(x / 8) * 8),
+          y: Math.max(8, Math.round(y / 8) * 8),
           cellSize: 96,
+          width: 280,
           collapsed: false,
           pinned: false,
+          members: [],
         },
       ],
     }));
+  const ensure = (s: UILayout) => ({
+    ...s,
+    windows: { ...Object.fromEntries(defaults), ...s.windows },
+  });
   useEffect(() => {
-    let draggingId = "";
-    const start = (e: globalThis.DragEvent) => {
-      draggingId =
-        (e.target as Element)?.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction ?? "";
+    const show = (value: Preview | null) => {
+      previewRef.current = value;
+      setPreview((old) => (JSON.stringify(old) === JSON.stringify(value) ? old : value));
     };
-    const targetAt = (x: number, y: number) => {
-      const target = document
-        .elementsFromPoint(x, y)
-        .find(
-          (e) =>
-            e.closest("[data-ui-frame]") ||
-            (e.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction !== draggingId &&
-              e.closest<HTMLElement>("[data-ui-function]")?.dataset.uiPalette !== "true" &&
-              e.closest("[data-ui-function]")),
+    const start = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (target.closest("input,select,textarea")) return;
+      const mini = target.closest<HTMLElement>("[data-ui-control]");
+      const handle = target.closest<HTMLElement>("[data-ui-drag]");
+      const fn = target.closest<HTMLElement>("[data-ui-function]");
+      const key =
+        mini?.dataset.uiControlOwner ??
+        handle?.dataset.uiDrag ??
+        (fn ? `function:${fn.dataset.uiFunction}` : "");
+      if (!key) return;
+      const root =
+        mini ??
+        (fn && key.startsWith("function:")
+          ? fn
+          : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle));
+      const r = root?.getBoundingClientRect();
+      if (!r) return;
+      const slots = new Map(
+        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map((zone) => [
+          zone.dataset.uiDropZone!,
+          [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")].map((slot) => ({
+            key: slot.dataset.uiSlotKey!,
+            r: slot.getBoundingClientRect(),
+          })),
+        ]),
+      );
+      drag.current = {
+        key,
+        width: r.width,
+        height: r.height,
+        dx: event.clientX - r.x,
+        dy: event.clientY - r.y,
+        slots,
+        control: mini
+          ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
+          : undefined,
+      };
+    };
+    const resolve = (x: number, y: number): Preview | null => {
+      const source = drag.current;
+      if (!source || source.cancelled) return null;
+      const s = ensure(current.current.layout);
+      if (source.control) {
+        const element = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
+          (e) => e.dataset.uiChrome === source.control!.owner,
         );
-      if (!target) {
-        const nearFrame = [
-          ...document.querySelectorAll<HTMLElement>("[data-ui-frame].ui-frame-slots"),
-        ]
-          .map((e) => {
-            const r = e.getBoundingClientRect();
-            return {
-              e,
-              distance: Math.hypot(
-                Math.max(r.left - x, 0, x - r.right),
-                Math.max(r.top - y, 0, y - r.bottom),
-              ),
-            };
-          })
-          .filter((p) => p.distance < 24)
-          .sort((a, b) => a.distance - b.distance)[0]?.e;
-        if (nearFrame) return { frame: nearFrame, fn: undefined };
-        const nearby = [
+        if (!element) return null;
+        const r = element.getBoundingClientRect(),
+          px = Math.round((x - source.dx - r.x) / 4) * 4,
+          py = Math.round((y - source.dy - r.y) / 4) * 4;
+        if (Math.abs(px) > 1000 || Math.abs(py) > 1000 || residentPinned(s, source.control.owner))
+          return { text: "Unpin this frame before rearranging its controls" };
+        return {
+          text: "Move this frame control",
+          control: { ...source.control, x: px, y: py },
+          rect: { x: r.x + px, y: r.y + py, width: source.width, height: source.height },
+        };
+      }
+      if (residentPinned(s, source.key)) return { text: "Unpin to rearrange" };
+      const elements = document.elementsFromPoint(x, y);
+      const directZone = elements
+        .map((e) => e.closest<HTMLElement>("[data-ui-drop-zone]"))
+        .find(Boolean);
+      if (
+        directZone &&
+        directZone.dataset.uiDropZone !== source.key &&
+        !source.key.startsWith("function:") &&
+        !canDock(s, source.key, directZone.dataset.uiDropZone!)
+      )
+        return { text: "Cannot dock into a pinned frame or into this frame’s own contents" };
+      let zone = elements
+        .map((e) => e.closest<HTMLElement>("[data-ui-drop-zone]"))
+        .find((e) => e && canDock(s, source.key, e.dataset.uiDropZone!));
+      if (!zone)
+        zone = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")]
+          .filter((e) => e.getClientRects().length && canDock(s, source.key, e.dataset.uiDropZone!))
+          .map((e) => ({ e, distance: rectDistance(x, y, e.getBoundingClientRect()) }))
+          .filter((p) => p.distance <= DOCK_DISTANCE)
+          .sort(
+            (a, b) =>
+              a.distance - b.distance ||
+              a.e.getBoundingClientRect().width * a.e.getBoundingClientRect().height -
+                b.e.getBoundingClientRect().width * b.e.getBoundingClientRect().height,
+          )[0]?.e;
+      if (zone) {
+        const target = zone.dataset.uiDropZone!,
+          c = getContainer(s, target)!,
+          members = c.members ?? [];
+        const slots = (source.slots.get(target) ?? []).filter((slot) => slot.key !== source.key);
+        const nearest = slots
+          .map((slot) => ({ ...slot, distance: rectDistance(x, y, slot.r) }))
+          .sort((a, b) => a.distance - b.distance)[0];
+        let index = members.length,
+          breakBefore = false,
+          magnetic = false,
+          sameCategory = false;
+        if (nearest) {
+          const memberIndex = members.findIndex((m) => residentKey(m) === nearest.key);
+          const tall =
+              nearest.r.height > 100 &&
+              x > nearest.r.x + nearest.r.width * 0.25 &&
+              x < nearest.r.x + nearest.r.width * 0.75,
+            after = tall
+              ? y > nearest.r.y + nearest.r.height / 2
+              : x > nearest.r.x + nearest.r.width / 2;
+          breakBefore = y > nearest.r.y + nearest.r.height + 6;
+          index = memberIndex + (after || breakBefore ? 1 : 0);
+          const from = current.current.functions.find(
+            (f) => `function:${f.id}` === source.key,
+          )?.category;
+          const to = current.current.functions.find(
+            (f) => `function:${f.id}` === nearest.key,
+          )?.category;
+          sameCategory = !!from && from === to;
+          magnetic = magnetActive(x, y, nearest.r, sameCategory, c.magnetic !== false);
+        }
+        return {
+          text: magnetic ? "Magnetic snap" : "Insert here",
+          dock: {
+            key: source.key,
+            target,
+            index,
+            breakBefore: magnetic ? false : breakBefore,
+            width: Math.min(source.width, Math.max(120, zone.clientWidth - 24)),
+            height: source.height,
+            magnetic,
+          },
+        };
+      }
+      // A collapsed frame can accept a resident through its attached handle.
+      const tab = elements
+        .map((e) => e.closest<HTMLElement>("[data-ui-chrome]"))
+        .find((e) => e && canDock(s, source.key, e.dataset.uiChrome!));
+      if (tab) {
+        const target = tab.dataset.uiChrome!,
+          r = tab.getBoundingClientRect();
+        return {
+          text: "Insert into collapsed frame",
+          dock: {
+            key: source.key,
+            target,
+            index: getContainer(s, target)?.members?.length ?? 0,
+            breakBefore: false,
+            width: source.width,
+            height: source.height,
+          },
+          rect: r,
+        };
+      }
+      let other = elements
+        .map((e) => e.closest<HTMLElement>("[data-ui-function]:not([data-ui-palette])"))
+        .find((e) => e && `function:${e.dataset.uiFunction}` !== source.key);
+      if (!other) {
+        const category = current.current.functions.find(
+          (f) => `function:${f.id}` === source.key,
+        )?.category;
+        other = [
           ...document.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-palette])"),
         ]
-          .filter((e) => e.dataset.uiFunction !== draggingId)
-          .map((e) => {
-            const r = e.getBoundingClientRect();
-            return {
-              e,
-              distance: Math.hypot(
-                Math.max(r.left - x, 0, x - r.right),
-                Math.max(r.top - y, 0, y - r.bottom),
-              ),
-            };
-          })
-          .filter((p) => p.distance < 20)
+          .filter(
+            (e) =>
+              e.getClientRects().length &&
+              `function:${e.dataset.uiFunction}` !== source.key &&
+              !ownerOf(s, `function:${e.dataset.uiFunction}`) &&
+              !!category &&
+              current.current.functions.find((f) => f.id === e.dataset.uiFunction)?.category ===
+                category,
+          )
+          .map((e) => ({ e, distance: rectDistance(x, y, e.getBoundingClientRect()) }))
+          .filter((p) => p.distance <= MAGNET_DISTANCE)
           .sort((a, b) => a.distance - b.distance)[0]?.e;
-        return { frame: nearby?.closest<HTMLElement>("[data-ui-frame]"), fn: nearby };
       }
+      if (
+        other &&
+        !ownerOf(s, `function:${other.dataset.uiFunction}`) &&
+        !residentPinned(s, `function:${other.dataset.uiFunction}`)
+      )
+        return {
+          text: "Group into a collapsed frame",
+          group: `function:${other.dataset.uiFunction}`,
+          rect: other.getBoundingClientRect(),
+        };
       return {
-        frame: target?.closest<HTMLElement>("[data-ui-frame]"),
-        fn: target?.closest<HTMLElement>("[data-ui-function]"),
+        text: "Place here",
+        rect: {
+          x: Math.max(
+            8,
+            Math.min(
+              window.innerWidth - Math.min(source.width, window.innerWidth - 16),
+              Math.round((x - source.dx) / 8) * 8,
+            ),
+          ),
+          y: Math.max(8, Math.min(window.innerHeight - 44, Math.round((y - source.dy) / 8) * 8)),
+          width: source.width,
+          height: source.height,
+        },
       };
     };
     const over = (e: globalThis.DragEvent) => {
-      if (!e.dataTransfer?.types.includes(MIME)) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      const target = targetAt(e.clientX, e.clientY);
-      setPreview({
-        x: e.clientX + 12,
-        y: e.clientY + 12,
-        text: target.frame
-          ? "Snap into frame"
-          : target.fn
-            ? "Group into a collapsed frame"
-            : "Place function here",
-      });
-    };
-    const drop = (e: globalThis.DragEvent) => {
-      const id = e.dataTransfer?.getData(MIME);
-      if (!id) return;
+      if (!drag.current || drag.current.cancelled) return;
       e.preventDefault();
       e.stopPropagation();
-      setPreview(null);
-      const target = targetAt(e.clientX, e.clientY);
-      current.current.update((s) => {
-        if (s.items[id]?.pinned || s.frames.find((f) => f.id === s.items[id]?.frameId)?.pinned)
-          return s;
-        if (target.frame) {
-          const rect = target.frame.getBoundingClientRect(),
-            frame = s.frames.find((f) => f.id === target.frame!.dataset.uiFrame);
-          if (!frame) return s;
-          return placeInFrame(s, id, frame.id, {
-            x: Math.round((e.clientX - rect.left) / frame.cellSize - 0.5),
-            y: Math.round((e.clientY - rect.top) / frame.cellSize - 0.5),
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      show(resolve(e.clientX, e.clientY));
+    };
+    const drop = (e: MouseEvent) => {
+      const source = drag.current;
+      if (!source || source.cancelled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const p = resolve(e.clientX, e.clientY);
+      show(null);
+      drag.current = null;
+      if (!p) return;
+      current.current.update((previous) => {
+        let s = ensure(previous);
+        if (p.control) {
+          const c = getContainer(s, p.control.owner)!;
+          return updateContainer(s, p.control.owner, {
+            chrome: {
+              ...c.chrome,
+              controls: {
+                ...c.chrome?.controls,
+                [p.control.control]: { x: p.control.x, y: p.control.y },
+              },
+            },
           });
         }
-        const other = target.fn?.dataset.uiFunction;
-        if (other && other !== id) return groupFunctions(s, id, other, e.clientX, e.clientY);
-        return detachFunction(
-          s,
-          id,
-          Math.max(0, Math.round((e.clientX - 40) / 8) * 8),
-          Math.max(0, Math.round((e.clientY - 24) / 8) * 8),
-        );
+        if (p.dock)
+          return dockResident(s, source.key, p.dock.target, p.dock.index, p.dock.breakBefore);
+        if (p.group) {
+          if (residentPinned(s, source.key)) return previous;
+          s = releaseResident(releaseResident(s, source.key), p.group);
+          const id = crypto.randomUUID();
+          const frame: UIFrame = {
+            id,
+            name: "New frame",
+            x: e.clientX,
+            y: e.clientY,
+            width: 280,
+            cellSize: 96,
+            collapsed: true,
+            pinned: false,
+            members: [readResident(p.group), readResident(source.key)],
+          };
+          const items = { ...s.items };
+          for (const key of [source.key, p.group])
+            if (key.startsWith("function:")) {
+              const id = readResident(key).id;
+              items[id] = { ...items[id], home: false, x: 0, y: 0 };
+            }
+          return validateUILayout({ ...s, items, frames: [...s.frames, frame] });
+        }
+        if (p.rect) {
+          const next = floatResident(s, source.key, p.rect.x, p.rect.y);
+          return source.key.startsWith("window:panel:")
+            ? {
+                ...next,
+                panels: { ...next.panels, [source.key.slice("window:panel:".length)]: true },
+              }
+            : next;
+        }
+        return previous;
       });
     };
-    const end = () => setPreview(null);
-    window.addEventListener("dragstart", start);
-    window.addEventListener("dragover", over);
-    window.addEventListener("drop", drop);
+    const end = () => {
+      drag.current = null;
+      show(null);
+    };
+    const keydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && drag.current) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        drag.current.cancelled = true;
+        show(null);
+      }
+    };
+    window.addEventListener("dragstart", start, true);
+    window.addEventListener("dragover", over, true);
+    window.addEventListener("drop", drop, true);
     window.addEventListener("dragend", end);
+    window.addEventListener("keydown", keydown, true);
     return () => {
-      window.removeEventListener("dragstart", start);
-      window.removeEventListener("dragover", over);
-      window.removeEventListener("drop", drop);
+      window.removeEventListener("dragstart", start, true);
+      window.removeEventListener("dragover", over, true);
+      window.removeEventListener("drop", drop, true);
       window.removeEventListener("dragend", end);
+      window.removeEventListener("keydown", keydown, true);
     };
   }, []);
+  useEffect(() => {
+    const close = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenu(null);
+        configure(null);
+        configureFrame(null);
+      }
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, []);
   const selected = functions.find((f) => f.id === configured),
-    item = configured ? layout.items[configured] : undefined,
-    style = item?.style ?? defaultStyle;
-  const setStyle = (patch: Partial<FunctionStyle>) =>
-    configured &&
-    update((s) => ({
-      ...s,
-      items: {
-        ...s.items,
-        [configured]: {
-          ...s.items[configured],
-          home: s.items[configured]?.home ?? !s.items[configured],
-          x: s.items[configured]?.x ?? 24,
-          y: s.items[configured]?.y ?? 180,
-          style: { ...style, ...patch },
+    item = configured ? layout.items[configured] : undefined;
+  const selectedContainer = configuredFrame
+    ? getContainer(ensure(layout), configuredFrame)
+    : undefined;
+  const style = configuredFrame
+    ? (selectedContainer?.chrome?.style ?? defaultStyle)
+    : (item?.style ?? defaultStyle);
+  const setStyle = (patch: Partial<FunctionStyle>, asset?: VisualAsset) =>
+    update((previous) => {
+      const s = asset ? { ...previous, assets: [...previous.assets, asset] } : previous;
+      if (configuredFrame) {
+        const next = ensure(s),
+          c = getContainer(next, configuredFrame)!;
+        return updateContainer(next, configuredFrame, {
+          chrome: { ...c.chrome, style: { ...style, ...patch } },
+        });
+      }
+      if (!configured) return s;
+      return {
+        ...s,
+        items: {
+          ...s.items,
+          [configured]: {
+            ...s.items[configured],
+            home: s.items[configured]?.home ?? !ownerOf(s, `function:${configured}`),
+            x: s.items[configured]?.x ?? 24,
+            y: s.items[configured]?.y ?? 180,
+            style: { ...style, ...patch },
+          },
         },
-      },
-    }));
+      };
+    });
+  const renderResident = (member: UIResident) => {
+    if (member.kind === "frame") {
+      const frame = layout.frames.find((f) => f.id === member.id);
+      return frame ? <FunctionFrame frame={frame} /> : null;
+    }
+    if (member.kind === "window") {
+      const w = layout.windows[member.id];
+      return (
+        <DockHost
+          id={`window:${member.id}`}
+          width={w?.width ?? 380}
+          height={w?.collapsed ? 44 : (w?.height ?? 400)}
+        />
+      );
+    }
+    const fn = functions.find((f) => f.id === member.id);
+    return fn ? (
+      <FunctionElement fn={fn} resident />
+    ) : (
+      <span>Unavailable function: {member.id}</span>
+    );
+  };
+  const menuContainer = menu?.owner ? getContainer(ensure(layout), menu.owner) : undefined;
   return (
     <UIContext.Provider
       value={{
         layout,
         update,
         functions,
-        configure,
+        configure: (id) => {
+          configureFrame(null);
+          configure(id);
+        },
         createFrame,
         library: () => setLibraryOpen(true),
+        frameMenu,
+        preview: preview?.dock ?? null,
+        defaults,
+        renderResident,
       }}
     >
       {children}
@@ -525,40 +783,92 @@ export function UIWorkspace({
         }}
       >
         {Object.entries(layout.items)
-          .filter(([, i]) => !i.frameId && !i.home)
+          .filter(([id, i]) => !i.home && !ownerOf(layout, `function:${id}`))
           .map(([id, placement]) => (
             <div
               className="ui-free-function"
               key={id}
               style={{
-                left: Math.max(0, Math.min(placement.x, window.innerWidth - 100)),
-                top: Math.max(0, Math.min(placement.y, window.innerHeight - 90)),
+                left: Math.max(8, Math.min(placement.x, window.innerWidth - 100)),
+                top: Math.max(8, Math.min(placement.y, window.innerHeight - 90)),
               }}
             >
-              {functions.find((f) => f.id === id) ? (
-                <FunctionElement fn={functions.find((f) => f.id === id)!} resident />
-              ) : (
-                <span>Unavailable function: {id}</span>
-              )}
+              {renderResident({ kind: "function", id })}
             </div>
           ))}
-        {layout.frames.map((f) => (
-          <FunctionFrame frame={f} key={f.id} />
-        ))}
+        {layout.frames
+          .filter((f) => !ownerOf(layout, `frame:${f.id}`))
+          .map((f) => (
+            <FunctionFrame frame={f} key={f.id} />
+          ))}
       </div>
-      {preview && (
-        <div className="ui-snap-preview" style={{ left: preview.x, top: preview.y }}>
-          {preview.text}
-        </div>
+      {preview?.rect && (
+        <div
+          className="ui-placement-preview"
+          style={{
+            left: preview.rect.x,
+            top: preview.rect.y,
+            width: preview.rect.width,
+            height: preview.rect.height,
+          }}
+        />
       )}
+      {preview && <div className="ui-snap-preview">{preview.text}</div>}
       {menu && (
         <div
           className="ui-background-menu"
+          role="menu"
+          aria-label="UI frame settings"
           style={{
-            left: Math.min(menu.x, window.innerWidth - 200),
-            top: Math.min(menu.y, window.innerHeight - 110),
+            left: Math.min(menu.x, window.innerWidth - 250),
+            top: Math.min(menu.y, window.innerHeight - 230),
           }}
         >
+          {menu.owner && menuContainer && (
+            <>
+              <button
+                role="menuitemcheckbox"
+                aria-checked={menuContainer.magnetic !== false}
+                onClick={() => {
+                  const key = menu.owner!;
+                  update((s) =>
+                    updateContainer(ensure(s), key, { magnetic: menuContainer.magnetic === false }),
+                  );
+                  setMenu(null);
+                }}
+              >
+                Category magnetism: {menuContainer.magnetic === false ? "Off" : "On"}
+              </button>
+              <button
+                onClick={() => {
+                  configure(null);
+                  configureFrame(menu.owner!);
+                  setMenu(null);
+                }}
+              >
+                Frame handle appearance
+              </button>
+              <button
+                disabled={residentPinned(ensure(layout), menu.owner)}
+                onClick={() => {
+                  update((s) => resetContainer(ensure(s), menu.owner!));
+                  setMenu(null);
+                }}
+              >
+                Reset this frame’s arrangement
+              </button>
+              {ownerOf(layout, menu.owner) && (
+                <button
+                  onClick={() => {
+                    update((s) => floatResident(s, menu.owner!, menu.x, menu.y));
+                    setMenu(null);
+                  }}
+                >
+                  Undock frame
+                </button>
+              )}
+            </>
+          )}
           <button
             onClick={() => {
               createFrame(menu.x, menu.y);
@@ -587,8 +897,9 @@ export function UIWorkspace({
           onClose={() => setLibraryOpen(false)}
         >
           <p>
-            Drag functions into the workspace or a frame. Drop one on another to create a collapsed,
-            nameable frame. Right-click a function to choose text, icon, geometry, or pin it.
+            Drag functions, field grips and frame handles to arrange them. Drop between residents to
+            insert. Nearby category magnetism releases outside its range; right-click the frame to
+            toggle it. Esc cancels. Shift+MB4/MB5 undo and redo the UI.
           </p>
           <button onClick={() => createFrame(120, 180)}>Create UI frame</button>
           <input
@@ -614,19 +925,22 @@ export function UIWorkspace({
           </button>
         </FloatingWindow>
       )}
-      {selected && (
+      {(selected || selectedContainer) && (
         <FloatingWindow
           id="function-appearance"
           className="function-appearance"
-          title={`Arrange: ${selected.label}`}
+          title={configuredFrame ? "Arrange frame handle" : `Arrange: ${selected!.label}`}
           width={370}
           height={580}
-          onClose={() => configure(null)}
+          onClose={() => {
+            configure(null);
+            configureFrame(null);
+          }}
         >
           <label>
             Display
             <select
-              aria-label="Function display"
+              aria-label={configuredFrame ? "Frame handle display" : "Function display"}
               value={style.mode}
               onChange={(e) => setStyle({ mode: e.target.value as FunctionStyle["mode"] })}
             >
@@ -637,7 +951,7 @@ export function UIWorkspace({
           <label>
             Geometry
             <select
-              aria-label="Function geometry"
+              aria-label={configuredFrame ? "Frame handle geometry" : "Function geometry"}
               value={style.geometry}
               onChange={(e) => setStyle({ geometry: e.target.value as FunctionStyle["geometry"] })}
             >
@@ -647,60 +961,46 @@ export function UIWorkspace({
             </select>
           </label>
           <VisualControls
-            key={configured}
-            label="Function"
+            key={configuredFrame ?? configured}
+            label={configuredFrame ? "Frame handle" : "Function"}
             allowModels={false}
             iconColor="#254e73"
             value={{ assetId: style.assetId, character: style.character, showText: false }}
             assets={layout.assets}
             onChange={(v) => setStyle({ mode: "icon", assetId: v.assetId, character: v.character })}
             onAsset={(asset, visual) =>
-              update((s) => ({
-                ...s,
-                assets: [...s.assets, asset],
-                items: {
-                  ...s.items,
-                  [selected.id]: {
-                    ...s.items[selected.id],
-                    home: s.items[selected.id]?.home ?? !s.items[selected.id],
-                    x: s.items[selected.id]?.x ?? 24,
-                    y: s.items[selected.id]?.y ?? 180,
-                    style: {
-                      ...style,
-                      mode: "icon",
-                      character: undefined,
-                      assetId: visual.assetId,
-                    },
-                  },
-                },
-              }))
+              setStyle({ mode: "icon", character: undefined, assetId: visual.assetId }, asset)
             }
           />
-          <button
-            onClick={() =>
-              update((s) => ({
-                ...s,
-                items: {
-                  ...s.items,
-                  [selected.id]: {
-                    ...s.items[selected.id],
-                    home: s.items[selected.id]?.home ?? !s.items[selected.id],
-                    x: s.items[selected.id]?.x ?? 24,
-                    y: s.items[selected.id]?.y ?? 180,
-                    pinned: !s.items[selected.id]?.pinned,
-                  },
-                },
-              }))
-            }
-          >
-            {item?.pinned ? "Unpin function" : "Pin function"}
-          </button>
-          <button
-            disabled={functionPinned(layout, selected.id)}
-            onClick={() => update((s) => detachFunction(s, selected.id, 0, 0, true))}
-          >
-            Return to default location
-          </button>
+          {selected && (
+            <>
+              <button
+                onClick={() =>
+                  update((s) => ({
+                    ...s,
+                    items: {
+                      ...s.items,
+                      [selected.id]: {
+                        ...s.items[selected.id],
+                        home: s.items[selected.id]?.home ?? !ownerOf(s, `function:${selected.id}`),
+                        x: s.items[selected.id]?.x ?? 24,
+                        y: s.items[selected.id]?.y ?? 180,
+                        pinned: !s.items[selected.id]?.pinned,
+                      },
+                    },
+                  }))
+                }
+              >
+                {item?.pinned ? "Unpin function" : "Pin function"}
+              </button>
+              <button
+                disabled={functionPinned(layout, selected.id)}
+                onClick={() => update((s) => detachFunction(s, selected.id, 0, 0, true))}
+              >
+                Return to default location
+              </button>
+            </>
+          )}
         </FloatingWindow>
       )}
     </UIContext.Provider>

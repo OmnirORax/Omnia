@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./workbench.css";
 import { descendants, newId, parseAtlas } from "./graph/model";
 import type { Atlas, AtlasNode } from "./graph/model";
@@ -30,9 +30,10 @@ import type { BinderPresentation } from "./graph/structural";
 import { projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
 import { FloatingWindow } from "./ui/FloatingWindow";
-import { loadUILayout, validateUILayout, UI_LAYOUT_KEY, type UILayout } from "./ui/layout";
+import { loadUILayout, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
 import websiteTemplate from "./ui/default-template.json";
+import { useInterfaceState } from "./ui/useInterfaceState";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -58,14 +59,10 @@ function loadInitial(): { atlas: AtlasDocument; error: string } {
 function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
-  const [uiLayout, setUiLayout] = useState<UILayout>(() => loadUILayout(validateUILayout(websiteTemplate.layout)));
+  const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(websiteTemplate.layout)), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
+  const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
   const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
-  const uiTouched = useRef(false);
-  const updateUI = useCallback((change: (layout: UILayout) => UILayout) => {
-    try { const next = validateUILayout(change(uiCurrent.current)); uiCurrent.current = next; uiTouched.current = true; setUiLayout(next); }
-    catch (e) { setError(`UI layout was not changed. ${message(e)}`); }
-  }, []);
-  useEffect(() => { if (!uiTouched.current) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout]);
+  useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
   const atlas = useMemo(() => editorView(document, expandedVariants), [document, expandedVariants]);
   const [selection, setSelection] = useState<Selection>(null);
@@ -95,7 +92,6 @@ function Workbench() {
   const [frameLookup, setFrameLookup] = useState("");
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
-  const [settings, setSettings] = useState<WorkspaceSettings>(() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } });
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
   const setSettingsOpen = (value: boolean) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@settings": value } }));
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
@@ -259,7 +255,7 @@ function Workbench() {
         const checked = validateUILayout(template.layout);
         if (template.settings !== undefined && (!template.settings || typeof template.settings !== "object")) throw new Error("Invalid template settings.");
         const nextSettings = normalizeSettings(template.settings);
-        updateUI(() => checked); if (template.settings !== undefined) setSettings(nextSettings);
+        ui.commit((previous) => ({ layout: checked, settings: template.settings === undefined ? previous.settings : nextSettings }));
         return;
       }
       if (
@@ -689,6 +685,8 @@ function Workbench() {
   }
   function runAction(action: ActionId) {
     switch (action) {
+      case "ui:undo": ui.undo(); break;
+      case "ui:redo": ui.redo(); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
       case "ui:createFrame": updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: 120, y: 180, cellSize: 96, collapsed: false, pinned: false }] })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
@@ -742,7 +740,7 @@ function Workbench() {
     const mouseHistory = (event: PointerEvent) => {
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault(); event.stopImmediatePropagation();
-      runAction(event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton);
+      runAction(event.shiftKey ? event.button === 3 ? settings.mouse.shiftBackButton : settings.mouse.shiftForwardButton : event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton);
     };
     const preventMouseNavigation = (event: MouseEvent) => { if (event.button === 3 || event.button === 4) event.preventDefault(); };
     window.addEventListener("pointerdown", mouseHistory, true);
@@ -783,13 +781,19 @@ function Workbench() {
       </ul>
     );
   }
-  const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
-  const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
+  const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, category: a.category, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
+  const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
+  const field = (id: string, label: string, element: React.ReactElement) => { replaceFunction(id, label, element, true); return <FunctionControl id={id} key={id} />; };
+  for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
+  for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
+  for (const key of ["leftEmpty", "rightEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
   replaceFunction("undo", "Undo", <button onClick={undo} disabled={!past.length}>Undo</button>);
   replaceFunction("redo", "Redo", <button onClick={redo} disabled={!future.length}>Redo</button>);
+  replaceFunction("ui:undo", "Undo UI", <button onClick={ui.undo} disabled={!ui.canUndo}>Undo UI</button>);
+  replaceFunction("ui:redo", "Redo UI", <button onClick={ui.redo} disabled={!ui.canRedo}>Redo UI</button>);
   replaceFunction("ui:newView", "New layout view", <button onClick={newView}>+ Layout view</button>);
   replaceFunction("ui:export", "Export JSON", <button onClick={exportJSON}>Export JSON</button>);
   replaceFunction("ui:saveTemplate", "Save UI template", <button onClick={exportTemplate}>Save UI template</button>);
@@ -875,7 +879,7 @@ function Workbench() {
         <aside className="sidebar">
           <UIPanel id="reuse" title="Reuse identity">
             <h2>Reuse identity</h2>
-            <label>
+            {field("field:find-existing-identity", "Find existing identity", <label>
               Find an existing entity or subsystem
               <input
                 aria-label="Find existing identity"
@@ -883,7 +887,7 @@ function Workbench() {
                 onChange={(e) => setEntityLookup(e.target.value)}
                 placeholder="Search labels, aliases or IDs"
               />
-            </label>
+            </label>)}
             {entityLookup && (
               <ul className="relationship-list">
                 {document.entities
@@ -923,7 +927,7 @@ function Workbench() {
           </UIPanel>
           <UIPanel id="hierarchy" title="Hierarchy">
             <h2>Hierarchy</h2>
-            {activeLayout && <><label>View name<input aria-label="View name" value={activeLayout.name} onChange={(event) => commitDocument({ ...document, layoutViews: document.layoutViews?.map((v) => v.id === activeLayout.id ? { ...v, name: event.target.value } : v) })} /></label><p>Rule: {activeLayout.rule}. Switching views preserves the arrangement you leave.</p>{activeLayout.rule !== "manual" && <button onClick={reapplyView}>Reapply view rule</button>}{activeLayout.id !== "authored-layout" && <button onClick={removeView}>Remove view</button>}</>}
+            {activeLayout && <>{field("field:view-name", "View name", <label>View name<input aria-label="View name" value={activeLayout.name} onChange={(event) => commitDocument({ ...document, layoutViews: document.layoutViews?.map((v) => v.id === activeLayout.id ? { ...v, name: event.target.value } : v) })} /></label>)}<p>Rule: {activeLayout.rule}. Switching views preserves the arrangement you leave.</p>{activeLayout.rule !== "manual" && <button onClick={reapplyView}>Reapply view rule</button>}{activeLayout.id !== "authored-layout" && <button onClick={removeView}>Remove view</button>}</>}
             {atlas.nodes.length ? (
               <nav aria-label="Node hierarchy">{outline(null)}</nav>
             ) : (
@@ -932,7 +936,7 @@ function Workbench() {
           </UIPanel>
           <UIPanel id="frames" title="Investigative frames">
             <h2>Investigative frames</h2>
-            <label>
+            {field("field:frame-question", "Frame question", <label>
               Question or objective
               <input
                 aria-label="Frame question"
@@ -940,9 +944,9 @@ function Workbench() {
                 onChange={(e) => setFrameQuestion(e.target.value)}
                 placeholder="Optional; selected identity becomes anchor"
               />
-            </label>
+            </label>)}
             <FunctionControl id="ui:startInvestigation" />
-            <label>
+            {field("field:reopen-frame", "Reopen frame", <label>
               Reopen frame
               <select
                 aria-label="Reopen frame"
@@ -961,7 +965,7 @@ function Workbench() {
                     </option>
                   ))}
               </select>
-            </label>
+            </label>)}
             {document.frames
               .filter((f) => f.discarded)
               .map((f) => (
@@ -997,7 +1001,7 @@ function Workbench() {
                     )
                     .join(", ") || "None"}
                 </p>
-                <label>
+                {field("field:lock-frame-scope", "Lock frame scope", <label>
                   <input
                     type="checkbox"
                     checked={activeFrame.locked}
@@ -1011,15 +1015,15 @@ function Workbench() {
                     }
                   />{" "}
                   Lock frame scope
-                </label>
-                <label>
+                </label>)}
+                {field("field:find-frame-identity", "Find frame identity", <label>
                   Find identity to include
                   <input
                     aria-label="Find frame identity"
                     value={frameLookup}
                     onChange={(e) => setFrameLookup(e.target.value)}
                   />
-                </label>
+                </label>)}
                 {frameLookup &&
                   document.entities
                     .filter((e) =>
@@ -1065,7 +1069,7 @@ function Workbench() {
                     </button>
                   </div>
                 ))}
-                <label>
+                {field("field:exploration-depth", "Exploration depth", <label>
                   Exploration depth
                   <input
                     type="number"
@@ -1080,14 +1084,14 @@ function Workbench() {
                       })
                     }
                   />
-                </label>
+                </label>)}
                 <p>Charted relationships in frame</p>
                 {document.relationships
                   .filter((r) =>
                     r.participants.every((p) => activeFrame.scope.entityIds.includes(p.entityId)),
                   )
                   .map((r) => (
-                    <label key={r.id}>
+                    field("field:-" + ":" + (r.id), "( )", <label key={r.id}>
                       <input
                         type="checkbox"
                         disabled={activeFrame.locked}
@@ -1103,7 +1107,7 @@ function Workbench() {
                       />{" "}
                       {r.label || document.relationshipTypes.find((t) => t.id === r.typeId)?.name} (
                       {r.id})
-                    </label>
+                    </label>)
                   ))}
                 {activeFrame.history.length > 0 && (
                   <button
@@ -1205,7 +1209,7 @@ function Workbench() {
                     )
                     .join(", ") || "None charted"}
                 </p>
-                <label>
+                {field("field:node-name", "Node name", <label>
                   Name
                   <input
                     aria-label="Node name"
@@ -1213,10 +1217,10 @@ function Workbench() {
                     maxLength={500}
                     onChange={(e) => patchNode(selectedNode.id, { label: e.target.value })}
                   />
-                </label>
+                </label>)}
                 <VisualControls key={[...selectedIds].sort().join("|")} label="Node" value={selectedPlacement?.visual} assets={document.assets ?? []} onChange={editNodeVisual} onAsset={(asset, visual) => editNodeVisual(visual, asset)} />
                 <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={{ color: "#dce9fa", opacity: 1 }} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
-                <label>
+                {field("field:entity-aliases", "Entity aliases", <label>
                   Aliases (comma-separated)
                   <input
                     aria-label="Entity aliases"
@@ -1239,8 +1243,8 @@ function Workbench() {
                       });
                     }}
                   />
-                </label>
-                <label>
+                </label>)}
+                {field("field:node-notes", "Node notes", <label>
                   Notes
                   <textarea
                     aria-label="Node notes"
@@ -1249,8 +1253,8 @@ function Workbench() {
                     rows={4}
                     onChange={(e) => patchNode(selectedNode.id, { notes: e.target.value })}
                   />
-                </label>
-                <label>
+                </label>)}
+                {field("field:node-parent", "Node parent", <label>
                   Visual parent (placement only)
                   <select
                     aria-label="Node parent"
@@ -1269,8 +1273,8 @@ function Workbench() {
                         </option>
                       ))}
                   </select>
-                </label>
-                <label>
+                </label>)}
+                {field("field:structural-container", "Structural container", <label>
                   Structural container
                   <select
                     aria-label="Structural container"
@@ -1301,7 +1305,7 @@ function Workbench() {
                         </option>
                       ))}
                   </select>
-                </label>
+                </label>)}
                 {document.compositions
                   .filter((c) => c.childId === selectedEntity?.id)
                   .map((c) => (
@@ -1329,7 +1333,7 @@ function Workbench() {
                     };
                     const coordinates = selectedNode.spatialPosition ?? fallback;
                     return (
-                      <label key={axis}>
+                      field("field:" + (`3D ${axis.toUpperCase()} position`), `3D ${axis.toUpperCase()} position`, <label key={axis}>
                         {axis.toUpperCase()}
                         <input
                           aria-label={`3D ${axis.toUpperCase()} position`}
@@ -1346,7 +1350,7 @@ function Workbench() {
                               });
                           }}
                         />
-                      </label>
+                      </label>)
                     );
                   })}
                   {selectedNode.spatialPosition && (
@@ -1362,7 +1366,7 @@ function Workbench() {
                   )}
                 </div>
                 <button onClick={() => addNode(selectedNode.id)}>+ Child node</button>
-                <label>
+                {field("field:hide-this-placement", "Hide this placement", <label>
                   <input
                     type="checkbox"
                     checked={selectedPlacement?.hidden ?? false}
@@ -1376,7 +1380,7 @@ function Workbench() {
                     }
                   />{" "}
                   Hide this placement
-                </label>
+                </label>)}
                 <button onClick={() => removePlacement(selectedNode.id)}>
                   Remove this placement
                 </button>
@@ -1409,7 +1413,7 @@ function Workbench() {
                   Relationship ID: <code>{selectedRelationship.id}</code>
                 </p>
                 {selectedRelationData && <BinderControls defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
-                <label>
+                {field("field:relationship-type", "Relationship type", <label>
                   Type
                   <select
                     aria-label="Relationship type"
@@ -1431,8 +1435,8 @@ function Workbench() {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label>
+                </label>)}
+                {field("field:relationship-label", "Relationship label", <label>
                   Label
                   <input
                     aria-label="Relationship label"
@@ -1447,8 +1451,8 @@ function Workbench() {
                       })
                     }
                   />
-                </label>
-                <label>
+                </label>)}
+                {field("field:relationship-source", "Relationship source", <label>
                   From
                   <select
                     aria-label="Relationship source"
@@ -1464,8 +1468,8 @@ function Workbench() {
                   >
                     {options()}
                   </select>
-                </label>
-                <label>
+                </label>)}
+                {field("field:relationship-target", "Relationship target", <label>
                   To
                   <select
                     aria-label="Relationship target"
@@ -1481,13 +1485,13 @@ function Workbench() {
                   >
                     {options()}
                   </select>
-                </label>
+                </label>)}
                 {selectedRelationData?.participants.slice(0, 2).map((participant, i) => {
                   const type = document.relationshipTypes.find(
                     (t) => t.id === selectedRelationData.typeId,
                   );
                   return (
-                    <label key={i}>
+                    field("field:participant-role" + ":" + (i), "Participant role", <label key={i}>
                       Participant {i + 1} role
                       <select
                         value={participant.roleId}
@@ -1505,7 +1509,7 @@ function Workbench() {
                           </option>
                         ))}
                       </select>
-                    </label>
+                    </label>)
                   );
                 })}
                 <button
@@ -1530,7 +1534,7 @@ function Workbench() {
           <UIPanel id="connections" title="Connect nodes">
             <h2>Connect nodes</h2>
             <p>Choose endpoints below to add a directed relationship.</p>
-            <label>
+            {field("field:new-relationship-source", "New relationship source", <label>
               From
               <select
                 aria-label="New relationship source"
@@ -1540,8 +1544,8 @@ function Workbench() {
                 <option value="">Choose node</option>
                 {options()}
               </select>
-            </label>
-            <label>
+            </label>)}
+            {field("field:new-relationship-target", "New relationship target", <label>
               To
               <select
                 aria-label="New relationship target"
@@ -1551,7 +1555,7 @@ function Workbench() {
                 <option value="">Choose node</option>
                 {options()}
               </select>
-            </label>
+            </label>)}
             <button
               disabled={
                 !atlas.nodes.some((n) => n.id === source) ||
@@ -1567,15 +1571,15 @@ function Workbench() {
             <FunctionControl id="ui:defineType" />
             {document.relationshipTypes.map((type) => (
               <div key={type.id}>
-                <label>
+                {field("field:" + (`Type name ${type.id}`), `Type name ${type.id}`, <label>
                   Type name{" "}
                   <input
                     aria-label={`Type name ${type.id}`}
                     value={type.name}
                     onChange={(e) => patchType(type.id, { name: e.target.value })}
                   />
-                </label>
-                <label>
+                </label>)}
+                {field("field:" + (`Type symbol ${type.id}`), `Type symbol ${type.id}`, <label>
                   Display symbol{" "}
                   <input
                     aria-label={`Type symbol ${type.id}`}
@@ -1583,17 +1587,17 @@ function Workbench() {
                     maxLength={50}
                     onChange={(e) => patchType(type.id, { symbol: e.target.value })}
                   />
-                </label>
-                <label>
+                </label>)}
+                {field("field:" + (`Type definition ${type.id}`), `Type definition ${type.id}`, <label>
                   Definition{" "}
                   <textarea
                     aria-label={`Type definition ${type.id}`}
                     value={type.definition}
                     onChange={(e) => patchType(type.id, { definition: e.target.value })}
                   />
-                </label>
+                </label>)}
                 {type.roles.slice(0, 2).map((role, i) => (
-                  <label key={role.id}>
+                  field("field:" + (`Role ${i + 1} ${type.id}`), `Role ${i + 1} ${type.id}`, <label key={role.id}>
                     Role {i + 1}
                     <input
                       aria-label={`Role ${i + 1} ${type.id}`}
@@ -1606,7 +1610,7 @@ function Workbench() {
                         })
                       }
                     />
-                  </label>
+                  </label>)
                 ))}
               </div>
             ))}
@@ -1762,7 +1766,7 @@ function Workbench() {
         <FunctionControl id="ui:settingsSnap" />
         <FunctionControl id="ui:radius" />
         <FunctionControl id="ui:clearance" />
-        {(["leftEmpty", "rightEmpty"] as const).map((button) => <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>)}
+        {(["leftEmpty", "rightEmpty"] as const).map((button) => field("field:field" + ":" + (button), "Field", <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>))}
         <FunctionControl id="ui:subtreeModifier" />
         <h2>Keyboard actions</h2>
         {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}

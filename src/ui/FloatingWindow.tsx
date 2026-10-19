@@ -1,8 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
-import { fitWindow, type WindowState } from "./layout";
+import { fitWindow, ownerOf, releaseResident, residentPinned, type WindowState } from "./layout";
 import { useUI } from "./context";
+import { FrameChrome } from "./FrameChrome";
+import { DockArea } from "./DockArea";
+import { useDockHost } from "./DockHost";
 let front = 100;
 export function FloatingWindow({
   id,
@@ -45,7 +48,16 @@ export function FloatingWindow({
     pinned: false,
   };
   const saved = ui.layout.windows[id] ?? initial;
+  const key = `window:${id}`,
+    owner = ownerOf(ui.layout, key),
+    host = useDockHost(key);
   const state = fitWindow(saved, window.innerWidth, window.innerHeight);
+  useLayoutEffect(() => {
+    ui.defaults.set(id, initial);
+    return () => {
+      ui.defaults.delete(id);
+    };
+  }, [id]);
   const [z, setZ] = useState(() => ++front);
   const set = (patch: Partial<WindowState>) =>
     ui.update((layout) => ({
@@ -67,24 +79,28 @@ export function FloatingWindow({
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [id, ui.update]);
+  if (owner && !host) return null;
   return createPortal(
     <>
-      {modal && !state.collapsed && (
+      {modal && !state.collapsed && !owner && (
         <div className="floating-backdrop" style={{ zIndex: z - 1 }} onClick={onClose} />
       )}
       <Rnd
-        className={`floating-window ${className}`}
-        position={{ x: state.x, y: state.y }}
-        size={{ width: state.width, height: state.collapsed ? "auto" : state.height }}
-        style={{ position: "fixed", zIndex: z }}
+        className={`floating-window ${owner ? "docked-window" : ""} ${className}`}
+        position={owner ? { x: 0, y: 0 } : { x: state.x, y: state.y }}
+        size={{
+          width: owner ? Math.min(state.width, host?.clientWidth ?? state.width) : state.width,
+          height: state.collapsed ? "auto" : state.height,
+        }}
+        style={{ position: owner ? "absolute" : "fixed", zIndex: z }}
         minWidth={Math.min(240, window.innerWidth - 16)}
         minHeight={state.collapsed ? 44 : 120}
         maxWidth={Math.max(240, window.innerWidth - 16)}
         maxHeight={Math.max(120, window.innerHeight - 16)}
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
-        disableDragging={state.pinned}
-        enableResizing={!state.pinned && !state.collapsed}
+        disableDragging
+        enableResizing={!residentPinned(ui.layout, key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
         onMouseDown={() => {
@@ -93,7 +109,7 @@ export function FloatingWindow({
         }}
         onDragStop={(_, data) => set({ x: data.x, y: data.y })}
         onResizeStop={(_, __, ref, ___, position) =>
-          set({ width: ref.offsetWidth, height: ref.offsetHeight, ...position })
+          set({ width: ref.offsetWidth, height: ref.offsetHeight, ...(owner ? {} : position) })
         }
         resizeHandleComponent={{
           bottomRight: <span className="window-resize-grip" aria-label={`Resize ${label}`} />,
@@ -104,41 +120,31 @@ export function FloatingWindow({
           aria-label={label}
           aria-modal={(modal && !state.collapsed) || undefined}
           className="floating-window-content"
+          data-ui-resident-root={key}
           onClick={(e) => e.stopPropagation()}
         >
-          <header
-            className={`floating-title ${state.pinned ? "is-pinned" : ""}`}
-            title={state.pinned ? "Unpin to move or resize" : "Drag to move; edges resize"}
-          >
-            <strong>{title}</strong>
-            <div className="window-tools">
-              <button
-                aria-label={`${state.collapsed ? "Expand" : "Collapse"} ${label}`}
-                aria-expanded={!state.collapsed}
-                onClick={() => set({ collapsed: !state.collapsed })}
-              >
-                {state.collapsed ? "+" : "−"}
-              </button>
-              <button
-                aria-label={`${state.pinned ? "Unpin" : "Pin"} ${label}`}
-                aria-pressed={state.pinned}
-                onClick={() => set({ pinned: !state.pinned })}
-              >
-                {state.pinned ? "Unpin" : "Pin"}
-              </button>
-              {onClose && (
-                <button aria-label={closeLabel} onClick={onClose}>
-                  ×
-                </button>
-              )}
-            </div>
-          </header>
+          <FrameChrome
+            container={key}
+            title={label}
+            state={state}
+            onChange={set}
+            onClose={
+              onClose
+                ? () => {
+                    if (owner) ui.update((s) => releaseResident(s, key));
+                    onClose();
+                  }
+                : undefined
+            }
+            closeLabel={closeLabel}
+          />
           <div className="floating-body" hidden={state.collapsed}>
             {children}
+            <DockArea container={key} contour={false} />
           </div>
         </div>
       </Rnd>
     </>,
-    window.document.body,
+    owner ? host! : window.document.body,
   );
 }

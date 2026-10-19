@@ -1,6 +1,13 @@
-import { createContext, useContext, type ReactElement } from "react";
-import type { UILayout } from "./layout";
-export type UIFunction = { id: string; label: string; element: ReactElement; control?: boolean };
+import { createContext, useContext, type ReactElement, type ReactNode } from "react";
+import type { UILayout, WindowState, UIResident } from "./layout";
+import type { DockPreview } from "./drag";
+export type UIFunction = {
+  id: string;
+  label: string;
+  element: ReactElement;
+  control?: boolean;
+  category?: string;
+};
 export type UIContextValue = {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
@@ -8,6 +15,10 @@ export type UIContextValue = {
   configure: (id: string | null) => void;
   createFrame: (x: number, y: number) => void;
   library: () => void;
+  frameMenu: (key: string, x: number, y: number) => void;
+  preview: DockPreview | null;
+  defaults: Map<string, WindowState>;
+  renderResident: (member: UIResident) => ReactNode;
 };
 export const UIContext = createContext<UIContextValue | null>(null);
 export function useUI() {

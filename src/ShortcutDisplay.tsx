@@ -3,7 +3,6 @@ import {
   defaultSettings,
   type ActionId,
   type WorkspaceSettings,
-  type SubtreeModifier,
 } from "./workspaceActions";
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { FunctionControl } from "./ui/UIWorkspace";
@@ -63,26 +62,8 @@ export function ShortcutDisplay({
             ["nestModifier", "Drag node to nest"],
             ["subtreeModifier", "Click to toggle entire subtree"],
           ] as const
-        ).map(([field, label]) => (
-          <label key={field}>
-            {label}
-            <select
-              aria-label={label}
-              value={settings.mouse[field]}
-              onChange={(e) =>
-                onChange({
-                  ...settings,
-                  mouse: { ...settings.mouse, [field]: e.target.value as SubtreeModifier },
-                })
-              }
-            >
-              {["ctrl", "shift", "alt", "none"].map((m) => (
-                <option key={m} value={m}>
-                  {m === "ctrl" ? "Ctrl / Cmd" : m}
-                </option>
-              ))}
-            </select>
-          </label>
+        ).map(([field]) => (
+          <FunctionControl key={field} id={`ui:gesture:${field}`} />
         ))}
         {settings.mouse.selectionModifier !== "none" &&
           [settings.mouse.nestModifier, settings.mouse.subtreeModifier].includes(
@@ -97,49 +78,14 @@ export function ShortcutDisplay({
           [
             ["backButton", "MB4"],
             ["forwardButton", "MB5"],
+            ["shiftBackButton", "Shift + MB4 (UI Undo)"],
+            ["shiftForwardButton", "Shift + MB5 (UI Redo)"],
           ] as const
-        ).map(([field, label]) => (
-          <label key={field}>
-            {label}
-            <select
-              aria-label={`${label} action`}
-              value={settings.mouse[field]}
-              onChange={(e) =>
-                onChange({
-                  ...settings,
-                  mouse: { ...settings.mouse, [field]: e.target.value as ActionId },
-                })
-              }
-            >
-              {ACTIONS.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
-          </label>
+        ).map(([field]) => (
+          <FunctionControl key={field} id={`ui:mouse:${field}`} />
         ))}
         {(["leftEmpty", "rightEmpty"] as const).map((field) => (
-          <label key={field}>
-            {field === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}
-            <select
-              aria-label={`Shortcut ${field}`}
-              value={settings.mouse[field]}
-              onChange={(e) =>
-                onChange({
-                  ...settings,
-                  mouse: {
-                    ...settings.mouse,
-                    [field]: e.target.value as "pan" | "rotate" | "none",
-                  },
-                })
-              }
-            >
-              {["pan", "rotate", "none"].map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
-          </label>
+          <FunctionControl key={field} id={`ui:camera:${field}`} />
         ))}
       </section>
       <button onClick={() => onChange(defaultSettings())}>

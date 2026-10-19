@@ -214,7 +214,11 @@ try {
   await page.keyboard.up("Shift");
   await page.waitForFunction(
     () => JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.some((p) => p.entityId === "entity-3"),
-  );
+  ).catch(async (error) => {
+    await page.screenshot({ path: "/tmp/omnium-variants-failure.png" });
+    console.error("SUBTREE DIAGNOSTIC", await page.evaluate(({ x, y }) => ({ settings: JSON.parse(localStorage.getItem("omnium.workspace.settings.v1")), selected: document.querySelector('[aria-label="Node name"]')?.value, target: document.elementFromPoint(x, y)?.outerHTML.slice(0, 300) }), center));
+    throw error;
+  });
   const expanded = await read();
   assert.ok(expanded.placements.filter((p) => ["entity-0", "entity-1", "entity-3"].includes(p.entityId)).every((p) => !p.collapsed));
   assert.equal(expanded.revision, beforeFull.revision + 1);
