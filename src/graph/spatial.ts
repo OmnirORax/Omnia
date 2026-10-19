@@ -60,7 +60,7 @@ export function projectSpatial(atlas: Atlas) {
   return { nodes, relationships };
 }
 
-/** Temporary visibility only: focus roots plus their current visual subtrees.
+/** Temporary visibility only: focus roots, their subtrees and ancestor paths.
  * Existing frame, variant and collapse gates remain authoritative. */
 export function isolateSpatialContext(graph: ReturnType<typeof projectSpatial>, roots: readonly string[] | null) {
   if (!roots?.length) return graph;
@@ -72,6 +72,12 @@ export function isolateSpatialContext(graph: ReturnType<typeof projectSpatial>, 
   const pending = [...included];
   while (pending.length) for (const id of children.get(pending.pop()!) ?? []) {
     if (!included.has(id)) { included.add(id); pending.push(id); }
+  }
+  // Add ancestors after descendant traversal: keeping a parent must not reveal
+  // every sibling branch below it.
+  for (const root of roots) {
+    let parentId = byId.get(root)?.parentId;
+    while (parentId) { included.add(parentId); parentId = byId.get(parentId)?.parentId; }
   }
   const nodes = graph.nodes.map(n => included.has(n.id) ? n : { ...n, visible: false });
   const visible = new Set(nodes.filter(n => n.visible).map(n => n.id));

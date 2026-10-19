@@ -6,7 +6,7 @@ import type { Visual, VisualAsset } from "./graph/assets";
 export function visualObject(
   visual: Visual,
   assets: VisualAsset[],
-  makeText: (text: string) => THREE.Sprite,
+  makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
 ) {
   const group = new THREE.Group();
@@ -54,12 +54,14 @@ export function visualObject(
           texture.dispose();
         }
         map.colorSpace = THREE.SRGBColorSpace;
-        const sprite = new THREE.Sprite(
-          new THREE.SpriteMaterial({
+        const sprite = new THREE.Mesh(
+          new THREE.PlaneGeometry(1, 1),
+          new THREE.MeshBasicMaterial({
             map,
             transparent: true,
             depthWrite: false,
-            depthTest: false,
+            depthTest: true,
+            side: THREE.DoubleSide,
           }),
         );
         const dimensions = map.image as { width: number; height: number };

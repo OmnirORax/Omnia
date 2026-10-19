@@ -2,6 +2,8 @@ import { ensureVariantPlacements, validateDocument, type Document, type Placemen
 import { labelSize } from "./labels.ts";
 import { visualFootprint } from "./assets.ts";
 import { contractAlongRay, enclosingBox, translateBox, type Box3 } from "./packing.ts";
+import { localPosition, worldPositions } from "./coordinates.ts";
+export { localPosition, worldPositions } from "./coordinates.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
@@ -14,21 +16,6 @@ const quantize = (value: number, step: number) => step ? Math.round(value / step
 export const snapXYZ = (point: XYZ, spacing: GridSpacing): XYZ => ({
   x: quantize(point.x, spacing), y: quantize(point.y, spacing), z: quantize(point.z, spacing),
 });
-export function localPosition(p: Placement): XYZ {
-  return p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 };
-}
-export function worldPositions(doc: Document): Map<string, XYZ> {
-  const byId = new Map(doc.placements.map((p) => [p.id, p]));
-  const cache = new Map<string, XYZ>();
-  const resolve = (id: string): XYZ => {
-    const found = cache.get(id); if (found) return found;
-    const p = byId.get(id); if (!p) throw new Error(`Missing placement: ${id}`);
-    const result = add(p.parentId ? resolve(p.parentId) : origin(), localPosition(p));
-    cache.set(id, result); return result;
-  };
-  for (const p of doc.placements) resolve(p.id);
-  return cache;
-}
 export function occupiedRadii(doc: Document, settings: SpatialSettings, worlds = worldPositions(doc)): Map<string, number> {
   const cache = new Map<string, number>();
   const resolve = (id: string): number => {

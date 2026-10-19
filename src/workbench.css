@@ -310,6 +310,18 @@ textarea:focus-visible {
 .spatial-workspace canvas { display: block; touch-action: none; }
 .spatial-controls { position: absolute; top: 14px; right: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; max-width: 410px; }
 .spatial-controls button { background: #eaf1fae8; }
+.camera-guide-home { position: absolute; left: 14px; bottom: 14px; max-width: min(260px, calc(100% - 28px)); }
+.camera-guide { width: 246px; max-width: 100%; box-sizing: border-box; padding: 9px; border: 1px solid #607c96; border-radius: 8px; color: #dce9fa; background: #122336ef; font-size: 11px; font-variant-numeric: tabular-nums; }
+.camera-guide-heading, .camera-guide-body, .camera-guide-actions { display: flex; align-items: center; gap: 6px; }
+.camera-guide-heading { justify-content: space-between; }
+.camera-guide-heading output { font-weight: 600; font-size: 13px; }
+.camera-guide-body svg { width: 96px; height: 96px; flex: 0 0 96px; overflow: visible; }
+.camera-guide-body small { font-size: 10px; color: #a3b9cd; }
+.camera-guide dl { margin: 2px 0 8px; }
+.camera-guide dt { color: #a3b9cd; margin-top: 4px; font-size: 10px; }
+.camera-guide dd { margin: 0; overflow-wrap: anywhere; }
+.camera-guide-actions { flex-wrap: wrap; }
+.camera-guide :is(button.ui-function.function-text, button) { font-size: 11px; min-height: 25px; padding: 3px 6px; }
 .spatial-feedback { position: absolute; bottom: 48px; left: 14px; color: #e9f9fa; background: #17364dcc; padding: 7px 10px; border-radius: 5px; font-size: 12px; pointer-events: none; }
 .spatial-menu { position: absolute; z-index: 5; display: flex; flex-direction: column; width: 210px; max-height: min(75%, 370px); overflow-y: auto; padding: 5px; border: 1px solid #8fa6bc; border-radius: 7px; box-shadow: 0 12px 30px #0008; background: #edf3fb; }
 .spatial-menu button { border: 0; text-align: left; background: transparent; }
