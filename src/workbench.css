@@ -150,7 +150,8 @@ textarea:focus-visible {
 .node-options { position: absolute; z-index: 4; transform: translateX(-50%); display: flex; gap: 4px; padding: 3px; background: #182b40; border: 1px solid #8ba2bf; border-radius: 6px; visibility: hidden; }
 .node-options button { padding: 4px 10px; font-size: 12px; }
 .node-options button[aria-expanded="true"] { background: #e7dbfa; color: #5a397c; }
-.variant-add { position: absolute; z-index: 3; transform: translate(-50%, -50%); width: 34px; height: 30px; padding: 0; color: #dec8ff; background: #1d2538; border-color: #a88bc7; visibility: hidden; font-size: 22px; }
+.node-option { position: relative; }
+.node-options .variant-add { position: absolute; z-index: 5; top: -10px; right: -9px; width: 22px; height: 22px; padding: 0; color: #dec8ff; background: #1d2538; border-color: #a88bc7; border-radius: 50%; font-size: 18px; line-height: 18px; }
 .spatial-error {
   position: absolute;
   inset: 35% 10%;

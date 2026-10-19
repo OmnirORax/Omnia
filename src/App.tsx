@@ -546,7 +546,6 @@ function Workbench() {
   }
   function nodeClicked(id: string) {
     const isVariant = variantDisplay.instances.get(id);
-    if (isVariant?.kind === "add") { createVariant(isVariant.ownerNodeId); return; }
     if (connectionSource) {
       if (isVariant) { setError("Insert a structural reference before connecting a variant to the atlas."); return; }
       if (connectionSource !== id) connect({ source: connectionSource, target: id });

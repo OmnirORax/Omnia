@@ -68,7 +68,6 @@ export default function SpatialWorkspace(props: Props) {
   const { atlas, selectedId, settings, command, document: doc } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const optionBarRef = useRef<HTMLDivElement>(null);
-  const addButtons = useRef(new Map<string, HTMLButtonElement>());
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = projectSpatial(atlas);
@@ -120,7 +119,6 @@ export default function SpatialWorkspace(props: Props) {
           element.style.top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
         };
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
-        for (const [id, button] of addButtons.current) anchorElement(button, id);
         renderer.render(scene, camera);
       });
     };
@@ -227,7 +225,6 @@ export default function SpatialWorkspace(props: Props) {
         clicks.cancel();
         callbacks.current.onDismissOptions();
         const hit = hits(event)[0]?.object;
-        if (callbacks.current.variantDisplay.instances.get(hit?.userData.nodeId)?.kind === "add") return;
         rightDown = { x: event.clientX, y: event.clientY, id: hit?.userData.nodeId ?? null, world: cursorWorld(event) };
         return;
       }
@@ -241,8 +238,6 @@ export default function SpatialWorkspace(props: Props) {
         return;
       }
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
-      const instance = callbacks.current.variantDisplay.instances.get(id);
-      if (instance?.kind === "add") { clicks.cancel(); callbacks.current.onAddVariant(instance.ownerNodeId); return; }
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), group.position);
       const intersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3()); if (!intersection) return;
       const label = textScene.current?.nodes.get(id)?.sprite;
@@ -385,9 +380,11 @@ export default function SpatialWorkspace(props: Props) {
     {error && <div className="spatial-error" role="alert">{error}</div>}
     <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}Shift-drag: nest · right-drag: rotate</div>
     {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
-      {NODE_OPTIONS.map((option) => <button key={option.id} aria-expanded={props.expandedVariants.has(props.optionNodeId!)} onClick={() => props.onToggleVariants(props.optionNodeId!)}>{option.label}</button>)}
+      {NODE_OPTIONS.map((option) => <div className="node-option" key={option.id}>
+        <button aria-expanded={props.expandedVariants.has(props.optionNodeId!)} onClick={() => props.onToggleVariants(props.optionNodeId!)}>{option.label}</button>
+        {option.id === "variants" && <button className="variant-add" aria-label={`Add variant for ${graph.nodes.find((n) => n.id === props.optionNodeId)?.label || "node"}`} title="Add variant" onContextMenu={(event) => event.preventDefault()} onClick={() => props.onAddVariant(props.optionNodeId!)}>+</button>}
+      </div>)}
     </div>}
-    {[...props.variantDisplay.instances].filter(([, item]) => item.kind === "add").map(([id, item]) => <button key={id} className="variant-add" ref={(element) => { if (element) addButtons.current.set(id, element); else addButtons.current.delete(id); }} aria-label={`Add variant for ${graph.nodes.find((n) => n.id === item.ownerNodeId)?.label || "node"}`} onContextMenu={(event) => event.preventDefault()} onClick={() => props.onAddVariant(item.ownerNodeId)}>+</button>)}
     <div className="spatial-controls">
       <button onClick={() => stateRef.current?.focus("focus", selectedId ?? undefined)} disabled={!selectedId}>Focus selected</button>
       <button onClick={() => stateRef.current?.focus("local", selectedId ?? undefined)}>Fit local system</button>

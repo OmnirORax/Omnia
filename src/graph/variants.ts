@@ -59,9 +59,7 @@ export function addVariant(
   next.variants = [...(next.variants ?? []), variant];
   return { next: validateDocument(next), variant };
 }
-export type VariantDisplay =
-  | { kind: "variant"; variant: Variant; ownerNodeId: string }
-  | { kind: "add"; ownerNodeId: string; ownerEntityId: string };
+export type VariantDisplay = { kind: "variant"; variant: Variant; ownerNodeId: string };
 /** Session-only projections; never creates structural placements or composition facts. */
 export function projectVariants(
   doc: Document,
@@ -121,27 +119,6 @@ export function projectVariants(
       pending.push({ node, entityId: variant.entityId, depth: depth + 1 });
       y -= Math.max(2, size.height + 1);
     }
-    let id = `variant-add:${JSON.stringify(owner.id)}`;
-    while (doc.placements.some((p) => p.id === id)) id = `variant-add:${id}`;
-    const world = {
-      x: owner.world.x + labelSize(owner.label).width / 2 + 3,
-      y: owner.world.y + y,
-      z: owner.world.z,
-    };
-    nodes.push({
-      id,
-      label: "+",
-      notes: "Add variant",
-      parentId: null,
-      position: { x: 0, y: 0 },
-      spatialPosition: world,
-      collapsed: true,
-      visible: true,
-      world,
-      representative: id,
-      depth: owner.depth,
-    });
-    instances.set(id, { kind: "add", ownerNodeId: owner.id, ownerEntityId: entityId });
   }
   return { nodes, binders, instances };
 }

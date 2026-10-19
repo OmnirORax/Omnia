@@ -41,13 +41,14 @@ test("variants are owned canonical references, never structural contents or copi
   assert.deepEqual(parseDocument(JSON.stringify(next)), next);
   assert.equal(doc.entities.length, 1);
 });
-test("collapsed owners reveal variants only in their session mode, with a reserved add position", () => {
+test("collapsed owners reveal only real variants in their session mode, without a floating add node", () => {
   const { next } = addVariant(fixture(), "owner");
   const graph = projectSpatial(editorView(next));
   assert.equal(projectVariants(next, graph.nodes, new Set()).nodes.length, 0);
   const open = projectVariants(next, graph.nodes, new Set(["first"]));
   assert.equal([...open.instances.values()].filter((n) => n.kind === "variant").length, 1);
-  assert.equal([...open.instances.values()].filter((n) => n.kind === "add").length, 1);
+  assert.equal(open.nodes.length, 1);
+  assert.ok(open.nodes.every((n) => n.label !== "+"));
   assert.equal(open.binders[0].kind, "variant");
   assert.equal(next.placements[0].collapsed, true);
   assert.equal(

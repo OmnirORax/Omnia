@@ -77,7 +77,12 @@ try {
   const toolbar = page.getByRole("toolbar", { name: "Node options" });
   await toolbar.waitFor();
   await page.getByRole("button", { name: "Add variant for System", exact: true }).waitFor();
-  assert.equal(await toolbar.getByRole("button").count(), 1);
+  assert.equal(await toolbar.getByRole("button", { name: "Variants", exact: true }).count(), 1);
+  assert.equal(await toolbar.getByRole("button").count(), 2, "one category plus its add badge");
+  const optionBox = await toolbar.getByRole("button", { name: "Variants", exact: true }).boundingBox();
+  const plusBox = await toolbar.getByRole("button", { name: "Add variant for System", exact: true }).boundingBox();
+  assert.ok(Math.abs(plusBox.x + plusBox.width / 2 - optionBox.x - optionBox.width) < 15, "plus is on the Variants control");
+  assert.ok(Math.abs(plusBox.y + plusBox.height / 2 - optionBox.y) < 15, "plus sits at the top of the Variants control");
   assert.equal(
     await toolbar
       .getByRole("button", { name: "Variants", exact: true })
@@ -161,7 +166,7 @@ try {
   await toolbar.waitFor();
   const variantsButton = toolbar.getByRole("button", { name: "Variants", exact: true });
   await variantsButton.click();
-  assert.equal(await page.getByRole("button", { name: /Add variant for/ }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: /Add variant for/ }).count(), 1, "add stays on Variants when its contents are collapsed");
   assert.equal((await read()).placements[0].collapsed, true);
   await variantsButton.click();
   await page.getByRole("button", { name: "Add variant for System", exact: true }).waitFor();
@@ -193,6 +198,20 @@ try {
   await page.waitForFunction(() =>
     JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.every((p) => p.collapsed),
   );
+  await page.getByRole("button", { name: "+ Node", exact: true }).click();
+  await page.getByLabel("Node name", { exact: true }).fill("Empty owner");
+  await page.waitForTimeout(450);
+  const emptyBox = await canvas.boundingBox();
+  await page.mouse.click(emptyBox.x + emptyBox.width / 2, emptyBox.y + emptyBox.height / 2);
+  const emptyPlus = page.getByRole("button", { name: "Add variant for Empty owner", exact: true });
+  await emptyPlus.waitFor();
+  assert.equal(await toolbar.locator(".variant-add").count(), 1, "empty owners have the same attached add badge");
+  assert.equal(await page.locator(".spatial-workspace > .variant-add").count(), 0, "no detached world-space add button remains");
+  await emptyPlus.click();
+  await page.getByLabel("Variant name", { exact: true }).waitFor();
+  const withFirst = await read();
+  const emptyOwnerId = withFirst.entities.find((e) => e.label === "Empty owner").id;
+  assert.equal(withFirst.variants.filter((v) => v.ownerId === emptyOwnerId).length, 1);
   assert.deepEqual(errors, []);
   console.log(
     "PASS: variant options/add/edit/move/undo, independent double-click expansion, hidden reload state, and atomic Shift-click full subtree expansion/collapse.",
