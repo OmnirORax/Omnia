@@ -59,3 +59,21 @@ export function projectSpatial(atlas: Atlas) {
   });
   return { nodes, relationships };
 }
+
+/** Temporary visibility only: focus roots plus their current visual subtrees.
+ * Existing frame, variant and collapse gates remain authoritative. */
+export function isolateSpatialContext(graph: ReturnType<typeof projectSpatial>, roots: readonly string[] | null) {
+  if (!roots?.length) return graph;
+  const byId = new Map(graph.nodes.map(n => [n.id, n]));
+  const included = new Set(roots.filter(id => byId.has(id)));
+  if (!included.size) return graph; // A deleted/stale focus must not strand an empty workspace.
+  const children = new Map<string, string[]>();
+  for (const n of graph.nodes) if (n.parentId) children.set(n.parentId, [...(children.get(n.parentId) ?? []), n.id]);
+  const pending = [...included];
+  while (pending.length) for (const id of children.get(pending.pop()!) ?? []) {
+    if (!included.has(id)) { included.add(id); pending.push(id); }
+  }
+  const nodes = graph.nodes.map(n => included.has(n.id) ? n : { ...n, visible: false });
+  const visible = new Set(nodes.filter(n => n.visible).map(n => n.id));
+  return { nodes, relationships: graph.relationships.filter(r => visible.has(r.source) && visible.has(r.target)) };
+}

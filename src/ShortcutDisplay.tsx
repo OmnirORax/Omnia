@@ -50,6 +50,13 @@ export function ShortcutDisplay({
           Click: options / variants · double-click: expand / collapse
         </p>
         <p>Left-drag node: move · wheel: zoom</p>
+        <p>
+          MB4/MB5: graph undo/redo · Shift: UI history · Alt: five steps (combine Shift+Alt for UI).
+        </p>
+        <p>
+          Ctrl/Cmd-click UI buttons to select them, or use Select UI buttons and drag a box. Drag
+          the selection together; Compact selected UI closes gaps.
+        </p>
         {(
           [
             ["selectionModifier", "Drag selection / click to add"],

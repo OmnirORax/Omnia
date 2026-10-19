@@ -8,7 +8,9 @@ export type UIFunction = {
   control?: boolean;
   category?: string;
   available?: boolean;
+  scope?: string;
 };
+export type UICommand = { action: "select" | "compact" | "align" | "reset"; sequence: number };
 export type UIContextValue = {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
@@ -23,7 +25,22 @@ export type UIContextValue = {
   chooseMode: (owner: string, mode: "free" | "snap") => void;
   preview: DockPreview | null;
   defaults: Map<string, WindowState>;
+  frameActions: Map<
+    string,
+    {
+      title: string;
+      label: string;
+      state: Pick<WindowState, "collapsed" | "pinned" | "chrome">;
+      onChange: (patch: Partial<WindowState>) => void;
+      onRename?: (value: string) => void;
+      onClose?: () => void;
+      closeLabel?: string;
+    }
+  >;
   renderResident: (member: UIResident) => ReactNode;
+  selectedFunctions: Set<string>;
+  selectingUI: boolean;
+  selectionMenu: (x: number, y: number) => void;
 };
 export const UIContext = createContext<UIContextValue | null>(null);
 export const UIHomeContext = createContext("workspace");

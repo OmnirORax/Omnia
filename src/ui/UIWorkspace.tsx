@@ -11,10 +11,18 @@ import {
   type ReactElement,
 } from "react";
 import { Rnd } from "react-rnd";
-import { UIContext, UIHomeContext, useUI, type UIFunction } from "./context";
+import {
+  UIContext,
+  UIHomeContext,
+  useUI,
+  type UIFunction,
+  type UIContextValue,
+  type UICommand,
+} from "./context";
+import { useDragActivationGuard } from "./activationGuard";
+import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
 import { FloatingWindow } from "./FloatingWindow";
 import {
-  emptyUILayout,
   detachFunction,
   functionPinned,
   type UILayout,
@@ -39,6 +47,7 @@ import {
   resetContainer,
   validateUILayout,
   orderNativeFunction,
+  contextOwner,
   type WindowState,
   type UIResident,
 } from "./layout";
@@ -52,6 +61,7 @@ import {
 import type { VisualAsset } from "../graph/assets";
 import { snapPosition, snapshotPositions } from "./positioning";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
+import { useFrameBounds, residentBounds } from "./frameBounds";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
@@ -129,6 +139,10 @@ function FunctionElement({
     onContextMenu: (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (!palette && ui.selectedFunctions.has(fn.id) && ui.selectedFunctions.size > 1) {
+        ui.selectionMenu(e.clientX, e.clientY);
+        return;
+      }
       ui.configure(fn.id);
     },
   };
@@ -154,6 +168,10 @@ function FunctionElement({
         ...shared,
         disabled: false,
         "aria-disabled": original.props.disabled || undefined,
+        "aria-pressed":
+          fn.id === "ui:select"
+            ? ui.selectingUI
+            : original.props["aria-pressed" as keyof typeof original.props],
         onClick: original.props.disabled
           ? undefined
           : fn.control
@@ -163,7 +181,7 @@ function FunctionElement({
           ? `Place ${fn.label}`
           : (original.props["aria-label" as keyof typeof original.props] ??
             (resident || style.mode === "icon" ? fn.label : undefined)),
-        className: `${original.props.className ?? ""} ui-function ${modeClass}`,
+        className: `${original.props.className ?? ""} ui-function ${modeClass} ${!palette && ui.selectedFunctions.has(fn.id) ? "ui-selected" : ""}`,
         children: content,
       })
     );
@@ -189,25 +207,50 @@ export function UIPanel({
   title,
   children,
   className = "",
+  menu = false,
 }: {
   id: string;
   title: string;
   children: ReactNode;
   className?: string;
+  menu?: boolean;
 }) {
   const ui = useUI();
   const key = `window:panel:${id}`,
     owner = ownerOf(ui.layout, key);
+  const root = useRef<HTMLElement>(null);
+  const initial: WindowState = { x: 320, y: 160, width: menu ? 320 : 400, height: 560, collapsed: menu, pinned: false };
+  const state = ui.layout.windows[`panel:${id}`] ?? initial;
+  const [popup, setPopup] = useState({ left: 0, height: 480 });
+  const patch = (change: Partial<WindowState>) => ui.update(layout => ({
+    ...layout,
+    windows: { ...layout.windows, [`panel:${id}`]: { ...(layout.windows[`panel:${id}`] ?? initial), ...change } },
+  }));
+  useLayoutEffect(() => {
+    if (!menu || state.collapsed || owner || ui.layout.panels[id]) return;
+    const fit = () => {
+      const r = root.current?.getBoundingClientRect(); if (!r) return;
+      const width = Math.min(state.width, window.innerWidth - 24);
+      setPopup({ left: Math.max(8 - r.left, Math.min(0, window.innerWidth - r.left - width - 12)), height: Math.max(100, window.innerHeight - r.bottom - 12) });
+    };
+    fit(); window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [menu, state.collapsed, state.width, owner, ui.layout.panels[id]]);
+  useEffect(() => {
+    if (!menu || state.collapsed || ui.layout.panels[id] || owner) return;
+    const close = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key !== "Escape" : root.current?.contains(event.target as Node)) return;
+      // Do not unmount an active native drag source, or close over a child editor.
+      if (event instanceof PointerEvent && (event.buttons !== 1 || (event.target as Element).closest(".floating-window,.ui-background-menu,.ui-selection-tools"))) return;
+      patch({ collapsed: true });
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
+  }, [menu, state.collapsed, ui.layout.panels[id], owner]);
   useLayoutEffect(() => {
     if (ui.layout.panels[id] || owner) return;
-    ui.defaults.set(`panel:${id}`, {
-      x: 320,
-      y: 160,
-      width: 400,
-      height: 560,
-      collapsed: false,
-      pinned: false,
-    });
+    ui.defaults.set(`panel:${id}`, initial);
     return () => {
       ui.defaults.delete(`panel:${id}`);
     };
@@ -229,9 +272,24 @@ export function UIPanel({
         <section className={className}>{children}</section>
       </FloatingWindow>
     );
-  return (
+  if (!menu && !ui.layout.panels["@organized"]) return (
     <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
-      <button
+      <button className="detach-panel" title={`Float ${title}`} aria-label={`Undock ${id} panel`} data-ui-drag={key} draggable onDragStart={e => startResidentDrag(e, key)} onClick={() => float(true)}>↗</button>
+      <UIHomeContext.Provider value={key}>{children}<DockArea container={key} contour={false} /></UIHomeContext.Provider>
+    </section>
+  );
+  return (
+    <section
+      ref={root}
+      className={`ui-docked-panel ${menu ? "ui-menu-panel" : ""}`}
+      data-ui-resident-root={key}
+      style={{ order: menu ? undefined : ui.layout.nativeOrders?.["@sidebar"]?.indexOf(id) }}
+      onClick={event => {
+        if (menu && !event.defaultPrevented && !event.ctrlKey && !event.metaKey && !ui.selectingUI && !ui.selectedFunctions.size && (event.target as Element).closest("button[data-ui-function]")) patch({ collapsed: true });
+      }}
+    >
+      <FrameChrome container={key} title={title} state={state} onChange={patch} />
+      {!menu && <button
         className="detach-panel"
         title={`Float ${title}`}
         aria-label={`Undock ${id} panel`}
@@ -239,46 +297,22 @@ export function UIPanel({
         draggable
         onDragStart={(e) => startResidentDrag(e, key)}
         onClick={() => float(true)}
-      >
-        ↗
-      </button>
+      >↗</button>}
+      <div className={`ui-panel-body ${className}`} hidden={state.collapsed} style={menu ? { width: Math.min(state.width, window.innerWidth - 24), left: popup.left, maxHeight: popup.height } : undefined}>
       <UIHomeContext.Provider value={key}>
         {children}
         <DockArea container={key} contour={false} />
       </UIHomeContext.Provider>
+      </div>
     </section>
   );
 }
-export function FrameShape({ cells, size }: { cells: { x: number; y: number }[]; size: number }) {
-  const occupied = new Set(cells.map((c) => `${c.x}:${c.y}`));
-  return (
-    <svg
-      className="frame-shape"
-      aria-hidden="true"
-      width={(Math.max(0, ...cells.map((c) => c.x)) + 1) * size}
-      height={(Math.max(0, ...cells.map((c) => c.y)) + 1) * size}
-    >
-      {cells.map((c) => {
-        const x = c.x * size,
-          y = c.y * size;
-        return (
-          <g key={`${c.x}:${c.y}`}>
-            <rect x={x} y={y} width={size} height={size} fill="#e9f1fbf2" />
-            {!occupied.has(`${c.x}:${c.y - 1}`) && <path d={`M${x},${y + 1}H${x + size}`} />}
-            {!occupied.has(`${c.x}:${c.y + 1}`) && <path d={`M${x},${y + size - 1}H${x + size}`} />}
-            {!occupied.has(`${c.x - 1}:${c.y}`) && <path d={`M${x + 1},${y}V${y + size}`} />}
-            {!occupied.has(`${c.x + 1}:${c.y}`) && <path d={`M${x + size - 1},${y}V${y + size}`} />}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 function FunctionFrame({ frame }: { frame: UIFrame }) {
+  const { ref, bounds } = useFrameBounds();
   const ui = useUI(),
     key = `frame:${frame.id}`,
     nested = !!ownerOf(ui.layout, key),
-    width = Math.max(160, Math.min(frame.width ?? 280, window.innerWidth - 24));
+    width = Math.max(64, Math.min(frame.width ?? 280, window.innerWidth - 24));
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
   return (
     <Rnd
@@ -295,11 +329,11 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         nested
           ? { x: 0, y: 0 }
           : {
-              x: Math.max(8, Math.min(frame.x, window.innerWidth - width - 8)),
-              y: Math.max(8, Math.min(frame.y, window.innerHeight - 60)),
+              x: Math.max(8, Math.min(frame.x + bounds.x, window.innerWidth - bounds.width - 8)),
+              y: Math.max(8, Math.min(frame.y + bounds.y, window.innerHeight - bounds.height - 8)),
             }
       }
-      size={{ width, height: "auto" }}
+      size={{ width: bounds.width, height: bounds.height }}
       disableDragging
       enableResizing={
         !residentPinned(ui.layout, key) && !frame.collapsed
@@ -310,11 +344,16 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         right: { pointerEvents: "auto" },
         bottomRight: { pointerEvents: "auto" },
       }}
-      minWidth={160}
+      minWidth={40}
       maxWidth={window.innerWidth - 24}
       onResizeStop={(_, __, element) => patch({ width: element.offsetWidth })}
     >
-      <div className="ui-frame-root" data-ui-resident-root={key}>
+      <div
+        ref={ref}
+        className="ui-frame-root"
+        data-ui-resident-root={key}
+        style={{ width, position: "relative", left: -bounds.x, top: -bounds.y }}
+      >
         <FrameChrome
           container={key}
           title={frame.name}
@@ -368,6 +407,7 @@ type DragState = {
   height: number;
   dx: number;
   dy: number;
+  originOffset: { x: number; y: number };
   slots: Map<string, { key: string; r: Rect }[]>;
   cancelled?: boolean;
   control?: { owner: string; control: string };
@@ -377,12 +417,17 @@ export function UIWorkspace({
   update,
   functions: definitions,
   children,
+  command,
+  onReset,
 }: {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
   functions: UIFunction[];
   children: ReactNode;
+  command?: UICommand | null;
+  onReset: () => void;
 }) {
+  const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
   const [registered, setRegistered] = useState<Record<string, UIFunction>>({});
   const registerFunction = useCallback(
@@ -427,7 +472,16 @@ export function UIWorkspace({
     previewRef = useRef(preview);
   previewRef.current = preview;
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
+  const menuRoot = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const node = menuRoot.current;
+    if (!node || !menu) return;
+    const r = node.getBoundingClientRect();
+    node.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - r.width - 8))}px`;
+    node.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - r.height - 8))}px`;
+  }, [menu, layout]);
   const defaults = useRef(new Map<string, WindowState>()).current;
+  const frameActions = useRef<UIContextValue["frameActions"]>(new Map()).current;
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
   const drag = useRef<DragState | null>(null);
@@ -472,6 +526,21 @@ export function UIWorkspace({
     ...s,
     windows: { ...Object.fromEntries(defaults), ...s.windows },
   });
+  const buttonSelection = useButtonSelection({
+    layout: ensure(layout),
+    update,
+    functions,
+    command,
+    suppress: suppressActivation,
+  });
+  const reset = () => {
+    buttonSelection.clear();
+    configure(null); configureFrame(null); configureControl(null);
+    setAnchorTarget(null); setPreview(null); setMenu(null); setQuery("");
+    onReset();
+  };
+  const resetRef = useRef(reset); resetRef.current = reset;
+  useEffect(() => { if (command?.action === "reset") resetRef.current(); }, [command?.sequence]);
   const chooseMode = (owner: string, mode: "free" | "snap") => {
     setMenu(null);
     if (mode === "snap") {
@@ -629,7 +698,7 @@ export function UIWorkspace({
         (fn && key.startsWith("function:")
           ? fn
           : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle));
-      const r = root?.getBoundingClientRect();
+      const r = root ? residentBounds(root) : undefined;
       if (!r) return;
       const slots = new Map(
         [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map((zone) => [
@@ -646,6 +715,10 @@ export function UIWorkspace({
         height: r.height,
         dx: event.clientX - r.x,
         dy: event.clientY - r.y,
+        originOffset: {
+          x: (root?.getBoundingClientRect().x ?? r.x) - r.x,
+          y: (root?.getBoundingClientRect().y ?? r.y) - r.y,
+        },
         slots,
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
@@ -700,7 +773,26 @@ export function UIWorkspace({
         };
       }
       if (residentPinned(s, source.key)) return { text: "Unpin to rearrange" };
-      const elements = document.elementsFromPoint(x, y);
+      // Native dragging leaves the source at its old location. Look through that
+      // surface so it cannot block a destination underneath it. Descendant frames
+      // retain their own roots, allowing cycle/pinning rejection to remain explicit.
+      const elements = document
+        .elementsFromPoint(x, y)
+        .filter(
+          (el) =>
+            el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot !==
+              source.key &&
+            `function:${el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction}` !==
+              source.key,
+        );
+      const scope = contextOwner(source.key);
+      if (scope) {
+        const area = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
+          (el) => el.dataset.uiDropZone === scope,
+        );
+        if (!area || rectDistance(x, y, area.getBoundingClientRect()) > DOCK_DISTANCE)
+          return { text: "This action stays in its node menu" };
+      }
       const hitOwner = elements[0]?.closest<HTMLElement>("[data-ui-resident-root],.toolbar");
       const peer =
         elements[0]?.closest<HTMLElement>("[data-ui-native-anchor]") ??
@@ -897,6 +989,7 @@ export function UIWorkspace({
         other &&
         !sourceFn?.control &&
         !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.control &&
+        !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.scope &&
         s.arrangement?.mode !== "snap" &&
         !ownerOf(s, `function:${other.dataset.uiFunction}`) &&
         !residentPinned(s, `function:${other.dataset.uiFunction}`)
@@ -1016,7 +1109,12 @@ export function UIWorkspace({
           return validateUILayout({ ...s, items, frames: [...s.frames, frame] });
         }
         if (p.rect) {
-          const next = floatResident(s, source.key, p.rect.x, p.rect.y);
+          const next = floatResident(
+            s,
+            source.key,
+            p.rect.x + source.originOffset.x,
+            p.rect.y + source.originOffset.y,
+          );
           return source.key.startsWith("window:panel:")
             ? {
                 ...next,
@@ -1126,6 +1224,7 @@ export function UIWorkspace({
           id={`window:${member.id}`}
           width={w?.width ?? 380}
           height={w?.collapsed ? 44 : (w?.height ?? 400)}
+          collapsed={w?.collapsed}
         />
       );
     }
@@ -1161,10 +1260,15 @@ export function UIWorkspace({
         frameMenu,
         preview: preview?.dock ?? null,
         defaults,
+        frameActions,
         renderResident,
+        selectedFunctions: buttonSelection.ids,
+        selectingUI: buttonSelection.mode,
+        selectionMenu: buttonSelection.openMenu,
       }}
     >
       {children}
+      <ButtonSelectionOverlay selection={buttonSelection} />
       {anchorTarget && (
         <div className="ui-anchor-prompt" role="status">
           Snap: click{" "}
@@ -1188,8 +1292,16 @@ export function UIWorkspace({
               className="ui-free-function"
               key={id}
               style={{
-                left: Math.max(8, Math.min(placement.x, window.innerWidth - 100)),
-                top: Math.max(8, Math.min(placement.y, window.innerHeight - 90)),
+                left: Math.max(
+                  8,
+                  Math.min(placement.x, window.innerWidth - (placement.size?.width ?? 100)),
+                ),
+                top: Math.max(
+                  8,
+                  Math.min(placement.y, window.innerHeight - (placement.size?.height ?? 82) - 8),
+                ),
+                width: placement.size?.width,
+                maxWidth: placement.size ? "none" : undefined,
               }}
             >
               {renderResident({ kind: "function", id })}
@@ -1215,6 +1327,7 @@ export function UIWorkspace({
       {preview && <div className="ui-snap-preview">{preview.text}</div>}
       {menu && (
         <div
+          ref={menuRoot}
           className="ui-background-menu"
           role="menu"
           aria-label="UI frame settings"
@@ -1232,6 +1345,44 @@ export function UIWorkspace({
           </button>
           {menu.owner && menuContainer && (
             <>
+              {frameActions.get(menu.owner)?.onRename && (
+                <label className="frame-name-editor">
+                  Frame name
+                  <input
+                    aria-label="UI frame name"
+                    value={
+                      "name" in menuContainer
+                        ? menuContainer.name
+                        : frameActions.get(menu.owner)!.title
+                    }
+                    onChange={(e) => frameActions.get(menu.owner!)?.onRename?.(e.target.value)}
+                  />
+                </label>
+              )}
+              <button
+                onClick={() => {
+                  const a = frameActions.get(menu.owner!);
+                  if (a) a.onChange({ pinned: !a.state.pinned });
+                  else
+                    update((s) =>
+                      updateContainer(ensure(s), menu.owner!, { pinned: !menuContainer.pinned }),
+                    );
+                  setMenu(null);
+                }}
+              >
+                {menuContainer.pinned ? "Unpin frame" : "Pin frame"}
+              </button>
+              {frameActions.get(menu.owner)?.onClose && (
+                <button
+                  onClick={() => {
+                    frameActions.get(menu.owner!)?.onClose?.();
+                    setMenu(null);
+                  }}
+                >
+                  {frameActions.get(menu.owner)?.closeLabel ??
+                    `Close ${frameActions.get(menu.owner)?.title}`}
+                </button>
+              )}
               <button
                 onClick={() => {
                   configure(null);
@@ -1308,6 +1459,7 @@ export function UIWorkspace({
               const entries = functions
                 .filter(
                   (fn) =>
+                    !fn.scope &&
                     libraryCategory(fn) === category &&
                     `${fn.label} ${fn.id} ${category}`.toLowerCase().includes(query.toLowerCase()),
                 )
@@ -1336,14 +1488,7 @@ export function UIWorkspace({
                 .includes(query.toLowerCase()),
             ) && <p>No matching controls.</p>}
           </div>
-          <button
-            onClick={() => {
-              if (window.confirm("Reset only the UI arrangement? Your graph will be preserved."))
-                update(() => emptyUILayout());
-            }}
-          >
-            Reset UI arrangement
-          </button>
+          <button onClick={reset}>Reset to default</button>
         </FloatingWindow>
       )}
       {(selected || selectedContainer) && (
@@ -1451,6 +1596,9 @@ export function UIArrangeButtons() {
     <>
       <FunctionControl id="ui:arrange" />
       <FunctionControl id="ui:createFrame" />
+      <FunctionControl id="ui:select" />
+      <FunctionControl id="ui:compact" />
+      <FunctionControl id="ui:align" />
       <FunctionControl id="ui:placementMode" />
     </>
   );

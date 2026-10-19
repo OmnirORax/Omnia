@@ -3,12 +3,17 @@ import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from
 export const ACTIONS = [
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
+  { id: "ui:reset", category: "Workspace", label: "Reset to default", defaultKey: "" },
   { id: "ui:undo", category: "UI history", label: "Undo UI", defaultKey: "" },
   { id: "ui:redo", category: "UI history", label: "Redo UI", defaultKey: "" },
+  { id: "ui:select", category: "UI editing", label: "Select UI buttons", defaultKey: "" },
+  { id: "ui:compact", category: "UI editing", label: "Compact selected UI", defaultKey: "" },
+  { id: "ui:align", category: "UI editing", label: "Align UI", defaultKey: "" },
   { id: "selectAll", category: "Selection", label: "Select visible nodes", defaultKey: "Ctrl+A" },
   { id: "deleteSelected", category: "Selection", label: "Delete selected concepts and subnodes", defaultKey: "Delete" },
   { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Shift+?" },
   { id: "focus", category: "Navigation", label: "Focus selected", defaultKey: "F" },
+  { id: "isolateFocus", category: "Navigation", label: "Focus context only", defaultKey: "" },
   { id: "fitLocal", category: "Navigation", label: "Fit local system", defaultKey: "Shift+F" },
   { id: "fitAll", category: "Navigation", label: "Fit entire atlas", defaultKey: "" },
   { id: "back", category: "Navigation", label: "Back to previous focus", defaultKey: "" },
@@ -23,7 +28,7 @@ export const ACTIONS = [
   { id: "axisZ", category: "Spatial editing", label: "Constrain drag to Z", defaultKey: "Z" },
   { id: "compactSelected", category: "Spatial editing", label: "Compact selected subsystem", defaultKey: "" },
   { id: "compactFrame", category: "Spatial editing", label: "Compact current frame", defaultKey: "" },
-  { id: "compactAll", category: "Spatial editing", label: "Compact entire atlas", defaultKey: "" },
+  { id: "compactAll", category: "Spatial editing", label: "Compact selected / all", defaultKey: "" },
   { id: "undo", category: "History", label: "Undo", defaultKey: "Ctrl+Z" },
   { id: "redo", category: "History", label: "Redo", defaultKey: "Ctrl+Shift+Z" },
   { id: "cancel", category: "Workspace", label: "Cancel or close menu", defaultKey: "Esc" },
@@ -34,12 +39,13 @@ export type MouseAction = "pan" | "rotate" | "none";
 export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
   spatial: SpatialSettings;
+  isolateFocus: boolean;
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
   bindings: Record<ActionId, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
     bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) as Record<ActionId, string> };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -66,6 +72,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   const defaults = defaultSettings();
   try {
     const value = input as Partial<WorkspaceSettings>;
+    if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;
     const spacing = value.spatial?.spacing;
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
     if (spacing !== undefined && permitted.includes(spacing)) defaults.spatial.spacing = spacing;

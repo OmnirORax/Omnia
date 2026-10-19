@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { frameAction } from "./ui-browser-helpers.mjs";
 import { chromium } from "playwright-core";
 import { emptyDocument } from "../src/graph/structural.ts";
 import { emptyUILayout } from "../src/ui/layout.ts";
@@ -207,7 +208,7 @@ try {
     ),
   );
   assert.equal((await layout()).items["shortcut:focus"].anchorId, undefined);
-  await shortcuts.getByRole("button", { name: "Close shortcut display", exact: true }).click();
+  await frameAction(page, shortcuts, "Close shortcut display");
   const tools = page.locator('[data-ui-resident-root="frame:tools"]');
   await tools.getByRole("button", { name: "Rebind Focus selected", exact: true }).click();
   await page.keyboard.press("Control+Shift+K");
@@ -223,18 +224,19 @@ try {
   assert.ok(await library.locator("summary").filter({ hasText: "Nodes" }).count());
   await library.getByLabel("Find UI function", { exact: true }).fill("workspace settings");
   await library.getByRole("button", { name: "Place Workspace settings", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "Workspace settings", exact: true })
-    .getByRole("button", { name: "Close Workspace settings", exact: true })
-    .click();
+  await frameAction(
+    page,
+    page.getByRole("dialog", { name: "Workspace settings", exact: true }),
+    "Close Workspace settings",
+  );
   await library.getByLabel("Find UI function", { exact: true }).fill("node name");
   const name = library.getByRole("button", { name: "Place Node name", exact: true });
   assert.equal(await name.getAttribute("draggable"), "true");
   await name.click();
   const editor = page.getByRole("dialog", { name: "Node name", exact: true });
   assert.equal(await editor.getByLabel("Node name", { exact: true }).inputValue(), "System");
-  await editor.getByRole("button", { name: "Close Node name", exact: true }).click();
-  await tools.getByRole("button", { name: "Collapse UI frame Tools", exact: true }).click();
+  await frameAction(page, editor, "Close Node name");
+  await tools.getByRole("button", { name: "Toggle frame Tools", exact: true }).click();
   b = await handle.boundingBox();
   assert.match(await drag(name, b.x + b.width / 2, b.y + b.height / 2), /Add to Tools/);
   await page.waitForFunction(() =>
@@ -242,8 +244,8 @@ try {
       (m) => m.id === "field:node-name",
     ),
   );
-  await library.getByRole("button", { name: "Close UI library", exact: true }).click();
-  await tools.getByRole("button", { name: "Expand UI frame Tools", exact: true }).click();
+  await frameAction(page, library, "Close UI library");
+  await tools.getByRole("button", { name: "Toggle frame Tools", exact: true }).click();
   await tools.getByLabel("Node name", { exact: true }).fill("Renamed system");
   assert.equal((await read()).entities.find((e) => e.id === "System").label, "Renamed system");
   const saved = await layout(),

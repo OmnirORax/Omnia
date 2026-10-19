@@ -49,14 +49,14 @@ export function useInterfaceState(initial: () => State, onError: (message: strin
       commit((s) => ({ ...s, settings: typeof value === "function" ? value(s.settings) : value })),
     [commit],
   );
-  const undo = useCallback(() => {
-    const next = undoHistory(ref.current);
+  const undo = useCallback((steps = 1) => {
+    const next = undoHistory(ref.current, steps);
     if (next !== ref.current) dirty.current = true;
     ref.current = next;
     setHistory(next);
   }, []);
-  const redo = useCallback(() => {
-    const next = redoHistory(ref.current);
+  const redo = useCallback((steps = 1) => {
+    const next = redoHistory(ref.current, steps);
     if (next !== ref.current) dirty.current = true;
     ref.current = next;
     setHistory(next);

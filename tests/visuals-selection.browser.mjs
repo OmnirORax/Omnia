@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { frameAction } from "./ui-browser-helpers.mjs";
 import { chromium } from "playwright-core";
 import { emptyDocument, ensureVariantPlacements } from "../src/graph/structural.ts";
 function triangleGLB() {
@@ -194,7 +195,7 @@ try {
   await editor
     .getByLabel("Binder saved asset", { exact: true })
     .selectOption((await read()).assets[0].id);
-  await editor.getByRole("button", { name: "Close binder editor", exact: true }).click();
+  await frameAction(page, editor, "Close binder editor");
   // A slow icon download must not overwrite edits made while it was in flight.
   await select("System");
   let releaseIcon;
@@ -244,7 +245,7 @@ try {
     "Q",
   );
   await page.keyboard.press("Escape");
-  await shortcuts.getByRole("button", { name: "Close shortcut display", exact: true }).click();
+  await frameAction(page, shortcuts, "Close shortcut display");
   await select("System");
   await page.getByLabel("Node name", { exact: true }).fill("System modified");
   await canvas.dispatchEvent("pointerdown", { button: 3, bubbles: true, cancelable: true });
@@ -285,7 +286,11 @@ try {
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "Workspace settings", exact: true }).focus();
   await page.keyboard.press("Delete");
-  assert.deepEqual(await read(), beforeDelete, "dismissing the shared-concept warning leaves the entire document unchanged");
+  assert.deepEqual(
+    await read(),
+    beforeDelete,
+    "dismissing the shared-concept warning leaves the entire document unchanged",
+  );
   let warning = "";
   page.once("dialog", async (dialog) => {
     warning = dialog.message();

@@ -7,9 +7,40 @@ import {
   orderNativeFunction,
   floatResident,
   dockResident,
+  canDock,
 } from "../src/ui/layout.ts";
 import { startHistory, recordHistory, undoHistory, redoHistory } from "../src/ui/history.ts";
 const grid = { anchor: "function:a", origin: { x: 31, y: 47 }, pitch: { x: 52, y: 52 } };
+test("context actions share arrangement but cannot leave their entity-owned menu", () => {
+  const layout = emptyUILayout();
+  const state = {
+    x: 0,
+    y: 0,
+    width: 230,
+    height: 300,
+    collapsed: false,
+    pinned: false,
+    members: [],
+  };
+  layout.windows["context:node"] = {
+    ...state,
+    members: [{ kind: "function", id: "context:node:focus" }],
+  };
+  layout.windows.other = { ...state };
+  assert.ok(canDock(layout, "function:context:node:focus", "window:context:node"));
+  assert.ok(!canDock(layout, "function:context:node:focus", "window:other"));
+  assert.ok(!canDock(layout, "function:focus", "window:context:node"));
+  assert.deepEqual(floatResident(layout, "function:context:node:focus", 500, 500), layout);
+  assert.deepEqual(
+    orderNativeFunction(layout, "context:node:focus", "workspace|focus", "focus", "focus", false),
+    layout,
+  );
+  assert.deepEqual(validateUILayout(JSON.parse(JSON.stringify(layout))), layout);
+  const invalid = structuredClone(layout);
+  invalid.windows.other.members = invalid.windows["context:node"].members;
+  invalid.windows["context:node"].members = [];
+  assert.throws(() => validateUILayout(invalid), /owning menu/);
+});
 test("occupied anchor cells never insert between adjacent icons or move their neighbors", () => {
   const occupied = [
     { x: 31, y: 47, width: 40, height: 40 },

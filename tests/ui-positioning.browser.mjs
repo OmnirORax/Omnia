@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { frameAction } from "./ui-browser-helpers.mjs";
 import { chromium } from "playwright-core";
 import { emptyDocument } from "../src/graph/structural.ts";
 import { emptyUILayout } from "../src/ui/layout.ts";
@@ -145,16 +146,11 @@ try {
   assert.equal(await fn("ui:snap").locator(".ui-field-edge").count(), 4);
   await fn("ui:snap").getByRole("combobox").selectOption("1");
   assert.equal(await fn("ui:snap").getByRole("combobox").inputValue(), "1");
-  // Frame mini controls share the icon editor, with no boxed background.
-  const pin = root("Tools").locator('[data-ui-control="pin"]');
-  await pin.click({ button: "right" });
-  const appearance = page.getByRole("dialog", { name: "Arrange pin icon", exact: true });
-  await appearance.waitFor();
-  await appearance.getByLabel("Frame control symbol").fill("P");
-  await page.keyboard.press("Escape");
-  assert.equal(await pin.textContent(), "P");
-  await page.mouse.move(1000,950); // Check its resting appearance rather than the hover highlight.
-  assert.equal(await pin.evaluate((e) => getComputedStyle(e).backgroundColor), "rgba(0, 0, 0, 0)");
+  // No floating mini controls; pinning is available from the frame context menu.
+  assert.equal(await page.locator(".frame-mini-control").count(), 0);
+  await frameAction(page, root("Tools"), "Pin frame");
+  assert.ok((await read()).frames[0].pinned);
+  await frameAction(page, root("Tools"), "Unpin frame");
   // Workspace snap also positions whole frames relative to a clicked anchor.
   await page.getByLabel("UI placement mode", { exact: true }).selectOption("snap");
   await root("A").locator(".ui-frame-handle").click();
@@ -165,12 +161,16 @@ try {
   const wb = saved.frames.find((f) => f.id === "B"),
     wg = saved.arrangement.grid;
   assert.ok(
-    Math.abs((wb.x - wg.origin.x) / wg.pitch.x - Math.round((wb.x - wg.origin.x) / wg.pitch.x)) <
-      1e-6,
+    Math.abs(
+      ((await root("B").locator("..").boundingBox()).x - wg.origin.x) / wg.pitch.x -
+        Math.round(((await root("B").locator("..").boundingBox()).x - wg.origin.x) / wg.pitch.x),
+    ) < 1e-6,
   );
   assert.ok(
-    Math.abs((wb.y - wg.origin.y) / wg.pitch.y - Math.round((wb.y - wg.origin.y) / wg.pitch.y)) <
-      1e-6,
+    Math.abs(
+      ((await root("B").locator("..").boundingBox()).y - wg.origin.y) / wg.pitch.y -
+        Math.round(((await root("B").locator("..").boundingBox()).y - wg.origin.y) / wg.pitch.y),
+    ) < 1e-6,
   );
   await page.locator("canvas").click({ button: "right", position: { x: 650, y: 400 } });
   assert.ok(
@@ -189,7 +189,7 @@ try {
   assert.deepEqual(errors, []);
   await page.screenshot({ path: "/tmp/omnium-anchored-ui.png" });
   console.log(
-    "PASS: local/workspace anchored snapping, occupied cells, free-hand placement, fixed-tab bulk drag + undo, field edges, editable bare controls, native-menu suppression and persistence.",
+    "PASS: local/workspace anchored snapping, occupied cells, free-hand placement, fixed-tab bulk drag + undo, field edges, right-click controls, native-menu suppression and persistence.",
   );
 } catch (e) {
   await page.screenshot({ path: "/tmp/omnium-anchored-ui-failure.png" });

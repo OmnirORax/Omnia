@@ -69,8 +69,9 @@ export function libraryCategory(fn: { id: string; category?: string }) {
   if (
     fn.category === "Spatial editing" ||
     fn.category === "UI history" ||
+    fn.category === "UI editing" ||
     fn.id.startsWith("ui:placement") ||
-    ["ui:arrange", "ui:createFrame", "ui:undo", "ui:redo"].includes(fn.id)
+    ["ui:arrange", "ui:createFrame", "ui:undo", "ui:redo", "ui:reset"].includes(fn.id)
   )
     return "Interface";
   if (
