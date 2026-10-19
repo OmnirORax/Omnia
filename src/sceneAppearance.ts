@@ -39,9 +39,10 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let timer: ReturnType<typeof setTimeout> | undefined, redraw: (() => void) | undefined;
   const moving = () => {
-    if (appearance.theme !== "neon" || appearance.opacity === 0 || reducedMotion.matches) return false;
+    if (appearance.opacity === 0 || reducedMotion.matches) return false;
     const source = sources(), fx = [resolveSparkles(appearance, appearance.nodes.effects), resolveSparkles(appearance, appearance.binders.effects)];
-    return fx.some((value, index) => effectVisible(value) && value.motion > 0 && (index === 0 ? source?.nodes.size : source?.connectors.length));
+    if (appearance.motion > 0 && [...(source?.nodes.values() ?? [])].some(node => node.selected)) return true;
+    return appearance.theme === "neon" && fx.some((value, index) => effectVisible(value) && value.motion > 0 && (index === 0 ? source?.nodes.size : source?.connectors.length));
   };
   const schedule = () => {
     if (timer !== undefined) clearTimeout(timer); timer = undefined;
@@ -66,6 +67,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
       const now = performance.now();
       if (moving()) phase += Math.min(0.1, previousTime ? (now - previousTime) / 1000 : 0);
       previousTime = now;
+      sources()?.animateSelection(camera, phase, !reducedMotion.matches && appearance.motion > 0);
       structural.update(appearance, sources(), reducedMotion.matches ? 0 : phase, textureFor);
       if (timer === undefined) schedule();
       if (appearance.theme === "neon" && appearance.glow > 0 && !failed) {

@@ -49,12 +49,13 @@ export type WorkspaceSettings = {
   isolateFocus: boolean;
   appearance: { theme: "neon" | "classic"; accent: string; background: string; opacity: number; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effect: "stars" | "dust" | "sparks" | "off"; effectIntensity: number; density: number; motion: number; windowOpacity: number; blur: number };
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
-  bindings: Record<ActionId, string>;
+  bindings: Record<string, string>;
+  buttonLabels: Record<string, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
   return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectIntensity: 0.35, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
-    bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) as Record<ActionId, string> };
+    buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
 }
 export function normalizeKey(event: KeyboardEvent): string {
   const key = event.key === "Escape" ? "Esc" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
@@ -63,9 +64,9 @@ export function normalizeKey(event: KeyboardEvent): string {
 export function actionForKey(bindings: WorkspaceSettings["bindings"], key: string): ActionId | null {
   return ACTIONS.find((action) => bindings[action.id] === key)?.id ?? null;
 }
-export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: ActionId, key: string): ActionId | null {
+export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: string, key: string): string | null {
   if (!key) return null;
-  return ACTIONS.find((action) => action.id !== actionId && bindings[action.id] === key)?.id ?? null;
+  return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key)?.[0] ?? null;
 }
 export function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
@@ -113,6 +114,22 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     for (const field of ["selectionModifier", "nestModifier"] as const) if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.[field] ?? "")) defaults.mouse[field] = value.mouse![field];
     for (const field of ["backButton", "forwardButton", "shiftBackButton", "shiftForwardButton"] as const) if (ACTIONS.some((a) => a.id === value.mouse?.[field])) defaults.mouse[field] = value.mouse![field];
     for (const action of ACTIONS) if (typeof value.bindings?.[action.id] === "string" && value.bindings[action.id].length <= 32) defaults.bindings[action.id] = value.bindings[action.id];
+    for (const [id, key] of Object.entries(value.bindings ?? {})) {
+      if (!id.startsWith("button:") || id.length > 300 || typeof key !== "string" || key.length > 32) continue;
+      defaults.bindings[id] = key;
+      const label = value.buttonLabels?.[id];
+      defaults.buttonLabels[id] = typeof label === "string" ? label.slice(0, 200) : id.slice(7);
+    }
     return defaults;
   } catch { return defaults; }
 }
+
+/** Shared IDs keep ordinary actions and their customized buttons on one binding. */
+export const buttonShortcutId = (id: string) => ACTIONS.some(action => action.id === id) ? id : `button:${id}`;
+export type ButtonShortcuts = {
+  bindings: Record<string, string>;
+  capturing: string | null;
+  blocked: boolean;
+  onCapture: (id: string, label: string) => void;
+  onClear: (id: string) => void;
+};

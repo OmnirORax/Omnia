@@ -63,6 +63,7 @@ import { snapPosition, snapshotPositions } from "./positioning";
 import { insertFrameBeside, type InsertSide } from "./frameInsertion";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
+import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
@@ -129,7 +130,7 @@ function FunctionElement({
     "data-ui-resident": resident ? "true" : undefined,
     "data-ui-native-anchor": nativeAnchor?.key,
     "data-ui-native-home": nativeAnchor?.id,
-    title: `${fn.label}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
+    title: `${fn.label}${ui.shortcutBindings?.[buttonShortcutId(fn.id)] ? ` (${ui.shortcutBindings[buttonShortcutId(fn.id)]})` : ""}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
     draggable:
       (!fn.control || palette || style.mode === "icon") && !functionPinned(ui.layout, fn.id),
     onDragStart: (e: DragEvent) => {
@@ -421,6 +422,7 @@ export function UIWorkspace({
   children,
   command,
   onReset,
+  shortcuts,
 }: {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
@@ -428,6 +430,7 @@ export function UIWorkspace({
   children: ReactNode;
   command?: UICommand | null;
   onReset: () => void;
+  shortcuts?: ButtonShortcuts;
 }) {
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
@@ -487,6 +490,49 @@ export function UIWorkspace({
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
   const drag = useRef<DragState | null>(null);
+  const [shortcutField, setShortcutField] = useState<string | null>(null);
+  const [shortcutNotice, setShortcutNotice] = useState("");
+  const shortcutRunners = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const invoke = (id: string) => {
+      if (!id.startsWith("button:") || shortcuts?.capturing || shortcuts?.blocked) return;
+      const target = id.slice(7);
+      if (target.startsWith("@frame:")) {
+        const frame = frameActions.get(target.slice(7));
+        if (frame) frame.onChange({ collapsed: !frame.state.collapsed });
+        else setShortcutNotice("Open this frame before using its shortcut.");
+        return;
+      }
+      if (target.startsWith("@control:")) {
+        const [, control, ...owner] = target.split(":");
+        const frame = frameActions.get(owner.join(":"));
+        if (frame) {
+          if (control === "close") frame.onClose?.();
+          if (control === "pin") frame.onChange({ pinned: !frame.state.pinned });
+          if (control === "collapse") frame.onChange({ collapsed: !frame.state.collapsed });
+        }
+        return;
+      }
+      const fn = current.current.functions.find(f => f.id === target);
+      if (!fn || fn.available === false) { setShortcutNotice("This action needs its relevant node, relationship or window open."); return; }
+      setShortcutNotice("");
+      if (fn.control) { setShortcutField(target); return; }
+      const runner = Array.from(shortcutRunners.current?.children ?? []).find(el => el.getAttribute("data-shortcut-runner") === target);
+      runner?.querySelector<HTMLButtonElement>("button")?.click();
+    };
+    const keydown = (event: KeyboardEvent) => {
+      if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || event.repeat || isTypingTarget(event.target)) return;
+      const key = normalizeKey(event);
+      const id = Object.entries(shortcuts?.bindings ?? {}).find(([id, binding]) => id.startsWith("button:") && binding && binding === key)?.[0];
+      if (!id) return;
+      event.preventDefault(); event.stopPropagation(); invoke(id);
+    };
+    const run = (event: Event) => invoke((event as CustomEvent<string>).detail);
+    window.addEventListener("keydown", keydown, true);
+    window.addEventListener("omnium:invoke-button", run);
+    return () => { window.removeEventListener("keydown", keydown, true); window.removeEventListener("omnium:invoke-button", run); };
+  }, [shortcuts, frameActions]);
+
   const frameMenu = (owner: string, x: number, y: number) => setMenu({ owner, x, y });
   const createFrame = (x: number, y: number) =>
     update((s) => {
@@ -1299,6 +1345,7 @@ export function UIWorkspace({
         layout,
         update,
         functions,
+        shortcutBindings: shortcuts?.bindings,
         registerFunction,
         configure: (id) => {
           configureFrame(null);
@@ -1325,6 +1372,11 @@ export function UIWorkspace({
       }}
     >
       {children}
+      <div hidden ref={shortcutRunners} aria-hidden="true">
+        {functions.filter(fn => !fn.control && fn.available !== false && Object.hasOwn(shortcuts?.bindings ?? {}, `button:${fn.id}`)).map(fn => <span key={fn.id} data-shortcut-runner={fn.id}>{fn.element}</span>)}
+      </div>
+      {shortcutField && <FloatingWindow id="shortcut-field" title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
+      {shortcutNotice && <div className="ui-anchor-prompt" role="status">{shortcutNotice}<button onClick={() => setShortcutNotice("")}>Dismiss</button></div>}
       <ButtonSelectionOverlay selection={buttonSelection} />
       {anchorTarget && (
         <div className="ui-anchor-prompt" role="status">
@@ -1596,6 +1648,12 @@ export function UIWorkspace({
               </label>
             </>
           )}
+          {shortcuts && (() => {
+            const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
+            const id = buttonShortcutId(target);
+            const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
+            return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
+          })()}
           <VisualControls
             key={
               configuredControl

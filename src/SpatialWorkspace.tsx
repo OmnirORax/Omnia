@@ -287,13 +287,13 @@ export default function SpatialWorkspace(props: Props) {
       if (hovered === mesh) return;
       if (hovered) {
         hovered.material.color.copy(hovered.userData.baseColor ?? new THREE.Color("white"));
-        const outline = hovered.userData.hoverOutline as THREE.LineSegments | undefined;
+        const outline = hovered.userData.hoverOutline as THREE.Object3D | undefined;
         if (outline) outline.visible = outline.userData.selected;
       }
       hovered = mesh;
       if (hovered) {
         if (!hovered.userData.visualProxy) hovered.material.color.lerp(new THREE.Color("white"), 0.2);
-        const outline = hovered.userData.hoverOutline as THREE.LineSegments | undefined;
+        const outline = hovered.userData.hoverOutline as THREE.Object3D | undefined;
         if (outline) outline.visible = true;
       }
       renderer.domElement.style.cursor = hovered ? "grab" : "default";

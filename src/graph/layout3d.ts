@@ -1,8 +1,10 @@
-import { ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
+import { editorView, ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { labelSize } from "./labels.ts";
 import { visualFootprint } from "./assets.ts";
 import { contractAlongRay, enclosingBox, translateBox, type Box3 } from "./packing.ts";
 import { localPosition, worldPositions } from "./coordinates.ts";
+import { chartedBinders, type DisplayBinder } from "./binders.ts";
+import { binderGap, minimumBinderDistance, placementFootprint } from "./binderGeometry.ts";
 export { localPosition, worldPositions } from "./coordinates.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
@@ -52,8 +54,20 @@ function preferred(doc: Document, entityId: string, parentId: string | null, set
   if(!parent)return origin();
   const parentSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===parent.entityId)?.label??''),parent.visual);
   const childSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===entityId)?.label??''));
-  const nearest=(parentSize.width+childSize.width)/2+settings.clearance;
+  const nearest=(parentSize.width+childSize.width)/2+Math.max(settings.clearance,binderGap({label:"contains"}));
   return {x:settings.spacing?Math.ceil(nearest/settings.spacing)*settings.spacing:nearest,y:0,z:0};
+}
+function spacingBinders(doc: Document): DisplayBinder[] {
+  return chartedBinders(doc, editorView({ ...doc, activeFrameId: null }, new Set(doc.placements.map(p => p.id))));
+}
+function subtreeIds(doc: Document, id: string) {
+  const ids = new Set([id]);
+  const pending = [id];
+  while (pending.length) {
+    const parent = pending.pop()!;
+    for (const p of doc.placements.filter(p => p.parentId === parent)) if (!ids.has(p.id)) { ids.add(p.id); pending.push(p.id); }
+  }
+  return ids;
 }
 const offsetCache = new Map<number, XYZ[]>();
 function offsets(limit: number): XYZ[] {
@@ -75,8 +89,21 @@ export function nearestFree(doc: Document, placementId: string, desired: XYZ, se
   const parent = doc.placements.find(p=>p.id===moving.parentId);
   const siblings = doc.placements.filter((p) => p.id !== placementId && p.parentId === moving.parentId && !p.hidden);
   const before = new Set(siblingCollisions(doc, settings).map(([a, b]) => [a, b].sort().join("|")));
+  const movingIds = subtreeIds(doc, placementId);
+  const bindings = spacingBinders(doc).filter(b => movingIds.has(b.source) !== movingIds.has(b.target));
+  const initial = worlds.get(placementId)!;
+
   const safe = (local: XYZ) => {
     const world = add(parentWorld, local);
+    const delta = { x: world.x - initial.x, y: world.y - initial.y, z: world.z - initial.z };
+    for (const b of bindings) {
+      const from = movingIds.has(b.source) ? add(worlds.get(b.source)!, delta) : worlds.get(b.source)!;
+      const to = movingIds.has(b.target) ? add(worlds.get(b.target)!, delta) : worlds.get(b.target)!;
+      const length = distance(from, to);
+      if (length < 1e-8) return false;
+      const direction = { x: (to.x - from.x) / length, y: (to.y - from.y) / length, z: (to.z - from.z) / length };
+      if (length + 1e-6 < minimumBinderDistance(doc, b, direction)) return false;
+    }
     // The parent's enclosing subsystem may contain us; its visible label must stay clear.
     if(parent && overlap(doc,moving,world,parent,parentWorld,settings))return false;
     if (siblings.some((p) => overlap(doc, moving, world, p, worlds.get(p.id)!, settings))) return false;
@@ -105,7 +132,7 @@ export function createPlacement(doc: Document, entityId: string, parentId: strin
   const index = doc.placements.filter((p) => p.parentId === parentId).length;
   const placement: Placement = { id: placementId, entityId, parentId,
     position: parentId ? { x: 28, y: 104 + index * 112 } : { x: 80, y: 80 },
-    spatialPosition: desired ?? (parentId && settings.spacing ? origin() : preferred(doc, entityId, parentId, settings)),
+    spatialPosition: desired ?? preferred(doc, entityId, parentId, settings),
     collapsed: true, hidden: false };
   const draft = { ...doc, placements: [...doc.placements, placement] };
   const local = nearestFree(draft, placementId, placement.spatialPosition!, settings);
@@ -163,6 +190,7 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
     while (pending.length) { const id = pending.pop()!; for (const child of next.placements.filter((p) => p.parentId === id)) { included.add(child.id); pending.push(child.id); } }
   }
   const byId = new Map(next.placements.map(p => [p.id, p]));
+  const bindings = spacingBinders(next);
   const children = new Map<string | null, Placement[]>();
   for (const p of next.placements) children.set(p.parentId, [...(children.get(p.parentId) ?? []), p]);
   const entities = new Map(next.entities.map(e => [e.id, e]));
@@ -201,6 +229,16 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
           ...(parent ? [ownBoxes.get(parent.id)!] : []),
           ...siblings.filter(other => other.id !== p.id && !other.hidden).map(other => translateBox(contents(other), localPosition(other))),
         ];
+        const ids = subtreeIds(next, p.id), worlds = worldPositions(next);
+        const parentWorld = parentId ? worlds.get(parentId)! : origin();
+        for (const b of bindings) {
+          if (ids.has(b.source) === ids.has(b.target)) continue;
+          const otherId = ids.has(b.source) ? b.target : b.source;
+          const other = byId.get(otherId)!;
+          const size = placementFootprint(next, other), world = worlds.get(otherId)!;
+          const pad = Math.max(0, binderGap(b) - settings.clearance);
+          obstacles.push({ min: { x: world.x - parentWorld.x - size.width / 2 - pad, y: world.y - parentWorld.y - size.height / 2 - pad, z: world.z - parentWorld.z - size.depth / 2 - pad }, max: { x: world.x - parentWorld.x + size.width / 2 + pad, y: world.y - parentWorld.y + size.height / 2 + pad, z: world.z - parentWorld.z + size.depth / 2 + pad } });
+        }
         const result = contractAlongRay(contents(p), start, anchor, obstacles, settings.clearance);
         if (distance(start, result) > 1e-8) { p.spatialPosition = result; changed = true; }
       }
@@ -208,4 +246,27 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
     }
   }
   return validateDocument(next);
+}
+
+/** An explicit presentation edit may need more room. Extend the affected branch,
+ * preserve identities/relations, and keep the change in the caller's single undo step. */
+export function ensureBinderSpacing(doc: Document, settings: SpatialSettings, binderId?: string): Document {
+  let next = doc;
+  for (const b of spacingBinders(doc).filter(b => !binderId || b.id === binderId)) {
+    if (b.source === b.target) continue;
+    const worlds = worldPositions(next), from = worlds.get(b.source)!, to = worlds.get(b.target)!;
+    const length = distance(from, to);
+    const direction = length > 1e-8 ? { x: (to.x - from.x) / length, y: (to.y - from.y) / length, z: (to.z - from.z) / length } : { x: 1, y: 0, z: 0 };
+    const required = minimumBinderDistance(next, b, direction);
+    if (length >= required - 1e-6) continue;
+    // Moving a parent would move both endpoints; move the descendant instead.
+    const targetContainsSource = subtreeIds(next, b.target).has(b.source);
+    const movingId = targetContainsSource ? b.source : b.target;
+    const fixed = targetContainsSource ? to : from, sign = targetContainsSource ? -1 : 1;
+    const p = next.placements.find(p => p.id === movingId)!;
+    const parent = p.parentId ? worlds.get(p.parentId)! : origin();
+    const desired = { x: fixed.x + direction.x * required * sign - parent.x, y: fixed.y + direction.y * required * sign - parent.y, z: fixed.z + direction.z * required * sign - parent.z };
+    next = movePlacement(next, movingId, desired, settings);
+  }
+  return next;
 }

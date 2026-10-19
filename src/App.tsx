@@ -16,7 +16,7 @@ import {
   type FrameScope,
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
-import { compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
+import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
@@ -122,7 +122,8 @@ function Workbench() {
   const setThemeOpen = (value: boolean) => updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@theme": value } }));
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
-  const [capturing, setCapturing] = useState<ActionId | null>(null);
+  const captureLabel = useRef("");
+  const [capturing, setCapturing] = useState<string | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
   const [focusContextIds, setFocusContextIds] = useState<readonly string[] | null>(null);
@@ -159,7 +160,7 @@ function Workbench() {
   function commit(next: Atlas) {
     try {
       const checked = parseAtlas(JSON.stringify(next));
-      const result = reconcileEditor(document, atlas, checked);
+      let result = reconcileEditor(document, atlas, checked);
       const active = result.frames.find((f) => f.id === result.activeFrameId);
       if (active && !active.locked) {
         for (const node of checked.nodes) {
@@ -170,6 +171,7 @@ function Workbench() {
             active.scope.entityIds.push(node.id);
         }
       }
+      for (const relation of result.relationships.filter(r => !document.relationships.some(old => old.id === r.id))) result = ensureBinderSpacing(result, settings.spatial, relation.id);
       commitDocument(result);
     } catch (e) {
       setError(message(e));
@@ -361,7 +363,7 @@ function Workbench() {
   function reapplyView() {
     if (!activeLayout) return;
     try {
-      const next = activeLayout.rule === "hierarchy" ? hierarchyLayout(document) : activeLayout.rule === "flow" ? flowLayout(document, activeLayout.ordering) : compactLayout(document, { kind: "all" }, settings.spatial);
+      const next = activeLayout.rule === "hierarchy" ? hierarchyLayout(document, settings.spatial) : activeLayout.rule === "flow" ? flowLayout(document, activeLayout.ordering, settings.spatial) : compactLayout(document, { kind: "all" }, settings.spatial);
       commitDocument(next);
     } catch (e) { setError(message(e)); }
   }
@@ -471,12 +473,9 @@ function Workbench() {
   }
   function updateRelation(changes: Partial<NonNullable<typeof selectedRelationData>>) {
     if (!selectedRelationData) return;
-    commitDocument({
-      ...document,
-      relationships: document.relationships.map((r) =>
-        r.id === selectedRelationData.id ? { ...r, ...changes } : r,
-      ),
-    });
+    const next = { ...document, relationships: document.relationships.map(r => r.id === selectedRelationData.id ? { ...r, ...changes } : r) };
+    try { commitDocument(ensureBinderSpacing(next, settings.spatial, selectedRelationData.id)); }
+    catch (e) { setError(message(e)); }
   }
   const selectedBinder: BinderPresentation | undefined = selection?.kind === "relationship" ? selectedRelationData : selection?.kind === "composition" ? selectedComposition : selection?.kind === "variantBinder" ? document.variants?.find((v) => v.id === selection.id) : selection?.kind === "visualBinder" ? document.placements.find((p) => p.id === selection.id)?.nestingBinder ?? {} : undefined;
   const selectedBinderText = selectedBinder && selection ? chartedBinders(document, atlas).find((b) => b.id === selection.id)?.label ?? "" : "";
@@ -487,7 +486,8 @@ function Workbench() {
     if (selection.kind === "composition") next.compositions = next.compositions.map((r) => r.id === selection.id ? { ...r, ...changes } : r);
     if (selection.kind === "variantBinder") next.variants = next.variants?.map((r) => r.id === selection.id ? { ...r, ...changes } : r);
     if (selection.kind === "visualBinder") next.placements = next.placements.map((p) => p.id === selection.id ? { ...p, nestingBinder: { ...p.nestingBinder, ...changes } } : p);
-    commitDocument(next);
+    try { commitDocument(changes.visual !== undefined || changes.text !== undefined || changes.operators !== undefined ? ensureBinderSpacing(next, settings.spatial, selection.id) : next); }
+    catch (e) { setError(message(e)); }
   }
   function editNodeVisual(visual: Visual, asset?: VisualAsset) {
     commitDocument({ ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}), placements: document.placements.map((p) => selectedIds.has(p.id) ? { ...p, visual } : p) });
@@ -750,11 +750,11 @@ function Workbench() {
         if (key === "Esc") { setCapturing(null); return; }
         if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
         const conflict = keyConflict(settings.bindings, capturing, key);
-        if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label}.`); return; }
-        setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key } }));
+        if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label ?? settings.buttonLabels[conflict] ?? conflict}.`); return; }
+        setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key }, buttonLabels: capturing.startsWith("button:") ? { ...old.buttonLabels, [capturing]: captureLabel.current || old.buttonLabels[capturing] || capturing.slice(7) } : old.buttonLabels }));
         setCapturing(null); setError(""); return;
       }
-      if (isTypingTarget(event.target)) return;
+      if (event.defaultPrevented || isTypingTarget(event.target)) return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || event.repeat) return;
       if ((settingsOpen || insertContext) && action !== "cancel") return;
@@ -816,6 +816,12 @@ function Workbench() {
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
   for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row"><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a new shortcut" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key…':settings.bindings[action.id]||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
+  for (const [id, key] of Object.entries(settings.bindings).filter(([id]) => id.startsWith("button:"))) {
+    const label = settings.buttonLabels[id] ?? id.slice(7);
+    replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></div>, true);
+    uiFunctions.find(f => f.id === `shortcut:${id}`)!.category = "Shortcuts";
+  }
+
   replaceFunction('ui:placementMode', 'UI placement mode', <UIPlacementControl />, true);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
@@ -895,7 +901,7 @@ function Workbench() {
     requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
   }}>{title}</button>);
   return (
-    <UIWorkspace layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace shortcuts={{ bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
       <header className="toolbar">
         <div className="brand">
           <strong>Omnium</strong>
@@ -1266,12 +1272,14 @@ function Workbench() {
             <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
             {selectedNode ? (
               <>
-                <p>
-                  Identity: <code>{selectedEntity?.id}</code>
+                <details>
+                  <summary>Technical details</summary>
+                  <p>Identity: <code>{selectedEntity?.id}</code>
                   <br />
                   Placement: <code>{selectedNode.id}</code>
-                  {selectedPlacement?.variantOwner && <><br />Variant of {document.entities.find((e) => e.id === document.placements.find((p) => p.id === selectedPlacement.variantOwner!.placementId)?.entityId)?.label}</>}
-                </p>
+                  </p>
+                </details>
+                {selectedPlacement?.variantOwner && <p>Variant of {document.entities.find((e) => e.id === document.placements.find((p) => p.id === selectedPlacement.variantOwner!.placementId)?.entityId)?.label}</p>}
                 <p>
                   {document.placements.filter((p) => p.entityId === selectedEntity?.id).length}{" "}
                   placement(s) reference this identity.
@@ -1511,13 +1519,11 @@ function Workbench() {
               <>
                 <p>{document.entities.find((e) => e.id === selectedComposition.parentId)?.label} → {document.entities.find((e) => e.id === selectedComposition.childId)?.label}</p>
                 <p>Authored structural composition. This binder is independent of spatial positioning.</p>
-                <BinderControls {...binderThemeProps} composition defaultText={selectedBinderText} value={selectedComposition} onChange={(changes) => commitDocument({ ...document, compositions: document.compositions.map((c) => c.id === selectedComposition.id ? { ...c, ...changes } : c) })} />
+                <BinderControls {...binderThemeProps} composition defaultText={selectedBinderText} value={selectedComposition} onChange={editBinder} />
               </>
             ) : selectedRelationship ? (
               <>
-                <p>
-                  Relationship ID: <code>{selectedRelationship.id}</code>
-                </p>
+                <details><summary>Technical details</summary><p>Relationship ID: <code>{selectedRelationship.id}</code></p></details>
                 {selectedRelationData && <BinderControls {...binderThemeProps} defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
                 {field("field:relationship-type", "Relationship type", <label>
                   Type
