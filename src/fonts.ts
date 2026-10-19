@@ -6,7 +6,22 @@ export const FONT_OPTIONS = [
   { id: "mono", label: "Monospace", family: "ui-monospace, SFMono-Regular, Consolas, monospace" },
   { id: "electric", label: "Rubik Glitch — electric", family: "'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
-export type FontId = typeof FONT_OPTIONS[number]["id"];
-export const normalizeFont = (value: unknown): FontId => FONT_OPTIONS.find(font => font.id === value)?.id ?? "system";
-export const fontFamily = (value: unknown): string => FONT_OPTIONS.find(font => font.id === value)?.family ?? FONT_OPTIONS[0].family;
-export const canvasFont = (value: unknown, size = 36) => `${value === "electric" ? 400 : 500} ${size}px ${fontFamily(value)}`;
+export type CustomFontId = `custom:${string}`;
+export type FontId = typeof FONT_OPTIONS[number]["id"] | CustomFontId;
+export const isCustomFont = (value: unknown): value is CustomFontId => typeof value === "string" && /^custom:[0-9a-f]{64}$/.test(value);
+export const normalizeFont = (value: unknown): FontId => isCustomFont(value) ? value : FONT_OPTIONS.find(font => font.id === value)?.id ?? "system";
+export const customFontFamily = (id: CustomFontId) => `OmniumCustom_${id.slice(7)}`;
+export const fontFamily = (value: unknown): string => isCustomFont(value) ? `'${customFontFamily(value)}', system-ui, sans-serif` : FONT_OPTIONS.find(font => font.id === value)?.family ?? FONT_OPTIONS[0].family;
+export const canvasFont = (value: unknown, size = 36) => `${value === "electric" || isCustomFont(value) ? 400 : 500} ${size}px ${fontFamily(value)}`;
+
+export type CustomFont = { id: CustomFontId; name: string; dataUrl: string };
+export const MAX_FONT_BYTES = 10 * 1024 * 1024;
+export const MAX_FONT_TEMPLATE_BYTES = 15 * 1024 * 1024;
+export function parseCustomFonts(value: unknown): CustomFont[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 1) throw new Error("A font template may embed its one selected custom font.");
+  return value.map(item => {
+    if (!item || !isCustomFont(item.id) || typeof item.name !== "string" || !item.name.trim() || item.name.length > 120 || typeof item.dataUrl !== "string" || item.dataUrl.length > MAX_FONT_BYTES * 4 / 3 + 100 || !/^data:font\/(woff2?|ttf|otf);base64,[A-Za-z0-9+/]+={0,2}$/.test(item.dataUrl)) throw new Error("Invalid embedded font. Use WOFF2, WOFF, TTF or OTF, up to 10 MB.");
+    return { id: item.id, name: item.name.trim(), dataUrl: item.dataUrl };
+  });
+}

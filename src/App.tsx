@@ -24,7 +24,8 @@ import { resolveAppearance } from "./graph/appearance";
 import { ANIMATION_LABELS, ANIMATION_TARGETS, EFFECT_KINDS, resolveSparkles, type AnimationTarget, type SparkleStyle } from "./graph/effects";
 import { loadThemePresets, parseThemeTemplate, themeTemplate, THEME_PRESETS_KEY, type ThemeTemplate } from "./themeTemplates";
 import { WindowSparkles } from "./WindowSparkles";
-import { FONT_OPTIONS, fontFamily, type FontId } from "./fonts";
+import { FONT_OPTIONS, fontFamily, isCustomFont, MAX_FONT_TEMPLATE_BYTES, type CustomFont, type FontId } from "./fonts";
+import { embeddedFont, importCustomFonts, importFontFile, listCustomFonts, loadFont } from "./fontLibrary";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { ShortcutDisplay } from "./ShortcutDisplay";
@@ -74,6 +75,19 @@ function Workbench() {
   const [themePresets, setThemePresets] = useState(loadThemePresets);
   const [themePresetName, setThemePresetName] = useState("My theme");
   const [selectedThemePreset, setSelectedThemePreset] = useState("");
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [fontImporting, setFontImporting] = useState(false);
+  useEffect(() => {
+    let active = true;
+    listCustomFonts().then(fonts => { if (active) setCustomFonts(fonts); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (!isCustomFont(settings.appearance.font)) return;
+    let active = true;
+    loadFont(settings.appearance.font).catch(error => { if (active) setError(message(error)); });
+    return () => { active = false; };
+  }, [settings.appearance.font]);
   const nodeThemeDefaults = resolveAppearance(settings.appearance.nodes, settings.appearance.theme === "neon" ? settings.appearance.accent : "#dce9fa");
   const binderThemeProps = { textDefaults: nodeThemeDefaults, binderDefaults: resolveAppearance(settings.appearance.binders, settings.appearance.theme === "neon" ? settings.appearance.accent : "#9fc4e9") };
   useEffect(() => {
@@ -143,6 +157,7 @@ function Workbench() {
   const fileInput = useRef<HTMLInputElement>(null);
   const templateInput = useRef<HTMLInputElement>(null);
   const themeTemplateInput = useRef<HTMLInputElement>(null);
+  const fontInput = useRef<HTMLInputElement>(null);
   const proposalInput = useRef<HTMLInputElement>(null);
   function navigate(kind: NavigationCommand["kind"], id?: string) {
     setNavCommand((old) => ({ sequence: (old?.sequence ?? 0) + 1, kind, id }));
@@ -270,27 +285,30 @@ function Workbench() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  function exportTemplate() {
-    const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings };
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
-    );
-    const link = window.document.createElement("a");
-    link.href = url;
-    link.download = "omnium-ui-template.json";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function exportTemplate() {
+    try {
+      const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings, fonts: await embeddedFont(settings.appearance.font) };
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
+      );
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = "omnium-ui-template.json";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setError(`UI export failed. ${message(e)}`); }
   }
   async function importTemplate(file?: File) {
     if (!file) return;
     try {
-      if (file.size > 5_000_000) throw new Error("UI template exceeds the 5 MB import limit.");
+      if (file.size > MAX_FONT_TEMPLATE_BYTES + 5_000_000) throw new Error("UI template exceeds the 20 MB import limit.");
       const value: unknown = JSON.parse(await file.text());
       if (value && typeof value === "object" && (value as { format?: string }).format === "omnium-ui-template" && (value as { version?: number }).version === 3) {
-        const template = value as { layout: unknown; settings?: unknown };
+        const template = value as { layout: unknown; settings?: unknown; fonts?: unknown };
         const checked = validateUILayout(template.layout);
         if (template.settings !== undefined && (!template.settings || typeof template.settings !== "object")) throw new Error("Invalid template settings.");
         const nextSettings = normalizeSettings(template.settings);
+        await restoreTemplateFont(nextSettings.appearance.font, template.fonts);
         ui.commit((previous) => ({ layout: checked, settings: template.settings === undefined ? previous.settings : nextSettings }));
         return;
       }
@@ -683,8 +701,9 @@ function Workbench() {
   function storeThemePresets(next: ThemeTemplate[]) {
     try {
       if (next.length > 50) throw new Error("Keep up to 50 saved themes; export or remove one first.");
-      localStorage.setItem(THEME_PRESETS_KEY, JSON.stringify(next));
-      setThemePresets(next); setError("");
+      const local = next.map(({ fonts: _fonts, ...preset }) => preset);
+      localStorage.setItem(THEME_PRESETS_KEY, JSON.stringify(local));
+      setThemePresets(local); setError("");
       return true;
     } catch (e) { setError(`Theme could not be saved. ${message(e)}`); return false; }
   }
@@ -694,17 +713,41 @@ function Workbench() {
       setSelectedThemePreset(preset.name); setThemePresetName(preset.name);
     }
   }
-  function exportTheme() {
-    const preset = themeTemplate(themePresetName, settings.appearance);
-    const url = URL.createObjectURL(new Blob([JSON.stringify(preset, null, 2)], { type: "application/json" }));
-    const link = window.document.createElement("a"); link.href = url; link.download = "omnium-theme.json"; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function exportTheme() {
+    try {
+      const preset = themeTemplate(themePresetName, settings.appearance, await embeddedFont(settings.appearance.font));
+      const url = URL.createObjectURL(new Blob([JSON.stringify(preset, null, 2)], { type: "application/json" }));
+      const link = window.document.createElement("a"); link.href = url; link.download = "omnium-theme.json"; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setError(`Theme export failed. ${message(e)}`); }
+  }
+  async function restoreTemplateFont(id: FontId, fonts?: unknown) {
+    await importCustomFonts(fonts);
+    if (isCustomFont(id)) { await loadFont(id); setCustomFonts(await listCustomFonts()); }
+  }
+  async function importFont(file?: File) {
+    if (!file) return;
+    setFontImporting(true);
+    try {
+      const font = await importFontFile(file);
+      setCustomFonts(await listCustomFonts());
+      setSettings(old => ({ ...old, appearance: { ...old.appearance, font: font.id } }));
+      setError("");
+    } catch (e) { setError(`Font import failed. ${message(e)}`); }
+    finally { setFontImporting(false); if (fontInput.current) fontInput.current.value = ""; }
+  }
+  async function applyThemePreset(preset: ThemeTemplate) {
+    try {
+      await restoreTemplateFont(preset.appearance.font, preset.fonts);
+      setSettings(old => ({ ...old, appearance: structuredClone(preset.appearance) }));
+    } catch (e) { setError(`Theme could not be applied. ${message(e)}`); }
   }
   async function importTheme(file?: File) {
     if (!file) return;
     try {
-      if (file.size > 100_000) throw new Error("Theme template exceeds the 100 KB limit.");
+      if (file.size > MAX_FONT_TEMPLATE_BYTES) throw new Error("Theme template exceeds the 15 MB limit.");
       const preset = parseThemeTemplate(JSON.parse(await file.text()));
+      await restoreTemplateFont(preset.appearance.font, preset.fonts);
       if (!storeThemePresets([...themePresets.filter(item => item.name !== preset.name), preset])) return;
       setSettings(old => ({ ...old, appearance: preset.appearance }));
       setThemePresetName(preset.name); setSelectedThemePreset(preset.name);
@@ -934,7 +977,8 @@ function Workbench() {
   replaceFunction("ui:appearance:effect", "Sparkle effect", <label>Sparkle effect<select aria-label="Sparkle effect" disabled={useSharedAnimation} value={scopedEffects.effect} onChange={event => editEffects({ effect: event.target.value as SparkleStyle["effect"] })}>{EFFECT_KINDS.map(effect => <option key={effect} value={effect}>{effect === "falling-stars" ? "Falling stars / snow" : effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
   for (const [key, label, id] of [["intensity", "Effect intensity", "effectIntensity"], ["density", "Density", "density"], ["motion", "Animation speed", "motion"]] as const) replaceFunction(`ui:appearance:${id}`, label, <label>{label}: {Math.round(scopedEffects[key] * 100)}%<input aria-label={label} disabled={useSharedAnimation} type="range" min="0" max="1" step="0.05" value={scopedEffects[key]} onChange={event => editEffects({ [key]: Number(event.target.value) })} /></label>, true);
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => editAppearance({ theme: event.target.value as WorkspaceSettings["appearance"]["theme"] })}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>, true);
-  replaceFunction("ui:appearance:font", "All text font", <label>All text font<select aria-label="All text font" value={settings.appearance.font} onChange={event => editAppearance({ font: event.target.value as FontId })}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}</select></label>, true);
+  replaceFunction("ui:appearance:font", "All text font", <label>All text font<select aria-label="All text font" value={settings.appearance.font} onChange={event => editAppearance({ font: event.target.value as FontId })}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}{customFonts.map(font => <option key={font.id} value={font.id}>{font.name}</option>)}{isCustomFont(settings.appearance.font) && !customFonts.some(font => font.id === settings.appearance.font) && <option value={settings.appearance.font}>Custom font (not loaded)</option>}</select></label>, true);
+  replaceFunction("ui:appearance:importFont", "Import font", <button title="Import WOFF2, WOFF, TTF or OTF, up to 10 MB. Applies to all text." disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
   replaceFunction("ui:appearance:background", "Background color", <label>Background color<input aria-label="Background color" type="color" value={settings.appearance.background} onChange={event => editAppearance({ background: event.target.value })} /></label>, true);
   for (const [key, label, max, step] of [["glowSpread", "Glow spread", 1, 0.05], ["blur", "Window blur", 20, 1]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label}<input aria-label={label} type="range" min="0" max={max} step={step} value={settings.appearance[key]} onChange={event => editAppearance({ [key]: Number(event.target.value) })} /></label>, true);
   replaceFunction("ui:appearance:inherit", "Use global defaults", <button disabled={themeScope === "global"} onClick={() => editGroup({ color: undefined, opacity: 1, glow: 1 })}>Use global defaults</button>);
@@ -952,7 +996,7 @@ function Workbench() {
   replaceFunction("ui:themePreset:name", "Theme template name", <label>Template name<input aria-label="Theme template name" maxLength={80} value={themePresetName} onChange={event => setThemePresetName(event.target.value)} /></label>, true);
   replaceFunction("ui:themePreset:select", "Saved themes", <label>Saved themes<select aria-label="Saved themes" value={selectedThemePreset} onChange={event => { setSelectedThemePreset(event.target.value); setThemePresetName(event.target.value || "My theme"); }}><option value="">Choose a saved theme</option>{themePresets.map(preset => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select></label>, true);
   replaceFunction("ui:themePreset:save", "Save theme template", <button onClick={saveThemePreset}>Save / update theme</button>);
-  replaceFunction("ui:themePreset:apply", "Apply saved theme", <button disabled={!selectedThemePreset} onClick={() => { const preset = themePresets.find(preset => preset.name === selectedThemePreset); if (preset) setSettings(old => ({ ...old, appearance: structuredClone(preset.appearance) })); }}>Apply saved theme</button>);
+  replaceFunction("ui:themePreset:apply", "Apply saved theme", <button disabled={!selectedThemePreset} onClick={() => { const preset = themePresets.find(preset => preset.name === selectedThemePreset); if (preset) void applyThemePreset(preset); }}>Apply saved theme</button>);
   replaceFunction("ui:themePreset:delete", "Delete saved theme", <button disabled={!selectedThemePreset} onClick={() => { if (storeThemePresets(themePresets.filter(preset => preset.name !== selectedThemePreset))) setSelectedThemePreset(""); }}>Delete saved theme</button>);
   replaceFunction("ui:themePreset:export", "Export theme template", <button onClick={exportTheme}>Export theme JSON</button>);
   replaceFunction("ui:themePreset:import", "Import theme template", <button onClick={() => themeTemplateInput.current?.click()}>Import theme JSON</button>);
@@ -993,6 +1037,7 @@ function Workbench() {
   return (
     <UIWorkspace shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
+      <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
         <div className="brand">
           <strong>Omnium</strong>
@@ -1970,7 +2015,7 @@ function Workbench() {
       {themeOpen && <FloatingWindow id="theme" title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
         <p>Authored node and binder colors take precedence. Effects appear in Neon.</p>
         <section aria-label="Appearance"><h3>Appearance</h3>
-          {["ui:appearance:theme", "ui:appearance:font", "ui:appearance:background", "ui:appearance:scope", "ui:appearance:accent", "ui:appearance:opacity", "ui:glow", "ui:appearance:glowSpread", "ui:appearance:inherit", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:appearance:theme", "ui:appearance:font", "ui:appearance:importFont", "ui:appearance:background", "ui:appearance:scope", "ui:appearance:accent", "ui:appearance:opacity", "ui:glow", "ui:appearance:glowSpread", "ui:appearance:inherit", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
         </section>
         <section aria-label="Windows"><h3>Windows</h3>
           <FunctionControl id="ui:appearance:windowOpacity" /><FunctionControl id="ui:appearance:blur" />

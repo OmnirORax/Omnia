@@ -19,7 +19,8 @@ import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
 import { EntityMenu } from "./ui/EntityMenu";
 import { FunctionControl } from "./ui/UIWorkspace";
-import { canvasFont } from "./fonts";
+import { isCustomFont } from "./fonts";
+import { loadFont } from "./fontLibrary";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
@@ -104,13 +105,13 @@ export default function SpatialWorkspace(props: Props) {
   const [ready, setReady] = useState(false);
   const [fontRevision, setFontRevision] = useState(0);
   useEffect(() => {
-    if (settings.appearance.font !== "electric") return;
+    if (settings.appearance.font !== "electric" && !isCustomFont(settings.appearance.font)) return;
     let active = true;
+    const refresh = () => { if (active) setFontRevision(revision => revision + 1); };
+    window.document.fonts.addEventListener("loadingdone", refresh);
     // Canvas textures must be regenerated after the bundled face finishes loading.
-    window.document.fonts.load(canvasFont(settings.appearance.font)).then(() => {
-      if (active) setFontRevision(revision => revision + 1);
-    }).catch(() => { /* The selected family already includes a system fallback. */ });
-    return () => { active = false; };
+    loadFont(settings.appearance.font).then(refresh).catch(() => { /* The selected family already includes a system fallback. */ });
+    return () => { active = false; window.document.fonts.removeEventListener("loadingdone", refresh); };
   }, [settings.appearance.font]);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<Menu | null>(null);
