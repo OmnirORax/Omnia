@@ -61,9 +61,11 @@ const members = async () =>
 async function begin(source, x, y) {
   const b = await source.boundingBox();
   assert.ok(b, "drag source must be visible");
-  await page.mouse.move(b.x + Math.min(12, b.width / 2), b.y + Math.min(14, b.height / 2));
+  // Text handles retain their editable name; grab the handle edge rather than its input.
+  const dx = await source.evaluate(el => el.classList.contains('ui-frame-handle') && el.querySelector('input') ? 3 : Math.min(12, el.clientWidth / 2));
+  await page.mouse.move(b.x + dx, b.y + Math.min(14, b.height / 2));
   await page.mouse.down();
-  await page.mouse.move(b.x + Math.min(12, b.width / 2) + 12, b.y + Math.min(14, b.height / 2) + 4);
+  await page.mouse.move(b.x + dx + 12, b.y + Math.min(14, b.height / 2) + 4);
   await page.mouse.move(x, y, { steps: 12 });
   await page.mouse.move(x + 1, y);
 }
@@ -159,12 +161,12 @@ try {
   await history(3);
   assert.equal((await read()).frames.find((f) => f.id === "Container").chrome, undefined);
   await history(4);
-  // Frame appearance and magnetic preference are frame-local presentation settings.
+  // Frame appearance and placement mode are frame-local presentation settings.
   await f("Container")
     .locator(":scope > .frame-chrome .ui-frame-handle")
     .click({ button: "right" });
-  await page.getByRole("menuitemcheckbox", { name: "Category magnetism: On" }).click();
-  assert.equal((await read()).frames.find((f) => f.id === "Container").magnetic, false);
+  await page.getByRole("button", { name: /^Free-hand mode/ }).click();
+  assert.equal((await read()).frames.find((f) => f.id === "Container").arrangement.mode, 'free');
   await f("Container")
     .locator(":scope > .frame-chrome .ui-frame-handle")
     .click({ button: "right" });
@@ -187,9 +189,10 @@ try {
   await finish();
   assert.ok((await members()).includes("window:settings"));
   assert.equal((await settings.locator(".ui-form-control").count()) > 0, true);
-  const radiusSource = settings.locator('[data-ui-function="ui:radius"] .ui-field-grip');
-  a = await f("A").boundingBox();
-  await begin(radiusSource, a.x + a.width + 6, a.y + 20);
+  const radiusSource = settings.locator('[data-ui-function="ui:radius"] .ui-field-edge.edge-left');
+  const containerBody=await zone('Container').boundingBox();
+  // Free-hand deliberately leaves B/C where authored; use empty parent space, not their overlap.
+  await begin(radiusSource, containerBody.x + 40, containerBody.y + 220);
   await page.locator(".ui-drop-ghost").waitFor();
   await finish();
   assert.ok((await members()).includes("function:ui:radius"));
@@ -231,71 +234,9 @@ try {
   );
   assert.deepEqual(errors, []);
   await page.screenshot({ path: "/tmp/omnium-nested-ui.png" });
-  const magnetic = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-  const magneticLayout = {
-    ...emptyUILayout(),
-    frames: [frame("Magnet", 500, 180, 360, "ui:radius")],
-    windows: {
-      settings: { x: 1050, y: 350, width: 420, height: 560, collapsed: false, pinned: false },
-    },
-    panels: { "@settings": true },
-  };
-  await magnetic.addInitScript(
-    ({ graph, ui }) => {
-      localStorage.setItem("omnium.atlas.v2", JSON.stringify(graph));
-      localStorage.setItem("omnium.ui.layout.v1", JSON.stringify(ui));
-    },
-    { graph, ui: magneticLayout },
-  );
-  await magnetic.goto(process.env.ATLAS_URL || "http://127.0.0.1:5173/");
-  await magnetic.locator("canvas").waitFor();
-  const magnetRoot = magnetic.locator('[data-ui-resident-root="frame:Magnet"]'),
-    fieldSource = magnetic
-      .getByRole("dialog", { name: "Workspace settings", exact: true })
-      .locator('[data-ui-function="ui:clearance"] .ui-field-grip');
-  async function hoverNear() {
-    const source = await fieldSource.boundingBox(),
-      destination = await magnetRoot.locator('[data-ui-function="ui:radius"]').boundingBox();
-    await magnetic.mouse.move(source.x + 5, source.y + 7);
-    await magnetic.mouse.down();
-    await magnetic.mouse.move(source.x + 18, source.y + 11);
-    await magnetic.mouse.move(destination.x + 100, destination.y + destination.height + 9, {
-      steps: 12,
-    });
-    await magnetic.mouse.move(destination.x + 101, destination.y + destination.height + 9);
-    return destination;
-  }
-  const near = await hoverNear();
-  await magnetic.locator(".ui-drop-ghost").waitFor();
-  assert.match(await magnetic.locator(".ui-snap-preview").textContent(), /Magnetic snap/);
-  await magnetic.screenshot({ path: "/tmp/omnium-magnetic-preview.png" });
-  await magnetic.mouse.move(near.x + near.width + 45, near.y + near.height / 2);
-  assert.doesNotMatch(await magnetic.locator(".ui-snap-preview").textContent(), /Magnetic snap/);
-  await magnetic.mouse.move(near.x + 101, near.y + near.height + 9);
-  await magnetic.keyboard.press("Escape");
-  await magnetic.mouse.up();
-  assert.deepEqual(
-    await magnetic.evaluate(() => JSON.parse(localStorage.getItem("omnium.ui.layout.v1"))),
-    magneticLayout,
-  );
-  await magnetRoot.locator(".ui-frame-handle").click({ button: "right" });
-  await magnetic.getByRole("menuitemcheckbox", { name: "Category magnetism: On" }).click();
-  await hoverNear();
-  await magnetic.locator(".ui-drop-ghost").waitFor();
-  assert.doesNotMatch(await magnetic.locator(".ui-snap-preview").textContent(), /Magnetic snap/);
-  await magnetic.mouse.up();
-  const arranged = await magnetic.evaluate(() =>
-    JSON.parse(localStorage.getItem("omnium.ui.layout.v1")),
-  );
-  assert.equal(arranged.frames[0].members.at(-1).id, "ui:clearance");
-  assert.equal(arranged.frames[0].members.at(-1).breakBefore, true);
-  assert.deepEqual(
-    await magnetic.evaluate(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))),
-    graph,
-  );
-  await magnetic.close();
+  // Anchor/free-hand coverage lives in ui-positioning.browser.mjs.
   console.log(
-    "PASS: measured nested frames, exact blue insertion, cycle rejection, Esc cancellation, movable mini controls, icon handles, live fields/windows, threshold/toggle magnetism, persistence, and separate Shift MB4/5 UI history.",
+    "PASS: measured nested frames, exact blue insertion, cycle rejection, Esc cancellation, movable mini controls, icon handles, live fields/windows, free-hand positions, persistence, and separate Shift MB4/5 UI history.",
   );
 } catch (e) {
   await page.screenshot({ path: "/tmp/omnium-nested-ui-failure.png" });

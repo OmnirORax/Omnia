@@ -16,6 +16,9 @@ export type UIContextValue = {
   createFrame: (x: number, y: number) => void;
   library: () => void;
   frameMenu: (key: string, x: number, y: number) => void;
+  configureControl: (owner: string, control: "collapse" | "pin" | "close") => void;
+  anchorTarget: string | null;
+  chooseMode: (owner: string, mode: "free" | "snap") => void;
   preview: DockPreview | null;
   defaults: Map<string, WindowState>;
   renderResident: (member: UIResident) => ReactNode;

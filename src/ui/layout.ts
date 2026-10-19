@@ -1,5 +1,10 @@
 import type { VisualAsset } from "../graph/assets.ts";
 import { validateAsset } from "../graph/assets.ts";
+export type UIArrangement = {
+  mode: "free" | "snap";
+  grid?: { anchor: string; origin: Cell; pitch: Cell };
+};
+export type UISize = { width: number; height: number };
 export type Cell = { x: number; y: number };
 export type WindowState = {
   x: number;
@@ -11,16 +16,21 @@ export type WindowState = {
   members?: UIResident[];
   chrome?: FrameChrome;
   magnetic?: boolean;
+  arrangement?: UIArrangement;
+  bodyOffset?: Cell;
 };
 export type UIResident = {
   kind: "function" | "frame" | "window";
   id: string;
   breakBefore?: boolean;
+  position?: Cell;
+  size?: UISize;
 };
 export type FrameChrome = {
   style?: FunctionStyle;
   handle?: Cell;
   controls?: Partial<Record<"collapse" | "pin" | "close", Cell>>;
+  controlStyles?: Partial<Record<"collapse" | "pin" | "close", FunctionStyle>>;
 };
 export type FunctionStyle = {
   mode: "text" | "icon";
@@ -49,6 +59,8 @@ export type UIFrame = {
   width?: number;
   chrome?: FrameChrome;
   magnetic?: boolean;
+  arrangement?: UIArrangement;
+  bodyOffset?: Cell;
 };
 export type UILayout = {
   version: 1 | 2;
@@ -58,6 +70,7 @@ export type UILayout = {
   menus: Record<string, Record<string, Cell>>;
   panels: Record<string, boolean>;
   assets: VisualAsset[];
+  arrangement?: UIArrangement;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -92,6 +105,7 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (layout.arrangement) validateArrangement(layout.arrangement);
   if (
     Object.keys(layout.items).length > 500 ||
     layout.frames.length > 100 ||
@@ -200,6 +214,16 @@ export function validateUILayout(value: unknown): UILayout {
   }
   const owners = new Map<string, string>();
   for (const [key, container] of containers(layout)) {
+    if (
+      container.bodyOffset &&
+      (!record(container.bodyOffset) ||
+        !numeric(container.bodyOffset.x) ||
+        !numeric(container.bodyOffset.y))
+    )
+      throw new Error("Invalid UI body offset.");
+    if (container.arrangement) {
+      validateArrangement(container.arrangement);
+    }
     if (container.magnetic !== undefined && typeof container.magnetic !== "boolean")
       throw new Error("Invalid frame magnetism.");
     if (
@@ -222,6 +246,14 @@ export function validateUILayout(value: unknown): UILayout {
       )
         throw new Error("Invalid frame control.");
       if (chrome.style) validateStyle(chrome.style, layout);
+      if (chrome.controlStyles) {
+        if (
+          !record(chrome.controlStyles) ||
+          Object.keys(chrome.controlStyles).some((k) => !["collapse", "pin", "close"].includes(k))
+        )
+          throw new Error("Invalid frame control styles.");
+        Object.values(chrome.controlStyles).forEach((style) => validateStyle(style, layout));
+      }
     }
     if (
       container.members !== undefined &&
@@ -229,6 +261,21 @@ export function validateUILayout(value: unknown): UILayout {
     )
       throw new Error("Invalid frame members.");
     for (const member of container.members ?? []) {
+      if (!record(member)) throw new Error("Invalid frame member.");
+      if (
+        member.position &&
+        (!record(member.position) || !numeric(member.position.x) || !numeric(member.position.y))
+      )
+        throw new Error("Invalid UI resident position.");
+      if (
+        member.size &&
+        (!record(member.size) ||
+          !numeric(member.size.width) ||
+          !numeric(member.size.height) ||
+          member.size.width < 1 ||
+          member.size.height < 1)
+      )
+        throw new Error("Invalid UI resident size.");
       if (
         !record(member) ||
         !["function", "frame", "window"].includes(member.kind) ||
@@ -258,6 +305,22 @@ export function validateUILayout(value: unknown): UILayout {
     }
   }
   return layout;
+}
+function validateArrangement(a: UIArrangement) {
+  if (!record(a) || !["free", "snap"].includes(a.mode))
+    throw new Error("Invalid UI arrangement mode.");
+  if (
+    a.grid &&
+    (!record(a.grid) ||
+      typeof a.grid.anchor !== "string" ||
+      !a.grid.anchor ||
+      !record(a.grid.origin) ||
+      !record(a.grid.pitch) ||
+      ![a.grid.origin.x, a.grid.origin.y, a.grid.pitch.x, a.grid.pitch.y].every(numeric) ||
+      a.grid.pitch.x < 16 ||
+      a.grid.pitch.y < 16)
+  )
+    throw new Error("Invalid UI snap grid.");
 }
 function validateStyle(style: FunctionStyle, layout: UILayout) {
   if (
@@ -395,7 +458,12 @@ export function resetContainer(layout: UILayout, key: string): UILayout {
   return validateUILayout(
     updateContainer(layout, key, {
       chrome: c.chrome?.style ? { style: c.chrome.style } : undefined,
-      members: (c.members ?? []).map((m) => ({ ...m, breakBefore: false })),
+      members: (c.members ?? []).map(({ position: _position, size: _size, ...m }) => ({
+        ...m,
+        breakBefore: false,
+      })),
+      arrangement: undefined,
+      bodyOffset: undefined,
       ...(key.startsWith("frame:") ? { width: 280 } : { width: 420, height: 560 }),
     }),
   );

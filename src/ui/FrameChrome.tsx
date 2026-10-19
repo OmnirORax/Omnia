@@ -61,9 +61,6 @@ export function FrameChrome({
         onDragStart={(e) => startResidentDrag(e, container)}
         title={`${title} · drag to move or dock; right-click to customize`}
       >
-        <span className="ui-frame-grip" aria-hidden="true">
-          ⠿
-        </span>
         {style.mode === "icon" ? (
           <button
             aria-label={`Toggle frame ${title}`}
@@ -85,6 +82,9 @@ export function FrameChrome({
       <div className="window-tools">
         {actions.map((a, index) => {
           const p = state.chrome?.controls?.[a.id as keyof NonNullable<Chrome["controls"]>];
+          const custom =
+            state.chrome?.controlStyles?.[a.id as keyof NonNullable<Chrome["controlStyles"]>];
+          const icon = ui.layout.assets.find((asset) => asset.id === custom?.assetId);
           return (
             <button
               key={a.id}
@@ -107,8 +107,31 @@ export function FrameChrome({
                 e.dataTransfer.effectAllowed = "move";
               }}
               onClick={a.run}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                ui.configureControl(container, a.id as "collapse" | "pin" | "close");
+              }}
             >
-              {a.text}
+              {icon ? (
+                <img src={icon.dataUrl} alt="" />
+              ) : (
+                custom?.character ||
+                (a.id === "pin" ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                  >
+                    <path d="m8 3 8 0-1 6 4 4v2h-6v6l-2 2v-8H5v-2l4-4Z" />
+                  </svg>
+                ) : (
+                  a.text
+                ))
+              )}
             </button>
           );
         })}

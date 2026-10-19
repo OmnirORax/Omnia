@@ -110,7 +110,7 @@ try {
   const slots = await frame.locator(".ui-dock-area").boundingBox();
   const settingsSource = await page.locator('[data-ui-function="settings"]').boundingBox();
   await frame.locator(".ui-frame-handle").click({ button: "right" });
-  await page.getByRole("menuitemcheckbox", { name: "Category magnetism: On" }).click();
+  await page.getByRole("button", { name: /^Free-hand mode/ }).click();
   await page.mouse.move(
     settingsSource.x + settingsSource.width / 2,
     settingsSource.y + settingsSource.height / 2,

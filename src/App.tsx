@@ -28,7 +28,7 @@ import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
 import type { Visual, VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { projectSpatial } from "./graph/spatial";
-import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
+import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPlacementControl, UIPanel } from "./ui/UIWorkspace";
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { loadUILayout, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
@@ -784,6 +784,7 @@ function Workbench() {
   const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, category: a.category, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { replaceFunction(id, label, element, true); return <FunctionControl id={id} key={id} />; };
+  replaceFunction('ui:placementMode', 'UI placement mode', <UIPlacementControl />, true);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
   for (const key of ["leftEmpty", "rightEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);

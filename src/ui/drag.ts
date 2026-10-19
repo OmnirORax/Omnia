@@ -1,4 +1,5 @@
 import type { DragEvent } from "react";
+import type { Cell, UIResident } from "./layout";
 export const RESIDENT_MIME = "application/x-omnium-ui-resident";
 export const CONTROL_MIME = "application/x-omnium-frame-control";
 export const FUNCTION_MIME = "application/x-omnium-function";
@@ -37,4 +38,6 @@ export type DockPreview = {
   width: number;
   height: number;
   magnetic?: boolean;
+  position?: Cell;
+  baseline?: UIResident[];
 };
