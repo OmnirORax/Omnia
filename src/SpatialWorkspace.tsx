@@ -508,7 +508,7 @@ export default function SpatialWorkspace(props: Props) {
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, fontRevision, settings.appearance.theme, settings.appearance.accent, settings.appearance.nodes.color, settings.appearance.nodes.opacity, settings.appearance.nodes.glow, settings.appearance.binders.color, settings.appearance.binders.opacity, settings.appearance.binders.glow]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, fontRevision, settings.appearance.textGlow, settings.appearance.theme, settings.appearance.accent, settings.appearance.nodes.color, settings.appearance.nodes.opacity, settings.appearance.nodes.glow, settings.appearance.binders.color, settings.appearance.binders.opacity, settings.appearance.binders.glow]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [

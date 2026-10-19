@@ -1,4 +1,4 @@
-export const EFFECT_KINDS = ["stars", "lightning", "falling-stars", "dust", "sparks", "off"] as const;
+export const EFFECT_KINDS = ["stars", "electric-text", "lightning", "falling-stars", "dust", "sparks", "off"] as const;
 export type EffectKind = (typeof EFFECT_KINDS)[number];
 export const ANIMATION_TARGETS = ["windows", "buttons", "fields", "nodes", "binders", "background"] as const;
 export type AnimationTarget = (typeof ANIMATION_TARGETS)[number];

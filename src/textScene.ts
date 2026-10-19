@@ -15,7 +15,7 @@ import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
-export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system") {
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0) {
   const lines = labelLines(value),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d")!;
@@ -44,6 +44,7 @@ export function textSprite(value: string, color: string, selected = false, node 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = color;
+  ctx.shadowColor = color; ctx.shadowBlur = textGlow * 10;
   lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, 10 + 24 + i * 48));
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -65,6 +66,7 @@ export function textSprite(value: string, color: string, selected = false, node 
     return mask;
   };
   sprite.userData.label = value;
+  sprite.userData.textColor = color;
   sprite.userData.aspect = canvas.width / canvas.height;
   sprite.userData.lines = lines.length;
   const size = labelSize(value);
@@ -131,12 +133,13 @@ export function buildTextScene(
       true,
       neon,
       theme.font,
+      theme.textGlow,
     );
     text.material.opacity = style.opacity;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
     const svgIcon = doc.assets?.find(asset => asset.id === placement?.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
     const footprint = visualFootprint(labelSize(node.label), placement?.visual);
-    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font), requestRender, { color: appearance?.color ?? theme.nodes.color ?? (svgIcon ? color : undefined), opacity: style.opacity }) : undefined;
+    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow), requestRender, { color: appearance?.color ?? theme.nodes.color ?? (svgIcon ? color : undefined), opacity: style.opacity }) : undefined;
     const sprite: LabelMesh = footprint.sphere
       ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
@@ -190,11 +193,11 @@ export function buildTextScene(
     );
     const custom = !!(b.visual?.assetId || b.visual?.character);
     const svgIcon = doc.assets?.find(asset => asset.id === b.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font), requestRender, { color: b.color ?? theme.binders.color ?? (svgIcon ? color : undefined), opacity }) : defaultArrow;
+    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow), requestRender, { color: b.color ?? theme.binders.color ?? (svgIcon ? color : undefined), opacity }) : defaultArrow;
     arrow.userData.glowIntensity = style.glow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
-    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, theme.font) : null;
+    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, theme.font, theme.textGlow) : null;
     if (label) label.userData.glowIntensity = textStyle.glow;
     for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;

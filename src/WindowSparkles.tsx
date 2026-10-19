@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { WorkspaceSettings } from "./workspaceActions";
-import { clearUILightningContours, drawUILightning } from "./uiLightning";
+import { clearUILightningContours, drawUILightning, drawUIElectricText } from "./uiLightning";
 import { effectSeed, effectVisible, fallingStar, perimeterPoint, resolveTargetSparkles, type SurfaceTarget } from "./graph/effects";
 
 /** Pointer-transparent decoration follows live UI bounds, including portalled windows. */
@@ -26,7 +26,7 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
       context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
       if (document.hidden || a.theme !== "neon" || a.opacity === 0) return;
       context.shadowBlur = a.glow * 12;
-      let moving = false, lightningBudget = 1800;
+      let moving = false, lightningBudget = 1800, electricBudget = 1_200_000;
       for (const [target, selector] of selectors) {
         const fx = resolveTargetSparkles(a, target); if (!effectVisible(fx)) continue;
         context.strokeStyle = context.fillStyle = context.shadowColor = fx.color ?? a.accent;
@@ -37,6 +37,10 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
           const r = element.getBoundingClientRect(); if (!r.width || !r.height || r.bottom < 0 || r.top > height || r.right < 0 || r.left > width) continue;
           moving ||= fx.motion > 0;
           const seed = effectSeed(`${target}:${element.dataset.uiFunction ?? element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? `${element.className}:${index}`}`);
+          if (fx.effect === "electric-text") {
+            electricBudget -= drawUIElectricText(context, element, r, fx, time, a.opacity, !reduced.matches && fx.motion > 0, electricBudget);
+            continue;
+          }
           if (fx.effect === "lightning") {
             lightningBudget -= drawUILightning(context, element, r, fx, time, seed, a.opacity, !reduced.matches && fx.motion > 0, lightningBudget);
             continue;

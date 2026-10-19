@@ -1,18 +1,19 @@
 import { imageContours, lightningBolts, type Contour } from "./lightning";
 import type { SparkleStyle } from "./graph/effects";
-type Snapshot = { signature: string; paths: Contour[] };
+import { createElectricInk } from "./electricInk";
+type Snapshot = { signature: string; paths?: Contour[]; mask: HTMLCanvasElement; ink: HTMLCanvasElement };
 let cache = new WeakMap<HTMLElement, Snapshot>();
 export const clearUILightningContours = () => { cache = new WeakMap(); };
 /** Rasterize only displayed lettering and icons, omitting panel/button backgrounds. */
-function snapshot(element: HTMLElement, rect: DOMRect, clip: { x: number; y: number; width: number; height: number }): Contour[] {
+function snapshot(element: HTMLElement, rect: DOMRect, clip: { x: number; y: number; width: number; height: number }): Snapshot | null {
   const inputs = [...element.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input,textarea,select")];
   if (element.matches("input,textarea,select")) inputs.unshift(element as HTMLInputElement);
   const images = [...element.querySelectorAll<HTMLImageElement>("img")];
   const signature = [rect.width, rect.height, clip.x - rect.x, clip.y - rect.y, clip.width, clip.height, element.textContent, getComputedStyle(element).font, ...inputs.map(input => `${input.value}:${input.scrollLeft}:${input.scrollTop}`), ...images.map(img => `${img.currentSrc}:${img.complete}:${img.naturalWidth}`), ...[element, ...element.querySelectorAll(".floating-body,.ui-panel-body")].map(el => `${el.scrollTop}:${el.scrollLeft}`)].join("|");
-  const previous = cache.get(element); if (previous?.signature === signature) return previous.paths;
+  const previous = cache.get(element); if (previous?.signature === signature) return previous;
   const canvas = document.createElement("canvas"), scale = Math.min(1.5, 512 / Math.max(clip.width, clip.height));
   canvas.width = Math.max(1, Math.ceil(clip.width * scale)); canvas.height = Math.max(1, Math.ceil(clip.height * scale));
-  const context = canvas.getContext("2d"); if (!context) return [];
+  const context = canvas.getContext("2d"); if (!context) return null;
   context.scale(scale, scale); context.translate(-clip.x, -clip.y); context.fillStyle = "white";
   const visible = (el: Element) => !!el.getClientRects().length && !el.closest("[hidden],.ui-drag-source") && getComputedStyle(el).visibility !== "hidden";
   const overlaps = (r: DOMRect) => r.right >= clip.x && r.left <= clip.x + clip.width && r.bottom >= clip.y && r.top <= clip.y + clip.height;
@@ -54,13 +55,15 @@ function snapshot(element: HTMLElement, rect: DOMRect, clip: { x: number; y: num
     const width = fit === "contain" ? image.naturalWidth * factor : r.width, height = fit === "contain" ? image.naturalHeight * factor : r.height;
     try { context.drawImage(image, r.left + (r.width - width) / 2, r.top + (r.height - height) / 2, width, height); } catch { /* A loading icon retries on its load event. */ }
   }
-  const paths = imageContours(canvas); cache.set(element, { signature, paths }); return paths;
+  const ink = document.createElement("canvas"); ink.width = canvas.width; ink.height = canvas.height;
+  const result = { signature, mask: canvas, ink }; cache.set(element, result); return result;
 }
 /** Draws narrow colored halos and white-hot cores, without capturing pointer input. */
 export function drawUILightning(context: CanvasRenderingContext2D, element: HTMLElement, rect: DOMRect, fx: SparkleStyle, seconds: number, seed: number, opacity: number, animated: boolean, budget: number): number {
   const clip = { x: Math.max(0, rect.x), y: Math.max(0, rect.y), width: Math.min(innerWidth, rect.right) - Math.max(0, rect.x), height: Math.min(innerHeight, rect.bottom) - Math.max(0, rect.y) };
   if (clip.width <= 0 || clip.height <= 0 || budget <= 0) return 0;
-  const paths = snapshot(element, rect, clip), bolts = lightningBolts(paths, seed, seconds, fx.density, fx.boltLength, animated);
+  const shape = snapshot(element, rect, clip); if (!shape) return 0;
+  const paths = shape.paths ??= imageContours(shape.mask), bolts = lightningBolts(paths, seed, seconds, fx.density, fx.boltLength, animated);
   let segments = 0;
   context.save(); context.shadowColor = typeof context.strokeStyle === "string" ? context.strokeStyle : fx.color ?? "#60ddec"; context.lineJoin = "round"; context.lineCap = "round";
   for (const bolt of bolts) {
@@ -72,4 +75,34 @@ export function drawUILightning(context: CanvasRenderingContext2D, element: HTML
     segments += bolt.points.length;
   }
   context.restore(); return segments;
+}
+
+const tiles = new Map<string, { noise: ReturnType<typeof createElectricInk>; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D }>();
+/** Opaque electric ink replaces glyph interiors; the surrounding surface remains untouched. */
+export function drawUIElectricText(context: CanvasRenderingContext2D, element: HTMLElement, rect: DOMRect, fx: SparkleStyle, seconds: number, opacity: number, animated: boolean, budget: number): number {
+  const clip = { x: Math.max(0, rect.x), y: Math.max(0, rect.y), width: Math.min(innerWidth, rect.right) - Math.max(0, rect.x), height: Math.min(innerHeight, rect.bottom) - Math.max(0, rect.y) };
+  if (clip.width <= 0 || clip.height <= 0 || clip.width * clip.height > budget) return 0;
+  const shape = snapshot(element, rect, clip); if (!shape) return 0;
+  const color = fx.color ?? (typeof context.strokeStyle === "string" ? context.strokeStyle : "#60ddec"), key = `${color}:${fx.density}:${fx.boltLength}:${fx.intensity}:${fx.motion}`;
+  let tile = tiles.get(key);
+  if (!tile) {
+    if (tiles.size >= 8) tiles.delete(tiles.keys().next().value!);
+    const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
+    tile = { noise: createElectricInk(), canvas, context: canvas.getContext("2d")! }; tiles.set(key, tile);
+  }
+  if (tile.noise.update(animated ? seconds : 0, fx.density, fx.boltLength)) {
+    const noise = tile.noise.canvas.getContext("2d")!.getImageData(0, 0, 128, 128), data = noise.data;
+    const rgb = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16));
+    for (let i = 0; i < data.length; i += 4) {
+      const flux = data[i] / 255, t = Math.max(0, Math.min(1, (flux - 0.68) / 0.3)), core = t * t * (3 - 2 * t);
+      for (let c = 0; c < 3; c++) data[i + c] = (rgb[c] * (0.16 + flux * 1.25) + core * 230) * (0.35 + fx.intensity * 0.65);
+    }
+    tile.context.putImageData(noise, 0, 0);
+  }
+  const ink = shape.ink.getContext("2d")!;
+  ink.globalCompositeOperation = "copy"; ink.drawImage(shape.mask, 0, 0);
+  ink.globalCompositeOperation = "source-in"; ink.fillStyle = ink.createPattern(tile.canvas, "repeat")!; ink.fillRect(0, 0, shape.ink.width, shape.ink.height);
+  context.save(); context.globalAlpha = opacity; context.shadowBlur = 0;
+  context.drawImage(shape.ink, clip.x, clip.y, clip.width, clip.height); context.restore();
+  return clip.width * clip.height;
 }
