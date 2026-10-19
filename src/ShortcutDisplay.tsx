@@ -5,13 +5,15 @@ import {
   type WorkspaceSettings,
   type SubtreeModifier,
 } from "./workspaceActions";
+import { FloatingWindow } from "./ui/FloatingWindow";
+import { FunctionControl } from "./ui/UIWorkspace";
 export function ShortcutDisplay({
   settings,
   onChange,
   capturing,
   onCapture,
-  onAction,
   onClose,
+  onInteract,
 }: {
   settings: WorkspaceSettings;
   onChange: (settings: WorkspaceSettings) => void;
@@ -19,24 +21,17 @@ export function ShortcutDisplay({
   onCapture: (id: ActionId) => void;
   onAction: (id: ActionId) => void;
   onClose: () => void;
+  onInteract?: () => void;
 }) {
   return (
-    <aside className="shortcut-display" aria-label="Shortcut display">
-      <div className="shortcut-heading">
-        <strong>Shortcuts & functions</strong>
-        <button onClick={onClose} aria-label="Close shortcut display">
-          ×
-        </button>
-      </div>
+    <FloatingWindow id="shortcuts" title="Shortcuts & functions" label="Shortcut display" role="complementary" className="shortcut-display" x={window.innerWidth - 430} y={110} width={410} height={Math.min(700, window.innerHeight * .75)} onClose={onClose} closeLabel="Close shortcut display" onInteract={onInteract}>
       <p>Click a function to run it. Click its key to rebind; Esc cancels.</p>
       {Array.from(new Set(ACTIONS.map((a) => a.category))).map((category) => (
         <section key={category}>
           <h3>{category}</h3>
           {ACTIONS.filter((a) => a.category === category).map((a) => (
             <div className="binding-row" key={a.id}>
-              <button title={a.label} onClick={() => onAction(a.id)}>
-                {a.label}
-              </button>
+              <FunctionControl id={a.id} palette />
               <button
                 aria-label={`Rebind ${a.label}`}
                 title="Click, then press a new shortcut"
@@ -150,6 +145,6 @@ export function ShortcutDisplay({
       <button onClick={() => onChange(defaultSettings())}>
         Restore shortcut and mouse defaults
       </button>
-    </aside>
+    </FloatingWindow>
   );
 }

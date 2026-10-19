@@ -1,6 +1,8 @@
 import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from "./graph/layout3d.ts";
 
 export const ACTIONS = [
+  { id: "ui:arrange", category: "Workspace", label: "Arrange UI", defaultKey: "Ctrl+Alt+U" },
+  { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
   { id: "selectAll", category: "Selection", label: "Select visible nodes", defaultKey: "Ctrl+A" },
   { id: "deleteSelected", category: "Selection", label: "Delete selected concepts and subnodes", defaultKey: "Delete" },
   { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Shift+?" },
@@ -56,11 +58,12 @@ export function subtreeGesture(event: Pick<MouseEvent, "shiftKey" | "altKey" | "
   return modifier === "shift" ? event.shiftKey : modifier === "alt" ? event.altKey : modifier === "ctrl" ? event.ctrlKey || event.metaKey : false;
 }
 export function loadSettings(): WorkspaceSettings {
+  try { const raw = localStorage.getItem(SETTINGS_KEY); return normalizeSettings(raw ? JSON.parse(raw) : {}); } catch { return defaultSettings(); }
+}
+export function normalizeSettings(input: unknown): WorkspaceSettings {
   const defaults = defaultSettings();
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return defaults;
-    const value = JSON.parse(raw) as Partial<WorkspaceSettings>;
+    const value = input as Partial<WorkspaceSettings>;
     const spacing = value.spatial?.spacing;
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
     if (spacing !== undefined && permitted.includes(spacing)) defaults.spatial.spacing = spacing;

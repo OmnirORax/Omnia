@@ -24,6 +24,65 @@
 .icon-results img { width: 30px; height: 30px; }
 .icon-results small { display: block; font-size: 9px; overflow-wrap: anywhere; }
 .binder-editor .close-editor { float: right; margin-bottom: 10px; }
+.floating-window { pointer-events: auto; top: 0 !important; left: 0 !important; right: auto !important; }
+.floating-window.shortcut-display, .floating-window.binder-editor { right: auto; top: auto; padding: 0; max-height: none; overflow: visible; background: transparent; box-shadow: none; border: 0; }
+.floating-window-content { display: flex; flex-direction: column; width: 100%; height: 100%; background: #f8faff; border: 1px solid #bacbdd; border-radius: 8px; box-shadow: 0 8px 30px #0005; min-width: 0; }
+.floating-title { display: flex; align-items: center; gap: 8px; padding: 8px 10px; min-height: 44px; border-bottom: 1px solid #cad7e5; cursor: move; touch-action: none; user-select: none; }
+.floating-title strong { min-width: 0; flex: 1; font-size: 13px; overflow-wrap: anywhere; }
+.floating-title.is-pinned { cursor: default; }
+.window-tools { display: flex; flex-shrink: 0; gap: 3px; }
+.window-tools button { font-size: 11px; padding: 4px 6px; }
+.floating-body { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 14px; overflow-wrap: anywhere; }
+.floating-body[hidden] { display: none; }
+.floating-body :is(input:not([type=checkbox]):not([type=color]):not([type=range]), textarea, select) { max-width: 100%; min-width: 0; width: 100%; box-sizing: border-box; }
+.floating-body :is(button, label, p, span, code, strong) { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+.floating-body .binding-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(65px, 100px) 28px; align-items: start; gap: 4px; }
+.floating-body .binding-row button { max-width: 100%; height: auto; }
+.floating-body section { padding: 8px 0; }
+.floating-body .entity-results { max-height: none; }
+.floating-backdrop { position: fixed; inset: 0; background: #07121e88; }
+.window-resize-grip { display: block; width: 14px; height: 14px; border-right: 2px solid #738da6; border-bottom: 2px solid #738da6; }
+.ui-docked-panel { position: relative; }
+.detach-panel { position: absolute; right: 8px; top: 9px; font-size: 11px; padding: 2px 5px; }
+.ui-workspace-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+.ui-free-function { position: absolute; pointer-events: auto; max-width: 190px; }
+.ui-function { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.ui-function[aria-disabled=true] { opacity: .45; }
+.ui-form-control { min-width: 0; cursor: grab; }
+.ui-form-control > label { min-width: 0; }
+.function-icon { width: 60px; height: 60px; padding: 12px; display: inline-flex; align-items: center; justify-content: center; background: #edf4ff; flex-shrink: 0; }
+.function-icon img { width: 100%; height: 100%; object-fit: contain; }
+.function-icon span { line-height: 1; font-size: 26px; }
+.shape-circle { border-radius: 50%; }
+.shape-square { border-radius: 4px; }
+.shape-triangle { clip-path: polygon(50% 0, 100% 100%, 0 100%); padding: 22px 15px 7px; border-radius: 0; }
+.function-frame { position: fixed !important; top: 0 !important; left: 0 !important; }
+.ui-frame-header { display: flex; align-items: center; gap: 3px; min-height: 44px; padding: 5px; background: #dfebf8f5; border: 1px solid #90abc3; border-radius: 5px; pointer-events: auto; cursor: move; }
+.ui-frame-header input { width: 0; min-width: 0; flex: 1; background: transparent; border: 0; padding: 3px; font-size: 12px; }
+.ui-frame-header button { font-size: 11px; padding: 3px 5px; }
+.ui-frame-slots { position: relative; max-width: 100%; max-height: calc(100% - 44px); overflow: auto; }
+.frame-shape { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+.frame-shape path { stroke: #809db9; stroke-width: 1.5; fill: none; }
+.ui-frame-cell { position: absolute; pointer-events: auto; display: flex; justify-content: center; align-items: center; padding: 6px; min-width: 0; overflow-wrap: anywhere; }
+.ui-frame-cell > .ui-function { max-width: 100%; max-height: 100%; font-size: clamp(8px, calc(var(--ui-cell-size, 96px) * .125), 12px); overflow-wrap: anywhere; overflow: auto; }
+.ui-frame-cell > .function-text { width: 100%; padding: 5px; }
+.ui-frame-cell > .function-icon { width: min(60px, 100%); height: min(60px, 100%); }
+.ui-frame-cell .ui-form-control { max-width: 100%; overflow: auto; max-height: 100%; font-size: 12px; }
+.empty-ui-slot { position: absolute; display: grid; place-content: center; padding: 8px; text-align: center; font-size: 11px; color: #62788f; border: 1px dashed #8eabc5; pointer-events: auto; }
+.function-frame.collapsed { min-height: 44px !important; }
+.function-library { display: flex; flex-wrap: wrap; gap: 5px; margin: 12px 0; }
+.function-library .ui-function { flex: 1 1 140px; text-align: left; font-size: 12px; }
+.function-appearance .icon-results button { background: #eff5ff; color: #233348; }
+.ui-snap-preview { position: fixed; padding: 6px 9px; background: #20435f; color: white; font-size: 12px; border: 1px solid #93c7ee; border-radius: 5px; pointer-events: none; z-index: 30000; }
+.ui-background-menu { position: fixed; z-index: 250; background: white; border: 1px solid #90a9bf; padding: 5px; display: flex; flex-direction: column; }
+.entity-menu { position: absolute !important; top: 0 !important; left: 0 !important; z-index: 50; }
+.entity-menu-content { height: 100%; overflow: auto; padding: 0; }
+.entity-menu-header { display: flex; align-items: center; gap: 5px; justify-content: space-between; min-height: 36px; padding: 3px 6px; background: #e3edf8; border: 1px solid #8fa6bc; font-size: 11px; }
+.entity-menu-header button { font-size: 10px; padding: 3px; }
+.entity-menu-grid { position: relative; }
+.entity-menu-grid > button { position: absolute; background: transparent; border: none; padding: 5px 9px; text-align: left; font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+.entity-menu-grid > button:hover { background: #bedaf399; }
+.menu-empty-slot { position: absolute; border: 1px dashed #abc2d6; display: grid; place-content: center; color: #748ca2; background: #e3eef544; font-size: 10px; }
 @media (max-width: 600px) { .shortcut-display { width: calc(100vw - 24px); } }
 * {
   box-sizing: border-box;

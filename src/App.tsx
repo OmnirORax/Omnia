@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./workbench.css";
 import { descendants, newId, parseAtlas } from "./graph/model";
 import type { Atlas, AtlasNode } from "./graph/model";
@@ -17,7 +17,7 @@ import {
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
@@ -28,6 +28,11 @@ import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
 import type { Visual, VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { projectSpatial } from "./graph/spatial";
+import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
+import { FloatingWindow } from "./ui/FloatingWindow";
+import { loadUILayout, validateUILayout, UI_LAYOUT_KEY, type UILayout } from "./ui/layout";
+import type { UIFunction } from "./ui/context";
+import websiteTemplate from "./ui/default-template.json";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -53,14 +58,22 @@ function loadInitial(): { atlas: AtlasDocument; error: string } {
 function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
+  const [uiLayout, setUiLayout] = useState<UILayout>(() => loadUILayout(validateUILayout(websiteTemplate.layout)));
+  const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
+  const uiTouched = useRef(false);
+  const updateUI = useCallback((change: (layout: UILayout) => UILayout) => {
+    try { const next = validateUILayout(change(uiCurrent.current)); uiCurrent.current = next; uiTouched.current = true; setUiLayout(next); }
+    catch (e) { setError(`UI layout was not changed. ${message(e)}`); }
+  }, []);
+  useEffect(() => { if (!uiTouched.current) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
   const atlas = useMemo(() => editorView(document, expandedVariants), [document, expandedVariants]);
   const [selection, setSelection] = useState<Selection>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [binderPopup, setBinderPopup] = useState<{ x: number; y: number } | null>(null);
-  const [shortcutsPinned, setShortcutsPinned] = useState(() => { try { return localStorage.getItem("omnium.shortcuts.open") === "true"; } catch { return false; } });
+  const shortcutsPinned = uiLayout.panels["@shortcuts"] ?? false;
+  const setShortcutsPinned = (value: boolean | ((current: boolean) => boolean)) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@shortcuts": typeof value === "function" ? value(layout.panels["@shortcuts"] ?? false) : value } }));
   const [shortcutsHovered, setShortcutsHovered] = useState(false);
-  useEffect(() => { try { localStorage.setItem("omnium.shortcuts.open", String(shortcutsPinned)); } catch { /* Optional UI preference. */ } }, [shortcutsPinned]);
   useEffect(() => {
     if (selection?.kind === "node") setSelectedIds((current) => current.has(selection.id) ? current : new Set([selection.id]));
     else setSelectedIds(new Set());
@@ -82,8 +95,9 @@ function Workbench() {
   const [frameLookup, setFrameLookup] = useState("");
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
-  const [settings, setSettings] = useState<WorkspaceSettings>(loadSettings);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<WorkspaceSettings>(() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } });
+  const settingsOpen = uiLayout.panels["@settings"] ?? false;
+  const setSettingsOpen = (value: boolean) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@settings": value } }));
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
   const [capturing, setCapturing] = useState<ActionId | null>(null);
@@ -225,11 +239,7 @@ function Workbench() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function exportTemplate() {
-    const template: ViewConfig = {
-      format: "omnium-ui-template",
-      version: 2,
-      atlas: document,
-    };
+    const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings };
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
     );
@@ -244,13 +254,21 @@ function Workbench() {
     try {
       if (file.size > 5_000_000) throw new Error("UI template exceeds the 5 MB import limit.");
       const value: unknown = JSON.parse(await file.text());
+      if (value && typeof value === "object" && (value as { format?: string }).format === "omnium-ui-template" && (value as { version?: number }).version === 3) {
+        const template = value as { layout: unknown; settings?: unknown };
+        const checked = validateUILayout(template.layout);
+        if (template.settings !== undefined && (!template.settings || typeof template.settings !== "object")) throw new Error("Invalid template settings.");
+        const nextSettings = normalizeSettings(template.settings);
+        updateUI(() => checked); if (template.settings !== undefined) setSettings(nextSettings);
+        return;
+      }
       if (
         !value ||
         typeof value !== "object" ||
         (value as ViewConfig).format !== "omnium-ui-template" ||
         ![1, 2].includes((value as ViewConfig).version)
       )
-        throw new Error("Expected an Omnium UI template version 1 or 2.");
+        throw new Error("Expected an Omnium UI template version 1, 2 or 3.");
       const template = value as ViewConfig;
       const next = parseDocument(JSON.stringify(template.atlas));
       if (
@@ -654,6 +672,7 @@ function Workbench() {
     }
     const id = target.kind === "node" ? target.id : null;
     switch (action) {
+      case "createUIFrame": { const point = target.kind === "space" ? target.screen : undefined; updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: point?.x ?? 120, y: point?.y ?? 180, cellSize: 96, collapsed: false, pinned: false }] })); break; }
       case "createChild": if (id) addNode(id); break;
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
       case "insertExisting": setInsertQuery(""); setInsertContext({ parentId: id, world: target.kind === "space" ? target.world : undefined }); break;
@@ -670,6 +689,8 @@ function Workbench() {
   }
   function runAction(action: ActionId) {
     switch (action) {
+      case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
+      case "ui:createFrame": updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: 120, y: 180, cellSize: 96, collapsed: false, pinned: false }] })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
       case "deleteSelected": deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
@@ -762,43 +783,47 @@ function Workbench() {
       </ul>
     );
   }
+  const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
+  const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
+  replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
+  replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
+  replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
+  replaceFunction("undo", "Undo", <button onClick={undo} disabled={!past.length}>Undo</button>);
+  replaceFunction("redo", "Redo", <button onClick={redo} disabled={!future.length}>Redo</button>);
+  replaceFunction("ui:newView", "New layout view", <button onClick={newView}>+ Layout view</button>);
+  replaceFunction("ui:export", "Export JSON", <button onClick={exportJSON}>Export JSON</button>);
+  replaceFunction("ui:saveTemplate", "Save UI template", <button onClick={exportTemplate}>Save UI template</button>);
+  replaceFunction("ui:import", "Import JSON", <button onClick={() => fileInput.current?.click()}>Import JSON</button>);
+  replaceFunction("ui:loadTemplate", "Load UI template", <button onClick={() => templateInput.current?.click()}>Load UI template</button>);
+  replaceFunction("ui:view", "Layout view", <label className="toolbar-snap">View<select aria-label="Layout view" value={document.activeLayoutViewId ?? "authored-layout"} onChange={(e) => switchView(e.target.value)}>{!document.layoutViews?.some((v) => v.id === "authored-layout") && <option value="authored-layout">Authored layout</option>}{document.layoutViews?.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>, true);
+  replaceFunction("ui:viewRule", "New view rule", <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(e) => setLayoutRule(e.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>, true);
+  replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
+  replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
+  replaceFunction("ui:radius", "Minimum placement clearance radius", <label>Minimum placement clearance radius<input type="number" min="0.25" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.25, Math.min(3, Number(event.target.value) || 0.25)) } }))} /></label>, true);
+  replaceFunction("ui:clearance", "Collision clearance", <label>Collision clearance<input type="number" min="0" max="2" step="0.05" value={settings.spatial.clearance} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, clearance: Math.max(0, Math.min(2, Number(event.target.value) || 0)) } }))} /></label>, true);
+  replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
+  replaceFunction("ui:startInvestigation", "Start frame", <button onClick={createFrame}>Start frame</button>);
+  replaceFunction("ui:defineType", "Define relationship type", <button onClick={createType}>+ Define type</button>);
+  replaceFunction("ui:reviewProposal", "Validate and preview", <button onClick={reviewProposal}>Validate and preview</button>);
+  replaceFunction("ui:flowType", "View relationship type", flowType ? <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
+  replaceFunction("ui:flowFrom", "View upstream role", flowType ? <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
+  replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
+  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, [id]: true } }))}>{title}</button>);
   return (
-    <div className="workbench">
+    <UIWorkspace layout={uiLayout} update={updateUI} functions={uiFunctions}><div className="workbench">
       <header className="toolbar">
         <div className="brand">
           <strong>Omnium</strong>
           <span>Atlas workbench</span>
         </div>
         <div className="toolbar-actions">
-          <label className="toolbar-snap">View<select aria-label="Layout view" value={document.activeLayoutViewId ?? "authored-layout"} onChange={(event) => switchView(event.target.value)}>
-            {!document.layoutViews?.some((v) => v.id === "authored-layout") && <option value="authored-layout">Authored layout</option>}
-            {document.layoutViews?.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}
-          </select></label>
-          <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(event) => setLayoutRule(event.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>
+          <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
           {layoutRule === "flow" && flowType && <>
-            <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-            <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
-            <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+            <FunctionControl id="ui:flowType" />
+            <FunctionControl id="ui:flowFrom" />
+            <FunctionControl id="ui:flowTo" />
           </>}
-          <button onClick={newView}>+ Layout view</button>
-          <button onClick={() => addNode(null)}>+ Node</button>
-          <label className="toolbar-snap">Snap
-            <select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>
-              {[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}
-            </select>
-          </label>
-          <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>
-          <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>
-          <button onClick={undo} disabled={!past.length}>
-            Undo
-          </button>
-          <button onClick={redo} disabled={!future.length}>
-            Redo
-          </button>
-          <button onClick={exportJSON}>Export JSON</button>
-          <button onClick={exportTemplate}>Save UI template</button>
-          <button onClick={() => fileInput.current?.click()}>Import JSON</button>
-          <button onClick={() => templateInput.current?.click()}>Load UI template</button>
+          {["ui:newView", "newNode", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map((id) => <FunctionControl id={id} key={id} />)}<UIArrangeButtons />
           <input
             ref={fileInput}
             type="file"
@@ -848,7 +873,7 @@ function Workbench() {
       )}
       <main className="workspace">
         <aside className="sidebar">
-          <section>
+          <UIPanel id="reuse" title="Reuse identity">
             <h2>Reuse identity</h2>
             <label>
               Find an existing entity or subsystem
@@ -895,8 +920,8 @@ function Workbench() {
                   {document.entities.find((e) => e.id === p.entityId)?.label || p.entityId}
                 </button>
               ))}
-          </section>
-          <section>
+          </UIPanel>
+          <UIPanel id="hierarchy" title="Hierarchy">
             <h2>Hierarchy</h2>
             {activeLayout && <><label>View name<input aria-label="View name" value={activeLayout.name} onChange={(event) => commitDocument({ ...document, layoutViews: document.layoutViews?.map((v) => v.id === activeLayout.id ? { ...v, name: event.target.value } : v) })} /></label><p>Rule: {activeLayout.rule}. Switching views preserves the arrangement you leave.</p>{activeLayout.rule !== "manual" && <button onClick={reapplyView}>Reapply view rule</button>}{activeLayout.id !== "authored-layout" && <button onClick={removeView}>Remove view</button>}</>}
             {atlas.nodes.length ? (
@@ -904,8 +929,8 @@ function Workbench() {
             ) : (
               <p>Add a node to begin your atlas.</p>
             )}
-          </section>
-          <section>
+          </UIPanel>
+          <UIPanel id="frames" title="Investigative frames">
             <h2>Investigative frames</h2>
             <label>
               Question or objective
@@ -916,7 +941,7 @@ function Workbench() {
                 placeholder="Optional; selected identity becomes anchor"
               />
             </label>
-            <button onClick={createFrame}>Start frame</button>
+            <FunctionControl id="ui:startInvestigation" />
             <label>
               Reopen frame
               <select
@@ -1124,8 +1149,8 @@ function Workbench() {
                 </button>
               </>
             )}
-          </section>
-          <section className="inspector">
+          </UIPanel>
+          <UIPanel id="inspector" title="Inspector" className="inspector">
             {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
             <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
             {selectedNode ? (
@@ -1501,8 +1526,8 @@ function Workbench() {
             ) : (
               <p>Select a node or relationship to edit it.</p>
             )}
-          </section>
-          <section>
+          </UIPanel>
+          <UIPanel id="connections" title="Connect nodes">
             <h2>Connect nodes</h2>
             <p>Choose endpoints below to add a directed relationship.</p>
             <label>
@@ -1536,10 +1561,10 @@ function Workbench() {
             >
               Add relationship
             </button>
-          </section>
-          <section>
+          </UIPanel>
+          <UIPanel id="types" title="Relationship types">
             <h2>Relationship types</h2>
-            <button onClick={createType}>+ Define type</button>
+            <FunctionControl id="ui:defineType" />
             {document.relationshipTypes.map((type) => (
               <div key={type.id}>
                 <label>
@@ -1585,8 +1610,8 @@ function Workbench() {
                 ))}
               </div>
             ))}
-          </section>
-          <section>
+          </UIPanel>
+          <UIPanel id="ai" title="External AI proposal">
             <h2>External AI proposal</h2>
             <p>
               Export the atlas JSON for an external AI. Ask it for an <code>omnium-changeset</code>{" "}
@@ -1626,7 +1651,7 @@ function Workbench() {
                 event.target.value = "";
               }}
             />
-            <button onClick={reviewProposal}>Validate and preview</button>
+            <FunctionControl id="ui:reviewProposal" />
             {proposalPreview && (
               <div className="proposal-preview">
                 <p>Proposed changes at revision {document.revision}:</p>
@@ -1647,9 +1672,9 @@ function Workbench() {
                 </button>
               </div>
             )}
-          </section>
+          </UIPanel>
           {atlas.relationships.length > 0 && (
-            <section>
+            <UIPanel id="relationships" title="Relationships">
               <h2>Relationships</h2>
               <p>
                 3D links connect through collapsed ancestors. This list retains every relationship.
@@ -1668,20 +1693,20 @@ function Workbench() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </UIPanel>
           )}
-          <section className="help">
+          <UIPanel id="help" title="Workspace help" className="help">
             <p>
               Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a name to move it. Shift-drag it onto another name to nest. Click a binder to edit its operators and appearance.
             </p>
-            <button onClick={() => compact({ kind: "all" })}>Compact entire atlas</button>
-            <button disabled={selection?.kind !== "node"} onClick={() => selection?.kind === "node" && compact({ kind: "subsystem", placementId: selection.id })}>Compact selected subsystem</button>
-            <button disabled={!activeFrame} onClick={() => activeFrame && compact({ kind: "frame", frameId: activeFrame.id })}>Compact current frame</button>
+            <FunctionControl id="compactAll" />
+            <FunctionControl id="compactSelected" />
+            <FunctionControl id="compactFrame" />
             <p>
               Autosave is specific to this browser and origin. Export JSON for a portable backup.
               This is a private local atlas.
             </p>
-          </section>
+          </UIPanel>
         </aside>
         <div className="canvas" aria-label="Atlas canvas">
           <Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
@@ -1724,27 +1749,27 @@ function Workbench() {
         </div>
       </main>
       {connectionSource && <div className="operation-banner" role="status">Select another name to connect from {atlas.nodes.find((n) => n.id === connectionSource)?.label || "selected node"}. <button onClick={() => setConnectionSource(null)}>Cancel</button></div>}
-      {insertContext && <div className="workspace-dialog-backdrop" onClick={() => setInsertContext(null)}><div className="workspace-dialog" role="dialog" aria-label="Insert existing entity" onClick={(event) => event.stopPropagation()}>
+      {insertContext && <FloatingWindow id="insert-existing" title="Insert existing entity" width={440} height={430} modal onClose={() => setInsertContext(null)}>
         <h2>Insert existing entity or subsystem</h2>
         <input autoFocus aria-label="Search existing entities" value={insertQuery} onChange={(event) => setInsertQuery(event.target.value)} placeholder="Search label, alias, or ID" />
         <div className="entity-results">{document.entities.filter((entity) => `${entity.id} ${entity.label} ${entity.aliases.join(" ")}`.toLowerCase().includes(insertQuery.toLowerCase())).slice(0, 30).map((entity) => <button key={entity.id} onClick={() => insertExisting(entity.id, insertContext.parentId, insertContext.world)}>{entity.label || entity.id}<small>{entity.id}</small></button>)}</div>
         <button onClick={() => setInsertContext(null)}>Close</button>
-      </div></div>}
-      {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
-      {binderPopup && selectedBinder && <div className="binder-editor" role="dialog" aria-label="Binder editor" style={{ left: Math.max(8, binderPopup.x), top: Math.max(8, binderPopup.y) }}><button className="close-editor" onClick={() => setBinderPopup(null)}>Close binder editor</button><BinderControls value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></div>}
-      {settingsOpen && <div className="workspace-dialog-backdrop" onClick={() => setSettingsOpen(false)}><div className="workspace-dialog settings-dialog" role="dialog" aria-label="Workspace settings" onClick={(event) => event.stopPropagation()}>
+      </FloatingWindow>}
+      {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
+      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
         <h2>Workspace settings</h2>
-        <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>
-        <label>Minimum placement clearance radius<input type="number" min="0.25" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.25, Math.min(3, Number(event.target.value) || 0.25)) } }))} /></label>
-        <label>Collision clearance<input type="number" min="0" max="2" step="0.05" value={settings.spatial.clearance} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, clearance: Math.max(0, Math.min(2, Number(event.target.value) || 0)) } }))} /></label>
+        <FunctionControl id="ui:settingsSnap" />
+        <FunctionControl id="ui:radius" />
+        <FunctionControl id="ui:clearance" />
         {(["leftEmpty", "rightEmpty"] as const).map((button) => <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>)}
-        <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>
+        <FunctionControl id="ui:subtreeModifier" />
         <h2>Keyboard actions</h2>
         {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
         {Array.from(new Set(ACTIONS.map((action) => action.category))).map((category) => <div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter((action) => action.category === category).map((action) => <div key={action.id} className="binding-row"><span>{action.label}</span><button onClick={() => setCapturing(action.id)}>{capturing === action.id ? "Press a key…" : settings.bindings[action.id] || "Unassigned"}</button><button aria-label={`Clear ${action.label} binding`} onClick={() => setSettings((old) => ({ ...old, bindings: { ...old.bindings, [action.id]: "" } }))}>×</button></div>)}</div>)}
         <div className="dialog-actions"><button onClick={() => { setSettings(defaultSettings()); setCapturing(null); }}>Restore defaults</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
-      </div></div>}
-    </div>
+      </FloatingWindow>}
+    </div></UIWorkspace>
   );
 }
 export default function App() {

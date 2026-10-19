@@ -9,12 +9,16 @@ export function VisualControls({
   assets,
   onChange,
   onAsset,
+  allowModels = true,
+  iconColor = "#c8dfff",
 }: {
   label: string;
   value?: Visual;
   assets: VisualAsset[];
   onChange: (visual: Visual) => void;
   onAsset: (asset: VisualAsset, visual: Visual) => void;
+  allowModels?: boolean;
+  iconColor?: string;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ id: string; svg?: string }[]>([]);
@@ -48,7 +52,7 @@ export function VisualControls({
           .slice(0, 60)
           .map(([name, icon]) => ({
             id: `lucide:${name}`,
-            svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${catalog.width} ${catalog.height}" color="#c8dfff">${icon.body}</svg>`,
+            svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${catalog.width} ${catalog.height}" color="${iconColor}">${icon.body}</svg>`,
           }));
         if (controller.signal.aborted) return;
         setResults(local);
@@ -84,14 +88,14 @@ export function VisualControls({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, picker]);
+  }, [query, picker, iconColor]);
   async function choose(icon: { id: string; svg?: string }) {
     try {
       const [prefix, name] = icon.id.split(":");
       const response = icon.svg
         ? null
         : await fetch(
-            `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg?color=%23c8dfff`,
+            `https://api.iconify.design/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg?color=${encodeURIComponent(iconColor)}`,
           );
       if (response && !response.ok) throw new Error("Could not download icon.");
       const asset: VisualAsset = {
@@ -114,6 +118,7 @@ export function VisualControls({
     try {
       if (file.size > MAX_ASSET_BYTES) throw new Error("Choose a file under 900 KB.");
       const kind = /\.glb$/i.test(file.name) ? "glb" : "image";
+      if (kind === "glb" && !allowModels) throw new Error("UI function buttons use image icons or characters.");
       const mime =
         kind === "glb"
           ? "model/gltf-binary"
@@ -186,7 +191,7 @@ export function VisualControls({
                   src={
                     icon.svg
                       ? encodeSVG(icon.svg)
-                      : `https://api.iconify.design/${icon.id.replace(":", "/")}.svg?color=%23c8dfff`
+                      : `https://api.iconify.design/${icon.id.replace(":", "/")}.svg?color=${encodeURIComponent(iconColor)}`
                   }
                 />
                 <small>{icon.id}</small>
@@ -196,11 +201,11 @@ export function VisualControls({
         </div>
       )}
       <label>
-        Import SVG / PNG / GLB
+        {allowModels ? "Import SVG / PNG / GLB" : "Import SVG / PNG icon"}
         <input
           aria-label={`${label} asset file`}
           type="file"
-          accept=".svg,.png,.jpg,.jpeg,.webp,.glb"
+          accept={allowModels ? ".svg,.png,.jpg,.jpeg,.webp,.glb" : ".svg,.png,.jpg,.jpeg,.webp"}
           onChange={(e) => {
             void upload(e.target.files?.[0]);
             e.target.value = "";
