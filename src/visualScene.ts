@@ -8,7 +8,7 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
-  protectFromBloom = false,
+  neonGlow = false,
 ) {
   const group = new THREE.Group();
   const asset = assets.find((a) => a.id === visual.assetId);
@@ -59,8 +59,9 @@ export function visualObject(
           new THREE.PlaneGeometry(1, 1),
           new THREE.MeshBasicMaterial({
             map,
-            // Keep white icon pixels below the bloom threshold, retaining details.
-            color: protectFromBloom ? new THREE.Color().setScalar(0.55) : 0xffffff,
+            // A little linear radiance lets colored icon strokes contribute to bloom.
+            // Selection uses separate outlines; the picking box stays invisible.
+            color: neonGlow ? new THREE.Color().setScalar(1.15) : 0xffffff,
             transparent: true,
             depthWrite: false,
             depthTest: true,

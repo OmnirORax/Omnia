@@ -618,6 +618,9 @@ button.active,
   backdrop-filter: blur(var(--omnium-blur, 10px));
 }
 :root[data-omnium-theme] :is(.toolbar, .sidebar) { background: var(--omnium-panel); backdrop-filter: blur(var(--omnium-blur, 10px)); }
+/* Blur creates a stacking context. An open toolbar menu must clear the scene
+   and workspace overlay, while portalled dialogs/context menus stay above it. */
+.toolbar:has(.ui-menu-panel > .ui-panel-body:not([hidden])) { position: relative; z-index: 90; }
 :root[data-omnium-theme] .ui-frame-handle { background: var(--omnium-handle); }
 :root[data-omnium-theme="neon"] { --omnium-border: color-mix(in srgb, var(--omnium-accent, #60ddec) 35%, transparent); }
 :root[data-omnium-theme="neon"] :is(.brand strong, h2, h3, .ui-frame-handle) { color: color-mix(in srgb, var(--omnium-accent) 55%, white); }

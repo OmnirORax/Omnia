@@ -84,7 +84,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
             const target = new THREE.WebGLRenderTarget(width, height, { type: THREE.HalfFloatType, samples: Math.min(4, renderer.capabilities.maxSamples) });
             composer = new EffectComposer(renderer, target);
             composer.addPass(new RenderPass(scene, camera));
-            bloom = new UnrealBloomPass(new THREE.Vector2(width, height), appearance.glow, 0.3, 0.72);
+            bloom = new UnrealBloomPass(new THREE.Vector2(width, height), appearance.glow, 0.3, 0.6);
             composer.addPass(bloom); output = new OutputPass(); composer.addPass(output);
             composer.setSize(width, height);
           }
