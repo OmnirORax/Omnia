@@ -708,7 +708,7 @@ function Workbench() {
       case "axisZ": setConstraintAxis("z"); break;
       case "compactSelected": if (selection?.kind === "node") compact({ kind: "subsystem", placementId: selection.id }); break;
       case "compactFrame": if (activeFrame) compact({ kind: "frame", frameId: activeFrame.id }); break;
-      case "compactAll": compact({ kind: "all" }); break;
+      case "compactAll": compact(selectedIds.size ? { kind: "selection", placementIds: [...selectedIds] } : { kind: "all" }); break;
       case "undo": undo(); break;
       case "redo": redo(); break;
       case "cancel": setBinderPopup(null); setShortcutsHovered(false); setCapturing(null); setSelectedIds(new Set()); setSelection(null); setConnectionSource(null); setInsertContext(null); setSettingsOpen(false); setOptionNodeId(null); navigate("cancel"); break;
@@ -783,6 +783,7 @@ function Workbench() {
     );
   }
   const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, category: a.category, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
+  uiFunctions.find(fn => fn.id === "compactAll")!.element = <button onClick={() => runAction("compactAll")}>{selectedIds.size ? "Compact selection" : "Compact all"}</button>;
   for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
@@ -831,7 +832,7 @@ function Workbench() {
             <FunctionControl id="ui:flowFrom" />
             <FunctionControl id="ui:flowTo" />
           </>}
-          {["ui:newView", "newNode", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map((id) => <FunctionControl id={id} key={id} />)}<UIArrangeButtons />
+          {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map((id) => <FunctionControl id={id} key={id} />)}<UIArrangeButtons />
           <input
             ref={fileInput}
             type="file"
@@ -1707,7 +1708,6 @@ function Workbench() {
             <p>
               Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a name to move it. Shift-drag it onto another name to nest. Click a binder to edit its operators and appearance.
             </p>
-            <FunctionControl id="compactAll" />
             <FunctionControl id="compactSelected" />
             <FunctionControl id="compactFrame" />
             <p>

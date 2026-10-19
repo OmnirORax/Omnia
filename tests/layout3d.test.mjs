@@ -4,6 +4,33 @@ import { emptyDocument } from "../src/graph/structural.ts";
 import { DEFAULT_SPATIAL_SETTINGS as settings, createPlacement, movePlacement, reparentStructure, reparentVisual, compactLayout, siblingCollisions, worldPositions } from "../src/graph/layout3d.ts";
 
 const entity = (id) => ({ id, label: id, aliases: [], notes: "" });
+test("compaction is tight, deterministic and idempotent, independent of a coarse drag grid", () => {
+  const doc = emptyDocument();
+  for(let i=0;i<12;i++) {
+    const id=`n${i}`; doc.entities.push(entity(id));
+    doc.placements.push({id,entityId:id,parentId:null,position:{x:i*1000,y:0},spatialPosition:{x:i*100,y:i*50,z:i*30},hidden:false,collapsed:false});
+  }
+  const packed=compactLayout(doc,{kind:"all"},{...settings,spacing:5});
+  assert.equal(siblingCollisions(packed,settings).length,0);
+  assert.deepEqual(compactLayout(packed,{kind:"all"},{...settings,spacing:5}),packed);
+  assert.deepEqual(compactLayout(doc,{kind:"all"},{...settings,spacing:0}),packed);
+  for(const axis of ["x","y","z"]) {
+    const coords=packed.placements.map(p=>p.spatialPosition[axis]);
+    assert.ok(Math.max(...coords)-Math.min(...coords)<10,"no inherited empty gaps or flat, sprawling rows");
+  }
+  assert.deepEqual(packed.entities,doc.entities); assert.deepEqual(packed.relationships,doc.relationships);
+  assert.deepEqual(packed.placements.map(p=>p.position),doc.placements.map(p=>p.position));
+});
+test("selection compaction preserves other placements and clears expanded subsystem contents", () => {
+  const {doc,root,child,other}=fixture();
+  doc.placements.find(p=>p.id===child).spatialPosition={x:400,y:0,z:0};
+  doc.placements.find(p=>p.id===other).spatialPosition={x:800,y:0,z:0};
+  const selected=compactLayout(doc,{kind:"selection",placementIds:[child,other]},settings);
+  assert.deepEqual(selected.placements.find(p=>p.id===root),doc.placements.find(p=>p.id===root));
+  assert.equal(siblingCollisions(selected,settings).length,0);
+  assert.ok(selected.placements.filter(p=>p.parentId===root).every(p=>Math.hypot(...Object.values(p.spatialPosition))<6));
+  assert.deepEqual(selected.compositions,doc.compositions);
+});
 const fixture = () => {
   const doc = emptyDocument(); doc.entities.push(entity("system"), entity("part"), entity("other"));
   const root = createPlacement(doc, "system", null, settings, { x: 0, y: 0, z: 0 });

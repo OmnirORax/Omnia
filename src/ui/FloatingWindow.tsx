@@ -6,6 +6,7 @@ import { useUI, UIHomeContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
+import { useFrameBounds } from "./frameBounds";
 let front = 100;
 export function FloatingWindow({
   id,
@@ -39,6 +40,7 @@ export function FloatingWindow({
   onInteract?: () => void;
 }) {
   const ui = useUI();
+  const { ref, bounds } = useFrameBounds();
   const initial: WindowState = {
     x: x ?? (window.innerWidth - width) / 2,
     y: y ?? Math.max(8, (window.innerHeight - height) / 2),
@@ -64,7 +66,27 @@ export function FloatingWindow({
       ...layout,
       windows: {
         ...layout.windows,
-        [id]: fitWindow({ ...state, ...patch }, window.innerWidth, window.innerHeight),
+        [id]: (() => {
+          const next = fitWindow({ ...saved, ...patch }, window.innerWidth, window.innerHeight);
+          return next.collapsed
+            ? {
+                ...next,
+                x:
+                  Math.max(
+                    8,
+                    Math.min((patch.x ?? saved.x) + bounds.x, window.innerWidth - bounds.width - 8),
+                  ) - bounds.x,
+                y:
+                  Math.max(
+                    8,
+                    Math.min(
+                      (patch.y ?? saved.y) + bounds.y,
+                      window.innerHeight - bounds.height - 8,
+                    ),
+                  ) - bounds.y,
+              }
+            : next;
+        })(),
       },
     }));
   useEffect(() => {
@@ -86,14 +108,33 @@ export function FloatingWindow({
         <div className="floating-backdrop" style={{ zIndex: z - 1 }} onClick={onClose} />
       )}
       <Rnd
-        className={`floating-window ${owner ? "docked-window" : ""} ${className}`}
-        position={owner ? { x: 0, y: 0 } : { x: state.x, y: state.y }}
+        className={`floating-window ${state.collapsed ? "is-collapsed" : ""} ${owner ? "docked-window" : ""} ${className}`}
+        position={
+          owner
+            ? { x: 0, y: 0 }
+            : state.collapsed
+              ? {
+                  x: Math.max(
+                    8,
+                    Math.min(saved.x + bounds.x, window.innerWidth - bounds.width - 8),
+                  ),
+                  y: Math.max(
+                    8,
+                    Math.min(saved.y + bounds.y, window.innerHeight - bounds.height - 8),
+                  ),
+                }
+              : { x: state.x, y: state.y }
+        }
         size={{
-          width: owner ? Math.min(state.width, host?.clientWidth ?? state.width) : state.width,
-          height: state.collapsed ? "auto" : state.height,
+          width: state.collapsed
+            ? bounds.width
+            : owner
+              ? Math.min(state.width, host?.clientWidth ?? state.width)
+              : state.width,
+          height: state.collapsed ? bounds.height : state.height,
         }}
         style={{ position: owner ? "absolute" : "fixed", zIndex: z }}
-        minWidth={Math.min(240, window.innerWidth - 16)}
+        minWidth={state.collapsed ? 40 : Math.min(240, window.innerWidth - 16)}
         minHeight={state.collapsed ? 44 : 120}
         maxWidth={Math.max(240, window.innerWidth - 16)}
         maxHeight={Math.max(120, window.innerHeight - 16)}
@@ -103,7 +144,10 @@ export function FloatingWindow({
         enableResizing={!residentPinned(ui.layout, key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
+          // Portal events also bubble through their React owner. A child editor
+          // must not raise the library/inspector that opened it above itself.
+          event.stopPropagation();
           setZ(++front);
           onInteract?.();
         }}
@@ -116,10 +160,22 @@ export function FloatingWindow({
         }}
       >
         <div
+          ref={ref}
           role={role}
           aria-label={label}
           aria-modal={(modal && !state.collapsed) || undefined}
-          className="floating-window-content"
+          className={`floating-window-content ${state.collapsed ? "ui-frame-root" : ""}`}
+          style={
+            state.collapsed
+              ? {
+                  width: state.width,
+                  height: 44,
+                  position: "relative",
+                  left: -bounds.x,
+                  top: -bounds.y,
+                }
+              : undefined
+          }
           data-ui-resident-root={key}
           onClick={(e) => e.stopPropagation()}
         >

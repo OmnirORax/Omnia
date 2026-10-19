@@ -11,7 +11,7 @@ import {
   type ReactElement,
 } from "react";
 import { Rnd } from "react-rnd";
-import { UIContext, UIHomeContext, useUI, type UIFunction } from "./context";
+import { UIContext, UIHomeContext, useUI, type UIFunction, type UIContextValue } from "./context";
 import { FloatingWindow } from "./FloatingWindow";
 import {
   emptyUILayout,
@@ -39,6 +39,7 @@ import {
   resetContainer,
   validateUILayout,
   orderNativeFunction,
+  contextOwner,
   type WindowState,
   type UIResident,
 } from "./layout";
@@ -52,6 +53,7 @@ import {
 import type { VisualAsset } from "../graph/assets";
 import { snapPosition, snapshotPositions } from "./positioning";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
+import { useFrameBounds, residentBounds } from "./frameBounds";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
@@ -249,36 +251,12 @@ export function UIPanel({
     </section>
   );
 }
-export function FrameShape({ cells, size }: { cells: { x: number; y: number }[]; size: number }) {
-  const occupied = new Set(cells.map((c) => `${c.x}:${c.y}`));
-  return (
-    <svg
-      className="frame-shape"
-      aria-hidden="true"
-      width={(Math.max(0, ...cells.map((c) => c.x)) + 1) * size}
-      height={(Math.max(0, ...cells.map((c) => c.y)) + 1) * size}
-    >
-      {cells.map((c) => {
-        const x = c.x * size,
-          y = c.y * size;
-        return (
-          <g key={`${c.x}:${c.y}`}>
-            <rect x={x} y={y} width={size} height={size} fill="#e9f1fbf2" />
-            {!occupied.has(`${c.x}:${c.y - 1}`) && <path d={`M${x},${y + 1}H${x + size}`} />}
-            {!occupied.has(`${c.x}:${c.y + 1}`) && <path d={`M${x},${y + size - 1}H${x + size}`} />}
-            {!occupied.has(`${c.x - 1}:${c.y}`) && <path d={`M${x + 1},${y}V${y + size}`} />}
-            {!occupied.has(`${c.x + 1}:${c.y}`) && <path d={`M${x + size - 1},${y}V${y + size}`} />}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 function FunctionFrame({ frame }: { frame: UIFrame }) {
+  const { ref, bounds } = useFrameBounds();
   const ui = useUI(),
     key = `frame:${frame.id}`,
     nested = !!ownerOf(ui.layout, key),
-    width = Math.max(160, Math.min(frame.width ?? 280, window.innerWidth - 24));
+    width = Math.max(64, Math.min(frame.width ?? 280, window.innerWidth - 24));
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
   return (
     <Rnd
@@ -295,11 +273,11 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         nested
           ? { x: 0, y: 0 }
           : {
-              x: Math.max(8, Math.min(frame.x, window.innerWidth - width - 8)),
-              y: Math.max(8, Math.min(frame.y, window.innerHeight - 60)),
+              x: Math.max(8, Math.min(frame.x + bounds.x, window.innerWidth - bounds.width - 8)),
+              y: Math.max(8, Math.min(frame.y + bounds.y, window.innerHeight - bounds.height - 8)),
             }
       }
-      size={{ width, height: "auto" }}
+      size={{ width: bounds.width, height: bounds.height }}
       disableDragging
       enableResizing={
         !residentPinned(ui.layout, key) && !frame.collapsed
@@ -310,11 +288,16 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         right: { pointerEvents: "auto" },
         bottomRight: { pointerEvents: "auto" },
       }}
-      minWidth={160}
+      minWidth={40}
       maxWidth={window.innerWidth - 24}
       onResizeStop={(_, __, element) => patch({ width: element.offsetWidth })}
     >
-      <div className="ui-frame-root" data-ui-resident-root={key}>
+      <div
+        ref={ref}
+        className="ui-frame-root"
+        data-ui-resident-root={key}
+        style={{ width, position: "relative", left: -bounds.x, top: -bounds.y }}
+      >
         <FrameChrome
           container={key}
           title={frame.name}
@@ -368,6 +351,7 @@ type DragState = {
   height: number;
   dx: number;
   dy: number;
+  originOffset: { x: number; y: number };
   slots: Map<string, { key: string; r: Rect }[]>;
   cancelled?: boolean;
   control?: { owner: string; control: string };
@@ -427,7 +411,16 @@ export function UIWorkspace({
     previewRef = useRef(preview);
   previewRef.current = preview;
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
+  const menuRoot = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const node = menuRoot.current;
+    if (!node || !menu) return;
+    const r = node.getBoundingClientRect();
+    node.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - r.width - 8))}px`;
+    node.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - r.height - 8))}px`;
+  }, [menu, layout]);
   const defaults = useRef(new Map<string, WindowState>()).current;
+  const frameActions = useRef<UIContextValue["frameActions"]>(new Map()).current;
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
   const drag = useRef<DragState | null>(null);
@@ -629,7 +622,7 @@ export function UIWorkspace({
         (fn && key.startsWith("function:")
           ? fn
           : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle));
-      const r = root?.getBoundingClientRect();
+      const r = root ? residentBounds(root) : undefined;
       if (!r) return;
       const slots = new Map(
         [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map((zone) => [
@@ -646,6 +639,10 @@ export function UIWorkspace({
         height: r.height,
         dx: event.clientX - r.x,
         dy: event.clientY - r.y,
+        originOffset: {
+          x: (root?.getBoundingClientRect().x ?? r.x) - r.x,
+          y: (root?.getBoundingClientRect().y ?? r.y) - r.y,
+        },
         slots,
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
@@ -700,7 +697,26 @@ export function UIWorkspace({
         };
       }
       if (residentPinned(s, source.key)) return { text: "Unpin to rearrange" };
-      const elements = document.elementsFromPoint(x, y);
+      // Native dragging leaves the source at its old location. Look through that
+      // surface so it cannot block a destination underneath it. Descendant frames
+      // retain their own roots, allowing cycle/pinning rejection to remain explicit.
+      const elements = document
+        .elementsFromPoint(x, y)
+        .filter(
+          (el) =>
+            el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot !==
+              source.key &&
+            `function:${el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction}` !==
+              source.key,
+        );
+      const scope = contextOwner(source.key);
+      if (scope) {
+        const area = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
+          (el) => el.dataset.uiDropZone === scope,
+        );
+        if (!area || rectDistance(x, y, area.getBoundingClientRect()) > DOCK_DISTANCE)
+          return { text: "This action stays in its node menu" };
+      }
       const hitOwner = elements[0]?.closest<HTMLElement>("[data-ui-resident-root],.toolbar");
       const peer =
         elements[0]?.closest<HTMLElement>("[data-ui-native-anchor]") ??
@@ -897,6 +913,7 @@ export function UIWorkspace({
         other &&
         !sourceFn?.control &&
         !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.control &&
+        !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.scope &&
         s.arrangement?.mode !== "snap" &&
         !ownerOf(s, `function:${other.dataset.uiFunction}`) &&
         !residentPinned(s, `function:${other.dataset.uiFunction}`)
@@ -1016,7 +1033,12 @@ export function UIWorkspace({
           return validateUILayout({ ...s, items, frames: [...s.frames, frame] });
         }
         if (p.rect) {
-          const next = floatResident(s, source.key, p.rect.x, p.rect.y);
+          const next = floatResident(
+            s,
+            source.key,
+            p.rect.x + source.originOffset.x,
+            p.rect.y + source.originOffset.y,
+          );
           return source.key.startsWith("window:panel:")
             ? {
                 ...next,
@@ -1126,6 +1148,7 @@ export function UIWorkspace({
           id={`window:${member.id}`}
           width={w?.width ?? 380}
           height={w?.collapsed ? 44 : (w?.height ?? 400)}
+          collapsed={w?.collapsed}
         />
       );
     }
@@ -1161,6 +1184,7 @@ export function UIWorkspace({
         frameMenu,
         preview: preview?.dock ?? null,
         defaults,
+        frameActions,
         renderResident,
       }}
     >
@@ -1215,6 +1239,7 @@ export function UIWorkspace({
       {preview && <div className="ui-snap-preview">{preview.text}</div>}
       {menu && (
         <div
+          ref={menuRoot}
           className="ui-background-menu"
           role="menu"
           aria-label="UI frame settings"
@@ -1232,6 +1257,44 @@ export function UIWorkspace({
           </button>
           {menu.owner && menuContainer && (
             <>
+              {frameActions.get(menu.owner)?.onRename && (
+                <label className="frame-name-editor">
+                  Frame name
+                  <input
+                    aria-label="UI frame name"
+                    value={
+                      "name" in menuContainer
+                        ? menuContainer.name
+                        : frameActions.get(menu.owner)!.title
+                    }
+                    onChange={(e) => frameActions.get(menu.owner!)?.onRename?.(e.target.value)}
+                  />
+                </label>
+              )}
+              <button
+                onClick={() => {
+                  const a = frameActions.get(menu.owner!);
+                  if (a) a.onChange({ pinned: !a.state.pinned });
+                  else
+                    update((s) =>
+                      updateContainer(ensure(s), menu.owner!, { pinned: !menuContainer.pinned }),
+                    );
+                  setMenu(null);
+                }}
+              >
+                {menuContainer.pinned ? "Unpin frame" : "Pin frame"}
+              </button>
+              {frameActions.get(menu.owner)?.onClose && (
+                <button
+                  onClick={() => {
+                    frameActions.get(menu.owner!)?.onClose?.();
+                    setMenu(null);
+                  }}
+                >
+                  {frameActions.get(menu.owner)?.closeLabel ??
+                    `Close ${frameActions.get(menu.owner)?.title}`}
+                </button>
+              )}
               <button
                 onClick={() => {
                   configure(null);
@@ -1308,6 +1371,7 @@ export function UIWorkspace({
               const entries = functions
                 .filter(
                   (fn) =>
+                    !fn.scope &&
                     libraryCategory(fn) === category &&
                     `${fn.label} ${fn.id} ${category}`.toLowerCase().includes(query.toLowerCase()),
                 )

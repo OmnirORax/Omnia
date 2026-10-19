@@ -23,7 +23,7 @@ export const ACTIONS = [
   { id: "axisZ", category: "Spatial editing", label: "Constrain drag to Z", defaultKey: "Z" },
   { id: "compactSelected", category: "Spatial editing", label: "Compact selected subsystem", defaultKey: "" },
   { id: "compactFrame", category: "Spatial editing", label: "Compact current frame", defaultKey: "" },
-  { id: "compactAll", category: "Spatial editing", label: "Compact entire atlas", defaultKey: "" },
+  { id: "compactAll", category: "Spatial editing", label: "Compact selected / all", defaultKey: "" },
   { id: "undo", category: "History", label: "Undo", defaultKey: "Ctrl+Z" },
   { id: "redo", category: "History", label: "Redo", defaultKey: "Ctrl+Shift+Z" },
   { id: "cancel", category: "Workspace", label: "Cancel or close menu", defaultKey: "Esc" },

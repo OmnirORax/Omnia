@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { frameAction } from "./ui-browser-helpers.mjs";
 import { chromium } from "playwright-core";
 import { emptyDocument } from "../src/graph/structural.ts";
 import { emptyUILayout } from "../src/ui/layout.ts";
@@ -61,8 +62,13 @@ const members = async () =>
 async function begin(source, x, y) {
   const b = await source.boundingBox();
   assert.ok(b, "drag source must be visible");
-  // Text handles retain their editable name; grab the handle edge rather than its input.
-  const dx = await source.evaluate(el => el.classList.contains('ui-frame-handle') && el.querySelector('input') ? 3 : Math.min(12, el.clientWidth / 2));
+  // Grab the handle edge so neighboring-handle tests exercise the placement perimeter.
+  const dx = await source.evaluate((el) =>
+    el.classList.contains("ui-frame-handle") &&
+    !el.closest("[data-ui-resident-root]")?.dataset.uiResidentRoot?.startsWith("window:")
+      ? 3
+      : Math.min(12, el.clientWidth / 2),
+  );
   await page.mouse.move(b.x + dx, b.y + Math.min(14, b.height / 2));
   await page.mouse.down();
   await page.mouse.move(b.x + dx + 12, b.y + Math.min(14, b.height / 2) + 4);
@@ -101,30 +107,30 @@ try {
   const expectedA = await page.locator(".ui-drop-ghost").boundingBox();
   await finish();
   assert.deepEqual(await members(), ["frame:A"]);
-  const actualA = await f("A").boundingBox();
+  const actualA = await f("A").locator("..").boundingBox();
   assert.ok(
     Math.abs(actualA.x - expectedA.x) < 3 && Math.abs(actualA.y - expectedA.y) < 3,
     "blue preview matches actual nested position",
   );
-  let a = await f("A").boundingBox();
+  let a = await f("A").locator("..").boundingBox();
   await begin(f("B").locator(".ui-frame-handle"), a.x + a.width - 4, a.y + 15);
   await page.locator(".ui-drop-ghost").waitFor();
   await finish();
   assert.deepEqual(await members(), ["frame:A", "frame:B"]);
-  a = await f("A").boundingBox();
-  await begin(f("C").locator(".ui-frame-handle"), a.x + a.width + 7, a.y + 15);
+  a = await f("A").locator("..").boundingBox();
+  await begin(f("C").locator(".ui-frame-handle"), a.x + a.width - 2, a.y + 15);
   await page.locator(".ui-drop-ghost").waitFor();
   const expectedC = await page.locator(".ui-drop-ghost").boundingBox();
   await finish();
   assert.deepEqual(await members(), ["frame:A", "frame:C", "frame:B"]);
-  const actualC = await f("C").boundingBox();
+  const actualC = await f("C").locator("..").boundingBox();
   assert.ok(Math.abs(actualC.x - expectedC.x) < 3 && Math.abs(actualC.y - expectedC.y) < 3);
   await history(3);
   assert.deepEqual(await members(), ["frame:A", "frame:B"]);
   await history(4);
   assert.deepEqual(await members(), ["frame:A", "frame:C", "frame:B"]);
   assert.deepEqual(await knowledge(), original);
-  a = await f("A").boundingBox();
+  a = await f("A").locator("..").boundingBox();
   await begin(f("B").locator(".ui-frame-handle"), a.x + 4, a.y + 15);
   await page.locator(".ui-drop-ghost").waitFor();
   await finish();
@@ -151,22 +157,17 @@ try {
   await page.keyboard.press("Escape");
   await page.mouse.up();
   assert.deepEqual(await read(), beforeCycle);
-  // Mini controls stay owned by the frame and can be dragged independently.
-  const close = f("Container").locator(':scope > .frame-chrome [data-ui-control="close"]'),
-    header = await f("Container").locator(":scope > .frame-chrome").boundingBox();
-  await begin(close, header.x + 100, header.y + 95);
-  await page.locator(".ui-placement-preview").waitFor();
-  await finish();
-  assert.ok((await read()).frames.find((f) => f.id === "Container").chrome.controls.close.y > 40);
-  await history(3);
-  assert.equal((await read()).frames.find((f) => f.id === "Container").chrome, undefined);
-  await history(4);
+  // Controls stay out of the canvas; frame pinning is available through right-click.
+  assert.equal(await page.locator(".frame-mini-control").count(), 0);
+  await frameAction(page, f("Container"), "Pin frame");
+  assert.ok((await read()).frames.find((f) => f.id === "Container").pinned);
+  await frameAction(page, f("Container"), "Unpin frame");
   // Frame appearance and placement mode are frame-local presentation settings.
   await f("Container")
     .locator(":scope > .frame-chrome .ui-frame-handle")
     .click({ button: "right" });
   await page.getByRole("button", { name: /^Free-hand mode/ }).click();
-  assert.equal((await read()).frames.find((f) => f.id === "Container").arrangement.mode, 'free');
+  assert.equal((await read()).frames.find((f) => f.id === "Container").arrangement.mode, "free");
   await f("Container")
     .locator(":scope > .frame-chrome .ui-frame-handle")
     .click({ button: "right" });
@@ -175,7 +176,7 @@ try {
   await appearance.getByLabel("Frame handle display", { exact: true }).selectOption("icon");
   await appearance.getByLabel("Frame handle geometry", { exact: true }).selectOption("square");
   await appearance.getByLabel("Frame handle symbol", { exact: true }).fill("▣");
-  await appearance.getByRole("button", { name: "Close Arrange frame handle", exact: true }).click();
+  await frameAction(page, appearance, "Close Arrange frame handle");
   assert.equal(await f("Container").locator(":scope > .frame-chrome .icon-handle").count(), 1);
   await f("Container").getByRole("button", { name: "Toggle frame Container", exact: true }).click();
   assert.equal(await zone("Container").count(), 0);
@@ -183,16 +184,20 @@ try {
   // Dock an existing settings window, then move one complete live field out of it.
   await page.getByRole("button", { name: "Workspace settings", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "Workspace settings", exact: true });
-  a = await f("B").boundingBox();
-  await begin(settings.locator(".ui-frame-handle"), a.x + a.width - 5, a.y + 12);
+  const containerHandle = await f("Container").locator(".ui-frame-handle").first().boundingBox();
+  await begin(
+    settings.locator(".ui-frame-handle"),
+    containerHandle.x + containerHandle.width / 2,
+    containerHandle.y + containerHandle.height / 2,
+  );
   await page.locator(".ui-drop-ghost").waitFor();
   await finish();
   assert.ok((await members()).includes("window:settings"));
   assert.equal((await settings.locator(".ui-form-control").count()) > 0, true);
   const radiusSource = settings.locator('[data-ui-function="ui:radius"] .ui-field-edge.edge-left');
-  const containerBody=await zone('Container').boundingBox();
+  const containerBody = await zone("Container").boundingBox();
   // Free-hand deliberately leaves B/C where authored; use empty parent space, not their overlap.
-  await begin(radiusSource, containerBody.x + 40, containerBody.y + 220);
+  await begin(radiusSource, containerBody.x + containerBody.width - 2, containerBody.y + 220);
   await page.locator(".ui-drop-ghost").waitFor();
   await finish();
   assert.ok((await members()).includes("function:ui:radius"));
@@ -236,7 +241,7 @@ try {
   await page.screenshot({ path: "/tmp/omnium-nested-ui.png" });
   // Anchor/free-hand coverage lives in ui-positioning.browser.mjs.
   console.log(
-    "PASS: measured nested frames, exact blue insertion, cycle rejection, Esc cancellation, movable mini controls, icon handles, live fields/windows, free-hand positions, persistence, and separate Shift MB4/5 UI history.",
+    "PASS: measured nested frames, exact blue insertion, cycle rejection, Esc cancellation, right-click frame controls, icon handles, live fields/windows, free-hand positions, persistence, and separate Shift MB4/5 UI history.",
   );
 } catch (e) {
   await page.screenshot({ path: "/tmp/omnium-nested-ui-failure.png" });

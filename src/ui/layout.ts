@@ -141,7 +141,7 @@ export function validateUILayout(value: unknown): UILayout {
     if (
       !record(w) ||
       ![w.x, w.y, w.width, w.height].every(numeric) ||
-      w.width < 120 ||
+      w.width < 40 ||
       w.height < 40 ||
       typeof w.collapsed !== "boolean" ||
       typeof w.pinned !== "boolean"
@@ -247,7 +247,7 @@ export function validateUILayout(value: unknown): UILayout {
     if (
       "width" in container &&
       container.width !== undefined &&
-      (!numeric(container.width) || container.width < 120)
+      (!numeric(container.width) || container.width < 40)
     )
       throw new Error("Invalid frame width.");
     const chrome = container.chrome;
@@ -308,6 +308,9 @@ export function validateUILayout(value: unknown): UILayout {
       if (member.kind === "window" && !layout.windows[member.id])
         throw new Error("Missing nested UI window.");
       const token = residentKey(member);
+      const scope = contextOwner(token);
+      if ((scope && scope !== key) || (key.startsWith("window:context:") && scope !== key))
+        throw new Error("Context actions must stay in their owning menu.");
       if (member.kind === "function" && layout.items[member.id]?.anchorId)
         throw new Error("A function cannot be both anchored and frame-owned.");
       if (owners.has(token)) throw new Error("A UI resident cannot belong to two frames.");
@@ -403,6 +406,9 @@ export function updateContainer(
   };
 }
 export function canDock(layout: UILayout, resident: string, target: string) {
+  const scope = contextOwner(resident);
+  if ((scope && scope !== target) || (target.startsWith("window:context:") && scope !== target))
+    return false;
   if (
     resident === target ||
     !getContainer(layout, target) ||
@@ -416,6 +422,11 @@ export function canDock(layout: UILayout, resident: string, target: string) {
     key = ownerOf(layout, key);
   }
   return true;
+}
+/** Context actions are owned by their live menu, never extracted or given another target. */
+export function contextOwner(key: string) {
+  const match = /^function:context:([^:]+):/.exec(key);
+  return match ? `window:context:${match[1]}` : undefined;
 }
 export function releaseResident(layout: UILayout, key: string): UILayout {
   let next = layout;
@@ -440,6 +451,7 @@ export function orderNativeFunction(
   target: string,
   after: boolean,
 ): UILayout {
+  if (contextOwner(`function:${id}`) || contextOwner(`function:${target}`)) return layout;
   if (functionPinned(layout, id) || functionPinned(layout, target)) return layout;
   const next = releaseResident(layout, `function:${id}`);
   const peers = Object.keys(next.items).filter((key) => next.items[key].anchorId === anchor);
@@ -497,6 +509,7 @@ export function dockResident(
   return validateUILayout(next);
 }
 export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
+  if (contextOwner(key) || key.startsWith("window:context:")) return layout;
   if (residentPinned(layout, key)) return layout;
   const next = releaseResident(layout, key),
     m = readResident(key);

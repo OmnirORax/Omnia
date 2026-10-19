@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { frameAction } from "./ui-browser-helpers.mjs";
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
 import { emptyDocument } from "../src/graph/structural.ts";
@@ -59,14 +60,18 @@ try {
   const moved = await shortcuts.boundingBox();
   assert.ok(moved.x < before.x - 100);
   assert.ok(moved.y > before.y + 40);
-  await shortcuts.getByRole("button", { name: "Collapse Shortcut display", exact: true }).click();
+  await shortcuts
+    .getByRole("button", { name: "Toggle frame Shortcut display", exact: true })
+    .click();
   assert.ok((await shortcuts.boundingBox()).height < 90);
   assert.equal(
     await shortcuts.getByRole("button", { name: "Rebind Focus selected", exact: true }).isVisible(),
     false,
   );
-  await shortcuts.getByRole("button", { name: "Expand Shortcut display", exact: true }).click();
-  await shortcuts.getByRole("button", { name: "Pin Shortcut display", exact: true }).click();
+  await shortcuts
+    .getByRole("button", { name: "Toggle frame Shortcut display", exact: true })
+    .click();
+  await frameAction(page, shortcuts, "Pin frame");
   const pinned = await shortcuts.boundingBox(),
     pt = await title.boundingBox();
   await page.mouse.move(pt.x + 25, pt.y + 16);
@@ -74,7 +79,7 @@ try {
   await page.mouse.move(pt.x - 100, pt.y - 50, { steps: 6 });
   await page.mouse.up();
   assert.equal(Math.round((await shortcuts.boundingBox()).x), Math.round(pinned.x));
-  await shortcuts.getByRole("button", { name: "Unpin Shortcut display", exact: true }).click();
+  await frameAction(page, shortcuts, "Unpin frame");
   const grip = await page.getByLabel("Resize Shortcut display", { exact: true }).boundingBox();
   await page.mouse.move(grip.x + 5, grip.y + 5);
   await page.mouse.down();
@@ -86,7 +91,7 @@ try {
     await shortcuts.locator(".floating-body").evaluate((e) => e.scrollWidth <= e.clientWidth + 2),
     "narrow window wraps labels and buttons without horizontal clipping",
   );
-  await shortcuts.getByRole("button", { name: "Close shortcut display", exact: true }).click();
+  await frameAction(page, shortcuts, "Close shortcut display");
   // Native dragging must arrange the action without executing it.
   await page
     .locator('[data-ui-function="newNode"]')
@@ -99,8 +104,13 @@ try {
   assert.equal(saved.frames[0].collapsed, true);
   assert.deepEqual(await read(), unchanged);
   const frame = page.locator(".function-frame");
-  await frame.getByLabel("UI frame name", { exact: true }).fill("My tools");
-  await frame.getByRole("button", { name: "Expand UI frame My tools", exact: true }).click();
+  await frame.locator(".ui-frame-handle").click({ button: "right" });
+  await page.getByLabel("UI frame name", { exact: true }).fill("My tools");
+  await page
+    .getByRole("menu", { name: "UI frame settings" })
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await frame.getByRole("button", { name: "Toggle frame My tools", exact: true }).click();
   // Move the group below the toolbar, then attach a third function as an L.
   let header = await frame.locator(".ui-frame-header").boundingBox();
   await page.mouse.move(header.x + 4, header.y + 20);
@@ -146,9 +156,7 @@ try {
   await config.getByLabel("Function display", { exact: true }).selectOption("icon");
   await config.getByLabel("Function geometry", { exact: true }).selectOption("triangle");
   await config.getByLabel("Function symbol", { exact: true }).fill("⚙");
-  await config
-    .getByRole("button", { name: "Close Arrange: Workspace settings", exact: true })
-    .click();
+  await frameAction(page, config, "Close Arrange: Workspace settings");
   assert.ok(
     (await frame.locator('[data-ui-function="settings"]').getAttribute("class")).includes(
       "shape-triangle",
@@ -163,7 +171,7 @@ try {
   await page.getByRole("button", { name: "Undock hierarchy panel", exact: true }).click();
   const hierarchy = page.getByRole("dialog", { name: "Hierarchy", exact: true });
   await hierarchy.waitFor();
-  await hierarchy.getByRole("button", { name: "Dock Hierarchy", exact: true }).click();
+  await frameAction(page, hierarchy, "Dock Hierarchy");
   const select = async (name) => {
     await page
       .getByRole("navigation", { name: "Node hierarchy" })
@@ -177,13 +185,20 @@ try {
   await page.mouse.click(cb.x + cb.width / 2, cb.y + cb.height / 2, { button: "right" });
   const menu = page.getByRole("menu", { name: "node actions", exact: true });
   await menu.waitFor();
-  await menu.getByRole("button", { name: "Arrange menu", exact: true }).click();
-  const menuGrid = await menu.locator(".entity-menu-grid").boundingBox();
-  await menu
-    .getByRole("menuitem", { name: "Create child", exact: true })
-    .dragTo(menu.locator(".entity-menu-grid"), { targetPosition: { x: 205, y: 20 } });
+  const menuGrid = await menu.locator(".ui-dock-area").boundingBox();
+  const actionBox = await menu.getByRole("menuitem", { name: "Create child", exact: true }).boundingBox();
+  await page.mouse.move(actionBox.x + actionBox.width / 2, actionBox.y + actionBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(actionBox.x + actionBox.width / 2 + 14, actionBox.y + actionBox.height / 2 + 4);
+  await page.mouse.move(menuGrid.x + 120, menuGrid.y + 20, { steps: 12 });
+  await page.mouse.move(menuGrid.x + 121, menuGrid.y + 20);
+  await page.locator('.ui-drop-ghost').waitFor();
+  await page.mouse.up();
   await page.waitForFunction(
-    () => !!JSON.parse(localStorage.getItem("omnium.ui.layout.v1")).menus.node,
+    () =>
+      !!JSON.parse(localStorage.getItem("omnium.ui.layout.v1")).windows[
+        "context:node"
+      ]?.members?.every((m) => m.position),
   );
   assert.deepEqual(await read(), unchanged, "reordering context actions is only UI state");
   await page.mouse.click(cb.x + cb.width - 20, cb.y + cb.height - 30);

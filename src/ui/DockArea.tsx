@@ -71,10 +71,14 @@ export function DockArea({ container, contour = true }: { container: string; con
   const state = getContainer(ui.layout, container);
   const members = state?.members ?? [];
   const preview = ui.preview?.target === container ? ui.preview : null;
-  const entries: (UIResident & { ghost?: boolean })[] = [...(preview?.baseline ?? members)];
+  const entries: (UIResident & { ghost?: boolean; dragSource?: boolean })[] = [
+    ...(preview?.baseline ?? members),
+  ];
   if (preview) {
     const old = entries.findIndex((m) => residentKey(m) === preview.key);
-    if (old >= 0) entries.splice(old, 1);
+    // Keep the native drag source mounted until drop/dragend. Removing it can cancel
+    // Chromium's drag session while the ghost is being measured.
+    const original = old >= 0 ? entries.splice(old, 1)[0] : null;
     const colon = preview.key.indexOf(":");
     entries.splice(Math.max(0, preview.index - (old >= 0 && old < preview.index ? 1 : 0)), 0, {
       kind: preview.key.slice(0, colon) as UIResident["kind"],
@@ -84,10 +88,12 @@ export function DockArea({ container, contour = true }: { container: string; con
       position: preview.position,
       size: { width: preview.width, height: preview.height },
     });
+    if (original) entries.push({ ...original, dragSource: true });
   }
-  const positioned = entries.length > 0 && entries.every((m) => m.position && m.size);
-  const minX = positioned ? Math.min(0, ...entries.map((m) => m.position!.x - 12)) : 0,
-    minY = positioned ? Math.min(0, ...entries.map((m) => m.position!.y - 12)) : 0;
+  const occupied = entries.filter((m) => !m.dragSource);
+  const positioned = occupied.length > 0 && occupied.every((m) => m.position && m.size);
+  const minX = positioned ? Math.min(0, ...occupied.map((m) => m.position!.x - 12)) : 0,
+    minY = positioned ? Math.min(0, ...occupied.map((m) => m.position!.y - 12)) : 0;
   const offset = moving ?? state?.bodyOffset ?? { x: 0, y: 0 };
   const connections = bridges(shapes);
   useLayoutEffect(() => {
@@ -124,24 +130,24 @@ export function DockArea({ container, contour = true }: { container: string; con
             }
           : null;
         setHandle((old) => (JSON.stringify(old) === JSON.stringify(h) ? old : h));
-        const next = [...node.querySelectorAll<HTMLElement>(":scope > .ui-resident-slot")].map(
-          (slot) => {
-            const r = slot.getBoundingClientRect(),
-              icon = slot.querySelector(":scope > .function-icon");
-            return {
-              x: r.x - bounds.x + node.scrollLeft,
-              y: r.y - bounds.y + node.scrollTop,
-              width: r.width,
-              height: r.height,
-              padding: slot.querySelector(":scope > .ui-form-control") ? 0 : 6,
-              geometry: icon?.classList.contains("shape-circle")
-                ? "circle"
-                : icon?.classList.contains("shape-triangle")
-                  ? "triangle"
-                  : "rectangle",
-            };
-          },
-        );
+        const next = [
+          ...node.querySelectorAll<HTMLElement>(":scope > .ui-resident-slot:not(.ui-drag-source)"),
+        ].map((slot) => {
+          const r = slot.getBoundingClientRect(),
+            icon = slot.querySelector(":scope > .function-icon");
+          return {
+            x: r.x - bounds.x + node.scrollLeft,
+            y: r.y - bounds.y + node.scrollTop,
+            width: r.width,
+            height: r.height,
+            padding: slot.querySelector(":scope > .ui-form-control") ? 0 : 6,
+            geometry: icon?.classList.contains("shape-circle")
+              ? "circle"
+              : icon?.classList.contains("shape-triangle")
+                ? "triangle"
+                : "rectangle",
+          };
+        });
         setShapes((previous) =>
           JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
         );
@@ -169,9 +175,10 @@ export function DockArea({ container, contour = true }: { container: string; con
         ...(positioned
           ? {
               display: "block",
-              width: Math.max(70, ...entries.map((m) => m.position!.x + m.size!.width + 12)) - minX,
+              width:
+                Math.max(70, ...occupied.map((m) => m.position!.x + m.size!.width + 12)) - minX,
               minHeight:
-                Math.max(46, ...entries.map((m) => m.position!.y + m.size!.height + 12)) - minY,
+                Math.max(46, ...occupied.map((m) => m.position!.y + m.size!.height + 12)) - minY,
               padding: 0,
             }
           : {}),
@@ -309,6 +316,7 @@ export function DockArea({ container, contour = true }: { container: string; con
           key={member.ghost ? "@preview" : residentKey(member)}
           member={member}
           ghost={member.ghost}
+          dragSource={member.dragSource}
           width={preview?.width}
           height={preview?.height}
           origin={{ x: minX, y: minY }}
@@ -320,12 +328,14 @@ export function DockArea({ container, contour = true }: { container: string; con
 function ResidentSlot({
   member,
   ghost,
+  dragSource,
   width,
   height,
   origin,
 }: {
   member: UIResident;
   ghost?: boolean;
+  dragSource?: boolean;
   width?: number;
   height?: number;
   origin: { x: number; y: number };
@@ -337,16 +347,20 @@ function ResidentSlot({
         <span className="ui-row-break" aria-hidden="true" />
       )}
       <div
-        className={`ui-resident-slot ${member.position ? "is-positioned" : ""} ${ghost ? "ui-drop-ghost" : ""}`}
+        className={`ui-resident-slot ${member.position ? "is-positioned" : ""} ${ghost ? "ui-drop-ghost" : ""} ${dragSource ? "ui-drag-source" : ""}`}
         data-ui-slot-key={ghost ? undefined : residentKey(member)}
         data-ui-ghost={ghost ? "true" : undefined}
         style={{
+          ...(dragSource ? { visibility: "hidden", pointerEvents: "none" } : {}),
           ...(member.position
             ? {
                 position: "absolute",
                 left: member.position.x - origin.x,
                 top: member.position.y - origin.y,
-                width: member.size?.width,
+                width:
+                  member.kind === "function" && ui.layout.items[member.id]?.style?.mode !== "icon"
+                    ? member.size?.width
+                    : undefined,
               }
             : {}),
           ...(ghost ? { width, height } : {}),

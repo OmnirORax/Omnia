@@ -1,6 +1,7 @@
 import { ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { labelSize } from "./labels.ts";
 import { visualFootprint } from "./assets.ts";
+import { enclosingBox, packedPosition, translateBox, type Box3 } from "./packing.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
@@ -175,11 +176,24 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
     while (pending.length) { const id = pending.pop()!; for (const child of next.placements.filter((p) => p.parentId === id)) { included.add(child.id); pending.push(child.id); } }
   }
   const depth = (p: Placement): number => p.parentId ? 1 + depth(next.placements.find((x) => x.id === p.parentId)!) : 0;
-  const ordered = next.placements.filter((p) => included.has(p.id)).sort((a, b) => depth(b) - depth(a) || a.id.localeCompare(b.id));
-  for (const p of ordered) {
-    // Place each sibling near its parent/origin; already placed siblings become obstacles.
-    const desired = p.parentId ? preferred(next, p.entityId, p.parentId, settings) : origin();
-    p.spatialPosition = nearestFree(next, p.id, desired, settings);
+  const ownBox = (p: Placement): Box3 => {
+    const size = visualFootprint(labelSize(next.entities.find(e => e.id === p.entityId)?.label ?? ""), p.visual);
+    const x = Math.max(settings.radius * 2, size.width) / 2, y = Math.max(settings.radius * 2, size.height) / 2,
+      z = Math.max(settings.radius * 2, p.visual?.assetId || p.visual?.character ? p.visual.size ?? 1.4 : 0) / 2;
+    return { min: { x: -x, y: -y, z: -z }, max: { x, y, z } };
+  };
+  const contents = (p: Placement): Box3 => enclosingBox([ownBox(p), ...(!p.collapsed ? next.placements.filter(c => c.parentId === p.id && !c.hidden && !c.variantOwner).map(c => translateBox(contents(c), localPosition(c))) : [])]);
+  const parents = [...new Set(next.placements.filter(p => included.has(p.id)).sort((a, b) => depth(b) - depth(a) || a.id.localeCompare(b.id)).map(p => p.parentId))];
+  for (const parentId of parents) {
+    const siblings = next.placements.filter(p => p.parentId === parentId), parent = next.placements.find(p => p.id === parentId);
+    const cluster: Box3[] = parent ? [ownBox(parent)] : [];
+    const obstacles = [...cluster, ...siblings.filter(p => !included.has(p.id) && !p.hidden).map(p => translateBox(contents(p), localPosition(p)))];
+    for (const p of siblings.filter(p => included.has(p.id)).sort((a, b) => a.id.localeCompare(b.id))) {
+      const shape = contents(p);
+      p.spatialPosition = packedPosition(shape, obstacles, cluster, settings.clearance);
+      const occupied = translateBox(shape, p.spatialPosition);
+      obstacles.push(occupied); cluster.push(occupied);
+    }
   }
   return validateDocument(next);
 }

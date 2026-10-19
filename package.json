@@ -12,7 +12,8 @@
     "test:browser": "node tests/workbench.browser.mjs",
     "test:3d": "node tests/workspace3d.browser.mjs && node tests/textWorkspace.browser.mjs && node tests/variants.browser.mjs && node tests/visuals-selection.browser.mjs",
     "test:ui": "node tests/ui-layout.browser.mjs && node tests/ui-nesting.browser.mjs && node tests/ui-positioning.browser.mjs",
-    "test:usability": "node tests/usability-fixes.browser.mjs"
+    "test:usability": "node tests/usability-fixes.browser.mjs",
+    "test:frames": "node tests/frame-refinements.browser.mjs"
   },
   "dependencies": {
     "@iconify-json/lucide": "1.2.146",
