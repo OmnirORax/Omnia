@@ -24,7 +24,7 @@ export function projectSpatial(atlas: Atlas) {
     const representative =
       parent?.representative !== parent?.id
         ? parent!.representative
-        : parent?.collapsed
+        : parent?.collapsed && node.variantOwnerId !== parent.id
           ? parent.id
           : node.id;
     const result: SpatialNode = {

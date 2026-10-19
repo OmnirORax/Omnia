@@ -4,6 +4,7 @@ import { descendants, newId, parseAtlas } from "./graph/model";
 import type { Atlas, AtlasNode } from "./graph/model";
 import {
   emptyDocument,
+  ensureVariantPlacements,
   editorView,
   expandPlacement,
   toggleSubtree,
@@ -20,7 +21,7 @@ import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, k
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView } from "./graph/presentation";
-import { addVariant, moveVariant, nodeEntityId, projectVariants, variantInstance } from "./graph/variants";
+import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { projectSpatial } from "./graph/spatial";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
@@ -31,7 +32,7 @@ type ViewConfig = {
   version: 1 | 2;
   atlas: AtlasDocument | Atlas;
 };
-type Selection = { kind: "node" | "variant" | "relationship" | "composition"; id: string } | null;
+type Selection = { kind: "node" | "relationship" | "composition"; id: string } | null;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function loadInitial(): { atlas: AtlasDocument; error: string } {
   try {
@@ -47,7 +48,8 @@ function loadInitial(): { atlas: AtlasDocument; error: string } {
 function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
-  const atlas = useMemo(() => editorView(document), [document]);
+  const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
+  const atlas = useMemo(() => editorView(document, expandedVariants), [document, expandedVariants]);
   const [selection, setSelection] = useState<Selection>(null);
   const [error, setError] = useState(initial.error);
   const [autosave, setAutosave] = useState(!initial.error);
@@ -73,9 +75,8 @@ function Workbench() {
   const [insertContext, setInsertContext] = useState<{ parentId: string | null; world?: { x: number; y: number; z: number } } | null>(null);
   const [insertQuery, setInsertQuery] = useState("");
   const [optionNodeId, setOptionNodeId] = useState<string | null>(null);
-  const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
   const structuralGraph = useMemo(() => projectSpatial(atlas), [atlas]);
-  const variantDisplay = useMemo(() => projectVariants(document, structuralGraph.nodes, expandedVariants), [document, structuralGraph, expandedVariants]);
+  const variantDisplay = useMemo(() => projectVariants(document, structuralGraph.nodes), [document, structuralGraph, expandedVariants]);
   const fileInput = useRef<HTMLInputElement>(null);
   const templateInput = useRef<HTMLInputElement>(null);
   const proposalInput = useRef<HTMLInputElement>(null);
@@ -120,7 +121,7 @@ function Workbench() {
     }
   }
   useEffect(() => {
-    if (!revision || !autosave) return;
+    if ((!revision && document.variantPlacementsVersion !== 1) || !autosave) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(document));
       setSaveStatus("Saved locally");
@@ -280,8 +281,6 @@ function Workbench() {
     ? document.placements.find((p) => p.id === selectedNode.id)
     : undefined;
   const selectedEntity = document.entities.find((e) => e.id === selectedPlacement?.entityId);
-  const selectedVariant = selection?.kind === "variant" ? variantInstance(document, selection.id)?.variant : undefined;
-  const variantEntity = document.entities.find((e) => e.id === selectedVariant?.entityId);
   const selectedRelationData = document.relationships.find(
     (r) => r.id === selectedRelationship?.id,
   );
@@ -323,7 +322,7 @@ function Workbench() {
     const ancestors = new Set<string>();
     let node = atlas.nodes.find((n) => n.id === id);
     while (node?.parentId) {
-      ancestors.add(node.parentId);
+      if (node.variantOwnerId !== node.parentId) ancestors.add(node.parentId);
       node = atlas.nodes.find((n) => n.id === node!.parentId);
     }
     if (atlas.nodes.some((n) => ancestors.has(n.id) && n.collapsed))
@@ -373,7 +372,7 @@ function Workbench() {
       ...document,
       placements: document.placements
         .filter((p) => p.id !== id)
-        .map((p) => (p.parentId === id ? { ...p, parentId: null } : p)),
+        .map((p) => ({ ...p, ...(p.parentId === id ? { parentId: null } : {}), ...(p.variantOwner?.placementId === id ? { variantOwner: undefined } : {}) })),
     });
     setSelection(null);
   }
@@ -395,7 +394,7 @@ function Workbench() {
       entities: document.entities.filter((e) => e.id !== entityId),
       placements: document.placements
         .filter((p) => p.entityId !== entityId)
-        .map((p) => (removedPlacementIds.has(p.parentId ?? "") ? { ...p, parentId: null } : p)),
+        .map((p) => ({ ...p, ...(removedPlacementIds.has(p.parentId ?? "") ? { parentId: null } : {}), ...(p.variantOwner && (removedPlacementIds.has(p.variantOwner.placementId) || document.variants?.some((v) => v.id === p.variantOwner!.variantId && (v.ownerId === entityId || v.entityId === entityId))) ? { variantOwner: undefined } : {}) })),
       compositions: document.compositions.filter(
         (c) => c.parentId !== entityId && c.childId !== entityId,
       ),
@@ -545,24 +544,22 @@ function Workbench() {
     } else commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, collapsed: true } : p) });
   }
   function nodeClicked(id: string) {
-    const isVariant = variantDisplay.instances.get(id);
     if (connectionSource) {
-      if (isVariant) { setError("Insert a structural reference before connecting a variant to the atlas."); return; }
       if (connectionSource !== id) connect({ source: connectionSource, target: id });
       setConnectionSource(null);
       return;
     }
-    setSelection({ kind: isVariant ? "variant" : "node", id });
+    setSelection({ kind: "node", id });
     setOptionNodeId(id);
-    setExpandedVariants((current) => new Set([...current, id]));
+    revealVariants(id);
     navigate("variants", id);
   }
   function nodeDoubleClicked(id: string) {
     setOptionNodeId(null);
     setExpandedVariants((current) => { const next = new Set(current); next.delete(id); return next; });
-    setSelection({ kind: variantInstance(document, id) ? "variant" : "node", id });
+    setSelection({ kind: "node", id });
     const placement = document.placements.find((p) => p.id === id);
-    if (placement && (document.compositions.some((c) => c.parentId === placement.entityId) || document.placements.some((p) => p.parentId === id))) toggleNode(id);
+    if (placement && (document.compositions.some((c) => c.parentId === placement.entityId) || document.placements.some((p) => p.parentId === id && !p.variantOwner))) toggleNode(id);
     navigate("focus", id);
   }
   function nodeSubtreeClicked(id: string) {
@@ -575,8 +572,20 @@ function Workbench() {
       navigate("local", id);
     } catch (e) { setError(message(e)); }
   }
+  function revealVariants(id: string) {
+    let next = ensureVariantPlacements(document, id);
+    const frame = next.frames.find((f) => f.id === next.activeFrameId);
+    const missing = next.placements.filter((p) => p.variantOwner?.placementId === id && !frame?.scope.entityIds.includes(p.entityId) && !frame?.scope.anchorIds.includes(p.entityId) && !frame?.scope.excludedEntityIds.includes(p.entityId));
+    if (frame && !frame.locked && missing.length) {
+      next = structuredClone(next);
+      next.frames.find((f) => f.id === frame.id)!.scope.entityIds.push(...new Set(missing.map((p) => p.entityId)));
+    }
+    if (next !== document) commitDocument(next);
+    setExpandedVariants((current) => new Set([...current, id]));
+  }
   function toggleVariants(id: string) {
-    setExpandedVariants((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+    if (!expandedVariants.has(id)) revealVariants(id);
+    else setExpandedVariants((current) => { const next = new Set(current); next.delete(id); return next; });
   }
   function createVariant(ownerNodeId: string) {
     const ownerId = nodeEntityId(document, ownerNodeId);
@@ -584,28 +593,22 @@ function Workbench() {
     try {
       const { next, variant } = addVariant(document, ownerId);
       const expanded = new Set([...expandedVariants, ownerNodeId]);
-      const display = projectVariants(next, structuralGraph.nodes, expanded);
-      const instance = [...display.instances].find(([, item]) => item.kind === "variant" && item.variant.id === variant.id && item.ownerNodeId === ownerNodeId);
+      const instance = next.placements.find((p) => p.variantOwner?.placementId === ownerNodeId && p.variantOwner.variantId === variant.id);
+      const frame = next.frames.find((f) => f.id === next.activeFrameId);
+      if (frame && !frame.locked) frame.scope.entityIds.push(variant.entityId);
+      if (frame?.locked) next.activeFrameId = null;
       commitDocument(next); setExpandedVariants(expanded); setOptionNodeId(ownerNodeId);
       navigate("variants", ownerNodeId);
-      if (instance) { setSelection({ kind: "variant", id: instance[0] }); }
-      setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Variant name"]')?.focus(), 0);
+      if (instance) { setSelection({ kind: "node", id: instance.id }); }
+      setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0);
     } catch (e) { setError(message(e)); }
   }
-  function removeVariant(id: string) {
-    const instance = variantInstance(document, id);
-    if (!instance) return;
-    commitDocument({ ...document, variants: document.variants?.filter((v) => v.id !== instance.variant.id) });
-    setSelection(null);
-  }
   function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false) {
-    if (variantInstance(document, id)) {
-      const next = moveVariant(document, id, position, [...structuralGraph.nodes, ...variantDisplay.nodes], settings.spatial.spacing);
-      if (!preview) commitDocument(next);
-      return projectVariants(next, structuralGraph.nodes, expandedVariants).nodes.find((n) => n.id === id)!.world;
-    }
-    const local = nearestFree(document, id, position, settings.spatial);
-    if (!preview) commitDocument(movePlacement(document, id, local, settings.spatial));
+    // Hidden variant branches must not block the active workspace's drag targets.
+    const visibleIds = new Set(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id));
+    const collisionDoc = { ...document, placements: document.placements.map((p) => ({ ...p, hidden: p.hidden || !visibleIds.has(p.id) })) };
+    const local = nearestFree(collisionDoc, id, position, settings.spatial);
+    if (!preview) commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
     return local;
   }
   function compact(scope: ReflowScope) {
@@ -613,7 +616,6 @@ function Workbench() {
     catch (e) { setError(message(e)); }
   }
   function nestReason(id: string, targetId: string): string | null {
-    if (variantDisplay.instances.has(id) || variantDisplay.instances.has(targetId)) return "Variants belong to their owner; they are not structural components.";
     try { reparentStructure(document, id, targetId, settings.spatial); return null; }
     catch (e) { return message(e); }
   }
@@ -625,13 +627,6 @@ function Workbench() {
   }
   function contextAction(action: ContextAction, target: ContextTarget) {
     const id = target.kind === "node" ? target.id : null;
-    const variant = id ? variantInstance(document, id) : null;
-    if (variant) {
-      if (action === "edit" || action === "focus") { setSelection({ kind: "variant", id: id! }); navigate("focus", id!); }
-      else if (action === "removeVariant") removeVariant(id!);
-      else if (action === "deleteIdentity") deleteIdentity(variant.variant.entityId);
-      return;
-    }
     switch (action) {
       case "createChild": if (id) addNode(id); break;
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
@@ -649,7 +644,7 @@ function Workbench() {
   }
   function runAction(action: ActionId) {
     switch (action) {
-      case "focus": if (selection?.kind === "node" || selection?.kind === "variant") navigate("focus", selection.id); break;
+      case "focus": if (selection?.kind === "node") navigate("focus", selection.id); break;
       case "fitLocal": navigate("local", selection?.kind === "node" ? selection.id : undefined); break;
       case "fitAll": navigate("all"); break;
       case "back": navigate("back"); break;
@@ -697,15 +692,15 @@ function Workbench() {
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
     return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); };
   });
-  function outline(parentId: string | null): React.ReactNode {
+  function outline(parentId: string | null, variantsOnly = false): React.ReactNode {
     return (
       <ul>
         {atlas.nodes
-          .filter((n) => n.parentId === parentId)
+          .filter((n) => n.parentId === parentId && (!variantsOnly || n.variantOwnerId === parentId))
           .map((n) => (
             <li key={n.id}>
               <div className="outline-row">
-                {atlas.nodes.some((c) => c.parentId === n.id) ? (
+                {atlas.nodes.some((c) => c.parentId === n.id && c.variantOwnerId !== n.id) ? (
                   <button
                     aria-label={`${n.collapsed ? "Expand" : "Collapse"} branch ${n.label}`}
                     onClick={() => patchNode(n.id, { collapsed: !n.collapsed })}
@@ -723,7 +718,7 @@ function Workbench() {
                   {n.label || "Untitled node"}
                 </button>
               </div>
-              {!n.collapsed && outline(n.id)}
+              {(!n.collapsed || atlas.nodes.some((c) => c.variantOwnerId === n.id && c.parentId === n.id)) && outline(n.id, n.collapsed)}
             </li>
           ))}
       </ul>
@@ -1092,21 +1087,14 @@ function Workbench() {
             )}
           </section>
           <section className="inspector">
-            <h2>{selectedVariant ? "Variant" : selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
-            {selectedVariant && variantEntity ? <>
-              <p>Variant of {document.entities.find((e) => e.id === selectedVariant.ownerId)?.label || selectedVariant.ownerId}. Owned by this node, separate from structural contents.</p>
-              <p>Identity: <code>{variantEntity.id}</code></p>
-              <label>Name<input aria-label="Variant name" maxLength={500} value={variantEntity.label} onChange={(event) => commitDocument({ ...document, entities: document.entities.map((e) => e.id === variantEntity.id ? { ...e, label: event.target.value } : e) })} /></label>
-              <label>Notes<textarea aria-label="Variant notes" maxLength={10000} value={variantEntity.notes} onChange={(event) => commitDocument({ ...document, entities: document.entities.map((e) => e.id === variantEntity.id ? { ...e, notes: event.target.value } : e) })} /></label>
-              <AppearanceControls label="Variant" value={selectedVariant.appearance} defaults={{ color: "#bda1ec", opacity: 1 }} onChange={(appearance) => commitDocument({ ...document, variants: document.variants?.map((v) => v.id === selectedVariant.id ? { ...v, appearance } : v) })} />
-              <button onClick={() => selection && removeVariant(selection.id)}>Remove variant from owner</button>
-              <button className="danger" onClick={() => deleteIdentity(variantEntity.id)}>Delete variant identity and all references</button>
-            </> : selectedNode ? (
+            <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
+            {selectedNode ? (
               <>
                 <p>
                   Identity: <code>{selectedEntity?.id}</code>
                   <br />
                   Placement: <code>{selectedNode.id}</code>
+                  {selectedPlacement?.variantOwner && <><br />Variant of {document.entities.find((e) => e.id === document.placements.find((p) => p.id === selectedPlacement.variantOwner!.placementId)?.entityId)?.label}</>}
                 </p>
                 <p>
                   {document.placements.filter((p) => p.entityId === selectedEntity?.id).length}{" "}
@@ -1659,7 +1647,7 @@ function Workbench() {
             <SpatialWorkspace
               atlas={atlas}
               document={document}
-              selectedId={selection?.kind === "node" || selection?.kind === "variant" ? selection.id : null}
+              selectedId={selection?.kind === "node" ? selection.id : null}
               variantDisplay={variantDisplay}
               optionNodeId={optionNodeId}
               expandedVariants={expandedVariants}

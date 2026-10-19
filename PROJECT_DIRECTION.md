@@ -16,4 +16,6 @@ Nodes currently appear as full camera-facing text bars centered on their placeme
 
 Single-click opens developer-defined node options (currently Variants); double-click expands/collapses structural contents. Variants are owned canonical references with a separate hidden-by-default expansion mode and a reserved add control. Ownership is not authored structural composition, and revealing variants must never clone internal knowledge or create structural children. Option categories are extended in source code only.
 
+A variant is otherwise a normal node, including its own authored children, deeper structures, relationships, reusable referent, context menu, inspector, and shortcuts. Use ordinary placements with an explicit owner visibility gate; do not introduce restricted stand-in nodes or separate editing paths. Closing a variant mode hides its displayed subtree without changing its knowledge. Multiple references share canonical identity while retaining independent placement state.
+
 Shift-click (configurable) expands every charted structural level beneath a node, or collapses a fully expanded subtree, in one undoable operation. This reveals references without inventing facts; it is distinct from Shift-drag nesting and from variant expansion.

@@ -7,6 +7,7 @@ export interface AtlasNode {
   position: { x: number; y: number }; // Local to parent; root positions are canvas coordinates.
   spatialPosition?: { x: number; y: number; z: number }; // Optional local XYZ layout, independent of 2D.
   collapsed: boolean;
+  variantOwnerId?: string;
 }
 
 export interface Relationship {

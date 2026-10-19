@@ -230,9 +230,8 @@ export type DisplayBinder = {
   color?: string;
   opacity?: number;
 };
-export function chartedBinders(doc: Document): DisplayBinder[] {
-  const atlas = editorView(doc),
-    placements = new Map(doc.placements.map((p) => [p.id, p]));
+export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayBinder[] {
+  const placements = new Map(doc.placements.map((p) => [p.id, p]));
   const binders: DisplayBinder[] = atlas.relationships.map((r) => {
     const canonical = doc.relationships.find((item) => item.id === r.id)!;
     return {
@@ -248,7 +247,12 @@ export function chartedBinders(doc: Document): DisplayBinder[] {
   });
   const represented = new Set<string>();
   for (const node of atlas.nodes) {
+    const link = placements.get(node.id)?.variantOwner;
+    if (link && atlas.nodes.some((n) => n.id === link.placementId)) {
+      binders.push({ key: `variant:${node.id}`, id: link.variantId, kind: "variant", source: link.placementId, target: node.id, label: "variant", color: "#bda1ec" });
+    }
     if (!node.parentId) continue;
+    if (node.parentId === link?.placementId) continue;
     const parent = placements.get(node.parentId)!,
       child = placements.get(node.id)!;
     const comp = doc.compositions.find(

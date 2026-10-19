@@ -13,7 +13,7 @@ import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
 
 export type NavigationCommand = { sequence: number; kind: "focus" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
-export type ContextAction = "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "removeVariant" | "deleteIdentity" | "compact" | "fitAll" | "settings";
+export type ContextAction = "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "node"; id: string } | { kind: "space"; world: XYZ };
 type Props = {
   atlas: Atlas;
@@ -71,7 +71,7 @@ export default function SpatialWorkspace(props: Props) {
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = projectSpatial(atlas);
-  const graph = { ...baseGraph, nodes: [...baseGraph.nodes, ...props.variantDisplay.nodes] };
+  const graph = baseGraph;
   const graphRef = useRef(graph); graphRef.current = graph;
   const meshes = useRef<THREE.Sprite[]>([]);
   const groups = useRef(new Map<string, THREE.Group>());
@@ -347,7 +347,7 @@ export default function SpatialWorkspace(props: Props) {
     disposeContent(state.content);
     const visible = graph.nodes.filter((n) => n.visible);
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    const binders = [...chartedBinders(doc), ...props.variantDisplay.binders].flatMap((b) => {
+    const binders = chartedBinders(doc, atlas).flatMap((b) => {
       const from = byId.get(b.source), to = byId.get(b.target);
       if (!from || !to || (from.representative === to.representative && (!from.visible || !to.visible))) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
@@ -374,8 +374,7 @@ export default function SpatialWorkspace(props: Props) {
     ["createAt", "Create node here"], ["insertExisting", "Insert existing entity"],
     ["compact", "Compact layout"], ["fitAll", "Fit entire atlas"], ["settings", "Workspace settings"],
   ];
-  const variantMenu: [ContextAction, string][] = [["focus", "Focus"], ["edit", "Rename / edit in inspector"], ["removeVariant", "Remove variant from owner"], ["deleteIdentity", "Delete identity…"]];
-  const menuItems = menu?.target.kind === "node" ? props.variantDisplay.instances.get(menu.target.id)?.kind === "variant" ? variantMenu : nodeMenu : spaceMenu;
+  const menuItems = menu?.target.kind === "node" ? nodeMenu : spaceMenu;
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
     <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}Shift-drag: nest · right-drag: rotate</div>

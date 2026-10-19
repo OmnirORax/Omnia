@@ -1,4 +1,4 @@
-import { validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
+import { ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { labelSize } from "./labels.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
@@ -34,7 +34,7 @@ export function occupiedRadii(doc: Document, settings: SpatialSettings, worlds =
     const p = doc.placements.find((item) => item.id === id)!;
     const label = labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? "");
     let radius = Math.max(settings.radius, Math.hypot(label.width, label.height) / 2);
-    if (!p.collapsed) for (const child of doc.placements.filter((c) => c.parentId === id && !c.hidden))
+    if (!p.collapsed) for (const child of doc.placements.filter((c) => c.parentId === id && !c.hidden && c.variantOwner?.placementId !== id))
       radius = Math.max(radius, distance(worlds.get(id)!, worlds.get(child.id)!) + resolve(child.id) + settings.clearance);
     cache.set(id, radius); return radius;
   };
@@ -104,7 +104,7 @@ export function createPlacement(doc: Document, entityId: string, parentId: strin
   const draft = { ...doc, placements: [...doc.placements, placement] };
   const local = nearestFree(draft, placementId, placement.spatialPosition!, settings);
   placement.spatialPosition = local;
-  return { next: validateDocument(draft), placementId };
+  return { next: ensureVariantPlacements(validateDocument(draft), placementId), placementId };
 }
 export function reparentStructure(doc: Document, id: string, targetId: string, settings: SpatialSettings): Document {
   const moving = doc.placements.find((p) => p.id === id), target = doc.placements.find((p) => p.id === targetId);

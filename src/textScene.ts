@@ -3,7 +3,6 @@ import { labelLines, labelSize, separateLabels, type ScreenLabel } from "./graph
 import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
 import type { Document } from "./graph/structural";
-import { variantInstance } from "./graph/variants";
 
 export function textSprite(value: string, color: string, selected = false, node = false) {
   const lines = labelLines(value),
@@ -77,13 +76,12 @@ export function buildTextScene(
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
   for (const node of visible) {
     const placement = doc.placements.find((p) => p.id === node.id);
-    const variant = variantInstance(doc, node.id)?.variant;
-    const appearance = placement?.appearance ?? variant?.appearance;
+    const appearance = placement?.appearance;
     const group = new THREE.Group();
     group.position.set(node.world.x, node.world.y, node.world.z);
     const sprite = textSprite(
       node.label,
-      appearance?.color ?? (placement ? "#dce9fa" : "#bda1ec"),
+      appearance?.color ?? "#dce9fa",
       selectedId === node.id,
       true,
     );

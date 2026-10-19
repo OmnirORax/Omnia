@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
-import { emptyDocument } from "../src/graph/structural.ts";
+import { emptyDocument, ensureVariantPlacements } from "../src/graph/structural.ts";
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
   args: [
@@ -12,7 +12,7 @@ const browser = await chromium.launch({
   ],
 });
 try {
-  const doc = emptyDocument();
+  let doc = emptyDocument();
   doc.entities = ["System", "Part", "Existing variant", "Deep part"].map((label, i) => ({
     id: `entity-${i}`,
     label,
@@ -44,6 +44,7 @@ try {
     { id: "deep", parentId: "entity-1", childId: "entity-3" },
   ];
   doc.variants = [{ id: "existing-variant", ownerId: "entity-0", entityId: "entity-2" }];
+  doc = ensureVariantPlacements(doc);
   const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -96,12 +97,31 @@ try {
   );
   assert.equal((await read()).revision, initialRevision, "single-click is display-only");
   await page.getByRole("button", { name: "Add variant for System", exact: true }).click();
-  await page.getByLabel("Variant name", { exact: true }).fill("New alternative");
+  await page.getByLabel("Node name", { exact: true }).fill("New alternative");
   const added = await read();
   assert.equal(added.variants.length, 2);
   assert.equal(added.entities.length, 5);
   assert.deepEqual(added.compositions, doc.compositions);
-  assert.deepEqual(added.placements, doc.placements);
+  assert.equal(added.placements.length, doc.placements.length + 1);
+  const variantPlacement = added.placements.find((p) => p.entityId === added.variants.at(-1).entityId);
+  assert.ok(variantPlacement.variantOwner);
+  // The full inspector and ordinary child action apply to variants too.
+  await page.getByRole("button", { name: "+ Child node", exact: true }).click();
+  await page.getByLabel("Node name", { exact: true }).fill("Variant child");
+  let withChildren = await read();
+  const childPlacement = withChildren.placements.find((p) => p.entityId === withChildren.entities.find((e) => e.label === "Variant child").id);
+  assert.equal(childPlacement.parentId, variantPlacement.id);
+  assert.ok(withChildren.compositions.some((c) => c.parentId === variantPlacement.entityId && c.childId === childPlacement.entityId));
+  await page.getByRole("button", { name: "+ Child node", exact: true }).click();
+  await page.getByLabel("Node name", { exact: true }).fill("Variant grandchild");
+  withChildren = await read();
+  assert.ok(withChildren.compositions.some((c) => c.parentId === childPlacement.entityId && c.childId === withChildren.entities.find((e) => e.label === "Variant grandchild").id));
+  await page.getByLabel("New relationship source").selectOption(variantPlacement.id);
+  await page.getByLabel("New relationship target").selectOption(childPlacement.id);
+  await page.getByRole("button", { name: "Add relationship", exact: true }).click();
+  assert.ok((await read()).relationships.some((r) => r.participants[0].entityId === variantPlacement.entityId && r.participants[1].entityId === childPlacement.entityId));
+  const knowledgeBeforeMove = await read();
+  await page.getByRole("navigation", { name: "Node hierarchy" }).getByRole("button", { name: "New alternative", exact: true }).click();
   await page.screenshot({ path: "/tmp/omnium-variants.png" });
   await page.getByRole("button", { name: "Focus selected", exact: true }).click();
   await page.waitForTimeout(450);
@@ -114,28 +134,45 @@ try {
     { steps: 8 },
   );
   await page.mouse.up();
-  const newVariantId = added.variants.at(-1).id;
   await page.waitForFunction(
-    (id) =>
-      !!JSON.parse(localStorage.getItem("omnium.atlas.v2")).variants.find((v) => v.id === id)
-        .position,
-    newVariantId,
+    ({ id, before }) => JSON.stringify(JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.find((p) => p.id === id).spatialPosition) !== JSON.stringify(before),
+    { id: variantPlacement.id, before: variantPlacement.spatialPosition },
   );
-  assert.deepEqual(
-    (await read()).placements,
-    doc.placements,
-    "moving a variant never reparents or moves structural contents",
-  );
-  assert.deepEqual((await read()).compositions, doc.compositions);
-  await page.getByRole("button", { name: "Remove variant from owner", exact: true }).click();
-  assert.equal((await read()).variants.length, 1);
-  assert.equal(
-    (await read()).entities.length,
-    5,
-    "removing ownership preserves canonical knowledge",
-  );
+  const afterMove = await read();
+  assert.deepEqual(afterMove.compositions, knowledgeBeforeMove.compositions);
+  assert.deepEqual(afterMove.relationships, knowledgeBeforeMove.relationships);
+  assert.deepEqual(afterMove.variants, knowledgeBeforeMove.variants);
+  assert.deepEqual(afterMove.placements.filter((p) => p.id !== variantPlacement.id), knowledgeBeforeMove.placements.filter((p) => p.id !== variantPlacement.id));
+  await page.getByRole("button", { name: "Remove this placement", exact: true }).click();
+  assert.equal((await read()).placements.some((p) => p.id === variantPlacement.id), false);
+  assert.equal((await read()).entities.length, 7, "removing a placement preserves canonical knowledge");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  assert.equal((await read()).variants.length, 2);
+  assert.ok((await read()).placements.some((p) => p.id === variantPlacement.id));
+  // Context menus expose the same creation actions on a variant.
+  await page.getByRole("navigation", { name: "Node hierarchy" }).getByRole("button", { name: "New alternative", exact: true }).click();
+  await page.waitForTimeout(450);
+  let box = await canvas.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
+  await page.getByRole("menuitem", { name: "Create child", exact: true }).click();
+  await page.getByLabel("Node name", { exact: true }).fill("Context child");
+  const withContextChild = await read();
+  assert.equal(withContextChild.placements.at(-1).parentId, variantPlacement.id);
+  assert.ok(withContextChild.compositions.some((c) => c.parentId === variantPlacement.entityId && c.childId === withContextChild.placements.at(-1).entityId));
+  await page.getByRole("navigation", { name: "Node hierarchy" }).getByRole("button", { name: "New alternative", exact: true }).click();
+  await page.waitForTimeout(450);
+  box = await canvas.boundingBox();
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForFunction((id) => JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.find((p) => p.id === id).collapsed, variantPlacement.id);
+  assert.equal(await page.getByRole("navigation", { name: "Node hierarchy" }).getByRole("button", { name: "Variant child", exact: true }).count(), 0);
+  await page.waitForTimeout(450);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.up("Shift");
+  await page.waitForFunction((id) => !JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.find((p) => p.id === id).collapsed, variantPlacement.id);
+  const expandedVariant = await read();
+  assert.ok(expandedVariant.placements.filter((p) => p.id === variantPlacement.id || p.parentId === variantPlacement.id || p.parentId === childPlacement.id).every((p) => !p.collapsed));
+  center = await focusRoot();
+  if (!(await read()).placements[0].collapsed) await page.getByRole("button", { name: "Collapse children", exact: true }).click();
 
   center = await focusRoot();
   const beforeDouble = (await read()).revision;
@@ -176,12 +213,12 @@ try {
   await page.mouse.click(center.x, center.y);
   await page.keyboard.up("Shift");
   await page.waitForFunction(
-    () => JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.length === 3,
+    () => JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.some((p) => p.entityId === "entity-3"),
   );
   const expanded = await read();
-  assert.ok(expanded.placements.every((p) => !p.collapsed));
+  assert.ok(expanded.placements.filter((p) => ["entity-0", "entity-1", "entity-3"].includes(p.entityId)).every((p) => !p.collapsed));
   assert.equal(expanded.revision, beforeFull.revision + 1);
-  assert.deepEqual(expanded.compositions, doc.compositions);
+  assert.deepEqual(expanded.compositions, beforeFull.compositions);
   assert.equal(expanded.variants.length, 2);
   assert.equal(await toolbar.count(), 0, "Shift-click does not execute single-click options");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -196,7 +233,7 @@ try {
   await page.mouse.click(center.x, center.y);
   await page.keyboard.up("Shift");
   await page.waitForFunction(() =>
-    JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.every((p) => p.collapsed),
+    JSON.parse(localStorage.getItem("omnium.atlas.v2")).placements.filter((p) => ["entity-0", "entity-1", "entity-3"].includes(p.entityId)).every((p) => p.collapsed),
   );
   await page.getByRole("button", { name: "+ Node", exact: true }).click();
   await page.getByLabel("Node name", { exact: true }).fill("Empty owner");
@@ -208,13 +245,13 @@ try {
   assert.equal(await toolbar.locator(".variant-add").count(), 1, "empty owners have the same attached add badge");
   assert.equal(await page.locator(".spatial-workspace > .variant-add").count(), 0, "no detached world-space add button remains");
   await emptyPlus.click();
-  await page.getByLabel("Variant name", { exact: true }).waitFor();
+  await page.getByLabel("Node name", { exact: true }).waitFor();
   const withFirst = await read();
   const emptyOwnerId = withFirst.entities.find((e) => e.label === "Empty owner").id;
   assert.equal(withFirst.variants.filter((v) => v.ownerId === emptyOwnerId).length, 1);
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: variant options/add/edit/move/undo, independent double-click expansion, hidden reload state, and atomic Shift-click full subtree expansion/collapse.",
+    "PASS: variants use normal child/grandchild creation, connections, context menus, move/remove/undo, independent double-click expansion, hidden reload state, and atomic Shift-click full subtree expansion/collapse.",
   );
 } finally {
   await browser.close();
