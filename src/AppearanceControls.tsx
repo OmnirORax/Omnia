@@ -10,16 +10,16 @@ export function AppearanceControls({
   label: string;
   value?: Appearance;
   defaults: Appearance;
-  onChange: (value: Appearance) => void;
+  onChange: (value: Appearance | undefined) => void;
 }) {
-  const current = value ?? defaults;
+  const current = { ...defaults, ...value, glow: value?.glow ?? defaults.glow ?? 1 };
   return (
     <fieldset className="appearance-controls">
       <legend>{label} appearance</legend>
       <UIField
         id={`appearance:${label}:color`}
         label={`${label} color`}
-        category={label === "Node" ? "Nodes" : "Relationships"}
+        category={label === "Binder" ? "Relationships" : "Nodes"}
       >
         <label>
           Color
@@ -27,14 +27,14 @@ export function AppearanceControls({
             aria-label={`${label} color`}
             type="color"
             value={current.color}
-            onChange={(event) => onChange({ ...current, color: event.target.value })}
+            onChange={(event) => onChange({ ...current, glow: value?.glow, color: event.target.value })}
           />
         </label>
       </UIField>
       <UIField
         id={`appearance:${label}:opacity`}
         label={`${label} opacity`}
-        category={label === "Node" ? "Nodes" : "Relationships"}
+        category={label === "Binder" ? "Relationships" : "Nodes"}
       >
         <label>
           Opacity: {Math.round(current.opacity * 100)}%
@@ -45,10 +45,14 @@ export function AppearanceControls({
             max="1"
             step="0.05"
             value={current.opacity}
-            onChange={(event) => onChange({ ...current, opacity: Number(event.target.value) })}
+            onChange={(event) => onChange({ ...current, glow: value?.glow, opacity: Number(event.target.value) })}
           />
         </label>
       </UIField>
+      <UIField id={`appearance:${label}:glow`} label={`${label} glow`} category={label === "Binder" ? "Relationships" : "Nodes"}>
+        <label>Glow: {Math.round(current.glow * 100)}%<input aria-label={`${label} glow`} type="range" min="0" max="2" step="0.05" value={current.glow} onChange={event => onChange({ ...current, glow: Number(event.target.value) })} /></label>
+      </UIField>
+      <button onClick={() => onChange(undefined)}>Use theme defaults</button>
     </fieldset>
   );
 }
@@ -57,11 +61,15 @@ export function BinderControls({
   onChange,
   composition = false,
   defaultText = "",
+  binderDefaults,
+  textDefaults = { color: "#dce9fa", opacity: 1, glow: 1 },
 }: {
   value: BinderPresentation;
   onChange: (value: BinderPresentation) => void;
   composition?: boolean;
   defaultText?: string;
+  binderDefaults?: Appearance;
+  textDefaults?: Appearance;
 }) {
   const operators = value.operators ?? [];
   return (
@@ -81,9 +89,10 @@ export function BinderControls({
       <AppearanceControls
         label="Binder"
         value={value.appearance}
-        defaults={{ color: composition ? "#83c9c1" : "#9fc4e9", opacity: 0.85 }}
+        defaults={binderDefaults ?? { color: composition ? "#83c9c1" : "#9fc4e9", opacity: 0.85, glow: 0.7 }}
         onChange={(appearance) => onChange({ appearance })}
       />
+      <AppearanceControls label="Binder text" value={value.textAppearance} defaults={textDefaults} onChange={textAppearance => onChange({ textAppearance })} />
       <h3>Binder operators</h3>
       <p>
         Text annotations for this binder.{" "}

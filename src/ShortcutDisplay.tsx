@@ -14,7 +14,7 @@ export function ShortcutDisplay({
 }: {
   settings: WorkspaceSettings;
   onChange: (settings: WorkspaceSettings) => void;
-  capturing: ActionId | null;
+  capturing: string | null;
   onCapture: (id: ActionId) => void;
   onAction: (id: ActionId) => void;
   onClose: () => void;
@@ -44,12 +44,17 @@ export function ShortcutDisplay({
           ))}
         </section>
       ))}
+      {Object.keys(settings.bindings).some(id => id.startsWith("button:")) && <section>
+        <h3>Button shortcuts</h3>
+        {Object.keys(settings.bindings).filter(id => id.startsWith("button:")).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
+      </section>}
       <section>
         <h3>Mouse & gestures</h3>
         <p title="Single-click opens the node options and variants; double-click toggles ordinary contents.">
           Click: options / variants · double-click: expand / collapse
         </p>
         <p>Left-drag node: move · wheel: zoom</p>
+        <p>Arrow keys: move the selected node in the view plane, one snap step (0.2 units with snapping off). Hold to repeat.</p>
         <p>
           MB4/MB5: graph undo/redo · Shift: UI history · Alt: five steps (combine Shift+Alt for UI).
         </p>
@@ -89,7 +94,7 @@ export function ShortcutDisplay({
           <FunctionControl key={field} id={`ui:camera:${field}`} />
         ))}
       </section>
-      <button onClick={() => onChange(defaultSettings())}>
+      <button onClick={() => onChange({ ...settings, bindings: defaultSettings().bindings, buttonLabels: {}, mouse: defaultSettings().mouse })}>
         Restore shortcut and mouse defaults
       </button>
     </FloatingWindow>

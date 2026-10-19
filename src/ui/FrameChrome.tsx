@@ -1,7 +1,9 @@
 import { useLayoutEffect } from "react";
+import { ShortcutHint } from "./ShortcutHint";
 import { useUI } from "./context";
 import { startResidentDrag } from "./drag";
 import type { WindowState } from "./layout";
+import { FrameSearch } from "./FrameSearch";
 
 export function FrameChrome({
   container,
@@ -47,9 +49,9 @@ export function FrameChrome({
         ui.frameMenu(container, e.clientX, e.clientY);
       }}
     >
+      <div className="ui-frame-tools" style={{ left: state.chrome?.handle?.x ?? 0, top: state.chrome?.handle?.y ?? 0 }}>
       <div
         className={`ui-frame-handle ${style.mode === "icon" ? `icon-handle shape-${style.geometry}` : ""}`}
-        style={{ left: state.chrome?.handle?.x ?? 0, top: state.chrome?.handle?.y ?? 0 }}
         data-ui-drag={fixed ? undefined : container}
         draggable={!fixed && !state.pinned}
         onDragStart={(e) => startResidentDrag(e, container)}
@@ -69,7 +71,10 @@ export function FrameChrome({
           ) : (
             <strong>{title}</strong>
           )}
+          <ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${container}`]} />
         </button>
+      </div>
+      <FrameSearch container={container} title={title} expand={() => { if (state.collapsed && !fixed) onChange({ collapsed: false }); }} />
       </div>
     </header>
   );

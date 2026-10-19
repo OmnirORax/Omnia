@@ -27,6 +27,7 @@
       "panel:menu:view": {
         "x": 320, "y": 100, "width": 340, "height": 560, "collapsed": true, "pinned": false,
         "members": [
+          { "kind": "function", "id": "appearance" },
           { "kind": "function", "id": "theme" },
           { "kind": "function", "id": "ui:view" },
           { "kind": "function", "id": "ui:viewRule" },
@@ -67,7 +68,7 @@
     "items": {},
     "frames": [],
     "menus": {},
-    "panels": { "@organized": true },
+    "panels": { "@organized": true, "@theme": true },
     "assets": [],
     "nativeOrders": {
       "@sidebar": ["hierarchy", "inspector", "reuse", "connections", "frames", "types", "relationships", "ai", "help"]

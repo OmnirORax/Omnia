@@ -1,5 +1,12 @@
+@font-face {
+  font-family: "Rubik Glitch";
+  src: url("./assets/fonts/RubikGlitch-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--omnium-font, system-ui, sans-serif);
   color: #233348;
   background: #f6f7f9;
   font-synthesis: none;
@@ -51,8 +58,13 @@
 .ui-panel-body > h2:first-child { display: none; }
 .ui-panel-body > .ui-dock-area { padding: 6px 0; gap: 6px; }
 .ui-menu-panel { padding: 0; border: 0; }
+.ui-frame-strip { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.window-sparkles { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none !important; z-index: 30010; }
+.ui-frame-strip.is-vertical { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0; }
+.ui-native-frame-slot { min-width: 0; position: relative; }
+.ui-native-frame-slot.is-away { display: contents; }
 .ui-menu-panel > .frame-chrome.floating-title { width: auto; margin: 0; }
-.ui-menu-panel > .frame-chrome > .ui-frame-handle { position: relative; min-width: 0; background: transparent; border-color: transparent; }
+.ui-menu-panel > .frame-chrome > .ui-frame-tools > .ui-frame-handle { position: relative; min-width: 0; background: transparent; border-color: transparent; }
 .ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button { padding: 7px 9px; }
 .ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button::after { content: "▾"; margin-left: 6px; font-size: 9px; }
 .ui-menu-panel:has(> .ui-panel-body:not([hidden])) { z-index: 90; }
@@ -164,6 +176,7 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .edge-right { right: 0; top: 0; bottom: 0; width: 6px; }
 .ui-contour .ui-bubble-drag { pointer-events: painted; cursor: grab; }
 .ui-anchor-prompt { position: fixed; z-index: 10000; bottom: 28px; left: 50%; transform: translateX(-50%); padding: 12px 18px; border: 1px solid #81b8e5; border-radius: 12px; color: #e6f3ff; background: #152b42ee; pointer-events: none; }
+.ui-shortcut-notice { pointer-events: auto; z-index: 30004; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px); }
 .ui-placement-options { display: flex; gap: 4px; align-items: center; }
 .ui-placement-options button { padding: 5px 7px; font-size: 12px; }
 .ui-form-control > .binding-row { flex: 1; min-width: 0; width: 100%; }
@@ -202,6 +215,7 @@ textarea,
 select {
   font: inherit;
 }
+:is(code, pre, kbd, samp) { font-family: inherit; }
 button {
   border: 1px solid #ccd3dd;
   border-radius: 6px;
@@ -341,6 +355,9 @@ textarea:focus-visible {
 .binding-row button { padding: 5px; }
 .dialog-actions { display: flex; justify-content: space-between; margin-top: 16px; }
 .appearance-controls { border: 1px solid #dce1e8; border-radius: 6px; margin: 12px 0; display: flex; gap: 10px; }
+.appearance-controls { flex-wrap: wrap; }
+.appearance-controls > .ui-form-control { flex: 1 1 85px; }
+.appearance-controls > button { font-size: 11px; }
 .appearance-controls label { flex: 1; margin: 0; }
 .appearance-controls input[type="color"] { height: 34px; padding: 3px; }
 .appearance-controls input[type="range"] { padding: 5px 0; }
@@ -538,82 +555,123 @@ button.active,
 /* Theme is on the root so detached/portalled windows share the same appearance. */
 :root[data-omnium-theme="neon"] {
   color-scheme: dark;
-  color: #d5eff5;
-  background: #030c15;
-  --omnium-frame-fill: #24bad5;
-  --omnium-panel: linear-gradient(135deg, #0b2735ee, #06131fee);
-  --omnium-border: #37c7e647;
-  scrollbar-color: #246176 #06131f;
+  --omnium-ink: color-mix(in srgb, var(--omnium-accent, #60ddec) 15%, white);
+  --omnium-muted: color-mix(in srgb, var(--omnium-accent, #60ddec) 28%, #aaaaaa);
+  --omnium-highlight: color-mix(in srgb, var(--omnium-accent, #60ddec) 55%, white);
+  --omnium-border: color-mix(in srgb, var(--omnium-accent, #60ddec) 35%, transparent);
+  --omnium-soft-border: color-mix(in srgb, var(--omnium-accent, #60ddec) 18%, transparent);
+  --omnium-control-fill: color-mix(in srgb, var(--omnium-accent, #60ddec) 12%, var(--omnium-base, #030c15));
+  --omnium-field-fill: color-mix(in srgb, var(--omnium-accent, #60ddec) 4%, var(--omnium-base, #030c15));
+  color: var(--omnium-ink);
+  background: var(--omnium-base, #030c15);
+  --omnium-frame-fill: var(--omnium-accent, #60ddec);
+  --omnium-panel: color-mix(in srgb, var(--omnium-base, #030c15) 90%, transparent);
+  scrollbar-color: color-mix(in srgb, var(--omnium-accent) 40%, var(--omnium-base, #030c15)) var(--omnium-base, #030c15);
 }
 :root[data-omnium-theme="neon"] :is(.toolbar, .sidebar) {
-  background: linear-gradient(145deg, #09212ef5, #040e19f5);
-  border-color: var(--omnium-border);
-  box-shadow: 0 0 22px #00b9e010;
-}
-:root[data-omnium-theme="neon"] :is(.brand strong, h2, h3) { color: #8debf5; }
-:root[data-omnium-theme="neon"] .brand strong { text-shadow: 0 0 16px #3ee8ff66; letter-spacing: .04em; }
-:root[data-omnium-theme="neon"] :is(h2, .brand span, .save-status) { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-:root[data-omnium-theme="neon"] :is(p, label, .brand span, .save-status, .relationship-list small, .camera-guide dt, .camera-guide small) { color: #97b9c8; }
-:root[data-omnium-theme="neon"] :is(section, .primary-charting-actions, .spatial-fields, .proposal-preview) { border-color: #37c7e62b; }
-:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .function-appearance, .ui-field-popover, .spatial-menu, .camera-guide, .node-options, .operation-banner, .ui-selection-tools) {
-  color: #d5eff5;
   background: var(--omnium-panel);
   border-color: var(--omnium-border);
-  box-shadow: inset 0 1px #6ee9ff16, 0 8px 26px #0008, 0 0 16px #15c5eb12;
-  backdrop-filter: blur(12px);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--omnium-accent) 6%, transparent);
+}
+:root[data-omnium-theme="neon"] :is(.brand strong, h2, h3) { color: var(--omnium-highlight); }
+:root[data-omnium-theme="neon"] .brand strong { text-shadow: 0 0 16px color-mix(in srgb, var(--omnium-accent) 40%, transparent); letter-spacing: .04em; }
+:root[data-omnium-theme="neon"] :is(h2, .brand span, .save-status) { font-family: var(--omnium-font, system-ui, sans-serif); }
+:root[data-omnium-theme="neon"] :is(p, label, .brand span, .save-status, .relationship-list small, .camera-guide dt, .camera-guide small) { color: var(--omnium-muted); }
+:root[data-omnium-theme="neon"] :is(section, .primary-charting-actions, .spatial-fields, .proposal-preview) { border-color: var(--omnium-soft-border); }
+:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .spatial-menu, .camera-guide, .node-options, .operation-banner, .ui-selection-tools) {
+  color: var(--omnium-ink);
+  background: var(--omnium-panel);
+  border-color: var(--omnium-border);
+  box-shadow: inset 0 1px var(--omnium-soft-border), 0 8px 26px #0008, 0 0 16px var(--omnium-soft-border);
+  backdrop-filter: blur(var(--omnium-blur, 10px));
 }
 :root[data-omnium-theme="neon"] :is(.ui-frame-handle, .ui-frame-header, .entity-menu-header) {
-  color: #b8eef6;
-  background: linear-gradient(140deg, #123947ec, #071c2cec);
-  border-color: #37c7e65c;
-  box-shadow: inset 0 1px #6ee9ff22, 0 0 12px #13c4ea12;
+  color: var(--omnium-highlight);
+  background: var(--omnium-handle, var(--omnium-control-fill));
+  border-color: var(--omnium-border);
+  box-shadow: inset 0 1px var(--omnium-soft-border), 0 0 12px var(--omnium-soft-border);
 }
-:root[data-omnium-theme="neon"] .ui-menu-panel > .frame-chrome > .ui-frame-handle {
+:root[data-omnium-theme="neon"] .ui-menu-panel > .frame-chrome > .ui-frame-tools > .ui-frame-handle {
   background: transparent;
   box-shadow: none;
   border-color: transparent;
 }
 :root[data-omnium-theme="neon"] .ui-menu-panel:has(> .ui-panel-body:not([hidden])) > .frame-chrome .ui-frame-handle {
-  background: #123947;
-  border-color: #37c7e65c;
+  background: var(--omnium-control-fill);
+  border-color: var(--omnium-border);
 }
 :root[data-omnium-theme="neon"] button {
-  color: #c4eaf3;
-  border-color: #37c7e644;
-  background: #102c3ba6;
+  color: var(--omnium-ink);
+  border-color: var(--omnium-border);
+  background: color-mix(in srgb, var(--omnium-control-fill) 65%, transparent);
   transition: background-color 120ms, border-color 120ms, box-shadow 120ms;
 }
 :root[data-omnium-theme="neon"] button:hover:not(:disabled) {
-  background: #174c5c;
-  border-color: #68e5f7b3;
-  box-shadow: 0 0 12px #21d8ff24;
+  background: color-mix(in srgb, var(--omnium-accent) 22%, var(--omnium-panel));
+  border-color: var(--omnium-accent);
+  box-shadow: 0 0 12px var(--omnium-soft-border);
 }
 :root[data-omnium-theme="neon"] :is(button.active, button[aria-pressed="true"], .outline-row button.active, .node-options button[aria-expanded="true"]) {
-  color: #c9fcff;
-  background: #125164;
-  border-color: #60e3f5;
+  color: var(--omnium-highlight);
+  background: color-mix(in srgb, var(--omnium-accent) 25%, var(--omnium-panel));
+  border-color: var(--omnium-accent);
 }
 :root[data-omnium-theme="neon"] :is(.frame-chrome .frame-mini-control, .ui-frame-handle > button, .outline-row > button, .entity-menu-grid > button, .spatial-menu button, .categorized-library .library-entry > .ui-function) {
   background: transparent;
-  color: #b8dce6;
+  color: var(--omnium-ink);
   box-shadow: none;
 }
 :root[data-omnium-theme="neon"] :is(input, select, textarea) {
-  color: #e0f4f8;
-  background: #04131fe6;
-  border-color: #39798e80;
-  accent-color: #5cdae9;
+  color: var(--omnium-ink);
+  background: color-mix(in srgb, var(--omnium-field-fill) 90%, transparent);
+  border-color: var(--omnium-border);
+  accent-color: var(--omnium-accent);
 }
-:root[data-omnium-theme="neon"] :is(input, textarea)::placeholder { color: #6f98a9; }
+:root[data-omnium-theme="neon"] :is(input, textarea)::placeholder { color: var(--omnium-muted); }
 :root[data-omnium-theme="neon"] :is(input[type="range"], input[type="checkbox"]) { width: auto; }
-:root[data-omnium-theme="neon"] :is(button, input, select, textarea):focus-visible { outline-color: #69e8f4; }
+:root[data-omnium-theme="neon"] :is(button, input, select, textarea):focus-visible { outline-color: var(--omnium-accent); }
 :root[data-omnium-theme="neon"] :is(.ui-frame-handle input, .ui-frame-header input) { background: transparent; }
 :root[data-omnium-theme="neon"] :is(.danger, button.danger) { color: #ffa5ab; }
 :root[data-omnium-theme="neon"] .error { color: #f9d3a0; background: #33271b; }
-:root[data-omnium-theme="neon"] .spatial-loading { background: #030c15; }
-:root[data-omnium-theme="neon"] .menu-empty-slot { color: #76a8b7; background: #0f3c4a44; border-color: #37c7e644; }
+:root[data-omnium-theme="neon"] .spatial-loading { background: var(--omnium-base, #030c15); }
+:root[data-omnium-theme="neon"] .menu-empty-slot { color: var(--omnium-muted); background: color-mix(in srgb, var(--omnium-accent) 10%, transparent); border-color: var(--omnium-border); }
+/* Panel alpha changes backgrounds only: text, icons and hit targets stay readable. */
+:root[data-omnium-theme] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .spatial-menu, .camera-guide, .node-options, .operation-banner, .ui-selection-tools) {
+  background: var(--omnium-panel);
+  backdrop-filter: blur(var(--omnium-blur, 10px));
+}
+:root[data-omnium-theme] :is(.toolbar, .sidebar) { background: var(--omnium-panel); backdrop-filter: blur(var(--omnium-blur, 10px)); }
+/* Blur creates a stacking context. An open toolbar menu must clear the scene
+   and workspace overlay, while portalled dialogs/context menus stay above it. */
+.toolbar:has(.ui-menu-panel > .ui-panel-body:not([hidden])) { position: relative; z-index: 90; }
+:root[data-omnium-theme] .ui-frame-handle { background: var(--omnium-handle); }
+:root[data-omnium-theme="neon"] { --omnium-border: color-mix(in srgb, var(--omnium-accent, #60ddec) 35%, transparent); }
+:root[data-omnium-theme="neon"] :is(.brand strong, h2, h3, .ui-frame-handle) { color: color-mix(in srgb, var(--omnium-accent) 55%, white); }
+:root[data-omnium-theme="neon"] :is(.ui-frame-handle, .ui-frame-header, .entity-menu-header) { border-color: var(--omnium-border); }
+:root[data-omnium-theme="neon"] button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--omnium-accent) 22%, var(--omnium-panel));
+  border-color: var(--omnium-accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) 18%, transparent);
+}
+:root[data-omnium-theme="neon"] :is(button.active, button[aria-pressed="true"], .outline-row button.active) {
+  background: color-mix(in srgb, var(--omnium-accent) 25%, var(--omnium-panel));
+  border-color: var(--omnium-accent);
+}
+:root[data-omnium-theme="neon"] :is(input, select, textarea) { accent-color: var(--omnium-accent); }
+:root[data-omnium-theme="neon"] :is(button, input, select, textarea):focus-visible { outline-color: var(--omnium-accent); }
+:root[data-omnium-theme="neon"] .ui-menu-panel > .frame-chrome > .ui-frame-tools > .ui-frame-handle { background: transparent; }
+:root[data-omnium-theme="neon"][data-omnium-motion="on"] .brand strong { animation: omnium-breathe 7s ease-in-out infinite; }
+:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .camera-guide, .ui-frame-handle) { box-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-glow, .22) * 65%), transparent); }
+:root[data-omnium-theme="neon"] .brand strong { text-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-glow, .22) * 80%), transparent); }
+@keyframes omnium-breathe {
+  0%, 100% { text-shadow: var(--omnium-text-shadow, 0 0 0 transparent), 0 0 8px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * var(--omnium-glow, .22) * 35%), transparent); }
+  50% { text-shadow: var(--omnium-text-shadow, 0 0 0 transparent), 0 0 18px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * var(--omnium-glow, .22) * 75%), transparent); }
+}
+.ui-form-control input[type="range"] { width: 100%; box-sizing: border-box; }
+.ui-form-control input[type="color"] { height: 34px; padding: 3px; }
 @media (prefers-reduced-motion: reduce) {
   :root[data-omnium-theme="neon"] button { transition: none; }
+  :root[data-omnium-theme="neon"] .brand strong { animation: none; }
 }
 @media (max-width: 700px) {
   .sidebar {
@@ -635,3 +693,48 @@ button.active,
     padding: 12px;
   }
 }
+
+.animation-toggle { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.animation-toggle input { width: auto; flex: 0 0 auto; }
+
+.ui-shortcut-label { display: inline; margin-left: 5px; font-size: 0.85em; line-height: 1.2; font-weight: 400; opacity: 0.8; white-space: nowrap; pointer-events: none; }
+.ui-icon-shortcut { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
+.ui-icon-shortcut > .ui-shortcut-label { margin-left: 0; font-size: 11px; }
+
+/* Shadows apply to glyphs only and resolve each element's own text color. */
+:root[data-omnium-text-glow="on"] body * { text-shadow: var(--omnium-text-shadow); }
+
+/* Search belongs to its frame handle and is included in contour-window bounds. */
+.ui-frame-tools { position: absolute; display: inline-flex; align-items: center; gap: 3px; max-width: 100%; pointer-events: none; }
+.ui-frame-tools > .ui-frame-handle { position: relative; flex: 0 1 auto; min-width: 0; }
+.ui-frame-search-toggle { flex: 0 0 24px; width: 24px; height: 28px; min-height: 24px; display: inline-grid; place-items: center; padding: 3px; border: 0; background: transparent; color: inherit; cursor: pointer; pointer-events: auto; }
+.ui-frame-search-toggle:hover, .ui-frame-search-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--omnium-accent, #386991) 15%, transparent); border-radius: 5px; }
+.ui-menu-panel > .frame-chrome > .ui-frame-tools { position: relative; }
+.ui-frame-search-popup { position: fixed; z-index: 36000; width: min(320px, calc(100vw - 16px)); padding: 8px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #88a6c0; border-radius: 7px; background: #f8faff; color: #233348; box-shadow: 0 8px 25px #0005; pointer-events: auto; overflow: hidden; }
+.ui-frame-search-popup > input { width: 100%; min-width: 0; font-size: 13px; }
+.ui-frame-search-results { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.ui-frame-search-results > button { flex: 0 0 auto; text-align: left; font-size: 12px; padding: 6px 8px; white-space: normal; overflow-wrap: anywhere; }
+.ui-frame-search-results small { display: block; font-size: 10px; opacity: .7; }
+.ui-frame-search-results > button[aria-selected="true"] { outline: 1px solid var(--omnium-accent, #386991); outline-offset: -1px; }
+.ui-frame-search-popup > small { flex-shrink: 0; font-size: 10px; opacity: .75; }
+:root[data-omnium-theme="neon"] .ui-frame-search-popup { color: var(--omnium-ink); background: var(--omnium-panel, #081923); border-color: var(--omnium-border, #60ddec); backdrop-filter: blur(var(--omnium-blur, 10px)); }
+.ui-search-found { outline: 2px solid var(--omnium-accent, #386991) !important; outline-offset: 3px; }
+.ui-legacy-search { position: absolute; top: 8px; right: 36px; }
+.ui-frame-tools > .ui-frame-handle.icon-handle { flex-shrink: 0; }
+
+/* Shared typography overrides leave authored graph colors and control fills intact. */
+:root[data-omnium-text-color="on"] body * { color: var(--omnium-text-color) !important; }
+:root[data-omnium-control-glow="on"] :is(input[type="color"],input[type="range"],progress,meter) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 0 calc(2px * var(--omnium-control-glow)) var(--omnium-control-color, var(--omnium-accent))) drop-shadow(0 0 calc(6px * var(--omnium-control-glow)) var(--omnium-control-color, var(--omnium-accent)));
+}
+
+/* Remaining UI surfaces and interaction markers use the same theme tokens. */
+:root[data-omnium-theme="neon"] :is(.selection-status, .spatial-help, .ui-selection-message, .ui-anchor-prompt, .ui-snap-preview) { background: var(--omnium-panel); color: var(--omnium-ink); border-color: var(--omnium-border); }
+:root[data-omnium-theme="neon"] :is(.categorized-library details, .visual-controls fieldset, .window-resize-grip) { border-color: var(--omnium-border); }
+:root[data-omnium-theme="neon"] :is(.library-entry > small, .entity-results small, .empty-ui-slot, .camera-guide dd, .settings-category h3) { color: var(--omnium-muted); }
+:root[data-omnium-theme="neon"] :is(.selection-rectangle, .ui-selection-rectangle, .ui-drop-ghost) { border-color: var(--omnium-accent); outline-color: var(--omnium-accent); background: color-mix(in srgb, var(--omnium-accent) 12%, transparent); color: var(--omnium-highlight); }
+:root[data-omnium-theme="neon"] :is(.ui-function.ui-selected, .ui-alignment-edge:not(.invalid)) { outline-color: var(--omnium-accent); border-color: var(--omnium-accent); box-shadow: 0 0 8px var(--omnium-soft-border); }
+:root[data-omnium-theme="neon"] :is(.floating-backdrop, .workspace-dialog-backdrop) { background: color-mix(in srgb, var(--omnium-base) 55%, transparent); }

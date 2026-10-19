@@ -15,6 +15,7 @@ export type UIContextValue = {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
   functions: UIFunction[];
+  shortcutBindings?: Record<string, string>;
   registerFunction: (fn: UIFunction) => () => void;
   configure: (id: string | null) => void;
   createFrame: (x: number, y: number) => void;

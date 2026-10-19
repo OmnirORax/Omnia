@@ -8,6 +8,7 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
+  appearance: { color?: string; opacity?: number } = {},
 ) {
   const group = new THREE.Group();
   const asset = assets.find((a) => a.id === visual.assetId);
@@ -22,6 +23,7 @@ export function visualObject(
   };
   if (visual.character) {
     const label = makeText(visual.character);
+    if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
     label.scale.set(Math.min(3, label.userData.aspect), 1, 1);
     group.add(label);
   } else if (asset?.kind === "image") {
@@ -50,6 +52,7 @@ export function visualObject(
             return;
           }
           context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          if (appearance.color) { context.globalCompositeOperation = "source-in"; context.fillStyle = appearance.color; context.fillRect(0, 0, canvas.width, canvas.height); }
           map = new THREE.CanvasTexture(canvas);
           texture.dispose();
         }
@@ -58,6 +61,8 @@ export function visualObject(
           new THREE.PlaneGeometry(1, 1),
           new THREE.MeshBasicMaterial({
             map,
+            color: asset.dataUrl.startsWith("data:image/svg+xml") ? 0xffffff : appearance.color ?? 0xffffff,
+            opacity: appearance.opacity ?? 1,
             transparent: true,
             depthWrite: false,
             depthTest: true,
@@ -99,6 +104,13 @@ export function visualObject(
         const normalized = new THREE.Group();
         normalized.add(model);
         normalized.scale.setScalar(1 / extent);
+        model.traverse(object => {
+          if (!(object instanceof THREE.Mesh)) return;
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+            if (appearance.color && "color" in material) (material.color as THREE.Color).set(appearance.color);
+            material.opacity *= appearance.opacity ?? 1; material.transparent ||= material.opacity < 1;
+          }
+        });
         group.add(normalized);
         requestRender();
       },

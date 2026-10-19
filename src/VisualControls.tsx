@@ -1,3 +1,4 @@
+import { DEFAULT_SPHERE_DIAMETER } from "./graph/assets";
 import { useEffect, useRef, useState } from "react";
 import { MAX_ASSET_BYTES, validateAsset, type Visual, type VisualAsset } from "./graph/assets";
 import { UIField } from "./ui/UIField";
@@ -276,10 +277,10 @@ export function VisualControls({
           <input
             aria-label={`${label} visual size`}
             type="range"
-            min="0.3"
+            min="0.1"
             max="5"
             step="0.1"
-            value={value.size ?? 1.4}
+            value={value.size ?? (value.assetId || value.character ? 1.4 : label === "Node" ? DEFAULT_SPHERE_DIAMETER : 1)}
             onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
           />
         </label>

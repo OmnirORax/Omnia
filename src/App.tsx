@@ -16,10 +16,16 @@ import {
   type FrameScope,
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
-import { compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
+import { resolveAppearance } from "./graph/appearance";
+import { ANIMATION_LABELS, ANIMATION_TARGETS, EFFECT_KINDS, resolveSparkles, type AnimationTarget, type SparkleStyle } from "./graph/effects";
+import { loadThemePresets, parseThemeTemplate, themeTemplate, THEME_PRESETS_KEY, type ThemeTemplate } from "./themeTemplates";
+import { WindowSparkles } from "./WindowSparkles";
+import { FONT_OPTIONS, fontFamily, isCustomFont, MAX_FONT_TEMPLATE_BYTES, type CustomFont, type FontId } from "./fonts";
+import { embeddedFont, importCustomFonts, importFontFile, listCustomFonts, loadFont } from "./fontLibrary";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { ShortcutDisplay } from "./ShortcutDisplay";
@@ -29,6 +35,7 @@ import type { Visual, VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPlacementControl, UIPanel } from "./ui/UIWorkspace";
+import { UIFrameStrip } from "./ui/UIFrameStrip";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { loadUILayout, ownerOf, updateContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
@@ -36,6 +43,7 @@ import type { UIFunction } from "./ui/context";
 import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
 import { useInterfaceState } from "./ui/useInterfaceState";
+import { useControlGlow } from "./ui/useControlGlow";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -63,9 +71,49 @@ function Workbench() {
   const [document, setDocument] = useState(initial.atlas);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
   const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
+  const [themeScope, setThemeScope] = useState<"global" | "nodes" | "binders">("global");
+  const [animationScope, setAnimationScope] = useState<"all" | AnimationTarget>("windows");
+  const [themePresets, setThemePresets] = useState(loadThemePresets);
+  const [themePresetName, setThemePresetName] = useState("My theme");
+  const [selectedThemePreset, setSelectedThemePreset] = useState("");
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [fontImporting, setFontImporting] = useState(false);
   useEffect(() => {
-    window.document.documentElement.dataset.omniumTheme = settings.appearance.theme;
-  }, [settings.appearance.theme]);
+    let active = true;
+    listCustomFonts().then(fonts => { if (active) setCustomFonts(fonts); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (!isCustomFont(settings.appearance.font)) return;
+    let active = true;
+    loadFont(settings.appearance.font).catch(error => { if (active) setError(message(error)); });
+    return () => { active = false; };
+  }, [settings.appearance.font]);
+  const nodeThemeDefaults = resolveAppearance(settings.appearance.nodes, settings.appearance.theme === "neon" ? settings.appearance.accent : "#dce9fa");
+  const binderThemeProps = { textDefaults: nodeThemeDefaults, binderDefaults: resolveAppearance(settings.appearance.binders, settings.appearance.theme === "neon" ? settings.appearance.accent : "#9fc4e9") };
+  useEffect(() => {
+    const root = window.document.documentElement, a = settings.appearance;
+    root.dataset.omniumTheme = a.theme;
+    root.dataset.omniumMotion = a.motion > 0 ? "on" : "off";
+    root.dataset.omniumTextGlow = a.textGlow > 0 ? "on" : "off";
+    root.dataset.omniumTextColor = a.textColor ? "on" : "off";
+    root.style.setProperty("--omnium-text-color", a.textColor ?? "inherit");
+    root.dataset.omniumControlGlow = a.controlGlow > 0 ? "on" : "off";
+    root.style.setProperty("--omnium-control-glow", String(a.controlGlow));
+    root.style.setProperty("--omnium-text-shadow", a.textGlow > 0 ? `0 0 ${1 + a.textGlow * 2}px color-mix(in srgb, currentColor ${a.textGlow * 100}%, transparent), 0 0 ${a.textGlow * 10}px color-mix(in srgb, currentColor ${a.textGlow * 70}%, transparent)` : "0 0 0 transparent");
+    root.style.setProperty("--omnium-font", fontFamily(a.font));
+    const base = a.theme === "neon" ? a.background : "#f8faff";
+    root.style.setProperty("--omnium-accent", a.accent);
+    root.style.setProperty("--omnium-base", base);
+    root.style.setProperty("--omnium-frame-fill", a.theme === "neon" ? a.accent : "#b6d4f2");
+    root.style.setProperty("--omnium-panel", `color-mix(in srgb, ${base} ${a.windowOpacity * a.opacity * 100}%, transparent)`);
+    root.style.setProperty("--omnium-handle", `color-mix(in srgb, color-mix(in srgb, ${a.theme === "neon" ? a.accent : "#e6eef8"} ${a.theme === "neon" ? 12 : 100}%, ${base}) ${a.windowOpacity * a.opacity * 100}%, transparent)`);
+    root.style.setProperty("--omnium-blur", `${a.blur}px`);
+    root.style.setProperty("--omnium-motion", String(a.motion));
+    root.style.setProperty("--omnium-glow", String(a.glow));
+    root.style.setProperty("--omnium-frame-opacity", String(a.windowOpacity * a.opacity * 0.22));
+  }, [settings.appearance]);
+  useControlGlow(settings.appearance.controlGlow, settings.appearance.accent, settings.appearance.theme);
   const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
   useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
@@ -100,9 +148,12 @@ function Workbench() {
   const [target, setTarget] = useState("");
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
   const setSettingsOpen = (value: boolean) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@settings": value } }));
+  const themeOpen = uiLayout.panels["@theme"] ?? true;
+  const setThemeOpen = (value: boolean) => updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@theme": value } }));
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
-  const [capturing, setCapturing] = useState<ActionId | null>(null);
+  const captureLabel = useRef("");
+  const [capturing, setCapturing] = useState<string | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
   const [focusContextIds, setFocusContextIds] = useState<readonly string[] | null>(null);
@@ -114,6 +165,8 @@ function Workbench() {
   const variantDisplay = useMemo(() => projectVariants(document, structuralGraph.nodes), [document, structuralGraph, expandedVariants]);
   const fileInput = useRef<HTMLInputElement>(null);
   const templateInput = useRef<HTMLInputElement>(null);
+  const themeTemplateInput = useRef<HTMLInputElement>(null);
+  const fontInput = useRef<HTMLInputElement>(null);
   const proposalInput = useRef<HTMLInputElement>(null);
   function navigate(kind: NavigationCommand["kind"], id?: string) {
     setNavCommand((old) => ({ sequence: (old?.sequence ?? 0) + 1, kind, id }));
@@ -139,7 +192,7 @@ function Workbench() {
   function commit(next: Atlas) {
     try {
       const checked = parseAtlas(JSON.stringify(next));
-      const result = reconcileEditor(document, atlas, checked);
+      let result = reconcileEditor(document, atlas, checked);
       const active = result.frames.find((f) => f.id === result.activeFrameId);
       if (active && !active.locked) {
         for (const node of checked.nodes) {
@@ -150,6 +203,7 @@ function Workbench() {
             active.scope.entityIds.push(node.id);
         }
       }
+      for (const relation of result.relationships.filter(r => !document.relationships.some(old => old.id === r.id))) result = ensureBinderSpacing(result, settings.spatial, relation.id);
       commitDocument(result);
     } catch (e) {
       setError(message(e));
@@ -177,7 +231,7 @@ function Workbench() {
     try {
       const entityId = newId();
       const next = structuredClone(document);
-      next.entities.push({ id: entityId, label: "New node", aliases: [], notes: "" });
+      next.entities.push({ id: entityId, label: "", aliases: [], notes: "" });
       if (parentId) {
         const parent = next.placements.find((p) => p.id === parentId);
         if (!parent) throw new Error("Parent placement missing.");
@@ -240,27 +294,30 @@ function Workbench() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  function exportTemplate() {
-    const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings };
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
-    );
-    const link = window.document.createElement("a");
-    link.href = url;
-    link.download = "omnium-ui-template.json";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function exportTemplate() {
+    try {
+      const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings, fonts: await embeddedFont(settings.appearance.font) };
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
+      );
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = "omnium-ui-template.json";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setError(`UI export failed. ${message(e)}`); }
   }
   async function importTemplate(file?: File) {
     if (!file) return;
     try {
-      if (file.size > 5_000_000) throw new Error("UI template exceeds the 5 MB import limit.");
+      if (file.size > MAX_FONT_TEMPLATE_BYTES + 5_000_000) throw new Error("UI template exceeds the 20 MB import limit.");
       const value: unknown = JSON.parse(await file.text());
       if (value && typeof value === "object" && (value as { format?: string }).format === "omnium-ui-template" && (value as { version?: number }).version === 3) {
-        const template = value as { layout: unknown; settings?: unknown };
+        const template = value as { layout: unknown; settings?: unknown; fonts?: unknown };
         const checked = validateUILayout(template.layout);
         if (template.settings !== undefined && (!template.settings || typeof template.settings !== "object")) throw new Error("Invalid template settings.");
         const nextSettings = normalizeSettings(template.settings);
+        await restoreTemplateFont(nextSettings.appearance.font, template.fonts);
         ui.commit((previous) => ({ layout: checked, settings: template.settings === undefined ? previous.settings : nextSettings }));
         return;
       }
@@ -341,7 +398,7 @@ function Workbench() {
   function reapplyView() {
     if (!activeLayout) return;
     try {
-      const next = activeLayout.rule === "hierarchy" ? hierarchyLayout(document) : activeLayout.rule === "flow" ? flowLayout(document, activeLayout.ordering) : compactLayout(document, { kind: "all" }, settings.spatial);
+      const next = activeLayout.rule === "hierarchy" ? hierarchyLayout(document, settings.spatial) : activeLayout.rule === "flow" ? flowLayout(document, activeLayout.ordering, settings.spatial) : compactLayout(document, { kind: "all" }, settings.spatial);
       commitDocument(next);
     } catch (e) { setError(message(e)); }
   }
@@ -451,12 +508,9 @@ function Workbench() {
   }
   function updateRelation(changes: Partial<NonNullable<typeof selectedRelationData>>) {
     if (!selectedRelationData) return;
-    commitDocument({
-      ...document,
-      relationships: document.relationships.map((r) =>
-        r.id === selectedRelationData.id ? { ...r, ...changes } : r,
-      ),
-    });
+    const next = { ...document, relationships: document.relationships.map(r => r.id === selectedRelationData.id ? { ...r, ...changes } : r) };
+    try { commitDocument(ensureBinderSpacing(next, settings.spatial, selectedRelationData.id)); }
+    catch (e) { setError(message(e)); }
   }
   const selectedBinder: BinderPresentation | undefined = selection?.kind === "relationship" ? selectedRelationData : selection?.kind === "composition" ? selectedComposition : selection?.kind === "variantBinder" ? document.variants?.find((v) => v.id === selection.id) : selection?.kind === "visualBinder" ? document.placements.find((p) => p.id === selection.id)?.nestingBinder ?? {} : undefined;
   const selectedBinderText = selectedBinder && selection ? chartedBinders(document, atlas).find((b) => b.id === selection.id)?.label ?? "" : "";
@@ -467,7 +521,8 @@ function Workbench() {
     if (selection.kind === "composition") next.compositions = next.compositions.map((r) => r.id === selection.id ? { ...r, ...changes } : r);
     if (selection.kind === "variantBinder") next.variants = next.variants?.map((r) => r.id === selection.id ? { ...r, ...changes } : r);
     if (selection.kind === "visualBinder") next.placements = next.placements.map((p) => p.id === selection.id ? { ...p, nestingBinder: { ...p.nestingBinder, ...changes } } : p);
-    commitDocument(next);
+    try { commitDocument(changes.visual !== undefined || changes.text !== undefined || changes.operators !== undefined ? ensureBinderSpacing(next, settings.spatial, selection.id) : next); }
+    catch (e) { setError(message(e)); }
   }
   function editNodeVisual(visual: Visual, asset?: VisualAsset) {
     commitDocument({ ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}), placements: document.placements.map((p) => selectedIds.has(p.id) ? { ...p, visual } : p) });
@@ -652,6 +707,87 @@ function Workbench() {
       setSelection({ kind: "node", id });
     } catch (e) { setError(message(e)); }
   }
+  function storeThemePresets(next: ThemeTemplate[]) {
+    try {
+      if (next.length > 50) throw new Error("Keep up to 50 saved themes; export or remove one first.");
+      const local = next.map(({ fonts: _fonts, ...preset }) => preset);
+      localStorage.setItem(THEME_PRESETS_KEY, JSON.stringify(local));
+      setThemePresets(local); setError("");
+      return true;
+    } catch (e) { setError(`Theme could not be saved. ${message(e)}`); return false; }
+  }
+  function saveThemePreset() {
+    const preset = themeTemplate(themePresetName, settings.appearance);
+    if (storeThemePresets([...themePresets.filter(item => item.name !== preset.name), preset])) {
+      setSelectedThemePreset(preset.name); setThemePresetName(preset.name);
+    }
+  }
+  async function exportTheme() {
+    try {
+      const preset = themeTemplate(themePresetName, settings.appearance, await embeddedFont(settings.appearance.font));
+      const url = URL.createObjectURL(new Blob([JSON.stringify(preset, null, 2)], { type: "application/json" }));
+      const link = window.document.createElement("a"); link.href = url; link.download = "omnium-theme.json"; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setError(`Theme export failed. ${message(e)}`); }
+  }
+  async function restoreTemplateFont(id: FontId, fonts?: unknown) {
+    await importCustomFonts(fonts);
+    if (isCustomFont(id)) { await loadFont(id); setCustomFonts(await listCustomFonts()); }
+  }
+  async function importFont(file?: File) {
+    if (!file) return;
+    setFontImporting(true);
+    try {
+      const font = await importFontFile(file);
+      setCustomFonts(await listCustomFonts());
+      setSettings(old => ({ ...old, appearance: { ...old.appearance, font: font.id } }));
+      setError("");
+    } catch (e) { setError(`Font import failed. ${message(e)}`); }
+    finally { setFontImporting(false); if (fontInput.current) fontInput.current.value = ""; }
+  }
+  async function applyThemePreset(preset: ThemeTemplate) {
+    try {
+      await restoreTemplateFont(preset.appearance.font, preset.fonts);
+      setSettings(old => ({ ...old, appearance: structuredClone(preset.appearance) }));
+    } catch (e) { setError(`Theme could not be applied. ${message(e)}`); }
+  }
+  async function importTheme(file?: File) {
+    if (!file) return;
+    try {
+      if (file.size > MAX_FONT_TEMPLATE_BYTES) throw new Error("Theme template exceeds the 15 MB limit.");
+      const preset = parseThemeTemplate(JSON.parse(await file.text()));
+      await restoreTemplateFont(preset.appearance.font, preset.fonts);
+      if (!storeThemePresets([...themePresets.filter(item => item.name !== preset.name), preset])) return;
+      setSettings(old => ({ ...old, appearance: preset.appearance }));
+      setThemePresetName(preset.name); setSelectedThemePreset(preset.name);
+    } catch (e) { setError(`Theme import failed. ${message(e)}`); }
+    finally { if (themeTemplateInput.current) themeTemplateInput.current.value = ""; }
+  }
+  function revealPanel(id: string) {
+    updateUI(layout => {
+      const key = `window:panel:${id}`;
+      const saved = layout.windows[`panel:${id}`] ?? { x: 320, y: 140, width: 400, height: 560, collapsed: false, pinned: false };
+      let next: typeof layout = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: { ...saved, collapsed: false } } };
+      let owner = ownerOf(next, key);
+      while (owner) { next = updateContainer(next, owner, { collapsed: false }); owner = ownerOf(next, owner); }
+      return next;
+    });
+    requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+  }
+  function invokeContextShortcut(id: string): boolean {
+    const nodeAction = ["createChild", "insertExisting", "connect", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
+    if (nodeAction && selectedNode) {
+      contextAction(nodeAction as ContextAction, { kind: "node", id: selectedNode.id });
+      return true;
+    }
+    const selectionAction = ["focus", "expand", "collapse", "compact", "deleteIdentity"].find(action => id === `context:selection:${action}`);
+    const ids = [...selectedIds].filter(id => document.placements.some(p => p.id === id));
+    if (selectionAction && ids.length) {
+      contextAction(selectionAction as ContextAction, { kind: "selection", ids });
+      return true;
+    }
+    return false;
+  }
   function contextAction(action: ContextAction, target: ContextTarget) {
     if (target.kind === "selection") {
       if (action === "deleteIdentity") deleteSelectedConcepts(target.ids);
@@ -674,7 +810,13 @@ function Workbench() {
       case "connect": if (id) { setConnectionSource(id); setSelection({ kind: "node", id }); } break;
       case "toggle": if (id) toggleNode(id); break;
       case "focus": if (id) { setSelection({ kind: "node", id }); navigate("focus", id); } break;
-      case "edit": if (id) { setSelection({ kind: "node", id }); setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0); } break;
+      case "edit": if (id) {
+        setSelection({ kind: "node", id }); revealPanel("inspector");
+        setTimeout(() => {
+          const input = [...window.document.querySelectorAll<HTMLInputElement>('[aria-label="Node name"]')].find(input => input.getClientRects().length && window.getComputedStyle(input).visibility !== "hidden");
+          input?.focus(); input?.select();
+        }, 0);
+      } break;
       case "removePlacement": if (id) removePlacement(id); break;
       case "deleteIdentity": if (id) { const entityId = document.placements.find((p) => p.id === id)?.entityId; if (entityId) deleteIdentity(entityId); } break;
       case "compact": compact(activeFrame ? { kind: "frame", frameId: activeFrame.id } : { kind: "all" }); break;
@@ -686,6 +828,7 @@ function Workbench() {
     switch (action) {
       case "ui:undo": ui.undo(steps); break;
       case "theme": setSettings(old => ({ ...old, appearance: { ...old.appearance, theme: old.appearance.theme === "neon" ? "classic" : "neon" } })); break;
+      case "appearance": setThemeOpen(true); break;
       case "ui:redo": ui.redo(steps); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
@@ -709,6 +852,7 @@ function Workbench() {
       case "expand": if (selection?.kind === "node") toggleNode(selection.id); break;
       case "expandAll": if (selection?.kind === "node") nodeSubtreeClicked(selection.id); break;
       case "toggleSnap": setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: old.spatial.spacing ? 0 : 2 } })); break;
+      case "nudgeLeft": case "nudgeRight": case "nudgeUp": case "nudgeDown": if (selection?.kind === "node") navigate(action, selection.id); break;
       case "axisX": setConstraintAxis("x"); break;
       case "axisY": setConstraintAxis("y"); break;
       case "axisZ": setConstraintAxis("z"); break;
@@ -729,13 +873,14 @@ function Workbench() {
         if (key === "Esc") { setCapturing(null); return; }
         if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
         const conflict = keyConflict(settings.bindings, capturing, key);
-        if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label}.`); return; }
-        setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key } }));
+        if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label ?? settings.buttonLabels[conflict] ?? conflict}.`); return; }
+        setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key }, buttonLabels: capturing.startsWith("button:") ? { ...old.buttonLabels, [capturing]: captureLabel.current || old.buttonLabels[capturing] || capturing.slice(7) } : old.buttonLabels }));
         setCapturing(null); setError(""); return;
       }
-      if (isTypingTarget(event.target)) return;
+      if (event.defaultPrevented || isTypingTarget(event.target)) return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
-      if (!action || event.repeat) return;
+      if (!action || (event.repeat && !isNudgeAction(action))) return;
+      if (isNudgeAction(action) && selection?.kind !== "node") return;
       if ((settingsOpen || insertContext) && action !== "cancel") return;
       event.preventDefault(); runAction(action);
     };
@@ -795,6 +940,12 @@ function Workbench() {
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
   for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row"><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a new shortcut" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key…':settings.bindings[action.id]||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
+  for (const [id, key] of Object.entries(settings.bindings).filter(([id]) => id.startsWith("button:"))) {
+    const label = settings.buttonLabels[id] ?? id.slice(7);
+    replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></div>, true);
+    uiFunctions.find(f => f.id === `shortcut:${id}`)!.category = "Shortcuts";
+  }
+
   replaceFunction('ui:placementMode', 'UI placement mode', <UIPlacementControl />, true);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
@@ -802,8 +953,71 @@ function Workbench() {
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
-  replaceFunction("ui:glow", "Graph glow", <label>Graph glow <output>{Math.round(settings.appearance.glow * 100)}%</output><input aria-label="Graph glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.glow} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, glow: Number(event.target.value) } }))} /></label>, true);
-  replaceFunction("ui:atmosphere", "Background atmosphere", <label><input type="checkbox" checked={settings.appearance.atmosphere} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, atmosphere: event.target.checked } }))} /> Background atmosphere</label>, true);
+  replaceFunction("appearance", "Theme / aesthetics", <button onClick={() => setThemeOpen(true)}>Theme / aesthetics</button>);
+  const editAppearance = (patch: Partial<WorkspaceSettings["appearance"]>) => setSettings(old => ({ ...old, appearance: { ...old.appearance, ...patch } }));
+  const groupStyle = themeScope === "global" ? undefined : settings.appearance[themeScope];
+  const animationOverrides = animationScope === "all" ? undefined : animationScope === "nodes" || animationScope === "binders" ? settings.appearance[animationScope].effects : settings.appearance.surfaceEffects[animationScope];
+  const scopedEffects = resolveSparkles(settings.appearance, animationOverrides);
+  const useSharedAnimation = animationScope !== "all" && Object.keys(animationOverrides ?? {}).length === 0;
+  const editGroup = (patch: Partial<WorkspaceSettings["appearance"]["nodes"]>) => {
+    if (themeScope === "global") return;
+    setSettings(old => ({ ...old, appearance: { ...old.appearance, [themeScope]: { ...old.appearance[themeScope], ...patch } } }));
+  };
+  const setAnimationOverrides = (effects: Partial<SparkleStyle> | undefined) => {
+    if (animationScope === "all") return;
+    setSettings(old => ({ ...old, appearance: { ...old.appearance, ...(animationScope === "nodes" || animationScope === "binders"
+      ? { [animationScope]: { ...old.appearance[animationScope], effects } }
+      : { surfaceEffects: { ...old.appearance.surfaceEffects, [animationScope]: effects } }) } }));
+  };
+  const editEffects = (patch: Partial<SparkleStyle>) => {
+    if (animationScope === "all") editAppearance({ ...(patch.boltLength !== undefined ? { lightningLength: patch.boltLength } : {}), ...(Object.hasOwn(patch, "color") ? { effectColor: patch.color } : {}), ...(patch.effect !== undefined ? { effect: patch.effect, atmosphere: patch.effect !== "off" } : {}), ...(patch.intensity !== undefined ? { effectIntensity: patch.intensity } : {}), ...(patch.density !== undefined ? { density: patch.density } : {}), ...(patch.motion !== undefined ? { motion: patch.motion } : {}) });
+    else setAnimationOverrides({ ...animationOverrides, ...patch });
+  };
+  replaceFunction("ui:animation:scope", "Animation category", <label>Category<select aria-label="Animation category" value={animationScope} onChange={event => setAnimationScope(event.target.value as typeof animationScope)}>{ANIMATION_TARGETS.map(target => <option key={target} value={target}>{ANIMATION_LABELS[target]}</option>)}<option value="all">Shared settings</option></select></label>, true);
+  // Keep the existing control ID so customized layouts retain their enabled switch.
+  replaceFunction("ui:animation:targets", "Animation enabled", <label className="animation-toggle"><input aria-label="Animation enabled" type="checkbox" disabled={animationScope === "all"} checked={animationScope !== "all" && settings.appearance.effectTargets[animationScope]} onChange={event => { if (animationScope !== "all") editAppearance({ effectTargets: { ...settings.appearance.effectTargets, [animationScope]: event.target.checked } }); }} />Enabled</label>, true);
+  replaceFunction("ui:animation:inherit", "Use shared animation settings", <label className="animation-toggle" title="Uncheck to customize this category. Edit shared values by choosing Shared settings above."><input aria-label="Use shared animation settings" type="checkbox" disabled={animationScope === "all"} checked={useSharedAnimation} onChange={event => setAnimationOverrides(event.target.checked ? undefined : { ...scopedEffects })} />Use shared settings</label>, true);
+
+  replaceFunction("ui:appearance:scope", "Theme mode", <label>Mode<select aria-label="Theme mode" value={themeScope} onChange={event => setThemeScope(event.target.value as typeof themeScope)}><option value="global">Global</option><option value="nodes">Nodes / text</option><option value="binders">Binders</option></select></label>, true);
+  replaceFunction("ui:appearance:accent", "Color", <label>Color<input aria-label="Theme color" type="color" value={groupStyle?.color ?? settings.appearance.accent} onChange={event => themeScope === "global" ? editAppearance({ accent: event.target.value }) : editGroup({ color: event.target.value })} /></label>, true);
+  for (const [key, label, max] of [["opacity", "Opacity", 1], ["glow", "Glow", themeScope === "global" ? 1 : 2]] as const) replaceFunction(key === "glow" ? "ui:glow" : "ui:appearance:opacity", label, <label>{label}: {Math.round((groupStyle?.[key] ?? settings.appearance[key]) * 100)}%<input aria-label={`Theme ${key}`} type="range" min="0" max={max} step="0.05" value={groupStyle?.[key] ?? settings.appearance[key]} onChange={event => themeScope === "global" ? editAppearance({ [key]: Number(event.target.value) }) : editGroup({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:animation:boltLength", "Lightning bolt length", <label>Bolt length<input aria-label="Lightning bolt length" type="range" min="0.05" max="1" step="0.05" disabled={useSharedAnimation} value={scopedEffects.boltLength ?? 0.35} onChange={event => editEffects({ boltLength: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:animation:color", "VFX color", <label>VFX color<input aria-label="VFX color" type="color" disabled={useSharedAnimation} value={scopedEffects.color ?? settings.appearance.accent} onChange={event => editEffects({ color: event.target.value })} /></label>, true);
+  replaceFunction("ui:appearance:effect", "Sparkle effect", <label>Sparkle effect<select aria-label="Sparkle effect" disabled={useSharedAnimation} value={scopedEffects.effect} onChange={event => editEffects({ effect: event.target.value as SparkleStyle["effect"] })}>{EFFECT_KINDS.map(effect => <option key={effect} value={effect}>{effect === "electric-text" ? "Lightning text / icons" : effect === "lightning" ? "Lightning outlines" : effect === "falling-stars" ? "Falling stars / snow" : effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
+  for (const [key, label, id] of [["intensity", "Effect intensity", "effectIntensity"], ["density", "Density", "density"], ["motion", "Animation speed", "motion"]] as const) replaceFunction(`ui:appearance:${id}`, label, <label>{label}: {Math.round(scopedEffects[key] * 100)}%<input aria-label={label} disabled={useSharedAnimation} type="range" min="0" max="1" step="0.05" value={scopedEffects[key]} onChange={event => editEffects({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => editAppearance({ theme: event.target.value as WorkspaceSettings["appearance"]["theme"] })}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>, true);
+  replaceFunction("ui:appearance:textGlow", "All text glow", <label>All text glow: {Math.round(settings.appearance.textGlow * 100)}%<input aria-label="All text glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.textGlow} onChange={event => editAppearance({ textGlow: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:textColor", "All text color", <div><label>All text color<input aria-label="All text color" type="color" title="Changes displayed lettering without overwriting authored colors." value={settings.appearance.textColor ?? (settings.appearance.theme === "neon" ? "#d7f3f7" : "#233348")} onChange={event => editAppearance({ textColor: event.target.value })} /></label><button disabled={!settings.appearance.textColor} onClick={() => editAppearance({ textColor: undefined })}>Original colors</button></div>, true);
+  replaceFunction("ui:appearance:controlGlow", "Bars and sliders glow", <label>Bars and sliders glow: {Math.round(settings.appearance.controlGlow * 100)}%<input aria-label="Bars and sliders glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.controlGlow} onChange={event => editAppearance({ controlGlow: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:font", "All text font", <label>All text font<select aria-label="All text font" value={settings.appearance.font} onChange={event => editAppearance({ font: event.target.value as FontId })}>{FONT_OPTIONS.map(font => <option key={font.id} value={font.id}>{font.label}</option>)}{customFonts.map(font => <option key={font.id} value={font.id}>{font.name}</option>)}{isCustomFont(settings.appearance.font) && !customFonts.some(font => font.id === settings.appearance.font) && <option value={settings.appearance.font}>Custom font (not loaded)</option>}</select></label>, true);
+  replaceFunction("ui:appearance:importFont", "Import font", <button title="Import WOFF2, WOFF, TTF or OTF, up to 10 MB. Applies to all text." disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
+  replaceFunction("ui:appearance:background", "Background color", <label>Background color<input aria-label="Background color" type="color" value={settings.appearance.background} onChange={event => editAppearance({ background: event.target.value })} /></label>, true);
+  for (const [key, label, max, step] of [["glowSpread", "Glow spread", 1, 0.05], ["blur", "Window blur", 20, 1]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label}<input aria-label={label} type="range" min="0" max={max} step={step} value={settings.appearance[key]} onChange={event => editAppearance({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:inherit", "Use global defaults", <button disabled={themeScope === "global"} onClick={() => editGroup({ color: undefined, opacity: 1, glow: 1 })}>Use global defaults</button>);
+  replaceFunction("ui:resetAppearance", "Reset appearance", <button onClick={() => setSettings(old => ({ ...old, appearance: themeScope === "global" ? defaultSettings().appearance : { ...old.appearance, [themeScope]: { ...defaultSettings().appearance[themeScope], effects: old.appearance[themeScope].effects } } }))}>{themeScope === "global" ? "Reset entire theme" : "Reset appearance mode"}</button>);
+  // Keep explicitly moved controls from older templates functional. The default
+  // editor/library exposes only the shared controls, with no per-mode duplicates.
+  const savedThemeControls = new Set([...Object.keys(uiLayout.items), ...[...Object.values(uiLayout.windows), ...uiLayout.frames].flatMap(frame => (frame.members ?? []).filter(m => m.kind === "function").map(m => m.id))]);
+  for (const group of ["nodes", "binders"] as const) for (const key of ["color", "opacity", "glow", "inherit"] as const) {
+    const id = `ui:appearance:${group}:${key}`; if (!savedThemeControls.has(id)) continue;
+    const style = settings.appearance[group];
+    const change = (patch: Partial<typeof style>) => setSettings(old => ({ ...old, appearance: { ...old.appearance, [group]: { ...old.appearance[group], ...patch } } }));
+    replaceFunction(id, `Saved ${group} ${key}`, key === "inherit" ? <button onClick={() => change({ color: undefined })}>Use global color</button> : <label>{group} {key}<input aria-label={`Saved ${group} ${key}`} type={key === "color" ? "color" : "range"} min="0" max={key === "glow" ? 2 : 1} step="0.05" value={key === "color" ? style.color ?? settings.appearance.accent : style[key]} onChange={event => change({ [key]: key === "color" ? event.target.value : Number(event.target.value) })} /></label>, true);
+  }
+  replaceFunction("ui:appearance:windowOpacity", "Window transparency", <label>Window transparency: {Math.round((1 - settings.appearance.windowOpacity) * 100)}%<input aria-label="Window transparency" type="range" min="0" max="100" step="5" value={Math.round((1 - settings.appearance.windowOpacity) * 100)} onChange={event => editAppearance({ windowOpacity: 1 - Number(event.target.value) / 100 })} /></label>, true);
+  replaceFunction("ui:themePreset:name", "Theme template name", <label>Template name<input aria-label="Theme template name" maxLength={80} value={themePresetName} onChange={event => setThemePresetName(event.target.value)} /></label>, true);
+  replaceFunction("ui:themePreset:select", "Saved themes", <label>Saved themes<select aria-label="Saved themes" value={selectedThemePreset} onChange={event => { setSelectedThemePreset(event.target.value); setThemePresetName(event.target.value || "My theme"); }}><option value="">Choose a saved theme</option>{themePresets.map(preset => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select></label>, true);
+  replaceFunction("ui:themePreset:save", "Save theme template", <button onClick={saveThemePreset}>Save / update theme</button>);
+  replaceFunction("ui:themePreset:apply", "Apply saved theme", <button disabled={!selectedThemePreset} onClick={() => { const preset = themePresets.find(preset => preset.name === selectedThemePreset); if (preset) void applyThemePreset(preset); }}>Apply saved theme</button>);
+  replaceFunction("ui:themePreset:delete", "Delete saved theme", <button disabled={!selectedThemePreset} onClick={() => { if (storeThemePresets(themePresets.filter(preset => preset.name !== selectedThemePreset))) setSelectedThemePreset(""); }}>Delete saved theme</button>);
+  replaceFunction("ui:themePreset:export", "Export theme template", <button onClick={exportTheme}>Export theme JSON</button>);
+  replaceFunction("ui:themePreset:import", "Import theme template", <button onClick={() => themeTemplateInput.current?.click()}>Import theme JSON</button>);
+  const animationControls = new Set(["ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion"]);
+  for (const fn of uiFunctions) {
+    if (fn.id.startsWith("ui:animation:") || animationControls.has(fn.id)) fn.category = "Animations";
+    else if (fn.id.startsWith("ui:appearance:") || fn.id.startsWith("ui:themePreset:") || ["ui:glow", "ui:resetAppearance", "appearance", "theme"].includes(fn.id)) fn.category = "Appearance";
+  }
+  if (savedThemeControls.has("ui:atmosphere")) replaceFunction("ui:atmosphere", "Saved global sparkles toggle", <label><input type="checkbox" checked={settings.appearance.atmosphere} onChange={event => editAppearance({ atmosphere: event.target.checked })} /> Global sparkles</label>, true);
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
   replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!past.length}>Undo</button>);
   replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!future.length}>Redo</button>);
@@ -822,7 +1036,7 @@ function Workbench() {
   replaceFunction("ui:viewRule", "New view rule", <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(e) => setLayoutRule(e.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>, true);
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
-  replaceFunction("ui:radius", "Minimum placement clearance radius", <label>Minimum placement clearance radius<input type="number" min="0.25" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.25, Math.min(3, Number(event.target.value) || 0.25)) } }))} /></label>, true);
+  replaceFunction("ui:radius", "Minimum placement clearance radius", <label>Minimum placement clearance radius<input type="number" min="0.1" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.1, Math.min(3, Number(event.target.value) || 0.1)) } }))} /></label>, true);
   replaceFunction("ui:clearance", "Collision clearance", <label>Collision clearance<input type="number" min="0" max="2" step="0.05" value={settings.spatial.clearance} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, clearance: Math.max(0, Math.min(2, Number(event.target.value) || 0)) } }))} /></label>, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
   replaceFunction("ui:startInvestigation", "Start frame", <button onClick={createFrame}>Start frame</button>);
@@ -831,19 +1045,11 @@ function Workbench() {
   replaceFunction("ui:flowType", "View relationship type", flowType ? <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowFrom", "View upstream role", flowType ? <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
-  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => {
-    updateUI(layout => {
-      const key = `window:panel:${id}`;
-      const saved = layout.windows[`panel:${id}`] ?? { x: 320, y: 140, width: 400, height: 560, collapsed: false, pinned: false };
-      let next: typeof layout = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: { ...saved, collapsed: false } } };
-      let owner = ownerOf(next, key);
-      while (owner) { next = updateContainer(next, owner, { collapsed: false }); owner = ownerOf(next, owner); }
-      return next;
-    });
-    requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
-  }}>{title}</button>);
+  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   return (
-    <UIWorkspace layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+      <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
+      <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
         <div className="brand">
           <strong>Omnium</strong>
@@ -851,6 +1057,7 @@ function Workbench() {
         </div>
         <div className="toolbar-actions">
           {uiLayout.panels["@organized"] ? <>
+          <UIFrameStrip id="@toolbarFrames">
           <UIPanel id="menu:file" title="File" menu>
             {["ui:import", "ui:export", "ui:saveTemplate", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
@@ -858,6 +1065,7 @@ function Workbench() {
             {["panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
+            <FunctionControl id="appearance" />
             <FunctionControl id="theme" />
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <>
@@ -870,6 +1078,7 @@ function Workbench() {
           <UIPanel id="menu:workspace" title="Workspace" menu>
             {["settings", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:placementMode", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
+          </UIFrameStrip>
           <div className="primary-charting-actions" role="toolbar" aria-label="Charting actions">
             {["newNode", "newChild", "connect", "compactAll", "undo", "redo"].map(id => <FunctionControl id={id} key={id} />)}
           </div>
@@ -928,6 +1137,7 @@ function Workbench() {
       )}
       <main className="workspace">
         <aside className="sidebar">
+          <UIFrameStrip id="@sidebar" vertical>
           <UIPanel id="reuse" title="Reuse identity">
             <h2>Reuse identity</h2>
             {field("field:find-existing-identity", "Find existing identity", <label>
@@ -1210,12 +1420,14 @@ function Workbench() {
             <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
             {selectedNode ? (
               <>
-                <p>
-                  Identity: <code>{selectedEntity?.id}</code>
+                <details>
+                  <summary>Technical details</summary>
+                  <p>Identity: <code>{selectedEntity?.id}</code>
                   <br />
                   Placement: <code>{selectedNode.id}</code>
-                  {selectedPlacement?.variantOwner && <><br />Variant of {document.entities.find((e) => e.id === document.placements.find((p) => p.id === selectedPlacement.variantOwner!.placementId)?.entityId)?.label}</>}
-                </p>
+                  </p>
+                </details>
+                {selectedPlacement?.variantOwner && <p>Variant of {document.entities.find((e) => e.id === document.placements.find((p) => p.id === selectedPlacement.variantOwner!.placementId)?.entityId)?.label}</p>}
                 <p>
                   {document.placements.filter((p) => p.entityId === selectedEntity?.id).length}{" "}
                   placement(s) reference this identity.
@@ -1270,7 +1482,7 @@ function Workbench() {
                   />
                 </label>)}
                 <VisualControls key={[...selectedIds].sort().join("|")} label="Node" value={selectedPlacement?.visual} assets={document.assets ?? []} onChange={editNodeVisual} onAsset={(asset, visual) => editNodeVisual(visual, asset)} />
-                <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={{ color: "#dce9fa", opacity: 1 }} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
+                <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={nodeThemeDefaults} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
                 {field("field:entity-aliases", "Entity aliases", <label>
                   Aliases (comma-separated)
                   <input
@@ -1455,14 +1667,12 @@ function Workbench() {
               <>
                 <p>{document.entities.find((e) => e.id === selectedComposition.parentId)?.label} → {document.entities.find((e) => e.id === selectedComposition.childId)?.label}</p>
                 <p>Authored structural composition. This binder is independent of spatial positioning.</p>
-                <BinderControls composition defaultText={selectedBinderText} value={selectedComposition} onChange={(changes) => commitDocument({ ...document, compositions: document.compositions.map((c) => c.id === selectedComposition.id ? { ...c, ...changes } : c) })} />
+                <BinderControls {...binderThemeProps} composition defaultText={selectedBinderText} value={selectedComposition} onChange={editBinder} />
               </>
             ) : selectedRelationship ? (
               <>
-                <p>
-                  Relationship ID: <code>{selectedRelationship.id}</code>
-                </p>
-                {selectedRelationData && <BinderControls defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
+                <details><summary>Technical details</summary><p>Relationship ID: <code>{selectedRelationship.id}</code></p></details>
+                {selectedRelationData && <BinderControls {...binderThemeProps} defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
                 {field("field:relationship-type", "Relationship type", <label>
                   Type
                   <select
@@ -1761,6 +1971,7 @@ function Workbench() {
               This is a private local atlas.
             </p>
           </UIPanel>
+          </UIFrameStrip>
         </aside>
         <div className="canvas" aria-label="Atlas canvas">
           <Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
@@ -1812,12 +2023,30 @@ function Workbench() {
         <button onClick={() => setInsertContext(null)}>Close</button>
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
-      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {themeOpen && <FloatingWindow id="theme" title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
+        <p>All text color overrides lettering; authored colors still apply to other visuals. Effects appear in Neon.</p>
+        <section aria-label="Appearance"><h3>Appearance</h3>
+          {["ui:appearance:theme", "ui:appearance:font", "ui:appearance:textColor", "ui:appearance:importFont", "ui:appearance:textGlow", "ui:appearance:controlGlow", "ui:appearance:background", "ui:appearance:scope", "ui:appearance:accent", "ui:appearance:opacity", "ui:glow", "ui:appearance:glowSpread", "ui:appearance:inherit", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+        </section>
+        <section aria-label="Windows"><h3>Windows</h3>
+          <FunctionControl id="ui:appearance:windowOpacity" /><FunctionControl id="ui:appearance:blur" />
+        </section>
+        <section aria-label="Animations"><h3>Animations</h3>
+          <FunctionControl id="ui:animation:scope" />
+          {animationScope === "all" ? <p>Editing shared settings for categories that use them.</p> : <><FunctionControl id="ui:animation:targets" /><FunctionControl id="ui:animation:inherit" /></>}
+          {["ui:animation:color", "ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion"].map(id => <FunctionControl key={id} id={id} />)}
+          {["lightning", "electric-text"].includes(scopedEffects.effect) && <FunctionControl id="ui:animation:boltLength" />}
+          {scopedEffects.effect === "electric-text" && <p>Electric ink fills the lettering and flat icons. Backgrounds and 3D models stay unchanged.</p>}
+        </section>
+        <section aria-label="Theme templates"><h3>Theme templates</h3>
+          <p>Save colors, window appearance and animations together.</p>
+          {["name", "select", "save", "apply", "delete", "export", "import"].map(action => <FunctionControl key={action} id={`ui:themePreset:${action}`} />)}
+
+        </section>
+      </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
-        <h2>Appearance</h2>
-        <FunctionControl id="theme" palette />
-        <FunctionControl id="ui:glow" />
-        <FunctionControl id="ui:atmosphere" />
+        <FunctionControl id="appearance" palette />
         <h2>Workspace settings</h2>
         <FunctionControl id="ui:settingsSnap" />
         <FunctionControl id="ui:radius" />
@@ -1830,7 +2059,7 @@ function Workbench() {
         {Array.from(new Set(ACTIONS.map(action=>action.category))).map(category=><div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter(action=>action.category===category).map(action=><FunctionControl key={action.id} id={`shortcut:${action.id}`}/>)}</div>)}
         <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
-    </div></UIWorkspace>
+    </div><WindowSparkles appearance={settings.appearance} /></UIWorkspace>
   );
 }
 export default function App() {

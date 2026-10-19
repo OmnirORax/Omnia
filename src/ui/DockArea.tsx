@@ -260,7 +260,7 @@ export function DockArea({ container, contour = true }: { container: string; con
               12
             }
             fill="var(--omnium-frame-fill, #b6d4f2)"
-            opacity=".2"
+            opacity="var(--omnium-frame-opacity, 0.2)"
             mask={`url(#${mask})`}
           />
           <path

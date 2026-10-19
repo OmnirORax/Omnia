@@ -30,7 +30,9 @@ import {
   type FunctionStyle,
 } from "./layout";
 import { VisualControls } from "../VisualControls";
+import { ShortcutHint } from "./ShortcutHint";
 import { FrameChrome } from "./FrameChrome";
+import { FrameSearch } from "./FrameSearch";
 import { DockArea } from "./DockArea";
 import { DockHost } from "./DockHost";
 import {
@@ -60,8 +62,10 @@ import {
 } from "./drag";
 import type { VisualAsset } from "../graph/assets";
 import { snapPosition, snapshotPositions } from "./positioning";
+import { insertFrameBeside, type InsertSide } from "./frameInsertion";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
+import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
@@ -104,6 +108,7 @@ function FunctionElement({
     item = ui.layout.items[fn.id],
     style = item?.style ?? defaultStyle;
   const [controlOpen, setControlOpen] = useState(false);
+  const shortcut = ui.shortcutBindings?.[buttonShortcutId(fn.id)];
   const asset = ui.layout.assets.find((a) => a.id === style.assetId);
   const content =
     palette || (resident && style.mode === "text") ? (
@@ -123,12 +128,13 @@ function FunctionElement({
     onMouseEnter?: () => void;
   }>;
   const shared = {
+    "aria-keyshortcuts": shortcut?.replace(/Ctrl/g, "Control").replace(/Esc/g, "Escape"),
     "data-ui-function": fn.id,
     "data-ui-palette": palette ? "true" : undefined,
     "data-ui-resident": resident ? "true" : undefined,
     "data-ui-native-anchor": nativeAnchor?.key,
     "data-ui-native-home": nativeAnchor?.id,
-    title: `${fn.label}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
+    title: `${fn.label}${ui.shortcutBindings?.[buttonShortcutId(fn.id)] ? ` (${ui.shortcutBindings[buttonShortcutId(fn.id)]})` : ""}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
     draggable:
       (!fn.control || palette || style.mode === "icon") && !functionPinned(ui.layout, fn.id),
     onDragStart: (e: DragEvent) => {
@@ -162,6 +168,7 @@ function FunctionElement({
           />
         ))}
         {fn.element}
+        <ShortcutHint binding={shortcut} />
       </div>
     ) : (
       cloneElement(fn.control ? <button onClick={() => setControlOpen(true)} /> : original, {
@@ -182,12 +189,12 @@ function FunctionElement({
           : (original.props["aria-label" as keyof typeof original.props] ??
             (resident || style.mode === "icon" ? fn.label : undefined)),
         className: `${original.props.className ?? ""} ui-function ${modeClass} ${!palette && ui.selectedFunctions.has(fn.id) ? "ui-selected" : ""}`,
-        children: content,
+        children: <>{content}{(palette || style.mode === "text") && <ShortcutHint binding={shortcut} />}</>,
       })
     );
   return (
     <>
-      {button}
+      {shortcut && !palette && style.mode === "icon" ? <span className="ui-icon-shortcut">{button}<ShortcutHint binding={shortcut} /></span> : button}
       {controlOpen && (
         <FloatingWindow
           id={`control:${fn.id}`}
@@ -274,6 +281,7 @@ export function UIPanel({
     );
   if (!menu && !ui.layout.panels["@organized"]) return (
     <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
+      <div className="ui-legacy-search"><FrameSearch container={key} title={title} expand={() => {}} /></div>
       <button className="detach-panel" title={`Float ${title}`} aria-label={`Undock ${id} panel`} data-ui-drag={key} draggable onDragStart={e => startResidentDrag(e, key)} onClick={() => float(true)}>↗</button>
       <UIHomeContext.Provider value={key}>{children}<DockArea container={key} contour={false} /></UIHomeContext.Provider>
     </section>
@@ -400,6 +408,7 @@ type Preview = {
   group?: string;
   control?: { owner: string; control: string; x: number; y: number };
   native?: { id: string; anchor: string; homeId: string; target: string; after: boolean };
+  frameStrip?: { target: string; orderId: string; keys: string[]; nativeKeys: string[]; peer: string; after: boolean };
 };
 type DragState = {
   key: string;
@@ -419,6 +428,7 @@ export function UIWorkspace({
   children,
   command,
   onReset,
+  shortcuts,
 }: {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
@@ -426,6 +436,7 @@ export function UIWorkspace({
   children: ReactNode;
   command?: UICommand | null;
   onReset: () => void;
+  shortcuts?: ButtonShortcuts;
 }) {
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
@@ -485,6 +496,54 @@ export function UIWorkspace({
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
   const drag = useRef<DragState | null>(null);
+  const [shortcutField, setShortcutField] = useState<string | null>(null);
+  const [shortcutNotice, setShortcutNotice] = useState("");
+  const shortcutRunners = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const invoke = (id: string) => {
+      if (!id.startsWith("button:") || shortcuts?.capturing || shortcuts?.blocked) return;
+      const target = id.slice(7);
+      setShortcutNotice("");
+      if (target.startsWith("@frame:")) {
+        const frame = frameActions.get(target.slice(7));
+        if (frame) frame.onChange({ collapsed: !frame.state.collapsed });
+        else setShortcutNotice("Open this frame before using its shortcut.");
+        return;
+      }
+      if (target.startsWith("@control:")) {
+        const [, control, ...owner] = target.split(":");
+        const frame = frameActions.get(owner.join(":"));
+        if (frame) {
+          if (control === "close") frame.onClose?.();
+          if (control === "pin") frame.onChange({ pinned: !frame.state.pinned });
+          if (control === "collapse") frame.onChange({ collapsed: !frame.state.collapsed });
+        }
+        return;
+      }
+      const fn = current.current.functions.find(f => f.id === target);
+      if (!fn || fn.available === false) {
+        if (shortcuts?.onInvoke?.(target)) return;
+        setShortcutNotice(target.startsWith("context:node:") ? "Select a node to use this shortcut." : target.startsWith("context:selection:") ? "Select nodes to use this shortcut." : "This action needs its relevant node, relationship or window open.");
+        return;
+      }
+      setShortcutNotice("");
+      if (fn.control) { setShortcutField(target); return; }
+      const runner = Array.from(shortcutRunners.current?.children ?? []).find(el => el.getAttribute("data-shortcut-runner") === target);
+      runner?.querySelector<HTMLButtonElement>("button")?.click();
+    };
+    const keydown = (event: KeyboardEvent) => {
+      if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || event.repeat || isTypingTarget(event.target)) return;
+      const key = normalizeKey(event);
+      const id = Object.entries(shortcuts?.bindings ?? {}).find(([id, binding]) => id.startsWith("button:") && binding && binding === key)?.[0];
+      if (!id) return;
+      event.preventDefault(); event.stopPropagation(); invoke(id);
+    };
+    const run = (event: Event) => invoke((event as CustomEvent<string>).detail);
+    window.addEventListener("keydown", keydown, true);
+    window.addEventListener("omnium:invoke-button", run);
+    return () => { window.removeEventListener("keydown", keydown, true); window.removeEventListener("omnium:invoke-button", run); };
+  }, [shortcuts, frameActions]);
+
   const frameMenu = (owner: string, x: number, y: number) => setMenu({ owner, x, y });
   const createFrame = (x: number, y: number) =>
     update((s) => {
@@ -839,6 +898,49 @@ export function UIWorkspace({
             : { x: r.x, y: after ? r.bottom : r.top, width: r.width, height: 4 },
         };
       }
+      // A frame's edge/gap means sibling insertion. Resolve it before handle
+      // nesting or nearest-container magnetism can steal the drop.
+      if (!source.key.startsWith("function:")) {
+        const choices = [...document.querySelectorAll<HTMLElement>("[data-ui-frame-slot],[data-ui-slot-key]")].flatMap(slot => {
+          const key = slot.dataset.uiFrameSlot ?? slot.dataset.uiSlotKey!;
+          if ((!key.startsWith("frame:") && !key.startsWith("window:")) || key === source.key || !slot.getClientRects().length || slot.closest("[data-ui-ghost],.ui-drag-source")) return [];
+          const strip = slot.hasAttribute("data-ui-frame-slot") ? slot.parentElement : null;
+          const zone = strip ?? slot.parentElement?.closest<HTMLElement>("[data-ui-drop-zone]");
+          const target = strip?.dataset.uiFrameStrip ?? zone?.dataset.uiDropZone;
+          if (!zone || !target || !canDock(s, source.key, target)) return [];
+          const r = slot.getBoundingClientRect();
+          if (!r.width || !r.height || rectDistance(x, y, r) > 14) return [];
+          if (rectDistance(x, y, r) === 0 && !elements.some(el => slot.contains(el))) return [];
+          const vertical = strip?.classList.contains("is-vertical");
+          const sides: InsertSide[] = strip ? vertical ? ["top", "bottom"] : ["left", "right"] : ["left", "right", "top", "bottom"];
+          const distances = { left: Math.abs(x - r.left), right: Math.abs(x - r.right), top: Math.abs(y - r.top), bottom: Math.abs(y - r.bottom) };
+          const side = sides.sort((a, b) => distances[a] - distances[b])[0];
+          const horizontal = side === "left" || side === "right";
+          const band = Math.min(22, (horizontal ? r.width : r.height) * 0.3);
+          if (distances[side] > band) return [];
+          return [{ slot, key, strip, zone, target, r, side, distance: distances[side] }];
+        }).sort((a, b) => a.distance - b.distance || a.r.width * a.r.height - b.r.width * b.r.height);
+        const hit = choices[0];
+        if (hit) {
+          const after = hit.side === "right" || hit.side === "bottom";
+          const horizontal = hit.side === "left" || hit.side === "right";
+          const rect = horizontal ? { x: after ? hit.r.right : hit.r.left, y: hit.r.y, width: 4, height: hit.r.height } : { x: hit.r.x, y: after ? hit.r.bottom : hit.r.top, width: hit.r.width, height: 4 };
+          const text = `Insert ${frameActions.get(source.key)?.title ?? "frame"} ${after ? "after" : "before"} ${frameActions.get(hit.key)?.title ?? "frame"}`;
+          if (hit.strip) return {
+            text, rect,
+            frameStrip: { target: hit.target, orderId: hit.strip.dataset.uiFrameOrder!, nativeKeys: JSON.parse(hit.strip.dataset.uiFrameNative ?? "[]"), peer: hit.key, after, keys: [...hit.strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order)).map(el => el.dataset.uiFrameSlot!) },
+          };
+          const c = getContainer(s, hit.target)!;
+          const bounds = hit.zone.getBoundingClientRect();
+          const ox = Number(hit.zone.dataset.originX || 0), oy = Number(hit.zone.dataset.originY || 0);
+          const boxes = new Map((source.slots.get(hit.target) ?? []).map(slot => [slot.key, { x: slot.r.x - bounds.x + ox + hit.zone.scrollLeft, y: slot.r.y - bounds.y + oy + hit.zone.scrollTop, width: slot.r.width, height: slot.r.height }]));
+          if (boxes.has(hit.key)) {
+            const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side, c.arrangement);
+            if (insertion.baseline.some(member => { const box = boxes.get(residentKey(member)); return box && residentPinned(s, residentKey(member)) && (member.position?.x !== box.x || member.position?.y !== box.y); })) return { text: "Unpin neighboring frames before shifting them" };
+            return { text, rect, dock: { key: source.key, target: hit.target, index: (c.members ?? []).findIndex(m => residentKey(m) === hit.key) + (after ? 1 : 0), breakBefore: false, width: source.width, height: source.height, ...insertion } };
+          }
+        }
+      }
       const candidateHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle");
       const handleBounds = candidateHandle?.getBoundingClientRect();
       // Dock into the middle of a handle; its perimeter belongs to adjacent placement.
@@ -1055,6 +1157,18 @@ export function UIWorkspace({
       if (!p) return;
       current.current.update((previous) => {
         let s = ensure(previous);
+        if (p.frameStrip) {
+          const strip = p.frameStrip;
+          if (!canDock(s, source.key, strip.target)) return previous;
+          const order = strip.keys.filter(key => key !== source.key);
+          order.splice(order.indexOf(strip.peer) + (strip.after ? 1 : 0), 0, source.key);
+          if (strip.nativeKeys.includes(source.key)) {
+            s = releaseResident(s, source.key);
+            const id = source.key.slice("window:panel:".length);
+            s = { ...s, panels: { ...s.panels, [id]: false } };
+          } else s = dockResident(s, source.key, strip.target, (getContainer(s, strip.target)?.members ?? []).length);
+          return validateUILayout({ ...s, nativeOrders: { ...s.nativeOrders, [strip.orderId]: order } });
+        }
         if (p.native) {
           const n = p.native;
           return orderNativeFunction(s, n.id, n.anchor, n.homeId, n.target, n.after);
@@ -1152,16 +1266,16 @@ export function UIWorkspace({
   }, []);
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenu(null);
-        configure(null);
-        configureFrame(null);
-        configureControl(null);
-      }
+      if (e.key !== "Escape" || shortcuts?.capturing) return;
+      if (!(menu || configured || configuredFrame || configuredControl || shortcutField || shortcutNotice)) return;
+      // Closing a UI editor must not also clear the graph selection it edits.
+      e.preventDefault(); e.stopPropagation();
+      setMenu(null); configure(null); configureFrame(null); configureControl(null);
+      setShortcutField(null); setShortcutNotice("");
     };
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, []);
+    window.addEventListener("keydown", close, true);
+    return () => window.removeEventListener("keydown", close, true);
+  }, [menu, configured, configuredFrame, configuredControl, shortcutField, shortcutNotice, shortcuts?.capturing]);
   const selected = functions.find((f) => f.id === configured),
     item = configured ? layout.items[configured] : undefined;
   const selectedOwner = configuredControl?.owner ?? configuredFrame;
@@ -1242,6 +1356,7 @@ export function UIWorkspace({
         layout,
         update,
         functions,
+        shortcutBindings: shortcuts?.bindings,
         registerFunction,
         configure: (id) => {
           configureFrame(null);
@@ -1268,6 +1383,11 @@ export function UIWorkspace({
       }}
     >
       {children}
+      <div hidden ref={shortcutRunners} aria-hidden="true">
+        {functions.filter(fn => !fn.control && fn.available !== false && Object.hasOwn(shortcuts?.bindings ?? {}, `button:${fn.id}`)).map(fn => <span key={fn.id} data-shortcut-runner={fn.id}>{fn.element}</span>)}
+      </div>
+      {shortcutField && <FloatingWindow id="shortcut-field" title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
+      {shortcutNotice && <div className="ui-anchor-prompt ui-shortcut-notice" role="status">{shortcutNotice}<button onClick={() => setShortcutNotice("")}>Dismiss</button></div>}
       <ButtonSelectionOverlay selection={buttonSelection} />
       {anchorTarget && (
         <div className="ui-anchor-prompt" role="status">
@@ -1539,6 +1659,12 @@ export function UIWorkspace({
               </label>
             </>
           )}
+          {shortcuts && (() => {
+            const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
+            const id = buttonShortcutId(target);
+            const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
+            return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
+          })()}
           <VisualControls
             key={
               configuredControl

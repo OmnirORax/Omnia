@@ -108,3 +108,23 @@ export function packedPosition(
   // An unobstructed outer face always exists, even for a heavily occupied selection.
   return { x: Math.max(0, ...obstacles.map((b) => b.max.x)) - shape.min.x + clearance, y: 0, z: 0 };
 }
+
+/** Stop at the first forbidden sphere boundary, rather than inflating it to a box.
+ * Used for radial binder clearance while retaining the authored movement direction. */
+export function stopBeforeSphere(start: XYZ, end: XYZ, center: XYZ, radius: number): XYZ {
+  const delta = { x: end.x - start.x, y: end.y - start.y, z: end.z - start.z };
+  const offset = { x: start.x - center.x, y: start.y - center.y, z: start.z - center.z };
+  const dot = (a: XYZ, b: XYZ) => a.x * b.x + a.y * b.y + a.z * b.z;
+  const a = dot(delta, delta), b = 2 * dot(offset, delta), c = dot(offset, offset) - radius * radius;
+  if (a < 1e-16) return start;
+  if (c < -1e-8) {
+    const final = { x: end.x - center.x, y: end.y - center.y, z: end.z - center.z };
+    return dot(final, final) >= radius * radius - 1e-8 ? end : start;
+  }
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant <= 0) return end;
+  const entry = (-b - Math.sqrt(discriminant)) / (2 * a), exit = (-b + Math.sqrt(discriminant)) / (2 * a);
+  if (exit <= 1e-9 || entry >= 1) return end;
+  const t = Math.max(0, entry);
+  return { x: start.x + delta.x * t, y: start.y + delta.y * t, z: start.z + delta.z * t };
+}

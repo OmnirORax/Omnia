@@ -1,3 +1,4 @@
+import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -11,13 +12,17 @@ import { occupiedRadii, worldPositions } from "./graph/layout3d";
 import { buildTextScene, type LabelMesh, type TextScene } from "./textScene";
 import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
 import { createSceneAppearance } from "./sceneAppearance";
+import { labelSize } from "./graph/labels";
+import { visualFootprint } from "./graph/assets";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
 import { EntityMenu } from "./ui/EntityMenu";
 import { FunctionControl } from "./ui/UIWorkspace";
+import { isCustomFont } from "./fonts";
+import { loadFont } from "./fontLibrary";
 
-export type NavigationCommand = { sequence: number; kind: "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
+export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
@@ -98,6 +103,16 @@ export default function SpatialWorkspace(props: Props) {
     return () => { guides.current.delete(node); };
   }, []);
   const [ready, setReady] = useState(false);
+  const [fontRevision, setFontRevision] = useState(0);
+  useEffect(() => {
+    if (settings.appearance.font !== "electric" && !isCustomFont(settings.appearance.font)) return;
+    let active = true;
+    const refresh = () => { if (active) setFontRevision(revision => revision + 1); };
+    window.document.fonts.addEventListener("loadingdone", refresh);
+    // Canvas textures must be regenerated after the bundled face finishes loading.
+    loadFont(settings.appearance.font).then(refresh).catch(() => { /* The selected family already includes a system fallback. */ });
+    return () => { active = false; window.document.fonts.removeEventListener("loadingdone", refresh); };
+  }, [settings.appearance.font]);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<Menu | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -118,10 +133,10 @@ export default function SpatialWorkspace(props: Props) {
     controls.enableDamping = false; controls.enablePan = true;
     controls.minDistance = 1.2; controls.maxDistance = 100000;
     const content = new THREE.Group(); scene.add(content);
-    const originAxes = new THREE.AxesHelper(2); scene.add(originAxes);
     scene.add(new THREE.AmbientLight(0xffffff, 2.1));
     const light = new THREE.DirectionalLight(0xffffff, 2.2); light.position.set(5, 12, 9); scene.add(light);
     const appearance = createSceneAppearance(renderer, scene, camera);
+    appearance.setSources(() => textScene.current);
     appearance.configure(callbacks.current.settings.appearance);
     let pendingRender = 0, animation = 0;
     const cameraHistory: CameraPose[] = [];
@@ -129,11 +144,14 @@ export default function SpatialWorkspace(props: Props) {
       callbacks.current.onFocusContextChange(ids);
     };
     const rememberCamera = () => cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone(), up: camera.up.clone(), contextIds: callbacks.current.focusContextIds });
-    const requestRender = () => {
+    let updateGeometry = false;
+    const scheduleRender = (refresh: boolean) => {
+      updateGeometry ||= refresh;
       if (pendingRender) return;
       pendingRender = requestAnimationFrame(() => {
         pendingRender = 0;
-        textScene.current?.update(camera, host.clientWidth, host.clientHeight);
+        if (updateGeometry) textScene.current?.update(camera, host.clientWidth, host.clientHeight);
+        updateGeometry = false;
         const anchorElement = (element: HTMLElement | undefined | null, id: string, below = false) => {
           if (!element) return;
           const item = textScene.current?.nodes.get(id);
@@ -150,6 +168,8 @@ export default function SpatialWorkspace(props: Props) {
         appearance.render();
       });
     };
+    const requestRender = () => scheduleRender(true);
+    appearance.start(() => scheduleRender(false));
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
     // OrbitControls caches its up-axis basis on construction. Rebind through its
     // public API after a discrete roll, without touching private engine fields.
@@ -184,6 +204,18 @@ export default function SpatialWorkspace(props: Props) {
       animation = requestAnimationFrame(tick);
     };
     const focus = (kind: NavigationCommand["kind"], requestedId?: string) => {
+      if (isNudgeAction(kind)) {
+        const node = graphRef.current.nodes.find(node => node.visible && node.id === (requestedId ?? callbacks.current.selectedId));
+        if (!node || drag) return;
+        stopAnimation();
+        const horizontal = kind === "nudgeLeft" || kind === "nudgeRight";
+        const sign = kind === "nudgeLeft" || kind === "nudgeDown" ? -1 : 1;
+        const delta = new THREE.Vector3(horizontal ? sign : 0, horizontal ? 0 : sign, 0).applyQuaternion(camera.quaternion).multiplyScalar(callbacks.current.settings.spatial.spacing || 0.2);
+        const parent = graphRef.current.nodes.find(parent => parent.id === node.parentId);
+        const local = asVector(node.world).add(delta).sub(parent ? asVector(parent.world) : new THREE.Vector3());
+        callbacks.current.onMove(node.id, asXYZ(local));
+        return;
+      }
       if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = true; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
       if (kind === "rollLeft" || kind === "rollRight") {
         stopAnimation(); rememberCamera();
@@ -224,8 +256,10 @@ export default function SpatialWorkspace(props: Props) {
         const framing = callbacks.current.settings.isolateFocus ? nodes : kind === "selection" ? nodes.filter((n) => callbacks.current.selectedIds.has(n.id)) : kind === "variants" ? nodes.filter((n) => n.id === requestedId || n.variantOwnerId === requestedId) : nodes;
         if (!framing.length) return;
         for (const node of framing) {
-          const center = asVector(node.world), r = callbacks.current.settings.spatial.radius;
-          bounds.expandByPoint(center.clone().addScalar(r)); bounds.expandByPoint(center.clone().addScalar(-r));
+          const placement = callbacks.current.document.placements.find(p => p.id === node.id);
+          const footprint = visualFootprint(labelSize(node.label), placement?.visual);
+          const center = asVector(node.world), half = new THREE.Vector3(footprint.width / 2, footprint.height / 2, footprint.depth / 2);
+          bounds.expandByPoint(center.clone().add(half)); bounds.expandByPoint(center.clone().sub(half));
         }
         const center = bounds.getCenter(new THREE.Vector3());
         animate(center, Math.max(6, bounds.getSize(new THREE.Vector3()).length() * 1.2), true, kind === "hierarchy" ? new THREE.Vector3(0, 0, 1) : undefined);
@@ -276,9 +310,17 @@ export default function SpatialWorkspace(props: Props) {
     let hovered: LabelMesh | null = null;
     const paintHover = (mesh: LabelMesh | null) => {
       if (hovered === mesh) return;
-      if (hovered) { hovered.material.color.setHex(0xffffff); if (hovered.userData.visualProxy) hovered.material.opacity = hovered.userData.baseOpacity; }
+      if (hovered) {
+        hovered.material.color.copy(hovered.userData.baseColor ?? new THREE.Color("white"));
+        const outline = hovered.userData.hoverOutline as THREE.Object3D | undefined;
+        if (outline) outline.visible = outline.userData.selected;
+      }
       hovered = mesh;
-      if (hovered) { hovered.material.color.setHex(0xb8dcff); if (hovered.userData.visualProxy) hovered.material.opacity = 0.2; }
+      if (hovered) {
+        if (!hovered.userData.visualProxy) hovered.material.color.lerp(new THREE.Color("white"), 0.2);
+        const outline = hovered.userData.hoverOutline as THREE.Object3D | undefined;
+        if (outline) outline.visible = true;
+      }
       renderer.domElement.style.cursor = hovered ? "grab" : "default";
       requestRender();
     };
@@ -409,6 +451,7 @@ export default function SpatialWorkspace(props: Props) {
         const right = rightDown; rightDown = null;
         if (Math.hypot(event.clientX - right.x, event.clientY - right.y) < CLICK_THRESHOLD) {
           const rect = host.getBoundingClientRect();
+          if (right.id && !(callbacks.current.selectedIds.size > 1 && callbacks.current.selectedIds.has(right.id))) callbacks.current.onSelection([right.id]);
           setMenu({ x: Math.min(event.clientX - rect.left, rect.width - 215), y: Math.min(event.clientY - rect.top, rect.height - 360),
             target: callbacks.current.selectedIds.size > 1 && (!right.id || callbacks.current.selectedIds.has(right.id)) ? { kind: "selection", ids: [...callbacks.current.selectedIds] } : right.id ? { kind: "node", id: right.id } : { kind: "space", world: right.world, screen: { x: event.clientX, y: event.clientY } } });
         }
@@ -432,7 +475,7 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.removeEventListener("pointerup", up);
       renderer.domElement.removeEventListener("pointercancel", cancel);
       renderer.domElement.removeEventListener("contextmenu", preventMenu);
-      observer.disconnect(); controls.dispose(); appearance.dispose(); originAxes.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
+      observer.disconnect(); controls.dispose(); appearance.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
     };
   }, []);
 
@@ -444,7 +487,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
     state.appearance.configure(settings.appearance); state.requestRender();
-  }, [ready, settings.appearance.theme, settings.appearance.glow, settings.appearance.atmosphere]);
+  }, [ready, settings.appearance]);
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
@@ -458,14 +501,14 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance.theme === "neon");
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance);
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.theme]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, fontRevision, settings.appearance.textColor, settings.appearance.textGlow, settings.appearance.theme, settings.appearance.accent, settings.appearance.nodes.color, settings.appearance.nodes.opacity, settings.appearance.nodes.glow, settings.appearance.binders.color, settings.appearance.binders.opacity, settings.appearance.binders.glow]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [

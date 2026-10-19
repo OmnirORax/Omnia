@@ -11,7 +11,7 @@ export function variantInstance(doc: Document, nodeId: string) {
 export function nodeEntityId(doc: Document, nodeId: string): string | null {
   return doc.placements.find((p) => p.id === nodeId)?.entityId ?? null;
 }
-export function addVariant(doc: Document, ownerId: string, label = "New variant"): { next: Document; variant: Variant } {
+export function addVariant(doc: Document, ownerId: string, label = ""): { next: Document; variant: Variant } {
   if (!doc.entities.some((e) => e.id === ownerId)) throw new Error("Variant owner does not exist.");
   const next = structuredClone(doc), entityId = crypto.randomUUID();
   next.entities.push({ id: entityId, label, aliases: [], notes: "" });

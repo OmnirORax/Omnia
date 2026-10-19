@@ -23,6 +23,7 @@ export const UI_FIELD_CATALOG = [
   ["binder:text", "Binder text", "Relationships"],
   ...["Node", "Binder"].flatMap((label) => [
     [`appearance:${label}:color`, `${label} color`, label === "Node" ? "Nodes" : "Relationships"],
+    [`appearance:${label}:glow`, `${label} glow`, label === "Binder" ? "Relationships" : "Nodes"],
     [
       `appearance:${label}:opacity`,
       `${label} opacity`,
@@ -40,6 +41,7 @@ export const UI_FIELD_CATALOG = [
       label === "Node" ? "Nodes" : "Relationships",
     ]),
   ]),
+  ...["color", "opacity", "glow"].map(key => [`appearance:Binder text:${key}`, `Binder text ${key}`, "Nodes"]),
 ].map(([id, label, category]) => ({ id, label, category }));
 export const LIBRARY_CATEGORIES = [
   "File",
@@ -51,6 +53,8 @@ export const LIBRARY_CATEGORIES = [
   "Investigations",
   "AI",
   "Settings",
+  "Appearance",
+  "Animations",
   "Shortcuts",
   "Interface",
 ];

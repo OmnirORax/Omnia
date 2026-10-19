@@ -1,16 +1,15 @@
 import {
-  editorView,
   validateDocument,
   type Document,
   type LayoutView,
   type XYZ,
 } from "./structural.ts";
-import { compactLayout, localPosition, type SpatialSettings } from "./layout3d.ts";
+import { ensureBinderSpacing, DEFAULT_SPATIAL_SETTINGS, compactLayout, localPosition, type SpatialSettings } from "./layout3d.ts";
 import { labelSize } from "./labels.ts";
-import { visualFootprint, type Visual } from "./assets.ts";
+import { visualFootprint } from "./assets.ts";
 
 /** Parent-before-child layout. It reads composition but only writes local coordinates. */
-export function hierarchyLayout(doc: Document): Document {
+export function hierarchyLayout(doc: Document, settings: SpatialSettings = DEFAULT_SPATIAL_SETTINGS): Document {
   const next = structuredClone(doc),
     byId = new Map(next.placements.map((p) => [p.id, p]));
   const entityFirst = new Map<string, string>();
@@ -83,12 +82,12 @@ export function hierarchyLayout(doc: Document): Document {
     const parent = p.parentId ? targets.get(p.parentId)! : { x: 0, y: 0, z: 0 };
     p.spatialPosition = { x: world.x - parent.x, y: world.y - parent.y, z: world.z - parent.z };
   }
-  return validateDocument(next);
+  return ensureBinderSpacing(validateDocument(next), { ...settings, spacing: 0 });
 }
 const snapshot = (doc: Document) =>
   doc.placements.map((p) => ({ placementId: p.id, position: localPosition(p) }));
 /** Direction comes from user-chosen type/roles. Cyclic participants share a level. */
-export function flowLayout(doc: Document, ordering: LayoutView["ordering"]): Document {
+export function flowLayout(doc: Document, ordering: LayoutView["ordering"], settings: SpatialSettings = DEFAULT_SPATIAL_SETTINGS): Document {
   if (!ordering) throw new Error("Choose a relationship type and ordering roles.");
   const type = doc.relationshipTypes.find((t) => t.id === ordering.typeId);
   if (
@@ -173,7 +172,7 @@ export function flowLayout(doc: Document, ordering: LayoutView["ordering"]): Doc
       parent = p.parentId ? targets.get(p.parentId)! : { x: 0, y: 0, z: 0 };
     p.spatialPosition = { x: world.x - parent.x, y: world.y - parent.y, z: world.z - parent.z };
   }
-  return validateDocument(next);
+  return ensureBinderSpacing(validateDocument(next), { ...settings, spacing: 0 });
 }
 export function switchLayoutView(doc: Document, id: string): Document {
   const next = structuredClone(doc);
@@ -203,11 +202,11 @@ export function createLayoutView(
   const next = switchLayoutView(doc, doc.activeLayoutViewId ?? "authored-layout");
   const arranged =
     rule === "hierarchy"
-      ? hierarchyLayout(next)
+      ? hierarchyLayout(next, settings)
       : rule === "compact"
         ? compactLayout(next, { kind: "all" }, settings)
         : rule === "flow"
-          ? flowLayout(next, ordering)
+          ? flowLayout(next, ordering, settings)
           : next;
   const view: LayoutView = {
     id: crypto.randomUUID(),
@@ -221,80 +220,4 @@ export function createLayoutView(
   return validateDocument(arranged);
 }
 
-export type DisplayBinder = {
-  key: string;
-  id: string;
-  kind: "relationship" | "composition" | "visual" | "variant";
-  source: string;
-  target: string;
-  label: string;
-  color?: string;
-  opacity?: number;
-  visual?: Visual;
-};
-export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayBinder[] {
-  const placements = new Map(doc.placements.map((p) => [p.id, p]));
-  const binders: DisplayBinder[] = atlas.relationships.map((r) => {
-    const canonical = doc.relationships.find((item) => item.id === r.id)!;
-    return {
-      ...r,
-      key: r.id,
-      kind: "relationship",
-      label: canonical.text ?? [...(canonical.operators ?? []).map((o) => o.text), r.label]
-        .filter(Boolean)
-        .join(" · "),
-      color: canonical.appearance?.color,
-      opacity: canonical.appearance?.opacity,
-      visual: canonical.visual,
-    };
-  });
-  const represented = new Set<string>();
-  for (const node of atlas.nodes) {
-    const link = placements.get(node.id)?.variantOwner;
-    if (link && atlas.nodes.some((n) => n.id === link.placementId)) {
-      const v = doc.variants!.find((v) => v.id === link.variantId)!;
-      binders.push({ key: `variant:${node.id}`, id: link.variantId, kind: "variant", source: link.placementId, target: node.id, label: v.text ?? "variant", color: v.appearance?.color ?? "#bda1ec", opacity: v.appearance?.opacity, visual: v.visual });
-    }
-    if (!node.parentId) continue;
-    if (node.parentId === link?.placementId) continue;
-    const parent = placements.get(node.parentId)!,
-      child = placements.get(node.id)!;
-    const comp = doc.compositions.find(
-      (c) => c.parentId === parent.entityId && c.childId === child.entityId,
-    );
-    if (comp) represented.add(comp.id);
-    const style = comp ?? child.nestingBinder;
-    binders.push({
-      key: `nest:${node.id}`,
-      id: comp?.id ?? node.id,
-      kind: comp ? "composition" : "visual",
-      source: node.parentId,
-      target: node.id,
-      label: style?.text ?? (comp ? comp.operators?.map((o) => o.text).join(" · ") || "contains" : "visual nesting"),
-      color: style?.appearance?.color,
-      opacity: style?.appearance?.opacity,
-      visual: style?.visual,
-    });
-  }
-  for (const comp of doc.compositions.filter((c) => !represented.has(c.id))) {
-    const first = (entityId: string) =>
-      atlas.nodes
-        .filter((n) => placements.get(n.id)?.entityId === entityId)
-        .sort((a, b) => a.id.localeCompare(b.id))[0]?.id;
-    const source = first(comp.parentId),
-      target = first(comp.childId);
-    if (source && target)
-      binders.push({
-        key: comp.id,
-        id: comp.id,
-        kind: "composition",
-        source,
-        target,
-        label: comp.text ?? (comp.operators?.map((o) => o.text).join(" · ") || "contains"),
-        color: comp.appearance?.color,
-        opacity: comp.appearance?.opacity,
-        visual: comp.visual,
-      });
-  }
-  return binders;
-}
+export { chartedBinders, type DisplayBinder } from "./binders.ts";
