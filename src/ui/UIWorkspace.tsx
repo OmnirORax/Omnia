@@ -11,7 +11,16 @@ import {
   type ReactElement,
 } from "react";
 import { Rnd } from "react-rnd";
-import { UIContext, UIHomeContext, useUI, type UIFunction, type UIContextValue } from "./context";
+import {
+  UIContext,
+  UIHomeContext,
+  useUI,
+  type UIFunction,
+  type UIContextValue,
+  type UICommand,
+} from "./context";
+import { useDragActivationGuard } from "./activationGuard";
+import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
 import { FloatingWindow } from "./FloatingWindow";
 import {
   emptyUILayout,
@@ -131,6 +140,10 @@ function FunctionElement({
     onContextMenu: (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (!palette && ui.selectedFunctions.has(fn.id) && ui.selectedFunctions.size > 1) {
+        ui.selectionMenu(e.clientX, e.clientY);
+        return;
+      }
       ui.configure(fn.id);
     },
   };
@@ -156,6 +169,10 @@ function FunctionElement({
         ...shared,
         disabled: false,
         "aria-disabled": original.props.disabled || undefined,
+        "aria-pressed":
+          fn.id === "ui:select"
+            ? ui.selectingUI
+            : original.props["aria-pressed" as keyof typeof original.props],
         onClick: original.props.disabled
           ? undefined
           : fn.control
@@ -165,7 +182,7 @@ function FunctionElement({
           ? `Place ${fn.label}`
           : (original.props["aria-label" as keyof typeof original.props] ??
             (resident || style.mode === "icon" ? fn.label : undefined)),
-        className: `${original.props.className ?? ""} ui-function ${modeClass}`,
+        className: `${original.props.className ?? ""} ui-function ${modeClass} ${!palette && ui.selectedFunctions.has(fn.id) ? "ui-selected" : ""}`,
         children: content,
       })
     );
@@ -361,12 +378,15 @@ export function UIWorkspace({
   update,
   functions: definitions,
   children,
+  command,
 }: {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
   functions: UIFunction[];
   children: ReactNode;
+  command?: UICommand | null;
 }) {
+  const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
   const [registered, setRegistered] = useState<Record<string, UIFunction>>({});
   const registerFunction = useCallback(
@@ -464,6 +484,13 @@ export function UIWorkspace({
   const ensure = (s: UILayout) => ({
     ...s,
     windows: { ...Object.fromEntries(defaults), ...s.windows },
+  });
+  const buttonSelection = useButtonSelection({
+    layout: ensure(layout),
+    update,
+    functions,
+    command,
+    suppress: suppressActivation,
   });
   const chooseMode = (owner: string, mode: "free" | "snap") => {
     setMenu(null);
@@ -1186,9 +1213,13 @@ export function UIWorkspace({
         defaults,
         frameActions,
         renderResident,
+        selectedFunctions: buttonSelection.ids,
+        selectingUI: buttonSelection.mode,
+        selectionMenu: buttonSelection.openMenu,
       }}
     >
       {children}
+      <ButtonSelectionOverlay selection={buttonSelection} />
       {anchorTarget && (
         <div className="ui-anchor-prompt" role="status">
           Snap: click{" "}
@@ -1212,8 +1243,16 @@ export function UIWorkspace({
               className="ui-free-function"
               key={id}
               style={{
-                left: Math.max(8, Math.min(placement.x, window.innerWidth - 100)),
-                top: Math.max(8, Math.min(placement.y, window.innerHeight - 90)),
+                left: Math.max(
+                  8,
+                  Math.min(placement.x, window.innerWidth - (placement.size?.width ?? 100)),
+                ),
+                top: Math.max(
+                  8,
+                  Math.min(placement.y, window.innerHeight - (placement.size?.height ?? 82) - 8),
+                ),
+                width: placement.size?.width,
+                maxWidth: placement.size ? "none" : undefined,
               }}
             >
               {renderResident({ kind: "function", id })}
@@ -1515,6 +1554,8 @@ export function UIArrangeButtons() {
     <>
       <FunctionControl id="ui:arrange" />
       <FunctionControl id="ui:createFrame" />
+      <FunctionControl id="ui:select" />
+      <FunctionControl id="ui:compact" />
       <FunctionControl id="ui:placementMode" />
     </>
   );

@@ -29,6 +29,7 @@ import type { Visual, VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPlacementControl, UIPanel } from "./ui/UIWorkspace";
+import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { loadUILayout, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
@@ -68,6 +69,7 @@ function Workbench() {
   const atlas = useMemo(() => editorView(document, expandedVariants), [document, expandedVariants]);
   const [selection, setSelection] = useState<Selection>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [uiCommand, setUICommand] = useState<UICommand | null>(null);
   const [binderPopup, setBinderPopup] = useState<{ x: number; y: number } | null>(null);
   const shortcutsPinned = uiLayout.panels["@shortcuts"] ?? false;
   const setShortcutsPinned = (value: boolean | ((current: boolean) => boolean)) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@shortcuts": typeof value === "function" ? value(layout.panels["@shortcuts"] ?? false) : value } }));
@@ -206,22 +208,25 @@ function Workbench() {
     });
     setSelection({ kind: "relationship", id });
   }
-  function undo() {
+  function undo(steps = 1) {
     setBinderPopup(null);
-    const previous = past.at(-1);
+    const count = Math.min(past.length, Math.max(1, Math.floor(steps)));
+    const restored = past.slice(-count);
+    const previous = count ? restored[0] : undefined;
     if (!previous) return;
-    setFuture((f) => [document, ...f]);
-    setPast((p) => p.slice(0, -1));
+    setFuture((f) => [...restored.slice(1), document, ...f].slice(0, 50));
+    setPast((p) => p.slice(0, -count));
     setDocument({ ...previous, revision: document.revision + 1 });
     setSelection(null);
     setRevision((r) => r + 1);
   }
-  function redo() {
+  function redo(steps = 1) {
     setBinderPopup(null);
     if (!future[0]) return;
-    setPast((p) => [...p, document]);
-    setDocument({ ...future[0], revision: document.revision + 1 });
-    setFuture((f) => f.slice(1));
+    const count = Math.min(future.length, Math.max(1, Math.floor(steps)));
+    setPast((p) => [...p, document, ...future.slice(0, count - 1)].slice(-50));
+    setDocument({ ...future[count - 1], revision: document.revision + 1 });
+    setFuture((f) => f.slice(count));
     setSelection(null);
     setRevision((r) => r + 1);
   }
@@ -684,10 +689,11 @@ function Workbench() {
       case "settings": setSettingsOpen(true); break;
     }
   }
-  function runAction(action: ActionId) {
+  function runAction(action: ActionId, steps = 1) {
     switch (action) {
-      case "ui:undo": ui.undo(); break;
-      case "ui:redo": ui.redo(); break;
+      case "ui:undo": ui.undo(steps); break;
+      case "ui:redo": ui.redo(steps); break;
+      case "ui:select": case "ui:compact": setUICommand(old => ({ action: action === "ui:select" ? "select" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
       case "ui:createFrame": updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: 120, y: 180, cellSize: 96, collapsed: false, pinned: false }] })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
@@ -709,8 +715,8 @@ function Workbench() {
       case "compactSelected": if (selection?.kind === "node") compact({ kind: "subsystem", placementId: selection.id }); break;
       case "compactFrame": if (activeFrame) compact({ kind: "frame", frameId: activeFrame.id }); break;
       case "compactAll": compact(selectedIds.size ? { kind: "selection", placementIds: [...selectedIds] } : { kind: "all" }); break;
-      case "undo": undo(); break;
-      case "redo": redo(); break;
+      case "undo": undo(steps); break;
+      case "redo": redo(steps); break;
       case "cancel": setBinderPopup(null); setShortcutsHovered(false); setCapturing(null); setSelectedIds(new Set()); setSelection(null); setConnectionSource(null); setInsertContext(null); setSettingsOpen(false); setOptionNodeId(null); navigate("cancel"); break;
       case "settings": setSettingsOpen(true); break;
     }
@@ -741,7 +747,7 @@ function Workbench() {
     const mouseHistory = (event: PointerEvent) => {
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault(); event.stopImmediatePropagation();
-      runAction(event.shiftKey ? event.button === 3 ? settings.mouse.shiftBackButton : settings.mouse.shiftForwardButton : event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton);
+      runAction(event.shiftKey ? event.button === 3 ? settings.mouse.shiftBackButton : settings.mouse.shiftForwardButton : event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton, event.altKey ? 5 : 1);
     };
     const preventMouseNavigation = (event: MouseEvent) => { if (event.button === 3 || event.button === 4) event.preventDefault(); };
     window.addEventListener("pointerdown", mouseHistory, true);
@@ -795,10 +801,10 @@ function Workbench() {
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
-  replaceFunction("undo", "Undo", <button onClick={undo} disabled={!past.length}>Undo</button>);
-  replaceFunction("redo", "Redo", <button onClick={redo} disabled={!future.length}>Redo</button>);
-  replaceFunction("ui:undo", "Undo UI", <button onClick={ui.undo} disabled={!ui.canUndo}>Undo UI</button>);
-  replaceFunction("ui:redo", "Redo UI", <button onClick={ui.redo} disabled={!ui.canRedo}>Redo UI</button>);
+  replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!past.length}>Undo</button>);
+  replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!future.length}>Redo</button>);
+  replaceFunction("ui:undo", "Undo UI", <button onClick={() => ui.undo()} disabled={!ui.canUndo}>Undo UI</button>);
+  replaceFunction("ui:redo", "Redo UI", <button onClick={() => ui.redo()} disabled={!ui.canRedo}>Redo UI</button>);
   replaceFunction("ui:newView", "New layout view", <button onClick={newView}>+ Layout view</button>);
   replaceFunction("ui:export", "Export JSON", <button onClick={exportJSON}>Export JSON</button>);
   replaceFunction("ui:saveTemplate", "Save UI template", <button onClick={exportTemplate}>Save UI template</button>);
@@ -819,7 +825,7 @@ function Workbench() {
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, [id]: true } }))}>{title}</button>);
   return (
-    <UIWorkspace layout={uiLayout} update={updateUI} functions={uiFunctions}><div className="workbench">
+    <UIWorkspace layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand}><div className="workbench">
       <header className="toolbar">
         <div className="brand">
           <strong>Omnium</strong>

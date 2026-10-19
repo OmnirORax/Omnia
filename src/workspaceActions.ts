@@ -5,6 +5,8 @@ export const ACTIONS = [
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
   { id: "ui:undo", category: "UI history", label: "Undo UI", defaultKey: "" },
   { id: "ui:redo", category: "UI history", label: "Redo UI", defaultKey: "" },
+  { id: "ui:select", category: "UI editing", label: "Select UI buttons", defaultKey: "" },
+  { id: "ui:compact", category: "UI editing", label: "Compact selected UI", defaultKey: "" },
   { id: "selectAll", category: "Selection", label: "Select visible nodes", defaultKey: "Ctrl+A" },
   { id: "deleteSelected", category: "Selection", label: "Delete selected concepts and subnodes", defaultKey: "Delete" },
   { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Shift+?" },

@@ -10,6 +10,7 @@ export type UIFunction = {
   available?: boolean;
   scope?: string;
 };
+export type UICommand = { action: "select" | "compact"; sequence: number };
 export type UIContextValue = {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
@@ -37,6 +38,9 @@ export type UIContextValue = {
     }
   >;
   renderResident: (member: UIResident) => ReactNode;
+  selectedFunctions: Set<string>;
+  selectingUI: boolean;
+  selectionMenu: (x: number, y: number) => void;
 };
 export const UIContext = createContext<UIContextValue | null>(null);
 export const UIHomeContext = createContext("workspace");

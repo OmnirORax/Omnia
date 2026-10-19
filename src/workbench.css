@@ -51,6 +51,16 @@
 .ui-function { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
 button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height: 30px; align-self: center; }
 .ui-function[aria-disabled=true] { opacity: .45; }
+.ui-function.ui-selected { outline: 2px solid #54c6ff; outline-offset: 3px; box-shadow: 0 0 0 5px #54c6ff22; }
+.ui-select-mode .ui-function { cursor: crosshair; }
+.ui-select-mode .ui-function.ui-selected { cursor: grab; }
+.ui-select-mode .spatial-workspace canvas { cursor: crosshair; }
+.ui-selection-rectangle { position: fixed; pointer-events: none; z-index: 30001; border: 1px solid #69c8ff; background: #54bfff22; }
+.ui-selection-tools { position: fixed; z-index: 30002; left: 14px; bottom: 14px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 8px; border: 1px solid #719fbd; border-radius: 8px; background: #142b40f5; color: #deefff; max-width: calc(100vw - 28px); font-size: 12px; }
+.ui-selection-tools button { padding: 5px 8px; font-size: 12px; }
+.ui-selection-tools small { flex-basis: 100%; }
+.ui-background-menu.ui-selection-tools { bottom: auto; display: flex; flex-direction: column; align-items: stretch; }
+.ui-selection-message { position: fixed; pointer-events: none; z-index: 30001; right: 14px; bottom: 14px; max-width: min(420px, calc(100vw - 28px)); padding: 7px 10px; color: #d5edff; background: #142b40ed; border-radius: 6px; font-size: 12px; }
 .ui-form-control { min-width: 0; cursor: grab; }
 .ui-form-control > label { min-width: 0; }
 .function-icon { width: 60px; height: 60px; padding: 12px; display: inline-flex; align-items: center; justify-content: center; background: #edf4ff; flex-shrink: 0; }

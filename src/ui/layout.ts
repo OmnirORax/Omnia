@@ -47,6 +47,7 @@ export type UIItem = {
   style?: FunctionStyle;
   pinned?: boolean;
   anchorId?: string;
+  size?: UISize;
 };
 export type UIFrame = {
   id: string;
@@ -167,6 +168,15 @@ export function validateUILayout(value: unknown): UILayout {
   }
   const occupied = new Set<string>();
   for (const [id, item] of Object.entries(layout.items)) {
+    if (
+      item?.size &&
+      (!record(item.size) ||
+        !numeric(item.size.width) ||
+        !numeric(item.size.height) ||
+        item.size.width < 1 ||
+        item.size.height < 1)
+    )
+      throw new Error("Invalid UI function size.");
     if (
       !id ||
       id.length > 200 ||
