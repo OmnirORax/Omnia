@@ -121,14 +121,23 @@
 .ui-form-control { position: relative; padding: 5px; }
 .ui-field-edge { position: absolute; z-index: 2; cursor: grab; user-select: none; }
 .ui-field-edge:active, .ui-bubble-drag:active { cursor: grabbing; }
-.edge-top { top: 0; left: 0; right: 0; height: 5px; }
-.edge-bottom { bottom: 0; left: 0; right: 0; height: 5px; }
-.edge-left { left: 0; top: 0; bottom: 0; width: 5px; }
-.edge-right { right: 0; top: 0; bottom: 0; width: 5px; }
+.edge-top { top: 0; left: 0; right: 0; height: 6px; }
+.edge-bottom { bottom: 0; left: 0; right: 0; height: 6px; }
+.edge-left { left: 0; top: 0; bottom: 0; width: 6px; }
+.edge-right { right: 0; top: 0; bottom: 0; width: 6px; }
 .ui-contour .ui-bubble-drag { pointer-events: painted; cursor: grab; }
 .ui-anchor-prompt { position: fixed; z-index: 10000; bottom: 28px; left: 50%; transform: translateX(-50%); padding: 12px 18px; border: 1px solid #81b8e5; border-radius: 12px; color: #e6f3ff; background: #152b42ee; pointer-events: none; }
 .ui-placement-options { display: flex; gap: 4px; align-items: center; }
 .ui-placement-options button { padding: 5px 7px; font-size: 12px; }
+.ui-form-control > .binding-row { flex: 1; min-width: 0; width: 100%; }
+.appearance-controls > .ui-form-control { flex: 1; min-width: 0; }
+.ui-resident-slot.is-positioned > .ui-form-control { width: 100%; max-width: 100%; }
+.categorized-library { display: block; }
+.categorized-library details { margin: 8px 0; border-bottom: 1px solid #cad7e5; padding-bottom: 8px; }
+.categorized-library summary { cursor: pointer; padding: 8px 4px; font-weight: 600; }
+.categorized-library summary small { float: right; font-weight: 400; }
+.categorized-library .library-entry { display: flex; flex-direction: column; align-items: stretch; margin: 5px 0; }
+.library-entry > small { padding: 2px 6px; color: #65748a; }
 .contour-frame:not(.nested-ui-frame) > .ui-frame-root > .ui-dock-area { max-height: none; overflow: visible; }
 .entity-menu-header { display: flex; align-items: center; gap: 5px; justify-content: space-between; min-height: 36px; padding: 3px 6px; background: #e3edf8; border: 1px solid #8fa6bc; font-size: 11px; }
 .entity-menu-header button { font-size: 10px; padding: 3px; }

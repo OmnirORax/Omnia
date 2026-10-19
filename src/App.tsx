@@ -32,6 +32,7 @@ import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPlacementControl, UIP
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { loadUILayout, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
+import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
 import { useInterfaceState } from "./ui/useInterfaceState";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
@@ -782,8 +783,10 @@ function Workbench() {
     );
   }
   const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, category: a.category, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
+  for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
-  const field = (id: string, label: string, element: React.ReactElement) => { replaceFunction(id, label, element, true); return <FunctionControl id={id} key={id} />; };
+  const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
+  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row"><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a new shortcut" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key…':settings.bindings[action.id]||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
   replaceFunction('ui:placementMode', 'UI placement mode', <UIPlacementControl />, true);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
@@ -1771,7 +1774,7 @@ function Workbench() {
         <FunctionControl id="ui:subtreeModifier" />
         <h2>Keyboard actions</h2>
         {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
-        {Array.from(new Set(ACTIONS.map((action) => action.category))).map((category) => <div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter((action) => action.category === category).map((action) => <div key={action.id} className="binding-row"><span>{action.label}</span><button onClick={() => setCapturing(action.id)}>{capturing === action.id ? "Press a key…" : settings.bindings[action.id] || "Unassigned"}</button><button aria-label={`Clear ${action.label} binding`} onClick={() => setSettings((old) => ({ ...old, bindings: { ...old.bindings, [action.id]: "" } }))}>×</button></div>)}</div>)}
+        {Array.from(new Set(ACTIONS.map(action=>action.category))).map(category=><div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter(action=>action.category===category).map(action=><FunctionControl key={action.id} id={`shortcut:${action.id}`}/>)}</div>)}
         <div className="dialog-actions"><button onClick={() => { setSettings(defaultSettings()); setCapturing(null); }}>Restore defaults</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
     </div></UIWorkspace>

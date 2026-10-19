@@ -23,9 +23,9 @@ export function labelSize(value: string) {
     height: lines.length * 0.4 + 0.2,
   };
 }
-/** Clear binder run approximately as wide as a long name, growing only for real content. */
+/** Start adjacent to the parent's text footprint; grow only for occupied space. */
 export function defaultNodeOffset(parent: string, child: string, index = 0) {
-  return { x: labelSize(parent).width / 2 + labelSize(child).width / 2 + 5.5, y: index ? -(index % 4) * 2 : 0, z: Math.floor(index / 4) * 2 };
+  return { x: labelSize(parent).width / 2 + labelSize(child).width / 2 + 0.35, y: index ? -(index % 4) * 2 : 0, z: Math.floor(index / 4) * 2 };
 }
 export type ScreenLabel = { id: string; x: number; y: number; width: number; height: number };
 /** Stable sideways displacement of visible text rectangles, with a real gap. */

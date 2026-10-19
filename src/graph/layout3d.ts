@@ -1,5 +1,5 @@
 import { ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
-import { defaultNodeOffset, labelSize } from "./labels.ts";
+import { labelSize } from "./labels.ts";
 import { visualFootprint } from "./assets.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
@@ -59,9 +59,13 @@ function overlap(doc: Document, a: Placement, ap: XYZ, b: Placement, bp: XYZ, se
   const depth = (p: Placement) => p.visual?.assetId || p.visual?.character ? p.visual.size ?? 1.4 : settings.radius * 2;
   return Math.abs(ap.x - bp.x) < (aa.width + bb.width) / 2 + settings.clearance - 1e-6 && Math.abs(ap.y - bp.y) < Math.max(settings.radius * 2, (aa.height + bb.height) / 2) + settings.clearance - 1e-6 && Math.abs(ap.z - bp.z) < (depth(a) + depth(b)) / 2 + settings.clearance - 1e-6;
 }
-function preferred(doc: Document, entityId: string, parentId: string | null) {
+function preferred(doc: Document, entityId: string, parentId: string | null, settings: SpatialSettings) {
   const parent = doc.placements.find((p) => p.id === parentId);
-  return defaultNodeOffset(doc.entities.find((e) => e.id === parent?.entityId)?.label ?? "", doc.entities.find((e) => e.id === entityId)?.label ?? "");
+  if(!parent)return origin();
+  const parentSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===parent.entityId)?.label??''),parent.visual);
+  const childSize=labelSize(doc.entities.find(e=>e.id===entityId)?.label??'');
+  const nearest=(parentSize.width+childSize.width)/2+settings.clearance;
+  return {x:settings.spacing?Math.ceil(nearest/settings.spacing)*settings.spacing:nearest,y:0,z:0};
 }
 const offsetCache = new Map<number, XYZ[]>();
 function offsets(limit: number): XYZ[] {
@@ -80,10 +84,13 @@ export function nearestFree(doc: Document, placementId: string, desired: XYZ, se
   if (!moving) throw new Error(`Missing placement: ${placementId}`);
   const worlds = worldPositions(doc);
   const parentWorld = moving.parentId ? worlds.get(moving.parentId)! : origin();
+  const parent = doc.placements.find(p=>p.id===moving.parentId);
   const siblings = doc.placements.filter((p) => p.id !== placementId && p.parentId === moving.parentId && !p.hidden);
   const before = new Set(siblingCollisions(doc, settings).map(([a, b]) => [a, b].sort().join("|")));
   const safe = (local: XYZ) => {
     const world = add(parentWorld, local);
+    // The parent's enclosing subsystem may contain us; its visible label must stay clear.
+    if(parent && overlap(doc,moving,world,parent,parentWorld,settings))return false;
     if (siblings.some((p) => overlap(doc, moving, world, p, worlds.get(p.id)!, settings))) return false;
     const candidate = { ...doc, placements: doc.placements.map((p) => p.id === placementId ? { ...p, spatialPosition: local } : p) };
     return siblingCollisions(candidate, settings).every(([a, b]) => before.has([a, b].sort().join("|")));
@@ -110,7 +117,7 @@ export function createPlacement(doc: Document, entityId: string, parentId: strin
   const index = doc.placements.filter((p) => p.parentId === parentId).length;
   const placement: Placement = { id: placementId, entityId, parentId,
     position: parentId ? { x: 28, y: 104 + index * 112 } : { x: 80, y: 80 },
-    spatialPosition: desired ?? preferred(doc, entityId, parentId),
+    spatialPosition: desired ?? (parentId && settings.spacing ? origin() : preferred(doc, entityId, parentId, settings)),
     collapsed: true, hidden: false };
   const draft = { ...doc, placements: [...doc.placements, placement] };
   const local = nearestFree(draft, placementId, placement.spatialPosition!, settings);
@@ -132,7 +139,7 @@ export function reparentStructure(doc: Document, id: string, targetId: string, s
   if (!compositions.some((c) => c.parentId === target.entityId && c.childId === moving.entityId))
     compositions.push({ id: crypto.randomUUID(), parentId: target.entityId, childId: moving.entityId });
   const draft = { ...doc, compositions, placements: doc.placements.map((p) => p.id === id ? { ...p, parentId: targetId } : p.id === targetId ? { ...p, collapsed: false } : p) };
-  const desired = preferred(doc, moving.entityId, targetId);
+  const desired = preferred(doc, moving.entityId, targetId, settings);
   const local = nearestFree(draft, id, desired, settings);
   return validateDocument({ ...draft, placements: draft.placements.map((p) => p.id === id ? { ...p, spatialPosition: local, position: { x: 28, y: 104 } } : p) });
 }
@@ -148,7 +155,7 @@ export function reparentVisual(doc: Document, id: string, parentId: string | nul
   const next = structuredClone(doc);
   const target = next.placements.find((p) => p.id === id)!;
   target.parentId = parentId;
-  target.spatialPosition = preferred(doc, moving.entityId, parentId);
+  target.spatialPosition = preferred(doc, moving.entityId, parentId, settings);
   if (parentId) next.placements.find((p) => p.id === parentId)!.collapsed = false;
   target.spatialPosition = nearestFree(next, id, target.spatialPosition, settings);
   return validateDocument(next);
@@ -171,7 +178,7 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
   const ordered = next.placements.filter((p) => included.has(p.id)).sort((a, b) => depth(b) - depth(a) || a.id.localeCompare(b.id));
   for (const p of ordered) {
     // Place each sibling near its parent/origin; already placed siblings become obstacles.
-    const desired = p.parentId ? preferred(next, p.entityId, p.parentId) : origin();
+    const desired = p.parentId ? preferred(next, p.entityId, p.parentId, settings) : origin();
     p.spatialPosition = nearestFree(next, p.id, desired, settings);
   }
   return validateDocument(next);

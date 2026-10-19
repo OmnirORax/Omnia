@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import { fitWindow, ownerOf, releaseResident, residentPinned, type WindowState } from "./layout";
-import { useUI } from "./context";
+import { useUI, UIHomeContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
@@ -139,8 +139,10 @@ export function FloatingWindow({
             closeLabel={closeLabel}
           />
           <div className="floating-body" hidden={state.collapsed}>
-            {children}
-            <DockArea container={key} contour={false} />
+            <UIHomeContext.Provider value={key}>
+              {children}
+              <DockArea container={key} contour={false} />
+            </UIHomeContext.Provider>
           </div>
         </div>
       </Rnd>

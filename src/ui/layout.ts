@@ -46,6 +46,7 @@ export type UIItem = {
   cell?: Cell;
   style?: FunctionStyle;
   pinned?: boolean;
+  anchorId?: string;
 };
 export type UIFrame = {
   id: string;
@@ -71,6 +72,7 @@ export type UILayout = {
   panels: Record<string, boolean>;
   assets: VisualAsset[];
   arrangement?: UIArrangement;
+  nativeOrders?: Record<string, string[]>;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -105,6 +107,20 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (
+    layout.nativeOrders &&
+    (!record(layout.nativeOrders) ||
+      Object.keys(layout.nativeOrders).length > 500 ||
+      Object.entries(layout.nativeOrders).some(
+        ([id, order]) =>
+          !id ||
+          !Array.isArray(order) ||
+          order.length > 500 ||
+          order.some((item) => typeof item !== "string" || !item || item.length > 200) ||
+          new Set(order).size !== order.length,
+      ))
+  )
+    throw new Error("Invalid native UI order.");
   if (layout.arrangement) validateArrangement(layout.arrangement);
   if (
     Object.keys(layout.items).length > 500 ||
@@ -158,7 +174,9 @@ export function validateUILayout(value: unknown): UILayout {
       !numeric(item.x) ||
       !numeric(item.y) ||
       (item.home !== undefined && typeof item.home !== "boolean") ||
-      (item.pinned !== undefined && typeof item.pinned !== "boolean")
+      (item.pinned !== undefined && typeof item.pinned !== "boolean") ||
+      (item.anchorId !== undefined &&
+        (typeof item.anchorId !== "string" || !item.anchorId || item.anchorId.length > 500))
     )
       throw new Error("Invalid function placement.");
     if (item.frameId !== undefined) {
@@ -290,6 +308,8 @@ export function validateUILayout(value: unknown): UILayout {
       if (member.kind === "window" && !layout.windows[member.id])
         throw new Error("Missing nested UI window.");
       const token = residentKey(member);
+      if (member.kind === "function" && layout.items[member.id]?.anchorId)
+        throw new Error("A function cannot be both anchored and frame-owned.");
       if (owners.has(token)) throw new Error("A UI resident cannot belong to two frames.");
       owners.set(token, key);
     }
@@ -399,12 +419,48 @@ export function canDock(layout: UILayout, resident: string, target: string) {
 }
 export function releaseResident(layout: UILayout, key: string): UILayout {
   let next = layout;
+  const resident = readResident(key);
+  if (resident.kind === "function" && layout.items[resident.id]?.anchorId) {
+    const { anchorId: _anchor, ...item } = layout.items[resident.id];
+    next = { ...next, items: { ...next.items, [resident.id]: item } };
+  }
   for (const [id, c] of containers(layout))
     if (c.members?.some((m) => residentKey(m) === key))
       next = updateContainer(next, id, {
         members: c.members.filter((m) => residentKey(m) !== key),
       });
   return next;
+}
+/** Reorder native controls as siblings; a field never becomes another field's container. */
+export function orderNativeFunction(
+  layout: UILayout,
+  id: string,
+  anchor: string,
+  homeId: string,
+  target: string,
+  after: boolean,
+): UILayout {
+  if (functionPinned(layout, id) || functionPinned(layout, target)) return layout;
+  const next = releaseResident(layout, `function:${id}`);
+  const peers = Object.keys(next.items).filter((key) => next.items[key].anchorId === anchor);
+  const order = [...new Set([...(next.nativeOrders?.[anchor] ?? []), homeId, ...peers])].filter(
+    (key) => key !== id && (key === homeId || peers.includes(key)),
+  );
+  const index = order.indexOf(target);
+  if (index < 0) return layout;
+  order.splice(index + (after ? 1 : 0), 0, id);
+  const item = {
+    ...next.items[id],
+    x: next.items[id]?.x ?? 24,
+    y: next.items[id]?.y ?? 180,
+    home: id === homeId,
+    ...(id === homeId ? {} : { anchorId: anchor }),
+  };
+  return validateUILayout({
+    ...next,
+    items: { ...next.items, [id]: item },
+    nativeOrders: { ...next.nativeOrders, [anchor]: order },
+  });
 }
 export function dockResident(
   layout: UILayout,
@@ -541,8 +597,8 @@ export function groupFunctions(
     ],
     items: {
       ...released.items,
-      [a]: { ...layout.items[a], home: false, x: 0, y: 0 },
-      [b]: { ...layout.items[b], home: false, x: 0, y: 0 },
+      [a]: { ...released.items[a], home: false, x: 0, y: 0 },
+      [b]: { ...released.items[b], home: false, x: 0, y: 0 },
     },
   });
 }

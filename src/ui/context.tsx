@@ -7,11 +7,13 @@ export type UIFunction = {
   element: ReactElement;
   control?: boolean;
   category?: string;
+  available?: boolean;
 };
 export type UIContextValue = {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
   functions: UIFunction[];
+  registerFunction: (fn: UIFunction) => () => void;
   configure: (id: string | null) => void;
   createFrame: (x: number, y: number) => void;
   library: () => void;
@@ -24,6 +26,7 @@ export type UIContextValue = {
   renderResident: (member: UIResident) => ReactNode;
 };
 export const UIContext = createContext<UIContextValue | null>(null);
+export const UIHomeContext = createContext("workspace");
 export function useUI() {
   const value = useContext(UIContext);
   if (!value) throw new Error("UI workspace is not mounted.");

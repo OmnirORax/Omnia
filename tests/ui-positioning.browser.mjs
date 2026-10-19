@@ -153,6 +153,7 @@ try {
   await appearance.getByLabel("Frame control symbol").fill("P");
   await page.keyboard.press("Escape");
   assert.equal(await pin.textContent(), "P");
+  await page.mouse.move(1000,950); // Check its resting appearance rather than the hover highlight.
   assert.equal(await pin.evaluate((e) => getComputedStyle(e).backgroundColor), "rgba(0, 0, 0, 0)");
   // Workspace snap also positions whole frames relative to a clicked anchor.
   await page.getByLabel("UI placement mode", { exact: true }).selectOption("snap");

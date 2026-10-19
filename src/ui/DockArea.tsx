@@ -7,12 +7,20 @@ import {
   updateContainer,
   type UIResident,
 } from "./layout";
-type Shape = { x: number; y: number; width: number; height: number; geometry: string };
+type Shape = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  geometry: string;
+  padding?: number;
+};
 function path(s: Shape) {
-  const x = s.x - 6,
-    y = s.y - 6,
-    w = s.width + 12,
-    h = s.height + 12;
+  const padding = s.padding ?? 6;
+  const x = s.x - padding,
+    y = s.y - padding,
+    w = s.width + padding * 2,
+    h = s.height + padding * 2;
   if (s.geometry === "circle") return `M${x + w / 2},${y}a${w / 2},${h / 2} 0 1,0 .01,0Z`;
   if (s.geometry === "triangle") return `M${x + w / 2},${y}L${x + w},${y + h}H${x}Z`;
   return `M${x + 9},${y}H${x + w - 9}Q${x + w},${y} ${x + w},${y + 9}V${y + h - 9}Q${x + w},${y + h} ${x + w - 9},${y + h}H${x + 9}Q${x},${y + h} ${x},${y + h - 9}V${y + 9}Q${x},${y} ${x + 9},${y}Z`;
@@ -125,6 +133,7 @@ export function DockArea({ container, contour = true }: { container: string; con
               y: r.y - bounds.y + node.scrollTop,
               width: r.width,
               height: r.height,
+              padding: slot.querySelector(":scope > .ui-form-control") ? 0 : 6,
               geometry: icon?.classList.contains("shape-circle")
                 ? "circle"
                 : icon?.classList.contains("shape-triangle")
@@ -288,7 +297,12 @@ export function DockArea({ container, contour = true }: { container: string; con
         </svg>
       )}
       {!members.length && contour && (
-        <div className="empty-ui-slot" style={preview ? {position:'absolute',left:12,top:12,opacity:0} : undefined}>Drop a function, field or frame here</div>
+        <div
+          className="empty-ui-slot"
+          style={preview ? { position: "absolute", left: 12, top: 12, opacity: 0 } : undefined}
+        >
+          Drop a function, field or frame here
+        </div>
       )}
       {entries.map((member) => (
         <ResidentSlot
@@ -323,7 +337,7 @@ function ResidentSlot({
         <span className="ui-row-break" aria-hidden="true" />
       )}
       <div
-        className={`ui-resident-slot ${ghost ? "ui-drop-ghost" : ""}`}
+        className={`ui-resident-slot ${member.position ? "is-positioned" : ""} ${ghost ? "ui-drop-ghost" : ""}`}
         data-ui-slot-key={ghost ? undefined : residentKey(member)}
         data-ui-ghost={ghost ? "true" : undefined}
         style={{

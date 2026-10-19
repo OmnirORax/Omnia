@@ -11,10 +11,10 @@ const fixture = () => {
   const other = createPlacement(child.next, "other", root.placementId, settings);
   return { doc: other.next, root: root.placementId, child: child.placementId, other: other.placementId };
 };
-test("new children leave a readable binder run near the parent and avoid sibling footprints", () => {
+test("new children use the nearest clear grid position beside the parent and avoid sibling footprints", () => {
   const { doc, child, other } = fixture();
   const position = doc.placements.find((p) => p.id === child).spatialPosition;
-  assert.ok(position.x >= 6 && position.x <= 12);
+  assert.equal(position.x,2);
   assert.equal(position.y, 0); assert.equal(position.z, 0);
   assert.equal(siblingCollisions(doc, settings).length, 0);
   assert.notDeepEqual(doc.placements.find((p) => p.id === other).spatialPosition, position);
@@ -30,6 +30,22 @@ test("snapped movement resolves occupancy without changing charted knowledge", (
   assert.equal(JSON.stringify(moved.relationships), relations);
   assert.equal(JSON.stringify(moved.compositions), compositions);
   assert.deepEqual(doc.placements.find((p) => p.id === child).spatialPosition, occupied);
+});
+test('default children leave only footprint clearance with snapping off and never occupy their parent label',()=>{
+  const doc=emptyDocument();doc.entities=[entity('root'),entity('child')];
+  const root=createPlacement(doc,'root',null,{...settings,spacing:0},{x:0,y:0,z:0});
+  const child=createPlacement(root.next,'child',root.placementId,{...settings,spacing:0});
+  const p=child.next.placements.find(p=>p.id===child.placementId).spatialPosition;
+  assert.ok(p.x>1 && p.x<2.5);assert.equal(p.y,0);assert.equal(p.z,0);
+  const moved=movePlacement(child.next,child.placementId,{x:0,y:0,z:0},settings);
+  assert.notDeepEqual(moved.placements.find(p=>p.id===child.placementId).spatialPosition,{x:0,y:0,z:0});
+});
+test('wide labels choose a nearer clear direction instead of forcing a long horizontal binder',()=>{
+  const doc=emptyDocument();doc.entities=[{...entity('root'),label:'A long system name with many details'},entity('child')];
+  const root=createPlacement(doc,'root',null,settings,{x:0,y:0,z:0});
+  const child=createPlacement(root.next,'child',root.placementId,settings);
+  const p=child.next.placements.find(p=>p.id===child.placementId).spatialPosition;
+  assert.equal(Math.hypot(p.x,p.y,p.z),2);
 });
 test("shift nesting updates authored composition, avoids cycles and retains identity", () => {
   const { doc, root, child, other } = fixture();

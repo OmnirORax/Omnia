@@ -4,12 +4,14 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useCallback,
+  useContext,
   type DragEvent,
   type ReactNode,
   type ReactElement,
 } from "react";
 import { Rnd } from "react-rnd";
-import { UIContext, useUI, type UIFunction } from "./context";
+import { UIContext, UIHomeContext, useUI, type UIFunction } from "./context";
 import { FloatingWindow } from "./FloatingWindow";
 import {
   emptyUILayout,
@@ -36,6 +38,7 @@ import {
   residentPinned,
   resetContainer,
   validateUILayout,
+  orderNativeFunction,
   type WindowState,
   type UIResident,
 } from "./layout";
@@ -48,24 +51,44 @@ import {
 } from "./drag";
 import type { VisualAsset } from "../graph/assets";
 import { snapPosition, snapshotPositions } from "./positioning";
+import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
     item = ui.layout.items[id];
-  if (!fn || (!palette && (ownerOf(ui.layout, `function:${id}`) || (item && !item.home))))
-    return null;
-  return <FunctionElement fn={fn} palette={palette} />;
+  const scope = useContext(UIHomeContext),
+    anchor = `${scope}|${id}`;
+  if (palette) return fn ? <FunctionElement fn={fn} palette /> : null;
+  const peers = ui.functions.filter((f) => ui.layout.items[f.id]?.anchorId === anchor);
+  const order = [
+    ...new Set([...(ui.layout.nativeOrders?.[anchor] ?? []), id, ...peers.map((f) => f.id)]),
+  ];
+  return (
+    <>
+      {order.map((key) => {
+        const current = key === id ? fn : peers.find((f) => f.id === key);
+        const visible =
+          key !== id ||
+          (!ownerOf(ui.layout, `function:${id}`) && !item?.anchorId && (!item || item.home));
+        return current && visible ? (
+          <FunctionElement key={key} fn={current} nativeAnchor={{ key: anchor, id }} />
+        ) : null;
+      })}
+    </>
+  );
 }
 function FunctionElement({
   fn,
   palette = false,
   resident = false,
+  nativeAnchor,
 }: {
   fn: UIFunction;
   palette?: boolean;
   resident?: boolean;
+  nativeAnchor?: { key: string; id: string };
 }) {
   const ui = useUI(),
     item = ui.layout.items[fn.id],
@@ -93,6 +116,8 @@ function FunctionElement({
     "data-ui-function": fn.id,
     "data-ui-palette": palette ? "true" : undefined,
     "data-ui-resident": resident ? "true" : undefined,
+    "data-ui-native-anchor": nativeAnchor?.key,
+    "data-ui-native-home": nativeAnchor?.id,
     title: `${fn.label}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
     draggable:
       (!fn.control || palette || style.mode === "icon") && !functionPinned(ui.layout, fn.id),
@@ -217,8 +242,10 @@ export function UIPanel({
       >
         ↗
       </button>
-      {children}
-      <DockArea container={key} contour={false} />
+      <UIHomeContext.Provider value={key}>
+        {children}
+        <DockArea container={key} contour={false} />
+      </UIHomeContext.Provider>
     </section>
   );
 }
@@ -333,6 +360,7 @@ type Preview = {
   text: string;
   group?: string;
   control?: { owner: string; control: string; x: number; y: number };
+  native?: { id: string; anchor: string; homeId: string; target: string; after: boolean };
 };
 type DragState = {
   key: string;
@@ -347,7 +375,7 @@ type DragState = {
 export function UIWorkspace({
   layout,
   update,
-  functions,
+  functions: definitions,
   children,
 }: {
   layout: UILayout;
@@ -355,6 +383,35 @@ export function UIWorkspace({
   functions: UIFunction[];
   children: ReactNode;
 }) {
+  const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
+  const [registered, setRegistered] = useState<Record<string, UIFunction>>({});
+  const registerFunction = useCallback(
+    (fn: UIFunction) => {
+      const token = Symbol(fn.id),
+        entries = sources.get(fn.id) ?? new Map<symbol, UIFunction>();
+      entries.set(token, fn);
+      sources.set(fn.id, entries);
+      setRegistered((old) => ({ ...old, [fn.id]: fn }));
+      return () => {
+        entries.delete(token);
+        const remaining = [...entries.values()].at(-1);
+        setRegistered((old) => ({
+          ...old,
+          [fn.id]: remaining ?? {
+            ...fn,
+            available: false,
+            element: (
+              <p>Select the relevant node or relationship to edit {fn.label.toLowerCase()}.</p>
+            ),
+          },
+        }));
+      };
+    },
+    [sources],
+  );
+  const functions = [
+    ...new Map([...definitions, ...Object.values(registered)].map((fn) => [fn.id, fn])).values(),
+  ];
   const libraryOpen = layout.panels["@library"] ?? false;
   const setLibraryOpen = (value: boolean) =>
     update((s) => ({ ...s, panels: { ...s.panels, "@library": value } }));
@@ -556,6 +613,17 @@ export function UIWorkspace({
         handle?.dataset.uiDrag ??
         (fn ? `function:${fn.dataset.uiFunction}` : "");
       if (!key) return;
+      const nativeOwner =
+        fn?.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot;
+      if (
+        fn &&
+        !fn.dataset.uiPalette &&
+        nativeOwner &&
+        residentPinned(ensure(current.current.layout), nativeOwner)
+      ) {
+        event.preventDefault();
+        return;
+      }
       const root =
         mini ??
         (fn && key.startsWith("function:")
@@ -633,6 +701,67 @@ export function UIWorkspace({
       }
       if (residentPinned(s, source.key)) return { text: "Unpin to rearrange" };
       const elements = document.elementsFromPoint(x, y);
+      const hitOwner = elements[0]?.closest<HTMLElement>("[data-ui-resident-root],.toolbar");
+      const peer =
+        elements[0]?.closest<HTMLElement>("[data-ui-native-anchor]") ??
+        (hitOwner
+          ? [...hitOwner.querySelectorAll<HTMLElement>("[data-ui-native-anchor]")]
+              .filter(
+                (el) =>
+                  el.getClientRects().length &&
+                  `function:${el.dataset.uiFunction}` !== source.key &&
+                  el.closest("[data-ui-resident-root],.toolbar") === hitOwner,
+              )
+              .map((el) => ({ el, d: rectDistance(x, y, el.getBoundingClientRect()) }))
+              .filter((item) => item.d <= 12)
+              .sort((a, b) => a.d - b.d)[0]?.el
+          : undefined);
+      const sourceFn = current.current.functions.find((fn) => `function:${fn.id}` === source.key);
+      if (
+        sourceFn &&
+        peer &&
+        peer.dataset.uiFunction !== sourceFn.id &&
+        (sourceFn.control ||
+          current.current.functions.find((fn) => fn.id === peer.dataset.uiFunction)?.control)
+      ) {
+        const target = peer.dataset.uiFunction!;
+        const targetOwner =
+          peer.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot;
+        if (functionPinned(s, target) || (targetOwner && residentPinned(s, targetOwner)))
+          return { text: "Unpin this field or window before rearranging" };
+        const r = peer.getBoundingClientRect(),
+          parentStyle = peer.parentElement ? getComputedStyle(peer.parentElement) : null;
+        const horizontal = parentStyle?.display === "flex" && parentStyle.flexDirection === "row";
+        const after = horizontal ? x > r.x + r.width / 2 : y > r.y + r.height / 2;
+        return {
+          text: `Place ${sourceFn.label} ${after ? "after" : "before"} ${current.current.functions.find((fn) => fn.id === target)?.label ?? "field"}`,
+          native: {
+            id: sourceFn.id,
+            anchor: peer.dataset.uiNativeAnchor!,
+            homeId: peer.dataset.uiNativeHome!,
+            target,
+            after,
+          },
+          rect: horizontal
+            ? { x: after ? r.right : r.left, y: r.y, width: 4, height: r.height }
+            : { x: r.x, y: after ? r.bottom : r.top, width: r.width, height: 4 },
+        };
+      }
+      const candidateHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle");
+      const handleBounds = candidateHandle?.getBoundingClientRect();
+      // Dock into the middle of a handle; its perimeter belongs to adjacent placement.
+      const inset = handleBounds ? Math.min(18, handleBounds.width / 4) : 0;
+      const handle =
+        handleBounds &&
+        x >= handleBounds.left + inset &&
+        x <= handleBounds.right - inset &&
+        y >= handleBounds.top + 4 &&
+        y <= handleBounds.bottom - 4
+          ? candidateHandle
+          : undefined;
+      const handleTarget = handle?.dataset.uiDrag;
+      if (handleTarget && handleTarget !== source.key && !canDock(s, source.key, handleTarget))
+        return { text: "Cannot dock into a pinned frame or into this frame’s own contents" };
       const directZone = elements
         .map((e) => e.closest<HTMLElement>("[data-ui-drop-zone]"))
         .find(Boolean);
@@ -646,7 +775,20 @@ export function UIWorkspace({
       let zone = elements
         .map((e) => e.closest<HTMLElement>("[data-ui-drop-zone]"))
         .find((e) => e && canDock(s, source.key, e.dataset.uiDropZone!));
-      if (!zone)
+      const zones = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")];
+      if (handleTarget && canDock(s, source.key, handleTarget))
+        zone = zones.find((e) => e.dataset.uiDropZone === handleTarget);
+      else {
+        const owner = ownerOf(s, source.key),
+          own = zones.find((e) => e.dataset.uiDropZone === owner);
+        if (
+          own &&
+          rectDistance(x, y, own.getBoundingClientRect()) === 0 &&
+          canDock(s, source.key, owner!)
+        )
+          zone = own;
+      }
+      if (!zone && (!handleTarget || handleTarget === source.key))
         zone = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")]
           .filter((e) => e.getClientRects().length && canDock(s, source.key, e.dataset.uiDropZone!))
           .map((e) => ({ e, distance: rectDistance(x, y, e.getBoundingClientRect()) }))
@@ -676,10 +818,16 @@ export function UIWorkspace({
           ]),
         );
         const baseline = snapshotPositions(members, boxes, residentKey);
-        const desired = {
-          x: x - source.dx - bounds.x + ox + zone.scrollLeft,
-          y: y - source.dy - bounds.y + oy + zone.scrollTop,
-        };
+        const desired =
+          handleTarget === target
+            ? {
+                x: 12,
+                y: Math.max(12, ...[...boxes.values()].map((box) => box.y + box.height + 14)),
+              }
+            : {
+                x: x - source.dx - bounds.x + ox + zone.scrollLeft,
+                y: y - source.dy - bounds.y + oy + zone.scrollTop,
+              };
         const position =
           c.arrangement?.mode === "snap" && c.arrangement.grid
             ? snapPosition(
@@ -699,7 +847,12 @@ export function UIWorkspace({
             (x > nearest.r.x + nearest.r.width / 2 || breakBefore ? 1 : 0)
           : members.length;
         return {
-          text: c.arrangement?.mode === "snap" ? "Snap to available cell" : "Place freely",
+          text:
+            handleTarget === target
+              ? `Add to ${"name" in c ? c.name : "window"}`
+              : c.arrangement?.mode === "snap"
+                ? "Snap to available cell"
+                : "Place freely",
           dock: {
             key: source.key,
             target,
@@ -713,21 +866,25 @@ export function UIWorkspace({
         };
       }
       // A collapsed frame can accept a resident through its attached handle.
-      const tab = elements
-        .map((e) => e.closest<HTMLElement>("[data-ui-chrome]"))
-        .find((e) => e && canDock(s, source.key, e.dataset.uiChrome!));
-      if (tab) {
+      const tab = handle?.closest<HTMLElement>("[data-ui-chrome]");
+      if (tab && canDock(s, source.key, tab.dataset.uiChrome!)) {
         const target = tab.dataset.uiChrome!,
           r = tab.getBoundingClientRect();
+        const members = getContainer(s, target)?.members ?? [];
+        const position =
+          members.length && members.every((m) => m.position && m.size)
+            ? { x: 12, y: Math.max(...members.map((m) => m.position!.y + m.size!.height)) + 14 }
+            : undefined;
         return {
-          text: "Insert into collapsed frame",
+          text: `Add to ${getContainer(s, target) && "name" in getContainer(s, target)! ? (getContainer(s, target) as UIFrame).name : "collapsed window"}`,
           dock: {
             key: source.key,
             target,
-            index: getContainer(s, target)?.members?.length ?? 0,
+            index: members.length,
             breakBefore: false,
             width: source.width,
             height: source.height,
+            position,
           },
           rect: r,
         };
@@ -738,6 +895,8 @@ export function UIWorkspace({
 
       if (
         other &&
+        !sourceFn?.control &&
+        !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.control &&
         s.arrangement?.mode !== "snap" &&
         !ownerOf(s, `function:${other.dataset.uiFunction}`) &&
         !residentPinned(s, `function:${other.dataset.uiFunction}`)
@@ -803,6 +962,10 @@ export function UIWorkspace({
       if (!p) return;
       current.current.update((previous) => {
         let s = ensure(previous);
+        if (p.native) {
+          const n = p.native;
+          return orderNativeFunction(s, n.id, n.anchor, n.homeId, n.target, n.after);
+        }
         if (p.control) {
           const c = getContainer(s, p.control.owner)!;
           return updateContainer(s, p.control.owner, {
@@ -980,6 +1143,7 @@ export function UIWorkspace({
         layout,
         update,
         functions,
+        registerFunction,
         configure: (id) => {
           configureFrame(null);
           configureControl(null);
@@ -1018,7 +1182,7 @@ export function UIWorkspace({
         }}
       >
         {Object.entries(layout.items)
-          .filter(([id, i]) => !i.home && !ownerOf(layout, `function:${id}`))
+          .filter(([id, i]) => !i.home && !i.anchorId && !ownerOf(layout, `function:${id}`))
           .map(([id, placement]) => (
             <div
               className="ui-free-function"
@@ -1113,7 +1277,7 @@ export function UIWorkspace({
               setMenu(null);
             }}
           >
-            Functions
+            UI library
           </button>
           <button onClick={() => setMenu(null)}>Close</button>
         </div>
@@ -1121,7 +1285,7 @@ export function UIWorkspace({
       {libraryOpen && (
         <FloatingWindow
           id="function-library"
-          title="Functions & UI frames"
+          title="UI library"
           width={430}
           height={580}
           onClose={() => setLibraryOpen(false)}
@@ -1139,12 +1303,38 @@ export function UIWorkspace({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <div className="function-library">
-            {functions
-              .filter((f) => f.label.toLowerCase().includes(query.toLowerCase()))
-              .map((fn) => (
-                <FunctionElement key={fn.id} fn={fn} palette />
-              ))}
+          <div className="function-library categorized-library">
+            {LIBRARY_CATEGORIES.map((category) => {
+              const entries = functions
+                .filter(
+                  (fn) =>
+                    libraryCategory(fn) === category &&
+                    `${fn.label} ${fn.id} ${category}`.toLowerCase().includes(query.toLowerCase()),
+                )
+                .sort((a, b) => a.label.localeCompare(b.label));
+              return (
+                entries.length > 0 && (
+                  <details key={category} open={!!query || undefined}>
+                    <summary>
+                      {category} <small>{entries.length}</small>
+                    </summary>
+                    {entries.map((fn) => (
+                      <div className="library-entry" key={fn.id}>
+                        <FunctionElement fn={fn} palette />
+                        {fn.available === false && (
+                          <small>Choose its editing context to use this field</small>
+                        )}
+                      </div>
+                    ))}
+                  </details>
+                )
+              );
+            })}
+            {!functions.some((fn) =>
+              `${fn.label} ${fn.id} ${libraryCategory(fn)}`
+                .toLowerCase()
+                .includes(query.toLowerCase()),
+            ) && <p>No matching controls.</p>}
           </div>
           <button
             onClick={() => {
@@ -1271,20 +1461,20 @@ export function UIPlacementControl() {
     <label>
       UI placement
       <span className="ui-placement-options">
-      <select
-        aria-label="UI placement mode"
-        value={
-          ui.anchorTarget === "@workspace" ? "anchor" : (ui.layout.arrangement?.mode ?? "free")
-        }
-        onChange={(e) => ui.chooseMode("@workspace", e.target.value === "free" ? "free" : "snap")}
-      >
-        <option value="free">Free-hand</option>
-        <option value="snap">Snap</option>
-        {ui.anchorTarget === "@workspace" && <option value="anchor">Click an anchor…</option>}
-      </select>
-      <button type="button" onClick={() => ui.chooseMode("@workspace", "snap")}>
-        Anchor
-      </button>
+        <select
+          aria-label="UI placement mode"
+          value={
+            ui.anchorTarget === "@workspace" ? "anchor" : (ui.layout.arrangement?.mode ?? "free")
+          }
+          onChange={(e) => ui.chooseMode("@workspace", e.target.value === "free" ? "free" : "snap")}
+        >
+          <option value="free">Free-hand</option>
+          <option value="snap">Snap</option>
+          {ui.anchorTarget === "@workspace" && <option value="anchor">Click an anchor…</option>}
+        </select>
+        <button type="button" onClick={() => ui.chooseMode("@workspace", "snap")}>
+          Anchor
+        </button>
       </span>
     </label>
   );

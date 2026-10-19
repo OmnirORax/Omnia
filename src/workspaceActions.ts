@@ -1,7 +1,7 @@
 import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from "./graph/layout3d.ts";
 
 export const ACTIONS = [
-  { id: "ui:arrange", category: "Workspace", label: "Arrange UI", defaultKey: "Ctrl+Alt+U" },
+  { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
   { id: "ui:undo", category: "UI history", label: "Undo UI", defaultKey: "" },
   { id: "ui:redo", category: "UI history", label: "Redo UI", defaultKey: "" },
