@@ -8,7 +8,7 @@ import { visualFootprint } from "./graph/assets";
 
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
 
-export function textSprite(value: string, color: string, selected = false, node = false) {
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false) {
   const lines = labelLines(value),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d")!;
@@ -19,17 +19,26 @@ export function textSprite(value: string, color: string, selected = false, node 
   canvas.height = lines.length * 48 + 20;
   const ctx = canvas.getContext("2d")!;
   if (node) {
-    ctx.fillStyle = selected ? "#203b59" : "#101e2deb";
+    ctx.fillStyle = neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb";
     ctx.beginPath();
     ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, 12);
     ctx.fill();
-    ctx.strokeStyle = selected ? "#b9dcff" : color;
+    ctx.strokeStyle = selected ? neon ? "#69efff" : "#b9dcff" : color;
     ctx.lineWidth = selected ? 3 : 1;
     ctx.globalAlpha = selected ? 1 : 0.35;
     ctx.stroke();
     ctx.globalAlpha = 1;
+    if (neon) {
+      ctx.strokeStyle = selected ? "#a2f8ff" : color;
+      ctx.lineWidth = 2; ctx.globalAlpha = selected ? 1 : 0.65;
+      ctx.beginPath();
+      for (const x of [2, canvas.width - 2]) for (const y of [2, canvas.height - 2]) {
+        ctx.moveTo(x, y + (y === 2 ? 10 : -10)); ctx.lineTo(x, y); ctx.lineTo(x + (x === 2 ? 12 : -12), y);
+      }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
   } else {
-    ctx.fillStyle = "#101927ee";
+    ctx.fillStyle = neon ? "#04121bd9" : "#101927ee";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   ctx.font = "500 36px system-ui, sans-serif";
@@ -86,6 +95,7 @@ export function buildTextScene(
   selectedId: string | null,
   requestRender: () => void = () => {},
   selectedIds: ReadonlySet<string> = new Set(),
+  neon = false,
 ) {
   const nodes = new Map<string, NodeItem>();
   const nodeHits: LabelMesh[] = [],
@@ -97,9 +107,10 @@ export function buildTextScene(
     group.position.set(node.world.x, node.world.y, node.world.z);
     const text = textSprite(
       node.label,
-      appearance?.color ?? "#dce9fa",
+      appearance?.color ?? (neon ? "#c0f4ff" : "#dce9fa"),
       selectedId === node.id || selectedIds.has(node.id),
       true,
+      neon,
     );
     text.material.opacity = appearance?.opacity ?? 1;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
@@ -130,7 +141,7 @@ export function buildTextScene(
     if (!nodes.has(b.source) || !nodes.has(b.target)) continue;
     const color =
       b.color ??
-      (b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e");
+      (neon ? b.kind === "relationship" ? "#71d9ff" : b.kind === "composition" ? "#61e2d1" : "#588b9e" : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e");
     const related = !selectedId || b.source === selectedId || b.target === selectedId;
     const opacity = b.opacity ?? 0.85;
     const material =
@@ -153,7 +164,7 @@ export function buildTextScene(
     const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender) : defaultArrow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
-    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, color) : null;
+    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, color, false, false, neon) : null;
     for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;
       object.userData.binderKind = b.kind;

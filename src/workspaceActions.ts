@@ -37,6 +37,7 @@ export const ACTIONS = [
   { id: "redo", category: "History", label: "Redo", defaultKey: "Ctrl+Shift+Z" },
   { id: "cancel", category: "Workspace", label: "Cancel or close menu", defaultKey: "Esc" },
   { id: "settings", category: "Workspace", label: "Workspace settings", defaultKey: "" },
+  { id: "theme", category: "Workspace", label: "Toggle neon appearance", defaultKey: "" },
 ] as const;
 export type ActionId = (typeof ACTIONS)[number]["id"];
 export type MouseAction = "pan" | "rotate" | "none";
@@ -44,12 +45,13 @@ export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
   spatial: SpatialSettings;
   isolateFocus: boolean;
+  appearance: { theme: "neon" | "classic"; glow: number; atmosphere: boolean };
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
   bindings: Record<ActionId, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { theme: "neon", glow: 0.4, atmosphere: true }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
     bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) as Record<ActionId, string> };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -77,6 +79,9 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   try {
     const value = input as Partial<WorkspaceSettings>;
     if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;
+    if (["neon", "classic"].includes(value.appearance?.theme ?? "")) defaults.appearance.theme = value.appearance!.theme;
+    if (typeof value.appearance?.glow === "number" && Number.isFinite(value.appearance.glow)) defaults.appearance.glow = Math.max(0, Math.min(1, value.appearance.glow));
+    if (typeof value.appearance?.atmosphere === "boolean") defaults.appearance.atmosphere = value.appearance.atmosphere;
     const spacing = value.spatial?.spacing;
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
     if (spacing !== undefined && permitted.includes(spacing)) defaults.spatial.spacing = spacing;

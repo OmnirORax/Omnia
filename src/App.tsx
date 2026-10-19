@@ -63,6 +63,9 @@ function Workbench() {
   const [document, setDocument] = useState(initial.atlas);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
   const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
+  useEffect(() => {
+    window.document.documentElement.dataset.omniumTheme = settings.appearance.theme;
+  }, [settings.appearance.theme]);
   const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
   useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
@@ -682,6 +685,7 @@ function Workbench() {
   function runAction(action: ActionId, steps = 1) {
     switch (action) {
       case "ui:undo": ui.undo(steps); break;
+      case "theme": setSettings(old => ({ ...old, appearance: { ...old.appearance, theme: old.appearance.theme === "neon" ? "classic" : "neon" } })); break;
       case "ui:redo": ui.redo(steps); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
@@ -797,6 +801,9 @@ function Workbench() {
   for (const key of ["leftEmpty", "rightEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
+  replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
+  replaceFunction("ui:glow", "Graph glow", <label>Graph glow <output>{Math.round(settings.appearance.glow * 100)}%</output><input aria-label="Graph glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.glow} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, glow: Number(event.target.value) } }))} /></label>, true);
+  replaceFunction("ui:atmosphere", "Background atmosphere", <label><input type="checkbox" checked={settings.appearance.atmosphere} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, atmosphere: event.target.checked } }))} /> Background atmosphere</label>, true);
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
   replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!past.length}>Undo</button>);
   replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!future.length}>Redo</button>);
@@ -851,6 +858,7 @@ function Workbench() {
             {["panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
+            <FunctionControl id="theme" />
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <>
             <FunctionControl id="ui:flowType" />
@@ -1806,6 +1814,10 @@ function Workbench() {
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
+        <h2>Appearance</h2>
+        <FunctionControl id="theme" palette />
+        <FunctionControl id="ui:glow" />
+        <FunctionControl id="ui:atmosphere" />
         <h2>Workspace settings</h2>
         <FunctionControl id="ui:settingsSnap" />
         <FunctionControl id="ui:radius" />
@@ -1816,7 +1828,7 @@ function Workbench() {
         <h2>Keyboard actions</h2>
         {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
         {Array.from(new Set(ACTIONS.map(action=>action.category))).map(category=><div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter(action=>action.category===category).map(action=><FunctionControl key={action.id} id={`shortcut:${action.id}`}/>)}</div>)}
-        <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(defaultSettings()); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
+        <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
     </div></UIWorkspace>
   );

@@ -535,6 +535,86 @@ button.active,
   color: #65748a;
   margin-top: 4px;
 }
+/* Theme is on the root so detached/portalled windows share the same appearance. */
+:root[data-omnium-theme="neon"] {
+  color-scheme: dark;
+  color: #d5eff5;
+  background: #030c15;
+  --omnium-frame-fill: #24bad5;
+  --omnium-panel: linear-gradient(135deg, #0b2735ee, #06131fee);
+  --omnium-border: #37c7e647;
+  scrollbar-color: #246176 #06131f;
+}
+:root[data-omnium-theme="neon"] :is(.toolbar, .sidebar) {
+  background: linear-gradient(145deg, #09212ef5, #040e19f5);
+  border-color: var(--omnium-border);
+  box-shadow: 0 0 22px #00b9e010;
+}
+:root[data-omnium-theme="neon"] :is(.brand strong, h2, h3) { color: #8debf5; }
+:root[data-omnium-theme="neon"] .brand strong { text-shadow: 0 0 16px #3ee8ff66; letter-spacing: .04em; }
+:root[data-omnium-theme="neon"] :is(h2, .brand span, .save-status) { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+:root[data-omnium-theme="neon"] :is(p, label, .brand span, .save-status, .relationship-list small, .camera-guide dt, .camera-guide small) { color: #97b9c8; }
+:root[data-omnium-theme="neon"] :is(section, .primary-charting-actions, .spatial-fields, .proposal-preview) { border-color: #37c7e62b; }
+:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .function-appearance, .ui-field-popover, .spatial-menu, .camera-guide, .node-options, .operation-banner, .ui-selection-tools) {
+  color: #d5eff5;
+  background: var(--omnium-panel);
+  border-color: var(--omnium-border);
+  box-shadow: inset 0 1px #6ee9ff16, 0 8px 26px #0008, 0 0 16px #15c5eb12;
+  backdrop-filter: blur(12px);
+}
+:root[data-omnium-theme="neon"] :is(.ui-frame-handle, .ui-frame-header, .entity-menu-header) {
+  color: #b8eef6;
+  background: linear-gradient(140deg, #123947ec, #071c2cec);
+  border-color: #37c7e65c;
+  box-shadow: inset 0 1px #6ee9ff22, 0 0 12px #13c4ea12;
+}
+:root[data-omnium-theme="neon"] .ui-menu-panel > .frame-chrome > .ui-frame-handle {
+  background: transparent;
+  box-shadow: none;
+  border-color: transparent;
+}
+:root[data-omnium-theme="neon"] .ui-menu-panel:has(> .ui-panel-body:not([hidden])) > .frame-chrome .ui-frame-handle {
+  background: #123947;
+  border-color: #37c7e65c;
+}
+:root[data-omnium-theme="neon"] button {
+  color: #c4eaf3;
+  border-color: #37c7e644;
+  background: #102c3ba6;
+  transition: background-color 120ms, border-color 120ms, box-shadow 120ms;
+}
+:root[data-omnium-theme="neon"] button:hover:not(:disabled) {
+  background: #174c5c;
+  border-color: #68e5f7b3;
+  box-shadow: 0 0 12px #21d8ff24;
+}
+:root[data-omnium-theme="neon"] :is(button.active, button[aria-pressed="true"], .outline-row button.active, .node-options button[aria-expanded="true"]) {
+  color: #c9fcff;
+  background: #125164;
+  border-color: #60e3f5;
+}
+:root[data-omnium-theme="neon"] :is(.frame-chrome .frame-mini-control, .ui-frame-handle > button, .outline-row > button, .entity-menu-grid > button, .spatial-menu button, .categorized-library .library-entry > .ui-function) {
+  background: transparent;
+  color: #b8dce6;
+  box-shadow: none;
+}
+:root[data-omnium-theme="neon"] :is(input, select, textarea) {
+  color: #e0f4f8;
+  background: #04131fe6;
+  border-color: #39798e80;
+  accent-color: #5cdae9;
+}
+:root[data-omnium-theme="neon"] :is(input, textarea)::placeholder { color: #6f98a9; }
+:root[data-omnium-theme="neon"] :is(input[type="range"], input[type="checkbox"]) { width: auto; }
+:root[data-omnium-theme="neon"] :is(button, input, select, textarea):focus-visible { outline-color: #69e8f4; }
+:root[data-omnium-theme="neon"] :is(.ui-frame-handle input, .ui-frame-header input) { background: transparent; }
+:root[data-omnium-theme="neon"] :is(.danger, button.danger) { color: #ffa5ab; }
+:root[data-omnium-theme="neon"] .error { color: #f9d3a0; background: #33271b; }
+:root[data-omnium-theme="neon"] .spatial-loading { background: #030c15; }
+:root[data-omnium-theme="neon"] .menu-empty-slot { color: #76a8b7; background: #0f3c4a44; border-color: #37c7e644; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-omnium-theme="neon"] button { transition: none; }
+}
 @media (max-width: 700px) {
   .sidebar {
     width: 240px;
