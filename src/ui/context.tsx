@@ -10,7 +10,7 @@ export type UIFunction = {
   available?: boolean;
   scope?: string;
 };
-export type UICommand = { action: "select" | "compact"; sequence: number };
+export type UICommand = { action: "select" | "compact" | "align"; sequence: number };
 export type UIContextValue = {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;

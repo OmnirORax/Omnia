@@ -1556,6 +1556,7 @@ export function UIArrangeButtons() {
       <FunctionControl id="ui:createFrame" />
       <FunctionControl id="ui:select" />
       <FunctionControl id="ui:compact" />
+      <FunctionControl id="ui:align" />
       <FunctionControl id="ui:placementMode" />
     </>
   );

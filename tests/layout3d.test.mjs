@@ -4,7 +4,7 @@ import { emptyDocument } from "../src/graph/structural.ts";
 import { DEFAULT_SPATIAL_SETTINGS as settings, createPlacement, movePlacement, reparentStructure, reparentVisual, compactLayout, siblingCollisions, worldPositions } from "../src/graph/layout3d.ts";
 
 const entity = (id) => ({ id, label: id, aliases: [], notes: "" });
-test("compaction is tight, deterministic and idempotent, independent of a coarse drag grid", () => {
+test("compaction contracts the authored arrangement proportionally, independent of a coarse drag grid", () => {
   const doc = emptyDocument();
   for(let i=0;i<12;i++) {
     const id=`n${i}`; doc.entities.push(entity(id));
@@ -14,21 +14,24 @@ test("compaction is tight, deterministic and idempotent, independent of a coarse
   assert.equal(siblingCollisions(packed,settings).length,0);
   assert.deepEqual(compactLayout(packed,{kind:"all"},{...settings,spacing:5}),packed);
   assert.deepEqual(compactLayout(doc,{kind:"all"},{...settings,spacing:0}),packed);
-  for(const axis of ["x","y","z"]) {
-    const coords=packed.placements.map(p=>p.spatialPosition[axis]);
-    assert.ok(Math.max(...coords)-Math.min(...coords)<10,"no inherited empty gaps or flat, sprawling rows");
-  }
+  const scale=(packed.placements[1].spatialPosition.x-packed.placements[0].spatialPosition.x)/100;
+  assert.ok(scale>0 && scale<1);
+  for(let i=1;i<packed.placements.length;i++) for(const axis of ["x","y","z"])
+    assert.ok(Math.abs((packed.placements[i].spatialPosition[axis]-packed.placements[0].spatialPosition[axis])-(doc.placements[i].spatialPosition[axis]-doc.placements[0].spatialPosition[axis])*scale)<1e-8,"relative directions and distance ratios stay authored");
   assert.deepEqual(packed.entities,doc.entities); assert.deepEqual(packed.relationships,doc.relationships);
   assert.deepEqual(packed.placements.map(p=>p.position),doc.placements.map(p=>p.position));
 });
-test("selection compaction preserves other placements and clears expanded subsystem contents", () => {
+test("selection compaction preserves fixed placements and contracts around the selected center", () => {
   const {doc,root,child,other}=fixture();
   doc.placements.find(p=>p.id===child).spatialPosition={x:400,y:0,z:0};
   doc.placements.find(p=>p.id===other).spatialPosition={x:800,y:0,z:0};
   const selected=compactLayout(doc,{kind:"selection",placementIds:[child,other]},settings);
   assert.deepEqual(selected.placements.find(p=>p.id===root),doc.placements.find(p=>p.id===root));
   assert.equal(siblingCollisions(selected,settings).length,0);
-  assert.ok(selected.placements.filter(p=>p.parentId===root).every(p=>Math.hypot(...Object.values(p.spatialPosition))<6));
+  const positions=selected.placements.filter(p=>[child,other].includes(p.id)).map(p=>p.spatialPosition);
+  assert.ok(Math.abs((positions[0].x+positions[1].x)/2-600)<1e-8);
+  assert.ok(positions[1].x>positions[0].x && positions[1].x-positions[0].x<400);
+  assert.ok(positions.every(p=>p.y===0 && p.z===0));
   assert.deepEqual(selected.compositions,doc.compositions);
 });
 const fixture = () => {
@@ -110,7 +113,9 @@ test("explicit compact layout makes a scattered software-like atlas local and co
   const compact = compactLayout(doc, { kind: "all" }, settings);
   const worlds = worldPositions(compact);
   const rootPositions = compact.placements.filter((p) => p.parentId === null).map((p) => worlds.get(p.id));
-  assert.ok(Math.max(...rootPositions.map((p) => Math.abs(p.x))) < 100);
+  assert.ok(Math.max(...rootPositions.map(p=>p.x))-Math.min(...rootPositions.map(p=>p.x)) < 3500);
+  for(let i=1;i<rootPositions.length;i++)
+    assert.ok(rootPositions[i].x>rootPositions[i-1].x && rootPositions[i].y===0 && rootPositions[i].z===0);
   assert.equal(siblingCollisions(compact, settings).length, 0);
   assert.equal(JSON.stringify({ entities: compact.entities, compositions: compact.compositions, relationships: compact.relationships }), originalKnowledge);
   assert.equal(doc.placements[1].spatialPosition.x, 0);

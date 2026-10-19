@@ -12,6 +12,27 @@ import {
 } from "./layout.ts";
 import type { PositionedBox } from "./positioning.ts";
 export type ButtonBox = PositionedBox & { id: string };
+export type AlignmentEdge = "left" | "right" | "top" | "bottom";
+export function nearestButtonEdge(box: PositionedBox, x: number, y: number): AlignmentEdge {
+  const distances: [AlignmentEdge, number][] = [
+    ["left", Math.abs(x - box.x)],
+    ["right", Math.abs(x - box.x - box.width)],
+    ["top", Math.abs(y - box.y)],
+    ["bottom", Math.abs(y - box.y - box.height)],
+  ];
+  distances.sort((a, b) => a[1] - b[1]);
+  return distances[0][0];
+}
+/** Match the clicked target edge. The other coordinate and all sizes stay authored. */
+export function alignButtons(boxes: ButtonBox[], target: PositionedBox, edge: AlignmentEdge): ButtonBox[] {
+  return boxes.map(b => ({
+    ...b,
+    ...(edge === "left" ? { x: target.x }
+      : edge === "right" ? { x: target.x + target.width - b.width }
+      : edge === "top" ? { y: target.y }
+      : { y: target.y + target.height - b.height }),
+  }));
+}
 export const intersects = (a: PositionedBox, b: PositionedBox, gap = 0) =>
   a.x < b.x + b.width + gap - 0.01 &&
   a.x + a.width + gap > b.x + 0.01 &&

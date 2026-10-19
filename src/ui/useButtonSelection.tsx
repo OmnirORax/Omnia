@@ -13,9 +13,12 @@ import {
 import type { UICommand, UIFunction } from "./context";
 import {
   buttonBounds,
+  alignButtons,
   compactButtons,
   intersects,
+  nearestButtonEdge,
   placeButtons,
+  type AlignmentEdge,
   type ButtonBox,
 } from "./selection";
 import { snapPosition, snapshotPositions, type PositionedBox } from "./positioning";
@@ -71,6 +74,14 @@ type Gesture = {
   scope?: string;
   initial: Set<string>;
   clickId?: string;
+  align?: boolean;
+};
+type AlignmentPreview = {
+  target: ButtonBox;
+  edge: AlignmentEdge;
+  boxes: ButtonBox[];
+  next?: UILayout;
+  message: string;
 };
 
 export function useButtonSelection({
@@ -88,12 +99,14 @@ export function useButtonSelection({
 }) {
   const [ids, setIds] = useState<Set<string>>(() => new Set()),
     [mode, setMode] = useState(false),
+    [aligning, setAligning] = useState(false),
+    [alignment, setAlignment] = useState<AlignmentPreview | null>(null),
     [rectangle, setRectangle] = useState<PositionedBox | null>(null),
     [previews, setPreviews] = useState<ButtonBox[]>([]),
     [message, setMessage] = useState(""),
     [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const current = useRef({ layout, update, functions, ids, mode });
-  current.current = { layout, update, functions, ids, mode };
+  const current = useRef({ layout, update, functions, ids, mode, aligning });
+  current.current = { layout, update, functions, ids, mode, aligning };
   const gesture = useRef<Gesture | null>(null);
   const select = (next: Set<string>) => {
     current.current.ids = next;
@@ -102,6 +115,10 @@ export function useButtonSelection({
   const clear = () => {
     select(new Set());
     setMode(false);
+    current.current.aligning = false;
+    setAligning(false);
+    setAlignment(null);
+    setPreviews([]);
     setMenu(null);
     setMessage("");
   };
@@ -143,6 +160,10 @@ export function useButtonSelection({
       .map((el) => (el.dataset.uiResidentRoot ? residentBounds(el) : boxOf(el)));
   };
   const compact = () => {
+    current.current.aligning = false;
+    setAligning(false);
+    setAlignment(null);
+    setPreviews([]);
     try {
       const state = current.current,
         all = selectedBoxes();
@@ -193,6 +214,69 @@ export function useButtonSelection({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
+  };
+  const align = () => {
+    if (!selectedBoxes().length) {
+      setMessage("Select the UI buttons to align first.");
+      return;
+    }
+    const active = !current.current.aligning;
+    current.current.aligning = active;
+    setAligning(active);
+    setAlignment(null);
+    setPreviews([]);
+    setMenu(null);
+    setMessage(active ? "Click another button’s left, right, top or bottom boundary to align. Esc cancels." : "Alignment cancelled.");
+  };
+  const alignmentFor = (element: Element, x: number, y: number): AlignmentPreview | null => {
+    const el = element.closest<HTMLElement>(selectable);
+    if (!el || !visible(el) || current.current.ids.has(el.dataset.uiFunction!)) return null;
+    const target = { id: el.dataset.uiFunction!, ...boxOf(el) };
+    const edge = nearestButtonEdge(target, x, y);
+    const all = alignButtons(selectedBoxes(), target, edge);
+    const result: AlignmentPreview = {
+      target, edge, boxes: all,
+      message: `Align ${all.length} UI button${all.length === 1 ? "" : "s"} to this ${edge} edge.`,
+    };
+    try {
+      if (!all.length) throw new Error("Select the UI buttons to align first.");
+      for (let i = 0; i < all.length; i++) {
+        if (all.slice(i + 1).some(b => intersects(all[i], b)))
+          throw new Error("These buttons would overlap. Spread them along the other axis first.");
+        if (intersects(all[i], target))
+          throw new Error("This alignment would overlap the target button. Choose another edge or move the selection first.");
+      }
+      const state = current.current;
+      const excluded = new Set(all.map(b => b.id));
+      const groups = new Map<string | undefined, ButtonBox[]>();
+      for (const b of all) {
+        const owner = ownerOf(state.layout, `function:${b.id}`);
+        groups.set(owner, [...(groups.get(owner) ?? []), b]);
+      }
+      let next = state.layout;
+      for (const [owner, group] of groups) {
+        const zone = owner ? zoneFor(owner) : undefined;
+        if (owner && !zone) throw new Error("Expand the selected buttons’ frame before aligning.");
+        const occupied = obstacles(excluded, owner);
+        if (group.some(b => occupied.some(other => intersects(b, other))))
+          throw new Error("This alignment would overlap another UI control. Choose another edge or move the selection first.");
+        const local = zone ? group.map(b => ({ ...b, ...toLocal(b, zone) })) : group;
+        if (!zone && local.some(b => b.x < 0 || b.y < 0 || b.x + b.width > window.innerWidth || b.y + b.height > window.innerHeight))
+          throw new Error("This alignment would move a button outside the workspace.");
+        next = placeButtons(next, local, owner, zone ? baselineOf(next, owner!, zone) : undefined);
+      }
+      result.next = next;
+    } catch (error) {
+      result.message = error instanceof Error ? error.message : String(error);
+    }
+    return result;
+  };
+  const previewAlignment = (element: Element, x: number, y: number) => {
+    const result = alignmentFor(element, x, y);
+    setAlignment(result);
+    setPreviews(result?.boxes ?? []);
+    setMessage(result?.message ?? "Click an unselected button’s boundary. Esc cancels alignment.");
+    return result;
   };
   const resolve = (g: Gesture, x: number, y: number): Proposal => {
     const state = current.current,
@@ -294,22 +378,27 @@ export function useButtonSelection({
       message: `Move ${placed.length} UI buttons ${target ? "into this frame" : "together"}${arrangement?.mode === "snap" ? " · snap" : ""}`,
     };
   };
-  const ops = useRef({ compact, clear, resolve });
-  ops.current = { compact, clear, resolve };
+  const ops = useRef({ compact, align, clear, resolve, previewAlignment });
+  ops.current = { compact, align, clear, resolve, previewAlignment };
   useEffect(() => {
     if (command?.action === "select") {
+      current.current.aligning = false;
+      setAligning(false);
+      setAlignment(null);
+      setPreviews([]);
       setMode((v) => !v);
       setMenu(null);
     } else if (command?.action === "compact") ops.current.compact();
+    else if (command?.action === "align") ops.current.align();
   }, [command?.sequence]);
   useEffect(() => {
-    document.body.classList.toggle("ui-select-mode", mode);
+    document.body.classList.toggle("ui-select-mode", mode || aligning);
     return () => document.body.classList.remove("ui-select-mode");
-  }, [mode]);
+  }, [mode, aligning]);
   useEffect(() => {
     const down = (e: PointerEvent) => {
       if (e.button !== 0) {
-        if (gesture.current && (e.button === 3 || e.button === 4)) cancel();
+        if ((gesture.current || current.current.aligning) && (e.button === 3 || e.button === 4)) cancel();
         return;
       }
       const target = e.target as Element,
@@ -320,10 +409,22 @@ export function useButtonSelection({
         )
       )
         return;
+      if (state.aligning) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        suppress();
+        ops.current.previewAlignment(target, e.clientX, e.clientY);
+        gesture.current = {
+          start: { x: e.clientX, y: e.clientY }, boxes: [],
+          bounds: { x: 0, y: 0, width: 0, height: 0 },
+          moved: false, initial: new Set(state.ids), align: true,
+        };
+        return;
+      }
       const button = target.closest<HTMLElement>(selectable),
         id = button?.dataset.uiFunction,
         additive = e.ctrlKey || e.metaKey;
-      if (id && (!["ui:select", "ui:compact"].includes(id) || additive || (state.ids.size > 1 && state.ids.has(id)))) {
+      if (id && (!["ui:select", "ui:compact", "ui:align"].includes(id) || additive || (state.ids.size > 1 && state.ids.has(id)))) {
         if (!state.mode && !additive && !(state.ids.size > 1 && state.ids.has(id))) {
           if (state.ids.size) select(new Set());
           return;
@@ -386,6 +487,15 @@ export function useButtonSelection({
     };
     const move = (e: PointerEvent) => {
       const g = gesture.current;
+      if (current.current.aligning) {
+        ops.current.previewAlignment(e.target as Element, e.clientX, e.clientY);
+        if (g) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          g.moved ||= Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) > 5;
+        }
+        return;
+      }
       if (!g) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -428,6 +538,19 @@ export function useButtonSelection({
       gesture.current = null;
       setRectangle(null);
       setPreviews([]);
+      if (g.align) {
+        if (g.moved) return;
+        const result = ops.current.previewAlignment(e.target as Element, e.clientX, e.clientY);
+        if (result?.next) {
+          current.current.update(() => result.next!);
+          current.current.aligning = false;
+          setAligning(false);
+          setAlignment(null);
+          setPreviews([]);
+          setMessage(`UI aligned to ${result.edge} edge. Shift+MB4 undoes it.`);
+        }
+        return;
+      }
       if (!g.marquee && g.moved && g.proposal?.boxes.length) {
         const proposal = g.proposal;
         current.current.update((s) =>
@@ -437,15 +560,18 @@ export function useButtonSelection({
       }
     };
     const cancel = () => {
-      if (!gesture.current) return;
+      if (!gesture.current && !current.current.aligning) return;
       gesture.current = null;
+      current.current.aligning = false;
+      setAligning(false);
+      setAlignment(null);
       setRectangle(null);
       setPreviews([]);
       suppress();
       setMessage("Move cancelled.");
     };
     const key = (e: KeyboardEvent) => {
-      const active = gesture.current || current.current.ids.size || current.current.mode;
+      const active = gesture.current || current.current.ids.size || current.current.mode || current.current.aligning;
       if (
         active &&
         ["Delete", "Backspace"].includes(e.key) &&
@@ -464,7 +590,7 @@ export function useButtonSelection({
       if (e.key === "Escape" && active) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        if (gesture.current) cancel();
+        if (gesture.current || current.current.aligning) cancel();
         else ops.current.clear();
       }
     };
@@ -486,11 +612,14 @@ export function useButtonSelection({
   return {
     ids,
     mode,
+    aligning,
+    alignment,
     rectangle,
     previews,
     message,
     menu,
     compact,
+    align,
     clear,
     openMenu: (x: number, y: number) => setMenu({ x, y }),
   };
@@ -520,16 +649,30 @@ export function ButtonSelectionOverlay({
           style={{ left: b.x, top: b.y, width: b.width, height: b.height }}
         />
       ))}
+      {selection.alignment && (
+        <div
+          className={`ui-alignment-edge${selection.alignment.next ? "" : " invalid"}`}
+          style={{
+            left: selection.alignment.target.x + (selection.alignment.edge === "right" ? selection.alignment.target.width : 0),
+            top: selection.alignment.target.y + (selection.alignment.edge === "bottom" ? selection.alignment.target.height : 0),
+            width: selection.alignment.edge === "left" || selection.alignment.edge === "right" ? 0 : selection.alignment.target.width,
+            height: selection.alignment.edge === "top" || selection.alignment.edge === "bottom" ? 0 : selection.alignment.target.height,
+          }}
+        />
+      )}
       {(selection.mode || selection.ids.size > 0) && (
         <div className="ui-selection-tools" role="region" aria-label="UI selection">
           <span>{selection.ids.size} UI selected</span>
           <button disabled={selection.ids.size < 2} onClick={selection.compact}>
             Compact UI
           </button>
+          <button disabled={!selection.ids.size} aria-pressed={selection.aligning} onClick={selection.align}>
+            {selection.aligning ? "Cancel alignment" : "Align UI"}
+          </button>
           <button onClick={selection.clear}>Done / clear</button>
           <small>
-            Ctrl/Cmd-click to add · drag selected buttons together
-            {selection.mode ? " · drag a box to select" : ""}
+            {selection.aligning ? "Click another button’s boundary · Esc cancels" : "Ctrl/Cmd-click to add · drag selected buttons together"}
+            {selection.mode && !selection.aligning ? " · drag a box to select" : ""}
           </small>
         </div>
       )}
@@ -549,6 +692,7 @@ export function ButtonSelectionOverlay({
           }}
         >
           <button onClick={selection.compact}>Compact selected UI</button>
+          <button onClick={selection.align}>Align UI to a button boundary</button>
           <button onClick={selection.clear}>Clear UI selection</button>
         </div>
       )}
