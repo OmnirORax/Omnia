@@ -8,6 +8,8 @@ import type { SpatialNode } from "./graph/spatial";
 import { visualObject } from "./visualScene";
 import type { Document } from "./graph/structural";
 import { visualFootprint } from "./graph/assets";
+import { resolveAppearance } from "./graph/appearance";
+import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
@@ -88,6 +90,7 @@ type BinderItem = {
   markerHit?: LabelMesh;
   label: LabelMesh | null;
   opacity: number;
+  textOpacity: number;
   related: boolean;
   spread: number;
 };
@@ -100,19 +103,21 @@ export function buildTextScene(
   selectedId: string | null,
   requestRender: () => void = () => {},
   selectedIds: ReadonlySet<string> = new Set(),
-  neon = false,
-  accent = "#60ddec",
+  theme: WorkspaceSettings["appearance"] = defaultSettings().appearance,
 ) {
+  const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();
   const nodeHits: LabelMesh[] = [],
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
   for (const node of visible) {
     const placement = doc.placements.find((p) => p.id === node.id);
     const appearance = placement?.appearance;
+    const style = resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", appearance);
     const group = new THREE.Group();
+    group.userData.glowIntensity = style.glow;
     group.position.set(node.world.x, node.world.y, node.world.z);
     const selected = selectedId === node.id || selectedIds.has(node.id);
-    const color = appearance?.color ?? (neon ? new THREE.Color(accent).lerp(new THREE.Color("white"), 0.65).getStyle() : "#dce9fa");
+    const color = style.color;
     const text = textSprite(
       node.label,
       color,
@@ -120,12 +125,12 @@ export function buildTextScene(
       true,
       neon,
     );
-    text.material.opacity = appearance?.opacity ?? 1;
+    text.material.opacity = style.opacity;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
     const footprint = visualFootprint(labelSize(node.label), placement?.visual);
-    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, neon) : undefined;
+    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: appearance?.color ?? theme.nodes.color, opacity: style.opacity }) : undefined;
     const sprite: LabelMesh = footprint.sphere
-      ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color: appearance?.color ?? (neon ? accent : "#9fc4e9"), shininess: 35, transparent: true, opacity: appearance?.opacity ?? 1 }))
+      ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
     // Picking volumes remain fully invisible, even while hovered or selected.
     let outline: THREE.LineSegments | undefined;
@@ -134,7 +139,7 @@ export function buildTextScene(
       for (const x of [-0.56, 0.56]) for (const y of [-0.56, 0.56]) {
         points.push(x, y - Math.sign(y) * 0.14, 0, x, y, 0, x, y, 0, x - Math.sign(x) * 0.14, y, 0);
       }
-      outline = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(points, 3)), new THREE.LineBasicMaterial({ color: neon ? accent : "#9fc4e9", transparent: true, opacity: 0.75, depthWrite: false }));
+      outline = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(points, 3)), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.75, depthWrite: false }));
       outline.visible = selected; outline.userData.selected = selected;
       sprite.userData.hoverOutline = outline;
       group.add(outline);
@@ -165,22 +170,25 @@ export function buildTextScene(
   const connectors: BinderItem[] = [];
   for (const b of binders) {
     if (!nodes.has(b.source) || !nodes.has(b.target)) continue;
-    const color =
-      b.color ??
-      (neon ? accent : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e");
+    const style = resolveAppearance(theme.binders, neon ? accent : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e", b.color ? { color: b.color, opacity: b.opacity ?? theme.binders.opacity, glow: b.glow } : undefined);
+    const textStyle = resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", b.textAppearance);
+    const color = style.color;
     const related = !selectedId || b.source === selectedId || b.target === selectedId;
-    const opacity = b.opacity ?? 0.85;
+    const opacity = style.opacity;
     const material = new LineMaterial({ color: new THREE.Color(color).getHex(), linewidth: 1.5, worldUnits: false, alphaToCoverage: true, transparent: true, depthWrite: false, opacity, dashed: b.kind === "visual" || b.kind === "variant", dashSize: 0.15, gapSize: 0.1 });
     const line = new Line2(new LineGeometry(), material);
+    line.userData.glowIntensity = style.glow;
     const defaultArrow = new THREE.Mesh(
       new THREE.ConeGeometry(1, 1, 12),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
     );
     const custom = !!(b.visual?.assetId || b.visual?.character);
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, neon) : defaultArrow;
+    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: b.color ?? theme.binders.color, opacity }) : defaultArrow;
+    arrow.userData.glowIntensity = style.glow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
-    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, color, false, false, neon) : null;
+    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon) : null;
+    if (label) label.userData.glowIntensity = textStyle.glow;
     for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;
       object.userData.binderKind = b.kind;
@@ -198,6 +206,7 @@ export function buildTextScene(
       markerHit,
       label,
       opacity,
+      textOpacity: textStyle.opacity,
       related,
       spread: index - ((totals.get(pair(b)) ?? 1) - 1) / 2,
     });
@@ -282,7 +291,7 @@ export function buildTextScene(
         const size = labelSize(b.data.label);
         b.label.scale.set(size.width * 0.7, size.height * 0.7, 1);
         b.label.position.copy(center).addScaledVector(up, b.label.scale.y / 2 + 0.22);
-        b.label.material.opacity = b.opacity;
+        b.label.material.opacity = b.textOpacity;
         b.label.visible = b.related && depth(b.label.position) > camera.near && b.label.scale.y / unitsPerPixel(b.label.position) >= 5;
       }
     }

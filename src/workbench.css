@@ -345,6 +345,9 @@ textarea:focus-visible {
 .binding-row button { padding: 5px; }
 .dialog-actions { display: flex; justify-content: space-between; margin-top: 16px; }
 .appearance-controls { border: 1px solid #dce1e8; border-radius: 6px; margin: 12px 0; display: flex; gap: 10px; }
+.appearance-controls { flex-wrap: wrap; }
+.appearance-controls > .ui-form-control { flex: 1 1 85px; }
+.appearance-controls > button { font-size: 11px; }
 .appearance-controls label { flex: 1; margin: 0; }
 .appearance-controls input[type="color"] { height: 34px; padding: 3px; }
 .appearance-controls input[type="range"] { padding: 5px 0; }

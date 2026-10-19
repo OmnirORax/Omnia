@@ -6,10 +6,10 @@ import { validateAsset, validateVisual, type Visual, type VisualAsset } from "./
 export type XY = { x: number; y: number };
 export type XYZ = XY & { z: number };
 export type Entity = { id: string; label: string; aliases: string[]; notes: string };
-export type Appearance = { color: string; opacity: number };
+export type Appearance = { color: string; opacity: number; glow?: number };
 // Editable annotations, not an executable grammar or a definition of truth.
 export type BinderOperator = { id: string; text: string };
-export type BinderPresentation = { appearance?: Appearance; operators?: BinderOperator[]; text?: string; visual?: Visual };
+export type BinderPresentation = { appearance?: Appearance; textAppearance?: Appearance; operators?: BinderOperator[]; text?: string; visual?: Visual };
 export type Placement = {
   id: string;
   entityId: string;
@@ -129,8 +129,8 @@ const point = (v: unknown, axis: string[]): boolean =>
   );
 function validatePresentation(value: BinderPresentation) {
   if (value.text !== undefined && !str(value.text, 500)) fail("Invalid binder text.");
-  const a = value.appearance;
-  if (a !== undefined && (!rec(a) || !/^#[0-9a-f]{6}$/i.test(a.color) || !Number.isFinite(a.opacity) || a.opacity < 0 || a.opacity > 1)) fail("Invalid appearance.");
+  for (const a of [value.appearance, value.textAppearance])
+    if (a !== undefined && (!rec(a) || !/^#[0-9a-f]{6}$/i.test(a.color) || !Number.isFinite(a.opacity) || a.opacity < 0 || a.opacity > 1 || (a.glow !== undefined && (!Number.isFinite(a.glow) || a.glow < 0 || a.glow > 2)))) fail("Invalid appearance.");
   if (value.operators !== undefined) {
     if (!Array.isArray(value.operators) || value.operators.length > 32 || value.operators.some((o) => !rec(o) || !id(o.id) || !str(o.text, 500))) fail("Invalid binder operators.");
     unique(value.operators.map((o) => o.id), "binder operator");

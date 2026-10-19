@@ -1,4 +1,5 @@
 import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from "./graph/layout3d.ts";
+import type { StyleDefaults } from "./graph/appearance.ts";
 
 export const ACTIONS = [
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
@@ -46,13 +47,13 @@ export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
   spatial: SpatialSettings;
   isolateFocus: boolean;
-  appearance: { theme: "neon" | "classic"; accent: string; background: string; glow: number; atmosphere: boolean; effect: "stars" | "dust" | "sparks" | "off"; effectIntensity: number; density: number; motion: number; windowOpacity: number; blur: number };
+  appearance: { theme: "neon" | "classic"; accent: string; background: string; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effect: "stars" | "dust" | "sparks" | "off"; effectIntensity: number; density: number; motion: number; windowOpacity: number; blur: number };
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
   bindings: Record<ActionId, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { theme: "neon", accent: "#60ddec", background: "#030c15", glow: 0.22, atmosphere: true, effect: "stars", effectIntensity: 0.35, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { theme: "neon", accent: "#60ddec", background: "#030c15", glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectIntensity: 0.35, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
     bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) as Record<ActionId, string> };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -83,6 +84,12 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     if (["neon", "classic"].includes(value.appearance?.theme ?? "")) defaults.appearance.theme = value.appearance!.theme;
     if (typeof value.appearance?.glow === "number" && Number.isFinite(value.appearance.glow)) defaults.appearance.glow = Math.max(0, Math.min(1, value.appearance.glow));
     if (typeof value.appearance?.atmosphere === "boolean") defaults.appearance.atmosphere = value.appearance.atmosphere;
+    if (typeof value.appearance?.glowSpread === "number" && Number.isFinite(value.appearance.glowSpread)) defaults.appearance.glowSpread = Math.max(0, Math.min(1, value.appearance.glowSpread));
+    for (const group of ["nodes", "binders"] as const) {
+      const style = value.appearance?.[group];
+      if (/^#[0-9a-f]{6}$/i.test(style?.color ?? "")) defaults.appearance[group].color = style!.color;
+      for (const key of ["opacity", "glow"] as const) if (typeof style?.[key] === "number" && Number.isFinite(style[key])) defaults.appearance[group][key] = Math.max(0, Math.min(key === "glow" ? 2 : 1, style[key]));
+    }
     for (const key of ["accent", "background"] as const) if (/^#[0-9a-f]{6}$/i.test(value.appearance?.[key] ?? "")) defaults.appearance[key] = value.appearance![key];
     if (["stars", "dust", "sparks", "off"].includes(value.appearance?.effect ?? "")) defaults.appearance.effect = value.appearance!.effect;
     for (const key of ["effectIntensity", "density", "motion", "windowOpacity", "blur"] as const) {

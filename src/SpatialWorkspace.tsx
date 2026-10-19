@@ -474,14 +474,14 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance.theme === "neon", settings.appearance.accent);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance);
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.theme, settings.appearance.accent]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.theme, settings.appearance.accent, settings.appearance.nodes.color, settings.appearance.nodes.opacity, settings.appearance.nodes.glow, settings.appearance.binders.color, settings.appearance.binders.opacity, settings.appearance.binders.glow]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [

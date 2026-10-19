@@ -230,6 +230,8 @@ export type DisplayBinder = {
   label: string;
   color?: string;
   opacity?: number;
+  glow?: number;
+  textAppearance?: import("./structural.ts").Appearance;
   visual?: Visual;
 };
 export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayBinder[] {
@@ -245,6 +247,8 @@ export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayB
         .join(" · "),
       color: canonical.appearance?.color,
       opacity: canonical.appearance?.opacity,
+      glow: canonical.appearance?.glow,
+      textAppearance: canonical.textAppearance,
       visual: canonical.visual,
     };
   });
@@ -253,7 +257,7 @@ export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayB
     const link = placements.get(node.id)?.variantOwner;
     if (link && atlas.nodes.some((n) => n.id === link.placementId)) {
       const v = doc.variants!.find((v) => v.id === link.variantId)!;
-      binders.push({ key: `variant:${node.id}`, id: link.variantId, kind: "variant", source: link.placementId, target: node.id, label: v.text ?? "variant", color: v.appearance?.color ?? "#bda1ec", opacity: v.appearance?.opacity, visual: v.visual });
+      binders.push({ key: `variant:${node.id}`, id: link.variantId, kind: "variant", source: link.placementId, target: node.id, label: v.text ?? "variant", color: v.appearance?.color, opacity: v.appearance?.opacity, glow: v.appearance?.glow, textAppearance: v.textAppearance, visual: v.visual });
     }
     if (!node.parentId) continue;
     if (node.parentId === link?.placementId) continue;
@@ -273,6 +277,8 @@ export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayB
       label: style?.text ?? (comp ? comp.operators?.map((o) => o.text).join(" · ") || "contains" : "visual nesting"),
       color: style?.appearance?.color,
       opacity: style?.appearance?.opacity,
+      glow: style?.appearance?.glow,
+      textAppearance: style?.textAppearance,
       visual: style?.visual,
     });
   }
@@ -293,6 +299,8 @@ export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayB
         label: comp.text ?? (comp.operators?.map((o) => o.text).join(" · ") || "contains"),
         color: comp.appearance?.color,
         opacity: comp.appearance?.opacity,
+        glow: comp.appearance?.glow,
+        textAppearance: comp.textAppearance,
         visual: comp.visual,
       });
   }

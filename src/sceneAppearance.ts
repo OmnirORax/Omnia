@@ -1,14 +1,14 @@
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { SceneGlow } from "./sceneGlow";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
 type Appearance = WorkspaceSettings["appearance"];
 /** Effects are decorative: no picking, saved placements or canonical knowledge. */
 export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
-  let composer: EffectComposer | null = null, bloom: UnrealBloomPass | null = null, output: OutputPass | null = null;
+  let composer: EffectComposer | null = null, bloom: SceneGlow | null = null, output: OutputPass | null = null;
   let appearance: Appearance = { ...defaultSettings().appearance, theme: "classic" };
   let width = 1, height = 1, failed = false, phase = 0, previousTime = 0;
   let seed = 173;
@@ -42,6 +42,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     new THREE.PointsMaterial({ color: 0x60ddec, size: 3, sizeAttenuation: false, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }),
   );
   particles.visible = false; particles.name = "Decorative atmosphere"; scene.add(particles);
+  particles.userData.glowIntensity = 0.4;
   const disposeBloom = () => { bloom?.dispose(); output?.dispose(); composer?.dispose(); bloom = null; output = null; composer = null; };
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let timer: ReturnType<typeof setTimeout> | undefined, redraw: (() => void) | undefined;
@@ -66,7 +67,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
       particles.material.size = value.effect === "sparks" ? 11 : value.effect === "dust" ? 4 : 3;
       particles.material.opacity = value.effectIntensity; particles.material.needsUpdate = true;
       if (!neon || value.glow === 0) disposeBloom();
-      if (bloom) bloom.strength = value.glow;
+      bloom?.configure(value.glow, value.glowSpread);
       previousTime = 0; schedule();
     },
     resize(w: number, h: number) { width = w; height = h; composer?.setSize(w, h); },
@@ -84,7 +85,8 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
             const target = new THREE.WebGLRenderTarget(width, height, { type: THREE.HalfFloatType, samples: Math.min(4, renderer.capabilities.maxSamples) });
             composer = new EffectComposer(renderer, target);
             composer.addPass(new RenderPass(scene, camera));
-            bloom = new UnrealBloomPass(new THREE.Vector2(width, height), appearance.glow, 0.3, 0.6);
+            bloom = new SceneGlow(scene, camera, renderer.capabilities.maxSamples);
+            bloom.configure(appearance.glow, appearance.glowSpread);
             composer.addPass(bloom); output = new OutputPass(); composer.addPass(output);
             composer.setSize(width, height);
           }

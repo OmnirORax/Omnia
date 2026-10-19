@@ -20,6 +20,7 @@ import { compactLayout, createPlacement, movePlacement, nearestFree, reparentStr
 import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
+import { resolveAppearance } from "./graph/appearance";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { ShortcutDisplay } from "./ShortcutDisplay";
@@ -64,6 +65,8 @@ function Workbench() {
   const [document, setDocument] = useState(initial.atlas);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
   const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
+  const nodeThemeDefaults = resolveAppearance(settings.appearance.nodes, settings.appearance.theme === "neon" ? settings.appearance.accent : "#dce9fa");
+  const binderThemeProps = { textDefaults: nodeThemeDefaults, binderDefaults: resolveAppearance(settings.appearance.binders, settings.appearance.theme === "neon" ? settings.appearance.accent : "#9fc4e9") };
   useEffect(() => {
     const root = window.document.documentElement, a = settings.appearance;
     root.dataset.omniumTheme = a.theme;
@@ -823,6 +826,14 @@ function Workbench() {
   replaceFunction("ui:appearance:effect", "Particle effect", <label>Particle effect<select aria-label="Particle effect" value={settings.appearance.atmosphere ? settings.appearance.effect : "off"} onChange={event => editAppearance({ effect: event.target.value as WorkspaceSettings["appearance"]["effect"], atmosphere: event.target.value !== "off" })}>{["stars", "dust", "sparks", "off"].map(effect => <option key={effect} value={effect}>{effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
   for (const [key, label, max, step] of [["effectIntensity", "Effect intensity", 1, 0.05], ["density", "Particle density", 1, 0.05], ["motion", "Animation intensity", 1, 0.05], ["windowOpacity", "Window opacity", 1, 0.05], ["blur", "Window blur", 20, 1]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label} <output>{key === "blur" ? `${settings.appearance[key]} px` : `${Math.round(settings.appearance[key] * 100)}%`}</output><input aria-label={label} type="range" min="0" max={max} step={step} value={settings.appearance[key]} onChange={event => editAppearance({ [key]: Number(event.target.value) })} /></label>, true);
   replaceFunction("ui:resetAppearance", "Reset appearance", <button onClick={() => setSettings(old => ({ ...old, appearance: defaultSettings().appearance }))}>Reset appearance</button>);
+  replaceFunction("ui:appearance:glowSpread", "Glow spread", <label>Glow spread<input aria-label="Glow spread" type="range" min="0" max="1" step="0.05" value={settings.appearance.glowSpread} onChange={event => editAppearance({ glowSpread: Number(event.target.value) })} /></label>, true);
+  for (const group of ["nodes", "binders"] as const) {
+    const title = group === "nodes" ? "Nodes / text" : "Binders", style = settings.appearance[group];
+    const editStyle = (patch: Partial<typeof style>) => setSettings(old => ({ ...old, appearance: { ...old.appearance, [group]: { ...old.appearance[group], ...patch } } }));
+    replaceFunction(`ui:appearance:${group}:inherit`, `${title} use global color`, <label><input type="checkbox" checked={!style.color} onChange={event => editStyle({ color: event.target.checked ? undefined : (group === "nodes" ? nodeThemeDefaults.color : binderThemeProps.binderDefaults.color) })} /> Use global color for {title.toLowerCase()}</label>, true);
+    replaceFunction(`ui:appearance:${group}:color`, `${title} color`, <label>{title} color<input type="color" aria-label={`${title} color`} value={style.color ?? (group === "nodes" ? nodeThemeDefaults.color : binderThemeProps.binderDefaults.color)} onChange={event => editStyle({ color: event.target.value })} /></label>, true);
+    for (const key of ["opacity", "glow"] as const) replaceFunction(`ui:appearance:${group}:${key}`, `${title} ${key}`, <label>{title} {key}: {Math.round(style[key] * 100)}%<input aria-label={`${title} ${key}`} type="range" min="0" max={key === "glow" ? 2 : 1} step="0.05" value={style[key]} onChange={event => editStyle({ [key]: Number(event.target.value) })} /></label>, true);
+  }
   replaceFunction("ui:glow", "Graph glow", <label>Graph glow <output>{Math.round(settings.appearance.glow * 100)}%</output><input aria-label="Graph glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.glow} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, glow: Number(event.target.value) } }))} /></label>, true);
   replaceFunction("ui:atmosphere", "Background atmosphere", <label><input type="checkbox" checked={settings.appearance.atmosphere} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, atmosphere: event.target.checked } }))} /> Background atmosphere</label>, true);
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
@@ -1295,7 +1306,7 @@ function Workbench() {
                   />
                 </label>)}
                 <VisualControls key={[...selectedIds].sort().join("|")} label="Node" value={selectedPlacement?.visual} assets={document.assets ?? []} onChange={editNodeVisual} onAsset={(asset, visual) => editNodeVisual(visual, asset)} />
-                <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={{ color: "#dce9fa", opacity: 1 }} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
+                <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={nodeThemeDefaults} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
                 {field("field:entity-aliases", "Entity aliases", <label>
                   Aliases (comma-separated)
                   <input
@@ -1480,14 +1491,14 @@ function Workbench() {
               <>
                 <p>{document.entities.find((e) => e.id === selectedComposition.parentId)?.label} → {document.entities.find((e) => e.id === selectedComposition.childId)?.label}</p>
                 <p>Authored structural composition. This binder is independent of spatial positioning.</p>
-                <BinderControls composition defaultText={selectedBinderText} value={selectedComposition} onChange={(changes) => commitDocument({ ...document, compositions: document.compositions.map((c) => c.id === selectedComposition.id ? { ...c, ...changes } : c) })} />
+                <BinderControls {...binderThemeProps} composition defaultText={selectedBinderText} value={selectedComposition} onChange={(changes) => commitDocument({ ...document, compositions: document.compositions.map((c) => c.id === selectedComposition.id ? { ...c, ...changes } : c) })} />
               </>
             ) : selectedRelationship ? (
               <>
                 <p>
                   Relationship ID: <code>{selectedRelationship.id}</code>
                 </p>
-                {selectedRelationData && <BinderControls defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
+                {selectedRelationData && <BinderControls {...binderThemeProps} defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
                 {field("field:relationship-type", "Relationship type", <label>
                   Type
                   <select
@@ -1838,10 +1849,18 @@ function Workbench() {
         <button onClick={() => setInsertContext(null)}>Close</button>
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
-      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
         <p>Appearance only. Authored node and binder colors take precedence. Effects apply to Neon.</p>
-        {["ui:appearance:theme", "ui:appearance:accent", "ui:appearance:background", "ui:glow", "ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion", "ui:appearance:windowOpacity", "ui:appearance:blur", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+        <h2>Global</h2>
+        {["ui:appearance:theme", "ui:appearance:accent", "ui:appearance:background", "ui:glow", "ui:appearance:glowSpread", "ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion", "ui:appearance:windowOpacity", "ui:appearance:blur"].map(id => <FunctionControl key={id} id={id} />)}
+        <h2>Nodes / text</h2>
+        <p>Applies to node labels and binder text. Individual inspector overrides take precedence.</p>
+        {["inherit", "color", "opacity", "glow"].map(key => <FunctionControl key={key} id={`ui:appearance:nodes:${key}`} />)}
+        <h2>Binders</h2>
+        <p>Lines and operator symbols; text follows Nodes / text.</p>
+        {["inherit", "color", "opacity", "glow"].map(key => <FunctionControl key={key} id={`ui:appearance:binders:${key}`} />)}
+        <FunctionControl id="ui:resetAppearance" />
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
         <FunctionControl id="appearance" palette />
