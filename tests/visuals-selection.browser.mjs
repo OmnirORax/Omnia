@@ -272,12 +272,20 @@ try {
   await page.keyboard.up("Control");
   assert.ok(Number((await page.locator(".selection-status").innerText()).match(/^\d+/)[0]) > 1);
   await page.mouse.click(box.x + 15, box.y + box.height - 55, { button: "right" });
+  const beforeBatch = await read();
   await page.getByRole("menuitem", { name: "Collapse selected", exact: true }).click();
   const knowledge = await read();
-  assert.deepEqual(knowledge.entities, (await read()).entities);
+  assert.deepEqual(knowledge.entities, beforeBatch.entities);
+  assert.deepEqual(knowledge.compositions, beforeBatch.compositions);
+  assert.deepEqual(knowledge.relationships, beforeBatch.relationships);
+  assert.equal(knowledge.placements.find((p) => p.id === "root").collapsed, true);
   // Select just the shared root; its collapsed/unplaced descendants are also deleted globally.
   await select("System modified");
   const beforeDelete = await read();
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Workspace settings", exact: true }).focus();
+  await page.keyboard.press("Delete");
+  assert.deepEqual(await read(), beforeDelete, "dismissing the shared-concept warning leaves the entire document unchanged");
   let warning = "";
   page.once("dialog", async (dialog) => {
     warning = dialog.message();
