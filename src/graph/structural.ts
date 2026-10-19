@@ -1,4 +1,6 @@
 import { parseAtlas as parseLegacyAtlas, type Atlas as LegacyAtlas } from "./model.ts";
+import { defaultNodeOffset } from "./labels.ts";
+import { validateAsset, validateVisual, type Visual, type VisualAsset } from "./assets.ts";
 
 export type XY = { x: number; y: number };
 export type XYZ = XY & { z: number };
@@ -6,7 +8,7 @@ export type Entity = { id: string; label: string; aliases: string[]; notes: stri
 export type Appearance = { color: string; opacity: number };
 // Editable annotations, not an executable grammar or a definition of truth.
 export type BinderOperator = { id: string; text: string };
-export type BinderPresentation = { appearance?: Appearance; operators?: BinderOperator[] };
+export type BinderPresentation = { appearance?: Appearance; operators?: BinderOperator[]; text?: string; visual?: Visual };
 export type Placement = {
   id: string;
   entityId: string;
@@ -16,10 +18,13 @@ export type Placement = {
   collapsed: boolean;
   hidden: boolean;
   appearance?: Appearance;
+  visual?: Visual;
+  nestingBinder?: BinderPresentation;
+  variantOwner?: { placementId: string; variantId: string };
 };
 export type Composition = { id: string; parentId: string; childId: string } & BinderPresentation;
 /** Ownership of a variant reference is separate from authored structural composition. */
-export type Variant = { id: string; ownerId: string; entityId: string; position?: XYZ; appearance?: Appearance };
+export type Variant = { id: string; ownerId: string; entityId: string; position?: XYZ } & BinderPresentation;
 export type RelationshipType = {
   id: string;
   name: string;
@@ -74,6 +79,9 @@ export type Document = {
   layoutViews?: LayoutView[];
   activeLayoutViewId?: string | null;
   variants?: Variant[];
+  assets?: VisualAsset[];
+  /** Distinguishes migrated layouts from legacy synthetic variant representations. */
+  variantPlacementsVersion?: 1;
 };
 
 export const UNTYPED_ID = "legacy-untyped";
@@ -118,7 +126,8 @@ const point = (v: unknown, axis: string[]): boolean =>
     (a) =>
       typeof v[a] === "number" && Number.isFinite(v[a]) && Math.abs(v[a] as number) <= 1_000_000,
   );
-function validatePresentation(value: { appearance?: Appearance; operators?: BinderOperator[] }) {
+function validatePresentation(value: BinderPresentation) {
+  if (value.text !== undefined && !str(value.text, 500)) fail("Invalid binder text.");
   const a = value.appearance;
   if (a !== undefined && (!rec(a) || !/^#[0-9a-f]{6}$/i.test(a.color) || !Number.isFinite(a.opacity) || a.opacity < 0 || a.opacity > 1)) fail("Invalid appearance.");
   if (value.operators !== undefined) {
@@ -174,7 +183,30 @@ export function parseDocument(input: string): Document {
   if (!rec(value) || value.format !== "omnium-atlas") throw new Error("Expected an Omnium atlas.");
   if (value.version === 1) return migrateAtlas(parseLegacyAtlas(input));
   if (value.version !== 2) fail("Unsupported Omnium atlas version.");
-  return validateDocument(value as Document);
+  const doc = validateDocument(value as Document);
+  return doc.variantPlacementsVersion === 1 ? doc : ensureVariantPlacements(doc);
+}
+
+/** Upgrade earlier variant stand-ins to ordinary, initially gated placements. */
+export function ensureVariantPlacements(doc: Document, onlyOwnerId?: string, onlyVariantId?: string): Document {
+  if (!doc.variants?.length) return doc;
+  const next = structuredClone(doc); let changed = doc.variantPlacementsVersion !== 1;
+  next.variantPlacementsVersion = 1;
+  for (let i = 0; i < next.placements.length; i++) {
+    const owner = next.placements[i];
+    if (onlyOwnerId && owner.id !== onlyOwnerId) continue;
+    let index = 0;
+    for (const v of next.variants!.filter((v) => v.ownerId === owner.entityId)) {
+      if (onlyVariantId && v.id !== onlyVariantId) { index++; continue; }
+      if (next.placements.some((p) => p.variantOwner?.placementId === owner.id && p.variantOwner.variantId === v.id)) { index++; continue; }
+      const label = next.entities.find((e) => e.id === v.entityId)!.label;
+      const ownerLabel = next.entities.find((e) => e.id === owner.entityId)!.label;
+      next.placements.push({ id: crypto.randomUUID(), entityId: v.entityId, parentId: owner.id, position: { x: 28, y: 104 + index * 112 }, spatialPosition: v.position ?? defaultNodeOffset(ownerLabel, label, index), collapsed: true, hidden: false, ...(!doc.variantPlacementsVersion && v.appearance ? { appearance: v.appearance } : {}), variantOwner: { placementId: owner.id, variantId: v.id } });
+      if (next.placements.length > 4000) throw new Error("Variant placements exceed the 4,000 placement limit. Original data was preserved.");
+      index++; changed = true;
+    }
+  }
+  return changed ? validateDocument(next) : doc;
 }
 
 export function validateDocument(doc: Document): Document {
@@ -206,6 +238,14 @@ export function validateDocument(doc: Document): Document {
     if (doc[key].some((item) => !rec(item))) fail(`Invalid ${key} entry.`);
   if (doc.entities.length > 2000 || doc.placements.length > 4000)
     fail("Atlas entity/placement limit exceeded.");
+  if (doc.assets !== undefined) {
+    if (!Array.isArray(doc.assets) || doc.assets.length > 256) fail("Invalid assets list.");
+    unique(doc.assets.map((a) => a?.id), "asset");
+    doc.assets.forEach(validateAsset);
+    if (doc.assets.reduce((sum, a) => sum + a.dataUrl.length, 0) > 3_500_000) fail("Embedded assets exceed the 3.5 MB atlas budget.");
+  }
+  for (const value of [...doc.placements, ...doc.compositions, ...doc.relationships, ...(doc.variants ?? [])]) validateVisual(value.visual, doc.assets ?? []);
+  for (const p of doc.placements) if (p.nestingBinder) { validatePresentation(p.nestingBinder); validateVisual(p.nestingBinder.visual, doc.assets ?? []); }
   for (const [key, list] of [
     ["entity", doc.entities],
     ["placement", doc.placements],
@@ -230,6 +270,7 @@ export function validateDocument(doc: Document): Document {
     )
       fail("Invalid entity.");
   if (doc.variants !== undefined) {
+    if (doc.variantPlacementsVersion !== undefined && doc.variantPlacementsVersion !== 1) fail("Unsupported variant placement version.");
     if (!Array.isArray(doc.variants) || doc.variants.length > 4000 || doc.variants.some((v) => !rec(v))) fail("Invalid variants list.");
     unique(doc.variants.map((v) => v.id), "variant");
     unique(doc.variants.map((v) => `${v.ownerId}\u0000${v.entityId}`), "owner/variant pair");
@@ -252,6 +293,13 @@ export function validateDocument(doc: Document): Document {
   }
   for (const p of doc.placements) {
     validatePresentation(p);
+    if (p.variantOwner !== undefined) {
+      const link = p.variantOwner;
+      if (!rec(link) || !id(link.placementId) || !id(link.variantId) || link.placementId === p.id) fail("Invalid variant visibility reference.");
+      const owner = doc.placements.find((item) => item.id === link.placementId);
+      const variant = doc.variants?.find((v) => v.id === link.variantId);
+      if (!owner || !variant || variant.ownerId !== owner.entityId || variant.entityId !== p.entityId) fail("Missing or mismatched variant visibility reference.");
+    }
     if (
       !id(p.id) ||
       !id(p.entityId) ||
@@ -275,6 +323,16 @@ export function validateDocument(doc: Document): Document {
       cursor = doc.placements.find((x) => x.id === cursor)?.parentId ?? null;
     }
   }
+  const gateDone = new Set<string>();
+  function checkVisibility(current: string, path: Set<string>) {
+    if (path.has(current)) fail("Cyclic placement visibility dependencies.");
+    if (gateDone.has(current)) return;
+    const p = doc.placements.find((p) => p.id === current)!;
+    const nextPath = new Set(path); nextPath.add(current);
+    for (const dependency of new Set([p.parentId, p.variantOwner?.placementId].filter((id): id is string => !!id))) checkVisibility(dependency, nextPath);
+    gateDone.add(current);
+  }
+  for (const p of doc.placements) checkVisibility(p.id, new Set());
   for (const c of doc.compositions) {
     validatePresentation(c);
     if (!id(c.id) || !id(c.parentId) || !id(c.childId) || c.parentId === c.childId)
@@ -392,7 +450,7 @@ export function validateDocument(doc: Document): Document {
 }
 
 /** Compatibility adapter for the existing 3D renderer; it is never persisted. */
-export function editorView(doc: Document): LegacyAtlas {
+export function editorView(doc: Document, expandedVariants: ReadonlySet<string> = new Set()): LegacyAtlas {
   const active = doc.frames.find((f) => f.id === doc.activeFrameId);
   const allowed = active ? new Set(active.scope.entityIds.concat(active.scope.anchorIds)) : null;
   if (active && allowed && active.scope.depth !== null) {
@@ -407,8 +465,16 @@ export function editorView(doc: Document): LegacyAtlas {
     }
   }
   const excluded = new Set(active?.scope.excludedEntityIds ?? []);
+  const gated = new Map<string, boolean>();
+  const canReveal = (p: Placement): boolean => {
+    if (gated.has(p.id)) return gated.get(p.id)!;
+    const owner = p.variantOwner && doc.placements.find((item) => item.id === p.variantOwner!.placementId)!;
+    const parent = p.parentId && doc.placements.find((item) => item.id === p.parentId)!;
+    const visible = (!owner || (!owner.hidden && !excluded.has(owner.entityId) && (!allowed || allowed.has(owner.entityId)) && expandedVariants.has(owner.id) && canReveal(owner))) && (!parent || canReveal(parent));
+    gated.set(p.id, visible); return visible;
+  };
   const visible = doc.placements.filter(
-    (p) => !p.hidden && !excluded.has(p.entityId) && (!allowed || allowed.has(p.entityId)),
+    (p) => canReveal(p) && !p.hidden && !excluded.has(p.entityId) && (!allowed || allowed.has(p.entityId)),
   );
   const visibleIds = new Set(visible.map((p) => p.id));
   const nodes = visible.map((p) => {
@@ -421,6 +487,7 @@ export function editorView(doc: Document): LegacyAtlas {
       position: p.position,
       ...(p.spatialPosition ? { spatialPosition: p.spatialPosition } : {}),
       collapsed: p.collapsed,
+      ...(p.variantOwner ? { variantOwnerId: p.variantOwner.placementId } : {}),
     };
   });
   const first = new Map<string, string>();
@@ -465,7 +532,7 @@ function expandInPlace(next: Document, placementId: string) {
     }
   }
   for (const component of components) {
-    if (next.placements.some((p) => p.parentId === placementId && p.entityId === component.childId))
+    if (next.placements.some((p) => p.parentId === placementId && p.entityId === component.childId && !p.variantOwner))
       continue;
     const index = next.placements.filter((p) => p.parentId === placementId).length;
     next.placements.push({
@@ -473,7 +540,7 @@ function expandInPlace(next: Document, placementId: string) {
       entityId: component.childId,
       parentId: placementId,
       position: { x: 28, y: 104 + index * 112 },
-      spatialPosition: { x: (index % 4) * 2.8, y: -2, z: Math.floor(index / 4) * 2.8 },
+      spatialPosition: defaultNodeOffset(next.entities.find((e) => e.id === parent.entityId)!.label, next.entities.find((e) => e.id === component.childId)!.label, index),
       collapsed: true,
       hidden: false,
     });
@@ -489,12 +556,12 @@ export function toggleSubtree(doc: Document, placementId: string): Document {
   let fullyExpanded = true, expandable = false;
   for (let i = 0; i < pending.length; i++) {
     const p = doc.placements.find((item) => item.id === pending[i])!;
-    const children = doc.placements.filter((c) => c.parentId === p.id && !c.hidden);
+    const children = doc.placements.filter((c) => c.parentId === p.id && !c.hidden && !c.variantOwner);
     reachable.push(p); pending.push(...children.map((c) => c.id));
     const components = doc.compositions.filter((c) => c.parentId === p.entityId);
     if (children.length || components.length) {
       expandable = true;
-      if (p.collapsed || components.some((c) => !doc.placements.some((child) => child.parentId === p.id && child.entityId === c.childId))) fullyExpanded = false;
+      if (p.collapsed || components.some((c) => !doc.placements.some((child) => child.parentId === p.id && child.entityId === c.childId && !child.variantOwner))) fullyExpanded = false;
     }
   }
   if (!expandable) return doc;
@@ -506,7 +573,7 @@ export function toggleSubtree(doc: Document, placementId: string): Document {
     const queue = [placementId];
     for (let i = 0; i < queue.length; i++) {
       expandInPlace(next, queue[i]);
-      queue.push(...next.placements.filter((p) => p.parentId === queue[i] && !p.hidden).map((p) => p.id));
+      queue.push(...next.placements.filter((p) => p.parentId === queue[i] && !p.hidden && !p.variantOwner).map((p) => p.id));
     }
   }
   return validateDocument(next);

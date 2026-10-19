@@ -3,7 +3,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Atlas } from "./graph/model";
 import { projectSpatial, type XYZ } from "./graph/spatial";
-import type { WorkspaceSettings } from "./workspaceActions";
+import { disposeVisual } from "./visualScene";
+import type { ActionId, WorkspaceSettings } from "./workspaceActions";
 import type { Document } from "./graph/structural";
 import { chartedBinders } from "./graph/presentation";
 import { occupiedRadii } from "./graph/layout3d";
@@ -12,9 +13,9 @@ import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
 
-export type NavigationCommand = { sequence: number; kind: "focus" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
-export type ContextAction = "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "removeVariant" | "deleteIdentity" | "compact" | "fitAll" | "settings";
-export type ContextTarget = { kind: "node"; id: string } | { kind: "space"; world: XYZ };
+export type NavigationCommand = { sequence: number; kind: "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel"; id?: string };
+export type ContextAction = "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
+export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ };
 type Props = {
   atlas: Atlas;
   document: Document;
@@ -25,13 +26,16 @@ type Props = {
   onAddVariant: (id: string) => void;
   onDismissOptions: () => void;
   selectedId: string | null;
+  selectedIds: ReadonlySet<string>;
+  onSelection: (ids: string[]) => void;
+  onAction: (id: ActionId) => void;
   settings: WorkspaceSettings;
   command: NavigationCommand | null;
   constraintAxis: "x" | "y" | "z" | null;
   onNodeClick: (id: string) => void;
   onNodeDoubleClick: (id: string) => void;
   onSubtreeClick: (id: string) => void;
-  onBinderSelect: (id: string, kind: "composition" | "relationship") => void;
+  onBinderSelect: (id: string, kind: "composition" | "relationship" | "variant" | "visual", point: { x: number; y: number }) => void;
   onMove: (id: string, local: XYZ) => void;
   resolveMove: (id: string, local: XYZ) => XYZ;
   canNest: (id: string, targetId: string) => string | null;
@@ -54,13 +58,7 @@ const asVector = (p: XYZ) => new THREE.Vector3(p.x, p.y, p.z);
 const asXYZ = (p: THREE.Vector3): XYZ => ({ x: p.x, y: p.y, z: p.z });
 
 function disposeContent(group: THREE.Group) {
-  group.traverse((object) => {
-    if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Sprite) {
-      object.geometry?.dispose();
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) { if (material instanceof THREE.SpriteMaterial) material.map?.dispose(); material.dispose(); }
-    }
-  });
+  disposeVisual(group);
   group.clear();
 }
 
@@ -71,7 +69,7 @@ export default function SpatialWorkspace(props: Props) {
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = projectSpatial(atlas);
-  const graph = { ...baseGraph, nodes: [...baseGraph.nodes, ...props.variantDisplay.nodes] };
+  const graph = baseGraph;
   const graphRef = useRef(graph); graphRef.current = graph;
   const meshes = useRef<THREE.Sprite[]>([]);
   const groups = useRef(new Map<string, THREE.Group>());
@@ -82,6 +80,7 @@ export default function SpatialWorkspace(props: Props) {
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<Menu | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   useEffect(() => {
     const host = hostRef.current; if (!host) return;
@@ -143,7 +142,7 @@ export default function SpatialWorkspace(props: Props) {
       animation = requestAnimationFrame(tick);
     };
     const focus = (kind: NavigationCommand["kind"], requestedId?: string) => {
-      if (kind === "cancel") { clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
+      if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = true; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
       if (kind === "back") {
         const pose = cameraHistory.pop(); if (!pose) return;
         stopAnimation();
@@ -160,9 +159,9 @@ export default function SpatialWorkspace(props: Props) {
       }
       const nodes = graphRef.current.nodes.filter((n) => n.visible);
       if (!nodes.length) return;
-      if (kind === "all" || kind === "hierarchy" || kind === "variants") {
+      if (kind === "all" || kind === "hierarchy" || kind === "variants" || kind === "selection") {
         const bounds = new THREE.Box3();
-        const framing = kind === "variants" ? nodes.filter((n) => n.id === requestedId || callbacks.current.variantDisplay.instances.get(n.id)?.ownerNodeId === requestedId) : nodes;
+        const framing = kind === "selection" ? nodes.filter((n) => callbacks.current.selectedIds.has(n.id)) : kind === "variants" ? nodes.filter((n) => n.id === requestedId || callbacks.current.variantDisplay.instances.get(n.id)?.ownerNodeId === requestedId) : nodes;
         if (!framing.length) return;
         for (const node of framing) {
           const center = asVector(node.world), r = callbacks.current.settings.spatial.radius;
@@ -208,19 +207,30 @@ export default function SpatialWorkspace(props: Props) {
       startX: number; startY: number; startWorld: THREE.Vector3; local: XYZ | null; nestTarget: string | null;
       marker: THREE.Mesh; } | null = null;
     let rightDown: { x: number; y: number; id: string | null; world: XYZ } | null = null;
-    let binderDown: { id: string; kind: "composition" | "relationship"; x: number; y: number } | null = null;
+    let binderDown: { id: string; kind: "composition" | "relationship" | "variant" | "visual"; x: number; y: number } | null = null;
+    let selecting: { x: number; y: number; clientX: number; clientY: number; id?: string; additive: boolean } | null = null;
     raycaster.params.Line.threshold = 0.08;
     let hovered: THREE.Sprite | null = null;
     const paintHover = (mesh: THREE.Sprite | null) => {
       if (hovered === mesh) return;
-      if (hovered) hovered.material.color.setHex(0xffffff);
+      if (hovered) { hovered.material.color.setHex(0xffffff); if (hovered.userData.visualProxy) hovered.material.opacity = hovered.userData.baseOpacity; }
       hovered = mesh;
-      if (hovered) hovered.material.color.setHex(0xb8dcff);
+      if (hovered) { hovered.material.color.setHex(0xb8dcff); if (hovered.userData.visualProxy) hovered.material.opacity = 0.2; }
       renderer.domElement.style.cursor = hovered ? "grab" : "default";
       requestRender();
     };
     const down = (event: PointerEvent) => {
       stopAnimation(); setMenu(null);
+      if (event.button === 3 || event.button === 4) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        callbacks.current.onAction(event.button === 3 ? callbacks.current.settings.mouse.backButton : callbacks.current.settings.mouse.forwardButton); return;
+      }
+      if (event.button === 0 && subtreeGesture(event, callbacks.current.settings.mouse.selectionModifier)) {
+        event.preventDefault(); event.stopImmediatePropagation(); clicks.cancel(); callbacks.current.onDismissOptions();
+        const rect = host.getBoundingClientRect();
+        selecting = { x: event.clientX - rect.left, y: event.clientY - rect.top, clientX: event.clientX, clientY: event.clientY, id: hits(event)[0]?.object.userData.nodeId, additive: event.shiftKey };
+        controls.enabled = false; renderer.domElement.setPointerCapture(event.pointerId); return;
+      }
       if (event.button === 2) {
         clicks.cancel();
         callbacks.current.onDismissOptions();
@@ -234,7 +244,7 @@ export default function SpatialWorkspace(props: Props) {
         clicks.cancel();
         callbacks.current.onDismissOptions();
         const binder = raycaster.intersectObjects(textScene.current?.binderHits.filter((object) => object.visible) ?? [], false)[0]?.object;
-        if (binder && ["composition", "relationship"].includes(binder.userData.binderKind)) binderDown = { id: binder.userData.binderId, kind: binder.userData.binderKind, x: event.clientX, y: event.clientY };
+        if (binder && ["composition", "relationship", "variant", "visual"].includes(binder.userData.binderKind)) binderDown = { id: binder.userData.binderId, kind: binder.userData.binderKind, x: event.clientX, y: event.clientY };
         return;
       }
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
@@ -250,6 +260,10 @@ export default function SpatialWorkspace(props: Props) {
       controls.enabled = false; renderer.domElement.setPointerCapture(event.pointerId);
     };
     const move = (event: PointerEvent) => {
+      if (selecting) {
+        const rect = host.getBoundingClientRect(), x = event.clientX - rect.left, y = event.clientY - rect.top;
+        setSelectionRect({ x: Math.min(x, selecting.x), y: Math.min(y, selecting.y), width: Math.abs(x - selecting.x), height: Math.abs(y - selecting.y) }); return;
+      }
       if (!drag) { if (event.buttons === 0) paintHover((hits(event)[0]?.object as THREE.Sprite) ?? null); return; }
       if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) >= CLICK_THRESHOLD) clicks.cancel();
       aim(event);
@@ -260,7 +274,7 @@ export default function SpatialWorkspace(props: Props) {
       const node = graphRef.current.nodes.find((n) => n.id === drag!.id)!;
       const parent = graphRef.current.nodes.find((n) => n.id === node.parentId);
       const parentWorld = parent ? asVector(parent.world) : new THREE.Vector3();
-      if (event.shiftKey) {
+      if (subtreeGesture(event, callbacks.current.settings.mouse.nestModifier)) {
         const target = hits(event, drag.id)[0]?.object.userData.nodeId as string | undefined;
         const reason = target ? callbacks.current.canNest(drag.id, target) : "Drop onto a name to nest";
         drag.nestTarget = target && !reason ? target : null;
@@ -297,29 +311,53 @@ export default function SpatialWorkspace(props: Props) {
           if (subtreeGesture(event, callbacks.current.settings.mouse.subtreeModifier)) { clicks.cancel(); callbacks.current.onSubtreeClick(current.id); }
           else clicks.click(current.id);
         }
-        else if (event.shiftKey && current.nestTarget) callbacks.current.onNest(current.id, current.nestTarget);
-        else if (!event.shiftKey && current.local) callbacks.current.onMove(current.id, current.local);
+        else if (subtreeGesture(event, callbacks.current.settings.mouse.nestModifier) && current.nestTarget) callbacks.current.onNest(current.id, current.nestTarget);
+        else if (!subtreeGesture(event, callbacks.current.settings.mouse.nestModifier) && current.local) callbacks.current.onMove(current.id, current.local);
       }
       requestRender();
     };
     const up = (event: PointerEvent) => {
+      if (event.button === 3 || event.button === 4) { event.preventDefault(); return; }
+      if (selecting && event.button === 0) {
+        const start = selecting; selecting = null; controls.enabled = true; setSelectionRect(null);
+        if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
+        if (Math.hypot(event.clientX - start.clientX, event.clientY - start.clientY) < CLICK_THRESHOLD) {
+          const ids = new Set(callbacks.current.selectedIds);
+          if (start.id) { if (ids.has(start.id)) ids.delete(start.id); else ids.add(start.id); } else ids.clear();
+          callbacks.current.onSelection([...ids]); return;
+        }
+        const rect = host.getBoundingClientRect();
+        const x1 = Math.min(start.x, event.clientX - rect.left), x2 = Math.max(start.x, event.clientX - rect.left);
+        const y1 = Math.min(start.y, event.clientY - rect.top), y2 = Math.max(start.y, event.clientY - rect.top);
+        const ids = new Set(start.additive ? callbacks.current.selectedIds : []);
+        for (const [id, item] of textScene.current?.nodes ?? []) {
+          const center = item.group.position.clone().project(camera);
+          if (!item.sprite.visible || center.z < -1 || center.z > 1) continue;
+          const depth = -item.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z;
+          const pixel = 2 * Math.max(camera.near, depth) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / rect.height;
+          const x = (center.x + 1) * rect.width / 2, y = (1 - center.y) * rect.height / 2;
+          if (x + item.sprite.scale.x / pixel / 2 >= x1 && x - item.sprite.scale.x / pixel / 2 <= x2 && y + item.sprite.scale.y / pixel / 2 >= y1 && y - item.sprite.scale.y / pixel / 2 <= y2) ids.add(id);
+        }
+        callbacks.current.onSelection([...ids]); return;
+      }
       if (event.button === 0 && binderDown) {
         const b = binderDown; binderDown = null;
-        if (Math.hypot(event.clientX - b.x, event.clientY - b.y) < CLICK_THRESHOLD) callbacks.current.onBinderSelect(b.id, b.kind);
+        if (Math.hypot(event.clientX - b.x, event.clientY - b.y) < CLICK_THRESHOLD) callbacks.current.onBinderSelect(b.id, b.kind, { x: event.clientX, y: event.clientY });
       }
       if (event.button === 2 && rightDown) {
         const right = rightDown; rightDown = null;
         if (Math.hypot(event.clientX - right.x, event.clientY - right.y) < CLICK_THRESHOLD) {
           const rect = host.getBoundingClientRect();
           setMenu({ x: Math.min(event.clientX - rect.left, rect.width - 215), y: Math.min(event.clientY - rect.top, rect.height - 360),
-            target: right.id ? { kind: "node", id: right.id } : { kind: "space", world: right.world } });
+            target: callbacks.current.selectedIds.size > 1 && (!right.id || callbacks.current.selectedIds.has(right.id)) ? { kind: "selection", ids: [...callbacks.current.selectedIds] } : right.id ? { kind: "node", id: right.id } : { kind: "space", world: right.world } });
         }
       }
       if (event.button === 0) finishDrag(event);
     };
-    const cancel = (event: PointerEvent) => { clicks.cancel(); finishDrag(event, true); };
+    const cancel = (event: PointerEvent) => { selecting = null; setSelectionRect(null); controls.enabled = true; clicks.cancel(); finishDrag(event, true); };
     const preventMenu = (event: MouseEvent) => event.preventDefault();
-    renderer.domElement.addEventListener("pointerdown", down);
+    renderer.domElement.addEventListener("pointerdown", down, true);
+    renderer.domElement.addEventListener("auxclick", preventMenu);
     renderer.domElement.addEventListener("pointermove", move);
     renderer.domElement.addEventListener("pointerup", up);
     renderer.domElement.addEventListener("pointercancel", cancel);
@@ -327,7 +365,8 @@ export default function SpatialWorkspace(props: Props) {
     setReady(true);
     return () => {
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
-      renderer.domElement.removeEventListener("pointerdown", down);
+      renderer.domElement.removeEventListener("pointerdown", down, true);
+      renderer.domElement.removeEventListener("auxclick", preventMenu);
       renderer.domElement.removeEventListener("pointermove", move);
       renderer.domElement.removeEventListener("pointerup", up);
       renderer.domElement.removeEventListener("pointercancel", cancel);
@@ -347,12 +386,12 @@ export default function SpatialWorkspace(props: Props) {
     disposeContent(state.content);
     const visible = graph.nodes.filter((n) => n.visible);
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    const binders = [...chartedBinders(doc), ...props.variantDisplay.binders].flatMap((b) => {
+    const binders = chartedBinders(doc, atlas).flatMap((b) => {
       const from = byId.get(b.source), to = byId.get(b.target);
       if (!from || !to || (from.representative === to.representative && (!from.visible || !to.visible))) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds);
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
@@ -362,7 +401,7 @@ export default function SpatialWorkspace(props: Props) {
       firstFocus.current = true;
       state.focus("local", visible.find((n) => n.parentId === null)?.id ?? visible[0].id);
     }
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, props.variantDisplay]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, props.variantDisplay, props.selectedIds]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
@@ -374,11 +413,11 @@ export default function SpatialWorkspace(props: Props) {
     ["createAt", "Create node here"], ["insertExisting", "Insert existing entity"],
     ["compact", "Compact layout"], ["fitAll", "Fit entire atlas"], ["settings", "Workspace settings"],
   ];
-  const variantMenu: [ContextAction, string][] = [["focus", "Focus"], ["edit", "Rename / edit in inspector"], ["removeVariant", "Remove variant from owner"], ["deleteIdentity", "Delete identity…"]];
-  const menuItems = menu?.target.kind === "node" ? props.variantDisplay.instances.get(menu.target.id)?.kind === "variant" ? variantMenu : nodeMenu : spaceMenu;
+  const selectionMenu: [ContextAction, string][] = [["focus", "Focus selection"], ["expand", "Expand selected"], ["collapse", "Collapse selected"], ["compact", "Compact selection"], ["deleteIdentity", "Delete selected concepts and subnodes…"]];
+  const menuItems = menu?.target.kind === "selection" ? selectionMenu : menu?.target.kind === "node" ? nodeMenu : spaceMenu;
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
-    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}Shift-drag: nest · right-drag: rotate</div>
+    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · right-drag: rotate</div>
     {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
       {NODE_OPTIONS.map((option) => <div className="node-option" key={option.id}>
         <button aria-expanded={props.expandedVariants.has(props.optionNodeId!)} onClick={() => props.onToggleVariants(props.optionNodeId!)}>{option.label}</button>
@@ -391,6 +430,8 @@ export default function SpatialWorkspace(props: Props) {
       <button onClick={() => stateRef.current?.focus("all")}>Fit entire atlas</button>
       <button onClick={() => stateRef.current?.focus("back")}>Back</button>
     </div>
+    {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}
+    {!!props.selectedIds.size && <div className="selection-status" role="status">{props.selectedIds.size} selected <button onClick={() => props.onAction("focus")}>Focus</button><button onClick={() => props.onAction("deleteSelected")}>Delete</button><button onClick={() => props.onSelection([])}>Clear</button></div>}
     {feedback && <div className="spatial-feedback" role="status">{feedback}</div>}
     {menu && <div className="spatial-menu" role="menu" style={{ left: Math.max(0, menu.x), top: Math.max(0, menu.y) }}>
       {menuItems.map(([action, label]) =>

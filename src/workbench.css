@@ -4,6 +4,27 @@
   background: #f6f7f9;
   font-synthesis: none;
 }
+.selection-rectangle { position: absolute; border: 1px solid #8bc8ff; background: #72bfff24; pointer-events: none; z-index: 9; }
+.selection-status { position: absolute; left: 18px; top: 18px; z-index: 8; background: #152941eb; color: #dce9fa; border-radius: 6px; padding: 6px 10px; display: flex; gap: 8px; align-items: center; font-size: 12px; }
+.selection-status button { padding: 3px 6px; font-size: 12px; }
+.shortcut-display, .binder-editor { position: fixed; z-index: 80; background: #f8faff; color: #233348; border: 1px solid #bacbdd; border-radius: 8px; box-shadow: 0 8px 30px #0005; padding: 14px; width: 350px; max-height: min(75vh, 700px); overflow: auto; }
+.shortcut-display { right: 12px; top: 110px; width: 410px; }
+.shortcut-display section { padding: 8px 0; }
+.shortcut-display .binding-row { display: flex; gap: 5px; margin-bottom: 4px; }
+.shortcut-display .binding-row button:first-child { flex: 1; text-align: left; }
+.shortcut-display .binding-row button { padding: 4px 6px; font-size: 12px; }
+.shortcut-heading { display: flex; justify-content: space-between; align-items: center; }
+.shortcut-display label, .binder-editor label, .visual-controls label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 12px; }
+.shortcut-display p, .binder-editor p { font-size: 12px; }
+.visual-controls { min-width: 0; margin: 12px 0; }
+.visual-controls input, .visual-controls select { max-width: 100%; }
+.visual-controls input[type=checkbox] { align-self: start; }
+.icon-results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; max-height: 230px; overflow: auto; margin: 8px 0; }
+.icon-results button { min-width: 0; padding: 6px; background: #243950; color: white; }
+.icon-results img { width: 30px; height: 30px; }
+.icon-results small { display: block; font-size: 9px; overflow-wrap: anywhere; }
+.binder-editor .close-editor { float: right; margin-bottom: 10px; }
+@media (max-width: 600px) { .shortcut-display { width: calc(100vw - 24px); } }
 * {
   box-sizing: border-box;
 }

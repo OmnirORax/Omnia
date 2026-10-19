@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { labelLines, labelSize, separateLabels, type ScreenLabel } from "./graph/labels";
 import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
+import { visualObject } from "./visualScene";
 import type { Document } from "./graph/structural";
-import { variantInstance } from "./graph/variants";
 
 export function textSprite(value: string, color: string, selected = false, node = false) {
   const lines = labelLines(value),
@@ -54,11 +54,16 @@ type NodeItem = {
   sprite: THREE.Sprite;
   anchor: THREE.Vector3;
   size: { width: number; height: number };
+  text: THREE.Sprite;
+  visual?: THREE.Group;
+  visualSize: number;
+  showText: boolean;
 };
 type BinderItem = {
   data: DisplayBinder;
   line: THREE.Line;
-  arrow: THREE.Mesh;
+  arrow: THREE.Mesh | THREE.Group;
+  markerHit?: THREE.Sprite;
   label: THREE.Sprite | null;
   opacity: number;
   related: boolean;
@@ -71,25 +76,32 @@ export function buildTextScene(
   binders: DisplayBinder[],
   doc: Document,
   selectedId: string | null,
+  requestRender: () => void = () => {},
+  selectedIds: ReadonlySet<string> = new Set(),
 ) {
   const nodes = new Map<string, NodeItem>();
   const nodeHits: THREE.Sprite[] = [],
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
   for (const node of visible) {
     const placement = doc.placements.find((p) => p.id === node.id);
-    const variant = variantInstance(doc, node.id)?.variant;
-    const appearance = placement?.appearance ?? variant?.appearance;
+    const appearance = placement?.appearance;
     const group = new THREE.Group();
     group.position.set(node.world.x, node.world.y, node.world.z);
-    const sprite = textSprite(
+    const text = textSprite(
       node.label,
-      appearance?.color ?? (placement ? "#dce9fa" : "#bda1ec"),
-      selectedId === node.id,
+      appearance?.color ?? "#dce9fa",
+      selectedId === node.id || selectedIds.has(node.id),
       true,
     );
-    sprite.material.opacity = appearance?.opacity ?? 1;
+    text.material.opacity = appearance?.opacity ?? 1;
+    const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
+    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, appearance?.color ?? "#dce9fa"), requestRender) : undefined;
+    const sprite = hasVisual ? new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x9fc4e9, transparent: true, opacity: selectedId === node.id || selectedIds.has(node.id) ? 0.15 : 0, depthWrite: false, depthTest: false })) : text;
     sprite.userData.nodeId = node.id;
+    sprite.userData.visualProxy = hasVisual;
+    sprite.userData.baseOpacity = sprite.material.opacity;
     group.add(sprite);
+    if (hasVisual) group.add(text, visual!);
     content.add(group);
     nodeHits.push(sprite);
     nodes.set(node.id, {
@@ -97,6 +109,7 @@ export function buildTextScene(
       sprite,
       anchor: group.position.clone(),
       size: labelSize(node.label),
+      text, visual, visualSize: placement?.visual?.size ?? 1.4, showText: !hasVisual || placement?.visual?.showText !== false,
     });
   }
   const totals = new Map<string, number>(),
@@ -123,24 +136,30 @@ export function buildTextScene(
           })
         : new THREE.LineBasicMaterial({ color, transparent: true, depthWrite: false, opacity });
     const line = new THREE.Line(new THREE.BufferGeometry(), material);
-    const arrow = new THREE.Mesh(
+    const defaultArrow = new THREE.Mesh(
       new THREE.ConeGeometry(1, 1, 12),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
     );
-    const label = b.label ? textSprite(b.label, color) : null;
-    for (const object of [line, arrow, ...(label ? [label] : [])]) {
+    const custom = !!(b.visual?.assetId || b.visual?.character);
+    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender) : defaultArrow;
+    if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
+    const markerHit = custom ? new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, opacity: 0, depthWrite: false })) : undefined;
+    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, color) : null;
+    for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;
       object.userData.binderKind = b.kind;
       object.userData.label = b.label;
       content.add(object);
       binderHits.push(object);
     }
+    if (custom) content.add(arrow);
     const index = indices.get(pair(b)) ?? 0;
     indices.set(pair(b), index + 1);
     connectors.push({
       data: b,
       line,
       arrow,
+      markerHit,
       label,
       opacity,
       related,
@@ -174,7 +193,16 @@ export function buildTextScene(
     );
     for (const [id, item] of ordered) {
       item.group.position.copy(item.anchor);
-      scaleText(item.sprite, item.anchor, 18);
+      scaleText(item.text, item.anchor, 18);
+      item.text.visible = item.showText;
+      if (item.visual) {
+        const size = unitsPerPixel(item.anchor) * 38 * item.visualSize;
+        const textHeight = item.showText ? item.text.scale.y + unitsPerPixel(item.anchor) * 8 : 0;
+        item.visual.scale.setScalar(size);
+        item.visual.position.copy(up).multiplyScalar(textHeight / 2);
+        item.text.position.copy(up).multiplyScalar(-size / 2);
+        item.sprite.scale.set(Math.max(size, item.showText ? item.text.scale.x : 0), size + textHeight, 1);
+      }
       item.sprite.visible = depth(item.anchor) > camera.near;
       if (!item.sprite.visible) continue;
       const pixels = unitsPerPixel(item.anchor);
@@ -191,7 +219,30 @@ export function buildTextScene(
         right,
         (shifts.get(id) ?? 0) * unitsPerPixel(item.anchor),
       );
-    const occupied = rects.map((r) => ({ ...r, x: r.x + (shifts.get(r.id) ?? 0) }));
+    // Reserve only the space the actual binder annotation needs. Display offsets do not
+    // rewrite authored coordinates, and the selected anchor stays under camera focus.
+    for (const b of connectors) {
+      if (!b.label || b.data.source === b.data.target) continue;
+      const from = nodes.get(b.data.source)!, to = nodes.get(b.data.target)!;
+      const mid = from.group.position.clone().lerp(to.group.position, 0.5);
+      scaleText(b.label, mid, 14);
+      const a = toScreen(from.group.position), z = toScreen(to.group.position);
+      const dx = z.x - a.x, dy = z.y - a.y, length = Math.hypot(dx, dy);
+      if (length < 1e-4) continue;
+      const ux = dx / length, uy = dy / length, pixel = unitsPerPixel(mid);
+      const projectedSize = (sprite: THREE.Sprite) => (Math.abs(ux) * sprite.scale.x + Math.abs(uy) * sprite.scale.y) / pixel;
+      const required = (projectedSize(from.sprite) + projectedSize(to.sprite)) / 2 + projectedSize(b.label) + 28;
+      const extra = Math.max(0, required - length);
+      if (extra) {
+        const preserveTarget = b.data.target === selectedId;
+        const item = preserveTarget ? from : to, sign = preserveTarget ? -1 : 1;
+        item.group.position.addScaledVector(right, ux * extra * pixel * sign).addScaledVector(up, -uy * extra * pixel * sign);
+      }
+    }
+    const occupied = rects.map((r) => ({ ...r, ...toScreen(nodes.get(r.id)!.group.position) }));
+    const finalShifts = separateLabels(occupied);
+    for (const [id, item] of nodes) item.group.position.addScaledVector(right, (finalShifts.get(id) ?? 0) * unitsPerPixel(item.group.position));
+    for (const r of occupied) r.x += finalShifts.get(r.id) ?? 0;
     const edge = (item: NodeItem, other: THREE.Vector3) => {
       const direction = other.clone().sub(item.group.position);
       const x = Math.abs(direction.dot(right)),
@@ -232,12 +283,16 @@ export function buildTextScene(
       const center = path.getPoint(0.5),
         tangent = path.getTangent(0.5).normalize();
       const pixel = unitsPerPixel(center);
-      b.arrow.scale.set(pixel * 5, pixel * 13, pixel * 5);
+      const markerSize = pixel * 22 * (b.data.visual?.size ?? 1.4);
+      if (b.markerHit) { b.arrow.scale.setScalar(markerSize); b.markerHit.scale.set(markerSize, markerSize, 1); b.markerHit.position.copy(center); }
+      else b.arrow.scale.set(pixel * 5, pixel * 13, pixel * 5);
       b.arrow.position.copy(center);
-      b.arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+      if (!b.markerHit) b.arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
       const fade = b.related ? 1 : 0.28;
       (b.line.material as THREE.LineBasicMaterial).opacity = b.opacity * fade;
-      (b.arrow.material as THREE.MeshBasicMaterial).opacity = b.opacity * fade;
+      b.arrow.traverse((object) => {
+        if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) for (const material of Array.isArray(object.material) ? object.material : [object.material]) { material.transparent = true; material.opacity = b.opacity * fade; }
+      });
       if (b.label) {
         scaleText(b.label, center, 14);
         const separation =

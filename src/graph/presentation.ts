@@ -7,6 +7,7 @@ import {
 } from "./structural.ts";
 import { compactLayout, localPosition, type SpatialSettings } from "./layout3d.ts";
 import { labelSize } from "./labels.ts";
+import { visualFootprint, type Visual } from "./assets.ts";
 
 /** Parent-before-child layout. It reads composition but only writes local coordinates. */
 export function hierarchyLayout(doc: Document): Document {
@@ -44,7 +45,7 @@ export function hierarchyLayout(doc: Document): Document {
       .sort((a, b) => a.id.localeCompare(b.id));
   const widths = new Map<string, number>();
   const size = (id: string) =>
-    labelSize(next.entities.find((e) => e.id === byId.get(id)!.entityId)!.label);
+    visualFootprint(labelSize(next.entities.find((e) => e.id === byId.get(id)!.entityId)!.label), byId.get(id)!.visual);
   const width = (id: string): number => {
     const cached = widths.get(id);
     if (cached) return cached;
@@ -229,41 +230,50 @@ export type DisplayBinder = {
   label: string;
   color?: string;
   opacity?: number;
+  visual?: Visual;
 };
-export function chartedBinders(doc: Document): DisplayBinder[] {
-  const atlas = editorView(doc),
-    placements = new Map(doc.placements.map((p) => [p.id, p]));
+export function chartedBinders(doc: Document, atlas = editorView(doc)): DisplayBinder[] {
+  const placements = new Map(doc.placements.map((p) => [p.id, p]));
   const binders: DisplayBinder[] = atlas.relationships.map((r) => {
     const canonical = doc.relationships.find((item) => item.id === r.id)!;
     return {
       ...r,
       key: r.id,
       kind: "relationship",
-      label: [...(canonical.operators ?? []).map((o) => o.text), r.label]
+      label: canonical.text ?? [...(canonical.operators ?? []).map((o) => o.text), r.label]
         .filter(Boolean)
         .join(" · "),
       color: canonical.appearance?.color,
       opacity: canonical.appearance?.opacity,
+      visual: canonical.visual,
     };
   });
   const represented = new Set<string>();
   for (const node of atlas.nodes) {
+    const link = placements.get(node.id)?.variantOwner;
+    if (link && atlas.nodes.some((n) => n.id === link.placementId)) {
+      const v = doc.variants!.find((v) => v.id === link.variantId)!;
+      binders.push({ key: `variant:${node.id}`, id: link.variantId, kind: "variant", source: link.placementId, target: node.id, label: v.text ?? "variant", color: v.appearance?.color ?? "#bda1ec", opacity: v.appearance?.opacity, visual: v.visual });
+    }
     if (!node.parentId) continue;
+    if (node.parentId === link?.placementId) continue;
     const parent = placements.get(node.parentId)!,
       child = placements.get(node.id)!;
     const comp = doc.compositions.find(
       (c) => c.parentId === parent.entityId && c.childId === child.entityId,
     );
     if (comp) represented.add(comp.id);
+    const style = comp ?? child.nestingBinder;
     binders.push({
       key: `nest:${node.id}`,
       id: comp?.id ?? node.id,
       kind: comp ? "composition" : "visual",
       source: node.parentId,
       target: node.id,
-      label: comp ? comp.operators?.map((o) => o.text).join(" · ") || "contains" : "visual nesting",
-      color: comp?.appearance?.color,
-      opacity: comp?.appearance?.opacity,
+      label: style?.text ?? (comp ? comp.operators?.map((o) => o.text).join(" · ") || "contains" : "visual nesting"),
+      color: style?.appearance?.color,
+      opacity: style?.appearance?.opacity,
+      visual: style?.visual,
     });
   }
   for (const comp of doc.compositions.filter((c) => !represented.has(c.id))) {
@@ -280,9 +290,10 @@ export function chartedBinders(doc: Document): DisplayBinder[] {
         kind: "composition",
         source,
         target,
-        label: comp.operators?.map((o) => o.text).join(" · ") || "contains",
+        label: comp.text ?? (comp.operators?.map((o) => o.text).join(" · ") || "contains"),
         color: comp.appearance?.color,
         opacity: comp.appearance?.opacity,
+        visual: comp.visual,
       });
   }
   return binders;

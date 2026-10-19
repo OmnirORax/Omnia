@@ -1,5 +1,6 @@
 import {
   validateDocument,
+  ensureVariantPlacements,
   type Document,
   type Entity,
   type Placement,
@@ -194,7 +195,12 @@ export function validateChangeSet(doc: Document, input: unknown): Preview {
   }
   if (!lines.length) reject("Change set contains no operations.");
   next.revision = doc.revision + 1;
-  return { next: validateDocument(next), lines };
+  let result = validateDocument(next);
+  for (const op of value.operations!) {
+    if (op.op === "addVariant") result = ensureVariantPlacements(result, undefined, op.variant.id);
+    if (op.op === "addPlacement") result = ensureVariantPlacements(result, op.placement.id);
+  }
+  return { next: result, lines };
 }
 
 export function parseChangeSet(text: string): ChangeSet {

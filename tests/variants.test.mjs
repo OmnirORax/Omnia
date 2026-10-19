@@ -5,14 +5,19 @@ import {
   editorView,
   parseDocument,
   validateDocument,
+  ensureVariantPlacements,
+  expandPlacement,
+  toggleSubtree,
+  reconcileEditor,
 } from "../src/graph/structural.ts";
 import {
   addVariant,
   projectVariants,
-  moveVariant,
   nodeEntityId,
   NODE_OPTIONS,
 } from "../src/graph/variants.ts";
+import { createPlacement, movePlacement, reparentStructure, DEFAULT_SPATIAL_SETTINGS as settings } from "../src/graph/layout3d.ts";
+import { chartedBinders } from "../src/graph/presentation.ts";
 import { projectSpatial } from "../src/graph/spatial.ts";
 import { validateChangeSet } from "../src/graph/changeset.ts";
 import { nodeClicks } from "../src/nodeClicks.ts";
@@ -30,51 +35,71 @@ function fixture() {
   });
   return doc;
 }
-test("variants are owned canonical references, never structural contents or copied placements", () => {
-  const doc = fixture(),
-    { next, variant } = addVariant(doc, "owner", "Alternative design");
-  assert.equal(variant.ownerId, "owner");
-  assert.equal(next.entities.find((e) => e.id === variant.entityId).label, "Alternative design");
-  assert.deepEqual(next.placements, doc.placements);
+test("variants use ordinary placements, hidden by default, without asserting composition", () => {
+  const doc = fixture(), { next, variant } = addVariant(doc, "owner", "Alternative design");
+  const placement = next.placements.find((p) => p.entityId === variant.entityId);
+  assert.deepEqual(placement.variantOwner, { placementId: "first", variantId: variant.id });
+  assert.deepEqual(next.placements[0], doc.placements[0]);
   assert.deepEqual(next.compositions, []);
-  assert.deepEqual(next.relationships, []);
+  assert.equal(editorView(next).nodes.length, 1);
+  const open = editorView(next, new Set(["first"])), graph = projectSpatial(open);
+  assert.equal(graph.nodes.filter((n) => n.visible).length, 2, "owner collapse does not hide revealed variants");
+  assert.equal(projectVariants(next, graph.nodes).instances.get(placement.id).ownerNodeId, "first");
+  assert.equal(chartedBinders(next, open).find((b) => b.target === placement.id).kind, "variant");
   assert.deepEqual(parseDocument(JSON.stringify(next)), next);
   assert.equal(doc.entities.length, 1);
+  assert.deepEqual(NODE_OPTIONS.map((o) => o.id), ["variants"]);
 });
-test("collapsed owners reveal only real variants in their session mode, without a floating add node", () => {
-  const { next } = addVariant(fixture(), "owner");
-  const graph = projectSpatial(editorView(next));
-  assert.equal(projectVariants(next, graph.nodes, new Set()).nodes.length, 0);
-  const open = projectVariants(next, graph.nodes, new Set(["first"]));
-  assert.equal([...open.instances.values()].filter((n) => n.kind === "variant").length, 1);
-  assert.equal(open.nodes.length, 1);
-  assert.ok(open.nodes.every((n) => n.label !== "+"));
-  assert.equal(open.binders[0].kind, "variant");
-  assert.equal(next.placements[0].collapsed, true);
-  assert.equal(
-    projectVariants(parseDocument(JSON.stringify(next)), graph.nodes, new Set()).nodes.length,
-    0,
-  );
-  assert.deepEqual(
-    NODE_OPTIONS.map((o) => o.id),
-    ["variants"],
-  );
+test("legacy variants migrate once, preserving referents, positions, appearance and original knowledge", () => {
+  const doc = fixture();
+  doc.entities.push({ id: "alternative", label: "Alternative", aliases: ["alias"], notes: "Existing notes" });
+  doc.variants = [{ id: "v", ownerId: "owner", entityId: "alternative", position: { x: 8, y: 2, z: 4 }, appearance: { color: "#aa77ff", opacity: 0.6 } }];
+  const migrated = parseDocument(JSON.stringify(doc));
+  assert.deepEqual(migrated.entities, doc.entities);
+  assert.deepEqual(migrated.variants, doc.variants);
+  assert.deepEqual(migrated.placements[0], doc.placements[0]);
+  assert.deepEqual(migrated.placements[1].spatialPosition, doc.variants[0].position);
+  assert.deepEqual(migrated.placements[1].appearance, doc.variants[0].appearance);
+  assert.deepEqual(parseDocument(JSON.stringify(migrated)), migrated, "stable placement IDs on reload");
+  const removed = { ...migrated, placements: migrated.placements.slice(0, 1) };
+  assert.deepEqual(parseDocument(JSON.stringify(removed)), removed, "reload does not undo a placement removal");
+  assert.equal(ensureVariantPlacements(removed, "first").placements.length, 2, "explicit reveal can restore a reference");
 });
-test("multiple owner references share variants while keeping distinct render identities", () => {
+test("variants support ordinary children, deeper expansion, typed connections and reuse", () => {
   const { next, variant } = addVariant(fixture(), "owner");
-  next.placements.push({ ...next.placements[0], id: "second" });
-  const graph = projectSpatial(editorView(next));
-  const display = projectVariants(next, graph.nodes, new Set(["first", "second"]));
-  const instances = [...display.instances].filter(([, item]) => item.kind === "variant");
-  assert.equal(instances.length, 2);
-  assert.notEqual(instances[0][0], instances[1][0]);
-  assert.equal(instances[0][1].variant.entityId, variant.entityId);
-  assert.equal(instances[1][1].variant.entityId, variant.entityId);
-  const id = instances[0][0];
-  const moved = moveVariant(next, id, { x: 10, y: 5, z: 2 }, [...graph.nodes, ...display.nodes], 2);
-  assert.deepEqual(moved.variants[0].position, { x: 6, y: 2, z: 0 });
-  assert.deepEqual(moved.placements, next.placements);
-  assert.deepEqual(moved.compositions, next.compositions);
+  const v = next.placements.find((p) => p.entityId === variant.entityId);
+  next.entities.push({ id: "child", label: "Child", aliases: [], notes: "" }, { id: "leaf", label: "Leaf", aliases: [], notes: "" });
+  next.compositions.push({ id: "vc", parentId: variant.entityId, childId: "child" }, { id: "cl", parentId: "child", childId: "leaf" });
+  const expanded = toggleSubtree(next, v.id);
+  const child = expanded.placements.find((p) => p.entityId === "child");
+  assert.equal(child.parentId, v.id);
+  assert.equal(expanded.placements.find((p) => p.entityId === "leaf").parentId, child.id);
+  const closed = projectSpatial(editorView(expanded));
+  assert.deepEqual(closed.nodes.filter((n) => n.visible).map((n) => n.id), ["first"], "closing owner variants hides the whole variant subtree");
+  const open = editorView(expanded, new Set(["first"]));
+  assert.equal(projectSpatial(open).nodes.filter((n) => n.visible).length, 4);
+  const connected = reconcileEditor(expanded, open, { ...open, relationships: [{ id: "link", source: v.id, target: "first", label: "depends" }] });
+  assert.equal(connected.relationships[0].participants[0].entityId, variant.entityId);
+  assert.equal(chartedBinders(connected, editorView(connected, new Set(["first"]))).filter((b) => b.kind === "composition").length, 2);
+  const reused = createPlacement(connected, variant.entityId, null, settings);
+  const contents = expandPlacement(reused.next, reused.placementId);
+  assert.equal(contents.entities.length, connected.entities.length, "reusing a variant does not duplicate knowledge");
+  assert.ok(contents.placements.some((p) => p.parentId === reused.placementId && p.entityId === "child"));
+  const moved = movePlacement(contents, v.id, { x: 10, y: 4, z: 2 }, settings);
+  assert.deepEqual(moved.variants, contents.variants);
+  assert.deepEqual(moved.compositions, contents.compositions);
+  const collapsed = toggleSubtree(expanded, v.id);
+  assert.ok(collapsed.placements.filter((p) => p.id !== "first").every((p) => p.collapsed));
+});
+test("owner references share variant identities with independent ordinary placement coordinates", () => {
+  const { next, variant } = addVariant(fixture(), "owner");
+  const reused = createPlacement(next, "owner", null, settings);
+  const references = reused.next.placements.filter((p) => p.entityId === variant.entityId);
+  assert.equal(references.length, 2);
+  assert.notEqual(references[0].id, references[1].id);
+  const moved = movePlacement(reused.next, references[0].id, { x: 10, y: 4, z: 2 }, settings);
+  assert.deepEqual(moved.placements.find((p) => p.id === references[1].id), references[1]);
+  assert.equal(editorView(moved, new Set([reused.placementId])).nodes.filter((n) => nodeEntityId(moved, n.id) === variant.entityId).length, 1);
 });
 test("invalid ownership, dangling references and cycles are rejected", () => {
   const { next, variant } = addVariant(fixture(), "owner");
@@ -99,31 +124,18 @@ test("invalid ownership, dangling references and cycles are rejected", () => {
     /Duplicate/,
   );
 });
-test("variant representation IDs remain distinct from authored IDs and grow linearly with depth", () => {
-  let doc = fixture();
-  doc.entities.push({ id: "variant-entity", label: "Variant", aliases: [], notes: "" });
-  doc.variants = [{ id: "v", ownerId: "owner", entityId: "variant-entity" }];
-  doc.placements.push({ ...doc.placements[0], id: 'variant:["first","v"]' });
-  let structural = projectSpatial(editorView(doc)).nodes;
-  const expanded = new Set(["first"]);
-  let display = projectVariants(doc, structural, expanded);
-  let node = [...display.instances].find(([, item]) => item.kind === "variant")[0];
-  assert.ok(!doc.placements.some((p) => p.id === node));
-  assert.equal(nodeEntityId(doc, node), "variant-entity");
-  for (let i = 0; i < 20; i++) {
-    const added = addVariant(doc, nodeEntityId(doc, node));
-    doc = added.next;
-    expanded.add(node);
-    structural = projectSpatial(editorView(doc)).nodes;
-    display = projectVariants(doc, structural, expanded);
-    node = [...display.instances].find(
-      ([, item]) => item.kind === "variant" && item.variant.id === added.variant.id,
-    )[0];
-  }
-  assert.ok(
-    node.length < 2000,
-    "nested instance paths do not repeatedly escape the entire parent ID",
-  );
+test("ordinary reparenting on variants records composition and rejects visibility cycles atomically", () => {
+  const { next, variant } = addVariant(fixture(), "owner");
+  const v = next.placements.find((p) => p.entityId === variant.entityId);
+  next.entities.push({ id: "other", label: "Other", notes: "", aliases: [] });
+  const placed = createPlacement(next, "other", null, settings);
+  const nested = reparentStructure(placed.next, placed.placementId, v.id, settings);
+  assert.ok(nested.compositions.some((c) => c.parentId === variant.entityId && c.childId === "other"));
+  assert.equal(nested.placements.find((p) => p.id === placed.placementId).parentId, v.id);
+  assert.throws(() => reparentStructure(nested, "first", placed.placementId, settings), /cycle/i);
+  const before = JSON.stringify(nested);
+  assert.throws(() => validateDocument({ ...nested, placements: nested.placements.map((p) => p.id === v.id ? { ...p, variantOwner: { placementId: "missing", variantId: variant.id } } : p) }), /reference/);
+  assert.equal(JSON.stringify(nested), before);
 });
 test("AI can propose owned variants with normal review and stale-revision protection", () => {
   const doc = fixture();
