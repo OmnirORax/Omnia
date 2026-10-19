@@ -69,7 +69,7 @@ function Workbench() {
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
   const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
   const [themeScope, setThemeScope] = useState<"global" | "nodes" | "binders">("global");
-  const [animationScope, setAnimationScope] = useState<"all" | AnimationTarget>("all");
+  const [animationScope, setAnimationScope] = useState<"all" | AnimationTarget>("windows");
   const [themePresets, setThemePresets] = useState(loadThemePresets);
   const [themePresetName, setThemePresetName] = useState("My theme");
   const [selectedThemePreset, setSelectedThemePreset] = useState("");
@@ -902,6 +902,7 @@ function Workbench() {
   const groupStyle = themeScope === "global" ? undefined : settings.appearance[themeScope];
   const animationOverrides = animationScope === "all" ? undefined : animationScope === "nodes" || animationScope === "binders" ? settings.appearance[animationScope].effects : settings.appearance.surfaceEffects[animationScope];
   const scopedEffects = resolveSparkles(settings.appearance, animationOverrides);
+  const useSharedAnimation = animationScope !== "all" && Object.keys(animationOverrides ?? {}).length === 0;
   const editGroup = (patch: Partial<WorkspaceSettings["appearance"]["nodes"]>) => {
     if (themeScope === "global") return;
     setSettings(old => ({ ...old, appearance: { ...old.appearance, [themeScope]: { ...old.appearance[themeScope], ...patch } } }));
@@ -916,15 +917,16 @@ function Workbench() {
     if (animationScope === "all") editAppearance({ ...(patch.effect !== undefined ? { effect: patch.effect, atmosphere: patch.effect !== "off" } : {}), ...(patch.intensity !== undefined ? { effectIntensity: patch.intensity } : {}), ...(patch.density !== undefined ? { density: patch.density } : {}), ...(patch.motion !== undefined ? { motion: patch.motion } : {}) });
     else setAnimationOverrides({ ...animationOverrides, ...patch });
   };
-  replaceFunction("ui:animation:scope", "Animation category", <label>Configure animations for<select aria-label="Animation category" value={animationScope} onChange={event => setAnimationScope(event.target.value as typeof animationScope)}><option value="all">Shared defaults</option>{ANIMATION_TARGETS.map(target => <option key={target} value={target}>{ANIMATION_LABELS[target]}</option>)}</select></label>, true);
-  replaceFunction("ui:animation:targets", "Animation targets", <fieldset className="animation-targets"><legend>Apply animations to</legend>{ANIMATION_TARGETS.map(target => <label key={target}><input aria-label={`Animate ${ANIMATION_LABELS[target]}`} type="checkbox" checked={settings.appearance.effectTargets[target]} onChange={event => editAppearance({ effectTargets: { ...settings.appearance.effectTargets, [target]: event.target.checked } })} />{ANIMATION_LABELS[target]}</label>)}</fieldset>, true);
-  replaceFunction("ui:animation:inherit", "Use shared animation defaults", <button disabled={animationScope === "all"} onClick={() => setAnimationOverrides(undefined)}>Use shared animation defaults</button>);
+  replaceFunction("ui:animation:scope", "Animation category", <label>Category<select aria-label="Animation category" value={animationScope} onChange={event => setAnimationScope(event.target.value as typeof animationScope)}>{ANIMATION_TARGETS.map(target => <option key={target} value={target}>{ANIMATION_LABELS[target]}</option>)}<option value="all">Shared settings</option></select></label>, true);
+  // Keep the existing control ID so customized layouts retain their enabled switch.
+  replaceFunction("ui:animation:targets", "Animation enabled", <label className="animation-toggle"><input aria-label="Animation enabled" type="checkbox" disabled={animationScope === "all"} checked={animationScope !== "all" && settings.appearance.effectTargets[animationScope]} onChange={event => { if (animationScope !== "all") editAppearance({ effectTargets: { ...settings.appearance.effectTargets, [animationScope]: event.target.checked } }); }} />Enabled</label>, true);
+  replaceFunction("ui:animation:inherit", "Use shared animation settings", <label className="animation-toggle" title="Uncheck to customize this category. Edit shared values by choosing Shared settings above."><input aria-label="Use shared animation settings" type="checkbox" disabled={animationScope === "all"} checked={useSharedAnimation} onChange={event => setAnimationOverrides(event.target.checked ? undefined : { ...scopedEffects })} />Use shared settings</label>, true);
 
   replaceFunction("ui:appearance:scope", "Theme mode", <label>Mode<select aria-label="Theme mode" value={themeScope} onChange={event => setThemeScope(event.target.value as typeof themeScope)}><option value="global">Global</option><option value="nodes">Nodes / text</option><option value="binders">Binders</option></select></label>, true);
   replaceFunction("ui:appearance:accent", "Color", <label>Color<input aria-label="Theme color" type="color" value={groupStyle?.color ?? settings.appearance.accent} onChange={event => themeScope === "global" ? editAppearance({ accent: event.target.value }) : editGroup({ color: event.target.value })} /></label>, true);
   for (const [key, label, max] of [["opacity", "Opacity", 1], ["glow", "Glow", themeScope === "global" ? 1 : 2]] as const) replaceFunction(key === "glow" ? "ui:glow" : "ui:appearance:opacity", label, <label>{label}: {Math.round((groupStyle?.[key] ?? settings.appearance[key]) * 100)}%<input aria-label={`Theme ${key}`} type="range" min="0" max={max} step="0.05" value={groupStyle?.[key] ?? settings.appearance[key]} onChange={event => themeScope === "global" ? editAppearance({ [key]: Number(event.target.value) }) : editGroup({ [key]: Number(event.target.value) })} /></label>, true);
-  replaceFunction("ui:appearance:effect", "Sparkle effect", <label>Sparkle effect<select aria-label="Sparkle effect" value={scopedEffects.effect} onChange={event => editEffects({ effect: event.target.value as SparkleStyle["effect"] })}>{EFFECT_KINDS.map(effect => <option key={effect} value={effect}>{effect === "falling-stars" ? "Falling stars / snow" : effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
-  for (const [key, label, id] of [["intensity", "Effect intensity", "effectIntensity"], ["density", "Density", "density"], ["motion", "Animation speed", "motion"]] as const) replaceFunction(`ui:appearance:${id}`, label, <label>{label}: {Math.round(scopedEffects[key] * 100)}%<input aria-label={label} type="range" min="0" max="1" step="0.05" value={scopedEffects[key]} onChange={event => editEffects({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:effect", "Sparkle effect", <label>Sparkle effect<select aria-label="Sparkle effect" disabled={useSharedAnimation} value={scopedEffects.effect} onChange={event => editEffects({ effect: event.target.value as SparkleStyle["effect"] })}>{EFFECT_KINDS.map(effect => <option key={effect} value={effect}>{effect === "falling-stars" ? "Falling stars / snow" : effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
+  for (const [key, label, id] of [["intensity", "Effect intensity", "effectIntensity"], ["density", "Density", "density"], ["motion", "Animation speed", "motion"]] as const) replaceFunction(`ui:appearance:${id}`, label, <label>{label}: {Math.round(scopedEffects[key] * 100)}%<input aria-label={label} disabled={useSharedAnimation} type="range" min="0" max="1" step="0.05" value={scopedEffects[key]} onChange={event => editEffects({ [key]: Number(event.target.value) })} /></label>, true);
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => editAppearance({ theme: event.target.value as WorkspaceSettings["appearance"]["theme"] })}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>, true);
   replaceFunction("ui:appearance:background", "Background color", <label>Background color<input aria-label="Background color" type="color" value={settings.appearance.background} onChange={event => editAppearance({ background: event.target.value })} /></label>, true);
   for (const [key, label, max, step] of [["glowSpread", "Glow spread", 1, 0.05], ["blur", "Window blur", 20, 1]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label}<input aria-label={label} type="range" min="0" max={max} step={step} value={settings.appearance[key]} onChange={event => editAppearance({ [key]: Number(event.target.value) })} /></label>, true);
@@ -1967,8 +1969,9 @@ function Workbench() {
           <FunctionControl id="ui:appearance:windowOpacity" /><FunctionControl id="ui:appearance:blur" />
         </section>
         <section aria-label="Animations"><h3>Animations</h3>
-          <p>Choose where effects appear. Configure each category independently or use shared defaults.</p>
-          {["ui:animation:targets", "ui:animation:scope", "ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion", "ui:animation:inherit"].map(id => <FunctionControl key={id} id={id} />)}
+          <FunctionControl id="ui:animation:scope" />
+          {animationScope === "all" ? <p>Editing shared settings for categories that use them.</p> : <><FunctionControl id="ui:animation:targets" /><FunctionControl id="ui:animation:inherit" /></>}
+          {["ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion"].map(id => <FunctionControl key={id} id={id} />)}
         </section>
         <section aria-label="Theme templates"><h3>Theme templates</h3>
           <p>Save colors, window appearance and animations together.</p>
