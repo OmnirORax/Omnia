@@ -672,6 +672,31 @@ function Workbench() {
       setSelection({ kind: "node", id });
     } catch (e) { setError(message(e)); }
   }
+  function revealPanel(id: string) {
+    updateUI(layout => {
+      const key = `window:panel:${id}`;
+      const saved = layout.windows[`panel:${id}`] ?? { x: 320, y: 140, width: 400, height: 560, collapsed: false, pinned: false };
+      let next: typeof layout = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: { ...saved, collapsed: false } } };
+      let owner = ownerOf(next, key);
+      while (owner) { next = updateContainer(next, owner, { collapsed: false }); owner = ownerOf(next, owner); }
+      return next;
+    });
+    requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+  }
+  function invokeContextShortcut(id: string): boolean {
+    const nodeAction = ["createChild", "insertExisting", "connect", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
+    if (nodeAction && selectedNode) {
+      contextAction(nodeAction as ContextAction, { kind: "node", id: selectedNode.id });
+      return true;
+    }
+    const selectionAction = ["focus", "expand", "collapse", "compact", "deleteIdentity"].find(action => id === `context:selection:${action}`);
+    const ids = [...selectedIds].filter(id => document.placements.some(p => p.id === id));
+    if (selectionAction && ids.length) {
+      contextAction(selectionAction as ContextAction, { kind: "selection", ids });
+      return true;
+    }
+    return false;
+  }
   function contextAction(action: ContextAction, target: ContextTarget) {
     if (target.kind === "selection") {
       if (action === "deleteIdentity") deleteSelectedConcepts(target.ids);
@@ -694,7 +719,13 @@ function Workbench() {
       case "connect": if (id) { setConnectionSource(id); setSelection({ kind: "node", id }); } break;
       case "toggle": if (id) toggleNode(id); break;
       case "focus": if (id) { setSelection({ kind: "node", id }); navigate("focus", id); } break;
-      case "edit": if (id) { setSelection({ kind: "node", id }); setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0); } break;
+      case "edit": if (id) {
+        setSelection({ kind: "node", id }); revealPanel("inspector");
+        setTimeout(() => {
+          const input = [...window.document.querySelectorAll<HTMLInputElement>('[aria-label="Node name"]')].find(input => input.getClientRects().length && window.getComputedStyle(input).visibility !== "hidden");
+          input?.focus(); input?.select();
+        }, 0);
+      } break;
       case "removePlacement": if (id) removePlacement(id); break;
       case "deleteIdentity": if (id) { const entityId = document.placements.find((p) => p.id === id)?.entityId; if (entityId) deleteIdentity(entityId); } break;
       case "compact": compact(activeFrame ? { kind: "frame", frameId: activeFrame.id } : { kind: "all" }); break;
@@ -889,19 +920,9 @@ function Workbench() {
   replaceFunction("ui:flowType", "View relationship type", flowType ? <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowFrom", "View upstream role", flowType ? <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
-  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => {
-    updateUI(layout => {
-      const key = `window:panel:${id}`;
-      const saved = layout.windows[`panel:${id}`] ?? { x: 320, y: 140, width: 400, height: 560, collapsed: false, pinned: false };
-      let next: typeof layout = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: { ...saved, collapsed: false } } };
-      let owner = ownerOf(next, key);
-      while (owner) { next = updateContainer(next, owner, { collapsed: false }); owner = ownerOf(next, owner); }
-      return next;
-    });
-    requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
-  }}>{title}</button>);
+  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   return (
-    <UIWorkspace shortcuts={{ bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
       <header className="toolbar">
         <div className="brand">
           <strong>Omnium</strong>

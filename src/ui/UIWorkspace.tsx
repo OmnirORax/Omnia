@@ -497,6 +497,7 @@ export function UIWorkspace({
     const invoke = (id: string) => {
       if (!id.startsWith("button:") || shortcuts?.capturing || shortcuts?.blocked) return;
       const target = id.slice(7);
+      setShortcutNotice("");
       if (target.startsWith("@frame:")) {
         const frame = frameActions.get(target.slice(7));
         if (frame) frame.onChange({ collapsed: !frame.state.collapsed });
@@ -514,7 +515,11 @@ export function UIWorkspace({
         return;
       }
       const fn = current.current.functions.find(f => f.id === target);
-      if (!fn || fn.available === false) { setShortcutNotice("This action needs its relevant node, relationship or window open."); return; }
+      if (!fn || fn.available === false) {
+        if (shortcuts?.onInvoke?.(target)) return;
+        setShortcutNotice(target.startsWith("context:node:") ? "Select a node to use this shortcut." : target.startsWith("context:selection:") ? "Select nodes to use this shortcut." : "This action needs its relevant node, relationship or window open.");
+        return;
+      }
       setShortcutNotice("");
       if (fn.control) { setShortcutField(target); return; }
       const runner = Array.from(shortcutRunners.current?.children ?? []).find(el => el.getAttribute("data-shortcut-runner") === target);
@@ -1255,16 +1260,16 @@ export function UIWorkspace({
   }, []);
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenu(null);
-        configure(null);
-        configureFrame(null);
-        configureControl(null);
-      }
+      if (e.key !== "Escape" || shortcuts?.capturing) return;
+      if (!(menu || configured || configuredFrame || configuredControl || shortcutField || shortcutNotice)) return;
+      // Closing a UI editor must not also clear the graph selection it edits.
+      e.preventDefault(); e.stopPropagation();
+      setMenu(null); configure(null); configureFrame(null); configureControl(null);
+      setShortcutField(null); setShortcutNotice("");
     };
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, []);
+    window.addEventListener("keydown", close, true);
+    return () => window.removeEventListener("keydown", close, true);
+  }, [menu, configured, configuredFrame, configuredControl, shortcutField, shortcutNotice, shortcuts?.capturing]);
   const selected = functions.find((f) => f.id === configured),
     item = configured ? layout.items[configured] : undefined;
   const selectedOwner = configuredControl?.owner ?? configuredFrame;
@@ -1376,7 +1381,7 @@ export function UIWorkspace({
         {functions.filter(fn => !fn.control && fn.available !== false && Object.hasOwn(shortcuts?.bindings ?? {}, `button:${fn.id}`)).map(fn => <span key={fn.id} data-shortcut-runner={fn.id}>{fn.element}</span>)}
       </div>
       {shortcutField && <FloatingWindow id="shortcut-field" title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
-      {shortcutNotice && <div className="ui-anchor-prompt" role="status">{shortcutNotice}<button onClick={() => setShortcutNotice("")}>Dismiss</button></div>}
+      {shortcutNotice && <div className="ui-anchor-prompt ui-shortcut-notice" role="status">{shortcutNotice}<button onClick={() => setShortcutNotice("")}>Dismiss</button></div>}
       <ButtonSelectionOverlay selection={buttonSelection} />
       {anchorTarget && (
         <div className="ui-anchor-prompt" role="status">

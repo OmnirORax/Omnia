@@ -132,4 +132,5 @@ export type ButtonShortcuts = {
   blocked: boolean;
   onCapture: (id: string, label: string) => void;
   onClear: (id: string) => void;
+  onInvoke?: (id: string) => boolean;
 };
