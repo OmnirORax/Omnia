@@ -3,6 +3,10 @@ import { parseAtlas as parseLegacyAtlas, type Atlas as LegacyAtlas } from "./mod
 export type XY = { x: number; y: number };
 export type XYZ = XY & { z: number };
 export type Entity = { id: string; label: string; aliases: string[]; notes: string };
+export type Appearance = { color: string; opacity: number };
+// Editable annotations, not an executable grammar or a definition of truth.
+export type BinderOperator = { id: string; text: string };
+export type BinderPresentation = { appearance?: Appearance; operators?: BinderOperator[] };
 export type Placement = {
   id: string;
   entityId: string;
@@ -11,8 +15,9 @@ export type Placement = {
   spatialPosition?: XYZ;
   collapsed: boolean;
   hidden: boolean;
+  appearance?: Appearance;
 };
-export type Composition = { id: string; parentId: string; childId: string };
+export type Composition = { id: string; parentId: string; childId: string } & BinderPresentation;
 export type RelationshipType = {
   id: string;
   name: string;
@@ -20,12 +25,19 @@ export type RelationshipType = {
   roles: { id: string; name: string }[];
   definition: string;
 };
-export type StructuralRelationship = {
+export type StructuralRelationship = BinderPresentation & {
   id: string;
   typeId: string;
   participants: { roleId: string; entityId: string }[];
   label: string;
   qualifierIds: string[];
+};
+export type LayoutView = {
+  id: string;
+  name: string;
+  rule: "manual" | "hierarchy" | "compact" | "flow";
+  ordering?: { typeId: string; fromRoleId: string; toRoleId: string };
+  positions: { placementId: string; position: XYZ }[];
 };
 export type FrameScope = {
   anchorIds: string[];
@@ -57,6 +69,8 @@ export type Document = {
   relationships: StructuralRelationship[];
   frames: Frame[];
   activeFrameId: string | null;
+  layoutViews?: LayoutView[];
+  activeLayoutViewId?: string | null;
 };
 
 export const UNTYPED_ID = "legacy-untyped";
@@ -101,6 +115,14 @@ const point = (v: unknown, axis: string[]): boolean =>
     (a) =>
       typeof v[a] === "number" && Number.isFinite(v[a]) && Math.abs(v[a] as number) <= 1_000_000,
   );
+function validatePresentation(value: { appearance?: Appearance; operators?: BinderOperator[] }) {
+  const a = value.appearance;
+  if (a !== undefined && (!rec(a) || !/^#[0-9a-f]{6}$/i.test(a.color) || !Number.isFinite(a.opacity) || a.opacity < 0 || a.opacity > 1)) fail("Invalid appearance.");
+  if (value.operators !== undefined) {
+    if (!Array.isArray(value.operators) || value.operators.length > 32 || value.operators.some((o) => !rec(o) || !id(o.id) || !str(o.text, 500))) fail("Invalid binder operators.");
+    unique(value.operators.map((o) => o.id), "binder operator");
+  }
+}
 const has = (list: string[], value: string, what: string) => {
   if (!list.includes(value)) fail(`Missing ${what}: ${value}`);
 };
@@ -205,6 +227,7 @@ export function validateDocument(doc: Document): Document {
     )
       fail("Invalid entity.");
   for (const p of doc.placements) {
+    validatePresentation(p);
     if (
       !id(p.id) ||
       !id(p.entityId) ||
@@ -229,6 +252,7 @@ export function validateDocument(doc: Document): Document {
     }
   }
   for (const c of doc.compositions) {
+    validatePresentation(c);
     if (!id(c.id) || !id(c.parentId) || !id(c.childId) || c.parentId === c.childId)
       fail("Invalid structural composition.");
     has(entityIds, c.parentId, "composition parent");
@@ -266,6 +290,7 @@ export function validateDocument(doc: Document): Document {
     );
   }
   for (const r of doc.relationships) {
+    validatePresentation(r);
     if (
       !id(r.id) ||
       !id(r.typeId) ||
@@ -289,6 +314,18 @@ export function validateDocument(doc: Document): Document {
     }
     for (const q of r.qualifierIds) has(entityIds, q, "qualifier");
   }
+  if (doc.layoutViews !== undefined) {
+    if (!Array.isArray(doc.layoutViews) || doc.layoutViews.length > 100 || doc.layoutViews.some((v) => !rec(v))) fail("Invalid layout views.");
+    unique(doc.layoutViews.map((v) => v.id), "layout view");
+    for (const v of doc.layoutViews) {
+      if (!rec(v) || !id(v.id) || !str(v.name, 500) || !["manual", "hierarchy", "compact", "flow"].includes(v.rule) || !Array.isArray(v.positions) || v.positions.length > 4000) fail("Invalid layout view.");
+      if (v.ordering !== undefined && (!rec(v.ordering) || !id(v.ordering.typeId) || !id(v.ordering.fromRoleId) || !id(v.ordering.toRoleId) || v.ordering.fromRoleId === v.ordering.toRoleId)) fail("Invalid view ordering roles.");
+      if (v.positions.some((p) => !rec(p))) fail("Invalid view position.");
+      unique(v.positions.map((p) => p.placementId), "view placement");
+      for (const p of v.positions) if (!rec(p) || !id(p.placementId) || !point(p.position, ["x", "y", "z"])) fail("Invalid view position.");
+    }
+  }
+  if (doc.activeLayoutViewId != null && !doc.layoutViews?.some((v) => v.id === doc.activeLayoutViewId)) fail("Missing active layout view.");
   for (const f of doc.frames) {
     if (
       !id(f.id) ||
