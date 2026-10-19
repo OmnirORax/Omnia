@@ -10,7 +10,7 @@ Omnia is intended to become a shared environment where humans and AI construct, 
 
 For each task, implement the requested capability with the smallest compatible change. Preserve existing functionality and user data. Keep semantic graph data distinct from view state, make costly-to-reverse decisions explicit, and avoid speculative features or abstractions.
 
-Verification preference: use typecheck/build, relevant existing tests and one focused interaction check. Add automation for meaningful data risks or recurring bugs. Reserve full regression suites for broad changes or merge preparation; prioritize total credit cost, founder debugging time and expected rework. Human preview review determines usability and design fit.
+Verification preference: the user performs testing. Prioritize implementation; skip routine test suites, browser checks and extra test-writing. Use a small targeted check only when genuinely unsure about a concrete implementation issue. Avoid expensive regression work unless explicitly requested. Build only when needed to produce the requested preview/artifact. Human testing determines usability and design fit.
 
 The interface is user-arrangeable: individual global functions/settings can float, snap into named frames whose outline follows their slots, use text or icon buttons, and be pinned. Windows are draggable, resizable and collapsible. Entity-specific context menus retain fixed membership and the clicked entity; only internal order, shape and size are customized. UI templates are portable presentation configuration, separate from canonical graph knowledge. The user will supply the future website default; do not invent a replacement aesthetic.
 
