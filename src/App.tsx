@@ -64,8 +64,18 @@ function Workbench() {
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
   const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
   useEffect(() => {
-    window.document.documentElement.dataset.omniumTheme = settings.appearance.theme;
-  }, [settings.appearance.theme]);
+    const root = window.document.documentElement, a = settings.appearance;
+    root.dataset.omniumTheme = a.theme;
+    root.dataset.omniumMotion = a.motion > 0 ? "on" : "off";
+    const base = a.theme === "neon" ? a.background : "#f8faff";
+    root.style.setProperty("--omnium-accent", a.accent);
+    root.style.setProperty("--omnium-frame-fill", a.theme === "neon" ? a.accent : "#b6d4f2");
+    root.style.setProperty("--omnium-panel", `color-mix(in srgb, ${base} ${a.windowOpacity * 100}%, transparent)`);
+    root.style.setProperty("--omnium-handle", `color-mix(in srgb, color-mix(in srgb, ${a.theme === "neon" ? a.accent : "#e6eef8"} ${a.theme === "neon" ? 12 : 100}%, ${base}) ${a.windowOpacity * 100}%, transparent)`);
+    root.style.setProperty("--omnium-blur", `${a.blur}px`);
+    root.style.setProperty("--omnium-motion", String(a.motion));
+    root.style.setProperty("--omnium-frame-opacity", String(a.windowOpacity * 0.22));
+  }, [settings.appearance]);
   const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
   useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
@@ -100,6 +110,8 @@ function Workbench() {
   const [target, setTarget] = useState("");
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
   const setSettingsOpen = (value: boolean) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@settings": value } }));
+  const themeOpen = uiLayout.panels["@theme"] ?? true;
+  const setThemeOpen = (value: boolean) => updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@theme": value } }));
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
   const [capturing, setCapturing] = useState<ActionId | null>(null);
@@ -177,7 +189,7 @@ function Workbench() {
     try {
       const entityId = newId();
       const next = structuredClone(document);
-      next.entities.push({ id: entityId, label: "New node", aliases: [], notes: "" });
+      next.entities.push({ id: entityId, label: "", aliases: [], notes: "" });
       if (parentId) {
         const parent = next.placements.find((p) => p.id === parentId);
         if (!parent) throw new Error("Parent placement missing.");
@@ -686,6 +698,7 @@ function Workbench() {
     switch (action) {
       case "ui:undo": ui.undo(steps); break;
       case "theme": setSettings(old => ({ ...old, appearance: { ...old.appearance, theme: old.appearance.theme === "neon" ? "classic" : "neon" } })); break;
+      case "appearance": setThemeOpen(true); break;
       case "ui:redo": ui.redo(steps); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
@@ -802,6 +815,13 @@ function Workbench() {
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
+  replaceFunction("appearance", "Theme / aesthetics", <button onClick={() => setThemeOpen(true)}>Theme / aesthetics</button>);
+  const editAppearance = (patch: Partial<WorkspaceSettings["appearance"]>) => setSettings(old => ({ ...old, appearance: { ...old.appearance, ...patch } }));
+  for (const [key, label] of [["accent", "Accent color"], ["background", "Background color"]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label}<input aria-label={label} type="color" value={settings.appearance[key]} onChange={event => editAppearance({ [key]: event.target.value })} /></label>, true);
+  replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => editAppearance({ theme: event.target.value as WorkspaceSettings["appearance"]["theme"] })}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>, true);
+  replaceFunction("ui:appearance:effect", "Particle effect", <label>Particle effect<select aria-label="Particle effect" value={settings.appearance.atmosphere ? settings.appearance.effect : "off"} onChange={event => editAppearance({ effect: event.target.value as WorkspaceSettings["appearance"]["effect"], atmosphere: event.target.value !== "off" })}>{["stars", "dust", "sparks", "off"].map(effect => <option key={effect} value={effect}>{effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
+  for (const [key, label, max, step] of [["effectIntensity", "Effect intensity", 1, 0.05], ["density", "Particle density", 1, 0.05], ["motion", "Animation intensity", 1, 0.05], ["windowOpacity", "Window opacity", 1, 0.05], ["blur", "Window blur", 20, 1]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label} <output>{key === "blur" ? `${settings.appearance[key]} px` : `${Math.round(settings.appearance[key] * 100)}%`}</output><input aria-label={label} type="range" min="0" max={max} step={step} value={settings.appearance[key]} onChange={event => editAppearance({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:resetAppearance", "Reset appearance", <button onClick={() => setSettings(old => ({ ...old, appearance: defaultSettings().appearance }))}>Reset appearance</button>);
   replaceFunction("ui:glow", "Graph glow", <label>Graph glow <output>{Math.round(settings.appearance.glow * 100)}%</output><input aria-label="Graph glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.glow} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, glow: Number(event.target.value) } }))} /></label>, true);
   replaceFunction("ui:atmosphere", "Background atmosphere", <label><input type="checkbox" checked={settings.appearance.atmosphere} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, atmosphere: event.target.checked } }))} /> Background atmosphere</label>, true);
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
@@ -858,6 +878,7 @@ function Workbench() {
             {["panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
+            <FunctionControl id="appearance" />
             <FunctionControl id="theme" />
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <>
@@ -1813,11 +1834,12 @@ function Workbench() {
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {themeOpen && <FloatingWindow id="theme" title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
+        <p>Appearance only. Authored node and binder colors take precedence. Effects apply to Neon.</p>
+        {["ui:appearance:theme", "ui:appearance:accent", "ui:appearance:background", "ui:glow", "ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion", "ui:appearance:windowOpacity", "ui:appearance:blur", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+      </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
-        <h2>Appearance</h2>
-        <FunctionControl id="theme" palette />
-        <FunctionControl id="ui:glow" />
-        <FunctionControl id="ui:atmosphere" />
+        <FunctionControl id="appearance" palette />
         <h2>Workspace settings</h2>
         <FunctionControl id="ui:settingsSnap" />
         <FunctionControl id="ui:radius" />

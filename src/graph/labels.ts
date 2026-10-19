@@ -1,7 +1,7 @@
 /** Full labels wrap at word boundaries; long words split without losing characters. */
 export function labelLines(value: string, columns = 32): string[] {
   const lines: string[] = [];
-  for (const paragraph of (value || "Untitled").split("\n")) {
+  for (const paragraph of value.split("\n")) {
     let line = "";
     for (const word of paragraph.split(/\s+/).filter(Boolean)) {
       const chunks = Array.from(word);
@@ -14,9 +14,10 @@ export function labelLines(value: string, columns = 32): string[] {
     }
     lines.push(line);
   }
-  return lines.length ? lines : ["Untitled"];
+  return lines;
 }
 export function labelSize(value: string) {
+  if (!value.trim()) return { width: 0, height: 0 };
   const lines = labelLines(value);
   return {
     width: Math.max(1.05, ...lines.map((line) => Array.from(line).length * 0.19 + 0.4)),

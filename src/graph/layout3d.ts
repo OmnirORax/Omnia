@@ -8,7 +8,7 @@ export { localPosition, worldPositions } from "./coordinates.ts";
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
 export type SpatialSettings = { spacing: GridSpacing; radius: number; clearance: number };
-export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, radius: 0.75, clearance: 0.35 };
+export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, radius: 0.5, clearance: 0.35 };
 const origin = (): XYZ => ({ x: 0, y: 0, z: 0 });
 const add = (a: XYZ, b: XYZ): XYZ => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
 const distance = (a: XYZ, b: XYZ) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -22,7 +22,7 @@ export function occupiedRadii(doc: Document, settings: SpatialSettings, worlds =
     const found = cache.get(id); if (found !== undefined) return found;
     const p = doc.placements.find((item) => item.id === id)!;
     const label = visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), p.visual);
-    let radius = Math.max(settings.radius, Math.hypot(label.width, label.height) / 2);
+    let radius = Math.max(settings.radius, label.sphere ? label.width / 2 : Math.hypot(label.width, label.height, label.depth) / 2);
     if (!p.collapsed) for (const child of doc.placements.filter((c) => c.parentId === id && !c.hidden && c.variantOwner?.placementId !== id))
       radius = Math.max(radius, distance(worlds.get(id)!, worlds.get(child.id)!) + resolve(child.id) + settings.clearance);
     cache.set(id, radius); return radius;
@@ -44,14 +44,14 @@ export function siblingCollisions(doc: Document, settings: SpatialSettings): [st
 function overlap(doc: Document, a: Placement, ap: XYZ, b: Placement, bp: XYZ, settings: SpatialSettings) {
   const footprint = (p: Placement) => visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), p.visual);
   const aa = footprint(a), bb = footprint(b);
-  const depth = (p: Placement) => p.visual?.assetId || p.visual?.character ? p.visual.size ?? 1.4 : settings.radius * 2;
+  const depth = (p: Placement) => Math.max(settings.radius * 2, footprint(p).depth);
   return Math.abs(ap.x - bp.x) < (aa.width + bb.width) / 2 + settings.clearance - 1e-6 && Math.abs(ap.y - bp.y) < Math.max(settings.radius * 2, (aa.height + bb.height) / 2) + settings.clearance - 1e-6 && Math.abs(ap.z - bp.z) < (depth(a) + depth(b)) / 2 + settings.clearance - 1e-6;
 }
 function preferred(doc: Document, entityId: string, parentId: string | null, settings: SpatialSettings) {
   const parent = doc.placements.find((p) => p.id === parentId);
   if(!parent)return origin();
   const parentSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===parent.entityId)?.label??''),parent.visual);
-  const childSize=labelSize(doc.entities.find(e=>e.id===entityId)?.label??'');
+  const childSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===entityId)?.label??''));
   const nearest=(parentSize.width+childSize.width)/2+settings.clearance;
   return {x:settings.spacing?Math.ceil(nearest/settings.spacing)*settings.spacing:nearest,y:0,z:0};
 }
@@ -170,7 +170,7 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
   for (const p of next.placements) {
     const size = visualFootprint(labelSize(entities.get(p.entityId)?.label ?? ""), p.visual);
     const x = Math.max(settings.radius * 2, size.width) / 2, y = Math.max(settings.radius * 2, size.height) / 2;
-    const z = Math.max(settings.radius * 2, p.visual?.assetId || p.visual?.character ? p.visual.size ?? 1.4 : 0) / 2;
+    const z = Math.max(settings.radius * 2, size.depth) / 2;
     ownBoxes.set(p.id, { min: { x: -x, y: -y, z: -z }, max: { x, y, z } });
   }
   const contents = (p: Placement): Box3 => enclosingBox([ownBoxes.get(p.id)!, ...(!p.collapsed

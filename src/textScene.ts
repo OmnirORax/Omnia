@@ -1,4 +1,7 @@
 import * as THREE from "three";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { labelLines, labelSize } from "./graph/labels";
 import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
@@ -6,7 +9,7 @@ import { visualObject } from "./visualScene";
 import type { Document } from "./graph/structural";
 import { visualFootprint } from "./graph/assets";
 
-export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
 export function textSprite(value: string, color: string, selected = false, node = false, neon = false) {
   const lines = labelLines(value),
@@ -75,10 +78,12 @@ type NodeItem = {
   visualSize: number;
   showText: boolean;
   depth: number;
+  sphere: boolean;
+  outline?: THREE.LineSegments;
 };
 type BinderItem = {
   data: DisplayBinder;
-  line: THREE.Line;
+  line: Line2;
   arrow: THREE.Mesh | THREE.Group;
   markerHit?: LabelMesh;
   label: LabelMesh | null;
@@ -96,6 +101,7 @@ export function buildTextScene(
   requestRender: () => void = () => {},
   selectedIds: ReadonlySet<string> = new Set(),
   neon = false,
+  accent = "#60ddec",
 ) {
   const nodes = new Map<string, NodeItem>();
   const nodeHits: LabelMesh[] = [],
@@ -105,22 +111,41 @@ export function buildTextScene(
     const appearance = placement?.appearance;
     const group = new THREE.Group();
     group.position.set(node.world.x, node.world.y, node.world.z);
+    const selected = selectedId === node.id || selectedIds.has(node.id);
+    const color = appearance?.color ?? (neon ? new THREE.Color(accent).lerp(new THREE.Color("white"), 0.65).getStyle() : "#dce9fa");
     const text = textSprite(
       node.label,
-      appearance?.color ?? (neon ? "#c0f4ff" : "#dce9fa"),
-      selectedId === node.id || selectedIds.has(node.id),
+      color,
+      selected,
       true,
       neon,
     );
     text.material.opacity = appearance?.opacity ?? 1;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
-    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, appearance?.color ?? "#dce9fa"), requestRender) : undefined;
-    const sprite = hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x9fc4e9, transparent: true, opacity: selectedId === node.id || selectedIds.has(node.id) ? 0.15 : 0, depthWrite: false, side: THREE.DoubleSide })) : text;
+    const footprint = visualFootprint(labelSize(node.label), placement?.visual);
+    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, neon) : undefined;
+    const sprite: LabelMesh = footprint.sphere
+      ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color: appearance?.color ?? (neon ? accent : "#9fc4e9"), shininess: 35, transparent: true, opacity: appearance?.opacity ?? 1 }))
+      : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
+    // Picking volumes remain fully invisible, even while hovered or selected.
+    let outline: THREE.LineSegments | undefined;
+    if (hasVisual || footprint.sphere) {
+      const points: number[] = [];
+      for (const x of [-0.56, 0.56]) for (const y of [-0.56, 0.56]) {
+        points.push(x, y - Math.sign(y) * 0.14, 0, x, y, 0, x, y, 0, x - Math.sign(x) * 0.14, y, 0);
+      }
+      outline = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(points, 3)), new THREE.LineBasicMaterial({ color: neon ? accent : "#9fc4e9", transparent: true, opacity: 0.75, depthWrite: false }));
+      outline.visible = selected; outline.userData.selected = selected;
+      sprite.userData.hoverOutline = outline;
+      group.add(outline);
+    }
     sprite.userData.nodeId = node.id;
     sprite.userData.visualProxy = hasVisual;
     sprite.userData.baseOpacity = sprite.material.opacity;
+    sprite.userData.baseColor = sprite.material.color.clone();
     group.add(sprite);
-    if (hasVisual) group.add(text, visual!);
+    if (sprite !== text) group.add(text);
+    if (visual) group.add(visual);
     content.add(group);
     nodeHits.push(sprite);
     nodes.set(node.id, {
@@ -128,8 +153,9 @@ export function buildTextScene(
       sprite,
       anchor: group.position.clone(),
       size: labelSize(node.label),
-      text, visual, visualSize: placement?.visual?.size ?? 1.4, showText: !hasVisual || placement?.visual?.showText !== false,
+      text, visual, visualSize: placement?.visual?.size ?? (hasVisual ? 1.4 : 1), showText: !!node.label.trim() && placement?.visual?.showText !== false,
       depth: doc.assets?.find(a => a.id === placement?.visual?.assetId)?.kind === "glb" ? placement?.visual?.size ?? 1.4 : 0.05,
+      sphere: footprint.sphere, outline,
     });
   }
   const totals = new Map<string, number>(),
@@ -141,27 +167,17 @@ export function buildTextScene(
     if (!nodes.has(b.source) || !nodes.has(b.target)) continue;
     const color =
       b.color ??
-      (neon ? b.kind === "relationship" ? "#71d9ff" : b.kind === "composition" ? "#61e2d1" : "#588b9e" : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e");
+      (neon ? accent : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e");
     const related = !selectedId || b.source === selectedId || b.target === selectedId;
     const opacity = b.opacity ?? 0.85;
-    const material =
-      b.kind === "visual" || b.kind === "variant"
-        ? new THREE.LineDashedMaterial({
-            color,
-            dashSize: 0.15,
-            gapSize: 0.1,
-            transparent: true,
-            depthWrite: false,
-            opacity,
-          })
-        : new THREE.LineBasicMaterial({ color, transparent: true, depthWrite: false, opacity });
-    const line = new THREE.Line(new THREE.BufferGeometry(), material);
+    const material = new LineMaterial({ color: new THREE.Color(color).getHex(), linewidth: 1.5, worldUnits: false, alphaToCoverage: true, transparent: true, depthWrite: false, opacity, dashed: b.kind === "visual" || b.kind === "variant", dashSize: 0.15, gapSize: 0.1 });
+    const line = new Line2(new LineGeometry(), material);
     const defaultArrow = new THREE.Mesh(
       new THREE.ConeGeometry(1, 1, 12),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
     );
     const custom = !!(b.visual?.assetId || b.visual?.character);
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender) : defaultArrow;
+    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, neon) : defaultArrow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
     const label = b.label && b.visual?.showText !== false ? textSprite(b.label, color, false, false, neon) : null;
@@ -186,7 +202,7 @@ export function buildTextScene(
       spread: index - ((totals.get(pair(b)) ?? 1) - 1) / 2,
     });
   }
-  function update(camera: THREE.PerspectiveCamera, _width: number, height: number) {
+  function update(camera: THREE.PerspectiveCamera, width: number, height: number) {
     const right = new THREE.Vector3(1, 0, 0), up = new THREE.Vector3(0, 1, 0);
     const depth = (point: THREE.Vector3) => -point.clone().applyMatrix4(camera.matrixWorldInverse).z;
     const unitsPerPixel = (point: THREE.Vector3) =>
@@ -206,11 +222,15 @@ export function buildTextScene(
         item.text.position.set(0, -(item.visualSize + gap) / 2, 0);
         const footprint = visualFootprint(item.size, { character: "visual", size: item.visualSize, showText: item.showText });
         item.sprite.scale.set(footprint.width, footprint.height, item.depth);
+        if (item.outline) { item.outline.scale.setScalar(item.visualSize); item.outline.position.copy(item.visual.position); }
       }
-      item.sprite.visible = front;
+      if (item.sphere) { item.sprite.scale.setScalar(item.visualSize); item.outline?.scale.setScalar(item.visualSize); }
+      // Text and its picking surface are the same object for text-only nodes.
+      if (item.sprite !== item.text) item.sprite.visible = front;
     }
     const edge = (item: NodeItem, other: THREE.Vector3) => {
       const direction = other.clone().sub(item.group.position);
+      if (item.sphere) return item.group.position.clone().addScaledVector(direction.clone().normalize(), item.visualSize / 2);
       const half = { x: item.sprite.scale.x / 2, y: item.sprite.scale.y / 2, z: item.depth / 2 };
       let fraction = Infinity;
       for (const axis of ["x", "y", "z"] as const)
@@ -237,7 +257,8 @@ export function buildTextScene(
         ]);
       } else path = new THREE.QuadraticBezierCurve3(start, mid, end);
       const old = b.line.geometry;
-      b.line.geometry = new THREE.BufferGeometry().setFromPoints(path.getPoints(32));
+      b.line.geometry = new LineGeometry().setPositions(path.getPoints(48).flatMap(p => [p.x, p.y, p.z]));
+      b.line.material.resolution.set(width, height);
       old.dispose();
       if (b.data.kind === "visual" || b.data.kind === "variant") b.line.computeLineDistances();
       const center = path.getPoint(0.5), tangent = path.getTangent(0.5).normalize();
@@ -250,7 +271,7 @@ export function buildTextScene(
       b.arrow.position.copy(center);
       if (!b.markerHit) b.arrow.quaternion.setFromUnitVectors(up, tangent);
       const fade = b.related ? 1 : 0.28;
-      (b.line.material as THREE.LineBasicMaterial).opacity = b.opacity * fade;
+      b.line.material.opacity = b.opacity * fade;
       b.arrow.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Sprite)
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) {

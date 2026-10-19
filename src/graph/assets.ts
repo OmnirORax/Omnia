@@ -108,11 +108,14 @@ export function validateGLB(buffer: ArrayBuffer) {
 }
 export function visualFootprint(label: { width: number; height: number }, visual?: Visual) {
   const hasObject = !!(visual?.assetId || visual?.character),
-    size = visual?.size ?? 1.4;
-  const showText = visual?.showText !== false || !hasObject;
+    size = visual?.size ?? (hasObject ? 1.4 : 1);
+  const showText = label.width > 0 && label.height > 0 && visual?.showText !== false;
+  const sphere = !hasObject && !showText;
   return {
-    width: Math.max(hasObject ? size : 0, showText ? label.width : 0),
+    sphere,
+    depth: sphere || hasObject ? size : 0.05,
+    width: Math.max(hasObject || sphere ? size : 0, showText ? label.width : 0),
     height:
-      (hasObject ? size : 0) + (showText ? label.height : 0) + (hasObject && showText ? 0.3 : 0),
+      (hasObject || sphere ? size : 0) + (showText ? label.height : 0) + (hasObject && showText ? 0.3 : 0),
   };
 }

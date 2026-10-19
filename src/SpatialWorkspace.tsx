@@ -11,6 +11,8 @@ import { occupiedRadii, worldPositions } from "./graph/layout3d";
 import { buildTextScene, type LabelMesh, type TextScene } from "./textScene";
 import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
 import { createSceneAppearance } from "./sceneAppearance";
+import { labelSize } from "./graph/labels";
+import { visualFootprint } from "./graph/assets";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
@@ -118,7 +120,6 @@ export default function SpatialWorkspace(props: Props) {
     controls.enableDamping = false; controls.enablePan = true;
     controls.minDistance = 1.2; controls.maxDistance = 100000;
     const content = new THREE.Group(); scene.add(content);
-    const originAxes = new THREE.AxesHelper(2); scene.add(originAxes);
     scene.add(new THREE.AmbientLight(0xffffff, 2.1));
     const light = new THREE.DirectionalLight(0xffffff, 2.2); light.position.set(5, 12, 9); scene.add(light);
     const appearance = createSceneAppearance(renderer, scene, camera);
@@ -129,11 +130,14 @@ export default function SpatialWorkspace(props: Props) {
       callbacks.current.onFocusContextChange(ids);
     };
     const rememberCamera = () => cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone(), up: camera.up.clone(), contextIds: callbacks.current.focusContextIds });
-    const requestRender = () => {
+    let updateGeometry = false;
+    const scheduleRender = (refresh: boolean) => {
+      updateGeometry ||= refresh;
       if (pendingRender) return;
       pendingRender = requestAnimationFrame(() => {
         pendingRender = 0;
-        textScene.current?.update(camera, host.clientWidth, host.clientHeight);
+        if (updateGeometry) textScene.current?.update(camera, host.clientWidth, host.clientHeight);
+        updateGeometry = false;
         const anchorElement = (element: HTMLElement | undefined | null, id: string, below = false) => {
           if (!element) return;
           const item = textScene.current?.nodes.get(id);
@@ -150,6 +154,8 @@ export default function SpatialWorkspace(props: Props) {
         appearance.render();
       });
     };
+    const requestRender = () => scheduleRender(true);
+    appearance.start(() => scheduleRender(false));
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
     // OrbitControls caches its up-axis basis on construction. Rebind through its
     // public API after a discrete roll, without touching private engine fields.
@@ -224,8 +230,10 @@ export default function SpatialWorkspace(props: Props) {
         const framing = callbacks.current.settings.isolateFocus ? nodes : kind === "selection" ? nodes.filter((n) => callbacks.current.selectedIds.has(n.id)) : kind === "variants" ? nodes.filter((n) => n.id === requestedId || n.variantOwnerId === requestedId) : nodes;
         if (!framing.length) return;
         for (const node of framing) {
-          const center = asVector(node.world), r = callbacks.current.settings.spatial.radius;
-          bounds.expandByPoint(center.clone().addScalar(r)); bounds.expandByPoint(center.clone().addScalar(-r));
+          const placement = callbacks.current.document.placements.find(p => p.id === node.id);
+          const footprint = visualFootprint(labelSize(node.label), placement?.visual);
+          const center = asVector(node.world), half = new THREE.Vector3(footprint.width / 2, footprint.height / 2, footprint.depth / 2);
+          bounds.expandByPoint(center.clone().add(half)); bounds.expandByPoint(center.clone().sub(half));
         }
         const center = bounds.getCenter(new THREE.Vector3());
         animate(center, Math.max(6, bounds.getSize(new THREE.Vector3()).length() * 1.2), true, kind === "hierarchy" ? new THREE.Vector3(0, 0, 1) : undefined);
@@ -276,9 +284,17 @@ export default function SpatialWorkspace(props: Props) {
     let hovered: LabelMesh | null = null;
     const paintHover = (mesh: LabelMesh | null) => {
       if (hovered === mesh) return;
-      if (hovered) { hovered.material.color.setHex(0xffffff); if (hovered.userData.visualProxy) hovered.material.opacity = hovered.userData.baseOpacity; }
+      if (hovered) {
+        hovered.material.color.copy(hovered.userData.baseColor ?? new THREE.Color("white"));
+        const outline = hovered.userData.hoverOutline as THREE.LineSegments | undefined;
+        if (outline) outline.visible = outline.userData.selected;
+      }
       hovered = mesh;
-      if (hovered) { hovered.material.color.setHex(0xb8dcff); if (hovered.userData.visualProxy) hovered.material.opacity = 0.2; }
+      if (hovered) {
+        if (!hovered.userData.visualProxy) hovered.material.color.lerp(new THREE.Color("white"), 0.2);
+        const outline = hovered.userData.hoverOutline as THREE.LineSegments | undefined;
+        if (outline) outline.visible = true;
+      }
       renderer.domElement.style.cursor = hovered ? "grab" : "default";
       requestRender();
     };
@@ -432,7 +448,7 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.removeEventListener("pointerup", up);
       renderer.domElement.removeEventListener("pointercancel", cancel);
       renderer.domElement.removeEventListener("contextmenu", preventMenu);
-      observer.disconnect(); controls.dispose(); appearance.dispose(); originAxes.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
+      observer.disconnect(); controls.dispose(); appearance.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
     };
   }, []);
 
@@ -444,7 +460,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
     state.appearance.configure(settings.appearance); state.requestRender();
-  }, [ready, settings.appearance.theme, settings.appearance.glow, settings.appearance.atmosphere]);
+  }, [ready, settings.appearance]);
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
@@ -458,14 +474,14 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance.theme === "neon");
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance.theme === "neon", settings.appearance.accent);
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.theme]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.theme, settings.appearance.accent]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [

@@ -279,7 +279,7 @@ export function VisualControls({
             min="0.3"
             max="5"
             step="0.1"
-            value={value.size ?? 1.4}
+            value={value.size ?? (value.assetId || value.character ? 1.4 : 1)}
             onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
           />
         </label>
