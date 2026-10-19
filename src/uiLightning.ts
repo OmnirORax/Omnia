@@ -1,7 +1,8 @@
 import { imageContours, lightningBolts, type Contour } from "./lightning";
 import type { SparkleStyle } from "./graph/effects";
 type Snapshot = { signature: string; paths: Contour[] };
-const cache = new WeakMap<HTMLElement, Snapshot>();
+let cache = new WeakMap<HTMLElement, Snapshot>();
+export const clearUILightningContours = () => { cache = new WeakMap(); };
 /** Rasterize only displayed lettering and icons, omitting panel/button backgrounds. */
 function snapshot(element: HTMLElement, rect: DOMRect, clip: { x: number; y: number; width: number; height: number }): Contour[] {
   const inputs = [...element.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input,textarea,select")];

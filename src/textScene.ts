@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { canvasFont, type FontId } from "./fonts";
 import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
@@ -14,11 +15,11 @@ import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
-export function textSprite(value: string, color: string, selected = false, node = false, neon = false) {
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system") {
   const lines = labelLines(value),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d")!;
-  measure.font = "500 36px system-ui, sans-serif";
+  measure.font = canvasFont(font);
   canvas.width = Math.ceil(
     Math.max(100, ...lines.map((line) => measure.measureText(line).width)) + 36,
   );
@@ -39,7 +40,7 @@ export function textSprite(value: string, color: string, selected = false, node 
     ctx.fillStyle = neon ? "#04121bd9" : "#101927ee";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  ctx.font = "500 36px system-ui, sans-serif";
+  ctx.font = canvasFont(font);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = color;
@@ -58,7 +59,7 @@ export function textSprite(value: string, color: string, selected = false, node 
   );
   sprite.userData.lightningMask = () => {
     const mask = document.createElement("canvas"); mask.width = canvas.width; mask.height = canvas.height;
-    const ink = mask.getContext("2d")!; ink.font = "500 36px system-ui, sans-serif";
+    const ink = mask.getContext("2d")!; ink.font = canvasFont(font);
     ink.textAlign = "center"; ink.textBaseline = "middle"; ink.fillStyle = "white";
     lines.forEach((line, i) => ink.fillText(line, mask.width / 2, 10 + 24 + i * 48));
     return mask;
@@ -129,12 +130,13 @@ export function buildTextScene(
       selected,
       true,
       neon,
+      theme.font,
     );
     text.material.opacity = style.opacity;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
     const svgIcon = doc.assets?.find(asset => asset.id === placement?.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
     const footprint = visualFootprint(labelSize(node.label), placement?.visual);
-    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: appearance?.color ?? theme.nodes.color ?? (svgIcon ? color : undefined), opacity: style.opacity }) : undefined;
+    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font), requestRender, { color: appearance?.color ?? theme.nodes.color ?? (svgIcon ? color : undefined), opacity: style.opacity }) : undefined;
     const sprite: LabelMesh = footprint.sphere
       ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
@@ -188,11 +190,11 @@ export function buildTextScene(
     );
     const custom = !!(b.visual?.assetId || b.visual?.character);
     const svgIcon = doc.assets?.find(asset => asset.id === b.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: b.color ?? theme.binders.color ?? (svgIcon ? color : undefined), opacity }) : defaultArrow;
+    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font), requestRender, { color: b.color ?? theme.binders.color ?? (svgIcon ? color : undefined), opacity }) : defaultArrow;
     arrow.userData.glowIntensity = style.glow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
-    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon) : null;
+    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, theme.font) : null;
     if (label) label.userData.glowIntensity = textStyle.glow;
     for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;

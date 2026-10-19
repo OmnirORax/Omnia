@@ -1,5 +1,12 @@
+@font-face {
+  font-family: "Rubik Glitch";
+  src: url("./assets/fonts/RubikGlitch-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--omnium-font, system-ui, sans-serif);
   color: #233348;
   background: #f6f7f9;
   font-synthesis: none;
@@ -208,6 +215,7 @@ textarea,
 select {
   font: inherit;
 }
+:is(code, pre, kbd, samp) { font-family: inherit; }
 button {
   border: 1px solid #ccd3dd;
   border-radius: 6px;
@@ -561,7 +569,7 @@ button.active,
 }
 :root[data-omnium-theme="neon"] :is(.brand strong, h2, h3) { color: #8debf5; }
 :root[data-omnium-theme="neon"] .brand strong { text-shadow: 0 0 16px #3ee8ff66; letter-spacing: .04em; }
-:root[data-omnium-theme="neon"] :is(h2, .brand span, .save-status) { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+:root[data-omnium-theme="neon"] :is(h2, .brand span, .save-status) { font-family: var(--omnium-font, system-ui, sans-serif); }
 :root[data-omnium-theme="neon"] :is(p, label, .brand span, .save-status, .relationship-list small, .camera-guide dt, .camera-guide small) { color: #97b9c8; }
 :root[data-omnium-theme="neon"] :is(section, .primary-charting-actions, .spatial-fields, .proposal-preview) { border-color: #37c7e62b; }
 :root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .spatial-menu, .camera-guide, .node-options, .operation-banner, .ui-selection-tools) {

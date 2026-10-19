@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { WorkspaceSettings } from "./workspaceActions";
-import { drawUILightning } from "./uiLightning";
+import { clearUILightningContours, drawUILightning } from "./uiLightning";
 import { effectSeed, effectVisible, fallingStar, perimeterPoint, resolveTargetSparkles, type SurfaceTarget } from "./graph/effects";
 
 /** Pointer-transparent decoration follows live UI bounds, including portalled windows. */
@@ -61,10 +61,11 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
     const request = () => { if (!frame) frame = requestAnimationFrame(draw); };
     redraw.current = request;
     const resume = () => { previous = 0; request(); };
+    const fontsLoaded = () => { clearUILightningContours(); request(); };
     const observer = new MutationObserver(() => { if (current.current.theme === "neon" && selectors.some(([target]) => effectVisible(resolveTargetSparkles(current.current, target)))) request(); });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
-    window.addEventListener("resize", request); document.addEventListener("load", request, true); document.addEventListener("scroll", request, true); document.addEventListener("input", request, true); document.addEventListener("visibilitychange", resume); reduced.addEventListener("change", resume); request();
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); if (timer !== undefined) clearTimeout(timer); window.removeEventListener("resize", request); document.removeEventListener("load", request, true); document.removeEventListener("scroll", request, true); document.removeEventListener("input", request, true); document.removeEventListener("visibilitychange", resume); reduced.removeEventListener("change", resume); redraw.current = () => {}; };
+    document.fonts.addEventListener("loadingdone", fontsLoaded); window.addEventListener("resize", request); document.addEventListener("load", request, true); document.addEventListener("scroll", request, true); document.addEventListener("input", request, true); document.addEventListener("visibilitychange", resume); reduced.addEventListener("change", resume); request();
+    return () => { document.fonts.removeEventListener("loadingdone", fontsLoaded); observer.disconnect(); cancelAnimationFrame(frame); if (timer !== undefined) clearTimeout(timer); window.removeEventListener("resize", request); document.removeEventListener("load", request, true); document.removeEventListener("scroll", request, true); document.removeEventListener("input", request, true); document.removeEventListener("visibilitychange", resume); reduced.removeEventListener("change", resume); redraw.current = () => {}; };
   }, []);
   useEffect(() => { redraw.current(); }, [appearance]);
   return <canvas ref={canvas} className="window-sparkles" aria-hidden="true" />;
