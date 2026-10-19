@@ -3,6 +3,7 @@ import { labelLines, labelSize, separateLabels, type ScreenLabel } from "./graph
 import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
 import type { Document } from "./graph/structural";
+import { variantInstance } from "./graph/variants";
 
 export function textSprite(value: string, color: string, selected = false, node = false) {
   const lines = labelLines(value),
@@ -75,16 +76,18 @@ export function buildTextScene(
   const nodeHits: THREE.Sprite[] = [],
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
   for (const node of visible) {
-    const placement = doc.placements.find((p) => p.id === node.id)!;
+    const placement = doc.placements.find((p) => p.id === node.id);
+    const variant = variantInstance(doc, node.id)?.variant;
+    const appearance = placement?.appearance ?? variant?.appearance;
     const group = new THREE.Group();
     group.position.set(node.world.x, node.world.y, node.world.z);
     const sprite = textSprite(
       node.label,
-      placement.appearance?.color ?? "#dce9fa",
+      appearance?.color ?? (placement ? "#dce9fa" : "#bda1ec"),
       selectedId === node.id,
       true,
     );
-    sprite.material.opacity = placement.appearance?.opacity ?? 1;
+    sprite.material.opacity = appearance?.opacity ?? 1;
     sprite.userData.nodeId = node.id;
     group.add(sprite);
     content.add(group);
@@ -109,7 +112,7 @@ export function buildTextScene(
     const related = !selectedId || b.source === selectedId || b.target === selectedId;
     const opacity = b.opacity ?? 0.85;
     const material =
-      b.kind === "visual"
+      b.kind === "visual" || b.kind === "variant"
         ? new THREE.LineDashedMaterial({
             color,
             dashSize: 0.15,
@@ -225,7 +228,7 @@ export function buildTextScene(
       const old = b.line.geometry;
       b.line.geometry = new THREE.BufferGeometry().setFromPoints(path.getPoints(32));
       old.dispose();
-      if (b.data.kind === "visual") b.line.computeLineDistances();
+      if (b.data.kind === "visual" || b.data.kind === "variant") b.line.computeLineDistances();
       const center = path.getPoint(0.5),
         tangent = path.getTangent(0.5).normalize();
       const pixel = unitsPerPixel(center);

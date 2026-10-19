@@ -9,6 +9,7 @@ export const ACTIONS = [
   { id: "newChild", category: "Structure creation", label: "New child", defaultKey: "Shift+N" },
   { id: "connect", category: "Relationships", label: "Connect from selected", defaultKey: "L" },
   { id: "expand", category: "Expansion", label: "Expand or collapse selected", defaultKey: "E" },
+  { id: "expandAll", category: "Expansion", label: "Expand or collapse entire subtree", defaultKey: "Shift+E" },
   { id: "toggleSnap", category: "Spatial editing", label: "Toggle snapping", defaultKey: "G" },
   { id: "axisX", category: "Spatial editing", label: "Constrain drag to X", defaultKey: "X" },
   { id: "axisY", category: "Spatial editing", label: "Constrain drag to Y", defaultKey: "Y" },
@@ -23,14 +24,15 @@ export const ACTIONS = [
 ] as const;
 export type ActionId = (typeof ACTIONS)[number]["id"];
 export type MouseAction = "pan" | "rotate" | "none";
+export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
   spatial: SpatialSettings;
-  mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction };
+  mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier };
   bindings: Record<ActionId, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, mouse: { leftEmpty: "pan", rightEmpty: "rotate" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift" },
     bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) as Record<ActionId, string> };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -47,6 +49,9 @@ export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: A
 export function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 }
+export function subtreeGesture(event: Pick<MouseEvent, "shiftKey" | "altKey" | "ctrlKey" | "metaKey">, modifier: SubtreeModifier): boolean {
+  return modifier === "shift" ? event.shiftKey : modifier === "alt" ? event.altKey : modifier === "ctrl" ? event.ctrlKey || event.metaKey : false;
+}
 export function loadSettings(): WorkspaceSettings {
   const defaults = defaultSettings();
   try {
@@ -60,6 +65,7 @@ export function loadSettings(): WorkspaceSettings {
     if (typeof value.spatial?.clearance === "number" && value.spatial.clearance >= 0 && value.spatial.clearance <= 2) defaults.spatial.clearance = value.spatial.clearance;
     if (["pan", "rotate", "none"].includes(value.mouse?.leftEmpty ?? "")) defaults.mouse.leftEmpty = value.mouse!.leftEmpty;
     if (["pan", "rotate", "none"].includes(value.mouse?.rightEmpty ?? "")) defaults.mouse.rightEmpty = value.mouse!.rightEmpty;
+    if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.subtreeModifier ?? "")) defaults.mouse.subtreeModifier = value.mouse!.subtreeModifier;
     for (const action of ACTIONS) if (typeof value.bindings?.[action.id] === "string" && value.bindings[action.id].length <= 32) defaults.bindings[action.id] = value.bindings[action.id];
     return defaults;
   } catch { return defaults; }

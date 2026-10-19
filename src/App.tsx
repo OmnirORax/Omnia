@@ -6,6 +6,7 @@ import {
   emptyDocument,
   editorView,
   expandPlacement,
+  toggleSubtree,
   parseDocument,
   reconcileEditor,
   validateDocument,
@@ -19,6 +20,8 @@ import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, k
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView } from "./graph/presentation";
+import { addVariant, moveVariant, nodeEntityId, projectVariants, variantInstance } from "./graph/variants";
+import { projectSpatial } from "./graph/spatial";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -28,7 +31,7 @@ type ViewConfig = {
   version: 1 | 2;
   atlas: AtlasDocument | Atlas;
 };
-type Selection = { kind: "node" | "relationship" | "composition"; id: string } | null;
+type Selection = { kind: "node" | "variant" | "relationship" | "composition"; id: string } | null;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function loadInitial(): { atlas: AtlasDocument; error: string } {
   try {
@@ -69,6 +72,10 @@ function Workbench() {
   const [connectionSource, setConnectionSource] = useState<string | null>(null);
   const [insertContext, setInsertContext] = useState<{ parentId: string | null; world?: { x: number; y: number; z: number } } | null>(null);
   const [insertQuery, setInsertQuery] = useState("");
+  const [optionNodeId, setOptionNodeId] = useState<string | null>(null);
+  const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
+  const structuralGraph = useMemo(() => projectSpatial(atlas), [atlas]);
+  const variantDisplay = useMemo(() => projectVariants(document, structuralGraph.nodes, expandedVariants), [document, structuralGraph, expandedVariants]);
   const fileInput = useRef<HTMLInputElement>(null);
   const templateInput = useRef<HTMLInputElement>(null);
   const proposalInput = useRef<HTMLInputElement>(null);
@@ -234,6 +241,7 @@ function Workbench() {
         return;
       commitDocument(next);
       setSelection(null);
+      setOptionNodeId(null); setExpandedVariants(new Set());
     } catch (e) {
       setError(`Template import failed. Your atlas was not changed. ${message(e)}`);
     } finally {
@@ -254,6 +262,7 @@ function Workbench() {
         return;
       commitDocument(next);
       setSelection(null);
+      setOptionNodeId(null); setExpandedVariants(new Set());
       fit();
     } catch (e) {
       setError(`Import failed. Your atlas was not changed. ${message(e)}`);
@@ -271,6 +280,8 @@ function Workbench() {
     ? document.placements.find((p) => p.id === selectedNode.id)
     : undefined;
   const selectedEntity = document.entities.find((e) => e.id === selectedPlacement?.entityId);
+  const selectedVariant = selection?.kind === "variant" ? variantInstance(document, selection.id)?.variant : undefined;
+  const variantEntity = document.entities.find((e) => e.id === selectedVariant?.entityId);
   const selectedRelationData = document.relationships.find(
     (r) => r.id === selectedRelationship?.id,
   );
@@ -393,6 +404,7 @@ function Workbench() {
           !r.participants.some((p) => p.entityId === entityId) &&
           !r.qualifierIds.includes(entityId),
       ),
+      variants: document.variants?.filter((v) => v.ownerId !== entityId && v.entityId !== entityId),
     });
     setSelection(null);
   }
@@ -533,21 +545,75 @@ function Workbench() {
     } else commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, collapsed: true } : p) });
   }
   function nodeClicked(id: string) {
+    const isVariant = variantDisplay.instances.get(id);
     if (connectionSource) {
+      if (isVariant) { setError("Insert a structural reference before connecting a variant to the atlas."); return; }
       if (connectionSource !== id) connect({ source: connectionSource, target: id });
       setConnectionSource(null);
       return;
     }
-    setSelection({ kind: "node", id });
+    setSelection({ kind: isVariant ? "variant" : "node", id });
+    setOptionNodeId(id);
+    setExpandedVariants((current) => new Set([...current, id]));
+    navigate("variants", id);
+  }
+  function nodeDoubleClicked(id: string) {
+    setOptionNodeId(null);
+    setExpandedVariants((current) => { const next = new Set(current); next.delete(id); return next; });
+    setSelection({ kind: variantInstance(document, id) ? "variant" : "node", id });
     const placement = document.placements.find((p) => p.id === id);
-    if (placement && document.compositions.some((c) => c.parentId === placement.entityId)) toggleNode(id);
+    if (placement && (document.compositions.some((c) => c.parentId === placement.entityId) || document.placements.some((p) => p.parentId === id))) toggleNode(id);
     navigate("focus", id);
+  }
+  function nodeSubtreeClicked(id: string) {
+    if (!document.placements.some((p) => p.id === id)) return;
+    try {
+      const next = toggleSubtree(document, id);
+      if (next !== document) commitDocument(next);
+      setSelection({ kind: "node", id }); setOptionNodeId(null);
+      setExpandedVariants((current) => { const remaining = new Set(current); remaining.delete(id); return remaining; });
+      navigate("local", id);
+    } catch (e) { setError(message(e)); }
+  }
+  function toggleVariants(id: string) {
+    setExpandedVariants((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }
+  function createVariant(ownerNodeId: string) {
+    const ownerId = nodeEntityId(document, ownerNodeId);
+    if (!ownerId) return;
+    try {
+      const { next, variant } = addVariant(document, ownerId);
+      const expanded = new Set([...expandedVariants, ownerNodeId]);
+      const display = projectVariants(next, structuralGraph.nodes, expanded);
+      const instance = [...display.instances].find(([, item]) => item.kind === "variant" && item.variant.id === variant.id && item.ownerNodeId === ownerNodeId);
+      commitDocument(next); setExpandedVariants(expanded); setOptionNodeId(ownerNodeId);
+      navigate("variants", ownerNodeId);
+      if (instance) { setSelection({ kind: "variant", id: instance[0] }); }
+      setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Variant name"]')?.focus(), 0);
+    } catch (e) { setError(message(e)); }
+  }
+  function removeVariant(id: string) {
+    const instance = variantInstance(document, id);
+    if (!instance) return;
+    commitDocument({ ...document, variants: document.variants?.filter((v) => v.id !== instance.variant.id) });
+    setSelection(null);
+  }
+  function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false) {
+    if (variantInstance(document, id)) {
+      const next = moveVariant(document, id, position, [...structuralGraph.nodes, ...variantDisplay.nodes], settings.spatial.spacing);
+      if (!preview) commitDocument(next);
+      return projectVariants(next, structuralGraph.nodes, expandedVariants).nodes.find((n) => n.id === id)!.world;
+    }
+    const local = nearestFree(document, id, position, settings.spatial);
+    if (!preview) commitDocument(movePlacement(document, id, local, settings.spatial));
+    return local;
   }
   function compact(scope: ReflowScope) {
     try { commitDocument(compactLayout(document, scope, settings.spatial)); navigate("local", selection?.kind === "node" ? selection.id : undefined); }
     catch (e) { setError(message(e)); }
   }
   function nestReason(id: string, targetId: string): string | null {
+    if (variantDisplay.instances.has(id) || variantDisplay.instances.has(targetId)) return "Variants belong to their owner; they are not structural components.";
     try { reparentStructure(document, id, targetId, settings.spatial); return null; }
     catch (e) { return message(e); }
   }
@@ -559,6 +625,13 @@ function Workbench() {
   }
   function contextAction(action: ContextAction, target: ContextTarget) {
     const id = target.kind === "node" ? target.id : null;
+    const variant = id ? variantInstance(document, id) : null;
+    if (variant) {
+      if (action === "edit" || action === "focus") { setSelection({ kind: "variant", id: id! }); navigate("focus", id!); }
+      else if (action === "removeVariant") removeVariant(id!);
+      else if (action === "deleteIdentity") deleteIdentity(variant.variant.entityId);
+      return;
+    }
     switch (action) {
       case "createChild": if (id) addNode(id); break;
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
@@ -576,7 +649,7 @@ function Workbench() {
   }
   function runAction(action: ActionId) {
     switch (action) {
-      case "focus": if (selection?.kind === "node") navigate("focus", selection.id); break;
+      case "focus": if (selection?.kind === "node" || selection?.kind === "variant") navigate("focus", selection.id); break;
       case "fitLocal": navigate("local", selection?.kind === "node" ? selection.id : undefined); break;
       case "fitAll": navigate("all"); break;
       case "back": navigate("back"); break;
@@ -584,6 +657,7 @@ function Workbench() {
       case "newChild": if (selection?.kind === "node") addNode(selection.id); break;
       case "connect": if (selection?.kind === "node") setConnectionSource(selection.id); break;
       case "expand": if (selection?.kind === "node") toggleNode(selection.id); break;
+      case "expandAll": if (selection?.kind === "node") nodeSubtreeClicked(selection.id); break;
       case "toggleSnap": setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: old.spatial.spacing ? 0 : 2 } })); break;
       case "axisX": setConstraintAxis("x"); break;
       case "axisY": setConstraintAxis("y"); break;
@@ -593,7 +667,7 @@ function Workbench() {
       case "compactAll": compact({ kind: "all" }); break;
       case "undo": undo(); break;
       case "redo": redo(); break;
-      case "cancel": setConnectionSource(null); setInsertContext(null); setSettingsOpen(false); navigate("cancel"); break;
+      case "cancel": setConnectionSource(null); setInsertContext(null); setSettingsOpen(false); setOptionNodeId(null); navigate("cancel"); break;
       case "settings": setSettingsOpen(true); break;
     }
   }
@@ -1018,8 +1092,16 @@ function Workbench() {
             )}
           </section>
           <section className="inspector">
-            <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
-            {selectedNode ? (
+            <h2>{selectedVariant ? "Variant" : selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
+            {selectedVariant && variantEntity ? <>
+              <p>Variant of {document.entities.find((e) => e.id === selectedVariant.ownerId)?.label || selectedVariant.ownerId}. Owned by this node, separate from structural contents.</p>
+              <p>Identity: <code>{variantEntity.id}</code></p>
+              <label>Name<input aria-label="Variant name" maxLength={500} value={variantEntity.label} onChange={(event) => commitDocument({ ...document, entities: document.entities.map((e) => e.id === variantEntity.id ? { ...e, label: event.target.value } : e) })} /></label>
+              <label>Notes<textarea aria-label="Variant notes" maxLength={10000} value={variantEntity.notes} onChange={(event) => commitDocument({ ...document, entities: document.entities.map((e) => e.id === variantEntity.id ? { ...e, notes: event.target.value } : e) })} /></label>
+              <AppearanceControls label="Variant" value={selectedVariant.appearance} defaults={{ color: "#bda1ec", opacity: 1 }} onChange={(appearance) => commitDocument({ ...document, variants: document.variants?.map((v) => v.id === selectedVariant.id ? { ...v, appearance } : v) })} />
+              <button onClick={() => selection && removeVariant(selection.id)}>Remove variant from owner</button>
+              <button className="danger" onClick={() => deleteIdentity(variantEntity.id)}>Delete variant identity and all references</button>
+            </> : selectedNode ? (
               <>
                 <p>
                   Identity: <code>{selectedEntity?.id}</code>
@@ -1577,14 +1659,22 @@ function Workbench() {
             <SpatialWorkspace
               atlas={atlas}
               document={document}
-              selectedId={selection?.kind === "node" ? selection.id : null}
+              selectedId={selection?.kind === "node" || selection?.kind === "variant" ? selection.id : null}
+              variantDisplay={variantDisplay}
+              optionNodeId={optionNodeId}
+              expandedVariants={expandedVariants}
+              onToggleVariants={toggleVariants}
+              onAddVariant={createVariant}
+              onDismissOptions={() => setOptionNodeId(null)}
               settings={settings}
               command={navCommand}
               constraintAxis={constraintAxis}
               onNodeClick={nodeClicked}
+              onNodeDoubleClick={nodeDoubleClicked}
+              onSubtreeClick={nodeSubtreeClicked}
               onBinderSelect={(id, kind) => setSelection({ kind, id })}
-              resolveMove={(id, local) => nearestFree(document, id, local, settings.spatial)}
-              onMove={(id, local) => { try { commitDocument(movePlacement(document, id, local, settings.spatial)); } catch (e) { setError(message(e)); } }}
+              resolveMove={(id, local) => moveDisplayedNode(id, local, true)}
+              onMove={(id, local) => { try { moveDisplayedNode(id, local); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}
               onNest={nest}
               onContextAction={contextAction}
@@ -1611,6 +1701,7 @@ function Workbench() {
         <label>Minimum placement clearance radius<input type="number" min="0.25" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.25, Math.min(3, Number(event.target.value) || 0.25)) } }))} /></label>
         <label>Collision clearance<input type="number" min="0" max="2" step="0.05" value={settings.spatial.clearance} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, clearance: Math.max(0, Math.min(2, Number(event.target.value) || 0)) } }))} /></label>
         {(["leftEmpty", "rightEmpty"] as const).map((button) => <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>)}
+        <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>
         <h2>Keyboard actions</h2>
         {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
         {Array.from(new Set(ACTIONS.map((action) => action.category))).map((category) => <div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter((action) => action.category === category).map((action) => <div key={action.id} className="binding-row"><span>{action.label}</span><button onClick={() => setCapturing(action.id)}>{capturing === action.id ? "Press a key…" : settings.bindings[action.id] || "Unassigned"}</button><button aria-label={`Clear ${action.label} binding`} onClick={() => setSettings((old) => ({ ...old, bindings: { ...old.bindings, [action.id]: "" } }))}>×</button></div>)}</div>)}

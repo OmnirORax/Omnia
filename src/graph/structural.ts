@@ -18,6 +18,8 @@ export type Placement = {
   appearance?: Appearance;
 };
 export type Composition = { id: string; parentId: string; childId: string } & BinderPresentation;
+/** Ownership of a variant reference is separate from authored structural composition. */
+export type Variant = { id: string; ownerId: string; entityId: string; position?: XYZ; appearance?: Appearance };
 export type RelationshipType = {
   id: string;
   name: string;
@@ -71,6 +73,7 @@ export type Document = {
   activeFrameId: string | null;
   layoutViews?: LayoutView[];
   activeLayoutViewId?: string | null;
+  variants?: Variant[];
 };
 
 export const UNTYPED_ID = "legacy-untyped";
@@ -226,6 +229,27 @@ export function validateDocument(doc: Document): Document {
       !e.aliases.every((a) => str(a, 500))
     )
       fail("Invalid entity.");
+  if (doc.variants !== undefined) {
+    if (!Array.isArray(doc.variants) || doc.variants.length > 4000 || doc.variants.some((v) => !rec(v))) fail("Invalid variants list.");
+    unique(doc.variants.map((v) => v.id), "variant");
+    unique(doc.variants.map((v) => `${v.ownerId}\u0000${v.entityId}`), "owner/variant pair");
+    const owned = new Map<string, string[]>();
+    for (const v of doc.variants) {
+      if (!id(v.id) || !id(v.ownerId) || !id(v.entityId) || v.ownerId === v.entityId || (v.position !== undefined && !point(v.position, ["x", "y", "z"]))) fail("Invalid variant ownership.");
+      has(entityIds, v.ownerId, "variant owner"); has(entityIds, v.entityId, "variant entity"); validatePresentation(v);
+      owned.set(v.ownerId, [...(owned.get(v.ownerId) ?? []), v.entityId]);
+    }
+    const checked = new Set<string>();
+    const visit = (entityId: string, path: Set<string>) => {
+      if (path.has(entityId)) fail("Variant ownership cycle.");
+      if (path.size > 50) fail("Maximum variant nesting depth is 50.");
+      if (checked.has(entityId)) return;
+      const nextPath = new Set(path); nextPath.add(entityId);
+      for (const child of owned.get(entityId) ?? []) visit(child, nextPath);
+      checked.add(entityId);
+    };
+    for (const owner of owned.keys()) visit(owner, new Set());
+  }
   for (const p of doc.placements) {
     validatePresentation(p);
     if (
@@ -422,6 +446,10 @@ export function editorView(doc: Document): LegacyAtlas {
 /** Reveals direct charted components as placements, never as copied identities or facts. */
 export function expandPlacement(doc: Document, placementId: string): Document {
   const next = structuredClone(doc);
+  expandInPlace(next, placementId);
+  return validateDocument(next);
+}
+function expandInPlace(next: Document, placementId: string) {
   const parent = next.placements.find((p) => p.id === placementId);
   if (!parent) throw new Error(`Missing placement: ${placementId}`);
   const components = next.compositions.filter((c) => c.parentId === parent.entityId);
@@ -430,7 +458,7 @@ export function expandPlacement(doc: Document, placementId: string): Document {
     const added = components.filter((c) => !activeFrame.scope.entityIds.includes(c.childId));
     if (added.length) {
       activeFrame.history.push({
-        revision: doc.revision,
+        revision: next.revision,
         scope: structuredClone(activeFrame.scope),
       });
       activeFrame.scope.entityIds.push(...added.map((c) => c.childId));
@@ -449,8 +477,38 @@ export function expandPlacement(doc: Document, placementId: string): Document {
       collapsed: true,
       hidden: false,
     });
+    if (next.placements.length > 4000) throw new Error("Expansion exceeds the 4,000 placement limit. No changes were applied.");
   }
   parent.collapsed = false;
+}
+
+/** Expand every authored level, or collapse an already fully expanded subtree, atomically. */
+export function toggleSubtree(doc: Document, placementId: string): Document {
+  if (!doc.placements.some((p) => p.id === placementId)) throw new Error("Subtree placement is missing.");
+  const reachable: Placement[] = [], pending = [placementId];
+  let fullyExpanded = true, expandable = false;
+  for (let i = 0; i < pending.length; i++) {
+    const p = doc.placements.find((item) => item.id === pending[i])!;
+    const children = doc.placements.filter((c) => c.parentId === p.id && !c.hidden);
+    reachable.push(p); pending.push(...children.map((c) => c.id));
+    const components = doc.compositions.filter((c) => c.parentId === p.entityId);
+    if (children.length || components.length) {
+      expandable = true;
+      if (p.collapsed || components.some((c) => !doc.placements.some((child) => child.parentId === p.id && child.entityId === c.childId))) fullyExpanded = false;
+    }
+  }
+  if (!expandable) return doc;
+  const next = structuredClone(doc);
+  if (fullyExpanded) {
+    const ids = new Set(reachable.map((p) => p.id));
+    for (const p of next.placements) if (ids.has(p.id)) p.collapsed = true;
+  } else {
+    const queue = [placementId];
+    for (let i = 0; i < queue.length; i++) {
+      expandInPlace(next, queue[i]);
+      queue.push(...next.placements.filter((p) => p.parentId === queue[i] && !p.hidden).map((p) => p.id));
+    }
+  }
   return validateDocument(next);
 }
 

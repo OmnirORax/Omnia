@@ -8,12 +8,14 @@ import {
   type Frame,
   type FrameScope,
   type Composition,
+  type Variant,
 } from "./structural.ts";
 
 export type Operation =
   | { op: "createEntity"; entity: Entity }
   | { op: "addPlacement"; placement: Placement }
   | { op: "addComposition"; composition: Composition }
+  | { op: "addVariant"; variant: Variant }
   | { op: "createRelationshipType"; relationshipType: RelationshipType }
   | { op: "createRelationship"; relationship: StructuralRelationship }
   | {
@@ -118,6 +120,12 @@ export function validateChangeSet(doc: Document, input: unknown): Preview {
         lines.push(
           `Chart containment ${entityName(op.composition.parentId)} → ${entityName(op.composition.childId)}`,
         );
+        break;
+      case "addVariant":
+        if (!op.variant) reject("Missing variant.");
+        unique(next.variants ?? [], op.variant.id, "variant");
+        next.variants = [...(next.variants ?? []), op.variant];
+        lines.push(`Add owned variant ${entityName(op.variant.entityId)} to ${entityName(op.variant.ownerId)}; no structural containment added`);
         break;
       case "createRelationshipType":
         if (!op.relationshipType) reject("Missing relationship type.");
