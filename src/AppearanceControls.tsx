@@ -43,14 +43,17 @@ export function BinderControls({
   value,
   onChange,
   composition = false,
+  defaultText = "",
 }: {
   value: BinderPresentation;
   onChange: (value: BinderPresentation) => void;
   composition?: boolean;
+  defaultText?: string;
 }) {
   const operators = value.operators ?? [];
   return (
     <>
+      <label>Binder text<input aria-label="Binder text" maxLength={500} value={value.text ?? defaultText} placeholder="Default relationship label" onChange={(e) => onChange({ text: e.target.value })} /></label>
       <AppearanceControls
         label="Binder"
         value={value.appearance}

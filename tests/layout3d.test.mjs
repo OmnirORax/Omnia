@@ -11,22 +11,25 @@ const fixture = () => {
   const other = createPlacement(child.next, "other", root.placementId, settings);
   return { doc: other.next, root: root.placementId, child: child.placementId, other: other.placementId };
 };
-test("new children prefer positive X and never overlap sibling spheres", () => {
+test("new children leave a readable binder run near the parent and avoid sibling footprints", () => {
   const { doc, child, other } = fixture();
-  assert.deepEqual(doc.placements.find((p) => p.id === child).spatialPosition, { x: 2, y: 0, z: 0 });
+  const position = doc.placements.find((p) => p.id === child).spatialPosition;
+  assert.ok(position.x >= 6 && position.x <= 12);
+  assert.equal(position.y, 0); assert.equal(position.z, 0);
   assert.equal(siblingCollisions(doc, settings).length, 0);
-  assert.notDeepEqual(doc.placements.find((p) => p.id === other).spatialPosition, { x: 2, y: 0, z: 0 });
+  assert.notDeepEqual(doc.placements.find((p) => p.id === other).spatialPosition, position);
   assert.equal(doc.entities.length, 3);
 });
 test("snapped movement resolves occupancy without changing charted knowledge", () => {
   const { doc, child, other } = fixture();
   const relations = JSON.stringify(doc.relationships), compositions = JSON.stringify(doc.compositions);
-  const moved = movePlacement(doc, other, { x: 2.1, y: 0.1, z: 0 }, settings);
-  assert.notDeepEqual(moved.placements.find((p) => p.id === other).spatialPosition, { x: 2, y: 0, z: 0 });
+  const occupied = doc.placements.find((p) => p.id === child).spatialPosition;
+  const moved = movePlacement(doc, other, { x: occupied.x + 0.1, y: 0.1, z: 0 }, settings);
+  assert.notDeepEqual(moved.placements.find((p) => p.id === other).spatialPosition, occupied);
   assert.equal(siblingCollisions(moved, settings).length, 0);
   assert.equal(JSON.stringify(moved.relationships), relations);
   assert.equal(JSON.stringify(moved.compositions), compositions);
-  assert.equal(doc.placements.find((p) => p.id === child).spatialPosition.x, 2);
+  assert.deepEqual(doc.placements.find((p) => p.id === child).spatialPosition, occupied);
 });
 test("shift nesting updates authored composition, avoids cycles and retains identity", () => {
   const { doc, root, child, other } = fixture();

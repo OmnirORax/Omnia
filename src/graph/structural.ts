@@ -1,5 +1,6 @@
 import { parseAtlas as parseLegacyAtlas, type Atlas as LegacyAtlas } from "./model.ts";
-import { labelSize } from "./labels.ts";
+import { defaultNodeOffset } from "./labels.ts";
+import { validateAsset, validateVisual, type Visual, type VisualAsset } from "./assets.ts";
 
 export type XY = { x: number; y: number };
 export type XYZ = XY & { z: number };
@@ -7,7 +8,7 @@ export type Entity = { id: string; label: string; aliases: string[]; notes: stri
 export type Appearance = { color: string; opacity: number };
 // Editable annotations, not an executable grammar or a definition of truth.
 export type BinderOperator = { id: string; text: string };
-export type BinderPresentation = { appearance?: Appearance; operators?: BinderOperator[] };
+export type BinderPresentation = { appearance?: Appearance; operators?: BinderOperator[]; text?: string; visual?: Visual };
 export type Placement = {
   id: string;
   entityId: string;
@@ -17,11 +18,13 @@ export type Placement = {
   collapsed: boolean;
   hidden: boolean;
   appearance?: Appearance;
+  visual?: Visual;
+  nestingBinder?: BinderPresentation;
   variantOwner?: { placementId: string; variantId: string };
 };
 export type Composition = { id: string; parentId: string; childId: string } & BinderPresentation;
 /** Ownership of a variant reference is separate from authored structural composition. */
-export type Variant = { id: string; ownerId: string; entityId: string; position?: XYZ; appearance?: Appearance };
+export type Variant = { id: string; ownerId: string; entityId: string; position?: XYZ } & BinderPresentation;
 export type RelationshipType = {
   id: string;
   name: string;
@@ -76,6 +79,7 @@ export type Document = {
   layoutViews?: LayoutView[];
   activeLayoutViewId?: string | null;
   variants?: Variant[];
+  assets?: VisualAsset[];
   /** Distinguishes migrated layouts from legacy synthetic variant representations. */
   variantPlacementsVersion?: 1;
 };
@@ -122,7 +126,8 @@ const point = (v: unknown, axis: string[]): boolean =>
     (a) =>
       typeof v[a] === "number" && Number.isFinite(v[a]) && Math.abs(v[a] as number) <= 1_000_000,
   );
-function validatePresentation(value: { appearance?: Appearance; operators?: BinderOperator[] }) {
+function validatePresentation(value: BinderPresentation) {
+  if (value.text !== undefined && !str(value.text, 500)) fail("Invalid binder text.");
   const a = value.appearance;
   if (a !== undefined && (!rec(a) || !/^#[0-9a-f]{6}$/i.test(a.color) || !Number.isFinite(a.opacity) || a.opacity < 0 || a.opacity > 1)) fail("Invalid appearance.");
   if (value.operators !== undefined) {
@@ -196,7 +201,7 @@ export function ensureVariantPlacements(doc: Document, onlyOwnerId?: string, onl
       if (next.placements.some((p) => p.variantOwner?.placementId === owner.id && p.variantOwner.variantId === v.id)) { index++; continue; }
       const label = next.entities.find((e) => e.id === v.entityId)!.label;
       const ownerLabel = next.entities.find((e) => e.id === owner.entityId)!.label;
-      next.placements.push({ id: crypto.randomUUID(), entityId: v.entityId, parentId: owner.id, position: { x: 28, y: 104 + index * 112 }, spatialPosition: v.position ?? { x: labelSize(ownerLabel).width / 2 + labelSize(label).width / 2 + 2, y: index ? -index * Math.max(2, labelSize(label).height + 1) : 0, z: 0 }, collapsed: true, hidden: false, ...(v.appearance ? { appearance: v.appearance } : {}), variantOwner: { placementId: owner.id, variantId: v.id } });
+      next.placements.push({ id: crypto.randomUUID(), entityId: v.entityId, parentId: owner.id, position: { x: 28, y: 104 + index * 112 }, spatialPosition: v.position ?? defaultNodeOffset(ownerLabel, label, index), collapsed: true, hidden: false, ...(!doc.variantPlacementsVersion && v.appearance ? { appearance: v.appearance } : {}), variantOwner: { placementId: owner.id, variantId: v.id } });
       if (next.placements.length > 4000) throw new Error("Variant placements exceed the 4,000 placement limit. Original data was preserved.");
       index++; changed = true;
     }
@@ -233,6 +238,14 @@ export function validateDocument(doc: Document): Document {
     if (doc[key].some((item) => !rec(item))) fail(`Invalid ${key} entry.`);
   if (doc.entities.length > 2000 || doc.placements.length > 4000)
     fail("Atlas entity/placement limit exceeded.");
+  if (doc.assets !== undefined) {
+    if (!Array.isArray(doc.assets) || doc.assets.length > 256) fail("Invalid assets list.");
+    unique(doc.assets.map((a) => a?.id), "asset");
+    doc.assets.forEach(validateAsset);
+    if (doc.assets.reduce((sum, a) => sum + a.dataUrl.length, 0) > 3_500_000) fail("Embedded assets exceed the 3.5 MB atlas budget.");
+  }
+  for (const value of [...doc.placements, ...doc.compositions, ...doc.relationships, ...(doc.variants ?? [])]) validateVisual(value.visual, doc.assets ?? []);
+  for (const p of doc.placements) if (p.nestingBinder) { validatePresentation(p.nestingBinder); validateVisual(p.nestingBinder.visual, doc.assets ?? []); }
   for (const [key, list] of [
     ["entity", doc.entities],
     ["placement", doc.placements],
@@ -527,7 +540,7 @@ function expandInPlace(next: Document, placementId: string) {
       entityId: component.childId,
       parentId: placementId,
       position: { x: 28, y: 104 + index * 112 },
-      spatialPosition: { x: (index % 4) * 2.8, y: -2, z: Math.floor(index / 4) * 2.8 },
+      spatialPosition: defaultNodeOffset(next.entities.find((e) => e.id === parent.entityId)!.label, next.entities.find((e) => e.id === component.childId)!.label, index),
       collapsed: true,
       hidden: false,
     });

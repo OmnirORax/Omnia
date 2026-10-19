@@ -20,8 +20,13 @@ import { compactLayout, createPlacement, movePlacement, nearestFree, reparentStr
 import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
-import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView } from "./graph/presentation";
+import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
+import { ShortcutDisplay } from "./ShortcutDisplay";
+import { VisualControls } from "./VisualControls";
+import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
+import type { Visual, VisualAsset } from "./graph/assets";
+import type { BinderPresentation } from "./graph/structural";
 import { projectSpatial } from "./graph/spatial";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
@@ -32,7 +37,7 @@ type ViewConfig = {
   version: 1 | 2;
   atlas: AtlasDocument | Atlas;
 };
-type Selection = { kind: "node" | "relationship" | "composition"; id: string } | null;
+type Selection = { kind: "node" | "relationship" | "composition" | "variantBinder" | "visualBinder"; id: string } | null;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function loadInitial(): { atlas: AtlasDocument; error: string } {
   try {
@@ -51,6 +56,19 @@ function Workbench() {
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
   const atlas = useMemo(() => editorView(document, expandedVariants), [document, expandedVariants]);
   const [selection, setSelection] = useState<Selection>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [binderPopup, setBinderPopup] = useState<{ x: number; y: number } | null>(null);
+  const [shortcutsPinned, setShortcutsPinned] = useState(() => { try { return localStorage.getItem("omnium.shortcuts.open") === "true"; } catch { return false; } });
+  const [shortcutsHovered, setShortcutsHovered] = useState(false);
+  useEffect(() => { try { localStorage.setItem("omnium.shortcuts.open", String(shortcutsPinned)); } catch { /* Optional UI preference. */ } }, [shortcutsPinned]);
+  useEffect(() => {
+    if (selection?.kind === "node") setSelectedIds((current) => current.has(selection.id) ? current : new Set([selection.id]));
+    else setSelectedIds(new Set());
+    if (!["relationship", "composition", "variantBinder", "visualBinder"].includes(selection?.kind ?? "")) setBinderPopup(null);
+  }, [selection]);
+  function selectMany(ids: string[]) {
+    setSelectedIds(new Set(ids)); setSelection(ids[0] ? { kind: "node", id: ids[0] } : null); setOptionNodeId(null);
+  }
   const [error, setError] = useState(initial.error);
   const [autosave, setAutosave] = useState(!initial.error);
   const [saveStatus, setSaveStatus] = useState(initial.error ? "Autosave paused" : "Saved locally");
@@ -178,6 +196,7 @@ function Workbench() {
     setSelection({ kind: "relationship", id });
   }
   function undo() {
+    setBinderPopup(null);
     const previous = past.at(-1);
     if (!previous) return;
     setFuture((f) => [document, ...f]);
@@ -187,6 +206,7 @@ function Workbench() {
     setRevision((r) => r + 1);
   }
   function redo() {
+    setBinderPopup(null);
     if (!future[0]) return;
     setPast((p) => [...p, document]);
     setDocument({ ...future[0], revision: document.revision + 1 });
@@ -319,6 +339,7 @@ function Workbench() {
   }
   const forbiddenParents = selectedNode ? descendants(atlas, selectedNode.id) : new Set<string>();
   function reveal(id: string) {
+    setSelectedIds(new Set([id]));
     const ancestors = new Set<string>();
     let node = atlas.nodes.find((n) => n.id === id);
     while (node?.parentId) {
@@ -376,36 +397,14 @@ function Workbench() {
     });
     setSelection(null);
   }
+  function deleteSelectedConcepts(ids: Iterable<string> = selectedIds, alwaysConfirm = false) {
+    const chosen = [...ids], summary = deletionSummary(document, chosen);
+    if (!summary.entities.size) return;
+    if ((alwaysConfirm || summary.otherReferences || summary.crossLinks) && !window.confirm(`Delete ${summary.entities.size} concept(s), including subnodes, everywhere? ${summary.otherReferences} other appearance(s) and ${summary.crossLinks} connection(s) to other concepts are affected. Undo restores the entire deletion.`)) return;
+    commitDocument(deleteConceptSubtrees(document, chosen)); setSelection(null); setSelectedIds(new Set()); setOptionNodeId(null); setBinderPopup(null);
+  }
   function deleteIdentity(entityId: string) {
-    const entity = document.entities.find((e) => e.id === entityId);
-    if (
-      !entity ||
-      !window.confirm(
-        `Delete identity “${entity.label}”, every placement, and all relationships involving it? This can be undone.`,
-      )
-    )
-      return;
-    const removedPlacementIds = new Set(
-      document.placements.filter((p) => p.entityId === entityId).map((p) => p.id),
-    );
-    // Preserve other entities even when their visual parent disappears.
-    commitDocument({
-      ...document,
-      entities: document.entities.filter((e) => e.id !== entityId),
-      placements: document.placements
-        .filter((p) => p.entityId !== entityId)
-        .map((p) => ({ ...p, ...(removedPlacementIds.has(p.parentId ?? "") ? { parentId: null } : {}), ...(p.variantOwner && (removedPlacementIds.has(p.variantOwner.placementId) || document.variants?.some((v) => v.id === p.variantOwner!.variantId && (v.ownerId === entityId || v.entityId === entityId))) ? { variantOwner: undefined } : {}) })),
-      compositions: document.compositions.filter(
-        (c) => c.parentId !== entityId && c.childId !== entityId,
-      ),
-      relationships: document.relationships.filter(
-        (r) =>
-          !r.participants.some((p) => p.entityId === entityId) &&
-          !r.qualifierIds.includes(entityId),
-      ),
-      variants: document.variants?.filter((v) => v.ownerId !== entityId && v.entityId !== entityId),
-    });
-    setSelection(null);
+    deleteSelectedConcepts(document.placements.filter((p) => p.entityId === entityId).map((p) => p.id), true);
   }
   function navigateIdentity(entityId: string) {
     const other = document.placements.find(
@@ -444,6 +443,20 @@ function Workbench() {
         r.id === selectedRelationData.id ? { ...r, ...changes } : r,
       ),
     });
+  }
+  const selectedBinder: BinderPresentation | undefined = selection?.kind === "relationship" ? selectedRelationData : selection?.kind === "composition" ? selectedComposition : selection?.kind === "variantBinder" ? document.variants?.find((v) => v.id === selection.id) : selection?.kind === "visualBinder" ? document.placements.find((p) => p.id === selection.id)?.nestingBinder ?? {} : undefined;
+  const selectedBinderText = selectedBinder && selection ? chartedBinders(document, atlas).find((b) => b.id === selection.id)?.label ?? "" : "";
+  function editBinder(changes: BinderPresentation, asset?: VisualAsset) {
+    if (!selection) return;
+    const next = { ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}) };
+    if (selection.kind === "relationship") next.relationships = next.relationships.map((r) => r.id === selection.id ? { ...r, ...changes } : r);
+    if (selection.kind === "composition") next.compositions = next.compositions.map((r) => r.id === selection.id ? { ...r, ...changes } : r);
+    if (selection.kind === "variantBinder") next.variants = next.variants?.map((r) => r.id === selection.id ? { ...r, ...changes } : r);
+    if (selection.kind === "visualBinder") next.placements = next.placements.map((p) => p.id === selection.id ? { ...p, nestingBinder: { ...p.nestingBinder, ...changes } } : p);
+    commitDocument(next);
+  }
+  function editNodeVisual(visual: Visual, asset?: VisualAsset) {
+    commitDocument({ ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}), placements: document.placements.map((p) => selectedIds.has(p.id) ? { ...p, visual } : p) });
   }
   function createType() {
     const name = window.prompt("New relationship type name (provisional)");
@@ -544,6 +557,7 @@ function Workbench() {
     } else commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, collapsed: true } : p) });
   }
   function nodeClicked(id: string) {
+    setSelectedIds(new Set([id]));
     if (connectionSource) {
       if (connectionSource !== id) connect({ source: connectionSource, target: id });
       setConnectionSource(null);
@@ -626,6 +640,18 @@ function Workbench() {
     } catch (e) { setError(message(e)); }
   }
   function contextAction(action: ContextAction, target: ContextTarget) {
+    if (target.kind === "selection") {
+      if (action === "deleteIdentity") deleteSelectedConcepts(target.ids);
+      if (action === "focus") navigate("selection");
+      if (action === "expand" || action === "collapse") {
+        let next = document;
+        for (const id of target.ids) if (action === "expand") next = expandPlacement(next, id);
+        if (action === "collapse") next = { ...next, placements: next.placements.map((p) => target.ids.includes(p.id) ? { ...p, collapsed: true } : p) };
+        commitDocument(next);
+      }
+      if (action === "compact") { commitDocument(compactLayout(document, { kind: "selection", placementIds: target.ids }, settings.spatial)); navigate("selection"); }
+      return;
+    }
     const id = target.kind === "node" ? target.id : null;
     switch (action) {
       case "createChild": if (id) addNode(id); break;
@@ -644,7 +670,10 @@ function Workbench() {
   }
   function runAction(action: ActionId) {
     switch (action) {
-      case "focus": if (selection?.kind === "node") navigate("focus", selection.id); break;
+      case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
+      case "deleteSelected": deleteSelectedConcepts(); break;
+      case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
+      case "focus": if (selectedIds.size > 1) navigate("selection"); else if (selection?.kind === "node") navigate("focus", selection.id); break;
       case "fitLocal": navigate("local", selection?.kind === "node" ? selection.id : undefined); break;
       case "fitAll": navigate("all"); break;
       case "back": navigate("back"); break;
@@ -662,7 +691,7 @@ function Workbench() {
       case "compactAll": compact({ kind: "all" }); break;
       case "undo": undo(); break;
       case "redo": redo(); break;
-      case "cancel": setConnectionSource(null); setInsertContext(null); setSettingsOpen(false); setOptionNodeId(null); navigate("cancel"); break;
+      case "cancel": setBinderPopup(null); setShortcutsHovered(false); setCapturing(null); setSelectedIds(new Set()); setSelection(null); setConnectionSource(null); setInsertContext(null); setSettingsOpen(false); setOptionNodeId(null); navigate("cancel"); break;
       case "settings": setSettingsOpen(true); break;
     }
   }
@@ -689,8 +718,17 @@ function Workbench() {
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (action === "axisX" || action === "axisY" || action === "axisZ") setConstraintAxis(null);
     };
+    const mouseHistory = (event: PointerEvent) => {
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      runAction(event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton);
+    };
+    const preventMouseNavigation = (event: MouseEvent) => { if (event.button === 3 || event.button === 4) event.preventDefault(); };
+    window.addEventListener("pointerdown", mouseHistory, true);
+    window.addEventListener("mousedown", preventMouseNavigation, true);
+    window.addEventListener("auxclick", preventMouseNavigation, true);
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
-    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); };
+    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); };
   });
   function outline(parentId: string | null, variantsOnly = false): React.ReactNode {
     return (
@@ -750,6 +788,7 @@ function Workbench() {
             </select>
           </label>
           <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>
+          <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>
           <button onClick={undo} disabled={!past.length}>
             Undo
           </button>
@@ -1087,6 +1126,7 @@ function Workbench() {
             )}
           </section>
           <section className="inspector">
+            {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
             <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
             {selectedNode ? (
               <>
@@ -1149,6 +1189,7 @@ function Workbench() {
                     onChange={(e) => patchNode(selectedNode.id, { label: e.target.value })}
                   />
                 </label>
+                <VisualControls key={[...selectedIds].sort().join("|")} label="Node" value={selectedPlacement?.visual} assets={document.assets ?? []} onChange={editNodeVisual} onAsset={(asset, visual) => editNodeVisual(visual, asset)} />
                 <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={{ color: "#dce9fa", opacity: 1 }} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
                 <label>
                   Aliases (comma-separated)
@@ -1335,14 +1376,14 @@ function Workbench() {
               <>
                 <p>{document.entities.find((e) => e.id === selectedComposition.parentId)?.label} → {document.entities.find((e) => e.id === selectedComposition.childId)?.label}</p>
                 <p>Authored structural composition. This binder is independent of spatial positioning.</p>
-                <BinderControls composition value={selectedComposition} onChange={(changes) => commitDocument({ ...document, compositions: document.compositions.map((c) => c.id === selectedComposition.id ? { ...c, ...changes } : c) })} />
+                <BinderControls composition defaultText={selectedBinderText} value={selectedComposition} onChange={(changes) => commitDocument({ ...document, compositions: document.compositions.map((c) => c.id === selectedComposition.id ? { ...c, ...changes } : c) })} />
               </>
             ) : selectedRelationship ? (
               <>
                 <p>
                   Relationship ID: <code>{selectedRelationship.id}</code>
                 </p>
-                {selectedRelationData && <BinderControls value={selectedRelationData} onChange={updateRelation} />}
+                {selectedRelationData && <BinderControls defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
                 <label>
                   Type
                   <select
@@ -1649,6 +1690,9 @@ function Workbench() {
               document={document}
               selectedId={selection?.kind === "node" ? selection.id : null}
               variantDisplay={variantDisplay}
+              selectedIds={selectedIds}
+              onSelection={selectMany}
+              onAction={runAction}
               optionNodeId={optionNodeId}
               expandedVariants={expandedVariants}
               onToggleVariants={toggleVariants}
@@ -1660,7 +1704,10 @@ function Workbench() {
               onNodeClick={nodeClicked}
               onNodeDoubleClick={nodeDoubleClicked}
               onSubtreeClick={nodeSubtreeClicked}
-              onBinderSelect={(id, kind) => setSelection({ kind, id })}
+              onBinderSelect={(id, kind, point) => {
+                setSelection({ kind: kind === "variant" ? "variantBinder" : kind === "visual" ? "visualBinder" : kind, id });
+                setBinderPopup({ x: Math.min(point.x + 12, window.innerWidth - 370), y: Math.min(point.y + 12, window.innerHeight - 460) });
+              }}
               resolveMove={(id, local) => moveDisplayedNode(id, local, true)}
               onMove={(id, local) => { try { moveDisplayedNode(id, local); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}
@@ -1683,6 +1730,8 @@ function Workbench() {
         <div className="entity-results">{document.entities.filter((entity) => `${entity.id} ${entity.label} ${entity.aliases.join(" ")}`.toLowerCase().includes(insertQuery.toLowerCase())).slice(0, 30).map((entity) => <button key={entity.id} onClick={() => insertExisting(entity.id, insertContext.parentId, insertContext.world)}>{entity.label || entity.id}<small>{entity.id}</small></button>)}</div>
         <button onClick={() => setInsertContext(null)}>Close</button>
       </div></div>}
+      {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay settings={settings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
+      {binderPopup && selectedBinder && <div className="binder-editor" role="dialog" aria-label="Binder editor" style={{ left: Math.max(8, binderPopup.x), top: Math.max(8, binderPopup.y) }}><button className="close-editor" onClick={() => setBinderPopup(null)}>Close binder editor</button><BinderControls value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></div>}
       {settingsOpen && <div className="workspace-dialog-backdrop" onClick={() => setSettingsOpen(false)}><div className="workspace-dialog settings-dialog" role="dialog" aria-label="Workspace settings" onClick={(event) => event.stopPropagation()}>
         <h2>Workspace settings</h2>
         <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>
