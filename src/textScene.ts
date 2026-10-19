@@ -81,6 +81,8 @@ type NodeItem = {
   showText: boolean;
   depth: number;
   sphere: boolean;
+  color: string;
+  opacity: number;
   outline?: THREE.LineSegments;
 };
 type BinderItem = {
@@ -93,6 +95,7 @@ type BinderItem = {
   textOpacity: number;
   related: boolean;
   spread: number;
+  path?: THREE.Curve<THREE.Vector3>;
 };
 export type TextScene = ReturnType<typeof buildTextScene>;
 export function buildTextScene(
@@ -113,6 +116,7 @@ export function buildTextScene(
     const placement = doc.placements.find((p) => p.id === node.id);
     const appearance = placement?.appearance;
     const style = resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", appearance);
+    style.opacity *= theme.opacity;
     const group = new THREE.Group();
     group.userData.glowIntensity = style.glow;
     group.position.set(node.world.x, node.world.y, node.world.z);
@@ -127,8 +131,9 @@ export function buildTextScene(
     );
     text.material.opacity = style.opacity;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
+    const svgIcon = doc.assets?.find(asset => asset.id === placement?.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
     const footprint = visualFootprint(labelSize(node.label), placement?.visual);
-    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: appearance?.color ?? theme.nodes.color, opacity: style.opacity }) : undefined;
+    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: appearance?.color ?? theme.nodes.color ?? (svgIcon ? color : undefined), opacity: style.opacity }) : undefined;
     const sprite: LabelMesh = footprint.sphere
       ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
@@ -160,7 +165,7 @@ export function buildTextScene(
       size: labelSize(node.label),
       text, visual, visualSize: placement?.visual?.size ?? (hasVisual ? 1.4 : 1), showText: !!node.label.trim() && placement?.visual?.showText !== false,
       depth: doc.assets?.find(a => a.id === placement?.visual?.assetId)?.kind === "glb" ? placement?.visual?.size ?? 1.4 : 0.05,
-      sphere: footprint.sphere, outline,
+      sphere: footprint.sphere, outline, color: style.color, opacity: style.opacity,
     });
   }
   const totals = new Map<string, number>(),
@@ -172,6 +177,7 @@ export function buildTextScene(
     if (!nodes.has(b.source) || !nodes.has(b.target)) continue;
     const style = resolveAppearance(theme.binders, neon ? accent : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e", b.color ? { color: b.color, opacity: b.opacity ?? theme.binders.opacity, glow: b.glow } : undefined);
     const textStyle = resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", b.textAppearance);
+    style.opacity *= theme.opacity; textStyle.opacity *= theme.opacity;
     const color = style.color;
     const related = !selectedId || b.source === selectedId || b.target === selectedId;
     const opacity = style.opacity;
@@ -183,7 +189,8 @@ export function buildTextScene(
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
     );
     const custom = !!(b.visual?.assetId || b.visual?.character);
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: b.color ?? theme.binders.color, opacity }) : defaultArrow;
+    const svgIcon = doc.assets?.find(asset => asset.id === b.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
+    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color), requestRender, { color: b.color ?? theme.binders.color ?? (svgIcon ? color : undefined), opacity }) : defaultArrow;
     arrow.userData.glowIntensity = style.glow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
@@ -265,6 +272,7 @@ export function buildTextScene(
           end.clone().addScaledVector(right, -r / 2),
         ]);
       } else path = new THREE.QuadraticBezierCurve3(start, mid, end);
+      b.path = path;
       const old = b.line.geometry;
       b.line.geometry = new LineGeometry().setPositions(path.getPoints(48).flatMap(p => [p.x, p.y, p.z]));
       b.line.material.resolution.set(width, height);
@@ -297,5 +305,5 @@ export function buildTextScene(
     }
     content.updateMatrixWorld(true);
   }
-  return { nodes, nodeHits, binderHits, update };
+  return { nodes, connectors, nodeHits, binderHits, update };
 }

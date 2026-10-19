@@ -123,6 +123,7 @@ export default function SpatialWorkspace(props: Props) {
     scene.add(new THREE.AmbientLight(0xffffff, 2.1));
     const light = new THREE.DirectionalLight(0xffffff, 2.2); light.position.set(5, 12, 9); scene.add(light);
     const appearance = createSceneAppearance(renderer, scene, camera);
+    appearance.setSources(() => textScene.current);
     appearance.configure(callbacks.current.settings.appearance);
     let pendingRender = 0, animation = 0;
     const cameraHistory: CameraPose[] = [];

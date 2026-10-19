@@ -52,6 +52,7 @@
 .ui-panel-body > .ui-dock-area { padding: 6px 0; gap: 6px; }
 .ui-menu-panel { padding: 0; border: 0; }
 .ui-frame-strip { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.window-sparkles { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none !important; z-index: 30010; }
 .ui-frame-strip.is-vertical { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0; }
 .ui-native-frame-slot { min-width: 0; position: relative; }
 .ui-native-frame-slot.is-away { display: contents; }
@@ -645,9 +646,11 @@ button.active,
 :root[data-omnium-theme="neon"] :is(button, input, select, textarea):focus-visible { outline-color: var(--omnium-accent); }
 :root[data-omnium-theme="neon"] .ui-menu-panel > .frame-chrome > .ui-frame-handle { background: transparent; }
 :root[data-omnium-theme="neon"][data-omnium-motion="on"] .brand strong { animation: omnium-breathe 7s ease-in-out infinite; }
+:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .camera-guide, .ui-frame-handle) { box-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-glow, .22) * 65%), transparent); }
+:root[data-omnium-theme="neon"] .brand strong { text-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-glow, .22) * 80%), transparent); }
 @keyframes omnium-breathe {
-  0%, 100% { text-shadow: 0 0 8px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * 35%), transparent); }
-  50% { text-shadow: 0 0 18px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * 75%), transparent); }
+  0%, 100% { text-shadow: 0 0 8px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * var(--omnium-glow, .22) * 35%), transparent); }
+  50% { text-shadow: 0 0 18px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * var(--omnium-glow, .22) * 75%), transparent); }
 }
 .ui-form-control input[type="range"] { width: 100%; box-sizing: border-box; }
 .ui-form-control input[type="color"] { height: 34px; padding: 3px; }

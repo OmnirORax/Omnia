@@ -21,6 +21,8 @@ import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, k
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
 import { resolveAppearance } from "./graph/appearance";
+import { resolveSparkles, type SparkleStyle } from "./graph/effects";
+import { WindowSparkles } from "./WindowSparkles";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { ShortcutDisplay } from "./ShortcutDisplay";
@@ -65,6 +67,7 @@ function Workbench() {
   const [document, setDocument] = useState(initial.atlas);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
   const { layout: uiLayout, update: updateUI, settings, setSettings } = ui;
+  const [themeScope, setThemeScope] = useState<"global" | "nodes" | "binders">("global");
   const nodeThemeDefaults = resolveAppearance(settings.appearance.nodes, settings.appearance.theme === "neon" ? settings.appearance.accent : "#dce9fa");
   const binderThemeProps = { textDefaults: nodeThemeDefaults, binderDefaults: resolveAppearance(settings.appearance.binders, settings.appearance.theme === "neon" ? settings.appearance.accent : "#9fc4e9") };
   useEffect(() => {
@@ -74,11 +77,12 @@ function Workbench() {
     const base = a.theme === "neon" ? a.background : "#f8faff";
     root.style.setProperty("--omnium-accent", a.accent);
     root.style.setProperty("--omnium-frame-fill", a.theme === "neon" ? a.accent : "#b6d4f2");
-    root.style.setProperty("--omnium-panel", `color-mix(in srgb, ${base} ${a.windowOpacity * 100}%, transparent)`);
-    root.style.setProperty("--omnium-handle", `color-mix(in srgb, color-mix(in srgb, ${a.theme === "neon" ? a.accent : "#e6eef8"} ${a.theme === "neon" ? 12 : 100}%, ${base}) ${a.windowOpacity * 100}%, transparent)`);
+    root.style.setProperty("--omnium-panel", `color-mix(in srgb, ${base} ${a.windowOpacity * a.opacity * 100}%, transparent)`);
+    root.style.setProperty("--omnium-handle", `color-mix(in srgb, color-mix(in srgb, ${a.theme === "neon" ? a.accent : "#e6eef8"} ${a.theme === "neon" ? 12 : 100}%, ${base}) ${a.windowOpacity * a.opacity * 100}%, transparent)`);
     root.style.setProperty("--omnium-blur", `${a.blur}px`);
     root.style.setProperty("--omnium-motion", String(a.motion));
-    root.style.setProperty("--omnium-frame-opacity", String(a.windowOpacity * 0.22));
+    root.style.setProperty("--omnium-glow", String(a.glow));
+    root.style.setProperty("--omnium-frame-opacity", String(a.windowOpacity * a.opacity * 0.22));
   }, [settings.appearance]);
   const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
   useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
@@ -821,21 +825,37 @@ function Workbench() {
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
   replaceFunction("appearance", "Theme / aesthetics", <button onClick={() => setThemeOpen(true)}>Theme / aesthetics</button>);
   const editAppearance = (patch: Partial<WorkspaceSettings["appearance"]>) => setSettings(old => ({ ...old, appearance: { ...old.appearance, ...patch } }));
-  for (const [key, label] of [["accent", "Accent color"], ["background", "Background color"]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label}<input aria-label={label} type="color" value={settings.appearance[key]} onChange={event => editAppearance({ [key]: event.target.value })} /></label>, true);
-  replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => editAppearance({ theme: event.target.value as WorkspaceSettings["appearance"]["theme"] })}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>, true);
-  replaceFunction("ui:appearance:effect", "Particle effect", <label>Particle effect<select aria-label="Particle effect" value={settings.appearance.atmosphere ? settings.appearance.effect : "off"} onChange={event => editAppearance({ effect: event.target.value as WorkspaceSettings["appearance"]["effect"], atmosphere: event.target.value !== "off" })}>{["stars", "dust", "sparks", "off"].map(effect => <option key={effect} value={effect}>{effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
-  for (const [key, label, max, step] of [["effectIntensity", "Effect intensity", 1, 0.05], ["density", "Particle density", 1, 0.05], ["motion", "Animation intensity", 1, 0.05], ["windowOpacity", "Window opacity", 1, 0.05], ["blur", "Window blur", 20, 1]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label} <output>{key === "blur" ? `${settings.appearance[key]} px` : `${Math.round(settings.appearance[key] * 100)}%`}</output><input aria-label={label} type="range" min="0" max={max} step={step} value={settings.appearance[key]} onChange={event => editAppearance({ [key]: Number(event.target.value) })} /></label>, true);
-  replaceFunction("ui:resetAppearance", "Reset appearance", <button onClick={() => setSettings(old => ({ ...old, appearance: defaultSettings().appearance }))}>Reset appearance</button>);
-  replaceFunction("ui:appearance:glowSpread", "Glow spread", <label>Glow spread<input aria-label="Glow spread" type="range" min="0" max="1" step="0.05" value={settings.appearance.glowSpread} onChange={event => editAppearance({ glowSpread: Number(event.target.value) })} /></label>, true);
-  for (const group of ["nodes", "binders"] as const) {
-    const title = group === "nodes" ? "Nodes / text" : "Binders", style = settings.appearance[group];
-    const editStyle = (patch: Partial<typeof style>) => setSettings(old => ({ ...old, appearance: { ...old.appearance, [group]: { ...old.appearance[group], ...patch } } }));
-    replaceFunction(`ui:appearance:${group}:inherit`, `${title} use global color`, <label><input type="checkbox" checked={!style.color} onChange={event => editStyle({ color: event.target.checked ? undefined : (group === "nodes" ? nodeThemeDefaults.color : binderThemeProps.binderDefaults.color) })} /> Use global color for {title.toLowerCase()}</label>, true);
-    replaceFunction(`ui:appearance:${group}:color`, `${title} color`, <label>{title} color<input type="color" aria-label={`${title} color`} value={style.color ?? (group === "nodes" ? nodeThemeDefaults.color : binderThemeProps.binderDefaults.color)} onChange={event => editStyle({ color: event.target.value })} /></label>, true);
-    for (const key of ["opacity", "glow"] as const) replaceFunction(`ui:appearance:${group}:${key}`, `${title} ${key}`, <label>{title} {key}: {Math.round(style[key] * 100)}%<input aria-label={`${title} ${key}`} type="range" min="0" max={key === "glow" ? 2 : 1} step="0.05" value={style[key]} onChange={event => editStyle({ [key]: Number(event.target.value) })} /></label>, true);
+  const groupStyle = themeScope === "global" ? undefined : settings.appearance[themeScope];
+  const scopedEffects = resolveSparkles(settings.appearance, groupStyle?.effects);
+  const editGroup = (patch: Partial<WorkspaceSettings["appearance"]["nodes"]>) => {
+    if (themeScope === "global") return;
+    setSettings(old => ({ ...old, appearance: { ...old.appearance, [themeScope]: { ...old.appearance[themeScope], ...patch } } }));
+  };
+  const editEffects = (patch: Partial<SparkleStyle>) => {
+    if (themeScope === "global") editAppearance({ ...(patch.effect !== undefined ? { effect: patch.effect, atmosphere: patch.effect !== "off" } : {}), ...(patch.intensity !== undefined ? { effectIntensity: patch.intensity } : {}), ...(patch.density !== undefined ? { density: patch.density } : {}), ...(patch.motion !== undefined ? { motion: patch.motion } : {}) });
+    else setSettings(old => ({ ...old, appearance: { ...old.appearance, [themeScope]: { ...old.appearance[themeScope], effects: { ...old.appearance[themeScope].effects, ...patch } } } }));
+  };
+  replaceFunction("ui:appearance:scope", "Theme mode", <label>Mode<select aria-label="Theme mode" value={themeScope} onChange={event => setThemeScope(event.target.value as typeof themeScope)}><option value="global">Global</option><option value="nodes">Nodes / text</option><option value="binders">Binders</option></select></label>, true);
+  replaceFunction("ui:appearance:accent", "Color", <label>Color<input aria-label="Theme color" type="color" value={groupStyle?.color ?? settings.appearance.accent} onChange={event => themeScope === "global" ? editAppearance({ accent: event.target.value }) : editGroup({ color: event.target.value })} /></label>, true);
+  for (const [key, label, max] of [["opacity", "Opacity", 1], ["glow", "Glow", themeScope === "global" ? 1 : 2]] as const) replaceFunction(key === "glow" ? "ui:glow" : "ui:appearance:opacity", label, <label>{label}: {Math.round((groupStyle?.[key] ?? settings.appearance[key]) * 100)}%<input aria-label={`Theme ${key}`} type="range" min="0" max={max} step="0.05" value={groupStyle?.[key] ?? settings.appearance[key]} onChange={event => themeScope === "global" ? editAppearance({ [key]: Number(event.target.value) }) : editGroup({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:effect", "Sparkle effect", <label>Sparkle effect<select aria-label="Sparkle effect" value={scopedEffects.effect} onChange={event => editEffects({ effect: event.target.value as SparkleStyle["effect"] })}>{["stars", "dust", "sparks", "off"].map(effect => <option key={effect} value={effect}>{effect[0].toUpperCase() + effect.slice(1)}</option>)}</select></label>, true);
+  for (const [key, label, id] of [["intensity", "Effect intensity", "effectIntensity"], ["density", "Density", "density"], ["motion", "Animation", "motion"]] as const) replaceFunction(`ui:appearance:${id}`, label, <label>{label}: {Math.round(scopedEffects[key] * 100)}%<input aria-label={label} type="range" min="0" max="1" step="0.05" value={scopedEffects[key]} onChange={event => editEffects({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" disabled={themeScope !== "global"} value={settings.appearance.theme} onChange={event => editAppearance({ theme: event.target.value as WorkspaceSettings["appearance"]["theme"] })}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>, true);
+  replaceFunction("ui:appearance:background", "Background color", <label>Background color<input aria-label="Background color" type="color" disabled={themeScope !== "global"} value={settings.appearance.background} onChange={event => editAppearance({ background: event.target.value })} /></label>, true);
+  for (const [key, label, max, step] of [["glowSpread", "Glow spread", 1, 0.05], ["blur", "Window blur", 20, 1]] as const) replaceFunction(`ui:appearance:${key}`, label, <label>{label}<input aria-label={label} disabled={themeScope !== "global"} type="range" min="0" max={max} step={step} value={settings.appearance[key]} onChange={event => editAppearance({ [key]: Number(event.target.value) })} /></label>, true);
+  replaceFunction("ui:appearance:inherit", "Use global defaults", <button disabled={themeScope === "global"} onClick={() => editGroup({ color: undefined, opacity: 1, glow: 1, effects: undefined })}>Use global defaults</button>);
+  replaceFunction("ui:resetAppearance", "Reset appearance", <button onClick={() => setSettings(old => ({ ...old, appearance: themeScope === "global" ? defaultSettings().appearance : { ...old.appearance, [themeScope]: defaultSettings().appearance[themeScope] } }))}>Reset {themeScope === "global" ? "appearance" : "mode"}</button>);
+  // Keep explicitly moved controls from older templates functional. The default
+  // editor/library exposes only the shared controls, with no per-mode duplicates.
+  const savedThemeControls = new Set([...Object.keys(uiLayout.items), ...[...Object.values(uiLayout.windows), ...uiLayout.frames].flatMap(frame => (frame.members ?? []).filter(m => m.kind === "function").map(m => m.id))]);
+  for (const group of ["nodes", "binders"] as const) for (const key of ["color", "opacity", "glow", "inherit"] as const) {
+    const id = `ui:appearance:${group}:${key}`; if (!savedThemeControls.has(id)) continue;
+    const style = settings.appearance[group];
+    const change = (patch: Partial<typeof style>) => setSettings(old => ({ ...old, appearance: { ...old.appearance, [group]: { ...old.appearance[group], ...patch } } }));
+    replaceFunction(id, `Saved ${group} ${key}`, key === "inherit" ? <button onClick={() => change({ color: undefined })}>Use global color</button> : <label>{group} {key}<input aria-label={`Saved ${group} ${key}`} type={key === "color" ? "color" : "range"} min="0" max={key === "glow" ? 2 : 1} step="0.05" value={key === "color" ? style.color ?? settings.appearance.accent : style[key]} onChange={event => change({ [key]: key === "color" ? event.target.value : Number(event.target.value) })} /></label>, true);
   }
-  replaceFunction("ui:glow", "Graph glow", <label>Graph glow <output>{Math.round(settings.appearance.glow * 100)}%</output><input aria-label="Graph glow" type="range" min="0" max="1" step="0.05" value={settings.appearance.glow} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, glow: Number(event.target.value) } }))} /></label>, true);
-  replaceFunction("ui:atmosphere", "Background atmosphere", <label><input type="checkbox" checked={settings.appearance.atmosphere} onChange={event => setSettings(old => ({ ...old, appearance: { ...old.appearance, atmosphere: event.target.checked } }))} /> Background atmosphere</label>, true);
+  if (savedThemeControls.has("ui:appearance:windowOpacity")) replaceFunction("ui:appearance:windowOpacity", "Saved window opacity", <label>Window opacity<input type="range" min="0" max="1" step="0.05" value={settings.appearance.windowOpacity} onChange={event => editAppearance({ windowOpacity: Number(event.target.value) })} /></label>, true);
+  if (savedThemeControls.has("ui:atmosphere")) replaceFunction("ui:atmosphere", "Saved global sparkles toggle", <label><input type="checkbox" checked={settings.appearance.atmosphere} onChange={event => editAppearance({ atmosphere: event.target.checked })} /> Global sparkles</label>, true);
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
   replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!past.length}>Undo</button>);
   replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!future.length}>Redo</button>);
@@ -1852,15 +1872,8 @@ function Workbench() {
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
         <p>Appearance only. Authored node and binder colors take precedence. Effects apply to Neon.</p>
-        <h2>Global</h2>
-        {["ui:appearance:theme", "ui:appearance:accent", "ui:appearance:background", "ui:glow", "ui:appearance:glowSpread", "ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion", "ui:appearance:windowOpacity", "ui:appearance:blur"].map(id => <FunctionControl key={id} id={id} />)}
-        <h2>Nodes / text</h2>
-        <p>Applies to node labels and binder text. Individual inspector overrides take precedence.</p>
-        {["inherit", "color", "opacity", "glow"].map(key => <FunctionControl key={key} id={`ui:appearance:nodes:${key}`} />)}
-        <h2>Binders</h2>
-        <p>Lines and operator symbols; text follows Nodes / text.</p>
-        {["inherit", "color", "opacity", "glow"].map(key => <FunctionControl key={key} id={`ui:appearance:binders:${key}`} />)}
-        <FunctionControl id="ui:resetAppearance" />
+        {["ui:appearance:scope", "ui:appearance:accent", "ui:appearance:opacity", "ui:glow", "ui:appearance:effect", "ui:appearance:effectIntensity", "ui:appearance:density", "ui:appearance:motion", "ui:appearance:inherit", "ui:appearance:theme", "ui:appearance:background", "ui:appearance:glowSpread", "ui:appearance:blur", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+        <p>Global affects windows and supplies shared defaults. Nodes includes binder text; Binders affects lines and symbols. Workspace-only controls edit in Global mode.</p>
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
         <FunctionControl id="appearance" palette />
@@ -1876,7 +1889,7 @@ function Workbench() {
         {Array.from(new Set(ACTIONS.map(action=>action.category))).map(category=><div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter(action=>action.category===category).map(action=><FunctionControl key={action.id} id={`shortcut:${action.id}`}/>)}</div>)}
         <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
-    </div></UIWorkspace>
+    </div><WindowSparkles appearance={settings.appearance} /></UIWorkspace>
   );
 }
 export default function App() {

@@ -2,6 +2,9 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SceneGlow } from "./sceneGlow";
+import { createStructuralSparkles } from "./structuralSparkles";
+import { effectVisible, resolveSparkles } from "./graph/effects";
+import type { TextScene } from "./textScene";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
@@ -11,13 +14,6 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
   let composer: EffectComposer | null = null, bloom: SceneGlow | null = null, output: OutputPass | null = null;
   let appearance: Appearance = { ...defaultSettings().appearance, theme: "classic" };
   let width = 1, height = 1, failed = false, phase = 0, previousTime = 0;
-  let seed = 173;
-  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  const positions = new Float32Array(720 * 3);
-  for (let i = 0; i < 720; i++) {
-    const angle = random() * Math.PI * 2, z = random() * 2 - 1, radius = 12 + random() * 115;
-    positions.set([Math.cos(angle) * Math.sqrt(1 - z * z) * radius, z * radius, Math.sin(angle) * Math.sqrt(1 - z * z) * radius], i * 3);
-  }
   const textures = new Map<string, THREE.CanvasTexture>();
   const textureFor = (effect: Appearance["effect"]) => {
     if (textures.has(effect)) return textures.get(effect)!;
@@ -37,16 +33,16 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     }
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; textures.set(effect, texture); return texture;
   };
-  const particles = new THREE.Points(
-    new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(positions, 3)),
-    new THREE.PointsMaterial({ color: 0x60ddec, size: 3, sizeAttenuation: false, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }),
-  );
-  particles.visible = false; particles.name = "Decorative atmosphere"; scene.add(particles);
-  particles.userData.glowIntensity = 0.4;
+  const structural = createStructuralSparkles(scene);
+  let sources: () => TextScene | null = () => null;
   const disposeBloom = () => { bloom?.dispose(); output?.dispose(); composer?.dispose(); bloom = null; output = null; composer = null; };
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let timer: ReturnType<typeof setTimeout> | undefined, redraw: (() => void) | undefined;
-  const moving = () => appearance.theme === "neon" && appearance.atmosphere && appearance.effect !== "off" && appearance.motion > 0 && appearance.effectIntensity > 0 && appearance.density > 0 && !reducedMotion.matches;
+  const moving = () => {
+    if (appearance.theme !== "neon" || appearance.opacity === 0 || reducedMotion.matches) return false;
+    const source = sources(), fx = [resolveSparkles(appearance, appearance.nodes.effects), resolveSparkles(appearance, appearance.binders.effects)];
+    return fx.some((value, index) => effectVisible(value) && value.motion > 0 && (index === 0 ? source?.nodes.size : source?.connectors.length));
+  };
   const schedule = () => {
     if (timer !== undefined) clearTimeout(timer); timer = undefined;
     if (!redraw || document.hidden || !moving()) return;
@@ -55,17 +51,12 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
   const resume = () => { previousTime = 0; schedule(); redraw?.(); };
   document.addEventListener("visibilitychange", resume); reducedMotion.addEventListener("change", resume);
   return {
+    setSources(callback: () => TextScene | null) { sources = callback; },
     start(callback: () => void) { redraw = callback; schedule(); },
     configure(value: Appearance) {
       appearance = value;
       const neon = value.theme === "neon";
       scene.background = new THREE.Color(neon ? value.background : 0x101927);
-      particles.visible = neon && value.atmosphere && value.effect !== "off";
-      particles.geometry.setDrawRange(0, Math.round(720 * value.density));
-      particles.material.color.set(value.accent);
-      particles.material.map = textureFor(value.effect);
-      particles.material.size = value.effect === "sparks" ? 11 : value.effect === "dust" ? 4 : 3;
-      particles.material.opacity = value.effectIntensity; particles.material.needsUpdate = true;
       if (!neon || value.glow === 0) disposeBloom();
       bloom?.configure(value.glow, value.glowSpread);
       previousTime = 0; schedule();
@@ -73,12 +64,10 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     resize(w: number, h: number) { width = w; height = h; composer?.setSize(w, h); },
     render() {
       const now = performance.now();
-      if (moving()) phase += Math.min(0.1, previousTime ? (now - previousTime) / 1000 : 0) * appearance.motion;
+      if (moving()) phase += Math.min(0.1, previousTime ? (now - previousTime) / 1000 : 0);
       previousTime = now;
-      particles.rotation.y = phase * 0.025;
-      particles.rotation.z = appearance.effect === "sparks" ? phase * 0.01 : 0;
-      particles.position.y = appearance.effect === "sparks" ? Math.sin(phase * 0.08) * 3 : 0;
-      particles.material.opacity = appearance.effectIntensity * (moving() ? 0.9 + 0.1 * Math.sin(phase * 1.3) : 1);
+      structural.update(appearance, sources(), reducedMotion.matches ? 0 : phase, textureFor);
+      if (timer === undefined) schedule();
       if (appearance.theme === "neon" && appearance.glow > 0 && !failed) {
         try {
           if (!composer) {
@@ -100,7 +89,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     dispose() {
       if (timer !== undefined) clearTimeout(timer);
       document.removeEventListener("visibilitychange", resume); reducedMotion.removeEventListener("change", resume);
-      redraw = undefined; disposeBloom(); scene.remove(particles); particles.geometry.dispose(); particles.material.dispose();
+      redraw = undefined; disposeBloom(); structural.dispose();
       for (const texture of textures.values()) texture.dispose();
     },
   };
