@@ -1,6 +1,7 @@
 import { ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { labelSize } from "./labels.ts";
 import { visualFootprint } from "./assets.ts";
+import { contractAlongRay, enclosingBox, translateBox, type Box3 } from "./packing.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
@@ -174,83 +175,50 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
     const pending = [scope.placementId];
     while (pending.length) { const id = pending.pop()!; for (const child of next.placements.filter((p) => p.parentId === id)) { included.add(child.id); pending.push(child.id); } }
   }
-  const selected = next.placements.filter(p => included.has(p.id));
-  if (!selected.length) return next;
-  const axes = ["x", "y", "z"] as const;
-  const worlds = worldPositions(doc);
-  // A single world-space scale preserves every selected pair's direction and
-  // distance ratio, even when the selection crosses visual-parent boundaries.
-  const pivot = scope.kind === "subsystem" ? worlds.get(scope.placementId)! : {
-    x: 0, y: 0, z: 0,
-  };
-  if (scope.kind !== "subsystem") for (const axis of axes) {
-    let min = Infinity, max = -Infinity;
-    for (const p of selected) {
-      const value = worlds.get(p.id)![axis];
-      min = Math.min(min, value); max = Math.max(max, value);
-    }
-    pivot[axis] = min / 2 + max / 2;
-  }
   const byId = new Map(next.placements.map(p => [p.id, p]));
-  const motions = new Map<string, XYZ>();
-  const motion = (p: Placement): XYZ => {
-    const cached = motions.get(p.id); if (cached) return cached;
-    const world = worlds.get(p.id)!;
-    // Unselected descendants travel with a moved parent, retaining their own
-    // authored local coordinates. Fixed neighbors remain collision obstacles.
-    const value = included.has(p.id)
-      ? { x: world.x - pivot.x, y: world.y - pivot.y, z: world.z - pivot.z }
-      : p.parentId ? motion(byId.get(p.parentId)!) : origin();
-    motions.set(p.id, value); return value;
-  };
-  for (const p of next.placements) motion(p);
+  const children = new Map<string | null, Placement[]>();
+  for (const p of next.placements) children.set(p.parentId, [...(children.get(p.parentId) ?? []), p]);
   const entities = new Map(next.entities.map(e => [e.id, e]));
-  const volumes = next.placements.filter(p => !p.hidden).map(p => {
+  const ownBoxes = new Map<string, Box3>();
+  for (const p of next.placements) {
     const size = visualFootprint(labelSize(entities.get(p.entityId)?.label ?? ""), p.visual);
-    return {
-      point: worlds.get(p.id)!, motion: motions.get(p.id)!,
-      half: {
-        x: Math.max(settings.radius * 2, size.width) / 2,
-        y: Math.max(settings.radius * 2, size.height) / 2,
-        z: Math.max(settings.radius * 2, p.visual?.assetId || p.visual?.character ? p.visual.size ?? 1.4 : 0) / 2,
-      },
-    };
-  });
-  let travel = 1;
-  // Intersect the three swept-box overlap intervals. Stop at the FIRST contact,
-  // rather than jumping to a smaller scale through a fixed neighbor. Only the
-  // actual labels/assets are obstacles; containment boundaries may enclose them.
-  for (let i = 0; i < volumes.length; i++) for (let j = i + 1; j < volumes.length; j++) {
-    const a = volumes[i], b = volumes[j];
-    let enter = -Infinity, exit = Infinity, alreadyOverlapping = true;
-    for (const axis of axes) {
-      const distance = a.point[axis] - b.point[axis];
-      const speed = a.motion[axis] - b.motion[axis];
-      const clearance = a.half[axis] + b.half[axis] + settings.clearance;
-      alreadyOverlapping &&= Math.abs(distance) < clearance - 1e-7;
-      if (Math.abs(speed) < 1e-12) {
-        if (Math.abs(distance) >= clearance - 1e-7) { exit = -Infinity; break; }
-      } else {
-        const first = (distance - clearance) / speed, last = (distance + clearance) / speed;
-        enter = Math.max(enter, Math.min(first, last));
-        exit = Math.min(exit, Math.max(first, last));
-      }
-    }
-    // Pre-existing coincident/overlapping placements cannot be repaired without
-    // changing their authored directions. Do not invent a new arrangement.
-    if (!alreadyOverlapping && exit > Math.max(0, enter) + 1e-12)
-      travel = Math.min(travel, Math.max(0, enter));
+    const x = Math.max(settings.radius * 2, size.width) / 2, y = Math.max(settings.radius * 2, size.height) / 2;
+    const z = Math.max(settings.radius * 2, p.visual?.assetId || p.visual?.character ? p.visual.size ?? 1.4 : 0) / 2;
+    ownBoxes.set(p.id, { min: { x: -x, y: -y, z: -z }, max: { x, y, z } });
   }
-  travel = Math.max(0, Math.min(travel, 1 - 1e-9));
-  if (travel < 1e-12) return next;
-  for (const p of selected) {
-    const own = motions.get(p.id)!, parent = p.parentId ? motions.get(p.parentId)! : origin();
-    const local = localPosition(p);
-    p.spatialPosition = {
-      x: local.x - (own.x - parent.x) * travel,
-      y: local.y - (own.y - parent.y) * travel,
-      z: local.z - (own.z - parent.z) * travel,
-    };
+  const contents = (p: Placement): Box3 => enclosingBox([ownBoxes.get(p.id)!, ...(!p.collapsed
+    ? (children.get(p.id) ?? []).filter(c => !c.hidden && !c.variantOwner).map(c => translateBox(contents(c), localPosition(c))) : [])]);
+  const depth = (p: Placement): number => p.parentId ? depth(byId.get(p.parentId)!) + 1 : 0;
+  const parents = [...new Set(next.placements.filter(p => included.has(p.id)).sort((a, b) => depth(b) - depth(a) || a.id.localeCompare(b.id)).map(p => p.parentId))];
+  for (const parentId of parents) {
+    const siblings = children.get(parentId) ?? [], parent = parentId ? byId.get(parentId)! : null;
+    let anchor = origin(), anchorId: string | undefined;
+    if (!parent) {
+      const roots = siblings.filter(p => !p.hidden);
+      if (!roots.length) continue;
+      const center = roots.reduce((sum, p) => add(sum, localPosition(p)), origin());
+      center.x /= roots.length; center.y /= roots.length; center.z /= roots.length;
+      const fixed = roots.filter(p => !included.has(p.id));
+      const root = [...(fixed.length ? fixed : roots)].sort((a, b) => distance(localPosition(a), center) - distance(localPosition(b), center) || a.id.localeCompare(b.id))[0];
+      anchor = localPosition(root); anchorId = root.id;
+    }
+    const moving = siblings.filter(p => included.has(p.id) && p.id !== anchorId)
+      .sort((a, b) => distance(localPosition(a), anchor) - distance(localPosition(b), anchor) || a.id.localeCompare(b.id));
+    // Bottom-up, near-to-far passes let newly freed space benefit other branches.
+    // Each move keeps its own ray; it never rotates or scales the whole layout.
+    for (let pass = 0; pass < Math.min(8, moving.length + 1); pass++) {
+      let changed = false;
+      for (const p of moving) {
+        const start = localPosition(p);
+        const obstacles = [
+          ...(parent ? [ownBoxes.get(parent.id)!] : []),
+          ...siblings.filter(other => other.id !== p.id && !other.hidden).map(other => translateBox(contents(other), localPosition(other))),
+        ];
+        const result = contractAlongRay(contents(p), start, anchor, obstacles, settings.clearance);
+        if (distance(start, result) > 1e-8) { p.spatialPosition = result; changed = true; }
+      }
+      if (!changed) break;
+    }
   }
   return validateDocument(next);
 }

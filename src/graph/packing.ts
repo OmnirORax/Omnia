@@ -19,6 +19,33 @@ export const enclosingBox = (boxes: Box3[]): Box3 => ({
 });
 const overlaps = (a: Box3, b: Box3, gap: number) =>
   axes.every((k) => a.min[k] < b.max[k] + gap - 1e-6 && a.max[k] > b.min[k] - gap + 1e-6);
+/** Shorten one branch along its authored ray without passing through neighbors.
+ * A close obstacle limits this branch only, rather than the entire atlas. */
+export function contractAlongRay(shape: Box3, start: XYZ, anchor: XYZ, obstacles: Box3[], gap: number): XYZ {
+  const direction = { x: start.x - anchor.x, y: start.y - anchor.y, z: start.z - anchor.z };
+  if (Math.hypot(direction.x, direction.y, direction.z) < 1e-9) return start;
+  let scale = 0, upper = 1;
+  for (const obstacle of obstacles) {
+    let enter = -Infinity, exit = Infinity;
+    for (const axis of axes) {
+      const low = obstacle.min[axis] - gap - shape.max[axis];
+      const high = obstacle.max[axis] + gap - shape.min[axis];
+      if (Math.abs(direction[axis]) < 1e-12) {
+        if (anchor[axis] <= low + 1e-8 || anchor[axis] >= high - 1e-8) { exit = -Infinity; break; }
+      } else {
+        const a = (low - anchor[axis]) / direction[axis], b = (high - anchor[axis]) / direction[axis];
+        enter = Math.max(enter, Math.min(a, b)); exit = Math.min(exit, Math.max(a, b));
+      }
+    }
+    if (enter >= exit - 1e-12 || exit <= 0 || enter >= 1) continue;
+    if (exit > 1 + 1e-9) upper = Math.min(upper, enter); // An existing overlap can only clear inward.
+    else scale = Math.max(scale, exit);
+  }
+  if (scale > upper + 1e-9 || upper < 0) return start;
+  scale = Math.min(1, Math.max(0, scale));
+  const result = { x: anchor.x + direction.x * scale, y: anchor.y + direction.y * scale, z: anchor.z + direction.z * scale };
+  return Math.hypot(result.x - start.x, result.y - start.y, result.z - start.z) < 1e-8 ? start : result;
+}
 /** Face-aligned packing leaves clearance, rather than inheriting large authored gaps or snap cells. */
 export function packedPosition(
   shape: Box3,

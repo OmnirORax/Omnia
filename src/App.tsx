@@ -27,7 +27,7 @@ import { VisualControls } from "./VisualControls";
 import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
 import type { Visual, VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
-import { projectSpatial } from "./graph/spatial";
+import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPlacementControl, UIPanel } from "./ui/UIWorkspace";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
@@ -102,11 +102,12 @@ function Workbench() {
   const [capturing, setCapturing] = useState<ActionId | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
+  const [focusContextIds, setFocusContextIds] = useState<readonly string[] | null>(null);
   const [connectionSource, setConnectionSource] = useState<string | null>(null);
   const [insertContext, setInsertContext] = useState<{ parentId: string | null; world?: { x: number; y: number; z: number } } | null>(null);
   const [insertQuery, setInsertQuery] = useState("");
   const [optionNodeId, setOptionNodeId] = useState<string | null>(null);
-  const structuralGraph = useMemo(() => projectSpatial(atlas), [atlas]);
+  const structuralGraph = useMemo(() => isolateSpatialContext(projectSpatial(atlas), settings.isolateFocus ? focusContextIds : null), [atlas, settings.isolateFocus, focusContextIds]);
   const variantDisplay = useMemo(() => projectVariants(document, structuralGraph.nodes), [document, structuralGraph, expandedVariants]);
   const fileInput = useRef<HTMLInputElement>(null);
   const templateInput = useRef<HTMLInputElement>(null);
@@ -646,7 +647,7 @@ function Workbench() {
     return local;
   }
   function compact(scope: ReflowScope) {
-    try { commitDocument(compactLayout(document, scope, settings.spatial)); navigate("local", selection?.kind === "node" ? selection.id : undefined); }
+    try { commitDocument(compactLayout(document, scope, settings.spatial)); navigate(scope.kind === "selection" && scope.placementIds.length > 1 ? "selection" : "local", selection?.kind === "node" ? selection.id : undefined); }
     catch (e) { setError(message(e)); }
   }
   function nestReason(id: string, targetId: string): string | null {
@@ -700,6 +701,10 @@ function Workbench() {
       case "deleteSelected": deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
       case "focus": if (selectedIds.size > 1) navigate("selection"); else if (selection?.kind === "node") navigate("focus", selection.id); break;
+      case "isolateFocus":
+        setSettings(old => ({ ...old, isolateFocus: !old.isolateFocus }));
+        if (!settings.isolateFocus && selection?.kind === "node") navigate(selectedIds.size > 1 ? "selection" : "focus", selection.id);
+        break;
       case "fitLocal": navigate("local", selection?.kind === "node" ? selection.id : undefined); break;
       case "fitAll": navigate("all"); break;
       case "back": navigate("back"); break;
@@ -790,6 +795,7 @@ function Workbench() {
   }
   const uiFunctions: UIFunction[] = ACTIONS.map((a) => ({ id: a.id, label: a.label, category: a.category, element: <button onClick={() => runAction(a.id)}>{a.label}</button> }));
   uiFunctions.find(fn => fn.id === "compactAll")!.element = <button onClick={() => runAction("compactAll")}>{selectedIds.size ? "Compact selection" : "Compact all"}</button>;
+  uiFunctions.find(fn => fn.id === "isolateFocus")!.element = <button aria-pressed={settings.isolateFocus} title="On focus, show only that node and its subtree. Fit entire atlas shows everything again." onClick={() => runAction("isolateFocus")}>Focus context only: {settings.isolateFocus ? "On" : "Off"}</button>;
   for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
@@ -1738,6 +1744,8 @@ function Workbench() {
               onAddVariant={createVariant}
               onDismissOptions={() => setOptionNodeId(null)}
               settings={settings}
+              focusContextIds={focusContextIds}
+              onFocusContextChange={setFocusContextIds}
               command={navCommand}
               constraintAxis={constraintAxis}
               onNodeClick={nodeClicked}
@@ -1776,6 +1784,7 @@ function Workbench() {
         <FunctionControl id="ui:settingsSnap" />
         <FunctionControl id="ui:radius" />
         <FunctionControl id="ui:clearance" />
+        <FunctionControl id="isolateFocus" />
         {(["leftEmpty", "rightEmpty"] as const).map((button) => field("field:field" + ":" + (button), "Field", <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>))}
         <FunctionControl id="ui:subtreeModifier" />
         <h2>Keyboard actions</h2>

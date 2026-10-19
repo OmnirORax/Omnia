@@ -12,6 +12,7 @@ export const ACTIONS = [
   { id: "deleteSelected", category: "Selection", label: "Delete selected concepts and subnodes", defaultKey: "Delete" },
   { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Shift+?" },
   { id: "focus", category: "Navigation", label: "Focus selected", defaultKey: "F" },
+  { id: "isolateFocus", category: "Navigation", label: "Focus context only", defaultKey: "" },
   { id: "fitLocal", category: "Navigation", label: "Fit local system", defaultKey: "Shift+F" },
   { id: "fitAll", category: "Navigation", label: "Fit entire atlas", defaultKey: "" },
   { id: "back", category: "Navigation", label: "Back to previous focus", defaultKey: "" },
@@ -37,12 +38,13 @@ export type MouseAction = "pan" | "rotate" | "none";
 export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
   spatial: SpatialSettings;
+  isolateFocus: boolean;
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
   bindings: Record<ActionId, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
     bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) as Record<ActionId, string> };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -69,6 +71,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   const defaults = defaultSettings();
   try {
     const value = input as Partial<WorkspaceSettings>;
+    if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;
     const spacing = value.spatial?.spacing;
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
     if (spacing !== undefined && permitted.includes(spacing)) defaults.spatial.spacing = spacing;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Atlas } from "./graph/model";
-import { projectSpatial, type XYZ } from "./graph/spatial";
+import { isolateSpatialContext, projectSpatial, type XYZ } from "./graph/spatial";
 import { disposeVisual } from "./visualScene";
 import type { ActionId, WorkspaceSettings } from "./workspaceActions";
 import type { Document } from "./graph/structural";
@@ -32,6 +32,8 @@ type Props = {
   onSelection: (ids: string[]) => void;
   onAction: (id: ActionId) => void;
   settings: WorkspaceSettings;
+  focusContextIds: readonly string[] | null;
+  onFocusContextChange: (ids: readonly string[] | null) => void;
   command: NavigationCommand | null;
   constraintAxis: "x" | "y" | "z" | null;
   onNodeClick: (id: string) => void;
@@ -44,7 +46,7 @@ type Props = {
   onNest: (id: string, targetId: string) => void;
   onContextAction: (action: ContextAction, target: ContextTarget) => void;
 };
-type CameraPose = { position: THREE.Vector3; target: THREE.Vector3 };
+type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; contextIds: readonly string[] | null };
 type SceneState = {
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
@@ -71,7 +73,8 @@ export default function SpatialWorkspace(props: Props) {
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = projectSpatial(atlas);
-  const graph = baseGraph;
+  const graph = isolateSpatialContext(baseGraph, settings.isolateFocus ? props.focusContextIds : null);
+  const fullGraphRef = useRef(baseGraph); fullGraphRef.current = baseGraph;
   const graphRef = useRef(graph); graphRef.current = graph;
   const meshes = useRef<THREE.Sprite[]>([]);
   const groups = useRef(new Map<string, THREE.Group>());
@@ -103,6 +106,11 @@ export default function SpatialWorkspace(props: Props) {
     const light = new THREE.DirectionalLight(0xffffff, 2.2); light.position.set(5, 12, 9); scene.add(light);
     let pendingRender = 0, animation = 0;
     const cameraHistory: CameraPose[] = [];
+    let activeFocusContext = callbacks.current.focusContextIds;
+    const changeFocusContext = (ids: readonly string[] | null) => {
+      activeFocusContext = ids;
+      callbacks.current.onFocusContextChange(ids);
+    };
     const requestRender = () => {
       if (pendingRender) return;
       pendingRender = requestAnimationFrame(() => {
@@ -127,7 +135,7 @@ export default function SpatialWorkspace(props: Props) {
     const clicks = nodeClicks((id) => callbacks.current.onNodeClick(id), (id) => callbacks.current.onNodeDoubleClick(id));
     const animate = (target: THREE.Vector3, distance: number, remember = true, facing?: THREE.Vector3) => {
       stopAnimation();
-      if (remember) cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone() });
+      if (remember) cameraHistory.push({ position: camera.position.clone(), target: controls.target.clone(), contextIds: activeFocusContext });
       const fromPosition = camera.position.clone(), fromTarget = controls.target.clone();
       const direction = facing ?? camera.position.clone().sub(controls.target).normalize();
       if (direction.lengthSq() < 0.001) direction.set(1, 0.7, 1).normalize();
@@ -148,6 +156,7 @@ export default function SpatialWorkspace(props: Props) {
       if (kind === "back") {
         const pose = cameraHistory.pop(); if (!pose) return;
         stopAnimation();
+        changeFocusContext(pose.contextIds);
         const fromPosition = camera.position.clone(), fromTarget = controls.target.clone();
         const start = performance.now();
         const tick = (now: number) => {
@@ -159,20 +168,26 @@ export default function SpatialWorkspace(props: Props) {
         };
         animation = requestAnimationFrame(tick); return;
       }
-      const nodes = graphRef.current.nodes.filter((n) => n.visible);
+      const fullNodes = fullGraphRef.current.nodes.filter(n => n.visible);
+      const primary = fullNodes.find(n => n.id === requestedId) ?? fullNodes.find(n => n.id === callbacks.current.selectedId) ?? fullNodes.find(n => n.parentId === null) ?? fullNodes[0];
+      const contextIds = kind === "all" || kind === "hierarchy" ? null
+        : kind === "selection" ? fullNodes.filter(n => callbacks.current.selectedIds.has(n.id)).map(n => n.id)
+        : primary ? [primary.id] : null;
+      const nodes = isolateSpatialContext(fullGraphRef.current, callbacks.current.settings.isolateFocus ? contextIds : null).nodes.filter(n => n.visible);
       if (!nodes.length) return;
       if (kind === "all" || kind === "hierarchy" || kind === "variants" || kind === "selection") {
         const bounds = new THREE.Box3();
-        const framing = kind === "selection" ? nodes.filter((n) => callbacks.current.selectedIds.has(n.id)) : kind === "variants" ? nodes.filter((n) => n.id === requestedId || callbacks.current.variantDisplay.instances.get(n.id)?.ownerNodeId === requestedId) : nodes;
+        const framing = kind === "selection" ? nodes.filter((n) => callbacks.current.selectedIds.has(n.id)) : kind === "variants" ? nodes.filter((n) => n.id === requestedId || n.variantOwnerId === requestedId) : nodes;
         if (!framing.length) return;
         for (const node of framing) {
           const center = asVector(node.world), r = callbacks.current.settings.spatial.radius;
           bounds.expandByPoint(center.clone().addScalar(r)); bounds.expandByPoint(center.clone().addScalar(-r));
         }
         const center = bounds.getCenter(new THREE.Vector3());
-        animate(center, Math.max(6, bounds.getSize(new THREE.Vector3()).length() * 1.2), true, kind === "hierarchy" ? new THREE.Vector3(0, 0, 1) : undefined); return;
+        animate(center, Math.max(6, bounds.getSize(new THREE.Vector3()).length() * 1.2), true, kind === "hierarchy" ? new THREE.Vector3(0, 0, 1) : undefined);
+        changeFocusContext(contextIds); return;
       }
-      const node = nodes.find((n) => n.id === requestedId) ?? nodes.find((n) => n.parentId === null) ?? nodes[0];
+      const node = nodes.find((n) => n.id === primary?.id) ?? nodes.find((n) => n.parentId === null) ?? nodes[0];
       const point = asVector(node.world);
       let radius = callbacks.current.settings.spatial.radius;
       if (kind === "local") {
@@ -181,6 +196,7 @@ export default function SpatialWorkspace(props: Props) {
       } else radius = volumeRadii.current.get(node.id) ?? radius;
       const fov = THREE.MathUtils.degToRad(camera.fov);
       animate(point, Math.max(4, radius / Math.tan(fov / 2) * 1.5));
+      changeFocusContext(contextIds);
     };
     stateRef.current = { camera, controls, renderer, content, requestRender, focus };
     const resize = () => {
@@ -387,10 +403,12 @@ export default function SpatialWorkspace(props: Props) {
     const state = stateRef.current; if (!state || !ready) return;
     disposeContent(state.content);
     const visible = graph.nodes.filter((n) => n.visible);
+    const visibleIds = new Set(visible.map(n => n.id));
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
     const binders = chartedBinders(doc, atlas).flatMap((b) => {
       const from = byId.get(b.source), to = byId.get(b.target);
       if (!from || !to || (from.representative === to.representative && (!from.visible || !to.visible))) return [];
+      if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
     const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds);
@@ -403,7 +421,7 @@ export default function SpatialWorkspace(props: Props) {
       firstFocus.current = true;
       state.focus("local", visible.find((n) => n.parentId === null)?.id ?? visible[0].id);
     }
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, props.variantDisplay, props.selectedIds]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
@@ -427,7 +445,7 @@ export default function SpatialWorkspace(props: Props) {
       </div>)}
     </div>}
     <div className="spatial-controls">
-      <FunctionControl id="focus" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
+      <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
     </div>
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}
     {!!props.selectedIds.size && <div className="selection-status" role="status">{props.selectedIds.size} selected <button onClick={() => props.onAction("focus")}>Focus</button><button onClick={() => props.onAction("deleteSelected")}>Delete</button><button onClick={() => props.onSelection([])}>Clear</button></div>}
