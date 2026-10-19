@@ -1,3 +1,4 @@
+import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -19,7 +20,7 @@ import { subtreeGesture } from "./workspaceActions";
 import { EntityMenu } from "./ui/EntityMenu";
 import { FunctionControl } from "./ui/UIWorkspace";
 
-export type NavigationCommand = { sequence: number; kind: "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
+export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
@@ -191,6 +192,18 @@ export default function SpatialWorkspace(props: Props) {
       animation = requestAnimationFrame(tick);
     };
     const focus = (kind: NavigationCommand["kind"], requestedId?: string) => {
+      if (isNudgeAction(kind)) {
+        const node = graphRef.current.nodes.find(node => node.visible && node.id === (requestedId ?? callbacks.current.selectedId));
+        if (!node || drag) return;
+        stopAnimation();
+        const horizontal = kind === "nudgeLeft" || kind === "nudgeRight";
+        const sign = kind === "nudgeLeft" || kind === "nudgeDown" ? -1 : 1;
+        const delta = new THREE.Vector3(horizontal ? sign : 0, horizontal ? 0 : sign, 0).applyQuaternion(camera.quaternion).multiplyScalar(callbacks.current.settings.spatial.spacing || 0.2);
+        const parent = graphRef.current.nodes.find(parent => parent.id === node.parentId);
+        const local = asVector(node.world).add(delta).sub(parent ? asVector(parent.world) : new THREE.Vector3());
+        callbacks.current.onMove(node.id, asXYZ(local));
+        return;
+      }
       if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = true; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
       if (kind === "rollLeft" || kind === "rollRight") {
         stopAnimation(); rememberCamera();

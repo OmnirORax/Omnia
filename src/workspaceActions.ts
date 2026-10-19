@@ -29,6 +29,10 @@ export const ACTIONS = [
   { id: "expand", category: "Expansion", label: "Expand or collapse selected", defaultKey: "E" },
   { id: "expandAll", category: "Expansion", label: "Expand or collapse entire subtree", defaultKey: "Shift+E" },
   { id: "toggleSnap", category: "Spatial editing", label: "Toggle snapping", defaultKey: "G" },
+  { id: "nudgeLeft", category: "Spatial editing", label: "Move selected node left", defaultKey: "ArrowLeft" },
+  { id: "nudgeRight", category: "Spatial editing", label: "Move selected node right", defaultKey: "ArrowRight" },
+  { id: "nudgeUp", category: "Spatial editing", label: "Move selected node up", defaultKey: "ArrowUp" },
+  { id: "nudgeDown", category: "Spatial editing", label: "Move selected node down", defaultKey: "ArrowDown" },
   { id: "axisX", category: "Spatial editing", label: "Constrain drag to X", defaultKey: "X" },
   { id: "axisY", category: "Spatial editing", label: "Constrain drag to Y", defaultKey: "Y" },
   { id: "axisZ", category: "Spatial editing", label: "Constrain drag to Z", defaultKey: "Z" },
@@ -42,6 +46,9 @@ export const ACTIONS = [
   { id: "theme", category: "Workspace", label: "Toggle neon appearance", defaultKey: "" },
   { id: "appearance", category: "Workspace", label: "Theme / aesthetics", defaultKey: "" },
 ] as const;
+export const NUDGE_ACTIONS = ["nudgeLeft", "nudgeRight", "nudgeUp", "nudgeDown"] as const;
+export type NudgeActionId = (typeof NUDGE_ACTIONS)[number];
+export const isNudgeAction = (id: string): id is NudgeActionId => NUDGE_ACTIONS.some(action => action === id);
 export type ActionId = (typeof ACTIONS)[number]["id"];
 export type MouseAction = "pan" | "rotate" | "none";
 export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
@@ -119,6 +126,11 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
       defaults.bindings[id] = key;
       const label = value.buttonLabels?.[id];
       defaults.buttonLabels[id] = typeof label === "string" ? label.slice(0, 200) : id.slice(7);
+    }
+    // New defaults must not take keys already assigned in an existing saved configuration.
+    for (const action of NUDGE_ACTIONS) {
+      const key = defaults.bindings[action];
+      if (value.bindings && !Object.hasOwn(value.bindings, action) && Object.entries(value.bindings).some(([id, binding]) => id !== action && binding === key && defaults.bindings[id] === key)) defaults.bindings[action] = "";
     }
     return defaults;
   } catch { return defaults; }

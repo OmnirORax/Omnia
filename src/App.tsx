@@ -17,7 +17,7 @@ import {
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
 import { resolveAppearance } from "./graph/appearance";
@@ -798,6 +798,7 @@ function Workbench() {
       case "expand": if (selection?.kind === "node") toggleNode(selection.id); break;
       case "expandAll": if (selection?.kind === "node") nodeSubtreeClicked(selection.id); break;
       case "toggleSnap": setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: old.spatial.spacing ? 0 : 2 } })); break;
+      case "nudgeLeft": case "nudgeRight": case "nudgeUp": case "nudgeDown": if (selection?.kind === "node") navigate(action, selection.id); break;
       case "axisX": setConstraintAxis("x"); break;
       case "axisY": setConstraintAxis("y"); break;
       case "axisZ": setConstraintAxis("z"); break;
@@ -824,7 +825,8 @@ function Workbench() {
       }
       if (event.defaultPrevented || isTypingTarget(event.target)) return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
-      if (!action || event.repeat) return;
+      if (!action || (event.repeat && !isNudgeAction(action))) return;
+      if (isNudgeAction(action) && selection?.kind !== "node") return;
       if ((settingsOpen || insertContext) && action !== "cancel") return;
       event.preventDefault(); runAction(action);
     };

@@ -54,6 +54,7 @@ export function ShortcutDisplay({
           Click: options / variants · double-click: expand / collapse
         </p>
         <p>Left-drag node: move · wheel: zoom</p>
+        <p>Arrow keys: move the selected node in the view plane, one snap step (0.2 units with snapping off). Hold to repeat.</p>
         <p>
           MB4/MB5: graph undo/redo · Shift: UI history · Alt: five steps (combine Shift+Alt for UI).
         </p>
