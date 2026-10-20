@@ -1,6 +1,7 @@
 import type { VisualAsset } from "../graph/assets.ts";
 import { validateAsset } from "../graph/assets.ts";
 import { dockKeys, insertDockKey, removeDockKey, validateDockNode, type DockNode } from "./dockTree.ts";
+import { keepFloatingHandleVisible } from "./positioning.ts";
 export type UIArrangement = {
   mode: "free" | "snap";
   grid?: { anchor: string; origin: Cell; pitch: Cell };
@@ -20,6 +21,7 @@ export type WindowState = {
   arrangement?: UIArrangement;
   bodyOffset?: Cell;
   dockLayout?: DockNode;
+  floatingOverflow?: boolean;
   inline?: {
     parent: string;
     detached?: boolean;
@@ -70,6 +72,7 @@ export type UIFrame = {
   height?: number;
   dockGroup?: boolean;
   dockEdge?: "left" | "right" | "top" | "bottom";
+  floatingOverflow?: boolean;
   dockLayout?: DockNode;
   chrome?: FrameChrome;
   magnetic?: boolean;
@@ -295,6 +298,7 @@ export function validateUILayout(value: unknown): UILayout {
       owners.set(`window:${id}`, inline.parent);
   }
   for (const [key, container] of containers(layout)) {
+    if (container.floatingOverflow !== undefined && typeof container.floatingOverflow !== "boolean") throw new Error("Invalid floating placement.");
     if (container.dockLayout) validateDockNode(container.dockLayout, new Set((container.members ?? []).map(residentKey)));
     if ("dockGroup" in container && container.dockGroup !== undefined && typeof container.dockGroup !== "boolean") throw new Error("Invalid dock group.");
     if ("dockEdge" in container && container.dockEdge !== undefined && (!["left", "right", "top", "bottom"].includes(container.dockEdge) || !container.dockGroup)) throw new Error("Invalid dock edge.");
@@ -712,6 +716,7 @@ export function fitWindow(w: WindowState, width: number, height: number): Window
     width: Math.min(Math.max(minWidth, w.width), Math.max(120, width - 16)),
     height: Math.min(Math.max(120, w.height), Math.max(120, height - 16)),
   };
+  if (w.floatingOverflow) return { ...next, ...keepFloatingHandleVisible({ ...next, width: w.width, height: w.height }, { x: 8, y: 8, width: width-16, height: height-16 }, w.chrome?.handle) };
   next.x = Math.max(0, Math.min(next.x, Math.max(0, width - next.width)));
   next.y = Math.max(0, Math.min(next.y, Math.max(0, height - (next.collapsed ? 44 : next.height))));
   return next;

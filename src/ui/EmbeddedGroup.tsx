@@ -18,6 +18,7 @@ import { containers, type WindowState } from "./layout";
 import { nativeActionId } from "./NativeActions";
 import { useDockResident, useDockWorkspace } from "./DockWorkspace";
 import { fitDockRect } from "./docking";
+import { keepFloatingHandleVisible } from "./positioning";
 
 /** A compact, embedded window uses the same ownership, docking and history as every other window.
  * Its full content remains mounted when collapsed or moved, so actions never turn into stale proxies. */
@@ -63,8 +64,10 @@ export function EmbeddedGroup({
   const host = useDockHost(key),
     atHome = !state.inline?.detached;
   const workspace = useDockWorkspace();
-  const available = workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
-  const visible = useDockResident(key, fitDockRect({ x: state.x, y: state.y, width: root.current?.getBoundingClientRect().width || state.width, height: root.current?.getBoundingClientRect().height || state.height }, available), !atHome && !host);
+  const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const available = workspace.active ? workspace.floating : viewport;
+  const desired = { x: state.x, y: state.y, width: root.current?.getBoundingClientRect().width || state.width, height: root.current?.getBoundingClientRect().height || state.height };
+  const visible = useDockResident(key, state.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, state.chrome?.handle) : fitDockRect(desired, available), !atHome && !host, state.floatingOverflow);
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {

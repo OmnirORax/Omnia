@@ -9,6 +9,7 @@ import { useDockHost } from "./DockHost";
 import { useFrameBounds } from "./frameBounds";
 import { useDockResident, useDockWorkspace } from "./DockWorkspace";
 import { fitDockRect } from "./docking";
+import { keepFloatingHandleVisible } from "./positioning";
 let front = 100;
 export const nextWindowLayer = () => ++front;
 export function FloatingWindow({
@@ -58,8 +59,10 @@ export function FloatingWindow({
     host = useDockHost(key);
   const state = fitWindow(saved, window.innerWidth, window.innerHeight);
   const workspace = useDockWorkspace();
-  const available = !owner && workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
-  const visible = useDockResident(key, fitDockRect(state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state, available), !owner);
+  const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const available = !owner && workspace.active ? workspace.floating : viewport;
+  const desired = state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state;
+  const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !owner, saved.floatingOverflow);
   const dockFill = !!host?.classList.contains("ui-dock-fill");
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
@@ -75,7 +78,7 @@ export function FloatingWindow({
         ...layout.windows,
         [id]: (() => {
           const next = fitWindow({ ...saved, ...patch }, window.innerWidth, window.innerHeight);
-          return next.collapsed
+          return next.collapsed && !next.floatingOverflow
             ? {
                 ...next,
                 x:
@@ -132,8 +135,8 @@ export function FloatingWindow({
         style={{ position: owner ? "absolute" : "fixed", zIndex: z }}
         minWidth={Math.min(state.collapsed ? 40 : 240, visible.width)}
         minHeight={Math.min(state.collapsed ? 44 : 120, visible.height)}
-        maxWidth={available.width}
-        maxHeight={available.height}
+        maxWidth={saved.floatingOverflow && !owner ? undefined : available.width}
+        maxHeight={saved.floatingOverflow && !owner ? undefined : available.height}
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging

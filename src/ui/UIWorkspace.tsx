@@ -74,7 +74,7 @@ import {
   type Rect,
 } from "./drag";
 import type { VisualAsset } from "../graph/assets";
-import { snapPosition, snapshotPositions } from "./positioning";
+import { keepFloatingHandleVisible, snapPosition, snapshotPositions } from "./positioning";
 import { insertFrameBeside, type InsertSide } from "./frameInsertion";
 import { DockLayout } from "./DockLayout";
 import { dockFrame, edgeDockRect, fitDockRect, workspaceDockRects, type DockRect, type FrameDock } from "./docking";
@@ -341,11 +341,13 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
     dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
     nested = !!ownerOf(ui.layout, key),
-    width = Math.max(64, Math.min(frame.width ?? 280, window.innerWidth - 24));
+    width = Math.max(64, frame.floatingOverflow ? frame.width ?? 280 : Math.min(frame.width ?? 280, window.innerWidth - 24));
   const workspace = useDockWorkspace();
   const edgeBounds = frame.dockEdge && !nested ? workspace.docks[frame.dockEdge] : undefined;
   const structured = !!frame.dockLayout;
-  const visible = useDockResident(key, fitDockRect({ x: frame.x + (structured ? 0 : bounds.x), y: frame.y + (structured ? 0 : bounds.y), width: structured ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height }, workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 }), !nested && !edgeBounds);
+  const desired = { x: frame.x + (structured ? 0 : bounds.x), y: frame.y + (structured ? 0 : bounds.y), width: structured ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height };
+  const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !nested && !edgeBounds, frame.floatingOverflow);
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
   return (
     <Rnd
@@ -378,7 +380,7 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         bottomRight: { pointerEvents: "auto" },
       }}
       minWidth={40}
-      maxWidth={window.innerWidth - 24}
+      maxWidth={frame.floatingOverflow && !nested && !edgeBounds ? undefined : window.innerWidth - 24}
       onResizeStop={(_, __, element, ___, position) => patch({ width: element.offsetWidth, ...(structured ? { height: element.offsetHeight, ...(!frame.dockEdge ? position : {}) } : {}) })}
     >
       <div
@@ -433,6 +435,7 @@ function FreeFunction({ id, x, y, width, height, children }: { id: string; x: nu
   return <div className="ui-free-function" style={{ left: visible.x, top: visible.y, width: width ? visible.width : undefined, maxWidth: workspace.active ? visible.width : area.width }}>{children}</div>;
 }
 type Preview = {
+  floatingOverflow?: boolean;
   frameDock?: FrameDock;
   dock?: DockPreview;
   rect?: Rect;
@@ -862,6 +865,7 @@ export function UIWorkspace({
       const area = dockWorkspaceArea();
       const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
       const edge = (Object.keys(distances) as Exclude<DockSide, "tab">[]).find(side => distances[side] >= -8 && distances[side] <= 14);
+      if (edge && source.key.startsWith("frame:") && s.frames.find(frame => `frame:${frame.id}` === source.key)?.dockEdge === edge) return;
       if (edge && x >= area.x - 8 && x <= area.x + area.width + 8 && y >= area.y - 8 && y <= area.y + area.height + 8) {
         const existing = s.frames.find(frame => frame.dockEdge === edge && `frame:${frame.id}` !== source.key);
         if (existing && !canDock(s, source.key, `frame:${existing.id}`)) return;
@@ -1257,7 +1261,8 @@ export function UIWorkspace({
           rect: boundsOf(other),
         };
       const freeArea = workspaceDockRects(s, dockWorkspaceArea());
-      const desired = {
+      const movingFrame = /^(frame|window):/.test(source.key);
+      const desired = movingFrame ? { x: x-source.dx, y: y-source.dy } : {
         x: Math.max(
           8,
           Math.min(
@@ -1283,6 +1288,10 @@ export function UIWorkspace({
         s.arrangement?.mode === "snap" && s.arrangement.grid
           ? snapPosition(desired, source, s.arrangement.grid, occupied)
           : desired;
+      const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+      const rectangle = { ...snappedPosition, width: source.width, height: source.height };
+      const overflow = movingFrame && (rectangle.x < viewport.x || rectangle.y < viewport.y || rectangle.x+rectangle.width > viewport.x+viewport.width || rectangle.y+rectangle.height > viewport.y+viewport.height);
+      if (overflow) return { text: "Place freely", floatingOverflow: true, rect: keepFloatingHandleVisible(rectangle, viewport, getContainer(s, source.key)?.chrome?.handle) };
       const canvas = document.querySelector(".canvas")?.getBoundingClientRect();
       const floatingArea = canvas ? { x: Math.max(freeArea.center.x, canvas.x), y: freeArea.center.y, width: Math.min(freeArea.center.width, canvas.width), height: freeArea.center.height } : freeArea.center;
       const fitted = fitDockRect({ ...snappedPosition, width: source.width, height: source.height }, floatingArea);
@@ -1444,6 +1453,10 @@ export function UIWorkspace({
             p.rect.x + source.originOffset.x,
             p.rect.y + source.originOffset.y,
           );
+          if (/^(frame|window):/.test(source.key) && (p.floatingOverflow || getContainer(s, source.key)?.floatingOverflow)) next = updateContainer(next, source.key, {
+            floatingOverflow: !!p.floatingOverflow,
+            ...(p.floatingOverflow && !getContainer(s, source.key)?.collapsed ? { width: p.rect.width, height: p.rect.height } : {}),
+          });
           if (source.fromDockPane) next = updateContainer(next, source.key, { width: Math.max(160, source.width), height: Math.max(120, source.height) });
           return source.key.startsWith("window:panel:")
             ? {

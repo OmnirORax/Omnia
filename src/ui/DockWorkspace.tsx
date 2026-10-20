@@ -13,10 +13,10 @@ export function useDockWorkspace() {
   if (!value) throw new Error("Dock workspace is not mounted.");
   return value;
 }
-export function useDockResident(key: string, desired: DockRect, enabled = true) {
+export function useDockResident(key: string, desired: DockRect, enabled = true, overflow = false) {
   const workspace = useDockWorkspace(), register = workspace.register;
-  useLayoutEffect(() => enabled ? register(key, desired) : undefined, [key, enabled, desired.x, desired.y, desired.width, desired.height, register]);
-  return enabled && workspace.active ? workspace.placements[key] ?? fitDockRect(desired, workspace.floating) : desired;
+  useLayoutEffect(() => enabled && !overflow ? register(key, desired) : undefined, [key, enabled, overflow, desired.x, desired.y, desired.width, desired.height, register]);
+  return enabled && !overflow && workspace.active ? workspace.placements[key] ?? fitDockRect(desired, workspace.floating) : desired;
 }
 /** Docks, native layout and floating residents consume the same committed allocation.
  * No saved coordinates change when an edge opens, closes, resizes or is undone. */

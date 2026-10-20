@@ -102,3 +102,17 @@ test("floating neighbors use gaps or smaller cells instead of overlapping after 
   assert.equal(JSON.stringify(before), snapshot);
   assert.deepEqual(fitDockResidents(before, area), fitDockResidents(before, area));
 });
+test("explicit floating overflow preserves size and movement while retaining a reachable handle", async () => {
+  const { keepFloatingHandleVisible } = await import('../src/ui/positioning.ts');
+  const { fitWindow } = await import('../src/ui/layout.ts');
+  const area = { x: 8, y: 8, width: 784, height: 584 }, wide = { x: 320, y: 80, width: 1500, height: 250 };
+  assert.deepEqual(keepFloatingHandleVisible(wide, area), wide);
+  const rescued = keepFloatingHandleVisible({ ...wide, x: 5000, y: 5000 }, area);
+  assert.ok(rescued.x+64 <= 792 && rescued.y+32 <= 592);
+  assert.equal(rescued.width, 1500);
+  const saved = { ...wide, collapsed: false, pinned: false, floatingOverflow: true };
+  assert.equal(fitWindow(saved, 800, 600).x, wide.x);
+  assert.equal(fitWindow(saved, 800, 600).width, wide.width);
+  const layout = fixture(); layout.windows.a = saved;
+  assert.deepEqual(validateUILayout(JSON.parse(JSON.stringify(layout))).windows.a, saved);
+});
