@@ -5,6 +5,20 @@ export const CONTROL_MIME = "application/x-omnium-frame-control";
 export const FUNCTION_MIME = "application/x-omnium-function";
 export const MAGNET_DISTANCE = 18;
 export const DOCK_DISTANCE = 24;
+/** Capture on a stable root, never a handle that may move/remount during a preview. */
+export function captureUIPointer(pointerId: number) {
+  const root = document.documentElement;
+  try {
+    root.setPointerCapture(pointerId);
+  } catch {
+    /* Synthetic/native fallback events have no active pointer. */
+  }
+  root.classList.add("ui-pointer-dragging");
+  return () => {
+    root.classList.remove("ui-pointer-dragging");
+    if (root.hasPointerCapture(pointerId)) root.releasePointerCapture(pointerId);
+  };
+}
 export function startResidentDrag(event: DragEvent, key: string) {
   if ((event.target as Element).closest("input,textarea,select")) {
     event.preventDefault();

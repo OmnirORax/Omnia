@@ -68,7 +68,7 @@ export function DockArea({ container, contour = true }: { container: string; con
     [shapes, setShapes] = useState<Shape[]>([]),
     [handle, setHandle] = useState<Shape | null>(null),
     [moving, setMoving] = useState<{ x: number; y: number } | null>(null);
-  const gesture = useRef<{ x: number; y: number; offset: { x: number; y: number } } | null>(null);
+  const gesture = useRef<{ pointerId: number; x: number; y: number; offset: { x: number; y: number } } | null>(null);
   const measureContent = useRef<() => void>(() => {});
   const state = getContainer(ui.layout, container);
   const members = state?.members ?? [];
@@ -287,6 +287,7 @@ export function DockArea({ container, contour = true }: { container: string; con
               e.preventDefault();
               e.stopPropagation();
               gesture.current = {
+                pointerId: e.pointerId,
                 x: e.clientX,
                 y: e.clientY,
                 offset: state?.bodyOffset ?? { x: 0, y: 0 },
@@ -295,14 +296,14 @@ export function DockArea({ container, contour = true }: { container: string; con
             }}
             onPointerMove={(e) => {
               const g = gesture.current;
-              if (!g) return;
+              if (!g || g.pointerId !== e.pointerId) return;
               setMoving({ x: g.offset.x + e.clientX - g.x, y: g.offset.y + e.clientY - g.y });
             }}
             onPointerUp={(e) => {
               const g = gesture.current;
-              if (!g) return;
+              if (!g || g.pointerId !== e.pointerId || e.button !== 0) return;
               gesture.current = null;
-              e.currentTarget.releasePointerCapture(e.pointerId);
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
               const next = { x: g.offset.x + e.clientX - g.x, y: g.offset.y + e.clientY - g.y };
               setMoving(null);
               if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 2)

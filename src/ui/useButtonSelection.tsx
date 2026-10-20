@@ -23,7 +23,7 @@ import {
   type ButtonBox,
 } from "./selection";
 import { snapPosition, snapshotPositions, type PositionedBox } from "./positioning";
-import { rectDistance } from "./drag";
+import { captureUIPointer, rectDistance } from "./drag";
 import { residentBounds } from "./frameBounds";
 
 const selectable = "button[data-ui-function]:not([data-ui-palette])";
@@ -76,6 +76,8 @@ type Gesture = {
   initial: Set<string>;
   clickId?: string;
   align?: boolean;
+  pointerId?: number;
+  release?: () => void;
 };
 type AlignmentPreview = {
   target: ButtonBox;
@@ -123,6 +125,9 @@ export function useButtonSelection({
     setIds(next);
   };
   const clear = () => {
+    const active = gesture.current;
+    gesture.current = null;
+    active?.release?.();
     select(new Set());
     setMode(false);
     current.current.aligning = false;
@@ -430,7 +435,7 @@ export function useButtonSelection({
         gesture.current = {
           start: { x: e.clientX, y: e.clientY }, boxes: [],
           bounds: { x: 0, y: 0, width: 0, height: 0 },
-          moved: false, initial: new Set(state.ids), align: true,
+          moved: false, initial: new Set(state.ids), align: true, pointerId: e.pointerId,
         };
         return;
       }
@@ -475,6 +480,8 @@ export function useButtonSelection({
           moved: false,
           initial: new Set(next),
           clickId: id,
+          pointerId: e.pointerId,
+          release: captureUIPointer(e.pointerId),
         };
       } else if (
         (state.mode || (additive && target.closest("[data-ui-resident-root],.toolbar"))) &&
@@ -493,6 +500,8 @@ export function useButtonSelection({
           additive,
           scope: scope?.startsWith("window:context:") ? scope : undefined,
           initial: new Set(additive ? state.ids : []),
+          pointerId: e.pointerId,
+          release: captureUIPointer(e.pointerId),
         };
         setRectangle({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
         setMenu(null);
@@ -500,8 +509,9 @@ export function useButtonSelection({
     };
     const moveNow = (e: PointerEvent) => {
       const g = gesture.current;
+      if (g && g.pointerId !== e.pointerId) return;
       if (current.current.aligning) {
-        ops.current.previewAlignment(e.target as Element, e.clientX, e.clientY);
+        ops.current.previewAlignment(document.elementFromPoint(e.clientX, e.clientY) ?? e.target as Element, e.clientX, e.clientY);
         if (g) {
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -554,18 +564,19 @@ export function useButtonSelection({
     };
     const up = (e: PointerEvent) => {
       const g = gesture.current;
-      if (!g) return;
+      if (!g || g.pointerId !== e.pointerId || e.button !== 0) return;
       cancelMove();
       moveNow(e);
       e.preventDefault();
       e.stopImmediatePropagation();
       suppress();
       gesture.current = null;
+      g.release?.();
       setRectangle(null);
       setPreviews([]);
       if (g.align) {
         if (g.moved) return;
-        const result = ops.current.previewAlignment(e.target as Element, e.clientX, e.clientY);
+        const result = ops.current.previewAlignment(document.elementFromPoint(e.clientX, e.clientY) ?? e.target as Element, e.clientX, e.clientY);
         if (result?.next) {
           current.current.update(() => result.next!);
           current.current.aligning = false;
@@ -587,7 +598,9 @@ export function useButtonSelection({
     const cancel = () => {
       cancelMove();
       if (!gesture.current && !current.current.aligning) return;
+      const active = gesture.current;
       gesture.current = null;
+      active?.release?.();
       current.current.aligning = false;
       setAligning(false);
       setAlignment(null);
@@ -620,18 +633,37 @@ export function useButtonSelection({
         else ops.current.clear();
       }
     };
+    const pointerCancel = (event: PointerEvent) => {
+      if (gesture.current?.pointerId === event.pointerId) cancel();
+    };
+    const captureLost = (event: PointerEvent) => {
+      if (event.target === document.documentElement) pointerCancel(event);
+    };
+    const preventContext = (event: Event) => {
+      if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
+    const preventNative = (event: DragEvent) => {
+      if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerup", up, true);
-    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("pointercancel", pointerCancel, true);
+    window.addEventListener("lostpointercapture", captureLost, true);
+    window.addEventListener("contextmenu", preventContext, true);
+    window.addEventListener("dragstart", preventNative, true);
     window.addEventListener("blur", cancel);
     window.addEventListener("keydown", key, true);
     return () => {
       cancelMove();
+      const active = gesture.current; gesture.current = null; active?.release?.();
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
-      window.removeEventListener("pointercancel", cancel, true);
+      window.removeEventListener("pointercancel", pointerCancel, true);
+      window.removeEventListener("lostpointercapture", captureLost, true);
+      window.removeEventListener("contextmenu", preventContext, true);
+      window.removeEventListener("dragstart", preventNative, true);
       window.removeEventListener("blur", cancel);
       window.removeEventListener("keydown", key, true);
     };

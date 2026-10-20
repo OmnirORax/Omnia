@@ -3,6 +3,7 @@ import { UINameInput } from "./EditableLabel";
 import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
+import { captureUIPointer } from "./drag";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -741,6 +742,7 @@ export function UIWorkspace({
   }, [anchorTarget]);
   useEffect(() => {
     let previewFrame = 0;
+    let pointer: { down: PointerEvent; started: boolean; release?: () => void } | null = null;
     let pendingPoint: { x: number; y: number } | null = null;
     const cancelFrame = () => {
       cancelAnimationFrame(previewFrame); previewFrame = 0; pendingPoint = null;
@@ -1326,26 +1328,86 @@ export function UIWorkspace({
       drag.current = null;
       show(null);
     };
+    const cancelPointer = () => {
+      const active = pointer; pointer = null;
+      end(); active?.release?.();
+    };
+    const pointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || pointer || event.defaultPrevented) return;
+      const target = event.target as Element;
+      if (target.closest("input,select,textarea,a,[contenteditable=true],.window-resize-grip")) return;
+      const handle = target.closest<HTMLElement>("[data-ui-control],[data-ui-drag],[data-ui-function]");
+      if (!handle?.draggable) return;
+      pointer = { down: event, started: false };
+    };
+    const pointerMove = (event: PointerEvent) => {
+      const active = pointer;
+      if (!active || event.pointerId !== active.down.pointerId) return;
+      if (!active.started) {
+        if (Math.hypot(event.clientX - active.down.clientX, event.clientY - active.down.clientY) <= 5) return;
+        if (!(active.down.target instanceof Element) || !active.down.target.isConnected) { cancelPointer(); return; }
+        start(active.down);
+        if (!drag.current) { cancelPointer(); return; }
+        active.started = true;
+        active.release = captureUIPointer(event.pointerId);
+      }
+      event.preventDefault(); event.stopImmediatePropagation();
+      over(event as unknown as globalThis.DragEvent);
+    };
+    const pointerUp = (event: PointerEvent) => {
+      const active = pointer;
+      if (!active || event.pointerId !== active.down.pointerId || event.button !== 0) return;
+      pointer = null;
+      try { if (active.started) drop(event); }
+      finally { active.release?.(); }
+    };
+    const pointerCancel = (event: PointerEvent) => {
+      if (pointer?.down.pointerId === event.pointerId) cancelPointer();
+    };
+    const captureLost = (event: PointerEvent) => {
+      if (event.target === document.documentElement) pointerCancel(event);
+    };
+    const preventContext = (event: Event) => {
+      if (pointer?.started) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
+    const nativeStart = (event: globalThis.DragEvent) => {
+      if (pointer) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      start(event);
+    };
+    const nativeEnd = () => { if (!pointer) end(); };
+    const nativeDrop = (event: globalThis.DragEvent) => { if (!pointer) drop(event); };
     const keydown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && drag.current) {
+      if (e.key === "Escape" && (drag.current || pointer?.started)) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        drag.current.cancelled = true;
-        cancelFrame();
-        show(null);
+        cancelPointer();
       }
     };
-    window.addEventListener("dragstart", start, true);
+    window.addEventListener("pointerdown", pointerDown, true);
+    window.addEventListener("pointermove", pointerMove, true);
+    window.addEventListener("pointerup", pointerUp, true);
+    window.addEventListener("pointercancel", pointerCancel, true);
+    window.addEventListener("lostpointercapture", captureLost, true);
+    window.addEventListener("contextmenu", preventContext, true);
+    window.addEventListener("blur", cancelPointer);
+    window.addEventListener("dragstart", nativeStart, true);
     window.addEventListener("dragover", over, true);
-    window.addEventListener("drop", drop, true);
-    window.addEventListener("dragend", end);
+    window.addEventListener("drop", nativeDrop, true);
+    window.addEventListener("dragend", nativeEnd);
     window.addEventListener("keydown", keydown, true);
     return () => {
-      cancelFrame();
-      window.removeEventListener("dragstart", start, true);
+      cancelPointer();
+      window.removeEventListener("pointerdown", pointerDown, true);
+      window.removeEventListener("pointermove", pointerMove, true);
+      window.removeEventListener("pointerup", pointerUp, true);
+      window.removeEventListener("pointercancel", pointerCancel, true);
+      window.removeEventListener("lostpointercapture", captureLost, true);
+      window.removeEventListener("contextmenu", preventContext, true);
+      window.removeEventListener("blur", cancelPointer);
+      window.removeEventListener("dragstart", nativeStart, true);
       window.removeEventListener("dragover", over, true);
-      window.removeEventListener("drop", drop, true);
-      window.removeEventListener("dragend", end);
+      window.removeEventListener("drop", nativeDrop, true);
+      window.removeEventListener("dragend", nativeEnd);
       window.removeEventListener("keydown", keydown, true);
     };
   }, []);
