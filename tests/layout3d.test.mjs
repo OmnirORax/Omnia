@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyDocument } from "../src/graph/structural.ts";
 import { DEFAULT_SPATIAL_SETTINGS as settings, createPlacement, movePlacement, reparentStructure, reparentVisual, compactLayout, siblingCollisions, worldPositions } from "../src/graph/layout3d.ts";
+import { ARROW_LENGTH, BINDER_LENGTH_RATIO } from '../src/graph/binderGeometry.ts';
+import { labelSize } from '../src/graph/labels.ts';
 
 const entity = (id) => ({ id, label: id, aliases: [], notes: "" });
 test("compaction preserves authored root directions, independent of a coarse drag grid", () => {
@@ -49,8 +51,10 @@ const fixture = () => {
 test("new children use the nearest clear grid position beside the parent and avoid sibling footprints", () => {
   const { doc, child, other } = fixture();
   const position = doc.placements.find((p) => p.id === child).spatialPosition;
-  assert.equal(position.x,2);
-  assert.equal(position.y, 0); assert.equal(position.z, 0);
+  assert.equal(Math.hypot(position.x,position.y,position.z),settings.spacing);
+  assert.equal(position.z, 0);
+  const labelExtent = (labelSize('system').height + labelSize('part').height) / 2;
+  assert.ok(Math.abs(position.y)-labelExtent >= BINDER_LENGTH_RATIO*ARROW_LENGTH);
   assert.equal(siblingCollisions(doc, settings).length, 0);
   assert.notDeepEqual(doc.placements.find((p) => p.id === other).spatialPosition, position);
   assert.equal(doc.entities.length, 3);
@@ -71,7 +75,9 @@ test('default children leave only footprint clearance with snapping off and neve
   const root=createPlacement(doc,'root',null,{...settings,spacing:0},{x:0,y:0,z:0});
   const child=createPlacement(root.next,'child',root.placementId,{...settings,spacing:0});
   const p=child.next.placements.find(p=>p.id===child.placementId).spatialPosition;
-  assert.ok(p.x>1 && p.x<2.5);assert.equal(p.y,0);assert.equal(p.z,0);
+  const gap=Math.hypot(p.x,p.y,p.z)-(labelSize('root').height+labelSize('child').height)/2;
+  assert.ok(gap>=BINDER_LENGTH_RATIO*ARROW_LENGTH);
+  assert.ok(Math.hypot(p.x,p.y,p.z)<1.5);assert.equal(p.x,0);assert.equal(p.z,0);
   const moved=movePlacement(child.next,child.placementId,{x:0,y:0,z:0},settings);
   assert.notDeepEqual(moved.placements.find(p=>p.id===child.placementId).spatialPosition,{x:0,y:0,z:0});
 });
@@ -81,6 +87,14 @@ test('wide labels choose a nearer clear direction instead of forcing a long hori
   const child=createPlacement(root.next,'child',root.placementId,settings);
   const p=child.next.placements.find(p=>p.id===child.placementId).spatialPosition;
   assert.equal(Math.hypot(p.x,p.y,p.z),2);
+  assert.equal(p.x,0);assert.equal(p.z,0);
+});
+test('new children still prefer positive X when equally near clear directions fit',()=>{
+  const doc=emptyDocument();doc.entities=[{...entity('root'),label:''},{...entity('child'),label:''}];
+  doc.compositions=[{id:'contains',parentId:'root',childId:'child',text:''}];
+  const root=createPlacement(doc,'root',null,settings,{x:0,y:0,z:0});
+  const child=createPlacement(root.next,'child',root.placementId,settings);
+  assert.deepEqual(child.next.placements.find(p=>p.id===child.placementId).spatialPosition,{x:2,y:0,z:0});
 });
 test("shift nesting updates authored composition, avoids cycles and retains identity", () => {
   const { doc, root, child, other } = fixture();

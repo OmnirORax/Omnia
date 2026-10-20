@@ -1,17 +1,17 @@
 import type { WorkspaceSettings } from "../workspaceActions";
-import { resolveTargetSparkles, type SurfaceTarget } from "../graph/effects";
-import { controllerTargets } from "./registry";
-import { valueFor, brightHex } from "./resolve";
-/** Local effect edits share the same referenced property values as the master tree. */
+import { controllerTargets, EFFECT_PROPERTIES, type RegisteredTarget } from "./registry";
+import { connected } from "./model";
+import { valueFor, effectsFor, effectsFromValues } from "./resolve";
+/** Resolve effect properties through the actual UI ownership chain. */
 export function elementEffects(
   raw: WorkspaceSettings["appearance"],
   effective: WorkspaceSettings["appearance"],
-  target: SurfaceTarget,
+  target: RegisteredTarget,
   element: HTMLElement,
+  targets = controllerTargets(raw.controller!),
 ) {
-  const fallback = resolveTargetSparkles(effective, target),
-    state = raw.controller;
-  if (!state) return fallback;
+  const state = raw.controller;
+  if (!state) return effectsFor(effective, target.id);
   const owners: string[] = [];
   let root = element.closest<HTMLElement>("[data-ui-resident-root]");
   while (root) {
@@ -20,26 +20,18 @@ export function elementEffects(
   }
   const fn = element.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction;
   if (fn) owners.push(`function:${fn}`);
-  const targets = controllerTargets(state);
-  let chosen: ReturnType<typeof controllerTargets>[number] | undefined;
+  const values = { ...effective.renderDefaults?.[target.id] };
   for (const owner of owners) {
-    const found = targets.find(
-      (t) => t.instance?.base === `vfx.${target}` && t.instance.owner === owner,
-    );
-    if (found) chosen = found;
+    const local = targets.find((t) => t.instance?.base === target.id && t.instance.owner === owner);
+    if (!local) continue;
+    for (const property of EFFECT_PROPERTIES)
+      if (
+        state.values[local.id]?.[property] !== undefined ||
+        !connected(state, targets, local.id, property)
+      )
+        values[property] = valueFor(raw, state, local, property);
   }
-  if (!chosen) return fallback;
-  const get = (p: string) => valueFor(raw, state, chosen!, p);
-  return {
-    ...fallback,
-    color: brightHex(get("color") as string, get("brightness") as number),
-    opacity: get("opacity") as number,
-    glow: get("glow") as number,
-    effect: get("effect") as typeof fallback.effect,
-    motion: get("speed") as number,
-    intensity: get("intensity") as number,
-    density: get("density") as number,
-    starSize: get("size") as number,
-    boltLength: get("length") as number,
-  };
+  return Object.keys(values).length
+    ? effectsFromValues((p) => values[p] ?? valueFor(raw, state, target, p))
+    : effectsFor(effective, target.id);
 }

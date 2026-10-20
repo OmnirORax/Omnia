@@ -1,6 +1,17 @@
 /** Stable appearance references belong to presentation settings, never graph identity. */
 export type Value = string | number | boolean;
 export type Values = Record<string, Value>;
+/** General adjusters include their effect channel; effect-only adjusters stay independent. */
+const companions: Record<string, string> = {
+  color: "effectColor",
+  brightness: "effectBrightness",
+  opacity: "effectOpacity",
+  glow: "effectGlow",
+};
+export const propertyChannels = (property: string) => [
+  property,
+  ...(companions[property] ? [companions[property]] : []),
+];
 export type Rule = { all?: boolean; properties?: string[] };
 export type Instance = { base: string; owner: string; label: string; path?: string[] };
 export type Target = {
@@ -8,6 +19,7 @@ export type Target = {
   parent?: string;
   label: string;
   properties?: string[];
+  effectKinds?: readonly string[];
   instance?: Instance;
 };
 export type AppearanceSet = {
@@ -140,7 +152,12 @@ export function blocked(
   const path = ancestry(targets, id),
     from = origin ? path.indexOf(origin) : -1;
   // A deliberate edit at a locked row is allowed. Propagation stops at lower locks.
-  return path.some((key, index) => index > from && ruleHas(state.locks[key], property));
+  const family = Object.keys(companions).find((key) => companions[key] === property);
+  return path.some(
+    (key, index) =>
+      index > from &&
+      (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))),
+  );
 }
 export const connected = (state: Controller, targets: Target[], id: string, property: string) =>
   !ancestry(targets, id).some((key) => ruleHas(state.disconnected[key], property));
@@ -202,15 +219,20 @@ export function applyValue(
   }
   for (const target of targets) {
     if (!target.properties?.includes(property)) continue;
+    if (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value)))
+      continue;
     if (origin ? !inside(targets, target.id, origin) : !included(set, targets, target.id)) continue;
     // Global adjustment originates at the nearest included category; direct row edits bypass its own lock.
     const root = origin ?? set.only ?? "all";
-    if (blocked(state, targets, target.id, property, root)) continue;
-    next.values[target.id] = { ...next.values[target.id], [property]: value };
-    next.refined[target.id] =
-      local && target.instance
-        ? [...new Set([...(next.refined[target.id] ?? []), property])]
-        : (next.refined[target.id] ?? []).filter((p) => p !== property);
+    for (const channel of propertyChannels(property)) {
+      if (!target.properties.includes(channel) || blocked(state, targets, target.id, channel, root))
+        continue;
+      next.values[target.id] = { ...next.values[target.id], [channel]: value };
+      next.refined[target.id] =
+        local && target.instance
+          ? [...new Set([...(next.refined[target.id] ?? []), channel])]
+          : (next.refined[target.id] ?? []).filter((p) => p !== channel);
+    }
   }
   return next;
 }

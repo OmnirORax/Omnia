@@ -23,8 +23,9 @@ export function AppearanceStyles() {
       if (!binding?.selector || !binding.css || !target.properties) continue;
       const values = state.values[target.id] ?? {};
       const local = !!target.instance;
-      const active =
-        local || Object.keys(values).length > 0 || !connected(state, targets, target.id, "color");
+      const active = ["color", "brightness", "opacity", "glow", "blur", "font"].some(
+        (p) => values[p] !== undefined || !connected(state, targets, target.id, p),
+      );
       const legacyText = !!binding.text && (base.textColor !== undefined || base.textGlow > 0);
       if (!active && !legacyText) continue;
       const color = valueFor(base, state, target, "color") as string,
@@ -94,7 +95,8 @@ export function useIconTint(owner: string) {
     brightness = Number(get("brightness")),
     glow = Number(get("glow"));
   const color =
-    instance || custom.color !== undefined
+    custom.color !== undefined ||
+    (!!instance && ctx.state.values[instance.instance!.base]?.color !== undefined)
       ? brightHex(get("color") as string, brightness)
       : undefined;
   const style = {

@@ -56,9 +56,17 @@ function preferred(doc: Document, entityId: string, parentId: string | null, set
   const parentSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===parent.entityId)?.label??''),parent.visual, settings.sphereDiameter);
   const childSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===entityId)?.label??''), undefined, settings.sphereDiameter);
   const composition = doc.compositions.find(c => c.parentId === parent.entityId && c.childId === entityId);
-  const binder = composition ? { visual: composition.visual, label: composition.text ?? (composition.operators?.map(o => o.text).join(" · ") || "contains") } : { label: "" };
-  const nearest=(parentSize.width+childSize.width)/2+Math.max(settings.clearance,binderGap(binder, { x: 1, y: 0, z: 0 }));
-  return {x:settings.spacing?Math.ceil(nearest/settings.spacing)*settings.spacing:nearest,y:0,z:0};
+  const binder = composition ? { visual: composition.visual, label: composition.text ?? (composition.operators?.map(o => o.text).join(" · ") || "contains") } : { label: "visual nesting" };
+  // Compare the readable XY directions using the binder actually rendered.
+  // Prefer +X on ties, without forcing wide labels far across the workspace.
+  const candidates = [{ x: 1, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }].map(direction => {
+    const extent = direction.x ? (parentSize.width + childSize.width) / 2 : (parentSize.height + childSize.height) / 2;
+    const minimum = extent + Math.max(settings.clearance, binderGap(binder, direction));
+    const length = settings.spacing ? Math.ceil(minimum / settings.spacing) * settings.spacing : minimum;
+    return { point: { x: direction.x * length, y: direction.y * length, z: 0 }, length };
+  });
+  candidates.sort((a, b) => a.length - b.length);
+  return candidates[0].point;
 }
 function spacingBinders(doc: Document): DisplayBinder[] {
   return chartedBinders(doc, editorView({ ...doc, activeFrameId: null }, new Set(doc.placements.map(p => p.id))));

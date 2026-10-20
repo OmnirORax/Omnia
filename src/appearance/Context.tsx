@@ -1,7 +1,14 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
 import { ownerOf } from "../ui/layout";
-import { ancestry, ruleHas, toggleRule, type Controller, type Value } from "./model";
+import {
+  ancestry,
+  ruleHas,
+  toggleRule,
+  propertyChannels,
+  type Controller,
+  type Value,
+} from "./model";
 import {
   controllerTargets,
   instanceId,
@@ -81,7 +88,7 @@ export function AppearanceProvider({
     for (const target of targets) {
       if (!ancestry(targets, target.id).includes(id)) continue;
       for (const p of target.properties ?? []) {
-        if (property && p !== property) continue;
+        if (property && !propertyChannels(property).includes(p)) continue;
         next.values[target.id] = {
           ...next.values[target.id],
           [p]: valueFor(activeBridge.base, state, target, p),
@@ -133,8 +140,11 @@ export function AppearanceProvider({
         ui.frameActions.get(key)?.title ?? key.replace(/^(window:panel:|window:|frame:)/, ""),
     );
     next.instances[id] = { base: baseId, owner, label: label || names.at(-1) || owner, path };
-    next.values[id] = { ...next.values[id], [property]: value };
-    next.refined[id] = [...new Set([...(next.refined[id] ?? []), property])];
+    for (const channel of propertyChannels(property))
+      if (TARGETS.find((t) => t.id === baseId)?.properties?.includes(channel)) {
+        next.values[id] = { ...next.values[id], [channel]: value };
+        next.refined[id] = [...new Set([...(next.refined[id] ?? []), channel])];
+      }
     if (preview) activeBridge.preview(next);
     else activeBridge.commit(next);
   };

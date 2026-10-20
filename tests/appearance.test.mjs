@@ -9,7 +9,7 @@ import {
   connected,
 } from "../src/appearance/model.ts";
 import { controllerTargets, loadController } from "../src/appearance/registry.ts";
-import { valueFor, resolveControllerAppearance } from "../src/appearance/resolve.ts";
+import { valueFor, resolveControllerAppearance, effectsFor } from "../src/appearance/resolve.ts";
 import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 const fixture = () => {
@@ -81,25 +81,25 @@ test("property locks are independent and all locks cover future property IDs", (
 test("plugs bypass application without erasing values and reconnect restores effects", () => {
   const base = defaultSettings().appearance;
   let { state, targets } = fixture();
-  state = applyValue(state, targets, "effect", "starfield", "vfx.background");
-  state = toggleRule(state, "disconnected", "vfx");
-  assert.equal(connected(state, targets, "vfx.background", "effect"), false);
+  state = applyValue(state, targets, "effect", "starfield", "workspace.background");
+  state = toggleRule(state, "disconnected", "workspace");
+  assert.equal(connected(state, targets, "workspace.background", "effect"), false);
   assert.equal(
     valueFor(
       base,
       state,
-      targets.find((t) => t.id === "vfx.background"),
+      targets.find((t) => t.id === "workspace.background"),
       "effect",
     ),
     "off",
   );
-  assert.equal(state.values["vfx.background"].effect, "starfield");
-  state = toggleRule(state, "disconnected", "vfx");
+  assert.equal(state.values["workspace.background"].effect, "starfield");
+  state = toggleRule(state, "disconnected", "workspace");
   assert.equal(
     valueFor(
       base,
       state,
-      targets.find((t) => t.id === "vfx.background"),
+      targets.find((t) => t.id === "workspace.background"),
       "effect",
     ),
     "starfield",
@@ -149,4 +149,70 @@ test("legacy settings retain authored defaults and controller/theme round trips 
   const rendered = resolveControllerAppearance(base.appearance);
   assert.equal(rendered.nodes.color, "#fedcba");
   assert.equal(base.appearance.nodes.color, "#fedcba");
+});
+
+test("animations are properties of real branches, with independent text and surface rendering", () => {
+  let { state, targets } = fixture();
+  const base = defaultSettings().appearance;
+  assert.equal(
+    targets.some((t) => t.id === "vfx" || t.id.startsWith("vfx.")),
+    false,
+  );
+  for (const id of [
+    "text.nodes",
+    "text.binders",
+    "text.ui.buttons",
+    "symbols.ui",
+    "ui.windows.contour",
+    "omnium.binders.path",
+    "workspace.background",
+  ])
+    assert.ok(targets.find((t) => t.id === id).properties.includes("effect"));
+  state = applyValue(state, targets, "effect", "electric-text", "text");
+  base.controller = state;
+  const resolved = resolveControllerAppearance(base);
+  assert.equal(effectsFor(resolved, "text.nodes").effect, "electric-text");
+  assert.equal(effectsFor(resolved, "text.ui.buttons").effect, "electric-text");
+  assert.notEqual(effectsFor(resolved, "omnium.nodes.body").effect, "electric-text");
+  state = applyValue(state, targets, "effect", "electric-text", "all");
+  assert.equal(state.values["omnium.nodes.body"]?.effect, undefined);
+  state = toggleRule(state, "locks", "text", "effect");
+  state = applyValue(state, targets, "effect", "off");
+  assert.equal(state.values["text.nodes"].effect, "electric-text");
+  const withoutFormatting = structuredClone(state.values["text.nodes"]);
+  state = applyValue(state, targets, "speed", 0.8, "text");
+  assert.equal(state.values["text.nodes"].color, withoutFormatting.color);
+});
+test("old VFX values, locks, plugs and local references migrate without overwriting surface colors", () => {
+  const state = emptyController();
+  state.values["ui.windows.contour"] = { color: "#123456" };
+  state.values["vfx.windows"] = { effect: "lightning", color: "#ee22aa", speed: 0.7 };
+  state.locks.vfx = { all: true };
+  state.disconnected["vfx.background"] = { all: true };
+  const id = "vfx.windows@@window%3Atheme";
+  state.instances[id] = {
+    base: "vfx.windows",
+    owner: "window:theme",
+    label: "Theme",
+    path: ["window:theme"],
+  };
+  state.values[id] = { color: "#ff00ff", intensity: 0.8 };
+  state.refined[id] = ["color"];
+  const migrated = loadController(state);
+  assert.equal(migrated.values["ui.windows.contour"].color, "#123456");
+  assert.equal(migrated.values["ui.windows.contour"].effectColor, "#ee22aa");
+  assert.equal(migrated.values["ui.windows.contour"].effect, "lightning");
+  assert.ok(migrated.locks["text.ui.titles"].properties.includes("effect"));
+  assert.ok(migrated.disconnected["workspace.background"].properties.includes("effect"));
+  const local = Object.keys(migrated.instances).find(
+    (key) => migrated.instances[key].base === "ui.windows.contour",
+  );
+  assert.equal(migrated.instances[local].owner, "window:theme");
+  assert.equal(migrated.values[local].effectColor, "#ff00ff");
+  assert.ok(migrated.refined[local].includes("effectColor"));
+  assert.equal(
+    Object.keys(migrated.values).some((key) => key.startsWith("vfx")),
+    false,
+  );
+  assert.deepEqual(loadController(migrated), migrated);
 });
