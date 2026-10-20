@@ -24,7 +24,7 @@ export function createSceneAppearance(renderer: THREE.WebGLRenderer, scene: THRE
     const glow = context.createRadialGradient(32, 32, 0, 32, 32, 30);
     glow.addColorStop(0, "#ffffff"); glow.addColorStop(0.16, "#ffffffd0"); glow.addColorStop(1, "#ffffff00");
     context.fillStyle = glow; context.fillRect(0, 0, 64, 64);
-    if (effect === "stars" || effect === "falling-stars") {
+    if (effect === "stars" || effect === "starfield" || effect === "falling-stars") {
       context.strokeStyle = "#ffffffaa"; context.lineWidth = 2;
       context.beginPath(); context.moveTo(32, 8); context.lineTo(32, 56); context.moveTo(8, 32); context.lineTo(56, 32); context.stroke();
     } else if (effect === "sparks") {

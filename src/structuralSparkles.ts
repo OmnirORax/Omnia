@@ -15,6 +15,15 @@ export function createStructuralSparkles(scene: THREE.Scene) {
     points.frustumCulled = false; points.userData.glowIntensity = 0.25; scene.add(points); return points;
   };
   const nodes = batch(), binders = batch(), background = batch(), point = new THREE.Vector3(), color = new THREE.Color();
+  // The original atmosphere's fixed seed and world-space distribution.
+  // Reuse the existing background batch rather than adding another render loop.
+  let randomSeed = 173;
+  const random = () => { randomSeed = (Math.imul(randomSeed, 1664525) + 1013904223) >>> 0; return randomSeed / 4294967296; };
+  const starfield = new Float32Array(720 * 3);
+  for (let i = 0; i < 720; i++) {
+    const angle = random() * Math.PI * 2, z = random() * 2 - 1, radius = 12 + random() * 115;
+    starfield.set([Math.cos(angle) * Math.sqrt(1 - z * z) * radius, z * radius, Math.sin(angle) * Math.sqrt(1 - z * z) * radius], i * 3);
+  }
   nodes.name = "Node outline sparkles"; binders.name = "Binder path sparkles";
   background.name = "Background animation"; background.renderOrder = -1000;
   const configure = (points: typeof nodes, fx: SparkleStyle, active: boolean, texture: (kind: EffectKind) => THREE.Texture) => {
@@ -73,7 +82,18 @@ export function createStructuralSparkles(scene: THREE.Scene) {
         }
       }
       finish(binders, count); count = 0;
-      if (background.visible) {
+      if (background.visible && backgroundFx.effect === "starfield") {
+        const time = seconds * backgroundFx.motion;
+        background.position.set(0, 0, 0); background.rotation.set(0, time * 0.025, 0);
+        background.material.size = 3;
+        color.set(backgroundFx.color ?? theme.accent);
+        const n = Math.round(720 * backgroundFx.density);
+        const pulse = backgroundFx.motion > 0 ? 0.9 + 0.1 * Math.sin(time * 1.3) : 1;
+        for (let i = 0; i < n; i++) {
+          point.fromArray(starfield, i * 3);
+          write(background, count++, point, color, theme.opacity * pulse);
+        }
+      } else if (background.visible) {
         // A camera-relative backdrop behind charted geometry, independent of atlas bounds.
         const depth = camera.far * 0.9, halfHeight = depth * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV() / 2));
         background.position.copy(camera.position); background.quaternion.copy(camera.quaternion);
