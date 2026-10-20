@@ -22,13 +22,12 @@ try {
       ?.dataset.uiDrag?.startsWith("window:property:"),
   );
   await animation.click({ button: "right" });
+  const frameMenu = p.getByRole("menu", { name: "UI frame settings" });
+  await frameMenu.waitFor();
+  await frameMenu.getByRole("button", { name: "Frame handle appearance", exact: true }).click();
   const dialog = p.locator(".function-appearance");
   await dialog.waitFor();
   assert.match(await dialog.locator(".ui-frame-handle").first().innerText(), /Animation/);
-  assert.equal(
-    await p.getByRole("button", { name: "Frame handle appearance", exact: true }).count(),
-    0,
-  );
   await dialog.getByLabel("Frame handle display", { exact: true }).selectOption("icon");
   await dialog.getByLabel("Frame handle symbol", { exact: true }).fill("A");
   await p.keyboard.press("Escape");

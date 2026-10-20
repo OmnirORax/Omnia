@@ -50,6 +50,11 @@ export function FrameChrome({
   const ui = useUI(),
     style = state.chrome?.style ?? { mode: "text", geometry: "circle" },
     asset = ui.layout.assets.find((a) => a.id === style.assetId);
+  const openFrameMenu = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    ui.frameMenu(container, event.clientX, event.clientY);
+  };
   useLayoutEffect(() => {
     const actions = { title, label: label ?? title, state, onChange, onRename, onClose, closeLabel };
     ui.frameActions.set(container, actions);
@@ -59,7 +64,7 @@ export function FrameChrome({
   });
   if (inline)
     return (
-      <div className="property-node-heading" data-ui-chrome={container}>
+      <div className="property-node-heading" data-ui-chrome={container} onContextMenu={openFrameMenu}>
         <button
           type="button"
           className={`property-node-name ${style.mode === "icon" ? `function-icon shape-${style.geometry}` : ""}`}
@@ -76,11 +81,6 @@ export function FrameChrome({
           title={ui.layout.hideNames ? title : ""}
           onClick={onToggle ?? (() => onChange({ collapsed: !state.collapsed }))}
           onDragStart={(event) => startResidentDrag(event, container)}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            ui.configureFrame(container);
-          }}
         >
           {style.mode === "icon" ? (
             asset ? (
@@ -114,11 +114,7 @@ export function FrameChrome({
       className={`floating-title frame-chrome ${className} ${state.pinned ? "is-pinned" : ""}`}
       data-ui-chrome={container}
       data-ui-container-key={container}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        ui.frameMenu(container, e.clientX, e.clientY);
-      }}
+      onContextMenu={openFrameMenu}
     >
       <div
         className="ui-frame-tools"
