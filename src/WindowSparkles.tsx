@@ -1,11 +1,13 @@
+import { elementEffects } from "./appearance/localEffects";
 import { useEffect, useRef } from "react";
 import type { WorkspaceSettings } from "./workspaceActions";
 import { clearUILightningContours, drawUILightning, drawUIElectricText } from "./uiLightning";
 import { effectSeed, effectVisible, fallingStar, perimeterPoint, resolveTargetSparkles, type SurfaceTarget } from "./graph/effects";
 
 /** Pointer-transparent decoration follows live UI bounds, including portalled windows. */
-export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["appearance"] }) {
+export function WindowSparkles({ appearance, source = appearance }: { appearance: WorkspaceSettings["appearance"]; source?: WorkspaceSettings["appearance"] }) {
   const canvas = useRef<HTMLCanvasElement>(null), current = useRef(appearance); current.current = appearance;
+  const raw = useRef(source); raw.current = source;
   const redraw = useRef<() => void>(() => {});
   useEffect(() => {
     const surface = canvas.current!, context = surface.getContext("2d"); if (!context) return;
@@ -28,33 +30,37 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
       context.shadowBlur = a.glow * 12;
       let moving = false, lightningBudget = 1800, electricBudget = 1_200_000;
       for (const [target, selector] of selectors) {
-        const fx = resolveTargetSparkles(a, target); if (!effectVisible(fx)) continue;
+        const fx = resolveTargetSparkles(a, target); const hasLocal = Object.values(raw.current.controller?.instances ?? {}).some(instance => instance.base === `vfx.${target}`); if (!effectVisible(fx) && !hasLocal) continue;
+        context.shadowBlur = (fx.glow ?? a.glow) * 12;
         context.strokeStyle = context.fillStyle = context.shadowColor = fx.color ?? (fx.effect === "electric-text" ? a.textColor : undefined) ?? a.accent;
-        const time = phase * fx.motion;
         const candidates = [...document.querySelectorAll<HTMLElement>(selector)];
         for (let index = 0; index < Math.min(100, candidates.length); index++) {
           const element = candidates[index]; if (!element.getClientRects().length || element.closest("[hidden],.ui-drag-source") || getComputedStyle(element).visibility === "hidden") continue;
           const r = element.getBoundingClientRect(); if (!r.width || !r.height || r.bottom < 0 || r.top > height || r.right < 0 || r.left > width) continue;
-          moving ||= fx.motion > 0;
+          const localFx = elementEffects(raw.current,a,target,element); if(!effectVisible(localFx))continue;
+          context.strokeStyle = context.fillStyle = context.shadowColor = localFx.color ?? a.accent;
+          context.shadowBlur = (localFx.glow ?? a.glow) * 12;
+          const localTime = phase * localFx.motion;
+          moving ||= localFx.motion > 0;
           const seed = effectSeed(`${target}:${element.dataset.uiFunction ?? element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? `${element.className}:${index}`}`);
-          if (fx.effect === "electric-text") {
-            electricBudget -= drawUIElectricText(context, element, r, fx, time, a.opacity, !reduced.matches && fx.motion > 0, electricBudget);
+          if (localFx.effect === "electric-text") {
+            electricBudget -= drawUIElectricText(context, element, r, localFx, localTime, a.opacity * (localFx.opacity ?? 1), !reduced.matches && localFx.motion > 0, electricBudget);
             continue;
           }
-          if (fx.effect === "lightning") {
-            lightningBudget -= drawUILightning(context, element, r, fx, time, seed, a.opacity, !reduced.matches && fx.motion > 0, lightningBudget);
+          if (localFx.effect === "lightning") {
+            lightningBudget -= drawUILightning(context, element, r, localFx, localTime, seed, a.opacity * (localFx.opacity ?? 1), !reduced.matches && localFx.motion > 0, lightningBudget);
             continue;
           }
-          const snow = fx.effect === "falling-stars";
-          const count = Math.ceil(fx.density * Math.min(snow ? 40 : 12, Math.max(3, snow ? r.width * r.height / 1800 : (r.width + r.height) / 90)));
+          const snow = localFx.effect === "falling-stars";
+          const count = Math.ceil(localFx.density * Math.min(snow ? 40 : 12, Math.max(3, snow ? r.width * r.height / 1800 : (r.width + r.height) / 90)));
           for (let i = 0; i < count; i++) {
-            const falling = fallingStar(seed, i, time);
-            const p = snow ? { x: falling.x * Math.max(0, r.width - 8) + 4, y: falling.y * Math.max(0, r.height - 8) + 4 } : perimeterPoint(r.width + 4, r.height + 4, seed + i / count + time * 0.025);
+            const falling = fallingStar(seed, i, localTime);
+            const p = snow ? { x: falling.x * Math.max(0, r.width - 8) + 4, y: falling.y * Math.max(0, r.height - 8) + 4 } : perimeterPoint(r.width + 4, r.height + 4, seed + i / count + localTime * 0.025);
             const x = r.x + p.x - (snow ? 0 : 2), y = r.y + p.y - (snow ? 0 : 2);
-            context.globalAlpha = a.opacity * fx.intensity * (snow ? falling.twinkle : 0.35 + 0.65 * (Math.sin(time * 2.5 + i * 2 + seed * 21) + 1) / 2);
+            context.globalAlpha = a.opacity * (localFx.opacity ?? 1) * localFx.intensity * (snow ? falling.twinkle : 0.35 + 0.65 * (Math.sin(localTime * 2.5 + i * 2 + seed * 21) + 1) / 2);
             context.beginPath();
-            if (fx.effect === "stars" || fx.effect === "starfield" || snow) { const size = 3 * (fx.effect === "starfield" ? fx.starSize ?? 1 : 1); context.moveTo(x - size, y); context.lineTo(x + size, y); context.moveTo(x, y - size); context.lineTo(x, y + size); context.stroke(); }
-            else if (fx.effect === "sparks") { context.moveTo(x - 1, y + 3); context.lineTo(x + 1, y - 3); context.stroke(); }
+            if (localFx.effect === "stars" || localFx.effect === "starfield" || snow) { const size = 3 * (localFx.effect === "starfield" ? localFx.starSize ?? 1 : 1); context.moveTo(x - size, y); context.lineTo(x + size, y); context.moveTo(x, y - size); context.lineTo(x, y + size); context.stroke(); }
+            else if (localFx.effect === "sparks") { context.moveTo(x - 1, y + 3); context.lineTo(x + 1, y - 3); context.stroke(); }
             else { context.arc(x, y, 1.3, 0, Math.PI * 2); context.fill(); }
           }
         }
@@ -66,7 +72,7 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
     redraw.current = request;
     const resume = () => { previous = 0; request(); };
     const fontsLoaded = () => { clearUILightningContours(); request(); };
-    const observer = new MutationObserver(() => { if (current.current.theme === "neon" && selectors.some(([target]) => effectVisible(resolveTargetSparkles(current.current, target)))) request(); });
+    const observer = new MutationObserver(() => { if (current.current.theme === "neon" && selectors.some(([target]) => effectVisible(resolveTargetSparkles(current.current, target))||Object.values(raw.current.controller?.instances??{}).some(instance=>instance.base===`vfx.${target}`))) request(); });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
     document.fonts.addEventListener("loadingdone", fontsLoaded); window.addEventListener("resize", request); document.addEventListener("load", request, true); document.addEventListener("scroll", request, true); document.addEventListener("input", request, true); document.addEventListener("visibilitychange", resume); reduced.addEventListener("change", resume); request();
     return () => { document.fonts.removeEventListener("loadingdone", fontsLoaded); observer.disconnect(); cancelAnimationFrame(frame); if (timer !== undefined) clearTimeout(timer); window.removeEventListener("resize", request); document.removeEventListener("load", request, true); document.removeEventListener("scroll", request, true); document.removeEventListener("input", request, true); document.removeEventListener("visibilitychange", resume); reduced.removeEventListener("change", resume); redraw.current = () => {}; };

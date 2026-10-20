@@ -1,3 +1,6 @@
+import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
+import { AppearanceStyles, useIconTint } from "../appearance/Styles";
+import { ContextualAppearance } from "../appearance/ContextualEditor";
 import {
   cloneElement,
   useEffect,
@@ -108,6 +111,7 @@ function FunctionElement({
   const ui = useUI(),
     item = ui.layout.items[fn.id],
     style = item?.style ?? defaultStyle;
+  const iconTint = useIconTint(`function:${fn.id}`);
   const [controlOpen, setControlOpen] = useState(false);
   const shortcut = ui.shortcutBindings?.[buttonShortcutId(fn.id)];
   const asset = ui.layout.assets.find((a) => a.id === style.assetId);
@@ -117,9 +121,9 @@ function FunctionElement({
     ) : style.mode === "text" ? (
       ((fn.element.props as { children?: ReactNode }).children ?? fn.label)
     ) : asset ? (
-      <img src={asset.dataUrl} alt="" />
+      iconTint.color ? <span className="appearance-icon-mask" style={{ ...iconTint.style, backgroundColor: iconTint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} /> : <img src={asset.dataUrl} alt="" style={iconTint.style}/>
     ) : (
-      <span>{style.character || "○"}</span>
+      <span style={{...iconTint.style,color:iconTint.color}}>{style.character || "○"}</span>
     );
   const original = fn.element as ReactElement<{
     onClick?: () => void;
@@ -431,6 +435,7 @@ export function UIWorkspace({
   onReset,
   shortcuts,
   search,
+  appearance,
 }: {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
@@ -440,6 +445,7 @@ export function UIWorkspace({
   onReset: () => void;
   shortcuts?: ButtonShortcuts;
   search?: GlobalSearchProps;
+  appearance?: AppearanceBridge;
 }) {
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
@@ -1385,6 +1391,8 @@ export function UIWorkspace({
         selectionMenu: buttonSelection.openMenu,
       }}
     >
+      <AppearanceProvider bridge={appearance}>
+      <AppearanceStyles />
       {children}
       {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">
@@ -1634,6 +1642,7 @@ export function UIWorkspace({
             configureControl(null);
           }}
         >
+          <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
           {!configuredControl && (
             <>
               <label>
@@ -1718,6 +1727,7 @@ export function UIWorkspace({
           )}
         </FloatingWindow>
       )}
+      </AppearanceProvider>
     </UIContext.Provider>
   );
 }

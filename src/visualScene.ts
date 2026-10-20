@@ -8,7 +8,7 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
-  appearance: { color?: string; opacity?: number; textColor?: string; textGlow?: number } = {},
+  appearance: { color?: string; opacity?: number; brightness?: number; textColor?: string; textGlow?: number } = {},
 ) {
   const group = new THREE.Group();
   const restyle: (() => void)[] = [];
@@ -98,8 +98,10 @@ export function visualObject(
         restyle.push(() => {
           repaint?.(appearance.color);
           sprite.material.color.set(repaint ? "#ffffff" : appearance.color ?? "#ffffff");
+          sprite.material.color.multiplyScalar(appearance.brightness ?? 1);
           sprite.material.opacity = appearance.opacity ?? 1;
         });
+        restyle.at(-1)!();
         requestRender();
       },
       undefined,
@@ -137,7 +139,7 @@ export function visualObject(
             const color = "color" in material ? (material.color as THREE.Color).clone() : undefined;
             const opacity = material.opacity;
             const update = () => {
-              if (color) (material as THREE.MeshStandardMaterial).color.copy(appearance.color ? new THREE.Color(appearance.color) : color);
+              if (color) (material as THREE.MeshStandardMaterial).color.copy(appearance.color ? new THREE.Color(appearance.color) : color).multiplyScalar(appearance.brightness ?? 1);
               material.opacity = opacity * (appearance.opacity ?? 1); material.transparent ||= material.opacity < 1;
             };
             restyle.push(update); update();

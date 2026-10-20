@@ -1,3 +1,6 @@
+import { brightHex } from "./appearance/resolve";
+import { connected } from "./appearance/model";
+import { TARGETS } from "./appearance/registry";
 import * as THREE from "three";
 import { canvasFont, type FontId } from "./fonts";
 import { Line2 } from "three/addons/lines/Line2.js";
@@ -13,9 +16,30 @@ import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./graph/assets";
 import { resolveAppearance } from "./graph/appearance";
 import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
+const glyphColor = (theme: WorkspaceSettings['appearance'], id: string, fallback: string) => {
+ const v = theme.renderDefaults?.[id]; return v ? brightHex(v.color as string, v.brightness as number) : theme.textColor ?? fallback;
+};
+const glyphGlow = (theme: WorkspaceSettings['appearance'], id: string) => Number(theme.renderDefaults?.[id]?.glow ?? theme.textGlow);
+const glyphFont = (theme: WorkspaceSettings['appearance'], id: string) => (theme.renderDefaults?.[id]?.font ?? theme.font) as FontId;
+type SurfaceStyle={background?:string;contour?:string;opacity?:number;contourOpacity?:number;backgroundGlow?:number;contourGlow?:number};
+const customized=(theme:WorkspaceSettings['appearance'],id:string)=>!!theme.controller&&(!!theme.controller.values[id]||!connected(theme.controller,[...TARGETS],id,'color'));
+const surfaceStyle = (theme: WorkspaceSettings['appearance'], id: string, authored?: string):SurfaceStyle => {
+ const v=theme.renderDefaults?.[id],contour=theme.renderDefaults?.['omnium.nodes.contour'];
+ return {
+  background:customized(theme,id)&&v?brightHex(v.color as string,Number(v.brightness)):undefined,
+  opacity:customized(theme,id)&&v?Number(v.opacity):undefined,
+  backgroundGlow:customized(theme,id)&&v?Number(v.glow):undefined,
+  contour:authored??(id==='omnium.nodes.background'&&customized(theme,'omnium.nodes.contour')&&contour?brightHex(contour.color as string,Number(contour.brightness)):undefined),
+  contourOpacity:id==='omnium.nodes.background'&&customized(theme,'omnium.nodes.contour')?Number(contour?.opacity):undefined,
+  contourGlow:id==='omnium.nodes.background'&&customized(theme,'omnium.nodes.contour')?Number(contour?.glow):undefined,
+ };
+};
+const symbolStyle=(theme:WorkspaceSettings['appearance'],id:string,authored:string|undefined,fallback:string)=>{
+ const v=theme.renderDefaults?.[id];return {color:authored??(v&&customized(theme,id)?brightHex(v.color as string,Number(v.brightness)):fallback),opacity:Number(v?.opacity??1),brightness:Number(v?.brightness??1),glow:Number(v?.glow??0)};
+};
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
-export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color) {
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}) {
   const lines = labelLines(value),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d")!;
@@ -28,19 +52,23 @@ export function textSprite(value: string, color: string, selected = false, node 
   const paint = (border: string, ink: string, glow: number) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
     if (node) {
-      ctx.fillStyle = neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb";
+      ctx.fillStyle = surface.background ?? (neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb");
       ctx.beginPath();
       ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, 12);
-      ctx.fill();
-      ctx.strokeStyle = selected ? neon ? "#69efff" : "#b9dcff" : border;
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = (surface.backgroundGlow ?? 0) * 10;
+      ctx.globalAlpha = surface.opacity ?? 1; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = surface.contour ?? (selected ? neon ? "#69efff" : "#b9dcff" : border);
       ctx.lineWidth = selected ? 3 : 1;
-      ctx.globalAlpha = selected ? 1 : 0.35;
+      ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=(surface.contourGlow??0)*10;
+      ctx.globalAlpha = surface.contourOpacity ?? (selected ? 1 : 0.35);
       ctx.stroke();
       ctx.globalAlpha = 1;
 
     } else {
-      ctx.fillStyle = neon ? "#04121bd9" : "#101927ee";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = surface.background ?? (neon ? "#04121bd9" : "#101927ee");
+      ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=(surface.backgroundGlow??0)*10;
+      ctx.globalAlpha = surface.opacity ?? 1;
+      ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1;
     }
     ctx.font = canvasFont(font);
     ctx.textAlign = "center";
@@ -69,11 +97,17 @@ export function textSprite(value: string, color: string, selected = false, node 
     lines.forEach((line, i) => ink.fillText(line, mask.width / 2, 10 + 24 + i * 48));
     return mask;
   };
+  let currentStyle: [string, string, number] = [color, textColor, textGlow];
+  let surfaceKey = JSON.stringify(surface);
+  sprite.userData.setSurfaceStyle = (next: typeof surface) => {
+    const key = JSON.stringify(next); if (key === surfaceKey) return;
+    surfaceKey = key; surface = next; paint(...currentStyle); texture.needsUpdate = true;
+  };
   let paintKey = JSON.stringify([color, textColor, textGlow]);
   sprite.userData.setTextStyle = (border: string, ink: string, glow: number) => {
     const next = JSON.stringify([border, ink, glow]);
     if (next === paintKey) return;
-    paintKey = next; paint(border, ink, glow); texture.needsUpdate = true;
+    paintKey = next; currentStyle = [border, ink, glow]; paint(border, ink, glow); texture.needsUpdate = true;
     sprite.userData.textColor = ink;
   };
   sprite.userData.label = value;
@@ -128,7 +162,6 @@ export function buildTextScene(
   const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();
   const placements = new Map(doc.placements.map(p => [p.id, p]));
-  const assets = new Map(doc.assets?.map(a => [a.id, a]) ?? []);
   const nodeHits: LabelMesh[] = [],
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
   for (const node of visible) {
@@ -147,15 +180,14 @@ export function buildTextScene(
       selected,
       true,
       neon,
-      theme.font,
-      theme.textGlow,
-      theme.textColor,
+      glyphFont(theme, 'text.nodes'),
+      glyphGlow(theme, 'text.nodes'),
+      appearance?.color ?? glyphColor(theme, 'text.nodes', color),
     );
     text.material.opacity = style.opacity;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
-    const svgIcon = doc.assets?.find(asset => asset.id === placement?.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
     const footprint = visualFootprint(labelSize(node.label), placement?.visual, sphereDiameter);
-    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { color: appearance?.color ?? theme.nodes.color ?? (svgIcon ? color : undefined), opacity: style.opacity }) : undefined;
+    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity }) : undefined;
     const sprite: LabelMesh = footprint.sphere
       ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
@@ -208,12 +240,11 @@ export function buildTextScene(
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
     );
     const custom = !!(b.visual?.assetId || b.visual?.character);
-    const svgIcon = doc.assets?.find(asset => asset.id === b.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { color: b.color ?? theme.binders.color ?? (svgIcon ? color : undefined), opacity }) : defaultArrow;
+    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity }) : defaultArrow;
     arrow.userData.glowIntensity = style.glow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
-    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, theme.font, theme.textGlow) : null;
+    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, glyphFont(theme, 'text.binders'), glyphGlow(theme, 'text.binders'), b.textAppearance?.color ?? glyphColor(theme, 'text.binders', textStyle.color)) : null;
     if (label) label.userData.glowIntensity = textStyle.glow;
     for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;
@@ -245,16 +276,20 @@ export function buildTextScene(
       const style = resolveAppearance(next.nodes, fallback, override);
       item.color = style.color; item.opacity = style.opacity * next.opacity;
       item.group.userData.glowIntensity = style.glow;
-      item.text.userData.setTextStyle(style.color, next.textColor ?? style.color, next.textGlow);
-      item.text.material.opacity = item.opacity;
-      item.outline.material.color.set(style.color);
+      item.text.userData.setTextStyle(style.color, override?.color ?? glyphColor(next, 'text.nodes', style.color), override?.glow ?? glyphGlow(next, 'text.nodes'));
+      item.text.userData.setSurfaceStyle(surfaceStyle(next, 'omnium.nodes.background', override?.color));
+      item.text.material.opacity = item.opacity * Number(next.renderDefaults?.['text.nodes']?.opacity ?? 1);
+      const ring=symbolStyle(next,'omnium.selection',override?.color,style.color);
+      item.outline.material.color.set(ring.color);item.outline.userData.opacity=ring.opacity;item.outline.userData.glowIntensity=ring.glow;
+      item.text.userData.glowIntensity=override?.glow??(next.controller?.values['text.nodes']?.glow!==undefined?glyphGlow(next,'text.nodes'):style.glow);
       if (item.sphere) {
         item.sprite.material.color.set(style.color); item.sprite.material.opacity = item.opacity;
         item.sprite.userData.baseColor = item.sprite.material.color.clone();
         item.sprite.userData.baseOpacity = item.opacity;
       }
-      const svg = assets.get(placement?.visual?.assetId ?? "")?.dataUrl.startsWith("data:image/svg+xml");
-      item.visual?.userData.setAppearance?.({ color: override?.color ?? next.nodes.color ?? (svg ? style.color : undefined), opacity: item.opacity, textColor: next.textColor ?? style.color, textGlow: next.textGlow });
+      const symbol=symbolStyle(next,'symbols.nodes',override?.color,style.color);
+      if(item.visual)item.visual.userData.glowIntensity=override?.glow??symbol.glow;
+      item.visual?.userData.setAppearance?.({ opacity: item.opacity*symbol.opacity, brightness:symbol.brightness, textColor:symbol.color, textGlow:override?.glow??symbol.glow });
     }
     for (const item of connectors) {
       const original = item.data;
@@ -265,20 +300,21 @@ export function buildTextScene(
       } : original;
       const style = resolveAppearance(next.binders, next.theme === "neon" ? next.accent : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e", b.color ? { color: b.color, opacity: b.opacity ?? next.binders.opacity, glow: b.glow } : undefined);
       const text = resolveAppearance(next.nodes, fallback, b.textAppearance);
-      item.opacity = style.opacity * next.opacity; item.textOpacity = text.opacity * next.opacity;
+      item.opacity = style.opacity * next.opacity; item.textOpacity = (b.textAppearance?.opacity ?? Number(next.renderDefaults?.['text.binders']?.opacity ?? text.opacity)) * next.opacity;
       item.line.material.color.set(style.color); item.line.userData.glowIntensity = style.glow;
-      item.arrow.userData.glowIntensity = style.glow;
+      const operator=symbolStyle(next,'symbols.binders',b.color,style.color);
+      item.arrow.userData.glowIntensity = b.glow??operator.glow;
       const fade = item.related ? 1 : 0.28;
       item.line.material.opacity = item.opacity * fade;
       item.arrow.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Sprite)
-          for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.opacity = item.opacity * fade;
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.opacity = item.opacity * fade * operator.opacity;
       });
-      if (item.arrow instanceof THREE.Mesh) (item.arrow.material as THREE.MeshBasicMaterial).color.set(style.color);
-      const svg = assets.get(b.visual?.assetId ?? "")?.dataUrl.startsWith("data:image/svg+xml");
-      item.arrow.userData.setAppearance?.({ color: b.color ?? next.binders.color ?? (svg ? style.color : undefined), opacity: item.opacity * fade, textColor: next.textColor ?? style.color, textGlow: next.textGlow });
-      item.label?.userData.setTextStyle(text.color, next.textColor ?? text.color, next.textGlow);
-      if (item.label) { item.label.userData.glowIntensity = text.glow; item.label.material.opacity = item.textOpacity; }
+      if (item.arrow instanceof THREE.Mesh) (item.arrow.material as THREE.MeshBasicMaterial).color.set(operator.color);
+      item.arrow.userData.setAppearance?.({ opacity: item.opacity * fade * operator.opacity, brightness:operator.brightness, textColor:operator.color, textGlow:b.glow??operator.glow });
+      item.label?.userData.setTextStyle(text.color, b.textAppearance?.color ?? glyphColor(next, 'text.binders', text.color), b.textAppearance?.glow ?? glyphGlow(next, 'text.binders'));
+      item.label?.userData.setSurfaceStyle(surfaceStyle(next, 'omnium.binders.background'));
+      if (item.label) { item.label.userData.glowIntensity = b.textAppearance?.glow??(next.controller?.values['text.binders']?.glow!==undefined?glyphGlow(next,'text.binders'):text.glow); item.label.material.opacity = item.textOpacity; }
     }
   }
   function update(camera: THREE.PerspectiveCamera, width: number, height: number) {
@@ -377,8 +413,9 @@ export function buildTextScene(
       // Screen-facing interaction overlay; the represented structure keeps its world orientation.
       ring.quaternion.copy(camera.quaternion);
       ring.scale.setScalar(radius * (item.selected ? 1 + pulse * 0.1 : 1));
-      ring.material.opacity = item.opacity * (item.selected ? 0.45 + pulse * 0.4 : 0.45);
+      ring.material.opacity = item.opacity * Number(ring.userData.opacity??1) * (item.selected ? 0.45 + pulse * 0.4 : 0.45);
     }
   }
+  applyTheme(theme);
   return { nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme };
 }

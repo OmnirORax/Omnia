@@ -19,9 +19,12 @@ export const MAX_FONT_BYTES = 10 * 1024 * 1024;
 export const MAX_FONT_TEMPLATE_BYTES = 15 * 1024 * 1024;
 export function parseCustomFonts(value: unknown): CustomFont[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value) || value.length > 1) throw new Error("A font template may embed its one selected custom font.");
+  if (!Array.isArray(value) || value.length > 30) throw new Error("A font template may embed up to 30 referenced fonts.");
+  const seen=new Set<string>();let total=0;
   return value.map(item => {
     if (!item || !isCustomFont(item.id) || typeof item.name !== "string" || !item.name.trim() || item.name.length > 120 || typeof item.dataUrl !== "string" || item.dataUrl.length > MAX_FONT_BYTES * 4 / 3 + 100 || !/^data:font\/(woff2?|ttf|otf);base64,[A-Za-z0-9+/]+={0,2}$/.test(item.dataUrl)) throw new Error("Invalid embedded font. Use WOFF2, WOFF, TTF or OTF, up to 10 MB.");
+    if(seen.has(item.id))throw new Error('Duplicate embedded font ID.');seen.add(item.id);total+=item.dataUrl.length;
+    if(total>MAX_FONT_TEMPLATE_BYTES-100_000)throw new Error('Embedded fonts exceed the 15 MB template limit.');
     return { id: item.id, name: item.name.trim(), dataUrl: item.dataUrl };
   });
 }
