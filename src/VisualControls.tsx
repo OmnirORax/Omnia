@@ -13,6 +13,7 @@ export function VisualControls({
   onAsset,
   allowModels = true,
   iconColor = "#c8dfff",
+  sphereDiameter = DEFAULT_SPHERE_DIAMETER,
 }: {
   label: string;
   value?: Visual;
@@ -21,6 +22,7 @@ export function VisualControls({
   onAsset: (asset: VisualAsset, visual: Visual) => void;
   allowModels?: boolean;
   iconColor?: string;
+  sphereDiameter?: number;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ id: string; svg?: string }[]>([]);
@@ -280,7 +282,7 @@ export function VisualControls({
             min="0.1"
             max="5"
             step="0.1"
-            value={value.size ?? (value.assetId || value.character ? 1.4 : label === "Node" ? DEFAULT_SPHERE_DIAMETER : 1)}
+            value={value.size ?? (value.assetId || value.character ? 1.4 : label === "Node" ? sphereDiameter : 1)}
             onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
           />
         </label>

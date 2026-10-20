@@ -8,15 +8,28 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
-  appearance: { color?: string; opacity?: number } = {},
+  appearance: { color?: string; opacity?: number; textColor?: string; textGlow?: number } = {},
 ) {
   const group = new THREE.Group();
+  const restyle: (() => void)[] = [];
+  group.userData.setAppearance = (next: typeof appearance) => {
+    appearance = next;
+    for (const update of restyle) update();
+  };
+  const styleText = (label: THREE.Object3D) => {
+    const update = () => {
+      label.userData.setTextStyle?.(appearance.color ?? appearance.textColor ?? "#ffffff", appearance.textColor ?? appearance.color ?? "#ffffff", appearance.textGlow ?? 0);
+      if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
+    };
+    restyle.push(update);
+    if (appearance.textColor !== undefined) update();
+  };
   const asset = assets.find((a) => a.id === visual.assetId);
   const fallback = () => {
     if (!group.userData.disposed) {
       const label = makeText("?");
       label.scale.set(1, 1, 1);
-      group.add(label);
+      group.add(label); styleText(label);
       group.userData.assetError = true;
       requestRender();
     }
@@ -25,7 +38,7 @@ export function visualObject(
     const label = makeText(visual.character);
     if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
     label.scale.set(Math.min(3, label.userData.aspect), 1, 1);
-    group.add(label);
+    group.add(label); styleText(label);
   } else if (asset?.kind === "image") {
     new THREE.TextureLoader().load(
       asset.dataUrl,
@@ -37,6 +50,7 @@ export function visualObject(
         // SVGs can decode correctly in HTML/canvas yet upload blank to WebGL.
         // Rasterize their portable source once before creating the sprite texture.
         let map: THREE.Texture = texture;
+        let repaint: ((color?: string) => void) | undefined;
         if (asset.dataUrl.startsWith("data:image/svg+xml")) {
           const image = texture.image as HTMLImageElement;
           const canvas = document.createElement("canvas");
@@ -51,8 +65,16 @@ export function visualObject(
             fallback();
             return;
           }
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          if (appearance.color) { context.globalCompositeOperation = "source-in"; context.fillStyle = appearance.color; context.fillRect(0, 0, canvas.width, canvas.height); }
+          let previousColor: string | undefined;
+          repaint = (color) => {
+            if (previousColor === color && map instanceof THREE.CanvasTexture) return;
+            previousColor = color;
+            context.globalCompositeOperation = "source-over"; context.clearRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            if (color) { context.globalCompositeOperation = "source-in"; context.fillStyle = color; context.fillRect(0, 0, canvas.width, canvas.height); }
+            map.needsUpdate = true;
+          };
+          repaint(appearance.color);
           map = new THREE.CanvasTexture(canvas);
           texture.dispose();
         }
@@ -73,6 +95,11 @@ export function visualObject(
         const aspect = dimensions.width / dimensions.height;
         sprite.scale.set(Math.min(1, aspect), Math.min(1, 1 / aspect), 1);
         group.add(sprite);
+        restyle.push(() => {
+          repaint?.(appearance.color);
+          sprite.material.color.set(repaint ? "#ffffff" : appearance.color ?? "#ffffff");
+          sprite.material.opacity = appearance.opacity ?? 1;
+        });
         requestRender();
       },
       undefined,
@@ -107,8 +134,13 @@ export function visualObject(
         model.traverse(object => {
           if (!(object instanceof THREE.Mesh)) return;
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-            if (appearance.color && "color" in material) (material.color as THREE.Color).set(appearance.color);
-            material.opacity *= appearance.opacity ?? 1; material.transparent ||= material.opacity < 1;
+            const color = "color" in material ? (material.color as THREE.Color).clone() : undefined;
+            const opacity = material.opacity;
+            const update = () => {
+              if (color) (material as THREE.MeshStandardMaterial).color.copy(appearance.color ? new THREE.Color(appearance.color) : color);
+              material.opacity = opacity * (appearance.opacity ?? 1); material.transparent ||= material.opacity < 1;
+            };
+            restyle.push(update); update();
           }
         });
         group.add(normalized);

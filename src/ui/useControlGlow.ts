@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /** Reuse native controls and their actual colors; no custom slider implementation. */
 export function useControlGlow(strength: number, accent: string, theme: string) {
   const enabled = strength > 0;
+  const requestScan = useRef<() => void>(() => {});
+  useEffect(() => { requestScan.current(); }, [accent, theme]);
   useEffect(() => {
     if (!enabled) return;
     const selector = 'input[type="color"],input[type="range"],progress,meter';
@@ -21,6 +23,7 @@ export function useControlGlow(strength: number, accent: string, theme: string) 
       document.querySelectorAll<HTMLElement>(selector).forEach(apply);
     };
     const request = () => { if (!frame) frame = requestAnimationFrame(scan); };
+    requestScan.current = request;
     const input = (event: Event) => { if (event.target instanceof HTMLElement && event.target.matches(selector)) apply(event.target); };
     const observer = new MutationObserver(records => {
       // Camera guides and animated labels can change every frame; only controls need a scan.
@@ -29,9 +32,10 @@ export function useControlGlow(strength: number, accent: string, theme: string) 
     observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["value", "type"] });
     document.addEventListener("input", input, true); document.addEventListener("change", input, true); scan();
     return () => {
+      requestScan.current = () => {};
       observer.disconnect(); cancelAnimationFrame(frame);
       document.removeEventListener("input", input, true); document.removeEventListener("change", input, true);
       for (const element of decorated) element.style.removeProperty("--omnium-control-color");
     };
-  }, [enabled, accent, theme]);
+  }, [enabled]);
 }

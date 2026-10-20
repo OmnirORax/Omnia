@@ -9,7 +9,7 @@ import type { ActionId, WorkspaceSettings } from "./workspaceActions";
 import type { Document } from "./graph/structural";
 import { chartedBinders } from "./graph/presentation";
 import { occupiedRadii, worldPositions } from "./graph/layout3d";
-import { buildTextScene, type LabelMesh, type TextScene } from "./textScene";
+import { buildTextScene, type LabelMesh, type ColorPreview, type TextScene } from "./textScene";
 import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
 import { createSceneAppearance } from "./sceneAppearance";
 import { labelSize } from "./graph/labels";
@@ -26,6 +26,7 @@ export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
+  colorPreview?: ColorPreview | null;
   atlas: Atlas;
   document: Document;
   variantDisplay: ReturnType<typeof projectVariants>;
@@ -61,6 +62,7 @@ type SceneState = {
   content: THREE.Group;
   appearance: ReturnType<typeof createSceneAppearance>;
   requestRender: () => void;
+  requestPaint: () => void;
   focus: (kind: NavigationCommand["kind"], id?: string) => void;
 };
 type Menu = { x: number; y: number; target: ContextTarget };
@@ -257,7 +259,7 @@ export default function SpatialWorkspace(props: Props) {
         if (!framing.length) return;
         for (const node of framing) {
           const placement = callbacks.current.document.placements.find(p => p.id === node.id);
-          const footprint = visualFootprint(labelSize(node.label), placement?.visual);
+          const footprint = visualFootprint(labelSize(node.label), placement?.visual, callbacks.current.settings.spatial.sphereDiameter);
           const center = asVector(node.world), half = new THREE.Vector3(footprint.width / 2, footprint.height / 2, footprint.depth / 2);
           bounds.expandByPoint(center.clone().add(half)); bounds.expandByPoint(center.clone().sub(half));
         }
@@ -276,7 +278,7 @@ export default function SpatialWorkspace(props: Props) {
       animate(point, Math.max(4, radius / Math.tan(fov / 2) * 1.5));
       changeFocusContext(contextIds);
     };
-    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, focus };
+    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, requestPaint: () => scheduleRender(false), focus };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
@@ -486,7 +488,7 @@ export default function SpatialWorkspace(props: Props) {
   }, [ready, settings.mouse.leftEmpty, settings.mouse.rightEmpty]);
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
-    state.appearance.configure(settings.appearance); state.requestRender();
+    state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
   useEffect(() => {
@@ -501,14 +503,19 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter);
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, fontRevision, settings.appearance.textColor, settings.appearance.textGlow, settings.appearance.theme, settings.appearance.accent, settings.appearance.nodes.color, settings.appearance.nodes.opacity, settings.appearance.nodes.glow, settings.appearance.binders.color, settings.appearance.binders.opacity, settings.appearance.binders.glow]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, fontRevision, settings.appearance.theme]);
+
+  useEffect(() => {
+    textScene.current?.applyTheme(settings.appearance, props.colorPreview);
+    stateRef.current?.requestPaint();
+  }, [ready, atlas, doc, selectedId, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter, props.colorPreview]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [

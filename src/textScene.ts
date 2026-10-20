@@ -25,27 +25,31 @@ export function textSprite(value: string, color: string, selected = false, node 
   );
   canvas.height = lines.length * 48 + 20;
   const ctx = canvas.getContext("2d")!;
-  if (node) {
-    ctx.fillStyle = neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb";
-    ctx.beginPath();
-    ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, 12);
-    ctx.fill();
-    ctx.strokeStyle = selected ? neon ? "#69efff" : "#b9dcff" : color;
-    ctx.lineWidth = selected ? 3 : 1;
-    ctx.globalAlpha = selected ? 1 : 0.35;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+  const paint = (border: string, ink: string, glow: number) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
+    if (node) {
+      ctx.fillStyle = neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb";
+      ctx.beginPath();
+      ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, 12);
+      ctx.fill();
+      ctx.strokeStyle = selected ? neon ? "#69efff" : "#b9dcff" : border;
+      ctx.lineWidth = selected ? 3 : 1;
+      ctx.globalAlpha = selected ? 1 : 0.35;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
 
-  } else {
-    ctx.fillStyle = neon ? "#04121bd9" : "#101927ee";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-  ctx.font = canvasFont(font);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = textColor;
-  ctx.shadowColor = textColor; ctx.shadowBlur = textGlow * 10;
-  lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, 10 + 24 + i * 48));
+    } else {
+      ctx.fillStyle = neon ? "#04121bd9" : "#101927ee";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.font = canvasFont(font);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = ink;
+    ctx.shadowColor = ink; ctx.shadowBlur = glow * 10;
+    lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, 10 + 24 + i * 48));
+  };
+  paint(color, textColor, textGlow);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Mesh(
@@ -64,6 +68,13 @@ export function textSprite(value: string, color: string, selected = false, node 
     ink.textAlign = "center"; ink.textBaseline = "middle"; ink.fillStyle = "white";
     lines.forEach((line, i) => ink.fillText(line, mask.width / 2, 10 + 24 + i * 48));
     return mask;
+  };
+  let paintKey = JSON.stringify([color, textColor, textGlow]);
+  sprite.userData.setTextStyle = (border: string, ink: string, glow: number) => {
+    const next = JSON.stringify([border, ink, glow]);
+    if (next === paintKey) return;
+    paintKey = next; paint(border, ink, glow); texture.needsUpdate = true;
+    sprite.userData.textColor = ink;
   };
   sprite.userData.label = value;
   sprite.userData.textColor = textColor;
@@ -101,6 +112,7 @@ type BinderItem = {
   spread: number;
   path?: THREE.Curve<THREE.Vector3>;
 };
+export type ColorPreview = { kind: "node" | "binder" | "binderText"; id: string; color: string };
 export type TextScene = ReturnType<typeof buildTextScene>;
 export function buildTextScene(
   content: THREE.Group,
@@ -111,13 +123,16 @@ export function buildTextScene(
   requestRender: () => void = () => {},
   selectedIds: ReadonlySet<string> = new Set(),
   theme: WorkspaceSettings["appearance"] = defaultSettings().appearance,
+  sphereDiameter = DEFAULT_SPHERE_DIAMETER,
 ) {
   const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();
+  const placements = new Map(doc.placements.map(p => [p.id, p]));
+  const assets = new Map(doc.assets?.map(a => [a.id, a]) ?? []);
   const nodeHits: LabelMesh[] = [],
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
   for (const node of visible) {
-    const placement = doc.placements.find((p) => p.id === node.id);
+    const placement = placements.get(node.id);
     const appearance = placement?.appearance;
     const style = resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", appearance);
     style.opacity *= theme.opacity;
@@ -139,7 +154,7 @@ export function buildTextScene(
     text.material.opacity = style.opacity;
     const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
     const svgIcon = doc.assets?.find(asset => asset.id === placement?.visual?.assetId)?.dataUrl.startsWith("data:image/svg+xml");
-    const footprint = visualFootprint(labelSize(node.label), placement?.visual);
+    const footprint = visualFootprint(labelSize(node.label), placement?.visual, sphereDiameter);
     const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { color: appearance?.color ?? theme.nodes.color ?? (svgIcon ? color : undefined), opacity: style.opacity }) : undefined;
     const sprite: LabelMesh = footprint.sphere
       ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
@@ -167,7 +182,7 @@ export function buildTextScene(
       sprite,
       anchor: group.position.clone(),
       size: labelSize(node.label),
-      text, visual, visualSize: placement?.visual?.size ?? (hasVisual ? 1.4 : DEFAULT_SPHERE_DIAMETER), showText: !!node.label.trim() && placement?.visual?.showText !== false,
+      text, visual, visualSize: placement?.visual?.size ?? (hasVisual ? 1.4 : sphereDiameter), showText: !!node.label.trim() && placement?.visual?.showText !== false,
       depth: doc.assets?.find(a => a.id === placement?.visual?.assetId)?.kind === "glb" ? placement?.visual?.size ?? 1.4 : 0.05,
       sphere: footprint.sphere, outline, selected, color: style.color, opacity: style.opacity,
     });
@@ -221,6 +236,50 @@ export function buildTextScene(
       related,
       spread: index - ((totals.get(pair(b)) ?? 1) - 1) / 2,
     });
+  }
+  function applyTheme(next: WorkspaceSettings["appearance"], preview?: ColorPreview | null) {
+    const fallback = next.theme === "neon" ? next.accent : "#dce9fa";
+    for (const [id, item] of nodes) {
+      const placement = placements.get(id);
+      const override = preview?.kind === "node" && preview.id === id ? { opacity: next.nodes.opacity, ...placement?.appearance, color: preview.color } : placement?.appearance;
+      const style = resolveAppearance(next.nodes, fallback, override);
+      item.color = style.color; item.opacity = style.opacity * next.opacity;
+      item.group.userData.glowIntensity = style.glow;
+      item.text.userData.setTextStyle(style.color, next.textColor ?? style.color, next.textGlow);
+      item.text.material.opacity = item.opacity;
+      item.outline.material.color.set(style.color);
+      if (item.sphere) {
+        item.sprite.material.color.set(style.color); item.sprite.material.opacity = item.opacity;
+        item.sprite.userData.baseColor = item.sprite.material.color.clone();
+        item.sprite.userData.baseOpacity = item.opacity;
+      }
+      const svg = assets.get(placement?.visual?.assetId ?? "")?.dataUrl.startsWith("data:image/svg+xml");
+      item.visual?.userData.setAppearance?.({ color: override?.color ?? next.nodes.color ?? (svg ? style.color : undefined), opacity: item.opacity, textColor: next.textColor ?? style.color, textGlow: next.textGlow });
+    }
+    for (const item of connectors) {
+      const original = item.data;
+      const b = preview?.id === original.id ? {
+        ...original,
+        ...(preview.kind === "binder" ? { color: preview.color } : {}),
+        ...(preview.kind === "binderText" ? { textAppearance: { opacity: next.nodes.opacity, ...original.textAppearance, color: preview.color } } : {}),
+      } : original;
+      const style = resolveAppearance(next.binders, next.theme === "neon" ? next.accent : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e", b.color ? { color: b.color, opacity: b.opacity ?? next.binders.opacity, glow: b.glow } : undefined);
+      const text = resolveAppearance(next.nodes, fallback, b.textAppearance);
+      item.opacity = style.opacity * next.opacity; item.textOpacity = text.opacity * next.opacity;
+      item.line.material.color.set(style.color); item.line.userData.glowIntensity = style.glow;
+      item.arrow.userData.glowIntensity = style.glow;
+      const fade = item.related ? 1 : 0.28;
+      item.line.material.opacity = item.opacity * fade;
+      item.arrow.traverse(object => {
+        if (object instanceof THREE.Mesh || object instanceof THREE.Sprite)
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.opacity = item.opacity * fade;
+      });
+      if (item.arrow instanceof THREE.Mesh) (item.arrow.material as THREE.MeshBasicMaterial).color.set(style.color);
+      const svg = assets.get(b.visual?.assetId ?? "")?.dataUrl.startsWith("data:image/svg+xml");
+      item.arrow.userData.setAppearance?.({ color: b.color ?? next.binders.color ?? (svg ? style.color : undefined), opacity: item.opacity * fade, textColor: next.textColor ?? style.color, textGlow: next.textGlow });
+      item.label?.userData.setTextStyle(text.color, next.textColor ?? text.color, next.textGlow);
+      if (item.label) { item.label.userData.glowIntensity = text.glow; item.label.material.opacity = item.textOpacity; }
+    }
   }
   function update(camera: THREE.PerspectiveCamera, width: number, height: number) {
     const right = new THREE.Vector3(1, 0, 0), up = new THREE.Vector3(0, 1, 0);
@@ -321,5 +380,5 @@ export function buildTextScene(
       ring.material.opacity = item.opacity * (item.selected ? 0.45 + pulse * 0.4 : 0.45);
     }
   }
-  return { nodes, connectors, nodeHits, binderHits, update, animateSelection };
+  return { nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme };
 }
