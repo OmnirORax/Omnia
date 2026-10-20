@@ -2,6 +2,7 @@ import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { guardCameraPointer } from "./cameraPointer";
 import type { Atlas } from "./graph/model";
 import { isolateSpatialContext, projectSpatial, type XYZ } from "./graph/spatial";
 import { disposeVisual } from "./visualScene";
@@ -220,7 +221,7 @@ export default function SpatialWorkspace(props: Props) {
         callbacks.current.onMove(node.id, asXYZ(local));
         return;
       }
-      if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = true; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
+      if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
       if (kind === "rollLeft" || kind === "rollRight") {
         stopAnimation(); rememberCamera();
         camera.up.applyAxisAngle(camera.getWorldDirection(new THREE.Vector3()), kind === "rollLeft" ? Math.PI / 2 : -Math.PI / 2).normalize();
@@ -310,6 +311,7 @@ export default function SpatialWorkspace(props: Props) {
     let rightDown: { x: number; y: number; id: string | null; world: XYZ } | null = null;
     let binderDown: { id: string; kind: "composition" | "relationship" | "variant" | "visual"; x: number; y: number } | null = null;
     let selecting: { x: number; y: number; clientX: number; clientY: number; id?: string; additive: boolean } | null = null;
+    let uiPointerActive = false;
     raycaster.params.Line.threshold = 0.08;
     let hovered: LabelMesh | null = null;
     const paintHover = (mesh: LabelMesh | null) => {
@@ -329,6 +331,7 @@ export default function SpatialWorkspace(props: Props) {
       requestRender();
     };
     const down = (event: PointerEvent) => {
+      if (!pointerOwner.owns(event)) return;
       stopAnimation(); setMenu(null);
       if (event.button === 3 || event.button === 4) {
         event.preventDefault(); event.stopImmediatePropagation();
@@ -369,6 +372,7 @@ export default function SpatialWorkspace(props: Props) {
       controls.enabled = false; renderer.domElement.setPointerCapture(event.pointerId);
     };
     const move = (event: PointerEvent) => {
+      if (uiPointerActive || (event.buttons !== 0 && !pointerOwner.owns(event))) return;
       if (selecting) {
         const rect = host.getBoundingClientRect(), x = event.clientX - rect.left, y = event.clientY - rect.top;
         setSelectionRect({ x: Math.min(x, selecting.x), y: Math.min(y, selecting.y), width: Math.abs(x - selecting.x), height: Math.abs(y - selecting.y) }); return;
@@ -411,7 +415,7 @@ export default function SpatialWorkspace(props: Props) {
     const finishDrag = (event: PointerEvent, cancelled = false) => {
       if (!drag) return;
       const current = drag; drag = null;
-      controls.enabled = true;
+      controls.enabled = !uiPointerActive;
       if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
       scene.remove(current.marker); current.marker.geometry.dispose(); (current.marker.material as THREE.Material).dispose();
       setFeedback("");
@@ -426,9 +430,10 @@ export default function SpatialWorkspace(props: Props) {
       requestRender();
     };
     const up = (event: PointerEvent) => {
+      if (uiPointerActive) return;
       if (event.button === 3 || event.button === 4) { event.preventDefault(); return; }
       if (selecting && event.button === 0) {
-        const start = selecting; selecting = null; controls.enabled = true; setSelectionRect(null);
+        const start = selecting; selecting = null; controls.enabled = !uiPointerActive; setSelectionRect(null);
         if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
         if (Math.hypot(event.clientX - start.clientX, event.clientY - start.clientY) < CLICK_THRESHOLD) {
           const ids = new Set(callbacks.current.selectedIds);
@@ -462,7 +467,24 @@ export default function SpatialWorkspace(props: Props) {
       }
       if (event.button === 0) finishDrag(event);
     };
-    const cancel = (event: PointerEvent) => { selecting = null; setSelectionRect(null); controls.enabled = true; clicks.cancel(); finishDrag(event, true); };
+    const cancel = (event: PointerEvent) => { selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
+    const pointerOwner = guardCameraPointer(renderer.domElement, (active) => {
+      uiPointerActive = active;
+      controls.enabled = !active && !drag && !selecting;
+      if (active) stopAnimation();
+    }, () => {
+      clicks.cancel(); stopAnimation();
+      selecting = null; rightDown = null; binderDown = null; setSelectionRect(null);
+      if (drag) {
+        const marker = drag.marker; drag = null;
+        scene.remove(marker); marker.geometry.dispose(); (marker.material as THREE.Material).dispose();
+        setFeedback(""); requestRender();
+      }
+      // Recreate via the public API: disconnect alone leaves OrbitControls'
+      // tracked pointers and pan/rotate state alive after a lost release.
+      controls.enabled = !uiPointerActive;
+      rebindOrbit();
+    });
     const preventMenu = (event: MouseEvent) => event.preventDefault();
     renderer.domElement.addEventListener("pointerdown", down, true);
     renderer.domElement.addEventListener("auxclick", preventMenu);
@@ -472,6 +494,7 @@ export default function SpatialWorkspace(props: Props) {
     renderer.domElement.addEventListener("contextmenu", preventMenu);
     setReady(true);
     return () => {
+      pointerOwner.dispose();
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
       renderer.domElement.removeEventListener("pointerdown", down, true);
       renderer.domElement.removeEventListener("auxclick", preventMenu);

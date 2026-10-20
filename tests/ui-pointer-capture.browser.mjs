@@ -18,6 +18,32 @@ try {
   await p.evaluate(() =>
     window.addEventListener("pointerdown", (e) => (window.dragPointer = e.pointerId), true),
   );
+  const camera = () => p.locator('[data-camera="position"]').first().textContent();
+  await p.waitForFunction(() => document.querySelector('[data-camera="position"]')?.textContent);
+  assert.equal(await p.evaluate(() => document.elementFromPoint(650, 650)?.tagName), "CANVAS");
+  const initialCamera = await camera();
+  await p.mouse.move(650, 650);
+  await p.mouse.down();
+  await p.mouse.move(690, 670, { steps: 3 });
+  await p.waitForFunction((before) => document.querySelector('[data-camera="position"]').textContent !== before, initialCamera);
+  // Model a canvas gesture interrupted by another capture owner, with its
+  // release consumed by that owner. OrbitControls' document listeners must die.
+  await p.evaluate(() => {
+    document.documentElement.setPointerCapture(window.dragPointer);
+    window.addEventListener("pointerup", (e) => e.stopImmediatePropagation(), { capture: true, once: true });
+  });
+  await p.mouse.move(700, 680);
+  await p.mouse.up();
+  const interruptedCamera = await camera();
+  await p.mouse.move(750, 730, { steps: 4 });
+  await p.waitForTimeout(80);
+  assert.equal(await camera(), interruptedCamera, "interrupted camera must not follow idle/UI movement");
+  // A fresh deliberate background gesture still pans normally.
+  await p.mouse.down();
+  await p.mouse.move(790, 750, { steps: 3 });
+  await p.mouse.up();
+  await p.waitForFunction((before) => document.querySelector('[data-camera="position"]').textContent !== before, interruptedCamera);
+  const uiCamera = await camera();
   const before = await p.evaluate(() => localStorage.getItem("omnium.ui.layout.v1"));
   const b = await handle().boundingBox();
   await p.mouse.move(b.x + 8, b.y + 8);
@@ -50,6 +76,7 @@ try {
   );
   await p.mouse.move(720, 780, { steps: 4 });
   assert.equal(await p.evaluate(() => localStorage.getItem("omnium.ui.layout.v1")), before);
+  assert.equal(await camera(), uiCamera, "UI dragging across canvas must not pan the camera");
   await p.mouse.up();
   await p.waitForFunction(
     () =>
@@ -67,6 +94,8 @@ try {
   await p.mouse.move(900, 700, { steps: 5 });
   await p.waitForFunction(() => document.documentElement.hasPointerCapture(window.dragPointer));
   await p.keyboard.press("Escape");
+  await p.mouse.move(600, 600, { steps: 4 });
+  assert.equal(await camera(), uiCamera, "Esc must not hand a still-held UI press to the camera");
   await p.mouse.up();
   assert.equal(
     await p.evaluate(() => localStorage.getItem("omnium.ui.layout.v1")),
@@ -79,7 +108,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "Leaving source bounds/reflow, unrelated releases/native dragend, actual left release, and Esc capture cleanup pass.",
+    "UI capture/reflow, interrupted camera cleanup, fresh camera pan, and camera isolation through drag/Esc pass.",
   );
 } finally {
   await browser.close();
