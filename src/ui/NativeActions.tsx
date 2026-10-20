@@ -1,20 +1,39 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useUI } from "./context";
 import { functionPinned, ownerOf } from "./layout";
+import { stableUIHash } from "./identity";
 
 /** Identity is scoped to the owning frame and structural anchors, never to displayed text.
  * Authors can supply data-ui-id for stability across future markup reorganizations. */
 export function nativeActionPath(button: Element, owner: Element): string {
   const parts: string[] = [];
+  const logicalChildren = (parent: Element): Element[] => {
+    const body = parent.hasAttribute("data-ui-native-tag")
+      ? [...parent.children].find(child => child.classList.contains("property-node-contents")) : undefined;
+    return [...(body ?? parent).children].flatMap(child => child.getAttribute("data-ui-native-tag") === "transparent" ? logicalChildren(child) : [child]);
+  };
+  const logicalParent = (child: Element): Element | null => {
+    let parent = child.parentElement;
+    while (parent && (parent.getAttribute("data-ui-native-tag") === "transparent" || parent.classList.contains("property-node-contents") && parent.parentElement?.hasAttribute("data-ui-native-tag"))) parent = parent.parentElement;
+    return parent;
+  };
   let element: Element | null = button;
   while (element && element !== owner) {
+    // Section chrome is presentation. Preserve IDs from the original source
+    // markup when a formerly fixed category acquires a movable frame.
+    const tag = element.getAttribute("data-ui-native-tag");
+    if (tag === "transparent" || element.classList.contains("property-node-contents") && element.parentElement?.hasAttribute("data-ui-native-tag")) {
+      element = element.parentElement;
+      continue;
+    }
+    const logicalTag = tag?.toUpperCase() ?? element.tagName;
     const key = ["data-ui-id", "data-property-node", "data-appearance-target", "id"].find((name) =>
       element!.hasAttribute(name),
     );
     if (key) parts.unshift(`${key}=${element.getAttribute(key)}`);
     else
       parts.unshift(
-        `${element.tagName}:${[...(element.parentElement?.children ?? [])].filter((child) => child.tagName === element!.tagName).indexOf(element)}`,
+        `${logicalTag}:${(logicalParent(element) ? logicalChildren(logicalParent(element)!) : []).filter(child => (child.getAttribute("data-ui-native-tag")?.toUpperCase() ?? child.tagName) === logicalTag).indexOf(element)}`,
       );
     element = element.parentElement;
   }
@@ -45,13 +64,7 @@ export function nativeActionId(button: HTMLButtonElement): string {
         !element.hasAttribute("data-ui-inline-group"),
     ) ?? document.body;
   const path = nativeActionPath(button, owner);
-  const hash = (value: string) => {
-    let result = 14695981039346656037n;
-    for (const char of value)
-      result = BigInt.asUintN(64, (result ^ BigInt(char.codePointAt(0)!)) * 1099511628211n);
-    return result.toString(36);
-  };
-  return `ui:native:${hash(owner.dataset.uiResidentRoot ?? owner.className)}:${hash(path)}`;
+  return `ui:native:${stableUIHash(owner.dataset.uiResidentRoot ?? owner.className)}:${stableUIHash(path)}`;
 }
 function* ancestors(element: HTMLElement): Generator<HTMLElement> {
   for (let parent = element.parentElement; parent; parent = parent.parentElement) yield parent;
@@ -77,6 +90,8 @@ type Entry = {
   element: HTMLButtonElement;
   id: string;
   label: string;
+  originalName: string | null;
+  originalAria: string | null;
   release: () => void;
   context: (event: MouseEvent) => void;
 };
@@ -88,7 +103,7 @@ button[data-ui-auto-action][data-ui-native-icon]::before{content:var(--ui-native
 button[data-ui-auto-action][data-ui-native-geometry="circle"]{border-radius:50%!important}
 button[data-ui-auto-action][data-ui-native-geometry="square"]{border-radius:4px!important}
 button[data-ui-auto-action][data-ui-native-geometry="triangle"]{border-radius:0!important;clip-path:polygon(50% 0,100% 100%,0 100%)}
-button[data-ui-auto-action][data-ui-native-shortcut]::after{content:" (" attr(data-ui-native-shortcut) ")";font:11px/1 system-ui;pointer-events:none}
+button[data-ui-auto-action][data-ui-native-shortcut]:not([data-ui-caption])::after{content:" (" attr(data-ui-native-shortcut) ")";font:11px/1 system-ui;pointer-events:none}
 `;
 /** One adapter covers ordinary buttons in every current/future frame. Registered controls
  * retain their existing behavior. Recovery and the customizer itself stay outside discovery. */
@@ -107,7 +122,17 @@ export function NativeActions() {
     // Unknown expandable buttons are not complete movable groups. Their declared
     // container must provide the payload; never hide/move a header on its own.
     element.draggable = !element.hasAttribute("aria-expanded") && !functionPinned(layout, id);
-    const title = layout.hideNames ? entry.label : "";
+    const renamed = layout.labels?.[`function:${id}`];
+    if (renamed) {
+      element.dataset.uiCaption = renamed;
+      element.dataset.uiName = renamed;
+      element.setAttribute("aria-label", renamed);
+    } else if (element.hasAttribute("data-ui-caption")) {
+      delete element.dataset.uiCaption;
+      if (entry.originalName === null) delete element.dataset.uiName; else element.dataset.uiName = entry.originalName;
+      if (entry.originalAria === null) element.removeAttribute("aria-label"); else element.setAttribute("aria-label", entry.originalAria);
+    }
+    const title = layout.hideNames ? renamed ?? entry.label : "";
     if (element.title !== title) element.title = title;
     element.dataset.uiNativeTitle = "true";
     element.toggleAttribute(
@@ -141,6 +166,7 @@ export function NativeActions() {
       }
     }
     const shortcut = shortcutBindings?.[`button:${id}`];
+    element.style.setProperty("--ui-caption-shortcut", JSON.stringify(shortcut ? ` (${shortcut})` : ""));
     if (shortcut) element.dataset.uiNativeShortcut = shortcut;
     else delete element.dataset.uiNativeShortcut;
   };
@@ -165,7 +191,7 @@ export function NativeActions() {
             active.selectionMenu(event.clientX, event.clientY);
           else active.configure(id);
         };
-        entry = { element: button, id, label: "", release: () => {}, context };
+        entry = { element: button, id, label: "", originalName: button.getAttribute("data-ui-name"), originalAria: button.getAttribute("aria-label"), release: () => {}, context };
         entries.current.set(button, entry);
         button.dataset.uiFunction = id;
         button.dataset.uiAutoAction = "true";
@@ -240,6 +266,11 @@ export function NativeActions() {
         entry.element.removeEventListener("contextmenu", entry.context);
         delete entry.element.dataset.uiFunction;
         delete entry.element.dataset.uiAutoAction;
+        if (entry.element.hasAttribute("data-ui-caption")) {
+          delete entry.element.dataset.uiCaption;
+          if (entry.originalName === null) delete entry.element.dataset.uiName; else entry.element.dataset.uiName = entry.originalName;
+          if (entry.originalAria === null) entry.element.removeAttribute("aria-label"); else entry.element.setAttribute("aria-label", entry.originalAria);
+        }
         entry.element.removeAttribute("data-ui-native-hidden");
         entry.element.removeAttribute("data-ui-native-icon");
         if (entry.element.dataset.uiNativeLabel) entry.element.removeAttribute("aria-label");

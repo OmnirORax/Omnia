@@ -1,3 +1,6 @@
+import { UIField } from "../ui/UIField";
+import { stableUIHash } from "../ui/identity";
+import { UISection } from "../ui/UISection";
 import { useState } from "react";
 import { useAppearance, basesForOwner } from "./Context";
 import { instanceId } from "./registry";
@@ -63,9 +66,8 @@ export function ContextualAppearance({
   };
   const rule = ctx.state.locks[id];
   return (
-    <fieldset className="contextual-appearance">
-      <legend>Appearance</legend>
-      <label>
+    <UISection legacyTag="FIELDSET" id="contextual-appearance" title="Appearance" className="contextual-appearance">
+      <UIField id={`ui:appearance:localPart:${stableUIHash(owner)}`} label="Local appearance part" category="Appearance"><label>
         Part
         <select
           aria-label="Local appearance part"
@@ -82,21 +84,21 @@ export function ContextualAppearance({
             </option>
           ))}
         </select>
-      </label>
+      </label></UIField>
       <PropertyTree
         scope="local"
         selected={p}
         onSelect={setProperty}
         available={props}
         renderEditor={(id) => (
-          <PropertyEditor
+          <UIField id={`ui:appearance:local:${stableUIHash(owner)}:${id}`} label={`${label} local ${id}`} category="Appearance"><PropertyEditor
             property={id}
             effectKinds={target.effectKinds}
             label={`${label} local ${id}`}
             value={valueFor(ctx.base, ctx.state, target, id)}
             onPreview={(v) => ctx.customize(base.id, owner, label, id, v, true)}
             onCommit={(v) => ctx.customize(base.id, owner, label, id, v)}
-          />
+          /></UIField>
         )}
       />
       <div className="appearance-local-value">
@@ -126,6 +128,6 @@ export function ContextualAppearance({
         Use shared defaults
       </button>
       {instance && <small>Appears in the master controller under its shared part category.</small>}
-    </fieldset>
+    </UISection>
   );
 }

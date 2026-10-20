@@ -1,5 +1,12 @@
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
+import { withControlCaption } from "./captions";
+import { UIField } from "./UIField";
+import { UIAction } from "./UIAction";
+import { UISection } from "./UISection";
+import { UIEditor } from "./UIEditor";
+import { CustomControls, CustomControlSettings } from "./CustomControls";
+import { removeCustomControl } from "./authoring";
 import { useOutsideDismiss } from "./useOutsideDismiss";
 import { useCursorTracking } from "./cursorPosition";
 import { NamePresentation } from "./NamePresentation";
@@ -27,6 +34,7 @@ import { createPortal } from "react-dom";
 import {
   UIContext,
   UIHomeContext,
+  UIPathContext,
   DockFillContext,
   useUI,
   type UIFunction,
@@ -47,9 +55,7 @@ import {
 import { VisualControls } from "../VisualControls";
 import { ShortcutHint } from "./ShortcutHint";
 import { FrameChrome } from "./FrameChrome";
-import { FrameCloseButton } from "./FrameCloseButton";
 import { GlobalSearch, type GlobalSearchProps } from "./GlobalSearch";
-import { FrameSearch } from "./FrameSearch";
 import { DockArea } from "./DockArea";
 import { DockHost } from "./DockHost";
 import {
@@ -306,14 +312,6 @@ export function UIPanel({
         <section className={className}>{children}</section>
       </FloatingWindow>
     );
-  if (!menu && !ui.layout.panels["@organized"]) return (
-    <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
-      <FrameCloseButton container={key} title={title} />
-      <div className="ui-legacy-search"><FrameSearch container={key} title={title} expand={() => {}} /></div>
-      <button className="detach-panel" title={`Float ${title}`} aria-label={`Undock ${id} panel`} data-ui-drag={key} draggable onDragStart={e => startResidentDrag(e, key)} onClick={() => float(true)}>↗</button>
-      <UIHomeContext.Provider value={key}>{children}<DockArea container={key} contour={false} /></UIHomeContext.Provider>
-    </section>
-  );
   return (
     <section
       ref={root}
@@ -335,10 +333,10 @@ export function UIPanel({
         onClick={() => float(true)}
       >↗</button>}
       <div className={`ui-panel-body ${className}`} hidden={state.collapsed} style={menu ? { width: Math.min(state.width, window.innerWidth - 24), left: popup.left, maxHeight: popup.height } : undefined}>
-      <UIHomeContext.Provider value={key}>
+      <UIHomeContext.Provider value={key}><UIPathContext.Provider value={[key]}>
         {children}
         <DockArea container={key} contour={false} />
-      </UIHomeContext.Provider>
+      </UIPathContext.Provider></UIHomeContext.Provider>
       </div>
     </section>
   );
@@ -430,7 +428,10 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
                 next = releaseResident(next, memberKey);
                 if (member.kind === "function") {
                   const items = { ...next.items };
-                  delete items[member.id];
+                  if (next.customControls?.[member.id]) items[member.id] = {
+                    ...items[member.id], home: false, x: frame.x + 24, y: frame.y + 64,
+                  };
+                  else delete items[member.id];
                   next = { ...next, items };
                 } else
                   next = updateContainer(next, memberKey, { x: frame.x + 24, y: frame.y + 64 });
@@ -528,7 +529,10 @@ export function UIWorkspace({
   );
   const functions = useMemo(() => [
     ...new Map([...definitions, ...Object.values(registered)].map((fn) => [fn.id, fn])).values(),
-  ], [definitions, registered]);
+  ].filter(fn => !fn.id.startsWith("ui:custom:") || !!layout.customControls?.[fn.id]).map(fn => {
+    const caption = layout.labels?.[`function:${fn.id}`];
+    return caption ? { ...fn, label: caption, element: withControlCaption(fn.element, caption) } : fn;
+  }), [definitions, registered, layout.labels, layout.customControls]);
   const libraryOpen = layout.panels["@library"] ?? false;
   const setLibraryOpen = (value: boolean) =>
     update((s) => ({ ...s, panels: { ...s.panels, "@library": value } }));
@@ -1683,6 +1687,8 @@ export function UIWorkspace({
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
       <NativeActions />
+      <CustomControls />
+      <UIEditor />
       <NamePresentation />
       {children}
       {search && <GlobalSearch {...search} />}
@@ -1816,6 +1822,9 @@ export function UIWorkspace({
               )}
             </>
           )}
+          <button onClick={() => { update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); setMenu(null); }}>
+            {layout.panels["@devMode"] ? "Exit UI edit mode" : "UI edit mode"}
+          </button>
           <button
             onClick={() => {
               createFrame(menu.x, menu.y);
@@ -1850,21 +1859,21 @@ export function UIWorkspace({
             together. Esc cancels. Shift+MB4/MB5 undo and redo the UI.
           </p>
           <button onClick={() => createFrame(120, 180)}>Create UI frame</button>
-          <input
+          <UIField id="ui:library:find" label="Find a UI function" category="Interface"><label>Find a function<input
             aria-label="Find UI function"
             placeholder="Find a function…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-          />
+          /></label></UIField>
           <div className="function-library categorized-library">
             {Object.entries(layout.windows).some(([, state]) => state.closed) && (
-              <details open><summary>Closed frames</summary>
+              <UISection id="closed-frames" title="Closed frames">
                 {Object.entries(layout.windows).filter(([, state]) => state.closed).map(([id]) => {
                   const key = `window:${id}`;
                   const title = layout.labels?.[key] ?? frameActions.get(key)?.title ?? id.replace(/^panel:/, "");
                   return <button key={id} onClick={() => update(layout => updateContainer(layout, key, { closed: false, collapsed: false }))}>Open {title}</button>;
                 })}
-              </details>
+              </UISection>
             )}
             {LIBRARY_CATEGORIES.map((category) => {
               const entries = functions
@@ -1877,10 +1886,8 @@ export function UIWorkspace({
                 .sort((a, b) => a.label.localeCompare(b.label));
               return (
                 entries.length > 0 && (
-                  <details key={category} open={!!query || undefined}>
-                    <summary>
-                      {category} <small>{entries.length}</small>
-                    </summary>
+                  <UISection key={category} id={`library-${category}`} title={category} defaultExpanded={false} expanded={query ? true : undefined}>
+                    <small>{entries.length} controls</small>
                     {entries.map((fn) => (
                       <div className="library-entry" key={fn.id}>
                         <FunctionElement fn={fn} palette />
@@ -1889,7 +1896,7 @@ export function UIWorkspace({
                         )}
                       </div>
                     ))}
-                  </details>
+                  </UISection>
                 )
               );
             })}
@@ -1925,19 +1932,25 @@ export function UIWorkspace({
           <EmbeddedGroup id="arrange:appearance" title="Appearance" className="arrange-section">
             <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
           </EmbeddedGroup>
+          {selected && layout.customControls?.[selected.id] && <UISection id="custom-field-settings" title="Field settings">
+            <CustomControlSettings key={selected.id} id={selected.id} />
+            <button onClick={() => { update(layout => removeCustomControl(layout, selected.id)); configure(null); }}>Remove custom field</button>
+          </UISection>}
           {!configuredControl && (
             <EmbeddedGroup id="arrange:display" title={configuredFrame ? "Frame handle" : "Display"} className="arrange-section">
+              {selected && <UIField id="ui:editor:functionName" label="Function name" category="Interface"><label>Name<UINameInput label="Function name" value={layout.labels?.[`function:${selected.id}`] ?? selected.label}
+                onRename={name => update(layout => ({ ...layout, labels: { ...layout.labels, [`function:${selected.id}`]: name } }))} /></label></UIField>}
               {configuredFrame && frameActions.get(configuredFrame)?.onRename && (
-                <label>
+                <UIField id="ui:editor:frameName" label="Frame name" category="Interface"><label>
                   Name
                   <UINameInput
                     label="Frame name"
                     value={layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)!.title}
                     onRename={(name) => frameActions.get(configuredFrame)?.onRename?.(name)}
                   />
-                </label>
+                </label></UIField>
               )}
-              <label>
+              <UIField id="ui:editor:display" label="Control display" category="Interface"><label>
                 Display
                 <select
                   aria-label={configuredFrame ? "Frame handle display" : "Function display"}
@@ -1947,8 +1960,8 @@ export function UIWorkspace({
                   <option value="text">Text</option>
                   <option value="icon">Icon button</option>
                 </select>
-              </label>
-              <label>
+              </label></UIField>
+              <UIField id="ui:editor:geometry" label="Control geometry" category="Interface"><label>
                 Geometry
                 <select
                   aria-label={configuredFrame ? "Frame handle geometry" : "Function geometry"}
@@ -1961,7 +1974,7 @@ export function UIWorkspace({
                   <option value="square">Square</option>
                   <option value="triangle">Triangle</option>
                 </select>
-              </label>
+              </label></UIField>
             </EmbeddedGroup>
           )}
           {shortcuts && (
@@ -1970,7 +1983,7 @@ export function UIWorkspace({
                 const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
                 const id = buttonShortcutId(target);
                 const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
-                return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
+                return <UIField id="ui:editor:shortcut" label="Control shortcut" category="Interface"><div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div></UIField>;
               })()}
             </EmbeddedGroup>
           )}
@@ -2000,7 +2013,7 @@ export function UIWorkspace({
           </EmbeddedGroup>
           {selected && (
             <EmbeddedGroup id="arrange:placement" title="Placement" className="arrange-section">
-              <button
+              <UIAction id="ui:editor:pinFunction" label={item?.pinned ? "Unpin function" : "Pin function"}
                 onClick={() =>
                   update((s) => ({
                     ...s,
@@ -2016,15 +2029,11 @@ export function UIWorkspace({
                     },
                   }))
                 }
-              >
-                {item?.pinned ? "Unpin function" : "Pin function"}
-              </button>
-              <button
+              />
+              <UIAction id="ui:editor:returnFunction" label="Return to default location"
                 disabled={functionPinned(layout, selected.id)}
                 onClick={() => update((s) => detachFunction(s, selected.id, 0, 0, true))}
-              >
-                Return to default location
-              </button>
+              />
             </EmbeddedGroup>
           )}
         </FloatingWindow>

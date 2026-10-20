@@ -12,6 +12,10 @@ import { FunctionControl } from "../ui/UIWorkspace";
 import { EditableLabel } from "../ui/EditableLabel";
 import { NameVisibilityControl } from "../ui/NamePresentation";
 import { EmbeddedGroup } from "../ui/EmbeddedGroup";
+import { UISection } from "../ui/UISection";
+import { UIField } from "../ui/UIField";
+import { stableUIHash } from "../ui/identity";
+import { UIAction } from "../ui/UIAction";
 import { useUI } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 
@@ -171,14 +175,14 @@ export function MasterController() {
             )}
           </span>
           {target.properties?.includes(property) && (
-            <PropertyEditor
+            <UIField id={`ui:appearance:target:${stableUIHash(target.id)}:${property}`} label={`${target.label} ${property}`} category="Appearance"><PropertyEditor
               property={property}
               effectKinds={target.effectKinds}
               label={`${target.label} ${property}`}
               value={valueFor(ctx.base, state, target, property)}
               onPreview={(v) => change(v, true, target.id)}
               onCommit={(v) => change(v, false, target.id)}
-            />
+            /></UIField>
           )}
           <LockControl
             label={target.label}
@@ -194,60 +198,29 @@ export function MasterController() {
   };
   return (
     <section className="appearance-controller" aria-label="Master appearance controller">
-      <div className="appearance-sets" role="group" aria-label="Appearance targeting sets">
-        <select
-          aria-label="Appearance set"
-          value={active.id}
-          onChange={(e) => ctx.commit({ ...state, activeSet: e.target.value })}
-        >
-          {state.sets.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <button
-          title="Add appearance targeting set"
-          onClick={() => {
+      <UISection id="appearance-targeting-sets" title="Appearance targeting sets">
+        <div className="appearance-sets">
+          <UIField id="ui:appearance:activeSet" label="Active targeting set" category="Appearance">
+            <label>Targeting set<select aria-label="Appearance set" value={active.id}
+              onChange={e => ctx.commit({ ...state, activeSet: e.target.value })}>
+              {state.sets.map(set => <option key={set.id} value={set.id}>{set.name}</option>)}
+            </select></label>
+          </UIField>
+          <UIAction id={`ui:native:${stableUIHash("window:theme")}:${stableUIHash("DIV:0/SECTION:0/DIV:0/BUTTON:0")}`} label="Add targeting set" symbol="+" category="Appearance" onClick={() => {
             const id = crypto.randomUUID();
-            ctx.commit({
-              ...state,
-              sets: [
-                ...state.sets,
-                { id, name: `Set ${state.sets.length + 1}`, selection: { ...active.selection } },
-              ],
-              activeSet: id,
-            });
-          }}
-        >
-          +
-        </button>
-        <input
-          aria-label="Appearance set name"
-          value={active.name}
-          onChange={(e) =>
-            ctx.commit({
-              ...state,
-              sets: state.sets.map((s) =>
-                s.id === active.id ? { ...s, name: e.target.value } : s,
-              ),
-            })
-          }
-        />
-        <button
-          disabled={state.sets.length < 2}
-          title="Remove targeting set; appearance values are retained"
-          onClick={() =>
-            ctx.commit({
-              ...state,
-              sets: state.sets.filter((s) => s.id !== active.id),
-              activeSet: state.sets.find((s) => s.id !== active.id)!.id,
-            })
-          }
-        >
-          ×
-        </button>
-      </div>
+            ctx.commit({ ...state, sets: [...state.sets, { id, name: `Set ${state.sets.length + 1}`, selection: { ...active.selection } }], activeSet: id });
+          }} />
+          <UIField id="ui:appearance:setName" label="Targeting set name" category="Appearance">
+            <label>Set name<input aria-label="Appearance set name" value={active.name} onChange={e => ctx.commit({
+              ...state, sets: state.sets.map(set => set.id === active.id ? { ...set, name: e.target.value } : set),
+            })} /></label>
+          </UIField>
+          <UIAction id={`ui:native:${stableUIHash("window:theme")}:${stableUIHash("DIV:0/SECTION:0/DIV:0/BUTTON:1")}`} label="Remove targeting set" symbol="×" category="Appearance"
+            disabled={state.sets.length < 2} onClick={() => ctx.commit({ ...state,
+              sets: state.sets.filter(set => set.id !== active.id), activeSet: state.sets.find(set => set.id !== active.id)!.id,
+            })} />
+        </div>
+      </UISection>
       <NameVisibilityControl />
       <PropertyTree
         selected={property}
@@ -274,7 +247,7 @@ export function MasterController() {
           });
         }}
       >
-        <input
+        <UIField id="ui:appearance:findBranch" label="Find appearance branch" category="Appearance"><label>Find appearance branch<input
           type="search"
           aria-label="Find appearance branch"
           placeholder="Find a branch…"
@@ -283,7 +256,7 @@ export function MasterController() {
             ctx.locate(null, true);
             setQuery(e.target.value);
           }}
-        />
+        /></label></UIField>
         <small>● include · ○ exclude · ◎ only · ⏻ plug · ◆ local refinement</small>
         <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
           {(children.get("") ?? []).map((t) => row(t, 0))}

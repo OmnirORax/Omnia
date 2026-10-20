@@ -116,3 +116,31 @@ test("window fitting keeps resized and imported windows reachable without losing
   assert.equal(collapsed.collapsed, true);
   assert.equal(collapsed.height, fit.height);
 });
+
+test("custom UI fields retain values, names and placements through template round trips", async () => {
+  const { customControl, addCustomControl, removeCustomControl } = await import("../src/ui/authoring.ts");
+  const original = emptyUILayout();
+  let layout = addCustomControl(original, "ui:custom:budget", customControl("Budget", "number"), 80, 120);
+  layout.customControls["ui:custom:budget"].value = 31;
+  layout.labels = { "function:ui:custom:budget": "Working budget" };
+  layout = groupFunctions(layout, "ui:custom:budget", "focus", 100, 150);
+  const restored = validateUILayout(JSON.parse(JSON.stringify(layout)));
+  assert.equal(restored.customControls["ui:custom:budget"].value, 31);
+  assert.equal(restored.labels["function:ui:custom:budget"], "Working budget");
+  assert.ok(ownerOf(restored, "function:ui:custom:budget"));
+  const removed = removeCustomControl(restored, "ui:custom:budget");
+  assert.equal(removed.customControls["ui:custom:budget"], undefined);
+  assert.equal(ownerOf(removed, "function:ui:custom:budget"), undefined);
+  assert.equal(removed.items["ui:custom:budget"], undefined);
+  assert.equal(removed.labels["function:ui:custom:budget"], undefined);
+  assert.equal(original.customControls, undefined);
+  assert.equal(restored.customControls["ui:custom:budget"].value, 31, "previous history entry stays intact");
+});
+
+test("custom UI field imports reject invalid types, values and dropdown choices", async () => {
+  const { customControl, addCustomControl } = await import("../src/ui/authoring.ts");
+  const valid = addCustomControl(emptyUILayout(), "ui:custom:choice", customControl("Choice", "select", ["A", "B"]), 20, 30);
+  assert.equal(validateUILayout(valid).customControls["ui:custom:choice"].value, "A");
+  for (const change of [{ value: "missing" }, { kind: "script" }, { options: ["A", "A"] }, { min: 10, max: 1 }])
+    assert.throws(() => validateUILayout({ ...valid, customControls: { "ui:custom:choice": { ...valid.customControls["ui:custom:choice"], ...change } } }));
+});

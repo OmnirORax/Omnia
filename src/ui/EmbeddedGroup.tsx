@@ -9,7 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useAppearance } from "../appearance/Context";
-import { useUI, UIHomeContext, UIContainerContext } from "./context";
+import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
 import { nextWindowLayer } from "./FloatingWindow";
@@ -30,6 +30,7 @@ export function EmbeddedGroup({
   selected,
   className = "",
   nodeId,
+  nativeTag,
   onToggle,
   children,
 }: {
@@ -40,6 +41,7 @@ export function EmbeddedGroup({
   selected?: boolean;
   className?: string;
   nodeId?: string;
+  nativeTag?: string;
   onToggle?: (event: MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
 }) {
@@ -47,6 +49,7 @@ export function EmbeddedGroup({
   const ui = useUI(),
     home = useContext(UIHomeContext),
     parent = useContext(UIContainerContext) ?? home,
+    path = useContext(UIPathContext),
     key = `window:${id}`;
   const expanded = expandedOverride ?? !(ui.layout.windows[id]?.collapsed ?? !defaultExpanded);
   const root = useRef<HTMLDivElement>(null);
@@ -154,6 +157,7 @@ export function EmbeddedGroup({
         }
       }}
       data-property-node={nodeId}
+      data-ui-native-tag={nativeTag}
       data-ui-inline-group={key}
       data-ui-action-ids={JSON.stringify(state.inline?.actionIds ?? {})}
       data-ui-resident-root={key}
@@ -182,10 +186,10 @@ export function EmbeddedGroup({
         onToggle={onToggle}
       />
       <div className="property-node-contents" hidden={!expanded}>
-        <UIContainerContext.Provider value={key}>
+        <UIPathContext.Provider value={[...path, key]}><UIContainerContext.Provider value={key}>
           {children}
           <DockArea container={key} contour={false} />
-        </UIContainerContext.Provider>
+        </UIContainerContext.Provider></UIPathContext.Provider>
       </div>
     </div>
   );

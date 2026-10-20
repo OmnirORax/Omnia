@@ -1,3 +1,4 @@
+import { UISection } from "./ui/UISection";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
 import { sameAppearance } from "./appearance/session";
@@ -895,6 +896,7 @@ function Workbench() {
       case "ui:redo": setAppearancePreview(null); ui.redo(steps); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
+      case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
       case "ui:createFrame": updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: 120, y: 180, cellSize: 96, collapsed: false, pinned: false }] })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
@@ -1009,6 +1011,7 @@ function Workbench() {
     uiFunctions.find(f => f.id === `shortcut:${id}`)!.category = "Shortcuts";
   }
 
+  replaceFunction("ui:devMode", "UI edit mode", <button aria-pressed={!!savedUILayout.panels["@devMode"]} onClick={() => runAction("ui:devMode")}>UI edit mode</button>);
   replaceFunction('ui:placementMode', 'UI placement mode', <UIPlacementControl />, true);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
@@ -1103,7 +1106,7 @@ function Workbench() {
             {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:workspace" title="Workspace" menu>
-            {["settings", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:placementMode", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
+            {["settings", "shortcuts", "ui:devMode", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:placementMode", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           </UIFrameStrip>
           <div className="primary-charting-actions" role="toolbar" aria-label="Charting actions">
@@ -1166,7 +1169,6 @@ function Workbench() {
         <aside className="sidebar">
           <UIFrameStrip id="@sidebar" vertical>
           <UIPanel id="reuse" title="Reuse identity">
-            <h2>Reuse identity</h2>
             {field("field:find-existing-identity", "Find existing identity", <label>
               Find an existing entity or subsystem
               <input
@@ -1214,7 +1216,6 @@ function Workbench() {
               ))}
           </UIPanel>
           <UIPanel id="hierarchy" title="Hierarchy">
-            <h2>Hierarchy</h2>
             {activeLayout && <>{field("field:view-name", "View name", <label>View name<input aria-label="View name" value={activeLayout.name} onChange={(event) => commitDocument({ ...document, layoutViews: document.layoutViews?.map((v) => v.id === activeLayout.id ? { ...v, name: event.target.value } : v) })} /></label>)}<p>Rule: {activeLayout.rule}. Switching views preserves the arrangement you leave.</p>{activeLayout.rule !== "manual" && <button onClick={reapplyView}>Reapply view rule</button>}{activeLayout.id !== "authored-layout" && <button onClick={removeView}>Remove view</button>}</>}
             {atlas.nodes.length ? (
               <nav aria-label="Node hierarchy">{outline(null)}</nav>
@@ -1223,7 +1224,6 @@ function Workbench() {
             )}
           </UIPanel>
           <UIPanel id="frames" title="Investigative frames">
-            <h2>Investigative frames</h2>
             {field("field:frame-question", "Frame question", <label>
               Question or objective
               <input
@@ -1379,7 +1379,7 @@ function Workbench() {
                     r.participants.every((p) => activeFrame.scope.entityIds.includes(p.entityId)),
                   )
                   .map((r) => (
-                    field("field:-" + ":" + (r.id), "( )", <label key={r.id}>
+                    field("field:-" + ":" + (r.id), `Include relationship ${r.label || document.relationshipTypes.find(type => type.id === r.typeId)?.name || r.id}`, <label key={r.id}>
                       <input
                         type="checkbox"
                         disabled={activeFrame.locked}
@@ -1444,16 +1444,14 @@ function Workbench() {
           </UIPanel>
           <UIPanel id="inspector" title="Inspector" className="inspector">
             {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
-            <h2>{selectedComposition ? "Composition binder" : selectedRelationship ? "Relationship" : selectedNode ? "Node" : "Inspector"}</h2>
             {selectedNode ? (
               <>
-                <details>
-                  <summary>Technical details</summary>
+                <UISection id="node-technical-details" title="Technical details" defaultExpanded={false}>
                   <p>Identity: <code>{selectedEntity?.id}</code>
                   <br />
                   Placement: <code>{selectedNode.id}</code>
                   </p>
-                </details>
+                </UISection>
                 {selectedPlacement?.variantOwner && <p>Variant of {document.entities.find((e) => e.id === document.placements.find((p) => p.id === selectedPlacement.variantOwner!.placementId)?.entityId)?.label}</p>}
                 <p>
                   {document.placements.filter((p) => p.entityId === selectedEntity?.id).length}{" "}
@@ -1613,8 +1611,7 @@ function Workbench() {
                       </button>
                     </div>
                   ))}
-                <div className="spatial-fields" aria-label="3D position">
-                  <h3>3D position (local XYZ)</h3>
+                <UISection legacyTag="DIV" id="spatial-position" title="3D position (local XYZ)" className="spatial-fields">
                   {(["x", "y", "z"] as const).map((axis) => {
                     const fallback = {
                       x: selectedNode.position.x / 100,
@@ -1654,7 +1651,7 @@ function Workbench() {
                       Move near legacy 2D position
                     </button>
                   )}
-                </div>
+                </UISection>
                 <button onClick={() => addNode(selectedNode.id)}>+ Child node</button>
                 {field("field:hide-this-placement", "Hide this placement", <label>
                   <input
@@ -1698,7 +1695,7 @@ function Workbench() {
               </>
             ) : selectedRelationship ? (
               <>
-                <details><summary>Technical details</summary><p>Relationship ID: <code>{selectedRelationship.id}</code></p></details>
+                <UISection id="relationship-technical-details" title="Technical details" defaultExpanded={false}><p>Relationship ID: <code>{selectedRelationship.id}</code></p></UISection>
                 {selectedRelationData && <BinderControls {...binderThemeProps} defaultText={selectedBinderText} value={selectedRelationData} onChange={updateRelation} />}
                 {field("field:relationship-type", "Relationship type", <label>
                   Type
@@ -1819,7 +1816,6 @@ function Workbench() {
             )}
           </UIPanel>
           <UIPanel id="connections" title="Connect nodes">
-            <h2>Connect nodes</h2>
             <p>Choose endpoints below to add a directed relationship.</p>
             {field("field:new-relationship-source", "New relationship source", <label>
               From
@@ -1854,7 +1850,6 @@ function Workbench() {
             </button>
           </UIPanel>
           <UIPanel id="types" title="Relationship types">
-            <h2>Relationship types</h2>
             <FunctionControl id="ui:defineType" />
             {document.relationshipTypes.map((type) => (
               <div key={type.id}>
@@ -1903,13 +1898,12 @@ function Workbench() {
             ))}
           </UIPanel>
           <UIPanel id="ai" title="External AI proposal">
-            <h2>External AI proposal</h2>
             <p>
               Export the atlas JSON for an external AI. Ask it for an <code>omnium-changeset</code>{" "}
               with this document revision ({document.revision}) and stable IDs. Valid structure
               still needs your factual review.
             </p>
-            <textarea
+            {field("field:change-set-json", "Change set JSON", <textarea
               aria-label="Change set JSON"
               rows={7}
               value={proposalText}
@@ -1918,7 +1912,7 @@ function Workbench() {
                 setProposalPreview(null);
               }}
               placeholder="Paste change-set JSON"
-            />
+            />)}
             <button onClick={() => proposalInput.current?.click()}>
               Load change-set JSON file
             </button>
@@ -1966,8 +1960,7 @@ function Workbench() {
           </UIPanel>
           {
             <UIPanel id="relationships" title="Relationships">
-              <h2>Relationships</h2>
-              <p>
+                <p>
                 3D links connect through collapsed ancestors. This list retains every relationship.
               </p>
               {!atlas.relationships.length && <p>No relationships yet.</p>}
@@ -2045,8 +2038,7 @@ function Workbench() {
       </main>
       {connectionSource && <div className="operation-banner" role="status">Select another name to connect from {atlas.nodes.find((n) => n.id === connectionSource)?.label || "selected node"}. <button onClick={() => setConnectionSource(null)}>Cancel</button></div>}
       {insertContext && <FloatingWindow id="insert-existing" title="Insert existing entity" width={440} height={430} modal onClose={() => setInsertContext(null)}>
-        <h2>Insert existing entity or subsystem</h2>
-        <input autoFocus aria-label="Search existing entities" value={insertQuery} onChange={(event) => setInsertQuery(event.target.value)} placeholder="Search label, alias, or ID" />
+        {field("field:insert-existing-search", "Search existing entities", <label>Search existing entities<input autoFocus aria-label="Search existing entities" value={insertQuery} onChange={(event) => setInsertQuery(event.target.value)} placeholder="Search label, alias, or ID" /></label>)}
         <div className="entity-results">{document.entities.filter((entity) => `${entity.id} ${entity.label} ${entity.aliases.join(" ")}`.toLowerCase().includes(insertQuery.toLowerCase())).slice(0, 30).map((entity) => <button key={entity.id} onClick={() => insertExisting(entity.id, insertContext.parentId, insertContext.world)}>{entity.label || entity.id}<small>{entity.id}</small></button>)}</div>
         <button onClick={() => setInsertContext(null)}>Close</button>
       </FloatingWindow>}
@@ -2055,28 +2047,31 @@ function Workbench() {
       {themeOpen && <FloatingWindow id="theme" openAtCursor={false} title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
         <p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>
         <MasterController />
-        <section aria-label="Theme utilities"><h3>Theme utilities</h3>
+        <UISection id="theme-utilities" title="Theme utilities">
           {["ui:appearance:apply", "ui:appearance:discard", "ui:appearance:recovery", "ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
-        </section>
-        <section aria-label="Theme templates"><h3>Theme templates</h3>
+        </UISection>
+        <UISection id="theme-templates" title="Theme templates">
           <p>Save colors, window appearance and animations together.</p>
           {["name", "select", "save", "apply", "delete", "export", "import"].map(action => <FunctionControl key={action} id={`ui:themePreset:${action}`} />)}
 
-        </section>
+        </UISection>
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
-        <FunctionControl id="ui:sphereDiameter" />
-        <FunctionControl id="appearance" palette />
-        <h2>Workspace settings</h2>
-        <FunctionControl id="ui:settingsSnap" />
-        <FunctionControl id="ui:radius" />
-        <FunctionControl id="ui:clearance" />
-        <FunctionControl id="isolateFocus" />
-        {(["leftEmpty", "rightEmpty"] as const).map((button) => field("field:field" + ":" + (button), "Field", <label key={button}>{button === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select value={settings.mouse[button]} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, [button]: event.target.value as WorkspaceSettings["mouse"][typeof button] } }))}><option value="pan">Pan</option><option value="rotate">Rotate</option><option value="none">None</option></select></label>))}
-        <FunctionControl id="ui:subtreeModifier" />
-        <h2>Keyboard actions</h2>
-        {ACTIONS.some((action) => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
-        {Array.from(new Set(ACTIONS.map(action=>action.category))).map(category=><div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter(action=>action.category===category).map(action=><FunctionControl key={action.id} id={`shortcut:${action.id}`}/>)}</div>)}
+        <UISection id="spatial-settings" title="Spatial settings">
+          {["ui:sphereDiameter", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
+        </UISection>
+        <UISection id="mouse-settings" title="Mouse & gestures">
+          <FunctionControl id="ui:subtreeModifier" />
+          {(["leftEmpty", "rightEmpty"] as const).map(key => <FunctionControl key={key} id={`ui:camera:${key}`} />)}
+          {["selectionModifier", "nestModifier", "subtreeModifier"].map(key => <FunctionControl key={key} id={`ui:gesture:${key}`} />)}
+          {["backButton", "forwardButton", "shiftBackButton", "shiftForwardButton"].map(key => <FunctionControl key={key} id={`ui:mouse:${key}`} />)}
+        </UISection>
+        <UISection id="keyboard-actions" title="Keyboard actions">
+          {ACTIONS.some(action => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
+          {Array.from(new Set(ACTIONS.map(action => action.category))).map(category => <UISection key={category} id={`shortcuts-${category}`} title={category} className="settings-category">
+            {ACTIONS.filter(action => action.category === category).map(action => <FunctionControl key={action.id} id={`shortcut:${action.id}`} />)}
+          </UISection>)}
+        </UISection>
         <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
     </div><WindowSparkles source={settings.appearance} appearance={renderedAppearance} /></UIWorkspace></>

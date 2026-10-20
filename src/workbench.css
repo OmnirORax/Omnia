@@ -943,3 +943,22 @@ label:has(> input:is([type="checkbox"],[type="radio"])) > input:is([type="checkb
 .ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close) { padding-right: 32px; }
 .ui-frame-handle.icon-handle > button { padding-top: 12px; }
 .ui-frame-tools { width: max-content; max-width: 100%; }
+
+/* Categories use ordinary movable frames; no category-specific positioning rules. */
+.ui-section { display: block; width: fit-content; max-width: 100%; margin-block: 7px; padding: 0; }
+.ui-section > .property-node-contents { width: fit-content; max-width: 100%; }
+.ui-section.appearance-controls { display: block; border: 0; padding: 0; }
+.ui-section.appearance-controls > .property-node-contents { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 7px; }
+.ui-section.visual-controls, .ui-section.contextual-appearance { min-width: 0; padding: 0; border: 0; }
+.ui-section.spatial-fields { display: block; }
+.ui-section.spatial-fields > .property-node-contents { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; }
+.ui-section .appearance-sets { border: 0; padding: 0; margin: 0; align-items: flex-end; }
+.ui-section .appearance-sets .ui-form-control label { margin-bottom: 0; }
+.ui-editor-tools, .ui-editor-frame-list { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 5px; }
+.ui-editor-frame-list > button { cursor: grab; }
+html[data-ui-edit-mode] .ui-form-control { outline: 1px dashed color-mix(in srgb, var(--omnium-accent, #386991) 45%, transparent); outline-offset: 1px; }
+html[data-ui-edit-mode] .ui-field-edge:hover { background: color-mix(in srgb, var(--omnium-accent, #386991) 30%, transparent); }
+button[data-ui-caption]:not([data-ui-native-icon]) { font-size: 0 !important; }
+button[data-ui-caption]:not([data-ui-native-icon])::after { content: attr(data-ui-caption) var(--ui-caption-shortcut, ""); font-size: var(--ui-name-size, 12px); }
+html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::after { display: none; }
+.appearance-row > .ui-form-control { flex: 0 1 auto; padding: 0; }

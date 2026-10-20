@@ -42,6 +42,7 @@
       "panel:menu:workspace": {
         "x": 320, "y": 100, "width": 340, "height": 560, "collapsed": true, "pinned": false,
         "members": [
+          { "kind": "function", "id": "ui:devMode" },
           { "kind": "function", "id": "settings" },
           { "kind": "function", "id": "shortcuts" },
           { "kind": "function", "id": "ui:arrange" },

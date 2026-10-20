@@ -1,3 +1,4 @@
+import { validateCustomControls, type CustomUIControl } from "./controlDefinitions.ts";
 import type { VisualAsset } from "../graph/assets.ts";
 import { validateAsset } from "../graph/assets.ts";
 import { dockKeys, insertDockKey, removeDockKey, validateDockNode, type DockNode } from "./dockTree.ts";
@@ -93,6 +94,7 @@ export type UILayout = {
   nativeOrders?: Record<string, string[]>;
   labels?: Record<string, string>;
   hideNames?: boolean;
+  customControls?: Record<string, CustomUIControl>;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -127,6 +129,7 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (layout.customControls !== undefined) validateCustomControls(layout.customControls);
   if (layout.hideNames !== undefined && typeof layout.hideNames !== "boolean")
     throw new Error("Invalid UI name visibility.");
   if (

@@ -1,3 +1,4 @@
+import { UISection } from "./ui/UISection";
 import type { Appearance, BinderPresentation } from "./graph/structural";
 import { ColorInput } from "./ui/ColorInput";
 import { UIField } from "./ui/UIField";
@@ -17,8 +18,7 @@ export function AppearanceControls({
 }) {
   const current = { ...defaults, ...value, glow: value?.glow ?? defaults.glow ?? 1 };
   return (
-    <fieldset className="appearance-controls">
-      <legend>{label} appearance</legend>
+    <UISection legacyTag="FIELDSET" id={`appearance-${label}`} title={`${label} appearance`} className="appearance-controls">
       <UIField
         id={`appearance:${label}:color`}
         label={`${label} color`}
@@ -56,7 +56,7 @@ export function AppearanceControls({
         <label>Glow: {Math.round(current.glow * 100)}%<input aria-label={`${label} glow`} type="range" min="0" max="2" step="0.05" value={current.glow} onChange={event => onChange({ ...current, glow: Number(event.target.value) })} /></label>
       </UIField>
       <button onClick={() => onChange(undefined)}>Use theme defaults</button>
-    </fieldset>
+    </UISection>
   );
 }
 export function BinderControls({
@@ -99,7 +99,7 @@ export function BinderControls({
         onChange={(appearance) => onChange({ appearance })}
       />
       <AppearanceControls label="Binder text" value={value.textAppearance} defaults={textDefaults} onPreview={textAppearance => onPreview?.({ textAppearance })} onChange={textAppearance => onChange({ textAppearance })} />
-      <h3>Binder operators</h3>
+      <UISection id="binder-operators" title="Binder operators">
       <p>
         Text annotations for this binder.{" "}
         {composition
@@ -146,6 +146,7 @@ export function BinderControls({
       >
         + Binder operator
       </button>
+      </UISection>
     </>
   );
 }

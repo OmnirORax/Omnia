@@ -22,6 +22,7 @@ const titles: Record<string, string> = {
 export const searchTitle = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? titles[key] ?? nameFor(ui, key);
 function nativeHome(fn: UIFunction): string {
   const id = fn.id;
+  if (fn.homePath?.length) return fn.homePath[0];
   if (id.startsWith("ui:native:") && fn.scope) return fn.scope;
   if (/^ui:(master:|appearance:|animation:|themePreset:|glow$|resetAppearance$|atmosphere$)/.test(id)) return "window:theme";
   if (/^(shortcut:|ui:(sphereDiameter|radius|clearance|settingsSnap|subtreeModifier|gesture:|mouse:|camera:))/.test(id)) return "window:settings";
@@ -73,7 +74,7 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
   for (const fn of ui.functions) {
     if (fn.id === "searchUI") continue;
     const moved = ui.layout.items[fn.id];
-    const fallbackPath = moved && !moved.home && !moved.anchorId && !ownerOf(ui.layout, `function:${fn.id}`) ? [] : [nativeHome(fn)];
+    const fallbackPath = moved && !moved.home && !moved.anchorId && !ownerOf(ui.layout, `function:${fn.id}`) ? [] : fn.homePath?.length ? fn.homePath : [nativeHome(fn)];
     const found = byFunction.get(fn.id);
     add(found ?? { key: `function:${fn.id}`, label: fn.label, functionId: fn.id, path: fallbackPath.filter(key => key !== "workspace") }, fn);
   }
@@ -95,7 +96,7 @@ export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null):
   let next = layout;
   for (const key of reveal.path) {
     next = activateDockMember(next, key);
-    const flag = key === "window:theme" ? "@theme" : key === "window:settings" ? "@settings" : key === "window:shortcuts" ? "@shortcuts" : undefined;
+    const flag = key === "window:theme" ? "@theme" : key === "window:settings" ? "@settings" : key === "window:shortcuts" ? "@shortcuts" : key === "window:ui-editor" ? "@devMode" : key === "window:function-library" ? "@library" : undefined;
     if (flag) next = { ...next, panels: { ...next.panels, [flag]: true } };
     const container = getContainer(next, key);
     if (container?.collapsed || container?.closed) next = updateContainer(next, key, { collapsed: false, closed: false });
