@@ -20,9 +20,11 @@ export function createStructuralSparkles(scene: THREE.Scene) {
   let randomSeed = 173;
   const random = () => { randomSeed = (Math.imul(randomSeed, 1664525) + 1013904223) >>> 0; return randomSeed / 4294967296; };
   const starfield = new Float32Array(720 * 3);
+  const starTwinkles = new Float32Array(720 * 2);
   for (let i = 0; i < 720; i++) {
     const angle = random() * Math.PI * 2, z = random() * 2 - 1, radius = 12 + random() * 115;
     starfield.set([Math.cos(angle) * Math.sqrt(1 - z * z) * radius, z * radius, Math.sin(angle) * Math.sqrt(1 - z * z) * radius], i * 3);
+    starTwinkles.set([effectSeed(`star-phase:${i}`) * Math.PI * 2, 2.5 + effectSeed(`star-speed:${i}`) * 4], i * 2);
   }
   nodes.name = "Node outline sparkles"; binders.name = "Binder path sparkles";
   background.name = "Background animation"; background.renderOrder = -1000;
@@ -88,10 +90,11 @@ export function createStructuralSparkles(scene: THREE.Scene) {
         background.material.size = 3;
         color.set(backgroundFx.color ?? theme.accent);
         const n = Math.round(720 * backgroundFx.density);
-        const pulse = backgroundFx.motion > 0 ? 0.9 + 0.1 * Math.sin(time * 1.3) : 1;
         for (let i = 0; i < n; i++) {
           point.fromArray(starfield, i * 3);
-          write(background, count++, point, color, theme.opacity * pulse);
+          const wave = (Math.sin(time * starTwinkles[i * 2 + 1] + starTwinkles[i * 2]) + 1) / 2;
+          const twinkle = 0.12 + 0.88 * wave * wave * wave;
+          write(background, count++, point, color, theme.opacity * twinkle);
         }
       } else if (background.visible) {
         // A camera-relative backdrop behind charted geometry, independent of atlas bounds.
