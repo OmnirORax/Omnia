@@ -58,11 +58,11 @@ export function FrameChrome({
   const closeButton = <FrameCloseButton container={container} title={title} onClose={close} label={closeLabel} />;
   const operators = (
     <span className="ui-frame-operators">
-      <FrameSearch
+      {!inline && <FrameSearch
         container={container}
         title={title}
         expand={() => { if (state.collapsed && !fixed) onChange({ collapsed: false }); }}
-      />
+      />}
       {closeButton}
     </span>
   );

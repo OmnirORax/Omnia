@@ -902,7 +902,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .ui-frame-handle { padding-right: 0; }
 .ui-frame-handle.icon-handle { padding-right: 0; }
 .ui-inline-frame-bar { position: relative; display: inline-flex; min-width: 0; max-width: 100%; }
-.ui-inline-frame-bar > .property-node-name { padding-right: 32px; }
+.ui-inline-frame-bar > .property-node-name { padding-right: 18px; }
 .ui-dock-tab-with-close { position: relative; display: inline-flex; align-items: stretch; flex-shrink: 0; }
 .ui-dock-tab-with-close > .ui-dock-tab { padding-right: 18px; }
 [data-ui-resident-root][hidden] { display: none !important; }
