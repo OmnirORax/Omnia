@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUI } from "./context";
 import { useDockPreview } from "./PlacementPreview";
 import { createPortal } from "react-dom";
+import { DockLayout } from "./DockLayout";
 import {
   getContainer,
   residentKey,
@@ -159,6 +160,7 @@ export function DockArea({ container, contour = true }: { container: string; con
     };
   }, [container]);
   useLayoutEffect(() => { measureContent.current(); }, [ui.layout, moving]);
+  if (state?.dockLayout) return <div className="ui-embedded-dock-layout"><DockLayout container={container} /></div>;
   return (
     <div
       className={`ui-dock-area ${preview ? "is-drop-target" : ""} ${!contour && !entries.length ? "ui-dock-empty" : ""}`}

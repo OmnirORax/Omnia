@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUI, type UIContextValue } from "./context";
-import { getContainer, residentKey, updateContainer } from "./layout";
+import { activateDockMember, getContainer, residentKey, updateContainer } from "./layout";
 
 export type SearchResult = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
 export const normalizeSearch = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
@@ -77,7 +77,10 @@ export function FrameSearch({ container, title, expand }: { container: string; t
   }, [open]);
   const reveal = (result: SearchResult) => {
     cleanup.current(); close();
-    ui.update(layout => result.path.reduce((next, key) => getContainer(next, key)?.collapsed ? updateContainer(next, key, { collapsed: false }) : next, layout));
+    ui.update(layout => result.path.reduce((previous, key) => {
+      const next = activateDockMember(previous, key);
+      return getContainer(next, key)?.collapsed ? updateContainer(next, key, { collapsed: false }) : next;
+    }, layout));
     let frame = 0, attempts = 0, timer: ReturnType<typeof setTimeout> | undefined, found: HTMLElement | undefined;
     const locate = () => {
       const root = rootFor(container);

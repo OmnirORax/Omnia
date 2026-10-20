@@ -149,6 +149,36 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .ui-drop-ghost { display: grid; place-content: center; min-width: 44px; min-height: 28px; padding: 5px; border-radius: 8px; outline: 2px solid #6bb8ff; background: #388bdf44; color: #9bceff; font-size: 11px; overflow-wrap: anywhere; }
 .ui-drop-ghost { pointer-events: none; }
 .ui-dock-preview-overlay { position: fixed; z-index: 30000; box-sizing: border-box; }
+.ui-structured-frame > .ui-frame-root { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--omnium-border, #91abc3); border-radius: 7px; background: var(--omnium-panel, #f8faff); overflow: hidden; pointer-events: auto; box-sizing: border-box; }
+.ui-structured-body { flex: 1; min-height: 0; min-width: 0; }
+.ui-structured-body[hidden] { display: none; }
+.ui-embedded-dock-layout { width: 100%; height: 400px; min-height: 160px; }
+.ui-dock-split,.ui-dock-pane { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; pointer-events: auto; }
+.ui-dock-split { display: grid; }
+.ui-dock-pane { display: flex; flex-direction: column; }
+.ui-dock-tab-strip { display: flex; flex: 0 0 auto; min-width: 0; align-items: center; background: var(--omnium-handle, #e6eef8); }
+.ui-dock-tabs { display: flex; gap: 2px; flex: 1; min-width: 0; min-height: 34px; overflow-x: auto; padding: 2px; }
+.ui-dock-tab { flex: 0 0 auto; max-width: 220px; padding: 5px 8px; border: 0; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; background: transparent; color: inherit; cursor: grab; overflow-wrap: anywhere; }
+.ui-dock-tab[aria-selected="true"] { border-bottom-color: var(--omnium-accent, #386991); background: var(--omnium-panel, #f8faff); }
+.ui-dock-tab img { width: 24px; height: 24px; object-fit: contain; }
+.ui-dock-tab-body { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; }
+.ui-dock-tab-body[hidden] { display: none !important; }
+.ui-dock-fill { width: 100%; height: 100%; min-width: 0; min-height: 0; position: relative; }
+.ui-dock-fill > :is(.floating-window,.function-frame) { position: absolute !important; inset: 0 !important; transform: none !important; width: 100% !important; height: 100% !important; min-width: 0 !important; min-height: 0 !important; max-width: none !important; max-height: none !important; }
+.ui-dock-fill > .floating-window > .floating-window-content { height: 100%; border-radius: 0; }
+.ui-dock-fill > .floating-window > .floating-window-content > .frame-chrome,
+.ui-dock-fill > .function-frame > .ui-frame-root > .frame-chrome,
+.ui-dock-fill > .ui-inline-group > .property-node-heading { display: none; }
+.ui-dock-fill > .function-frame > .ui-frame-root { width: 100% !important; height: 100%; left: 0 !important; top: 0 !important; overflow: auto; }
+.ui-dock-fill > .ui-inline-group { width: 100% !important; height: 100%; max-height: 100%; display: flex; flex-direction: column; overflow: auto; }
+.ui-dock-fill > .ui-inline-group > .property-node-contents { max-width: none; min-height: 0; flex: 1; margin: 0; }
+.ui-dock-divider { background: color-mix(in srgb, var(--omnium-accent, #386991) 18%, transparent); touch-action: none; cursor: col-resize; }
+.ui-dock-split.is-vertical > .ui-dock-divider { cursor: row-resize; }
+.ui-dock-divider:hover,.ui-dock-divider:focus { background: var(--omnium-accent, #386991); }
+.ui-dock-guides { position: fixed; z-index: 30002; pointer-events: none; }
+.ui-dock-guides > span { position: absolute; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--omnium-accent, #69b5ff); border-radius: 4px; color: var(--omnium-ink, #dce9fa); background: var(--omnium-panel, #152941); transform: translate(-50%,-50%); }
+.dock-guide-left { left: 14px; top: 50%; }.dock-guide-right { left: calc(100% - 14px); top: 50%; }.dock-guide-top { left: 50%; top: 14px; }.dock-guide-bottom { left: 50%; top: calc(100% - 14px); }.dock-guide-tab { left: 50%; top: 50%; }
+.ui-dock-guides > .is-active { box-shadow: 0 0 12px var(--omnium-accent, #69b5ff); background: var(--omnium-accent, #386991); }
 .is-drop-target { outline: 1px dashed #69b5ff99; outline-offset: 3px; }
 .ui-placement-preview { position: fixed; z-index: 30000; border: 2px solid #69b5ff; border-radius: 7px; background: #3a8cdd26; pointer-events: none; }
 .ui-snap-preview { left: 16px; bottom: 16px; max-width: calc(100vw - 32px); }

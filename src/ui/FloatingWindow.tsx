@@ -55,6 +55,7 @@ export function FloatingWindow({
     owner = ownerOf(ui.layout, key),
     host = useDockHost(key);
   const state = fitWindow(saved, window.innerWidth, window.innerHeight);
+  const dockFill = !!host?.classList.contains("ui-dock-fill");
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -142,7 +143,7 @@ export function FloatingWindow({
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging
-        enableResizing={!residentPinned(ui.layout, key) && !state.collapsed}
+        enableResizing={!dockFill && !residentPinned(ui.layout, key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
         onMouseDown={(event) => {

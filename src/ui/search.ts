@@ -1,6 +1,6 @@
 import type { UIContextValue, UIFunction } from "./context";
 import { frameControls, nameFor, rootFor, type SearchResult } from "./FrameSearch";
-import { getContainer, ownerOf, updateContainer, type UILayout } from "./layout";
+import { activateDockMember, getContainer, ownerOf, updateContainer, type UILayout } from "./layout";
 import { PROPERTIES, type RegisteredTarget } from '../appearance/registry';
 import { ancestry } from '../appearance/model';
 import type { AppearanceLocation } from '../appearance/Context';
@@ -94,6 +94,7 @@ export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null):
   if (!reveal) return layout;
   let next = layout;
   for (const key of reveal.path) {
+    next = activateDockMember(next, key);
     const flag = key === "window:theme" ? "@theme" : key === "window:settings" ? "@settings" : key === "window:shortcuts" ? "@shortcuts" : undefined;
     if (flag) next = { ...next, panels: { ...next.panels, [flag]: true } };
     const container = getContainer(next, key);

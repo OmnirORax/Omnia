@@ -49,6 +49,7 @@ export const UIContext = createContext<UIContextValue | null>(null);
 export const UIHomeContext = createContext("workspace");
 /** Native anchor identity stays at home while groups use separate container ownership. */
 export const UIContainerContext = createContext<string | undefined>(undefined);
+export const DockFillContext = createContext(false);
 export function useUI() {
   const value = useContext(UIContext);
   if (!value) throw new Error("UI workspace is not mounted.");

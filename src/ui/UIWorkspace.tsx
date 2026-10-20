@@ -24,6 +24,7 @@ import { Rnd } from "react-rnd";
 import {
   UIContext,
   UIHomeContext,
+  DockFillContext,
   useUI,
   type UIFunction,
   type UIContextValue,
@@ -75,12 +76,19 @@ import {
 import type { VisualAsset } from "../graph/assets";
 import { snapPosition, snapshotPositions } from "./positioning";
 import { insertFrameBeside, type InsertSide } from "./frameInsertion";
+import { DockLayout } from "./DockLayout";
+import { dockFrame, edgeDockRect, type FrameDock, type DockRect } from "./docking";
+import type { DockSide } from "./dockTree";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
 import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
-const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
+const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
+function dockWorkspaceArea(): DockRect {
+  const top = Math.max(8, document.querySelector(".toolbar")?.getBoundingClientRect().bottom ?? 8);
+  return { x: 8, y: top, width: Math.max(160, innerWidth - 16), height: Math.max(120, innerHeight - top - 8) };
+}
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
@@ -333,34 +341,44 @@ export function UIPanel({
 function FunctionFrame({ frame }: { frame: UIFrame }) {
   const { ref, bounds } = useFrameBounds();
   const ui = useUI(),
+    dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
     nested = !!ownerOf(ui.layout, key),
     width = Math.max(64, Math.min(frame.width ?? 280, window.innerWidth - 24));
+  const [, resized] = useState(0);
+  useEffect(() => {
+    if (!frame.dockEdge) return;
+    const resize = () => resized(value => value + 1);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [frame.dockEdge]);
+  const edgeBounds = frame.dockEdge ? edgeDockRect(ui.layout, frame.dockEdge, dockWorkspaceArea()) : undefined;
+  const structured = !!frame.dockLayout;
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
   return (
     <Rnd
-      className={`function-frame contour-frame ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
+      className={`function-frame contour-frame ${structured ? "ui-structured-frame" : ""} ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
       style={
         {
-          pointerEvents: "none",
+          pointerEvents: structured ? "auto" : "none",
           position: nested ? "relative" : "fixed",
           zIndex: 70,
           "--ui-frame-top": `${Math.max(8, Math.min(frame.y, window.innerHeight - 60))}px`,
         } as React.CSSProperties
       }
       position={
-        nested
+        edgeBounds ? { x: edgeBounds.x, y: edgeBounds.y } : nested
           ? { x: 0, y: 0 }
           : {
               x: Math.max(8, Math.min(frame.x + bounds.x, window.innerWidth - bounds.width - 8)),
               y: Math.max(8, Math.min(frame.y + bounds.y, window.innerHeight - bounds.height - 8)),
             }
       }
-      size={{ width: bounds.width, height: bounds.height }}
+      size={{ width: edgeBounds?.width ?? (structured ? width : bounds.width), height: edgeBounds && !frame.collapsed ? edgeBounds.height : structured && !frame.collapsed ? frame.height ?? 420 : bounds.height }}
       disableDragging
       enableResizing={
-        !residentPinned(ui.layout, key) && !frame.collapsed
-          ? { right: true, bottomRight: true }
+        !dockFill && !residentPinned(ui.layout, key) && !frame.collapsed
+          ? frame.dockEdge ? { [frame.dockEdge === "left" ? "right" : frame.dockEdge === "right" ? "left" : frame.dockEdge === "top" ? "bottom" : "top"]: true } : structured ? true : { right: true, bottomRight: true }
           : false
       }
       resizeHandleStyles={{
@@ -369,13 +387,13 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
       }}
       minWidth={40}
       maxWidth={window.innerWidth - 24}
-      onResizeStop={(_, __, element) => patch({ width: element.offsetWidth })}
+      onResizeStop={(_, __, element, ___, position) => patch({ width: element.offsetWidth, ...(structured ? { height: element.offsetHeight, ...(!frame.dockEdge ? position : {}) } : {}) })}
     >
       <div
         ref={ref}
         className="ui-frame-root"
         data-ui-resident-root={key}
-        style={{ width, position: "relative", left: -bounds.x, top: -bounds.y }}
+        style={{ width: structured ? "100%" : width, height: structured ? "100%" : undefined, position: "relative", left: structured ? 0 : -bounds.x, top: structured ? 0 : -bounds.y }}
       >
         <FrameChrome
           container={key}
@@ -411,12 +429,13 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
             });
           }}
         />
-        {!frame.collapsed && <DockArea container={key} />}
+        {structured ? <div className="ui-structured-body" hidden={frame.collapsed}><DockLayout container={key} /></div> : !frame.collapsed && <DockArea container={key} />}
       </div>
     </Rnd>
   );
 }
 type Preview = {
+  frameDock?: FrameDock;
   dock?: DockPreview;
   rect?: Rect;
   text: string;
@@ -438,6 +457,7 @@ type DragState = {
   zoneOrigins: Map<Element, { x: number; y: number }>;
   cancelled?: boolean;
   control?: { owner: string; control: string };
+  fromDockPane?: boolean;
 };
 export function UIWorkspace({
   layout,
@@ -787,11 +807,13 @@ export function UIWorkspace({
         event.preventDefault();
         return;
       }
+      const tabPane = handle?.getAttribute("role") === "tab" ? handle.closest<HTMLElement>("[data-ui-dock-pane]") : null;
+      const represented = handle && [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
       const root =
         mini ??
         (fn && key.startsWith("function:")
           ? fn
-          : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle));
+          : tabPane ?? (represented?.getClientRects().length ? represented : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle)));
       const r = root ? residentBounds(root) : undefined;
       if (!r) return;
       const targetZones = new Map(
@@ -828,12 +850,43 @@ export function UIWorkspace({
         },
         slots,
         targetZones,
+        fromDockPane: !!tabPane,
         targetBounds,
         zoneOrigins,
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
       };
+    };
+    const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
+      if (source.control || source.key.startsWith("function:") || residentContextScope(s, source.key)) return;
+      const area = dockWorkspaceArea();
+      const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
+      const edge = (Object.keys(distances) as Exclude<DockSide, "tab">[]).find(side => distances[side] >= -8 && distances[side] <= 14);
+      if (edge && x >= area.x - 8 && x <= area.x + area.width + 8 && y >= area.y - 8 && y <= area.y + area.height + 8) {
+        const existing = s.frames.find(frame => frame.dockEdge === edge && `frame:${frame.id}` !== source.key);
+        if (existing && !canDock(s, source.key, `frame:${existing.id}`)) return;
+        return { edge, side: edge, rect: edgeDockRect(s, edge, area) };
+      }
+      for (const element of elements) {
+        if (element.closest("[data-ui-ghost],.ui-drag-source,[data-ui-search],.ui-background-menu")) continue;
+        const pane = element.closest<HTMLElement>("[data-ui-dock-pane]");
+        const root = element.closest<HTMLElement>("[data-ui-resident-root]");
+        const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
+        const surface = pane ?? root;
+        if (!target || !surface || source.key === target || !canDock(s, source.key, target)) continue;
+        const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
+        if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
+        const near = { left: x - bounds.left, right: bounds.right - x, top: y - bounds.top, bottom: bounds.bottom - y };
+        const header = !!element.closest("[data-ui-chrome],.ui-dock-tab-strip");
+        // A title/tab strip groups panels. The outermost edge still allows a split.
+        const side = (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
+        const center = Math.abs(x-bounds.x-bounds.width/2) <= 32 && Math.abs(y-bounds.y-bounds.height/2) <= 32;
+        if (!side && !header && !center) return;
+        const width = Math.min(area.width, Math.max(280, bounds.width)), height = Math.min(area.height, Math.max(220, bounds.height));
+        const rect = { x: Math.max(area.x, Math.min(bounds.x, area.x+area.width-width)), y: Math.max(area.y, Math.min(bounds.y, area.y+area.height-height)), width, height };
+        return { target, side: side ?? "tab", rect, bounds };
+      }
     };
     const resolveTarget = (x: number, y: number): Preview | null => {
       const source = drag.current;
@@ -893,6 +946,18 @@ export function UIWorkspace({
         const target = el.closest(dropGeometrySelector);
         return !target || rectDistance(x, y, boundsOf(target)) === 0;
       });
+      const frameDock = frameDockIntent(source, s, x, y, hitElements);
+      if (frameDock) {
+        const parent = frameDock.target && ownerOf(s, frameDock.target);
+        const targetRect = parent && getContainer(s, parent)?.dockLayout ? frameDock.bounds ?? frameDock.rect : frameDock.rect;
+        const side = frameDock.side;
+        const rect = side === "tab" || frameDock.edge ? { ...frameDock.rect }
+          : { ...targetRect, x: side === "right" ? targetRect.x + targetRect.width / 2 : targetRect.x,
+              y: side === "bottom" ? targetRect.y + targetRect.height / 2 : targetRect.y,
+              width: side === "left" || side === "right" ? targetRect.width / 2 : targetRect.width,
+              height: side === "top" || side === "bottom" ? targetRect.height / 2 : targetRect.height };
+        return { frameDock, rect, text: frameDock.edge ? `Dock at ${side} workspace edge` : side === "tab" ? "Group as tabs" : `Dock ${side} · resize with the divider` };
+      }
       if (
         source.key.startsWith("window:") &&
         s.windows[source.key.slice(7)]?.inline &&
@@ -1296,6 +1361,7 @@ export function UIWorkspace({
               },
             });
         }
+        if (p.frameDock) return dockFrame(s, source.key, p.frameDock);
         if (p.frameStrip) {
           const strip = p.frameStrip;
           if (!canDock(s, source.key, strip.target)) return previous;
@@ -1365,12 +1431,13 @@ export function UIWorkspace({
           return validateUILayout({ ...s, items, frames: [...s.frames, frame] });
         }
         if (p.rect) {
-          const next = floatResident(
+          let next = floatResident(
             s,
             source.key,
             p.rect.x + source.originOffset.x,
             p.rect.y + source.originOffset.y,
           );
+          if (source.fromDockPane) next = updateContainer(next, source.key, { width: Math.max(160, source.width), height: Math.max(120, source.height) });
           return source.key.startsWith("window:panel:")
             ? {
                 ...next,
@@ -1393,7 +1460,7 @@ export function UIWorkspace({
     const pointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || pointer || event.defaultPrevented) return;
       const target = event.target as Element;
-      if (target.closest("input,select,textarea,a,[contenteditable=true],.window-resize-grip")) return;
+      if (target.closest("input,select,textarea,a,[contenteditable=true],.window-resize-grip,[data-ui-resize]")) return;
       const handle = target.closest<HTMLElement>("[data-ui-control],[data-ui-drag],[data-ui-function]");
       if (!handle?.draggable) return;
       pointer = { down: event, started: false };

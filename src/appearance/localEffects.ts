@@ -18,6 +18,9 @@ export function elementEffects(
     owners.unshift(root.dataset.uiResidentRoot!);
     root = root.parentElement?.closest<HTMLElement>("[data-ui-resident-root]") ?? null;
   }
+  // Docked tabs are another handle for the same resident, outside its content root.
+  const proxy = element.closest<HTMLElement>("[data-ui-proxy-for]")?.dataset.uiProxyFor;
+  if (proxy) owners.push(proxy);
   const fn = element.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction;
   if (fn) owners.push(`function:${fn}`);
   const values = { ...effective.renderDefaults?.[target.id] };

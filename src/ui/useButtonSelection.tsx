@@ -423,7 +423,7 @@ export function useButtonSelection({
         state = current.current;
       if (
         target.closest(
-          "input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,.ui-field-edge",
+          "input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,.ui-field-edge,[data-ui-resize]",
         )
       )
         return;
