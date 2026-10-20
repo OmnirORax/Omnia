@@ -570,6 +570,6 @@ export default function SpatialWorkspace(props: Props) {
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}
     {!!props.selectedIds.size && <div className="selection-status" role="status">{props.selectedIds.size} selected <button onClick={() => props.onAction("focus")}>Focus</button><button onClick={() => props.onAction("deleteSelected")}>Delete</button><button onClick={() => props.onSelection([])}>Clear</button></div>}
     {feedback && <div className="spatial-feedback" role="status">{feedback}</div>}
-    {menu && <EntityMenu kind={menu.target.kind} x={Math.max(0, menu.x)} y={Math.max(0, menu.y)} bounds={{ width: hostRef.current?.clientWidth ?? window.innerWidth, height: hostRef.current?.clientHeight ?? window.innerHeight }} items={menuItems} onChoose={(action) => { callbacks.current.onContextAction(action, menu.target); setMenu(null); }} />}
+    {menu && <EntityMenu kind={menu.target.kind} x={Math.max(0, menu.x)} y={Math.max(0, menu.y)} bounds={{ width: hostRef.current?.clientWidth ?? window.innerWidth, height: hostRef.current?.clientHeight ?? window.innerHeight }} items={menuItems} onDismiss={() => setMenu(null)} onChoose={(action) => { callbacks.current.onContextAction(action, menu.target); setMenu(null); }} />}
   </div>;
 }

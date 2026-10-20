@@ -1,5 +1,6 @@
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
+import { useOutsideDismiss } from "./useOutsideDismiss";
 import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
@@ -535,6 +536,7 @@ export function UIWorkspace({
   const [placementPreview] = useState(() => createTransientStore<Preview | null>(null));
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
   const menuRoot = useRef<HTMLDivElement>(null);
+  useOutsideDismiss(!!menu, () => [menuRoot.current], () => setMenu(null));
   useLayoutEffect(() => {
     const node = menuRoot.current;
     if (!node || !menu) return;

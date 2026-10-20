@@ -27,6 +27,7 @@ import {
 import { snapPosition, snapshotPositions, type PositionedBox } from "./positioning";
 import { captureUIPointer, rectDistance } from "./drag";
 import { residentBounds } from "./frameBounds";
+import { useOutsideDismiss } from "./useOutsideDismiss";
 
 const selectable = '[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]';
 const idOf = (el: HTMLElement) => el.dataset.uiDrag && /^(window|frame):/.test(el.dataset.uiDrag) ? el.dataset.uiDrag : el.dataset.uiFunction!;
@@ -715,6 +716,7 @@ export function useButtonSelection({
     compact,
     align,
     clear,
+    closeMenu: () => setMenu(null),
     openMenu: (x: number, y: number) => setMenu({ x, y }),
   };
 }
@@ -724,6 +726,8 @@ export function ButtonSelectionOverlay({
   selection: ReturnType<typeof useButtonSelection>;
 }) {
   const visual = useSyncExternalStore(selection.visuals.subscribe, selection.visuals.getSnapshot);
+  const menuRoot = useRef<HTMLDivElement>(null);
+  useOutsideDismiss(!!selection.menu, () => [menuRoot.current], selection.closeMenu);
   return (
     <>
       {visual.rectangle && (
@@ -778,6 +782,7 @@ export function ButtonSelectionOverlay({
       )}
       {selection.menu && (
         <div
+          ref={menuRoot}
           className="ui-background-menu ui-selection-tools"
           role="menu"
           aria-label="Selected UI actions"
