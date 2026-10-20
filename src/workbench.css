@@ -885,26 +885,25 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .ui-missing-group { display: block; padding: 8px; max-width: 220px; border: 1px dashed currentColor; }
 .property-node-heading .function-icon { width: 44px; height: 44px; padding: 6px; }
 
-/* One direct close control for every frame, including embedded groups and dock tabs. */
-.ui-frame-close, .frame-chrome .ui-frame-close {
-  position: absolute; top: 0; right: 0; left: auto; flex: 0 0 24px;
-  display: inline-grid; place-items: center; width: 24px; height: 26px;
-  min-width: 24px; min-height: 24px; margin: 0; padding: 2px;
-  border: 0; background: transparent; color: inherit; box-shadow: none;
-  font: 18px/1 sans-serif; cursor: pointer; pointer-events: auto;
+/* Miniature close controls sit inside the frame's bordered handle or tab. */
+.ui-frame-close, .frame-chrome .ui-frame-close,
+.ui-frame-handle > .ui-frame-close, .property-node-heading .ui-frame-close {
+  position: absolute; top: 2px; right: 2px; left: auto; z-index: 1;
+  display: inline-grid; place-items: center; width: 12px; height: 12px;
+  min-width: 12px; min-height: 12px; max-width: 12px; margin: 0; padding: 0;
+  border: 0; border-radius: 2px; background: transparent; color: inherit; box-shadow: none;
+  font: 11px/1 sans-serif; cursor: pointer; pointer-events: auto;
 }
-.ui-frame-close:hover { background: color-mix(in srgb, var(--omnium-accent, #386991) 20%, transparent); border-radius: 4px; }
-.ui-frame-close img { width: 18px; height: 18px; object-fit: contain; }
-.frame-chrome:not(.is-collapsed) > .ui-frame-tools { max-width: calc(100% - 28px); }
-.frame-chrome.is-collapsed > .ui-frame-tools { padding-right: 26px; }
-.property-node-heading { position: relative; padding-right: 26px; }
-.ui-dock-tab-with-close { position: relative; display: inline-flex; align-items: center; padding-right: 24px; }
-.ui-dock-tab-with-close > .ui-frame-close { top: 50%; transform: translateY(-50%); }
+.ui-frame-close:hover { background: color-mix(in srgb, var(--omnium-accent, #386991) 20%, transparent); }
+.ui-frame-close img { width: 10px; height: 10px; object-fit: contain; }
+.ui-frame-handle { padding-right: 14px; }
+.ui-frame-handle.icon-handle { padding-right: 0; }
+.ui-inline-frame-bar { position: relative; display: inline-flex; min-width: 0; max-width: 100%; }
+.ui-inline-frame-bar > .property-node-name { padding-right: 18px; }
+.ui-dock-tab-with-close { position: relative; display: inline-flex; align-items: stretch; flex-shrink: 0; }
+.ui-dock-tab-with-close > .ui-dock-tab { padding-right: 18px; }
 [data-ui-resident-root][hidden] { display: none !important; }
-
-.ui-frame-close, .frame-chrome .ui-frame-close { z-index: 1; }
-.ui-docked-panel > .detach-panel { right: 30px; }
-.ui-docked-panel > .ui-legacy-search { right: 60px; }
-.ui-dock-tab-with-close { flex-shrink: 0; }
-.ui-popup-close { position: absolute; right: 4px; top: 3px; width: 24px; min-height: 24px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: 18px/1 sans-serif; }
-:is(.ui-background-menu,.ui-frame-search-popup):has(> .ui-popup-close) { padding-top: 30px; }
+.ui-docked-panel > .detach-panel { right: 8px; }
+.ui-docked-panel > .ui-legacy-search { right: 36px; }
+.ui-popup-close { position: absolute; right: 4px; top: 3px; width: 14px; height: 14px; min-height: 14px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: 11px/1 sans-serif; }
+:is(.ui-background-menu,.ui-frame-search-popup):has(> .ui-popup-close) { padding-top: 20px; }

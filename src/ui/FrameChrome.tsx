@@ -71,6 +71,7 @@ export function FrameChrome({
   if (inline)
     return (
       <div className="property-node-heading" data-ui-chrome={container} onContextMenu={openFrameMenu}>
+        <div className="ui-inline-frame-bar">
         <button
           type="button"
           className={`property-node-name ${style.mode === "icon" ? `function-icon shape-${style.geometry}` : ""}`}
@@ -114,6 +115,7 @@ export function FrameChrome({
           <ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${container}`]} />
         </button>
         {closeButton}
+        </div>
       </div>
     );
   return (
@@ -168,6 +170,7 @@ export function FrameChrome({
             )}
             <ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${container}`]} />
           </button>
+          {closeButton}
         </div>
         <FrameSearch
           container={container}
@@ -176,9 +179,7 @@ export function FrameChrome({
             if (state.collapsed && !fixed) onChange({ collapsed: false });
           }}
         />
-        {state.collapsed && closeButton}
       </div>
-      {!state.collapsed && closeButton}
     </header>
   );
 }
