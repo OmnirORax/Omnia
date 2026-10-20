@@ -17,7 +17,7 @@ const titles: Record<string, string> = {
   "window:panel:types": "Relationship types", "window:panel:relationships": "Relationships",
   "window:panel:ai": "External AI proposal", "window:panel:help": "Workspace help",
 };
-export const searchTitle = (ui: UIContextValue, key: string) => ui.frameActions.get(key)?.title ?? titles[key] ?? nameFor(ui, key);
+export const searchTitle = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? titles[key] ?? nameFor(ui, key);
 function nativeHome(fn: UIFunction): string {
   const id = fn.id;
   if (id.startsWith("ui:native:") && fn.scope) return fn.scope;
@@ -76,7 +76,8 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
     add(found ?? { key: `function:${fn.id}`, label: fn.label, functionId: fn.id, path: fallbackPath.filter(key => key !== "workspace") }, fn);
   }
   for(const target of appearanceTargets.filter(t=>t.properties))for(const property of PROPERTIES.filter(p=>target.properties!.includes(p.id))){
-    results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${property.label}`,heading:['Theme / aesthetics','Master appearance controller',...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:'window:theme',path:['window:theme'],available:true,appearance:{target:target.id,property:property.id}});
+    const propertyName = ui.layout.labels?.[`window:property:master:${property.id}`] ?? property.label;
+    results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${propertyName}`,heading:[searchTitle(ui,'window:theme'),'Master appearance controller',...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:'window:theme',path:['window:theme'],available:true,appearance:{target:target.id,property:property.id}});
   }
   return results.sort((a, b) => a.heading.localeCompare(b.heading) || a.label.localeCompare(b.label));
 }

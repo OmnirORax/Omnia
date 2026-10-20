@@ -5,14 +5,15 @@ import { useUI } from "./context";
 import { startResidentDrag } from "./drag";
 import type { WindowState } from "./layout";
 import { FrameSearch } from "./FrameSearch";
+import { useUILabel } from "./EditableLabel";
 
 export function FrameChrome({
   container,
-  title,
-  label = title,
+  title: defaultTitle,
+  label,
   state,
   onChange,
-  onRename,
+  onRename: renameOriginal,
   onClose,
   closeLabel,
   className = "",
@@ -37,6 +38,10 @@ export function FrameChrome({
   selected?: boolean;
   onToggle?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const [title, renameLabel] = useUILabel(container, defaultTitle);
+  const onRename = renameOriginal
+    ? (value: string) => renameOriginal(value.trim().slice(0, 200) || defaultTitle)
+    : renameLabel;
   const iconTint = useIconTint(
     container,
     legacyHandleId ? `function:${legacyHandleId}` : undefined,
@@ -45,7 +50,7 @@ export function FrameChrome({
     style = state.chrome?.style ?? { mode: "text", geometry: "circle" },
     asset = ui.layout.assets.find((a) => a.id === style.assetId);
   useLayoutEffect(() => {
-    const actions = { title, label, state, onChange, onRename, onClose, closeLabel };
+    const actions = { title, label: label ?? title, state, onChange, onRename, onClose, closeLabel };
     ui.frameActions.set(container, actions);
     return () => {
       if (ui.frameActions.get(container) === actions) ui.frameActions.delete(container);

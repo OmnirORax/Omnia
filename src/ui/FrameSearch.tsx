@@ -6,7 +6,7 @@ import { getContainer, residentKey, updateContainer } from "./layout";
 export type SearchResult = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
 export const normalizeSearch = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 export const rootFor = (key: string) => key === "workspace" ? document.body : [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
-export const nameFor = (ui: UIContextValue, key: string) => ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
+export const nameFor = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
 
 /** Index control labels, never input values or canonical graph data. */
 export function frameControls(ui: UIContextValue, container: string): SearchResult[] {

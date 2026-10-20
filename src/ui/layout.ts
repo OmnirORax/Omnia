@@ -80,6 +80,7 @@ export type UILayout = {
   assets: VisualAsset[];
   arrangement?: UIArrangement;
   nativeOrders?: Record<string, string[]>;
+  labels?: Record<string, string>;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -114,6 +115,15 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (
+    layout.labels !== undefined &&
+    (!record(layout.labels) ||
+      Object.keys(layout.labels).length > 2000 ||
+      Object.entries(layout.labels).some(
+        ([id, label]) => !id || id.length > 1000 || typeof label !== "string" || !label.trim() || label.length > 240,
+      ))
+  )
+    throw new Error("Invalid UI display names.");
   if (
     layout.nativeOrders &&
     (!record(layout.nativeOrders) ||

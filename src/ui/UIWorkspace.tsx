@@ -1,4 +1,5 @@
 import { captureNativeActions, NativeActions } from "./NativeActions";
+import { UINameInput } from "./EditableLabel";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -1537,14 +1538,14 @@ export function UIWorkspace({
               {frameActions.get(menu.owner)?.onRename && (
                 <label className="frame-name-editor">
                   Frame name
-                  <input
-                    aria-label="UI frame name"
+                  <UINameInput
+                    label="UI frame name"
                     value={
                       "name" in menuContainer
                         ? menuContainer.name
-                        : frameActions.get(menu.owner)!.title
+                        : layout.labels?.[menu.owner] ?? frameActions.get(menu.owner)!.title
                     }
-                    onChange={(e) => frameActions.get(menu.owner!)?.onRename?.(e.target.value)}
+                    onRename={(name) => frameActions.get(menu.owner!)?.onRename?.(name)}
                   />
                 </label>
               )}
@@ -1688,7 +1689,7 @@ export function UIWorkspace({
             configuredControl
               ? `Arrange ${configuredControl.control} icon`
               : configuredFrame
-                ? `Arrange frame: ${frameActions.get(configuredFrame)?.title ?? configuredFrame}`
+                ? `Arrange frame: ${layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)?.title ?? configuredFrame}`
                 : `Arrange: ${selected!.label}`
           }
           width={370}
@@ -1700,6 +1701,16 @@ export function UIWorkspace({
           }}
         >
           <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
+          {configuredFrame && frameActions.get(configuredFrame)?.onRename && (
+            <label>
+              Name
+              <UINameInput
+                label="Frame name"
+                value={layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)!.title}
+                onRename={(name) => frameActions.get(configuredFrame)?.onRename?.(name)}
+              />
+            </label>
+          )}
           {!configuredControl && (
             <>
               <label>

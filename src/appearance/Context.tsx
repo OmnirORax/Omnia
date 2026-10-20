@@ -65,7 +65,8 @@ export function AppearanceProvider({
   const targets = useMemo(
     () =>
       controllerTargets(state).map((target) => {
-        if (!target.instance) return target;
+        const customLabel = ui.layout.labels?.[`appearance:target:${target.id}`];
+        if (!target.instance) return customLabel ? { ...target, label: customLabel } : target;
         const owner = target.instance.owner,
           path: string[] = [],
           seen = new Set<string>();
@@ -82,7 +83,7 @@ export function AppearanceProvider({
           ? ui.functions.find((f) => f.id === owner.slice(9))?.label
           : (ui.frameActions.get(owner)?.title ??
             ui.layout.frames.find((f) => `frame:${f.id}` === owner)?.name);
-        return { ...target, label: label ?? target.label, instance: { ...target.instance, path } };
+        return { ...target, label: customLabel ?? label ?? target.label, instance: { ...target.instance, path } };
       }),
     [state, ui.layout, ui.functions],
   );

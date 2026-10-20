@@ -771,6 +771,8 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .appearance-branch { border-left: 1px solid color-mix(in srgb,currentColor 15%,transparent); }
 .appearance-row { display: flex; align-items: center; gap: 3px; min-height: 34px; padding-right: 2px; }
 .appearance-row-name { flex: 1; min-width: 55px; font-size: 11px; overflow-wrap: anywhere; }
+.ui-editable-label { cursor: text; }
+.ui-name-input { min-width: 0; width: 100%; box-sizing: border-box; }
 .appearance-row > .appearance-number { max-width: 85px; }
 .appearance-row > .appearance-number input { width: 50px; }
 .appearance-row > select { max-width: 110px; font-size: 10px; }

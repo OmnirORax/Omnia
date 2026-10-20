@@ -15,3 +15,5 @@ New features must use the existing UI ownership, rendering, customization, histo
 The model regression in `tests/ui-nesting.test.mjs` exercises generic embedded ownership, cycle/pin rejection, undo and JSON persistence. The focused UI regression exercises actual property nesting and a newly introduced group; it is intentionally separate from the broad browser suites.
 
 Stable native anchor identity and current container ownership are separate contexts. Moving a group must not change the IDs/anchors of its fields; the new container context must not replace their original home scope.
+
+UI display names are optional `UILayout.labels` overrides keyed by stable owner/branch IDs. `FrameChrome` supplies renaming for new windows and embedded groups automatically; target-tree rows use the shared `EditableLabel`. Renaming is saved/undoable UI customization, never a change to property IDs, applicability or canonical knowledge. Blank names restore the supplied default. Search uses display overrides, including for closed windows.

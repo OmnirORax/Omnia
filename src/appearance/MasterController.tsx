@@ -9,6 +9,7 @@ import { PropertyEditor } from "./Controls";
 import { LockControl } from "./LockControl";
 import { rootFor } from "../ui/FrameSearch";
 import { FunctionControl } from "../ui/UIWorkspace";
+import { EditableLabel } from "../ui/EditableLabel";
 
 export function MasterController() {
   const ctx = useAppearance()!;
@@ -153,7 +154,7 @@ export function MasterController() {
             ⏻
           </button>
           <span className="appearance-row-name">
-            {target.label}
+            <EditableLabel id={`appearance:target:${target.id}`} fallback={target.label} />
             {refined && (
               <span
                 className="appearance-refined"
