@@ -129,7 +129,7 @@ export function AppearanceProvider({
       (e) => e.dataset.uiResidentRoot === owner,
     );
     if (owner.startsWith("function:"))
-      element = [...document.querySelectorAll<HTMLElement>("[data-ui-function]")].find(
+      element = [...document.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(
         (e) => e.dataset.uiFunction === owner.slice(9),
       );
     let root = element?.closest<HTMLElement>("[data-ui-resident-root]");

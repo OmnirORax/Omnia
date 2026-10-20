@@ -20,6 +20,7 @@ const titles: Record<string, string> = {
 export const searchTitle = (ui: UIContextValue, key: string) => ui.frameActions.get(key)?.title ?? titles[key] ?? nameFor(ui, key);
 function nativeHome(fn: UIFunction): string {
   const id = fn.id;
+  if (id.startsWith("ui:native:") && fn.scope) return fn.scope;
   if (/^ui:(master:|appearance:|animation:|themePreset:|glow$|resetAppearance$|atmosphere$)/.test(id)) return "window:theme";
   if (/^(shortcut:|ui:(sphereDiameter|radius|clearance|settingsSnap|subtreeModifier|gesture:|mouse:|camera:))/.test(id)) return "window:settings";
   if (/^ui:(import|export|saveTemplate|loadTemplate)$/.test(id)) return "window:panel:menu:file";
@@ -94,10 +95,10 @@ export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null):
 export function locateSearchResult(result: GlobalResult): HTMLElement | undefined {
   const root = rootFor(result.home) ?? document.body;
   if(result.appearance){
-    if(result.functionId)return [...root.querySelectorAll<HTMLElement>('[data-ui-function]')].find(el=>el.dataset.uiFunction===result.functionId);
+    if(result.functionId)return [...root.querySelectorAll<HTMLElement>('[data-ui-function]:not([data-ui-native-hidden])')].find(el=>el.dataset.uiFunction===result.functionId);
     const row=[...root.querySelectorAll<HTMLElement>('[data-appearance-target]')].find(el=>el.dataset.appearanceTarget===result.appearance!.target)?.querySelector<HTMLElement>(':scope > .appearance-row');
     return row?.querySelector<HTMLElement>('input,select,[aria-pressed="true"],.property-options button')??row??undefined;
   }
-  if (result.functionId) return [...root.querySelectorAll<HTMLElement>("[data-ui-function]")].find(element => element.dataset.uiFunction === result.functionId && !element.closest("[data-ui-search],[data-ui-palette],[data-shortcut-runner]"));
+  if (result.functionId) return [...root.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(element => element.dataset.uiFunction === result.functionId && !element.closest("[data-ui-search],[data-ui-palette],[data-shortcut-runner]"));
   return result.element?.isConnected ? result.element : undefined;
 }

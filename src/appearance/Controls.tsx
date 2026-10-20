@@ -93,6 +93,7 @@ export function PropertyEditor({
           <button
             type="button"
             key={option.id}
+            data-ui-id={option.id}
             aria-pressed={value === option.id}
             disabled={disabled}
             onClick={() => onCommit(option.id)}

@@ -1,3 +1,4 @@
+import { NativeActions } from "./NativeActions";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -1393,6 +1394,7 @@ export function UIWorkspace({
     >
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
+      <NativeActions />
       {children}
       {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">

@@ -52,6 +52,7 @@ export function PropertyTree({
         <div className="property-node-heading">
           <button
             type="button"
+            data-ui-id="disclosure"
             aria-label={`${expanded ? "Collapse" : "Expand"} property ${node.label}`}
             aria-expanded={expanded}
             onClick={(event) =>
@@ -63,6 +64,7 @@ export function PropertyTree({
           <button
             type="button"
             className="property-node-name"
+            data-ui-id="property"
             aria-pressed={selected === node.property}
             onClick={(event) => {
               if (subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift")) {

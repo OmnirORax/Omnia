@@ -75,7 +75,7 @@ export function MasterController() {
         locate: () => {
           const owner = target.instance!.owner;
           return owner.startsWith("function:")
-            ? [...document.querySelectorAll<HTMLElement>("[data-ui-function]")].find(
+            ? [...document.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(
                 (el) =>
                   el.dataset.uiFunction === owner.slice(9) &&
                   !el.closest("[data-ui-palette],[data-shortcut-runner]"),
