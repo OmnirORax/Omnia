@@ -584,7 +584,7 @@ export function releaseResident(layout: UILayout, key: string): UILayout {
     if (c.members?.some((m) => residentKey(m) === key))
       next = updateContainer(next, id, {
         members: c.members.filter((m) => residentKey(m) !== key),
-        dockLayout: removeDockKey(c.dockLayout, key),
+        ...(c.dockLayout ? { dockLayout: removeDockKey(c.dockLayout, key) } : {}),
       });
   return next;
 }

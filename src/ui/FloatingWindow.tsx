@@ -7,6 +7,8 @@ import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
 import { useFrameBounds } from "./frameBounds";
+import { useDockResident, useDockWorkspace } from "./DockWorkspace";
+import { fitDockRect } from "./docking";
 let front = 100;
 export const nextWindowLayer = () => ++front;
 export function FloatingWindow({
@@ -55,6 +57,9 @@ export function FloatingWindow({
     owner = ownerOf(ui.layout, key),
     host = useDockHost(key);
   const state = fitWindow(saved, window.innerWidth, window.innerHeight);
+  const workspace = useDockWorkspace();
+  const available = !owner && workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const visible = useDockResident(key, fitDockRect(state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state, available), !owner);
   const dockFill = !!host?.classList.contains("ui-dock-fill");
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
@@ -114,32 +119,21 @@ export function FloatingWindow({
         position={
           owner
             ? { x: 0, y: 0 }
-            : state.collapsed
-              ? {
-                  x: Math.max(
-                    8,
-                    Math.min(saved.x + bounds.x, window.innerWidth - bounds.width - 8),
-                  ),
-                  y: Math.max(
-                    8,
-                    Math.min(saved.y + bounds.y, window.innerHeight - bounds.height - 8),
-                  ),
-                }
-              : { x: state.x, y: state.y }
+            : { x: visible.x, y: visible.y }
         }
         size={{
           width: state.collapsed
-            ? bounds.width
+            ? visible.width
             : owner
               ? Math.min(state.width, host?.clientWidth ?? state.width)
-              : state.width,
-          height: state.collapsed ? bounds.height : state.height,
+              : visible.width,
+          height: owner ? state.collapsed ? bounds.height : state.height : visible.height,
         }}
         style={{ position: owner ? "absolute" : "fixed", zIndex: z }}
-        minWidth={state.collapsed ? 40 : Math.min(240, window.innerWidth - 16)}
-        minHeight={state.collapsed ? 44 : 120}
-        maxWidth={Math.max(240, window.innerWidth - 16)}
-        maxHeight={Math.max(120, window.innerHeight - 16)}
+        minWidth={Math.min(state.collapsed ? 40 : 240, visible.width)}
+        minHeight={Math.min(state.collapsed ? 44 : 120, visible.height)}
+        maxWidth={available.width}
+        maxHeight={available.height}
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging

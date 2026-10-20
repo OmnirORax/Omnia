@@ -16,6 +16,8 @@ import { nextWindowLayer } from "./FloatingWindow";
 import { FrameChrome } from "./FrameChrome";
 import { containers, type WindowState } from "./layout";
 import { nativeActionId } from "./NativeActions";
+import { useDockResident, useDockWorkspace } from "./DockWorkspace";
+import { fitDockRect } from "./docking";
 
 /** A compact, embedded window uses the same ownership, docking and history as every other window.
  * Its full content remains mounted when collapsed or moved, so actions never turn into stale proxies. */
@@ -60,6 +62,9 @@ export function EmbeddedGroup({
   const state = ui.layout.windows[id] ?? initial;
   const host = useDockHost(key),
     atHome = !state.inline?.detached;
+  const workspace = useDockWorkspace();
+  const available = workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const visible = useDockResident(key, fitDockRect({ x: state.x, y: state.y, width: root.current?.getBoundingClientRect().width || state.width, height: root.current?.getBoundingClientRect().height || state.height }, available), !atHome && !host);
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -152,22 +157,11 @@ export function EmbeddedGroup({
         !atHome && !host
           ? {
               position: "fixed",
-              left: Math.max(
-                8,
-                Math.min(
-                  state.x,
-                  innerWidth - (root.current?.getBoundingClientRect().width ?? state.width) - 8,
-                ),
-              ),
-              top: Math.max(
-                8,
-                Math.min(
-                  state.y,
-                  innerHeight - (root.current?.getBoundingClientRect().height ?? state.height) - 8,
-                ),
-              ),
+              left: visible.x,
+              top: visible.y,
               zIndex: z,
-              maxHeight: "calc(100vh - 16px)",
+              maxHeight: visible.height,
+              maxWidth: visible.width,
               overflow: "auto",
             }
           : undefined

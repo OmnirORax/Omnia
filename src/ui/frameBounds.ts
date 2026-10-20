@@ -2,7 +2,7 @@ import { useLayoutEffect, useState } from "react";
 export type ContentBounds = { x: number; y: number; width: number; height: number };
 /** Measure occupied content, never the saved wrapping width of a contour frame. */
 export function residentBounds(root: HTMLElement): ContentBounds {
-  if (!root.classList.contains("ui-frame-root")) return root.getBoundingClientRect();
+  if (!root.classList.contains("ui-frame-root") || root.parentElement?.classList.contains("ui-structured-frame")) return root.getBoundingClientRect();
   const parts = [
     ...root.querySelectorAll<HTMLElement>(".ui-frame-tools,.ui-resident-slot,.empty-ui-slot"),
   ].filter(

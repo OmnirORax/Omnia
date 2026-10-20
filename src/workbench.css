@@ -63,6 +63,7 @@
 .ui-frame-strip.is-vertical { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0; }
 .ui-native-frame-slot { min-width: 0; position: relative; }
 .ui-native-frame-slot.is-away { display: contents; }
+.ui-native-frame-slot > .ui-structured-frame { width: 100% !important; max-width: 100% !important; }
 .ui-menu-panel > .frame-chrome.floating-title { width: auto; margin: 0; }
 .ui-menu-panel > .frame-chrome > .ui-frame-tools > .ui-frame-handle { position: relative; min-width: 0; background: transparent; border-color: transparent; }
 .ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button { padding: 7px 9px; }
@@ -421,7 +422,10 @@ textarea:focus-visible {
   flex: 1;
   min-height: 0;
   display: flex;
+  padding: var(--ui-dock-top, 0px) var(--ui-dock-right, 0px) var(--ui-dock-bottom, 0px) var(--ui-dock-left, 0px);
+  overflow: hidden;
 }
+.workspace[data-ui-docks="true"] > .sidebar { width: min(300px, 35%); flex-basis: min(300px, 35%); }
 .sidebar {
   width: 300px;
   flex: 0 0 300px;

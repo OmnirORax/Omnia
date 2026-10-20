@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { activateDockMember, emptyUILayout, floatResident, ownerOf, validateUILayout } from "../src/ui/layout.ts";
-import { dockFrame, edgeDockRect } from "../src/ui/docking.ts";
+import { dockFrame, edgeDockRect, fitDockRect, fitDockResidents, workspaceDockRects } from "../src/ui/docking.ts";
 import { dockKeys, updateDockNode } from "../src/ui/dockTree.ts";
 const rect = { x: 100, y: 100, width: 600, height: 450 };
 const fixture = () => ({ ...emptyUILayout(), windows: Object.fromEntries(["a", "b", "c"].map(id => [id, {
@@ -61,4 +61,44 @@ test("viewport docking shares the frame model and leaves legacy layouts unchange
   assert.equal(ownerOf(layout, "window:a"), `frame:${layout.frames[0].id}`);
   const resized = edgeDockRect(layout, "left", { x: 8, y: 50, width: 1200, height: 800 });
   assert.equal(resized.x, 8); assert.equal(resized.height, 800);
+});
+test("opposing docks allocate disjoint space, retain a usable center, and adapt without changing saved geometry", () => {
+  let layout = fixture(); const area = { x: 8, y: 50, width: 1200, height: 800 };
+  layout = dockFrame(layout, "window:a", { side: "left", edge: "left", rect });
+  layout = dockFrame(layout, "window:b", { side: "right", edge: "right", rect });
+  layout = dockFrame(layout, "window:c", { side: "top", edge: "top", rect });
+  const saved = JSON.stringify(layout), geometry = workspaceDockRects(layout, area), { docks, center } = geometry;
+  assert.ok(center.width >= 480 && center.height >= 240);
+  assert.equal(docks.left.x+docks.left.width, center.x);
+  assert.equal(docks.right.x, center.x+center.width);
+  assert.equal(docks.top.y+docks.top.height, center.y);
+  const fitted = fitDockRect(rect, center);
+  assert.ok(fitted.x >= center.x && fitted.x+fitted.width <= center.x+center.width);
+  const small = workspaceDockRects(layout, { ...area, width: 600, height: 400 });
+  assert.ok(small.center.width >= 300 && small.center.height >= 200);
+  assert.equal(JSON.stringify(layout), saved);
+});
+test("a split replacing a native strip panel stays in its home and preserves sibling order", () => {
+  const layout = fixture(), home = "window:native:sidebar";
+  layout.windows['native:sidebar'] = { ...layout.windows.a, members: [] };
+  const docked = dockFrame(layout, "window:b", { target: "window:a", side: "bottom", rect, host: { container: home, order: "sidebar", keys: ["window:c", "window:a"] } });
+  const group = docked.frames[0], key = `frame:${group.id}`;
+  assert.equal(ownerOf(docked, key), home);
+  assert.deepEqual(docked.nativeOrders.sidebar, ["window:c", key, "window:a"]);
+  assert.equal(ownerOf(docked, "window:a"), key);
+});
+test("floating neighbors use gaps or smaller cells instead of overlapping after docking", () => {
+  const area = { x: 500, y: 100, width: 700, height: 650 }, before = { large: { x: 0, y: 100, width: 500, height: 600 }, small: { x: 800, y: 400, width: 150, height: 100 } };
+  const disjoint = rects => {
+    const values = Object.values(rects);
+    for (const a of values) {
+      assert.ok(a.x >= area.x && a.x+a.width <= area.x+area.width+.01 && a.y >= area.y && a.y+a.height <= area.y+area.height+.01);
+      for (const b of values) if (a !== b) assert.ok(a.x+a.width <= b.x || b.x+b.width <= a.x || a.y+a.height <= b.y || b.y+b.height <= a.y);
+    }
+  };
+  const snapshot = JSON.stringify(before);
+  disjoint(fitDockResidents(before, area));
+  disjoint(fitDockResidents({ ...before, huge: rect }, area));
+  assert.equal(JSON.stringify(before), snapshot);
+  assert.deepEqual(fitDockResidents(before, area), fitDockResidents(before, area));
 });

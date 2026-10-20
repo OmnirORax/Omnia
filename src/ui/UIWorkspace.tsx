@@ -77,7 +77,8 @@ import type { VisualAsset } from "../graph/assets";
 import { snapPosition, snapshotPositions } from "./positioning";
 import { insertFrameBeside, type InsertSide } from "./frameInsertion";
 import { DockLayout } from "./DockLayout";
-import { dockFrame, edgeDockRect, type FrameDock, type DockRect } from "./docking";
+import { dockFrame, edgeDockRect, fitDockRect, workspaceDockRects, type DockRect, type FrameDock } from "./docking";
+import { DockWorkspace, dockWorkspaceArea, useDockResident, useDockWorkspace } from "./DockWorkspace";
 import type { DockSide } from "./dockTree";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
@@ -85,10 +86,6 @@ import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } 
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
-function dockWorkspaceArea(): DockRect {
-  const top = Math.max(8, document.querySelector(".toolbar")?.getBoundingClientRect().bottom ?? 8);
-  return { x: 8, y: top, width: Math.max(160, innerWidth - 16), height: Math.max(120, innerHeight - top - 8) };
-}
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
@@ -345,15 +342,10 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
     key = `frame:${frame.id}`,
     nested = !!ownerOf(ui.layout, key),
     width = Math.max(64, Math.min(frame.width ?? 280, window.innerWidth - 24));
-  const [, resized] = useState(0);
-  useEffect(() => {
-    if (!frame.dockEdge) return;
-    const resize = () => resized(value => value + 1);
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, [frame.dockEdge]);
-  const edgeBounds = frame.dockEdge ? edgeDockRect(ui.layout, frame.dockEdge, dockWorkspaceArea()) : undefined;
+  const workspace = useDockWorkspace();
+  const edgeBounds = frame.dockEdge && !nested ? workspace.docks[frame.dockEdge] : undefined;
   const structured = !!frame.dockLayout;
+  const visible = useDockResident(key, fitDockRect({ x: frame.x + (structured ? 0 : bounds.x), y: frame.y + (structured ? 0 : bounds.y), width: structured ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height }, workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 }), !nested && !edgeBounds);
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
   return (
     <Rnd
@@ -370,11 +362,11 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         edgeBounds ? { x: edgeBounds.x, y: edgeBounds.y } : nested
           ? { x: 0, y: 0 }
           : {
-              x: Math.max(8, Math.min(frame.x + bounds.x, window.innerWidth - bounds.width - 8)),
-              y: Math.max(8, Math.min(frame.y + bounds.y, window.innerHeight - bounds.height - 8)),
+              x: visible.x,
+              y: visible.y,
             }
       }
-      size={{ width: edgeBounds?.width ?? (structured ? width : bounds.width), height: edgeBounds && !frame.collapsed ? edgeBounds.height : structured && !frame.collapsed ? frame.height ?? 420 : bounds.height }}
+      size={{ width: edgeBounds?.width ?? (!nested ? visible.width : structured ? width : bounds.width), height: edgeBounds?.height ?? (!nested ? visible.height : structured && !frame.collapsed ? frame.height ?? 420 : bounds.height) }}
       disableDragging
       enableResizing={
         !dockFill && !residentPinned(ui.layout, key) && !frame.collapsed
@@ -393,7 +385,7 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         ref={ref}
         className="ui-frame-root"
         data-ui-resident-root={key}
-        style={{ width: structured ? "100%" : width, height: structured ? "100%" : undefined, position: "relative", left: structured ? 0 : -bounds.x, top: structured ? 0 : -bounds.y }}
+        style={{ width: structured ? "100%" : !nested ? Math.min(width, visible.width) : width, height: structured ? "100%" : undefined, maxHeight: !nested && workspace.active ? visible.height : undefined, overflow: !nested && workspace.active ? "auto" : undefined, position: "relative", left: structured ? 0 : -bounds.x, top: structured ? 0 : -bounds.y }}
       >
         <FrameChrome
           container={key}
@@ -433,6 +425,12 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
       </div>
     </Rnd>
   );
+}
+function FreeFunction({ id, x, y, width, height, children }: { id: string; x: number; y: number; width?: number; height?: number; children: ReactNode }) {
+  const workspace = useDockWorkspace();
+  const area = workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const visible = useDockResident(`function:${id}`, fitDockRect({ x, y, width: width ?? 100, height: height ?? 82 }, area));
+  return <div className="ui-free-function" style={{ left: visible.x, top: visible.y, width: width ? visible.width : undefined, maxWidth: workspace.active ? visible.width : area.width }}>{children}</div>;
 }
 type Preview = {
   frameDock?: FrameDock;
@@ -532,6 +530,7 @@ export function UIWorkspace({
     node.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - r.height - 8))}px`;
   }, [menu, layout]);
   const defaults = useRef(new Map<string, WindowState>()).current;
+  const dockProjection = useRef<((key: string, rect: DockRect) => DockRect) | undefined>(undefined);
   const frameActions = useRef<UIContextValue["frameActions"]>(new Map()).current;
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
@@ -885,7 +884,10 @@ export function UIWorkspace({
         if (!side && !header && !center) return;
         const width = Math.min(area.width, Math.max(280, bounds.width)), height = Math.min(area.height, Math.max(220, bounds.height));
         const rect = { x: Math.max(area.x, Math.min(bounds.x, area.x+area.width-width)), y: Math.max(area.y, Math.min(bounds.y, area.y+area.height-height)), width, height };
-        return { target, side: side ?? "tab", rect, bounds };
+        const slot = root?.closest<HTMLElement>("[data-ui-frame-slot]");
+        const strip = slot?.dataset.uiFrameSlot === target ? slot.closest<HTMLElement>("[data-ui-frame-strip]") : null;
+        const host = strip ? { container: strip.dataset.uiFrameStrip!, order: strip.dataset.uiFrameOrder!, keys: [...strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(a.style.order)-Number(b.style.order)).map(slot => slot.dataset.uiFrameSlot!) } : undefined;
+        return { target, side: side ?? "tab", rect, bounds, host };
       }
     };
     const resolveTarget = (x: number, y: number): Preview | null => {
@@ -1254,6 +1256,7 @@ export function UIWorkspace({
           group: `function:${other.dataset.uiFunction}`,
           rect: boundsOf(other),
         };
+      const freeArea = workspaceDockRects(s, dockWorkspaceArea());
       const desired = {
         x: Math.max(
           8,
@@ -1276,10 +1279,14 @@ export function UIWorkspace({
             !ownerOf(s, el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`),
         )
         .map((el) => boundsOf(el));
-      const position =
+      const snappedPosition =
         s.arrangement?.mode === "snap" && s.arrangement.grid
           ? snapPosition(desired, source, s.arrangement.grid, occupied)
           : desired;
+      const canvas = document.querySelector(".canvas")?.getBoundingClientRect();
+      const floatingArea = canvas ? { x: Math.max(freeArea.center.x, canvas.x), y: freeArea.center.y, width: Math.min(freeArea.center.width, canvas.width), height: freeArea.center.height } : freeArea.center;
+      const fitted = fitDockRect({ ...snappedPosition, width: source.width, height: source.height }, floatingArea);
+      const position = freeArea.active ? dockProjection.current?.(source.key, fitted) ?? fitted : { ...snappedPosition, width: source.width, height: source.height };
       if (
         position.x < 0 ||
         position.y < 0 ||
@@ -1289,7 +1296,7 @@ export function UIWorkspace({
         return { text: "No visible cell here; choose another position or anchor" };
       return {
         text: s.arrangement?.mode === "snap" ? "Workspace snap" : "Place freely",
-        rect: { ...position, width: source.width, height: source.height },
+        rect: position,
       };
     };
     const resolve = (x: number, y: number): Preview | null => {
@@ -1657,6 +1664,7 @@ export function UIWorkspace({
         selectionMenu: buttonSelection.openMenu,
       }}
     >
+      <DockWorkspace projection={dockProjection}>
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
       <NativeActions />
@@ -1688,24 +1696,12 @@ export function UIWorkspace({
         {Object.entries(layout.items)
           .filter(([id, i]) => !i.home && !i.anchorId && !ownerOf(layout, `function:${id}`))
           .map(([id, placement]) => (
-            <div
-              className="ui-free-function"
-              key={id}
-              style={{
-                left: Math.max(
-                  8,
-                  Math.min(placement.x, window.innerWidth - (placement.size?.width ?? 100)),
-                ),
-                top: Math.max(
-                  8,
-                  Math.min(placement.y, window.innerHeight - (placement.size?.height ?? 82) - 8),
-                ),
-                width: placement.size?.width,
-                maxWidth: placement.size ? "none" : undefined,
-              }}
+            <FreeFunction
+              key={id} id={id}
+              x={placement.x} y={placement.y} width={placement.size?.width} height={placement.size?.height}
             >
               {renderResident({ kind: "function", id })}
-            </div>
+            </FreeFunction>
           ))}
         {layout.frames
           .filter((f) => !ownerOf(layout, `frame:${f.id}`))
@@ -2007,6 +2003,7 @@ export function UIWorkspace({
         </FloatingWindow>
       )}
       </AppearanceProvider>
+      </DockWorkspace>
     </UIContext.Provider>
   );
 }

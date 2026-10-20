@@ -61,6 +61,30 @@ try {
   await page.reload(); await page.locator('.ui-dock-split, .ui-dock-pane').first().waitFor();
   assert.deepEqual((await state()).frames, saved.frames);
   assert.ok(await page.locator('[role="dialog"][aria-label="Theme / aesthetics"]').isVisible());
+  // Edge docks reserve space rather than covering native panels, the canvas, or floats.
+  await page.waitForFunction(() => {
+    const layout = JSON.parse(localStorage.getItem('omnium.ui.layout.v1'));
+    const edge = layout.frames.find(frame => frame.dockEdge === 'left');
+    const dock = document.querySelector(`[data-ui-resident-root="frame:${edge.id}"]`), sidebar = document.querySelector('.sidebar');
+    return sidebar.getBoundingClientRect().left >= dock.getBoundingClientRect().right-1;
+  });
+  await drag('[data-ui-drag="frame:Tools"]', 1590, 700);
+  await page.mouse.up();
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('omnium.ui.layout.v1')).frames.some(frame => frame.dockEdge === 'right'));
+  const allocation = await page.evaluate(() => {
+    const layout = JSON.parse(localStorage.getItem('omnium.ui.layout.v1'));
+    const box = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x:r.x, right:r.right, y:r.y, bottom:r.bottom, width:r.width }; };
+    const dock = edge => box(`[data-ui-resident-root="frame:${layout.frames.find(frame => frame.dockEdge === edge).id}"]`);
+    return { left:dock('left'), right:dock('right'), sidebar:box('.sidebar'), canvas:box('.canvas') };
+  });
+  assert.ok(allocation.sidebar.x >= allocation.left.right-1);
+  assert.ok(allocation.canvas.right <= allocation.right.x+1);
+  assert.ok(allocation.canvas.width > 100);
+  const reuse = await page.locator('[data-ui-resident-root="window:panel:reuse"]').boundingBox();
+  await drag('[role="tab"][data-ui-drag="window:settings"]', reuse.x+reuse.width-8, reuse.y+reuse.height/2);
+  await page.mouse.up();
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('omnium.ui.layout.v1')).windows['native:@sidebar']?.members?.some(member => member.kind === 'frame'));
+  assert.ok(await page.locator('.sidebar .ui-structured-frame').isVisible(), 'split stays in the sidebar flow');
   assert.deepEqual(errors, []);
-  console.log('Docking: live split panels, tab grouping/switching, divider + UI undo, drag-out, viewport docking and reload passed.');
+  console.log('Docking: splits/tabs, undo, drag-out/reload, shared edge allocation and adaptive native sidebar passed.');
 } finally { await browser.close(); }
