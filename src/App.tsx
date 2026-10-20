@@ -44,6 +44,7 @@ import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
 import { useInterfaceState } from "./ui/useInterfaceState";
 import type { ColorPreview } from "./textScene";
+import { revealSearchPath, type SearchReveal } from "./ui/search";
 import { ColorInput } from "./ui/ColorInput";
 import { useControlGlow } from "./ui/useControlGlow";
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
@@ -72,7 +73,10 @@ function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
-  const { layout: uiLayout, update: updateUI, settings: savedSettings, setSettings } = ui;
+  const { layout: savedUILayout, update: updateUI, settings: savedSettings, setSettings } = ui;
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchReveal, setSearchReveal] = useState<SearchReveal | null>(null);
+  const uiLayout = useMemo(() => revealSearchPath(savedUILayout, searchReveal), [savedUILayout, searchReveal]);
   const [colorPreview, setColorPreview] = useState<ColorPreview | null>(null);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
   const settings = useMemo(() => appearancePreview ? { ...savedSettings, appearance: appearancePreview } : savedSettings, [savedSettings, appearancePreview]);
@@ -123,8 +127,8 @@ function Workbench() {
     root.style.setProperty("--omnium-frame-opacity", String(a.windowOpacity * a.opacity * 0.22));
   }, [settings.appearance]);
   useControlGlow(settings.appearance.controlGlow, settings.appearance.accent, settings.appearance.theme);
-  const uiCurrent = useRef(uiLayout); uiCurrent.current = uiLayout;
-  useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(uiLayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [uiLayout, ui.dirty]);
+  const uiCurrent = useRef(savedUILayout); uiCurrent.current = savedUILayout;
+  useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(savedUILayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [savedUILayout, ui.dirty]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
   const atlas = useMemo(() => editorView(document, expandedVariants), [document, expandedVariants]);
   const [selection, setSelection] = useState<Selection>(null);
@@ -836,6 +840,7 @@ function Workbench() {
   }
   function runAction(action: ActionId, steps = 1) {
     switch (action) {
+      case "searchUI": setSearchOpen(true); break;
       case "ui:undo": ui.undo(steps); break;
       case "theme": setSettings(old => ({ ...old, appearance: { ...old.appearance, theme: old.appearance.theme === "neon" ? "classic" : "neon" } })); break;
       case "appearance": setThemeOpen(true); break;
@@ -891,7 +896,7 @@ function Workbench() {
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
-      if ((settingsOpen || insertContext) && action !== "cancel") return;
+      if ((settingsOpen || insertContext) && action !== "cancel" && action !== "searchUI") return;
       event.preventDefault(); runAction(action);
     };
     const keyup = (event: KeyboardEvent) => {
@@ -961,6 +966,7 @@ function Workbench() {
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
   for (const key of ["leftEmpty", "rightEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
+  replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
   replaceFunction("appearance", "Theme / aesthetics", <button onClick={() => setThemeOpen(true)}>Theme / aesthetics</button>);
@@ -1066,7 +1072,7 @@ function Workbench() {
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   return (
-    <UIWorkspace shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -1075,6 +1081,7 @@ function Workbench() {
           <span>Atlas workbench</span>
         </div>
         <div className="toolbar-actions">
+          <FunctionControl id="searchUI" />
           {uiLayout.panels["@organized"] ? <>
           <UIFrameStrip id="@toolbarFrames">
           <UIPanel id="menu:file" title="File" menu>

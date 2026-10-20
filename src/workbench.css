@@ -738,3 +738,15 @@ button.active,
 :root[data-omnium-theme="neon"] :is(.selection-rectangle, .ui-selection-rectangle, .ui-drop-ghost) { border-color: var(--omnium-accent); outline-color: var(--omnium-accent); background: color-mix(in srgb, var(--omnium-accent) 12%, transparent); color: var(--omnium-highlight); }
 :root[data-omnium-theme="neon"] :is(.ui-function.ui-selected, .ui-alignment-edge:not(.invalid)) { outline-color: var(--omnium-accent); border-color: var(--omnium-accent); box-shadow: 0 0 8px var(--omnium-soft-border); }
 :root[data-omnium-theme="neon"] :is(.floating-backdrop, .workspace-dialog-backdrop) { background: color-mix(in srgb, var(--omnium-base) 55%, transparent); }
+
+.ui-global-search { top: 70px; left: 16px; width: min(420px, calc(100vw - 32px)); max-height: min(620px, calc(100dvh - 90px)); }
+.ui-global-search > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ui-global-search > header button { border: 0; background: transparent; padding: 2px 6px; }
+.ui-global-search .ui-frame-search-results section { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; }
+.ui-global-search .ui-frame-search-results h3 { position: sticky; top: 0; margin: 0; padding: 8px 6px 5px; font-size: 12px; background: var(--omnium-base, #f8faff); overflow-wrap: anywhere; }
+.ui-global-search [role="option"] { text-align: left; margin-left: 12px; padding: 6px 8px; font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+.ui-global-search [role="option"][aria-selected="true"] { outline: 1px solid var(--omnium-accent, #386991); outline-offset: -1px; }
+.ui-global-search [role="option"][aria-disabled="true"] { opacity: .6; }
+.ui-search-pulsing { outline: 2px solid var(--omnium-accent, #386991) !important; outline-offset: 3px; animation: ui-search-pulse .9s ease-in-out infinite alternate !important; }
+@keyframes ui-search-pulse { from { box-shadow: 0 0 3px var(--omnium-accent, #386991); } to { box-shadow: 0 0 18px var(--omnium-accent, #386991); } }
+@media (prefers-reduced-motion: reduce) { .ui-search-pulsing { animation: none !important; } }

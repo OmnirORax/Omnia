@@ -4,6 +4,7 @@ import type { StyleDefaults } from "./graph/appearance.ts";
 import { normalizeFont, type FontId } from "./fonts.ts";
 
 export const ACTIONS = [
+  { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "S" },
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
   { id: "ui:reset", category: "Workspace", label: "Reset to default", defaultKey: "" },
@@ -78,7 +79,7 @@ export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: s
   return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key)?.[0] ?? null;
 }
 export function isTypingTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  return target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'));
 }
 export function subtreeGesture(event: Pick<MouseEvent, "shiftKey" | "altKey" | "ctrlKey" | "metaKey">, modifier: SubtreeModifier): boolean {
   return modifier === "shift" ? event.shiftKey : modifier === "alt" ? event.altKey : modifier === "ctrl" ? event.ctrlKey || event.metaKey : false;
@@ -131,7 +132,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
       defaults.buttonLabels[id] = typeof label === "string" ? label.slice(0, 200) : id.slice(7);
     }
     // New defaults must not take keys already assigned in an existing saved configuration.
-    for (const action of NUDGE_ACTIONS) {
+    for (const action of [...NUDGE_ACTIONS, "searchUI"] as const) {
       const key = defaults.bindings[action];
       if (value.bindings && !Object.hasOwn(value.bindings, action) && Object.entries(value.bindings).some(([id, binding]) => id !== action && binding === key && defaults.bindings[id] === key)) defaults.bindings[action] = "";
     }

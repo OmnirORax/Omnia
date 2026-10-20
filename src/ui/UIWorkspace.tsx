@@ -32,6 +32,7 @@ import {
 import { VisualControls } from "../VisualControls";
 import { ShortcutHint } from "./ShortcutHint";
 import { FrameChrome } from "./FrameChrome";
+import { GlobalSearch, type GlobalSearchProps } from "./GlobalSearch";
 import { FrameSearch } from "./FrameSearch";
 import { DockArea } from "./DockArea";
 import { DockHost } from "./DockHost";
@@ -248,7 +249,7 @@ export function UIPanel({
     const close = (event: PointerEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent ? event.key !== "Escape" : root.current?.contains(event.target as Node)) return;
       // Do not unmount an active native drag source, or close over a child editor.
-      if (event instanceof PointerEvent && (event.buttons !== 1 || (event.target as Element).closest(".floating-window,.ui-background-menu,.ui-selection-tools"))) return;
+      if (event instanceof PointerEvent && (event.buttons !== 1 || (event.target as Element).closest(".floating-window,.ui-background-menu,.ui-selection-tools,[data-ui-search]"))) return;
       patch({ collapsed: true });
     };
     window.addEventListener("pointerdown", close);
@@ -429,6 +430,7 @@ export function UIWorkspace({
   command,
   onReset,
   shortcuts,
+  search,
 }: {
   layout: UILayout;
   update: (change: (layout: UILayout) => UILayout) => void;
@@ -437,6 +439,7 @@ export function UIWorkspace({
   command?: UICommand | null;
   onReset: () => void;
   shortcuts?: ButtonShortcuts;
+  search?: GlobalSearchProps;
 }) {
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
@@ -1383,6 +1386,7 @@ export function UIWorkspace({
       }}
     >
       {children}
+      {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">
         {functions.filter(fn => !fn.control && fn.available !== false && Object.hasOwn(shortcuts?.bindings ?? {}, `button:${fn.id}`)).map(fn => <span key={fn.id} data-shortcut-runner={fn.id}>{fn.element}</span>)}
       </div>
