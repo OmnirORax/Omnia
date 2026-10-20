@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUI } from "./context";
 import { useDockPreview } from "./PlacementPreview";
 import { createPortal } from "react-dom";
+import { DockLayout } from "./DockLayout";
 import {
   getContainer,
   residentKey,
@@ -62,7 +63,7 @@ function bridges(shapes: Shape[]) {
   }
   return paths.join(" ");
 }
-export function DockArea({ container, contour = true }: { container: string; contour?: boolean }) {
+export function DockArea({ container, contour = true, hidden = false }: { container: string; contour?: boolean; hidden?: boolean }) {
   const ui = useUI(),
     root = useRef<HTMLDivElement>(null),
     mask = useId().replace(/:/g, ""),
@@ -159,8 +160,10 @@ export function DockArea({ container, contour = true }: { container: string; con
     };
   }, [container]);
   useLayoutEffect(() => { measureContent.current(); }, [ui.layout, moving]);
+  if (state?.dockLayout) return <div className="ui-embedded-dock-layout" hidden={hidden}><DockLayout container={container} /></div>;
   return (
     <div
+      hidden={hidden}
       className={`ui-dock-area ${preview ? "is-drop-target" : ""} ${!contour && !entries.length ? "ui-dock-empty" : ""}`}
       data-ui-drop-zone={container}
       data-ui-container-key={container}

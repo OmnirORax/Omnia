@@ -2,11 +2,15 @@ import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import { fitWindow, ownerOf, releaseResident, residentPinned, type WindowState } from "./layout";
-import { useUI, UIHomeContext, UIContainerContext } from "./context";
+import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
 import { useFrameBounds } from "./frameBounds";
+import { useDockResident, useDockWorkspace } from "./DockWorkspace";
+import { fitDockRect } from "./docking";
+import { keepFloatingHandleVisible } from "./positioning";
+import { cursorPosition } from "./cursorPosition";
 let front = 100;
 export const nextWindowLayer = () => ++front;
 export function FloatingWindow({
@@ -21,6 +25,8 @@ export function FloatingWindow({
   x,
   y,
   role = "dialog",
+  openAtCursor = role === "dialog",
+  openingKey,
   className = "",
   modal = false,
   onInteract,
@@ -36,6 +42,9 @@ export function FloatingWindow({
   x?: number;
   y?: number;
   role?: "dialog" | "complementary";
+  /** Popups open at the pointer; persistent workspace panels opt out. */
+  openAtCursor?: boolean;
+  openingKey?: string | number;
   className?: string;
   modal?: boolean;
   onInteract?: () => void;
@@ -55,6 +64,12 @@ export function FloatingWindow({
     owner = ownerOf(ui.layout, key),
     host = useDockHost(key);
   const state = fitWindow(saved, window.innerWidth, window.innerHeight);
+  const workspace = useDockWorkspace();
+  const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const available = !owner && !openAtCursor && workspace.active ? workspace.floating : viewport;
+  const desired = state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state;
+  const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !saved.closed && !owner && !openAtCursor, saved.floatingOverflow);
+  const dockFill = !!host?.classList.contains("ui-dock-fill");
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -62,6 +77,23 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, setZ] = useState(nextWindowLayer);
+  useLayoutEffect(() => {
+    if (!openAtCursor || owner) return;
+    const point = cursorPosition();
+    ui.update(layout => {
+      const current = layout.windows[id] ?? initial;
+      return {
+        ...layout,
+        windows: {
+          ...layout.windows,
+          [id]: fitWindow({ ...current, ...point, collapsed: false, closed: false, floatingOverflow: false }, innerWidth, innerHeight),
+        },
+      };
+    });
+    setZ(nextWindowLayer());
+    // Opening a new target also repositions an editor that is already mounted.
+    // Saved coordinate updates during dragging must not recenter it.
+  }, [id, openAtCursor, openingKey]);
   const set = (patch: Partial<WindowState>) =>
     ui.update((layout) => ({
       ...layout,
@@ -69,7 +101,7 @@ export function FloatingWindow({
         ...layout.windows,
         [id]: (() => {
           const next = fitWindow({ ...saved, ...patch }, window.innerWidth, window.innerHeight);
-          return next.collapsed
+          return next.collapsed && !next.floatingOverflow
             ? {
                 ...next,
                 x:
@@ -102,7 +134,7 @@ export function FloatingWindow({
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [id, ui.update]);
-  if (owner && !host) return null;
+  if (saved.closed || owner && !host) return null;
   return createPortal(
     <>
       {modal && !state.collapsed && !owner && (
@@ -113,42 +145,32 @@ export function FloatingWindow({
         position={
           owner
             ? { x: 0, y: 0 }
-            : state.collapsed
-              ? {
-                  x: Math.max(
-                    8,
-                    Math.min(saved.x + bounds.x, window.innerWidth - bounds.width - 8),
-                  ),
-                  y: Math.max(
-                    8,
-                    Math.min(saved.y + bounds.y, window.innerHeight - bounds.height - 8),
-                  ),
-                }
-              : { x: state.x, y: state.y }
+            : { x: visible.x, y: visible.y }
         }
         size={{
           width: state.collapsed
-            ? bounds.width
+            ? visible.width
             : owner
               ? Math.min(state.width, host?.clientWidth ?? state.width)
-              : state.width,
-          height: state.collapsed ? bounds.height : state.height,
+              : visible.width,
+          height: owner ? state.collapsed ? bounds.height : state.height : visible.height,
         }}
         style={{ position: owner ? "absolute" : "fixed", zIndex: z }}
-        minWidth={state.collapsed ? 40 : Math.min(240, window.innerWidth - 16)}
-        minHeight={state.collapsed ? 44 : 120}
-        maxWidth={Math.max(240, window.innerWidth - 16)}
-        maxHeight={Math.max(120, window.innerHeight - 16)}
+        minWidth={Math.min(state.collapsed ? 40 : 240, visible.width)}
+        minHeight={Math.min(state.collapsed ? 44 : 120, visible.height)}
+        maxWidth={saved.floatingOverflow && !owner ? undefined : available.width}
+        maxHeight={saved.floatingOverflow && !owner ? undefined : available.height}
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging
-        enableResizing={!residentPinned(ui.layout, key) && !state.collapsed}
+        enableResizing={!dockFill && !residentPinned(ui.layout, key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
         onMouseDown={(event) => {
           // Portal events also bubble through their React owner. A child editor
           // must not raise the library/inspector that opened it above itself.
           event.stopPropagation();
+          if (!(event.currentTarget instanceof Element) || !event.currentTarget.contains(event.target as Node)) return;
           setZ(nextWindowLayer());
           onInteract?.();
         }}
@@ -197,10 +219,10 @@ export function FloatingWindow({
           />
           <div className="floating-body" hidden={state.collapsed}>
             <UIHomeContext.Provider value={key}>
-              <UIContainerContext.Provider value={key}>
+              <UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
                 {children}
                 <DockArea container={key} contour={false} />
-              </UIContainerContext.Provider>
+              </UIContainerContext.Provider></UIPathContext.Provider>
             </UIHomeContext.Provider>
           </div>
         </div>

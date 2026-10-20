@@ -106,3 +106,35 @@ test("UI compaction packs mixed-size buttons inside the viewport without moving 
     /size/,
   );
 });
+test("grouping buttons, windows and complete nested groups reuses identities and is one undo step", async () => {
+  const { groupResidents, ownerOf } = await import('../src/ui/layout.ts');
+  const layout = emptyUILayout();
+  const window = { x: 100, y: 200, width: 250, height: 220, collapsed: true, pinned: false };
+  layout.windows.theme = { ...window };
+  layout.windows.color = { ...window, inline: { parent:'window:theme' }, members:[{kind:'function',id:'color-input'}] };
+  layout.windows.light = { ...window, inline: { parent:'window:theme' } };
+  layout.items.action = { x:10, y:20, style:{mode:'icon',geometry:'circle',character:'+'} };
+  const before = structuredClone(layout);
+  const grouped = groupResidents(layout, ['window:color','window:light','function:action'], 100, 200);
+  const group = grouped.frames[0], key = `frame:${group.id}`;
+  assert.deepEqual(group.members, [{kind:'window',id:'color'},{kind:'window',id:'light'},{kind:'function',id:'action'}]);
+  assert.equal(ownerOf(grouped,'window:color'),key);
+  assert.deepEqual(grouped.windows.color.members,layout.windows.color.members);
+  assert.equal(grouped.windows.color.collapsed,true);
+  assert.deepEqual(grouped.items.action.style,layout.items.action.style);
+  assert.deepEqual(Object.keys(grouped.windows),Object.keys(layout.windows));
+  assert.deepEqual(undoHistory(recordHistory(startHistory(layout),grouped)).present,before);
+  assert.deepEqual(validateUILayout(JSON.parse(JSON.stringify(grouped))),grouped);
+  const pinned = structuredClone(layout); pinned.windows.theme.pinned=true;
+  assert.throws(()=>groupResidents(pinned,['window:color','window:light'],0,0),/Unpin/);
+  assert.throws(()=>groupResidents(layout,['window:theme','window:color'],0,0),/group or its contents/);
+  assert.deepEqual(layout,before);
+});
+test("bulk grouping retains entity-menu scope through the same frame operation", async () => {
+  const { groupResidents, residentContextScope } = await import('../src/ui/layout.ts');
+  const layout=emptyUILayout(), menu='window:context:node';
+  layout.windows['context:node']={x:100,y:100,width:300,height:300,collapsed:false,pinned:false,members:[{kind:'function',id:'context:node:focus'},{kind:'function',id:'context:node:expand'}]};
+  const grouped=groupResidents(layout,['function:context:node:focus','function:context:node:expand'],100,100);
+  assert.equal(residentContextScope(grouped,`frame:${grouped.frames[0].id}`),menu);
+  assert.throws(()=>groupResidents(layout,['function:context:node:focus','function:other'],100,100),/owning menus/);
+});

@@ -40,7 +40,7 @@ export function AppearanceStyles() {
       const scope = owner
         ? owner.startsWith("function:")
           ? `[data-ui-function="${CSS.escape(owner.slice(9))}"]`
-          : `[data-ui-resident-root="${CSS.escape(owner)}"]`
+          : `:is([data-ui-resident-root="${CSS.escape(owner)}"],[data-ui-proxy-for="${CSS.escape(owner)}"])`
         : undefined;
       const selector = scope
         ? `:is(${scope}:is(${binding.selector}),${scope} :is(${binding.selector}))`

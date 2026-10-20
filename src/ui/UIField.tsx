@@ -1,6 +1,7 @@
-import { useLayoutEffect, useState, useSyncExternalStore, type ReactElement } from "react";
-import { useUI } from "./context";
+import { useContext, useLayoutEffect, useState, useSyncExternalStore, type ReactElement } from "react";
+import { useUI, UIPathContext } from "./context";
 import { FunctionControl } from "./UIWorkspace";
+import { withControlCaption } from "./captions";
 /** Live fields share the normal registry, edge dragging, library and UI persistence. */
 export function UIField({
   id,
@@ -13,7 +14,7 @@ export function UIField({
   category?: string;
   children: ReactElement;
 }) {
-  const { registerFunction } = useUI();
+  const { registerFunction } = useUI(), homePath = useContext(UIPathContext), pathKey = JSON.stringify(homePath);
   const [store] = useState(() => ({ element: children, listeners: new Set<() => void>() }));
   useLayoutEffect(() => {
     store.element = children;
@@ -25,15 +26,17 @@ export function UIField({
         id,
         label,
         category,
-        element: <LiveField store={store} />,
+        homePath,
+        element: <LiveField id={id} store={store} />,
         control: true,
       }),
-    [registerFunction, id, label, category, store],
+    [registerFunction, id, label, category, store, pathKey],
   );
   return <FunctionControl id={id} />;
 }
-function LiveField({ store }: { store: { element: ReactElement; listeners: Set<() => void> } }) {
-  return useSyncExternalStore(
+function LiveField({ id, store }: { id: string; store: { element: ReactElement; listeners: Set<() => void> } }) {
+  const ui = useUI();
+  const element = useSyncExternalStore(
     (notify) => {
       store.listeners.add(notify);
       return () => {
@@ -42,4 +45,5 @@ function LiveField({ store }: { store: { element: ReactElement; listeners: Set<(
     },
     () => store.element,
   );
+  return withControlCaption(element, ui.layout.labels?.[`function:${id}`]);
 }

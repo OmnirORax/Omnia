@@ -1,3 +1,4 @@
+import { UISection } from "./ui/UISection";
 import { DEFAULT_SPHERE_DIAMETER } from "./graph/assets";
 import { useEffect, useRef, useState } from "react";
 import { MAX_ASSET_BYTES, validateAsset, type Visual, type VisualAsset } from "./graph/assets";
@@ -163,8 +164,7 @@ export function VisualControls({
     }
   }
   return (
-    <fieldset className="visual-controls">
-      <legend>{label} visual</legend>
+    <UISection legacyTag="FIELDSET" id={`visual-${label}`} title={`${label} visual`} className="visual-controls">
       <UIField
         id={`visual:${label}:symbol`}
         label={`${label} symbol`}
@@ -183,12 +183,12 @@ export function VisualControls({
       <button onClick={() => setPicker(!picker)}>Search Iconify for {label.toLowerCase()}</button>
       {picker && (
         <div className="icon-picker">
-          <input
+          <UIField id={`visual:${label}:iconSearch`} label={`${label} icon search`} category="Appearance"><label>Find icon<input
             aria-label="Search Iconify"
             placeholder="Search icons…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-          />
+          /></label></UIField>
           <div className="icon-results">
             {results.map((icon) => (
               <button
@@ -300,6 +300,6 @@ export function VisualControls({
           Icon source and license
         </a>
       )}
-    </fieldset>
+    </UISection>
   );
 }

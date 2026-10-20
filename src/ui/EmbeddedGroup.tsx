@@ -9,13 +9,16 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useAppearance } from "../appearance/Context";
-import { useUI, UIHomeContext, UIContainerContext } from "./context";
+import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
 import { nextWindowLayer } from "./FloatingWindow";
 import { FrameChrome } from "./FrameChrome";
 import { containers, type WindowState } from "./layout";
 import { nativeActionId } from "./NativeActions";
+import { useDockResident, useDockWorkspace } from "./DockWorkspace";
+import { fitDockRect } from "./docking";
+import { keepFloatingHandleVisible } from "./positioning";
 
 /** A compact, embedded window uses the same ownership, docking and history as every other window.
  * Its full content remains mounted when collapsed or moved, so actions never turn into stale proxies. */
@@ -27,6 +30,7 @@ export function EmbeddedGroup({
   selected,
   className = "",
   nodeId,
+  nativeTag,
   onToggle,
   children,
 }: {
@@ -37,6 +41,7 @@ export function EmbeddedGroup({
   selected?: boolean;
   className?: string;
   nodeId?: string;
+  nativeTag?: string;
   onToggle?: (event: MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
 }) {
@@ -44,6 +49,7 @@ export function EmbeddedGroup({
   const ui = useUI(),
     home = useContext(UIHomeContext),
     parent = useContext(UIContainerContext) ?? home,
+    path = useContext(UIPathContext),
     key = `window:${id}`;
   const expanded = expandedOverride ?? !(ui.layout.windows[id]?.collapsed ?? !defaultExpanded);
   const root = useRef<HTMLDivElement>(null);
@@ -60,6 +66,11 @@ export function EmbeddedGroup({
   const state = ui.layout.windows[id] ?? initial;
   const host = useDockHost(key),
     atHome = !state.inline?.detached;
+  const workspace = useDockWorkspace();
+  const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const available = workspace.active ? workspace.floating : viewport;
+  const desired = { x: state.x, y: state.y, width: root.current?.getBoundingClientRect().width || state.width, height: root.current?.getBoundingClientRect().height || state.height };
+  const visible = useDockResident(key, state.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, state.chrome?.handle) : fitDockRect(desired, available), !state.closed && !atHome && !host, state.floatingOverflow);
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -137,6 +148,7 @@ export function EmbeddedGroup({
   const content = (
     <div
       ref={root}
+      hidden={state.closed}
       className={`ui-inline-group ${className}`}
       onMouseDown={(event) => {
         if (!atHome && !host) {
@@ -145,6 +157,7 @@ export function EmbeddedGroup({
         }
       }}
       data-property-node={nodeId}
+      data-ui-native-tag={nativeTag}
       data-ui-inline-group={key}
       data-ui-action-ids={JSON.stringify(state.inline?.actionIds ?? {})}
       data-ui-resident-root={key}
@@ -152,22 +165,11 @@ export function EmbeddedGroup({
         !atHome && !host
           ? {
               position: "fixed",
-              left: Math.max(
-                8,
-                Math.min(
-                  state.x,
-                  innerWidth - (root.current?.getBoundingClientRect().width ?? state.width) - 8,
-                ),
-              ),
-              top: Math.max(
-                8,
-                Math.min(
-                  state.y,
-                  innerHeight - (root.current?.getBoundingClientRect().height ?? state.height) - 8,
-                ),
-              ),
+              left: visible.x,
+              top: visible.y,
               zIndex: z,
-              maxHeight: "calc(100vh - 16px)",
+              maxHeight: visible.height,
+              maxWidth: visible.width,
               overflow: "auto",
             }
           : undefined
@@ -184,10 +186,10 @@ export function EmbeddedGroup({
         onToggle={onToggle}
       />
       <div className="property-node-contents" hidden={!expanded}>
-        <UIContainerContext.Provider value={key}>
+        <UIPathContext.Provider value={[...path, key]}><UIContainerContext.Provider value={key}>
           {children}
           <DockArea container={key} contour={false} />
-        </UIContainerContext.Provider>
+        </UIContainerContext.Provider></UIPathContext.Provider>
       </div>
     </div>
   );

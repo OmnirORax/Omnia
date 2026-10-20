@@ -26,6 +26,12 @@ export function PlacementPreviewOverlay() {
         />
       )}
       {preview && <div className="ui-snap-preview">{preview.text}</div>}
+      {preview?.frameDock?.bounds && <div className="ui-dock-guides" aria-hidden="true" style={{
+        left: preview.frameDock.bounds.x, top: preview.frameDock.bounds.y,
+        width: preview.frameDock.bounds.width, height: preview.frameDock.bounds.height,
+      }}>
+        {(["left", "right", "top", "bottom", "tab"] as const).map(side => <span key={side} className={`dock-guide-${side} ${side === preview.frameDock?.side ? "is-active" : ""}`}>{side === "tab" ? "▣" : side === "left" ? "◧" : side === "right" ? "◨" : side === "top" ? "⬒" : "⬓"}</span>)}
+      </div>}
     </>
   );
 }

@@ -1,5 +1,8 @@
+import { validateCustomControls, type CustomUIControl } from "./controlDefinitions.ts";
 import type { VisualAsset } from "../graph/assets.ts";
 import { validateAsset } from "../graph/assets.ts";
+import { dockKeys, insertDockKey, removeDockKey, validateDockNode, type DockNode } from "./dockTree.ts";
+import { keepFloatingHandleVisible } from "./positioning.ts";
 export type UIArrangement = {
   mode: "free" | "snap";
   grid?: { anchor: string; origin: Cell; pitch: Cell };
@@ -12,12 +15,15 @@ export type WindowState = {
   width: number;
   height: number;
   collapsed: boolean;
+  closed?: boolean;
   pinned: boolean;
   members?: UIResident[];
   chrome?: FrameChrome;
   magnetic?: boolean;
   arrangement?: UIArrangement;
   bodyOffset?: Cell;
+  dockLayout?: DockNode;
+  floatingOverflow?: boolean;
   inline?: {
     parent: string;
     detached?: boolean;
@@ -62,9 +68,15 @@ export type UIFrame = {
   y: number;
   cellSize: number;
   collapsed: boolean;
+  closed?: boolean;
   pinned: boolean;
   members?: UIResident[];
   width?: number;
+  height?: number;
+  dockGroup?: boolean;
+  dockEdge?: "left" | "right" | "top" | "bottom";
+  floatingOverflow?: boolean;
+  dockLayout?: DockNode;
   chrome?: FrameChrome;
   magnetic?: boolean;
   arrangement?: UIArrangement;
@@ -82,6 +94,7 @@ export type UILayout = {
   nativeOrders?: Record<string, string[]>;
   labels?: Record<string, string>;
   hideNames?: boolean;
+  customControls?: Record<string, CustomUIControl>;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -116,6 +129,7 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (layout.customControls !== undefined) validateCustomControls(layout.customControls);
   if (layout.hideNames !== undefined && typeof layout.hideNames !== "boolean")
     throw new Error("Invalid UI name visibility.");
   if (
@@ -289,6 +303,12 @@ export function validateUILayout(value: unknown): UILayout {
       owners.set(`window:${id}`, inline.parent);
   }
   for (const [key, container] of containers(layout)) {
+    if (container.closed !== undefined && typeof container.closed !== "boolean") throw new Error("Invalid frame visibility.");
+    if (container.floatingOverflow !== undefined && typeof container.floatingOverflow !== "boolean") throw new Error("Invalid floating placement.");
+    if (container.dockLayout) validateDockNode(container.dockLayout, new Set((container.members ?? []).map(residentKey)));
+    if ("dockGroup" in container && container.dockGroup !== undefined && typeof container.dockGroup !== "boolean") throw new Error("Invalid dock group.");
+    if ("dockEdge" in container && container.dockEdge !== undefined && (!["left", "right", "top", "bottom"].includes(container.dockEdge) || !container.dockGroup)) throw new Error("Invalid dock edge.");
+    if ("height" in container && container.height !== undefined && (!numeric(container.height) || container.height < 40)) throw new Error("Invalid frame height.");
     if (
       container.bodyOffset &&
       (!record(container.bodyOffset) ||
@@ -468,6 +488,22 @@ export function ownerOf(layout: UILayout, key: string) {
   const inline = key.startsWith("window:") ? layout.windows[key.slice(7)]?.inline : undefined;
   return inline && !inline.detached && inline.parent !== "workspace" ? inline.parent : undefined;
 }
+/** Reveal follows ownership, including tabs whose contents remain mounted. */
+export function activateDockMember(layout: UILayout, key: string): UILayout {
+  let next = layout, current: string | undefined = key;
+  const seen = new Set<string>();
+  const activate = (node: DockNode, member: string): DockNode => node.kind === "tabs"
+    ? node.keys.includes(member) ? { ...node, active: member } : node
+    : { ...node, first: activate(node.first, member), second: activate(node.second, member) };
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const parent = ownerOf(next, current);
+    const tree = parent && getContainer(next, parent)?.dockLayout;
+    if (parent && tree) next = updateContainer(next, parent, { dockLayout: activate(tree, current) });
+    current = parent;
+  }
+  return next;
+}
 export function residentPinned(layout: UILayout, key: string): boolean {
   const seen = new Set<string>();
   let current: string | undefined = key;
@@ -514,6 +550,7 @@ export function residentContextScope(layout: UILayout, key: string): string | un
   return undefined;
 }
 export function canDock(layout: UILayout, resident: string, target: string) {
+  if (getContainer(layout, target)?.dockLayout && resident.startsWith("function:")) return false;
   const scope = residentContextScope(layout, resident),
     targetScope = residentContextScope(layout, target);
   if ((scope || targetScope) && scope !== targetScope) return false;
@@ -557,7 +594,24 @@ export function releaseResident(layout: UILayout, key: string): UILayout {
     if (c.members?.some((m) => residentKey(m) === key))
       next = updateContainer(next, id, {
         members: c.members.filter((m) => residentKey(m) !== key),
+        ...(c.dockLayout ? { dockLayout: removeDockKey(c.dockLayout, key) } : {}),
       });
+  return next;
+}
+/** Hide a frame without deleting its controls. Release explicit docking so closed
+ * tabs do not leave empty panes; an embedded group's native home is preserved. */
+export function closeContainer(layout: UILayout, key: string): UILayout {
+  const state = key.startsWith("window:") ? layout.windows[key.slice(7)] : undefined;
+  const released = state?.inline && !state.inline.detached ? layout : releaseResident(layout, key);
+  return pruneEmptyDockGroups(updateContainer(released, key, { closed: true }));
+}
+export function pruneEmptyDockGroups(layout: UILayout): UILayout {
+  let next = layout;
+  for (let i = 0; i < layout.frames.length; i++) {
+    const empty = next.frames.find(frame => frame.dockGroup && !frame.members?.length);
+    if (!empty) break;
+    next = releaseResident({ ...next, frames: next.frames.filter(frame => frame.id !== empty.id) }, `frame:${empty.id}`);
+  }
   return next;
 }
 /** Reorder native controls as siblings; a field never becomes another field's container. */
@@ -609,6 +663,9 @@ export function dockResident(
     breakBefore,
   });
   next = updateContainer(next, target, { members });
+  const tree = getContainer(next, target)?.dockLayout;
+  if (tree && !dockKeys(tree).includes(key))
+    next = updateContainer(next, target, { dockLayout: insertDockKey(tree, dockKeys(tree)[0], key, "tab") });
   if (readResident(key).kind === "function") {
     const id = readResident(key).id;
     next = {
@@ -624,7 +681,7 @@ export function dockResident(
       },
     };
   }
-  return validateUILayout(next);
+  return validateUILayout(pruneEmptyDockGroups(next));
 }
 export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
   if (residentContextScope(layout, key) || key.startsWith("window:context:")) return layout;
@@ -636,7 +693,7 @@ export function floatResident(layout: UILayout, key: string, x: number, y: numbe
       ...next,
       items: { ...next.items, [m.id]: { ...next.items[m.id], home: false, x, y } },
     });
-  return validateUILayout(updateContainer(next, key, { x, y }));
+  return validateUILayout(pruneEmptyDockGroups(updateContainer(next, key, { x, y, dockEdge: undefined })));
 }
 export function resetContainer(layout: UILayout, key: string): UILayout {
   if (residentPinned(layout, key)) return layout;
@@ -651,6 +708,8 @@ export function resetContainer(layout: UILayout, key: string): UILayout {
       })),
       arrangement: undefined,
       bodyOffset: undefined,
+      dockLayout: undefined,
+      dockEdge: undefined,
       ...(key.startsWith("frame:") ? { width: 280 } : { width: 420, height: 560 }),
     }),
   );
@@ -670,6 +729,7 @@ export function fitWindow(w: WindowState, width: number, height: number): Window
     width: Math.min(Math.max(minWidth, w.width), Math.max(120, width - 16)),
     height: Math.min(Math.max(120, w.height), Math.max(120, height - 16)),
   };
+  if (w.floatingOverflow) return { ...next, ...keepFloatingHandleVisible({ ...next, width: w.width, height: w.height }, { x: 8, y: 8, width: width-16, height: height-16 }, w.chrome?.handle) };
   next.x = Math.max(0, Math.min(next.x, Math.max(0, width - next.width)));
   next.y = Math.max(0, Math.min(next.y, Math.max(0, height - (next.collapsed ? 44 : next.height))));
   return next;
@@ -705,9 +765,22 @@ export function groupFunctions(
   y: number,
 ): UILayout {
   if (a === b || functionPinned(layout, a) || functionPinned(layout, b)) return layout;
+  return groupResidents(layout, [`function:${a}`, `function:${b}`], x, y);
+}
+/** Buttons and complete groups use the same ownership transaction and frame model. */
+export function groupResidents(layout: UILayout, keys: string[], x: number, y: number): UILayout {
+  if (keys.length < 2 || new Set(keys).size !== keys.length) throw new Error("Select at least two distinct UI items.");
+  const scopes = new Set(keys.map(key => residentContextScope(layout, key)));
+  if (scopes.size > 1) throw new Error("These items must stay in their separate owning menus.");
+  for (const key of keys) {
+    if (residentPinned(layout, key)) throw new Error("Unpin the selected items and their frames first.");
+    if (!key.startsWith("function:") && !getContainer(layout, key)) throw new Error("Missing selected UI group.");
+    let parent = ownerOf(layout, key);
+    while (parent) { if (keys.includes(parent)) throw new Error("Select a group or its contents, rather than both."); parent = ownerOf(layout, parent); }
+  }
   const id = crypto.randomUUID();
-  const released = releaseResident(releaseResident(layout, `function:${a}`), `function:${b}`);
-  return validateUILayout({
+  const released = keys.reduce(releaseResident, layout);
+  let next: UILayout = {
     ...released,
     frames: [
       ...released.frames,
@@ -720,18 +793,17 @@ export function groupFunctions(
         width: 280,
         collapsed: true,
         pinned: false,
-        members: [
-          { kind: "function", id: a },
-          { kind: "function", id: b },
-        ],
+        members: keys.map(readResident),
       },
     ],
     items: {
       ...released.items,
-      [a]: { ...released.items[a], home: false, x: 0, y: 0 },
-      [b]: { ...released.items[b], home: false, x: 0, y: 0 },
+      ...Object.fromEntries(keys.filter(key => key.startsWith("function:")).map(key => { const id = key.slice(9); return [id, { ...released.items[id], home: false, x: 0, y: 0 }]; })),
     },
-  });
+  };
+  const scope = [...scopes][0];
+  if (scope) next = updateContainer(next, scope, { members: [...(getContainer(next, scope)?.members ?? []), { kind: "frame", id }] });
+  return validateUILayout(pruneEmptyDockGroups(next));
 }
 export function detachFunction(
   layout: UILayout,

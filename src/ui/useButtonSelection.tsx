@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createTransientStore } from "./transientStore";
 import {
   canDock,
-  contextOwner,
-  functionPinned,
   getContainer,
+  groupResidents,
   ownerOf,
+  residentContextScope,
   residentKey,
   residentPinned,
   type UILayout,
@@ -19,21 +19,31 @@ import {
   intersects,
   nearestButtonEdge,
   placeButtons,
+  selectionId,
+  selectionResident,
   type AlignmentEdge,
   type ButtonBox,
 } from "./selection";
 import { snapPosition, snapshotPositions, type PositionedBox } from "./positioning";
 import { captureUIPointer, rectDistance } from "./drag";
 import { residentBounds } from "./frameBounds";
+import { useOutsideDismiss } from "./useOutsideDismiss";
 
-const selectable = "button[data-ui-function]:not([data-ui-palette])";
+const selectable = '[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]';
+const idOf = (el: HTMLElement) => el.dataset.uiDrag && /^(window|frame):/.test(el.dataset.uiDrag) ? el.dataset.uiDrag : el.dataset.uiFunction!;
 const boxOf = (el: Element) => {
   const r = el.getBoundingClientRect();
   return { x: r.x, y: r.y, width: r.width, height: r.height };
 };
 const visible = (el: HTMLElement) =>
   !!el.getClientRects().length && getComputedStyle(el).visibility !== "hidden";
-const buttons = () => [...document.querySelectorAll<HTMLElement>(selectable)].filter(visible);
+const buttons = () => [...new Map([...document.querySelectorAll<HTMLElement>(selectable)].filter(visible).map(el => [idOf(el), el])).values()];
+const selectionBox = (el: HTMLElement) => {
+  const key = selectionResident(idOf(el));
+  const root = !key.startsWith("function:") && [...document.querySelectorAll<HTMLElement>('[data-ui-resident-root]')].find(root => root.dataset.uiResidentRoot === key && visible(root));
+  const rect = root ? residentBounds(root) : boxOf(el);
+  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+};
 const zoneFor = (owner: string) =>
   [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
     (el) => el.dataset.uiDropZone === owner && visible(el),
@@ -120,6 +130,11 @@ export function useButtonSelection({
   current.current = { layout, update, functions, ids, mode, aligning };
   const gesture = useRef<Gesture | null>(null);
   const select = (next: Set<string>) => {
+    next = new Set([...next].filter(id => {
+      let parent = ownerOf(current.current.layout, selectionResident(id));
+      while (parent) { if (next.has(selectionId(parent))) return false; parent = ownerOf(current.current.layout, parent); }
+      return true;
+    }));
     if (next.size === current.current.ids.size && [...next].every((id) => current.current.ids.has(id))) return;
     current.current.ids = next;
     setIds(next);
@@ -138,22 +153,33 @@ export function useButtonSelection({
     setMessage("");
   };
   const editable = (el: HTMLElement) =>
-    !functionPinned(current.current.layout, el.dataset.uiFunction!) &&
+    !residentPinned(current.current.layout, selectionResident(idOf(el))) &&
     !residentPinned(
       current.current.layout,
       el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? "",
     );
   const selectedBoxes = () =>
     buttons()
-      .filter((el) => current.current.ids.has(el.dataset.uiFunction!))
-      .map((el) => ({ id: el.dataset.uiFunction!, ...boxOf(el) }));
+      .filter((el) => current.current.ids.has(idOf(el)))
+      .map((el) => ({ id: idOf(el), ...selectionBox(el) }));
+  const group = () => {
+    try {
+      const boxes = selectedBoxes();
+      if (boxes.length < 2) throw new Error("Select at least two UI items to group.");
+      const bounds = buttonBounds(boxes);
+      const next = groupResidents(current.current.layout, boxes.map(box => selectionResident(box.id)), bounds.x, bounds.y);
+      current.current.update(() => next);
+      select(new Set()); setMenu(null);
+      setMessage("Selection grouped in a frame. Shift+MB4 undoes it.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+  };
   const obstacles = (excluded: Set<string>, target?: string): PositionedBox[] => {
     if (target) {
       const zone = zoneFor(target);
       return zone
         ? [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")]
             .filter(
-              (el) => !excluded.has(el.dataset.uiSlotKey!.replace(/^function:/, "")) && visible(el),
+              (el) => !excluded.has(selectionId(el.dataset.uiSlotKey!)) && visible(el),
             )
             .map((el) => boxOf(el))
         : [];
@@ -166,7 +192,7 @@ export function useButtonSelection({
       .filter(
         (el) =>
           visible(el) &&
-          !excluded.has(el.dataset.uiFunction ?? "") &&
+          !excluded.has(el.dataset.uiResidentRoot ?? idOf(el)) &&
           !el.closest(".ui-selection-tools,.ui-background-menu") &&
           !(
             el.dataset.uiResidentRoot && ownerOf(current.current.layout, el.dataset.uiResidentRoot)
@@ -183,12 +209,12 @@ export function useButtonSelection({
       const state = current.current,
         all = selectedBoxes();
       if (all.length < 2) {
-        setMessage("Select at least two UI buttons to compact.");
+        setMessage("Select at least two UI items to compact.");
         return;
       }
       const groups = new Map<string | undefined, ButtonBox[]>();
       for (const b of all) {
-        const owner = ownerOf(state.layout, `function:${b.id}`);
+        const owner = ownerOf(state.layout, selectionResident(b.id));
         groups.set(owner, [...(groups.get(owner) ?? []), b]);
       }
       let next = state.layout;
@@ -232,7 +258,7 @@ export function useButtonSelection({
   };
   const align = () => {
     if (!selectedBoxes().length) {
-      setMessage("Select the UI buttons to align first.");
+      setMessage("Select the UI items to align first.");
       return;
     }
     const active = !current.current.aligning;
@@ -245,16 +271,16 @@ export function useButtonSelection({
   };
   const alignmentFor = (element: Element, x: number, y: number): AlignmentPreview | null => {
     const el = element.closest<HTMLElement>(selectable);
-    if (!el || !visible(el) || current.current.ids.has(el.dataset.uiFunction!)) return null;
-    const target = { id: el.dataset.uiFunction!, ...boxOf(el) };
+    if (!el || !visible(el) || current.current.ids.has(idOf(el))) return null;
+    const target = { id: idOf(el), ...selectionBox(el) };
     const edge = nearestButtonEdge(target, x, y);
     const all = alignButtons(selectedBoxes(), target, edge);
     const result: AlignmentPreview = {
       target, edge, boxes: all,
-      message: `Align ${all.length} UI button${all.length === 1 ? "" : "s"} to this ${edge} edge.`,
+      message: `Align ${all.length} UI item${all.length === 1 ? "" : "s"} to this ${edge} edge.`,
     };
     try {
-      if (!all.length) throw new Error("Select the UI buttons to align first.");
+      if (!all.length) throw new Error("Select the UI items to align first.");
       for (let i = 0; i < all.length; i++) {
         if (all.slice(i + 1).some(b => intersects(all[i], b)))
           throw new Error("These buttons would overlap. Spread them along the other axis first.");
@@ -265,13 +291,13 @@ export function useButtonSelection({
       const excluded = new Set(all.map(b => b.id));
       const groups = new Map<string | undefined, ButtonBox[]>();
       for (const b of all) {
-        const owner = ownerOf(state.layout, `function:${b.id}`);
+        const owner = ownerOf(state.layout, selectionResident(b.id));
         groups.set(owner, [...(groups.get(owner) ?? []), b]);
       }
       let next = state.layout;
       for (const [owner, group] of groups) {
         const zone = owner ? zoneFor(owner) : undefined;
-        if (owner && !zone) throw new Error("Expand the selected buttons’ frame before aligning.");
+        if (owner && !zone) throw new Error("Expand the selected items’ frame before aligning.");
         const occupied = obstacles(excluded, owner);
         if (group.some(b => occupied.some(other => intersects(b, other))))
           throw new Error("This alignment would overlap another UI control. Choose another edge or move the selection first.");
@@ -300,7 +326,7 @@ export function useButtonSelection({
       .elementsFromPoint(x, y)
       .filter(
         (el) =>
-          !excluded.has(el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction ?? ""),
+          !excluded.has(el.closest<HTMLElement>(selectable) ? idOf(el.closest<HTMLElement>(selectable)!) : ""),
       );
     const handle = elements.map((el) => el.closest<HTMLElement>(".ui-frame-handle")).find(Boolean),
       handleKey = handle?.closest<HTMLElement>("[data-ui-chrome]")?.dataset.uiChrome;
@@ -313,7 +339,7 @@ export function useButtonSelection({
       target = zone?.dataset.uiDropZone;
     }
     if (!target) {
-      const owners = new Set(g.boxes.map((b) => ownerOf(state.layout, `function:${b.id}`)));
+      const owners = new Set(g.boxes.map((b) => ownerOf(state.layout, selectionResident(b.id))));
       if (owners.size === 1 && [...owners][0]) {
         const own = zoneFor([...owners][0]!);
         if (own && rectDistance(x, y, own.getBoundingClientRect()) <= 24) {
@@ -324,7 +350,7 @@ export function useButtonSelection({
     }
     if (
       target &&
-      (!zone || g.boxes.some((b) => !canDock(state.layout, `function:${b.id}`, target!)))
+      (!zone || g.boxes.some((b) => !canDock(state.layout, selectionResident(b.id), target!)))
     )
       return {
         boxes: [],
@@ -333,7 +359,7 @@ export function useButtonSelection({
           ? "Expand this frame to place multiple buttons."
           : "Unpin the target, or keep these actions in their owning menu.",
       };
-    if (!target && g.boxes.some((b) => contextOwner(`function:${b.id}`)))
+    if (!target && g.boxes.some((b) => residentContextScope(state.layout, selectionResident(b.id))))
       return { boxes: [], preview: [], message: "These actions stay in their context menu." };
     let desired = { x: g.bounds.x + x - g.start.x, y: g.bounds.y + y - g.start.y };
     const occupied = obstacles(excluded, target),
@@ -342,7 +368,7 @@ export function useButtonSelection({
     if (zone) {
       desired = toLocal({ ...desired, width: 0, height: 0 }, zone);
       if (handleKey === target) {
-        const existing = (container?.members ?? []).filter((m) => !excluded.has(m.id));
+        const existing = (container?.members ?? []).filter((m) => !excluded.has(selectionId(residentKey(m))));
         desired = {
           x: 12,
           y: Math.max(
@@ -390,11 +416,11 @@ export function useButtonSelection({
       preview,
       target,
       baseline: zone ? baselineOf(state.layout, target!, zone) : undefined,
-      message: `Move ${placed.length} UI buttons ${target ? "into this frame" : "together"}${arrangement?.mode === "snap" ? " · snap" : ""}`,
+      message: `Move ${placed.length} UI items ${target ? "into this frame" : "together"}${arrangement?.mode === "snap" ? " · snap" : ""}`,
     };
   };
-  const ops = useRef({ compact, align, clear, resolve, previewAlignment });
-  ops.current = { compact, align, clear, resolve, previewAlignment };
+  const ops = useRef({ compact, align, clear, group, resolve, previewAlignment });
+  ops.current = { compact, align, clear, group, resolve, previewAlignment };
   useEffect(() => {
     if (command?.action === "select") {
       current.current.aligning = false;
@@ -423,7 +449,7 @@ export function useButtonSelection({
         state = current.current;
       if (
         target.closest(
-          "input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,.ui-field-edge",
+          "input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,.ui-field-edge,[data-ui-resize]",
         )
       )
         return;
@@ -440,7 +466,7 @@ export function useButtonSelection({
         return;
       }
       const button = target.closest<HTMLElement>(selectable),
-        id = button?.dataset.uiFunction,
+        id = button ? idOf(button) : undefined,
         additive = e.ctrlKey || e.metaKey;
       if (id && (!["ui:select", "ui:compact", "ui:align"].includes(id) || additive || (state.ids.size > 1 && state.ids.has(id)))) {
         if (!state.mode && !additive && !(state.ids.size > 1 && state.ids.has(id))) {
@@ -455,8 +481,8 @@ export function useButtonSelection({
           setMessage("Unpin the button or its frame before selecting it.");
           return;
         }
-        const scope = contextOwner(`function:${id}`),
-          scopes = new Set([...state.ids].map((key) => contextOwner(`function:${key}`)));
+        const scope = residentContextScope(state.layout, selectionResident(id)),
+          scopes = new Set([...state.ids].map(key => residentContextScope(state.layout, selectionResident(key))));
         if (additive && state.ids.size && (!scopes.has(scope) || scopes.size > 1)) {
           setMessage("Context-menu actions must be selected separately from other UI.");
           return;
@@ -464,15 +490,19 @@ export function useButtonSelection({
         if (additive) {
           const next = new Set(state.ids);
           if (next.has(id)) next.delete(id);
-          else next.add(id);
+          else {
+            let parent = ownerOf(state.layout, selectionResident(id));
+            while (parent) { next.delete(selectionId(parent)); parent = ownerOf(state.layout, parent); }
+            next.add(id);
+          }
           select(next);
           return;
         }
         const next = state.ids.has(id) ? state.ids : new Set([id]);
         select(next);
         const boxes = buttons()
-          .filter((el) => next.has(el.dataset.uiFunction!))
-          .map((el) => ({ id: el.dataset.uiFunction!, ...boxOf(el) }));
+          .filter((el) => next.has(idOf(el)))
+          .map((el) => ({ id: idOf(el), ...selectionBox(el) }));
         gesture.current = {
           start: { x: e.clientX, y: e.clientY },
           boxes,
@@ -535,10 +565,10 @@ export function useButtonSelection({
         for (const b of buttons())
           if (
             editable(b) &&
-            contextOwner(`function:${b.dataset.uiFunction}`) === g.scope &&
+            residentContextScope(current.current.layout, selectionResident(idOf(b))) === g.scope &&
             intersects(rect, boxOf(b))
           )
-            next.add(b.dataset.uiFunction!);
+            next.add(idOf(b));
         select(next);
       } else if (g.moved) {
         try {
@@ -592,7 +622,7 @@ export function useButtonSelection({
       if (!g.marquee && g.moved && g.proposal?.boxes.length) {
         const proposal = g.proposal;
         current.current.update((s) =>
-          placeButtons(s, proposal.boxes, proposal.target, proposal.baseline),
+          placeButtons({ ...s, windows: { ...current.current.layout.windows, ...s.windows } }, proposal.boxes, proposal.target, proposal.baseline),
         );
         setMessage("UI selection moved. Shift+MB4 undoes it.");
       }
@@ -624,7 +654,7 @@ export function useButtonSelection({
         e.preventDefault();
         e.stopImmediatePropagation();
         setMessage(
-          "UI buttons are selected; graph knowledge is unchanged. Use a function’s settings to remove it.",
+          "UI items are selected; graph knowledge is unchanged. Use an item’s settings to remove it.",
         );
         return;
       }
@@ -638,8 +668,14 @@ export function useButtonSelection({
     const pointerCancel = (event: PointerEvent) => {
       if (gesture.current?.pointerId === event.pointerId) cancel();
     };
-    const preventContext = (event: Event) => {
-      if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); }
+    const preventContext = (event: MouseEvent) => {
+      if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      const target = event.target as Element, selected = current.current.ids;
+      if (!selected.size || target.closest('[role="menu"],.ui-selection-tools,.ui-background-menu,input,textarea,select')) return;
+      const item = target.closest<HTMLElement>(selectable);
+      if (item ? selected.has(idOf(item)) : !!target.closest('[data-ui-resident-root],.toolbar,.ui-workspace-overlay')) {
+        event.preventDefault(); event.stopImmediatePropagation(); setMenu({ x: event.clientX, y: event.clientY });
+      }
     };
     const preventNative = (event: DragEvent) => {
       if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); }
@@ -665,15 +701,22 @@ export function useButtonSelection({
       window.removeEventListener("keydown", key, true);
     };
   }, [suppress]);
+  useEffect(() => {
+    const items = buttons();
+    for (const item of items) item.toggleAttribute('data-ui-selected', ids.has(idOf(item)));
+    return () => { for (const item of items) item.removeAttribute('data-ui-selected'); };
+  }, [ids, layout, functions]);
   return {
     ids,
     mode,
     aligning,
     visuals,
     menu,
+    group,
     compact,
     align,
     clear,
+    closeMenu: () => setMenu(null),
     openMenu: (x: number, y: number) => setMenu({ x, y }),
   };
 }
@@ -683,6 +726,8 @@ export function ButtonSelectionOverlay({
   selection: ReturnType<typeof useButtonSelection>;
 }) {
   const visual = useSyncExternalStore(selection.visuals.subscribe, selection.visuals.getSnapshot);
+  const menuRoot = useRef<HTMLDivElement>(null);
+  useOutsideDismiss(!!selection.menu, () => [menuRoot.current], selection.closeMenu);
   return (
     <>
       {visual.rectangle && (
@@ -725,7 +770,7 @@ export function ButtonSelectionOverlay({
           </button>
           <button onClick={selection.clear}>Done / clear</button>
           <small>
-            {selection.aligning ? "Click another button’s boundary · Esc cancels" : "Ctrl/Cmd-click to add · drag selected buttons together"}
+            {selection.aligning ? "Click another button’s boundary · Esc cancels" : "Ctrl/Cmd-click to add · drag selected items together"}
             {selection.mode && !selection.aligning ? " · drag a box to select" : ""}
           </small>
         </div>
@@ -737,6 +782,7 @@ export function ButtonSelectionOverlay({
       )}
       {selection.menu && (
         <div
+          ref={menuRoot}
           className="ui-background-menu ui-selection-tools"
           role="menu"
           aria-label="Selected UI actions"
@@ -745,6 +791,8 @@ export function ButtonSelectionOverlay({
             top: Math.max(8, Math.min(selection.menu.y, window.innerHeight - 120)),
           }}
         >
+          <button className="ui-popup-close" aria-label="Close selection menu" onClick={selection.closeMenu}>×</button>
+          <button disabled={selection.ids.size < 2} onClick={selection.group}>Group into frame</button>
           <button onClick={selection.compact}>Compact selected UI</button>
           <button onClick={selection.align}>Align UI to a button boundary</button>
           <button onClick={selection.clear}>Clear UI selection</button>

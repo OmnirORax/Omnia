@@ -5,6 +5,7 @@ import { DockArea } from "./DockArea";
 import { FrameChrome } from "./FrameChrome";
 import { useFrameBounds } from "./frameBounds";
 import { updateContainer, type WindowState } from "./layout";
+import { useOutsideDismiss } from "./useOutsideDismiss";
 
 /** Live, target-owned actions use the workspace's same free/snap arrangement surface.
  * Only presentation is saved; entity IDs and callbacks never enter UI templates. */
@@ -14,6 +15,7 @@ export function EntityMenu<T extends string>({
   y,
   items,
   onChoose,
+  onDismiss,
   bounds: viewport,
 }: {
   kind: string;
@@ -21,13 +23,15 @@ export function EntityMenu<T extends string>({
   y: number;
   items: [T, string][];
   onChoose: (id: T) => void;
+  onDismiss: () => void;
   bounds: { width: number; height: number };
 }) {
   const ui = useUI(),
     id = `context:${kind}`,
     key = `window:${id}`,
-    { ref, bounds } = useFrameBounds(),
+    { ref, bounds, element } = useFrameBounds(),
     choose = useRef(onChoose);
+  useOutsideDismiss(true, () => [element?.closest(".entity-menu") ?? element], onDismiss);
   choose.current = onChoose;
   const signature = JSON.stringify(items);
   useLayoutEffect(() => {
@@ -105,6 +109,7 @@ export function EntityMenu<T extends string>({
           title={`${kind} actions`}
           state={state}
           fixed
+          onClose={onDismiss}
           onChange={(patch) => ui.update((s) => updateContainer(s, key, patch))}
         />
         <DockArea container={key} />

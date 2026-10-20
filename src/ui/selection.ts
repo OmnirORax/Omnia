@@ -1,10 +1,11 @@
 import {
   canDock,
-  contextOwner,
   dockResident,
   floatResident,
-  functionPinned,
   getContainer,
+  residentContextScope,
+  residentKey,
+  residentPinned,
   updateContainer,
   validateUILayout,
   type UILayout,
@@ -12,6 +13,9 @@ import {
 } from "./layout.ts";
 import type { PositionedBox } from "./positioning.ts";
 export type ButtonBox = PositionedBox & { id: string };
+/** Existing function IDs stay compatible; complete frame/window keys retain their identity. */
+export const selectionResident = (id: string) => /^(frame|window):/.test(id) ? id : `function:${id}`;
+export const selectionId = (key: string) => key.startsWith("function:") ? key.slice(9) : key;
 export type AlignmentEdge = "left" | "right" | "top" | "bottom";
 export function nearestButtonEdge(box: PositionedBox, x: number, y: number): AlignmentEdge {
   const distances: [AlignmentEdge, number][] = [
@@ -58,9 +62,9 @@ export function placeButtons(
   if (new Set(boxes.map((b) => b.id)).size !== boxes.length)
     throw new Error("Duplicate selected UI function.");
   for (const b of boxes) {
-    if (functionPinned(layout, b.id))
+    if (residentPinned(layout, selectionResident(b.id)))
       throw new Error("Unpin the selected buttons and their frames first.");
-    if (target ? !canDock(layout, `function:${b.id}`, target) : contextOwner(`function:${b.id}`))
+    if (target ? !canDock(layout, selectionResident(b.id), target) : residentContextScope(layout, selectionResident(b.id)))
       throw new Error("These actions must stay in their owning menu.");
   }
   let next = target && baseline ? updateContainer(layout, target, { members: baseline }) : layout;
@@ -68,12 +72,14 @@ export function placeButtons(
     if (target)
       next = dockResident(
         next,
-        `function:${b.id}`,
+        selectionResident(b.id),
         target,
         getContainer(next, target)?.members?.length ?? 0,
       );
     else {
-      next = floatResident(next, `function:${b.id}`, b.x, b.y);
+      const key = selectionResident(b.id);
+      next = floatResident(next, key, b.x, b.y);
+      if (!key.startsWith("function:")) continue;
       next = {
         ...next,
         items: {
@@ -86,7 +92,7 @@ export function placeButtons(
   if (target)
     next = updateContainer(next, target, {
       members: getContainer(next, target)!.members!.map((m) => {
-        const b = m.kind === "function" ? boxes.find((b) => b.id === m.id) : undefined;
+        const b = boxes.find(b => selectionResident(b.id) === residentKey(m));
         return b
           ? { ...m, position: { x: b.x, y: b.y }, size: { width: b.width, height: b.height } }
           : m;

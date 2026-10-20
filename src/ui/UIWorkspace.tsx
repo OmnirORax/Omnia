@@ -1,5 +1,14 @@
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
+import { withControlCaption } from "./captions";
+import { UIField } from "./UIField";
+import { UIAction } from "./UIAction";
+import { UISection } from "./UISection";
+import { UIEditor } from "./UIEditor";
+import { CustomControls, CustomControlSettings } from "./CustomControls";
+import { removeCustomControl } from "./authoring";
+import { useOutsideDismiss } from "./useOutsideDismiss";
+import { useCursorTracking } from "./cursorPosition";
 import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
@@ -21,9 +30,12 @@ import {
   type ReactElement,
 } from "react";
 import { Rnd } from "react-rnd";
+import { createPortal } from "react-dom";
 import {
   UIContext,
   UIHomeContext,
+  UIPathContext,
+  DockFillContext,
   useUI,
   type UIFunction,
   type UIContextValue,
@@ -31,7 +43,7 @@ import {
 } from "./context";
 import { useDragActivationGuard } from "./activationGuard";
 import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
-import { FloatingWindow } from "./FloatingWindow";
+import { FloatingWindow, nextWindowLayer } from "./FloatingWindow";
 import { EmbeddedGroup } from "./EmbeddedGroup";
 import {
   detachFunction,
@@ -44,7 +56,6 @@ import { VisualControls } from "../VisualControls";
 import { ShortcutHint } from "./ShortcutHint";
 import { FrameChrome } from "./FrameChrome";
 import { GlobalSearch, type GlobalSearchProps } from "./GlobalSearch";
-import { FrameSearch } from "./FrameSearch";
 import { DockArea } from "./DockArea";
 import { DockHost } from "./DockHost";
 import {
@@ -53,10 +64,11 @@ import {
   floatResident,
   ownerOf,
   getContainer,
+  groupResidents,
   updateContainer,
   releaseResident,
+  closeContainer,
   residentKey,
-  readResident,
   residentPinned,
   resetContainer,
   validateUILayout,
@@ -73,14 +85,18 @@ import {
   type Rect,
 } from "./drag";
 import type { VisualAsset } from "../graph/assets";
-import { snapPosition, snapshotPositions } from "./positioning";
+import { keepFloatingHandleVisible, snapPosition, snapshotPositions } from "./positioning";
 import { insertFrameBeside, type InsertSide } from "./frameInsertion";
+import { DockLayout } from "./DockLayout";
+import { dockFrame, edgeDockRect, fitDockRect, workspaceDockRects, type DockRect, type FrameDock } from "./docking";
+import { DockWorkspace, dockWorkspaceArea, useDockResident, useDockWorkspace } from "./DockWorkspace";
+import type { DockSide } from "./dockTree";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
 import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
-const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
+const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
@@ -279,28 +295,23 @@ export function UIPanel({
   }, [id, ui.layout.panels[id], owner]);
   const float = (value: boolean) =>
     ui.update((layout) => ({ ...layout, panels: { ...layout.panels, [id]: value } }));
+  if (state.closed) return null;
   if (ui.layout.panels[id] || owner)
     return (
       <FloatingWindow
         id={`panel:${id}`}
+        openAtCursor={false}
         title={title}
         width={400}
         height={560}
         onClose={() =>
-          ui.update((s) => ({ ...releaseResident(s, key), panels: { ...s.panels, [id]: false } }))
+          ui.update((s) => ({ ...closeContainer(s, key), panels: { ...s.panels, [id]: false } }))
         }
-        closeLabel={`Dock ${title}`}
+        closeLabel={`Close ${title}`}
       >
         <section className={className}>{children}</section>
       </FloatingWindow>
     );
-  if (!menu && !ui.layout.panels["@organized"]) return (
-    <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
-      <div className="ui-legacy-search"><FrameSearch container={key} title={title} expand={() => {}} /></div>
-      <button className="detach-panel" title={`Float ${title}`} aria-label={`Undock ${id} panel`} data-ui-drag={key} draggable onDragStart={e => startResidentDrag(e, key)} onClick={() => float(true)}>↗</button>
-      <UIHomeContext.Provider value={key}>{children}<DockArea container={key} contour={false} /></UIHomeContext.Provider>
-    </section>
-  );
   return (
     <section
       ref={root}
@@ -322,45 +333,60 @@ export function UIPanel({
         onClick={() => float(true)}
       >↗</button>}
       <div className={`ui-panel-body ${className}`} hidden={state.collapsed} style={menu ? { width: Math.min(state.width, window.innerWidth - 24), left: popup.left, maxHeight: popup.height } : undefined}>
-      <UIHomeContext.Provider value={key}>
+      <UIHomeContext.Provider value={key}><UIPathContext.Provider value={[key]}>
         {children}
         <DockArea container={key} contour={false} />
-      </UIHomeContext.Provider>
+      </UIPathContext.Provider></UIHomeContext.Provider>
       </div>
     </section>
   );
 }
 function FunctionFrame({ frame }: { frame: UIFrame }) {
-  const { ref, bounds } = useFrameBounds();
+  const { ref, bounds, element } = useFrameBounds();
+  const [z, setZ] = useState(nextWindowLayer);
   const ui = useUI(),
+    dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
     nested = !!ownerOf(ui.layout, key),
-    width = Math.max(64, Math.min(frame.width ?? 280, window.innerWidth - 24));
+    width = Math.max(64, frame.floatingOverflow ? frame.width ?? 280 : Math.min(frame.width ?? 280, window.innerWidth - 24));
+  useEffect(() => {
+    if (!element || nested) return;
+    // Portal children bubble through their former React owner, so focus follows DOM ownership.
+    const raise = () => setZ(nextWindowLayer());
+    element.addEventListener("mousedown", raise);
+    return () => element.removeEventListener("mousedown", raise);
+  }, [element, nested]);
+  const workspace = useDockWorkspace();
+  const edgeBounds = frame.dockEdge && !nested ? workspace.docks[frame.dockEdge] : undefined;
+  const structured = !!frame.dockLayout;
+  const desired = { x: frame.x + (structured ? 0 : bounds.x), y: frame.y + (structured ? 0 : bounds.y), width: structured ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height };
+  const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !nested && !edgeBounds, frame.floatingOverflow);
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
-  return (
+  const content = (
     <Rnd
-      className={`function-frame contour-frame ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
+      className={`function-frame contour-frame ${structured ? "ui-structured-frame" : ""} ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
       style={
         {
-          pointerEvents: "none",
+          pointerEvents: structured ? "auto" : "none",
           position: nested ? "relative" : "fixed",
-          zIndex: 70,
+          zIndex: z,
           "--ui-frame-top": `${Math.max(8, Math.min(frame.y, window.innerHeight - 60))}px`,
         } as React.CSSProperties
       }
       position={
-        nested
+        edgeBounds ? { x: edgeBounds.x, y: edgeBounds.y } : nested
           ? { x: 0, y: 0 }
           : {
-              x: Math.max(8, Math.min(frame.x + bounds.x, window.innerWidth - bounds.width - 8)),
-              y: Math.max(8, Math.min(frame.y + bounds.y, window.innerHeight - bounds.height - 8)),
+              x: visible.x,
+              y: visible.y,
             }
       }
-      size={{ width: bounds.width, height: bounds.height }}
+      size={{ width: edgeBounds?.width ?? (!nested ? visible.width : structured ? width : bounds.width), height: edgeBounds?.height ?? (!nested ? visible.height : structured && !frame.collapsed ? frame.height ?? 420 : bounds.height) }}
       disableDragging
       enableResizing={
-        !residentPinned(ui.layout, key) && !frame.collapsed
-          ? { right: true, bottomRight: true }
+        !dockFill && !residentPinned(ui.layout, key) && !frame.collapsed
+          ? frame.dockEdge ? { [frame.dockEdge === "left" ? "right" : frame.dockEdge === "right" ? "left" : frame.dockEdge === "top" ? "bottom" : "top"]: true } : structured ? true : { right: true, bottomRight: true }
           : false
       }
       resizeHandleStyles={{
@@ -368,14 +394,14 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         bottomRight: { pointerEvents: "auto" },
       }}
       minWidth={40}
-      maxWidth={window.innerWidth - 24}
-      onResizeStop={(_, __, element) => patch({ width: element.offsetWidth })}
+      maxWidth={frame.floatingOverflow && !nested && !edgeBounds ? undefined : window.innerWidth - 24}
+      onResizeStop={(_, __, element, ___, position) => patch({ width: element.offsetWidth, ...(structured ? { height: element.offsetHeight, ...(!frame.dockEdge ? position : {}) } : {}) })}
     >
       <div
         ref={ref}
         className="ui-frame-root"
         data-ui-resident-root={key}
-        style={{ width, position: "relative", left: -bounds.x, top: -bounds.y }}
+        style={{ width: structured ? "100%" : !nested ? Math.min(width, visible.width) : width, height: structured ? "100%" : undefined, maxHeight: !nested && workspace.active ? visible.height : undefined, overflow: !nested && workspace.active ? "auto" : undefined, position: "relative", left: structured ? 0 : -bounds.x, top: structured ? 0 : -bounds.y }}
       >
         <FrameChrome
           container={key}
@@ -402,7 +428,10 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
                 next = releaseResident(next, memberKey);
                 if (member.kind === "function") {
                   const items = { ...next.items };
-                  delete items[member.id];
+                  if (next.customControls?.[member.id]) items[member.id] = {
+                    ...items[member.id], home: false, x: frame.x + 24, y: frame.y + 64,
+                  };
+                  else delete items[member.id];
                   next = { ...next, items };
                 } else
                   next = updateContainer(next, memberKey, { x: frame.x + 24, y: frame.y + 64 });
@@ -411,12 +440,21 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
             });
           }}
         />
-        {!frame.collapsed && <DockArea container={key} />}
+        {structured ? <div className="ui-structured-body" hidden={frame.collapsed}><DockLayout container={key} /></div> : <DockArea container={key} hidden={frame.collapsed} />}
       </div>
     </Rnd>
   );
+  return nested ? content : createPortal(content, document.body);
+}
+function FreeFunction({ id, x, y, width, height, children }: { id: string; x: number; y: number; width?: number; height?: number; children: ReactNode }) {
+  const workspace = useDockWorkspace();
+  const area = workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+  const visible = useDockResident(`function:${id}`, fitDockRect({ x, y, width: width ?? 100, height: height ?? 82 }, area));
+  return <div className="ui-free-function" style={{ left: visible.x, top: visible.y, width: width ? visible.width : undefined, maxWidth: workspace.active ? visible.width : area.width }}>{children}</div>;
 }
 type Preview = {
+  floatingOverflow?: boolean;
+  frameDock?: FrameDock;
   dock?: DockPreview;
   rect?: Rect;
   text: string;
@@ -438,6 +476,7 @@ type DragState = {
   zoneOrigins: Map<Element, { x: number; y: number }>;
   cancelled?: boolean;
   control?: { owner: string; control: string };
+  fromDockPane?: boolean;
 };
 export function UIWorkspace({
   layout,
@@ -460,6 +499,7 @@ export function UIWorkspace({
   search?: GlobalSearchProps;
   appearance?: AppearanceBridge;
 }) {
+  useCursorTracking();
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
   const [registered, setRegistered] = useState<Record<string, UIFunction>>({});
@@ -489,7 +529,10 @@ export function UIWorkspace({
   );
   const functions = useMemo(() => [
     ...new Map([...definitions, ...Object.values(registered)].map((fn) => [fn.id, fn])).values(),
-  ], [definitions, registered]);
+  ].filter(fn => !fn.id.startsWith("ui:custom:") || !!layout.customControls?.[fn.id]).map(fn => {
+    const caption = layout.labels?.[`function:${fn.id}`];
+    return caption ? { ...fn, label: caption, element: withControlCaption(fn.element, caption) } : fn;
+  }), [definitions, registered, layout.labels, layout.customControls]);
   const libraryOpen = layout.panels["@library"] ?? false;
   const setLibraryOpen = (value: boolean) =>
     update((s) => ({ ...s, panels: { ...s.panels, "@library": value } }));
@@ -500,10 +543,13 @@ export function UIWorkspace({
     owner: string;
     control: "collapse" | "pin" | "close";
   } | null>(null);
+  const [appearanceOpening, setAppearanceOpening] = useState(0);
+  const reopenAppearance = () => setAppearanceOpening(value => value + 1);
   const [anchorTarget, setAnchorTarget] = useState<string | null>(null);
   const [placementPreview] = useState(() => createTransientStore<Preview | null>(null));
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
   const menuRoot = useRef<HTMLDivElement>(null);
+  useOutsideDismiss(!!menu, () => [menuRoot.current], () => setMenu(null));
   useLayoutEffect(() => {
     const node = menuRoot.current;
     if (!node || !menu) return;
@@ -512,6 +558,7 @@ export function UIWorkspace({
     node.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - r.height - 8))}px`;
   }, [menu, layout]);
   const defaults = useRef(new Map<string, WindowState>()).current;
+  const dockProjection = useRef<((key: string, rect: DockRect) => DockRect) | undefined>(undefined);
   const frameActions = useRef<UIContextValue["frameActions"]>(new Map()).current;
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
@@ -603,7 +650,7 @@ export function UIWorkspace({
     });
   const ensure = (s: UILayout) => ({
     ...s,
-    windows: { ...Object.fromEntries(defaults), ...s.windows },
+    windows: Object.fromEntries([...new Set([...defaults.keys(), ...Object.keys(s.windows)])].map(id => [id, { ...defaults.get(id), ...s.windows[id] }])),
   });
   const buttonSelection = useButtonSelection({
     layout: ensure(layout),
@@ -767,7 +814,7 @@ export function UIWorkspace({
     const start = (event: MouseEvent) => {
       cancelFrame(); layoutSource = undefined;
       const target = event.target as Element;
-      if (target.closest("input,select,textarea")) return;
+      if (target.closest("input,select,textarea,[data-ui-search]")) return;
       const mini = target.closest<HTMLElement>("[data-ui-control]");
       const handle = target.closest<HTMLElement>("[data-ui-drag]");
       const fn = target.closest<HTMLElement>("[data-ui-function]");
@@ -787,11 +834,13 @@ export function UIWorkspace({
         event.preventDefault();
         return;
       }
+      const tabPane = handle?.getAttribute("role") === "tab" ? handle.closest<HTMLElement>("[data-ui-dock-pane]") : null;
+      const represented = handle && [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
       const root =
         mini ??
         (fn && key.startsWith("function:")
           ? fn
-          : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle));
+          : tabPane ?? (represented?.getClientRects().length ? represented : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle)));
       const r = root ? residentBounds(root) : undefined;
       if (!r) return;
       const targetZones = new Map(
@@ -828,12 +877,47 @@ export function UIWorkspace({
         },
         slots,
         targetZones,
+        fromDockPane: !!tabPane,
         targetBounds,
         zoneOrigins,
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
       };
+    };
+    const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
+      if (source.control || source.key.startsWith("function:") || residentContextScope(s, source.key)) return;
+      const area = dockWorkspaceArea();
+      const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
+      const edge = (Object.keys(distances) as Exclude<DockSide, "tab">[]).find(side => distances[side] >= -8 && distances[side] <= 14);
+      if (edge && source.key.startsWith("frame:") && s.frames.find(frame => `frame:${frame.id}` === source.key)?.dockEdge === edge) return;
+      if (edge && x >= area.x - 8 && x <= area.x + area.width + 8 && y >= area.y - 8 && y <= area.y + area.height + 8) {
+        const existing = s.frames.find(frame => frame.dockEdge === edge && `frame:${frame.id}` !== source.key);
+        if (existing && !canDock(s, source.key, `frame:${existing.id}`)) return;
+        return { edge, side: edge, rect: edgeDockRect(s, edge, area) };
+      }
+      for (const element of elements) {
+        if (element.closest("[data-ui-ghost],.ui-drag-source,[data-ui-search],.ui-background-menu")) continue;
+        const pane = element.closest<HTMLElement>("[data-ui-dock-pane]");
+        const root = element.closest<HTMLElement>("[data-ui-resident-root]");
+        const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
+        const surface = pane ?? root;
+        if (!target || !surface || source.key === target || !canDock(s, source.key, target)) continue;
+        const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
+        if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
+        const near = { left: x - bounds.left, right: bounds.right - x, top: y - bounds.top, bottom: bounds.bottom - y };
+        const header = !!element.closest("[data-ui-chrome],.ui-dock-tab-strip");
+        // A title/tab strip groups panels. The outermost edge still allows a split.
+        const side = (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
+        const center = Math.abs(x-bounds.x-bounds.width/2) <= 32 && Math.abs(y-bounds.y-bounds.height/2) <= 32;
+        if (!side && !header && !center) return;
+        const width = Math.min(area.width, Math.max(280, bounds.width)), height = Math.min(area.height, Math.max(220, bounds.height));
+        const rect = { x: Math.max(area.x, Math.min(bounds.x, area.x+area.width-width)), y: Math.max(area.y, Math.min(bounds.y, area.y+area.height-height)), width, height };
+        const slot = root?.closest<HTMLElement>("[data-ui-frame-slot]");
+        const strip = slot?.dataset.uiFrameSlot === target ? slot.closest<HTMLElement>("[data-ui-frame-strip]") : null;
+        const host = strip ? { container: strip.dataset.uiFrameStrip!, order: strip.dataset.uiFrameOrder!, keys: [...strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(a.style.order)-Number(b.style.order)).map(slot => slot.dataset.uiFrameSlot!) } : undefined;
+        return { target, side: side ?? "tab", rect, bounds, host };
+      }
     };
     const resolveTarget = (x: number, y: number): Preview | null => {
       const source = drag.current;
@@ -893,6 +977,18 @@ export function UIWorkspace({
         const target = el.closest(dropGeometrySelector);
         return !target || rectDistance(x, y, boundsOf(target)) === 0;
       });
+      const frameDock = frameDockIntent(source, s, x, y, hitElements);
+      if (frameDock) {
+        const parent = frameDock.target && ownerOf(s, frameDock.target);
+        const targetRect = parent && getContainer(s, parent)?.dockLayout ? frameDock.bounds ?? frameDock.rect : frameDock.rect;
+        const side = frameDock.side;
+        const rect = side === "tab" || frameDock.edge ? { ...frameDock.rect }
+          : { ...targetRect, x: side === "right" ? targetRect.x + targetRect.width / 2 : targetRect.x,
+              y: side === "bottom" ? targetRect.y + targetRect.height / 2 : targetRect.y,
+              width: side === "left" || side === "right" ? targetRect.width / 2 : targetRect.width,
+              height: side === "top" || side === "bottom" ? targetRect.height / 2 : targetRect.height };
+        return { frameDock, rect, text: frameDock.edge ? `Dock at ${side} workspace edge` : side === "tab" ? "Group as tabs" : `Dock ${side} · resize with the divider` };
+      }
       if (
         source.key.startsWith("window:") &&
         s.windows[source.key.slice(7)]?.inline &&
@@ -1189,7 +1285,9 @@ export function UIWorkspace({
           group: `function:${other.dataset.uiFunction}`,
           rect: boundsOf(other),
         };
-      const desired = {
+      const freeArea = workspaceDockRects(s, dockWorkspaceArea());
+      const movingFrame = /^(frame|window):/.test(source.key);
+      const desired = movingFrame ? { x: x-source.dx, y: y-source.dy } : {
         x: Math.max(
           8,
           Math.min(
@@ -1211,10 +1309,18 @@ export function UIWorkspace({
             !ownerOf(s, el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`),
         )
         .map((el) => boundsOf(el));
-      const position =
+      const snappedPosition =
         s.arrangement?.mode === "snap" && s.arrangement.grid
           ? snapPosition(desired, source, s.arrangement.grid, occupied)
           : desired;
+      const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
+      const rectangle = { ...snappedPosition, width: source.width, height: source.height };
+      const overflow = movingFrame && (rectangle.x < viewport.x || rectangle.y < viewport.y || rectangle.x+rectangle.width > viewport.x+viewport.width || rectangle.y+rectangle.height > viewport.y+viewport.height);
+      if (overflow) return { text: "Place freely", floatingOverflow: true, rect: keepFloatingHandleVisible(rectangle, viewport, getContainer(s, source.key)?.chrome?.handle) };
+      const canvas = document.querySelector(".canvas")?.getBoundingClientRect();
+      const floatingArea = canvas ? { x: Math.max(freeArea.center.x, canvas.x), y: freeArea.center.y, width: Math.min(freeArea.center.width, canvas.width), height: freeArea.center.height } : freeArea.center;
+      const fitted = fitDockRect({ ...snappedPosition, width: source.width, height: source.height }, floatingArea);
+      const position = freeArea.active ? dockProjection.current?.(source.key, fitted) ?? fitted : { ...snappedPosition, width: source.width, height: source.height };
       if (
         position.x < 0 ||
         position.y < 0 ||
@@ -1224,7 +1330,7 @@ export function UIWorkspace({
         return { text: "No visible cell here; choose another position or anchor" };
       return {
         text: s.arrangement?.mode === "snap" ? "Workspace snap" : "Place freely",
-        rect: { ...position, width: source.width, height: source.height },
+        rect: position,
       };
     };
     const resolve = (x: number, y: number): Preview | null => {
@@ -1296,6 +1402,7 @@ export function UIWorkspace({
               },
             });
         }
+        if (p.frameDock) return dockFrame(s, source.key, p.frameDock);
         if (p.frameStrip) {
           const strip = p.frameStrip;
           if (!canDock(s, source.key, strip.target)) return previous;
@@ -1341,36 +1448,19 @@ export function UIWorkspace({
             });
           return s;
         }
-        if (p.group) {
-          if (residentPinned(s, source.key)) return previous;
-          s = releaseResident(releaseResident(s, source.key), p.group);
-          const id = crypto.randomUUID();
-          const frame: UIFrame = {
-            id,
-            name: "New frame",
-            x: e.clientX,
-            y: e.clientY,
-            width: 280,
-            cellSize: 96,
-            collapsed: true,
-            pinned: false,
-            members: [readResident(p.group), readResident(source.key)],
-          };
-          const items = { ...s.items };
-          for (const key of [source.key, p.group])
-            if (key.startsWith("function:")) {
-              const id = readResident(key).id;
-              items[id] = { ...items[id], home: false, x: 0, y: 0 };
-            }
-          return validateUILayout({ ...s, items, frames: [...s.frames, frame] });
-        }
+        if (p.group) return groupResidents(s, [p.group, source.key], e.clientX, e.clientY);
         if (p.rect) {
-          const next = floatResident(
+          let next = floatResident(
             s,
             source.key,
             p.rect.x + source.originOffset.x,
             p.rect.y + source.originOffset.y,
           );
+          if (/^(frame|window):/.test(source.key) && (p.floatingOverflow || getContainer(s, source.key)?.floatingOverflow)) next = updateContainer(next, source.key, {
+            floatingOverflow: !!p.floatingOverflow,
+            ...(p.floatingOverflow && !getContainer(s, source.key)?.collapsed ? { width: p.rect.width, height: p.rect.height } : {}),
+          });
+          if (source.fromDockPane) next = updateContainer(next, source.key, { width: Math.max(160, source.width), height: Math.max(120, source.height) });
           return source.key.startsWith("window:panel:")
             ? {
                 ...next,
@@ -1393,7 +1483,7 @@ export function UIWorkspace({
     const pointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || pointer || event.defaultPrevented) return;
       const target = event.target as Element;
-      if (target.closest("input,select,textarea,a,[contenteditable=true],.window-resize-grip")) return;
+      if (target.closest("input,select,textarea,a,[contenteditable=true],[data-ui-search],.window-resize-grip,[data-ui-resize]")) return;
       const handle = target.closest<HTMLElement>("[data-ui-control],[data-ui-drag],[data-ui-function]");
       if (!handle?.draggable) return;
       pointer = { down: event, started: false };
@@ -1561,17 +1651,20 @@ export function UIWorkspace({
         shortcutBindings: shortcuts?.bindings,
         registerFunction,
         configure: (id) => {
+          if (id) reopenAppearance();
           configureFrame(null);
           configureControl(null);
           configure(id);
         },
         configureFrame: (owner) => {
+          reopenAppearance();
           configure(null);
           configureControl(null);
           configureFrame(owner);
           setMenu(null);
         },
         configureControl: (owner, control) => {
+          reopenAppearance();
           configure(null);
           configureFrame(null);
           configureControl({ owner, control });
@@ -1585,21 +1678,24 @@ export function UIWorkspace({
         defaults,
         frameActions,
         renderResident,
-        selectedFunctions: buttonSelection.ids,
+        selectedFunctions: new Set([...buttonSelection.ids].filter(id => !/^(frame|window):/.test(id))),
         selectingUI: buttonSelection.mode,
         selectionMenu: buttonSelection.openMenu,
       }}
     >
+      <DockWorkspace projection={dockProjection}>
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
       <NativeActions />
+      <CustomControls />
+      <UIEditor />
       <NamePresentation />
       {children}
       {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">
         {functions.filter(fn => !fn.control && fn.available !== false && Object.hasOwn(shortcuts?.bindings ?? {}, `button:${fn.id}`)).map(fn => <span key={fn.id} data-shortcut-runner={fn.id}>{fn.element}</span>)}
       </div>
-      {shortcutField && <FloatingWindow id="shortcut-field" title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
+      {shortcutField && <FloatingWindow id="shortcut-field" openingKey={shortcutField} title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
       {shortcutNotice && <div className="ui-anchor-prompt ui-shortcut-notice" role="status">{shortcutNotice}<button onClick={() => setShortcutNotice("")}>Dismiss</button></div>}
       <ButtonSelectionOverlay selection={buttonSelection} />
       {anchorTarget && (
@@ -1621,24 +1717,12 @@ export function UIWorkspace({
         {Object.entries(layout.items)
           .filter(([id, i]) => !i.home && !i.anchorId && !ownerOf(layout, `function:${id}`))
           .map(([id, placement]) => (
-            <div
-              className="ui-free-function"
-              key={id}
-              style={{
-                left: Math.max(
-                  8,
-                  Math.min(placement.x, window.innerWidth - (placement.size?.width ?? 100)),
-                ),
-                top: Math.max(
-                  8,
-                  Math.min(placement.y, window.innerHeight - (placement.size?.height ?? 82) - 8),
-                ),
-                width: placement.size?.width,
-                maxWidth: placement.size ? "none" : undefined,
-              }}
+            <FreeFunction
+              key={id} id={id}
+              x={placement.x} y={placement.y} width={placement.size?.width} height={placement.size?.height}
             >
               {renderResident({ kind: "function", id })}
-            </div>
+            </FreeFunction>
           ))}
         {layout.frames
           .filter((f) => !ownerOf(layout, `frame:${f.id}`))
@@ -1658,6 +1742,7 @@ export function UIWorkspace({
             top: Math.min(menu.y, window.innerHeight - 230),
           }}
         >
+          <button className="ui-popup-close" aria-label="Close frame menu" onClick={() => setMenu(null)}>×</button>
           <button onClick={() => chooseMode(menu.owner ?? "@workspace", "free")}>
             Free-hand mode
             {(menuContainer?.arrangement ?? layout.arrangement)?.mode !== "snap" ? " ✓" : ""}
@@ -1709,6 +1794,7 @@ export function UIWorkspace({
                 onClick={() => {
                   configure(null);
                   configureControl(null);
+                  reopenAppearance();
                   configureFrame(menu.owner!);
                   setMenu(null);
                 }}
@@ -1736,6 +1822,9 @@ export function UIWorkspace({
               )}
             </>
           )}
+          <button onClick={() => { update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); setMenu(null); }}>
+            {layout.panels["@devMode"] ? "Exit UI edit mode" : "UI edit mode"}
+          </button>
           <button
             onClick={() => {
               createFrame(menu.x, menu.y);
@@ -1770,13 +1859,22 @@ export function UIWorkspace({
             together. Esc cancels. Shift+MB4/MB5 undo and redo the UI.
           </p>
           <button onClick={() => createFrame(120, 180)}>Create UI frame</button>
-          <input
+          <UIField id="ui:library:find" label="Find a UI function" category="Interface"><label>Find a function<input
             aria-label="Find UI function"
             placeholder="Find a function…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-          />
+          /></label></UIField>
           <div className="function-library categorized-library">
+            {Object.entries(layout.windows).some(([, state]) => state.closed) && (
+              <UISection id="closed-frames" title="Closed frames">
+                {Object.entries(layout.windows).filter(([, state]) => state.closed).map(([id]) => {
+                  const key = `window:${id}`;
+                  const title = layout.labels?.[key] ?? frameActions.get(key)?.title ?? id.replace(/^panel:/, "");
+                  return <button key={id} onClick={() => update(layout => updateContainer(layout, key, { closed: false, collapsed: false }))}>Open {title}</button>;
+                })}
+              </UISection>
+            )}
             {LIBRARY_CATEGORIES.map((category) => {
               const entries = functions
                 .filter(
@@ -1788,10 +1886,8 @@ export function UIWorkspace({
                 .sort((a, b) => a.label.localeCompare(b.label));
               return (
                 entries.length > 0 && (
-                  <details key={category} open={!!query || undefined}>
-                    <summary>
-                      {category} <small>{entries.length}</small>
-                    </summary>
+                  <UISection key={category} id={`library-${category}`} title={category} defaultExpanded={false} expanded={query ? true : undefined}>
+                    <small>{entries.length} controls</small>
                     {entries.map((fn) => (
                       <div className="library-entry" key={fn.id}>
                         <FunctionElement fn={fn} palette />
@@ -1800,7 +1896,7 @@ export function UIWorkspace({
                         )}
                       </div>
                     ))}
-                  </details>
+                  </UISection>
                 )
               );
             })}
@@ -1816,6 +1912,7 @@ export function UIWorkspace({
       {(selected || selectedContainer) && (
         <FloatingWindow
           id="function-appearance"
+          openingKey={appearanceOpening}
           className="function-appearance"
           title={
             configuredControl
@@ -1835,19 +1932,25 @@ export function UIWorkspace({
           <EmbeddedGroup id="arrange:appearance" title="Appearance" className="arrange-section">
             <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
           </EmbeddedGroup>
+          {selected && layout.customControls?.[selected.id] && <UISection id="custom-field-settings" title="Field settings">
+            <CustomControlSettings key={selected.id} id={selected.id} />
+            <button onClick={() => { update(layout => removeCustomControl(layout, selected.id)); configure(null); }}>Remove custom field</button>
+          </UISection>}
           {!configuredControl && (
             <EmbeddedGroup id="arrange:display" title={configuredFrame ? "Frame handle" : "Display"} className="arrange-section">
+              {selected && <UIField id="ui:editor:functionName" label="Function name" category="Interface"><label>Name<UINameInput label="Function name" value={layout.labels?.[`function:${selected.id}`] ?? selected.label}
+                onRename={name => update(layout => ({ ...layout, labels: { ...layout.labels, [`function:${selected.id}`]: name } }))} /></label></UIField>}
               {configuredFrame && frameActions.get(configuredFrame)?.onRename && (
-                <label>
+                <UIField id="ui:editor:frameName" label="Frame name" category="Interface"><label>
                   Name
                   <UINameInput
                     label="Frame name"
                     value={layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)!.title}
                     onRename={(name) => frameActions.get(configuredFrame)?.onRename?.(name)}
                   />
-                </label>
+                </label></UIField>
               )}
-              <label>
+              <UIField id="ui:editor:display" label="Control display" category="Interface"><label>
                 Display
                 <select
                   aria-label={configuredFrame ? "Frame handle display" : "Function display"}
@@ -1857,8 +1960,8 @@ export function UIWorkspace({
                   <option value="text">Text</option>
                   <option value="icon">Icon button</option>
                 </select>
-              </label>
-              <label>
+              </label></UIField>
+              <UIField id="ui:editor:geometry" label="Control geometry" category="Interface"><label>
                 Geometry
                 <select
                   aria-label={configuredFrame ? "Frame handle geometry" : "Function geometry"}
@@ -1871,7 +1974,7 @@ export function UIWorkspace({
                   <option value="square">Square</option>
                   <option value="triangle">Triangle</option>
                 </select>
-              </label>
+              </label></UIField>
             </EmbeddedGroup>
           )}
           {shortcuts && (
@@ -1880,7 +1983,7 @@ export function UIWorkspace({
                 const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
                 const id = buttonShortcutId(target);
                 const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
-                return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
+                return <UIField id="ui:editor:shortcut" label="Control shortcut" category="Interface"><div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div></UIField>;
               })()}
             </EmbeddedGroup>
           )}
@@ -1910,7 +2013,7 @@ export function UIWorkspace({
           </EmbeddedGroup>
           {selected && (
             <EmbeddedGroup id="arrange:placement" title="Placement" className="arrange-section">
-              <button
+              <UIAction id="ui:editor:pinFunction" label={item?.pinned ? "Unpin function" : "Pin function"}
                 onClick={() =>
                   update((s) => ({
                     ...s,
@@ -1926,20 +2029,17 @@ export function UIWorkspace({
                     },
                   }))
                 }
-              >
-                {item?.pinned ? "Unpin function" : "Pin function"}
-              </button>
-              <button
+              />
+              <UIAction id="ui:editor:returnFunction" label="Return to default location"
                 disabled={functionPinned(layout, selected.id)}
                 onClick={() => update((s) => detachFunction(s, selected.id, 0, 0, true))}
-              >
-                Return to default location
-              </button>
+              />
             </EmbeddedGroup>
           )}
         </FloatingWindow>
       )}
       </AppearanceProvider>
+      </DockWorkspace>
     </UIContext.Provider>
   );
 }

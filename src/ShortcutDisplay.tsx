@@ -5,6 +5,7 @@ import {
   type WorkspaceSettings,
 } from "./workspaceActions";
 import { FloatingWindow } from "./ui/FloatingWindow";
+import { UISection } from "./ui/UISection";
 import { FunctionControl } from "./ui/UIWorkspace";
 export function ShortcutDisplay({
   settings,
@@ -37,19 +38,16 @@ export function ShortcutDisplay({
     >
       <p>Click a function to run it. Click its key to rebind; Esc cancels.</p>
       {Array.from(new Set(ACTIONS.map((a) => a.category))).map((category) => (
-        <section key={category}>
-          <h3>{category}</h3>
+        <UISection legacyTag="SECTION" key={category} id={`shortcuts-${category}`} title={category}>
           {ACTIONS.filter((a) => a.category === category).map((a) => (
             <FunctionControl key={a.id} id={`shortcut:${a.id}`} />
           ))}
-        </section>
+        </UISection>
       ))}
-      {Object.keys(settings.bindings).some(id => id.startsWith("button:")) && <section>
-        <h3>Button shortcuts</h3>
+      {Object.keys(settings.bindings).some(id => id.startsWith("button:")) && <UISection legacyTag="SECTION" id="button-shortcuts" title="Button shortcuts">
         {Object.keys(settings.bindings).filter(id => id.startsWith("button:")).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
-      </section>}
-      <section>
-        <h3>Mouse & gestures</h3>
+      </UISection>}
+      <UISection legacyTag="SECTION" id="mouse-gestures" title="Mouse & gestures">
         <p title="Single-click opens the node options and variants; double-click toggles ordinary contents.">
           Click: options / variants · double-click: expand / collapse
         </p>
@@ -93,7 +91,7 @@ export function ShortcutDisplay({
         {(["leftEmpty", "rightEmpty"] as const).map((field) => (
           <FunctionControl key={field} id={`ui:camera:${field}`} />
         ))}
-      </section>
+      </UISection>
       <button onClick={() => onChange({ ...settings, bindings: defaultSettings().bindings, buttonLabels: {}, mouse: defaultSettings().mouse })}>
         Restore shortcut and mouse defaults
       </button>

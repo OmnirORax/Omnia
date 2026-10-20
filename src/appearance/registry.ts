@@ -289,30 +289,30 @@ part(
   "ui.windows",
   "Background",
   {
-    selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents",
+    selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents,.ui-structured-frame > .ui-frame-root",
     css: "background-color",
     legacy: "windowBackground",
   },
   [...surface, "blur"],
 );
 part("ui.windows.contour", "ui.windows", "Outer contour", {
-  selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents",
+  selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents,.ui-structured-frame > .ui-frame-root",
   css: "border-color",
   legacy: "accent",
 });
 part("ui.windows.dividers", "ui.windows", "Dividers / separators", {
-  selector: ".floating-window-content section,.settings-category,.outline-row",
+  selector: ".floating-window-content section,.settings-category,.outline-row,.ui-dock-divider",
   css: "border-color",
   legacy: "accent",
 });
 branch("ui.headers", "ui", "Frame handles / headers");
 part("ui.headers.background", "ui.headers", "Background", {
-  selector: ".ui-frame-handle,.entity-menu-header,[data-ui-inline-handle]",
+  selector: ".ui-frame-handle,.entity-menu-header,[data-ui-inline-handle],.ui-dock-tab-strip",
   css: "background-color",
   legacy: "headerBackground",
 });
 part("ui.headers.contour", "ui.headers", "Contour", {
-  selector: ".ui-frame-handle,.entity-menu-header,[data-ui-inline-handle]",
+  selector: ".ui-frame-handle,.entity-menu-header,[data-ui-inline-handle],.ui-dock-tab-strip",
   css: "border-color",
   legacy: "accent",
 });

@@ -10,6 +10,7 @@ export type UIFunction = {
   category?: string;
   available?: boolean;
   scope?: string;
+  homePath?: string[];
 };
 export type UICommand = { action: "select" | "compact" | "align" | "reset"; sequence: number };
 export type UIContextValue = {
@@ -47,8 +48,10 @@ export type UIContextValue = {
 };
 export const UIContext = createContext<UIContextValue | null>(null);
 export const UIHomeContext = createContext("workspace");
+export const UIPathContext = createContext<string[]>([]);
 /** Native anchor identity stays at home while groups use separate container ownership. */
 export const UIContainerContext = createContext<string | undefined>(undefined);
+export const DockFillContext = createContext(false);
 export function useUI() {
   const value = useContext(UIContext);
   if (!value) throw new Error("UI workspace is not mounted.");

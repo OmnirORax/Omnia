@@ -7,6 +7,7 @@ import { normalizeFont, type FontId } from "./fonts.ts";
 
 export const ACTIONS = [
   { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "S" },
+  { id: "ui:devMode", category: "UI editing", label: "UI edit mode", defaultKey: "" },
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
   { id: "ui:reset", category: "Workspace", label: "Reset to default", defaultKey: "" },
