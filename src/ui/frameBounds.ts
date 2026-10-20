@@ -77,5 +77,5 @@ export function useFrameBounds() {
       cancelAnimationFrame(raf);
     };
   }, [root]);
-  return { ref, bounds };
+  return { ref, bounds, element: root };
 }

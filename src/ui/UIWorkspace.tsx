@@ -21,6 +21,7 @@ import {
   type ReactElement,
 } from "react";
 import { Rnd } from "react-rnd";
+import { createPortal } from "react-dom";
 import {
   UIContext,
   UIHomeContext,
@@ -32,7 +33,7 @@ import {
 } from "./context";
 import { useDragActivationGuard } from "./activationGuard";
 import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
-import { FloatingWindow } from "./FloatingWindow";
+import { FloatingWindow, nextWindowLayer } from "./FloatingWindow";
 import { EmbeddedGroup } from "./EmbeddedGroup";
 import {
   detachFunction,
@@ -54,10 +55,10 @@ import {
   floatResident,
   ownerOf,
   getContainer,
+  groupResidents,
   updateContainer,
   releaseResident,
   residentKey,
-  readResident,
   residentPinned,
   resetContainer,
   validateUILayout,
@@ -336,12 +337,20 @@ export function UIPanel({
   );
 }
 function FunctionFrame({ frame }: { frame: UIFrame }) {
-  const { ref, bounds } = useFrameBounds();
+  const { ref, bounds, element } = useFrameBounds();
+  const [z, setZ] = useState(nextWindowLayer);
   const ui = useUI(),
     dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
     nested = !!ownerOf(ui.layout, key),
     width = Math.max(64, frame.floatingOverflow ? frame.width ?? 280 : Math.min(frame.width ?? 280, window.innerWidth - 24));
+  useEffect(() => {
+    if (!element || nested) return;
+    // Portal children bubble through their former React owner, so focus follows DOM ownership.
+    const raise = () => setZ(nextWindowLayer());
+    element.addEventListener("mousedown", raise);
+    return () => element.removeEventListener("mousedown", raise);
+  }, [element, nested]);
   const workspace = useDockWorkspace();
   const edgeBounds = frame.dockEdge && !nested ? workspace.docks[frame.dockEdge] : undefined;
   const structured = !!frame.dockLayout;
@@ -349,14 +358,14 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
   const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !nested && !edgeBounds, frame.floatingOverflow);
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
-  return (
+  const content = (
     <Rnd
       className={`function-frame contour-frame ${structured ? "ui-structured-frame" : ""} ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
       style={
         {
           pointerEvents: structured ? "auto" : "none",
           position: nested ? "relative" : "fixed",
-          zIndex: 70,
+          zIndex: z,
           "--ui-frame-top": `${Math.max(8, Math.min(frame.y, window.innerHeight - 60))}px`,
         } as React.CSSProperties
       }
@@ -423,10 +432,11 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
             });
           }}
         />
-        {structured ? <div className="ui-structured-body" hidden={frame.collapsed}><DockLayout container={key} /></div> : !frame.collapsed && <DockArea container={key} />}
+        {structured ? <div className="ui-structured-body" hidden={frame.collapsed}><DockLayout container={key} /></div> : <DockArea container={key} hidden={frame.collapsed} />}
       </div>
     </Rnd>
   );
+  return nested ? content : createPortal(content, document.body);
 }
 function FreeFunction({ id, x, y, width, height, children }: { id: string; x: number; y: number; width?: number; height?: number; children: ReactNode }) {
   const workspace = useDockWorkspace();
@@ -625,7 +635,7 @@ export function UIWorkspace({
     });
   const ensure = (s: UILayout) => ({
     ...s,
-    windows: { ...Object.fromEntries(defaults), ...s.windows },
+    windows: Object.fromEntries([...new Set([...defaults.keys(), ...Object.keys(s.windows)])].map(id => [id, { ...defaults.get(id), ...s.windows[id] }])),
   });
   const buttonSelection = useButtonSelection({
     layout: ensure(layout),
@@ -1423,29 +1433,7 @@ export function UIWorkspace({
             });
           return s;
         }
-        if (p.group) {
-          if (residentPinned(s, source.key)) return previous;
-          s = releaseResident(releaseResident(s, source.key), p.group);
-          const id = crypto.randomUUID();
-          const frame: UIFrame = {
-            id,
-            name: "New frame",
-            x: e.clientX,
-            y: e.clientY,
-            width: 280,
-            cellSize: 96,
-            collapsed: true,
-            pinned: false,
-            members: [readResident(p.group), readResident(source.key)],
-          };
-          const items = { ...s.items };
-          for (const key of [source.key, p.group])
-            if (key.startsWith("function:")) {
-              const id = readResident(key).id;
-              items[id] = { ...items[id], home: false, x: 0, y: 0 };
-            }
-          return validateUILayout({ ...s, items, frames: [...s.frames, frame] });
-        }
+        if (p.group) return groupResidents(s, [p.group, source.key], e.clientX, e.clientY);
         if (p.rect) {
           let next = floatResident(
             s,
@@ -1672,7 +1660,7 @@ export function UIWorkspace({
         defaults,
         frameActions,
         renderResident,
-        selectedFunctions: buttonSelection.ids,
+        selectedFunctions: new Set([...buttonSelection.ids].filter(id => !/^(frame|window):/.test(id))),
         selectingUI: buttonSelection.mode,
         selectionMenu: buttonSelection.openMenu,
       }}

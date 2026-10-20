@@ -752,9 +752,22 @@ export function groupFunctions(
   y: number,
 ): UILayout {
   if (a === b || functionPinned(layout, a) || functionPinned(layout, b)) return layout;
+  return groupResidents(layout, [`function:${a}`, `function:${b}`], x, y);
+}
+/** Buttons and complete groups use the same ownership transaction and frame model. */
+export function groupResidents(layout: UILayout, keys: string[], x: number, y: number): UILayout {
+  if (keys.length < 2 || new Set(keys).size !== keys.length) throw new Error("Select at least two distinct UI items.");
+  const scopes = new Set(keys.map(key => residentContextScope(layout, key)));
+  if (scopes.size > 1) throw new Error("These items must stay in their separate owning menus.");
+  for (const key of keys) {
+    if (residentPinned(layout, key)) throw new Error("Unpin the selected items and their frames first.");
+    if (!key.startsWith("function:") && !getContainer(layout, key)) throw new Error("Missing selected UI group.");
+    let parent = ownerOf(layout, key);
+    while (parent) { if (keys.includes(parent)) throw new Error("Select a group or its contents, rather than both."); parent = ownerOf(layout, parent); }
+  }
   const id = crypto.randomUUID();
-  const released = releaseResident(releaseResident(layout, `function:${a}`), `function:${b}`);
-  return validateUILayout({
+  const released = keys.reduce(releaseResident, layout);
+  let next: UILayout = {
     ...released,
     frames: [
       ...released.frames,
@@ -767,18 +780,17 @@ export function groupFunctions(
         width: 280,
         collapsed: true,
         pinned: false,
-        members: [
-          { kind: "function", id: a },
-          { kind: "function", id: b },
-        ],
+        members: keys.map(readResident),
       },
     ],
     items: {
       ...released.items,
-      [a]: { ...released.items[a], home: false, x: 0, y: 0 },
-      [b]: { ...released.items[b], home: false, x: 0, y: 0 },
+      ...Object.fromEntries(keys.filter(key => key.startsWith("function:")).map(key => { const id = key.slice(9); return [id, { ...released.items[id], home: false, x: 0, y: 0 }]; })),
     },
-  });
+  };
+  const scope = [...scopes][0];
+  if (scope) next = updateContainer(next, scope, { members: [...(getContainer(next, scope)?.members ?? []), { kind: "frame", id }] });
+  return validateUILayout(pruneEmptyDockGroups(next));
 }
 export function detachFunction(
   layout: UILayout,

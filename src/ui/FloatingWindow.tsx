@@ -147,6 +147,7 @@ export function FloatingWindow({
           // Portal events also bubble through their React owner. A child editor
           // must not raise the library/inspector that opened it above itself.
           event.stopPropagation();
+          if (!(event.currentTarget instanceof Element) || !event.currentTarget.contains(event.target as Node)) return;
           setZ(nextWindowLayer());
           onInteract?.();
         }}
