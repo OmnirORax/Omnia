@@ -4,10 +4,12 @@ import { getContainer, ownerOf, updateContainer, type UILayout } from "./layout"
 import { PROPERTIES, type RegisteredTarget } from '../appearance/registry';
 import { ancestry } from '../appearance/model';
 import type { AppearanceLocation } from '../appearance/Context';
+import { APPEARANCE_HIERARCHY_ID } from '../appearance/propertyTree';
 
 export type SearchReveal = { path: string[] };
 export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; appearance?:AppearanceLocation };
 const titles: Record<string, string> = {
+  [`window:${APPEARANCE_HIERARCHY_ID}`]: "Visual hierarchy",
   "window:theme": "Theme / aesthetics", "window:settings": "Workspace settings",
   "window:shortcuts": "Shortcut display", "window:panel:menu:file": "File",
   "window:panel:menu:create": "Create", "window:panel:menu:view": "View",
@@ -75,9 +77,15 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
     const found = byFunction.get(fn.id);
     add(found ?? { key: `function:${fn.id}`, label: fn.label, functionId: fn.id, path: fallbackPath.filter(key => key !== "workspace") }, fn);
   }
+  const hierarchy = `window:${APPEARANCE_HIERARCHY_ID}`;
+  const hierarchyOwners: string[] = [];
+  const effective = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
+  for(let key: string | undefined = hierarchy; key && key !== 'workspace' && !hierarchyOwners.includes(key); key = ownerOf(effective, key)) hierarchyOwners.unshift(key);
+  // The source window mounts the live controller even when its group lives elsewhere.
+  const hierarchyPath = [...new Set(['window:theme', ...hierarchyOwners])];
   for(const target of appearanceTargets.filter(t=>t.properties))for(const property of PROPERTIES.filter(p=>target.properties!.includes(p.id))){
     const propertyName = ui.layout.labels?.[`window:property:master:${property.id}`] ?? property.label;
-    results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${propertyName}`,heading:[searchTitle(ui,'window:theme'),'Master appearance controller',...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:'window:theme',path:['window:theme'],available:true,appearance:{target:target.id,property:property.id}});
+    results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${propertyName}`,heading:[...hierarchyPath.map(key=>searchTitle(ui,key)),...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:hierarchy,path:hierarchyPath,available:true,appearance:{target:target.id,property:property.id}});
   }
   return results.sort((a, b) => a.heading.localeCompare(b.heading) || a.label.localeCompare(b.label));
 }

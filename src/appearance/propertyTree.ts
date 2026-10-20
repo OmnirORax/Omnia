@@ -1,4 +1,5 @@
 /** Presentation controls, not Omnium knowledge or an Omnic grammar. */
+export const APPEARANCE_HIERARCHY_ID = "appearance:hierarchy";
 export type PropertyNode = {
   id: string;
   label: string;

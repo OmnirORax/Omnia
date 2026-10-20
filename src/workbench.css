@@ -763,6 +763,9 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .appearance-sets > input { min-width: 80px; width: 100px; }
 .appearance-sets > select { max-width: 120px; }
 .appearance-controller > input[type="search"] { width: 100%; margin-bottom: 6px; }
+.appearance-hierarchy { padding: 6px; border: 1px solid var(--omnium-border, #91abc344); border-radius: 8px; }
+.appearance-hierarchy > .property-node-contents { width: min(460px, calc(100vw - 40px)); max-width: 100%; }
+.appearance-hierarchy input[type="search"] { width: 100%; margin-bottom: 6px; }
 .appearance-adjuster > select { max-width: 150px; }
 .appearance-adjuster > .appearance-number { flex: 1; }
 .appearance-number { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
@@ -805,12 +808,12 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .appearance-instance-found { outline: 2px solid currentColor !important; outline-offset: 3px; animation: ui-search-pulse .9s ease-in-out infinite alternate; }
 .appearance-icon-mask { display: inline-block; width: 1.4em; height: 1.4em; mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat; }
 @media (prefers-reduced-motion: reduce) { .appearance-instance-found { animation: none; } }
-.floating-window .appearance-controller .appearance-row-name { min-width: 55px !important; flex: 1 1 55px; }
-.floating-window .appearance-controller .appearance-row > select { width: 105px !important; max-width: 105px !important; flex: 0 1 105px; }
-.floating-window .appearance-controller .appearance-row > .appearance-number { flex: 0 1 78px; max-width: 78px !important; }
-.floating-window .appearance-controller .appearance-row .appearance-lock-area { flex: 0 0 22px; }
-.floating-window .appearance-controller .appearance-row .appearance-number input { width: 42px !important; min-width: 25px !important; }
-.floating-window .appearance-controller .appearance-row .appearance-number output { min-width: 2em; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row-name { min-width: 55px !important; flex: 1 1 55px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > select { width: 105px !important; max-width: 105px !important; flex: 0 1 105px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > .appearance-number { flex: 0 1 78px; max-width: 78px !important; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-lock-area { flex: 0 0 22px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-number input { width: 42px !important; min-width: 25px !important; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-number output { min-width: 2em; }
 
 /* Expandable adjusters use the same editors and stable action IDs as detached controls. */
 .property-roots { margin-block: 10px; }
@@ -829,7 +832,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .property-options button[aria-pressed="true"] { outline: 1px solid var(--omnium-accent); }
 .appearance-number { max-width: 100%; }
 .appearance-number input[type="number"].appearance-precise { width: 58px !important; min-width: 38px !important; padding: 2px; font-size: 11px; }
-.floating-window .appearance-controller .appearance-row > .appearance-number { max-width: 118px !important; flex-basis: 118px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > .appearance-number { max-width: 118px !important; flex-basis: 118px; }
 
 /* Embedded groups are ordinary UI windows with compact, flowing contents. */
 .ui-inline-group { min-width: 0; max-width: 100%; width: max-content; }

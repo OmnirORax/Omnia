@@ -11,9 +11,14 @@ import { rootFor } from "../ui/FrameSearch";
 import { FunctionControl } from "../ui/UIWorkspace";
 import { EditableLabel } from "../ui/EditableLabel";
 import { NameVisibilityControl } from "../ui/NamePresentation";
+import { EmbeddedGroup } from "../ui/EmbeddedGroup";
+import { useUI } from "../ui/context";
+import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 
 export function MasterController() {
   const ctx = useAppearance()!;
+  const ui = useUI();
+  const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
   const { state, targets } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
     [savedQuery, setQuery] = useState(""),
@@ -253,20 +258,37 @@ export function MasterController() {
         }}
         renderEditor={(id) => <FunctionControl id={`ui:master:${id}`} />}
       />
-      <input
-        type="search"
-        aria-label="Find appearance branch"
-        placeholder="Find a branch…"
-        value={query}
-        onChange={(e) => {
+      <EmbeddedGroup
+        id={APPEARANCE_HIERARCHY_ID}
+        title="Visual hierarchy"
+        className="appearance-hierarchy"
+        expanded={hierarchyOpen}
+        onToggle={() => {
           ctx.locate(null, true);
-          setQuery(e.target.value);
+          ui.update(layout => {
+            const windows = { ...Object.fromEntries(ui.defaults), ...layout.windows };
+            return { ...layout, windows: {
+              ...windows,
+              [APPEARANCE_HIERARCHY_ID]: { ...windows[APPEARANCE_HIERARCHY_ID], collapsed: hierarchyOpen },
+            } };
+          });
         }}
-      />
-      <small>● include · ○ exclude · ◎ only · ⏻ plug · ◆ local refinement</small>
-      <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
-        {(children.get("") ?? []).map((t) => row(t, 0))}
-      </div>
+      >
+        <input
+          type="search"
+          aria-label="Find appearance branch"
+          placeholder="Find a branch…"
+          value={query}
+          onChange={(e) => {
+            ctx.locate(null, true);
+            setQuery(e.target.value);
+          }}
+        />
+        <small>● include · ○ exclude · ◎ only · ⏻ plug · ◆ local refinement</small>
+        <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
+          {(children.get("") ?? []).map((t) => row(t, 0))}
+        </div>
+      </EmbeddedGroup>
     </section>
   );
 }
