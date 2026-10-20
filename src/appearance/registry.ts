@@ -6,7 +6,7 @@ import type { AnimationTarget } from "../graph/effects.ts";
 export type Property = {
   id: string;
   label: string;
-  kind: "color" | "number" | "select";
+  kind: "color" | "number" | "select" | "toggle";
   min?: number;
   max?: number;
   step?: number;
@@ -117,6 +117,37 @@ export const PROPERTIES: Property[] = [
     options: FONT_OPTIONS,
   },
 ];
+const numeric = (
+  id: string,
+  label: string,
+  min: number,
+  max: number,
+  step: number,
+  initial: number,
+): Property => ({ id, label, kind: "number", min, max, step, initial, neutral: initial });
+PROPERTIES.push(
+  numeric("contourWidth", "Contour thickness", 0, 12, 0.5, 1),
+  {
+    id: "contourStyle",
+    label: "Contour style",
+    kind: "select",
+    initial: "solid",
+    neutral: "solid",
+    options: ["solid", "dashed", "dotted"].map((id) => ({ id, label: id })),
+  },
+  numeric("rounding", "Corner rounding", 0, 48, 1, 6),
+  numeric("textSize", "UI text size", 8, 48, 1, 12),
+  numeric("textWeight", "UI text weight", 100, 900, 100, 400),
+  numeric("textSpacing", "UI text spacing", -1, 6, 0.1, 0),
+  { id: "gradient", label: "Gradient fill", kind: "toggle", initial: false, neutral: false },
+  { id: "gradientColor", label: "Gradient second color", kind: "color", initial: "#7546cf" },
+  numeric("gradientAngle", "Gradient direction", 0, 360, 1, 135),
+  numeric("shadowStrength", "Shadow strength", 0, 1, 0.05, 0),
+  numeric("shadowSpread", "Shadow spread", 0, 32, 1, 0),
+  numeric("shadowX", "Shadow horizontal offset", -32, 32, 1, 0),
+  numeric("shadowY", "Shadow vertical offset", -32, 32, 1, 4),
+  numeric("saturation", "UI icon saturation", 0, 2, 0.05, 1),
+);
 // Effect controls describe a target's presentation, never another target branch.
 export const EFFECT_PROPERTIES = [
   "effect",
@@ -143,6 +174,7 @@ export const propertyFor = (id: string) => PROPERTIES.find((p) => p.id === id);
 export function validateProperty(id: string, value: unknown): Value | undefined {
   const p = propertyFor(id);
   if (!p) return;
+  if (p.kind === "toggle") return typeof value === "boolean" ? value : undefined;
   if (p.kind === "color")
     return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
   if (p.kind === "number")
@@ -216,6 +248,24 @@ const part = (
       )[id.split(".").at(-1)!] ?? 0;
     binding = { ...binding, animation: { kind, source, glyphsOnly: !!binding.text, priority } };
   }
+  if (binding.selector && binding.css === "border-color")
+    properties = [...properties, "contourWidth", "contourStyle"];
+  if (binding.selector && binding.css === "background-color")
+    properties = [
+      ...properties,
+      "rounding",
+      "gradient",
+      "gradientColor",
+      "gradientAngle",
+      "shadowStrength",
+      "shadowSpread",
+      "shadowX",
+      "shadowY",
+    ];
+  if (binding.selector && binding.text)
+    properties = [...properties, "textSize", "textWeight", "textSpacing"];
+  if (id === "symbols.ui") properties = [...properties, "saturation"];
+  if (id === "omnium.binders.path") properties = [...properties, "contourWidth"];
   if (binding.animation) properties = [...properties, ...EFFECT_PROPERTIES];
   entries.push({
     id,

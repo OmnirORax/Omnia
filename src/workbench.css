@@ -799,3 +799,23 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .floating-window .appearance-controller .appearance-row .appearance-lock-area { flex: 0 0 22px; }
 .floating-window .appearance-controller .appearance-row .appearance-number input { width: 42px !important; min-width: 25px !important; }
 .floating-window .appearance-controller .appearance-row .appearance-number output { min-width: 2em; }
+
+/* Expandable adjusters use the same editors and stable action IDs as detached controls. */
+.property-roots { margin-block: 10px; }
+.property-roots > small { display: block; margin-bottom: 6px; }
+.property-root-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.property-node { min-width: 0; max-width: 100%; }
+.property-root-row > .property-node { flex: 0 1 auto; }
+.property-node-heading { display: flex; gap: 2px; align-items: center; }
+.property-node-heading button { padding: 3px 5px; min-height: 24px; }
+.property-node-heading button:first-child { border: 0; background: transparent; }
+.property-node.is-selected > .property-node-heading .property-node-name { border-color: var(--omnium-accent); box-shadow: 0 0 5px color-mix(in srgb, var(--omnium-accent) 45%, transparent); }
+.property-node-contents { border-left: 1px solid color-mix(in srgb, var(--omnium-accent) 25%, transparent); padding: 6px 0 2px 8px; margin-left: 7px; max-width: 280px; }
+.property-node-children { display: grid; gap: 5px; }
+.property-node-editor { margin-bottom: 6px; }
+.property-options { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; max-height: 180px; overflow: auto; }
+.property-options button { padding: 3px 5px; font-size: 11px; }
+.property-options button[aria-pressed="true"] { outline: 1px solid var(--omnium-accent); }
+.appearance-number { max-width: 100%; }
+.appearance-number input[type="number"].appearance-precise { width: 58px !important; min-width: 38px !important; padding: 2px; font-size: 11px; }
+.floating-window .appearance-controller .appearance-row > .appearance-number { max-width: 118px !important; flex-basis: 118px; }

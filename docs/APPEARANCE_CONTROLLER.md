@@ -39,3 +39,23 @@ Theme/UI templates retain target sets, values, local references, locks and plugs
 - `ui/transientReveal.ts`: temporary location reveal shared by search and local master entries.
 
 No backend, new UI framework, graph-schema migration, automatic ontology, or changes to authored knowledge are involved.
+
+## Property nodes and preview recovery
+
+Appearance adjusters are UI nodes, separate from both the target hierarchy and the canonical knowledge graph. The declarative tree in `src/appearance/propertyTree.ts` groups the existing property registry into Color, Lighting, Opacity, Blur, Font, Animation and Styling. Animation remains a property of actual targets; it is never a VFX target branch. Multiple control trees can stay open. Click a property name to choose the target applicability highlight, double-click to expand/collapse one level, or use the configured subtree modifier (Shift by default) to toggle all descendants. The small disclosure button also works with a single click. Expansion state lives in UI layout panels and survives layout/template saves. Search temporarily reveals property ancestors without saving that reveal.
+
+Numeric adjusters offer a slider and bounded precise input, committed on Enter/blur. Empty or invalid numeric input restores its prior value. Effect and font choices are visible child choices rather than another property dropdown; effects include Off, and gradient has an on/off switch. Additional styles are registered once with supported renderer adapters: UI contour width/style, rounding, gradient second color/direction, shadow strength/spread/offset, UI text size/weight/spacing and UI icon saturation. Binder path thickness uses its existing Three.js line material; UI pixel sizing is not applied to 3D text or canonical geometry. Native graph assets retain their authored colors.
+
+`src/appearance/session.ts` separates committed interface history from a recoverable appearance draft. Controller changes (including local UI instances, locks, plugs and targeting sets), theme changes, imported themes and fonts all enter the draft. Other UI layout, mouse and keybinding changes retain normal persistence. Live picker/slider previews remain transient; finishing a gesture adds one draft history entry. Shift+MB4/MB5 undo/redo the pending draft while it is open, including Alt's existing five-step variant. Apply records the complete appearance as one ordinary UI history step; discard restores the last applied appearance without changing layout or knowledge. Reload drops unapproved drafts, with the browser's unsaved-change prompt where supported. Theme/UI export explicitly exports the candidate theme, even while temporary safe view is active.
+
+The fixed Apply/recovery bar and emergency dialog use a Shadow DOM root attached outside `body`, with independent colors, font, opacity and stacking. Appearance selectors/effects cannot style them. Holding Escape for two seconds opens recovery even while typing; an ordinary Escape keeps its normal workspace meaning. Key release, browser blur and tab hiding cancel an incomplete hold. Recovery traps keyboard focus while open.
+
+Recovery actions:
+
+- Discard unapplied appearance changes, after explicit selection of that action.
+- Temporarily render a readable standard theme without changing the saved or pending theme. Return to custom appearance at any time.
+- Preview default appearance or any saved checkpoint; Apply is still required to persist either.
+- Save a named checkpoint of the applied appearance. Every Apply also creates an automatic checkpoint; the first Apply additionally backs up the starting appearance. The newest ten checkpoints are retained in `omnium.appearance.checkpoints.v1`, independently of templates and undo history.
+- Start with `?safe-ui=1` if a saved theme makes ordinary controls unreadable.
+
+Checkpoints contain theme appearance only, not canonical graph knowledge, authored placement/binder overrides, UI layout, imported font binaries or mouse/keybindings. Imported font references keep using the existing browser font library; portable theme export embeds the referenced fonts. Checkpoints are local to this browser, so export a theme JSON for a portable backup. Storage errors leave the draft open and are shown in the independent recovery dialog; Apply does not report success when browser settings cannot be saved.

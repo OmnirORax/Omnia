@@ -96,7 +96,7 @@ export function locateSearchResult(result: GlobalResult): HTMLElement | undefine
   if(result.appearance){
     if(result.functionId)return [...root.querySelectorAll<HTMLElement>('[data-ui-function]')].find(el=>el.dataset.uiFunction===result.functionId);
     const row=[...root.querySelectorAll<HTMLElement>('[data-appearance-target]')].find(el=>el.dataset.appearanceTarget===result.appearance!.target)?.querySelector<HTMLElement>(':scope > .appearance-row');
-    return row?.querySelector<HTMLElement>('input,select')??row??undefined;
+    return row?.querySelector<HTMLElement>('input,select,[aria-pressed="true"],.property-options button')??row??undefined;
   }
   if (result.functionId) return [...root.querySelectorAll<HTMLElement>("[data-ui-function]")].find(element => element.dataset.uiFunction === result.functionId && !element.closest("[data-ui-search],[data-ui-palette],[data-shortcut-runner]"));
   return result.element?.isConnected ? result.element : undefined;

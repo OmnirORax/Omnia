@@ -19,6 +19,8 @@ import {
 import { type Appearance, valueFor } from "./resolve";
 export type AppearanceLocation = { target: string; property: string };
 export type AppearanceBridge = {
+  safe?: boolean;
+  subtreeModifier?: "shift" | "alt" | "ctrl" | "none";
   base: Appearance;
   commit: (state: Controller) => void;
   preview: (state: Controller | null) => void;

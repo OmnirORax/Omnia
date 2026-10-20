@@ -4,7 +4,8 @@ import { useAppearance } from "./Context";
 import { ancestry, applyValue, cycleTarget, included, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
-import { PropertyEditor, PropertySelect } from "./Controls";
+import { PropertyTree } from "./PropertyTree";
+import { PropertyEditor } from "./Controls";
 import { LockControl } from "./LockControl";
 import { rootFor } from "../ui/FrameSearch";
 import { FunctionControl } from "../ui/UIWorkspace";
@@ -240,17 +241,15 @@ export function MasterController() {
           ×
         </button>
       </div>
-      <div className="appearance-adjuster">
-        <PropertySelect
-          value={property}
-          onChange={(id) => {
-            ctx.preview(null);
-            ctx.locate(null, true);
-            setProperty(id);
-          }}
-        />
-        <FunctionControl id={`ui:master:${property}`} />
-      </div>
+      <PropertyTree
+        selected={property}
+        onSelect={(id) => {
+          ctx.preview(null);
+          ctx.locate(null, true);
+          setProperty(id);
+        }}
+        renderEditor={(id) => <FunctionControl id={`ui:master:${id}`} />}
+      />
       <input
         type="search"
         aria-label="Find appearance branch"

@@ -73,6 +73,7 @@ export function legacyValue(base: Appearance, target: RegisteredTarget, property
     };
     return map[property] ?? propertyFor(property)?.initial ?? 0;
   }
+  if (property === "contourWidth" && target.id === "omnium.binders.path") return 1.5;
   if (property === "font") return base.font;
   if (property === "brightness") return 1;
   if (property === "blur") return base.blur;
