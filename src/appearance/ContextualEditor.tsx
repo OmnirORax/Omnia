@@ -22,12 +22,7 @@ export function ContextualAppearance({
   const choices = [
     ...basesForOwner(owner, control),
     ...ctx.targets.filter(
-      (t) =>
-        !t.instance &&
-        (t.id.startsWith("text.ui.") ||
-          t.id === "symbols.ui" ||
-          t.id ===
-            `vfx.${owner.startsWith("function:") ? (control ? "fields" : "buttons") : "windows"}`),
+      (t) => !t.instance && (t.id.startsWith("text.ui.") || t.id === "symbols.ui"),
     ),
   ];
   const base = choices.find((t) => t.id === part) ?? choices[0];
@@ -80,13 +75,11 @@ export function ContextualAppearance({
         >
           {choices.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.id.startsWith("vfx.")
-                ? "VFX"
-                : t.id.startsWith("text.")
-                  ? `Text · ${t.label}`
-                  : t.id === "symbols.ui"
-                    ? "Icons"
-                    : t.id.split(".").slice(1, -1).join(" / ") + " · " + t.label}
+              {t.id.startsWith("text.")
+                ? `Text · ${t.label}`
+                : t.id === "symbols.ui"
+                  ? "Icons"
+                  : t.id.split(".").slice(1, -1).join(" / ") + " · " + t.label}
             </option>
           ))}
         </select>
@@ -95,6 +88,7 @@ export function ContextualAppearance({
       <div className="appearance-local-value">
         <PropertyEditor
           property={p}
+          effectKinds={target.effectKinds}
           label={`${label} local ${p}`}
           value={valueFor(ctx.base, ctx.state, target, p)}
           onPreview={(v) => change(v, true)}

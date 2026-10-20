@@ -1,82 +1,235 @@
+import { controllerTargets } from "./appearance/registry";
+import { effectsFor } from "./appearance/resolve";
+import { uiEffectTargets, effectSelector, effectScope } from "./appearance/uiEffects";
 import { elementEffects } from "./appearance/localEffects";
 import { useEffect, useRef } from "react";
 import type { WorkspaceSettings } from "./workspaceActions";
 import { clearUILightningContours, drawUILightning, drawUIElectricText } from "./uiLightning";
-import { effectSeed, effectVisible, fallingStar, perimeterPoint, resolveTargetSparkles, type SurfaceTarget } from "./graph/effects";
+import { effectSeed, effectVisible, fallingStar, perimeterPoint } from "./graph/effects";
 
 /** Pointer-transparent decoration follows live UI bounds, including portalled windows. */
-export function WindowSparkles({ appearance, source = appearance }: { appearance: WorkspaceSettings["appearance"]; source?: WorkspaceSettings["appearance"] }) {
-  const canvas = useRef<HTMLCanvasElement>(null), current = useRef(appearance); current.current = appearance;
-  const raw = useRef(source); raw.current = source;
+export function WindowSparkles({
+  appearance,
+  source = appearance,
+}: {
+  appearance: WorkspaceSettings["appearance"];
+  source?: WorkspaceSettings["appearance"];
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null),
+    current = useRef(appearance);
+  current.current = appearance;
+  const raw = useRef(source);
+  raw.current = source;
   const redraw = useRef<() => void>(() => {});
   useEffect(() => {
-    const surface = canvas.current!, context = surface.getContext("2d"); if (!context) return;
+    const surface = canvas.current!,
+      context = surface.getContext("2d");
+    if (!context) return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-    const selectors: [SurfaceTarget, string][] = [
-      ["windows", ".floating-window:not(.is-collapsed) > .floating-window-content, .ui-frame-handle, .ui-panel-body:not([hidden]), .ui-contour"],
-      ["buttons", "button[data-ui-function], .frame-mini-control"],
-      ["fields", ".ui-form-control"],
-    ];
-    let frame = 0, timer: ReturnType<typeof setTimeout> | undefined, phase = 0, previous = 0;
+    let frame = 0,
+      timer: ReturnType<typeof setTimeout> | undefined,
+      phase = 0,
+      previous = 0;
     const draw = () => {
-      frame = 0; if (timer !== undefined) clearTimeout(timer); timer = undefined;
-      const a = current.current, now = performance.now();
-      if (!document.hidden && !reduced.matches) phase += Math.min(0.1, previous ? (now - previous) / 1000 : 0);
+      frame = 0;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+      const a = current.current,
+        now = performance.now();
+      if (!document.hidden && !reduced.matches)
+        phase += Math.min(0.1, previous ? (now - previous) / 1000 : 0);
       previous = now;
-      const ratio = Math.min(devicePixelRatio, 1.5), width = innerWidth, height = innerHeight;
-      if (surface.width !== Math.round(width * ratio) || surface.height !== Math.round(height * ratio)) { surface.width = Math.round(width * ratio); surface.height = Math.round(height * ratio); }
-      context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+      const ratio = Math.min(devicePixelRatio, 1.5),
+        width = innerWidth,
+        height = innerHeight;
+      if (
+        surface.width !== Math.round(width * ratio) ||
+        surface.height !== Math.round(height * ratio)
+      ) {
+        surface.width = Math.round(width * ratio);
+        surface.height = Math.round(height * ratio);
+      }
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
       if (document.hidden || a.theme !== "neon" || a.opacity === 0) return;
       context.shadowBlur = a.glow * 12;
-      let moving = false, lightningBudget = 1800, electricBudget = 1_200_000;
-      for (const [target, selector] of selectors) {
-        const fx = resolveTargetSparkles(a, target); const hasLocal = Object.values(raw.current.controller?.instances ?? {}).some(instance => instance.base === `vfx.${target}`); if (!effectVisible(fx) && !hasLocal) continue;
+      let moving = false,
+        lightningBudget = 1800,
+        electricBudget = 1_200_000;
+      const targets = raw.current.controller ? controllerTargets(raw.current.controller) : [];
+      let processed = 0;
+      for (const target of uiEffectTargets) {
+        const fx = effectsFor(a, target.id),
+          hasLocal = targets.some((t) => t.instance?.base === target.id);
+        if (!effectVisible(fx) && !hasLocal) continue;
+        const selector = effectSelector(target);
         context.shadowBlur = (fx.glow ?? a.glow) * 12;
-        context.strokeStyle = context.fillStyle = context.shadowColor = fx.color ?? (fx.effect === "electric-text" ? a.textColor : undefined) ?? a.accent;
+        context.strokeStyle =
+          context.fillStyle =
+          context.shadowColor =
+            fx.color ?? (fx.effect === "electric-text" ? a.textColor : undefined) ?? a.accent;
         const candidates = [...document.querySelectorAll<HTMLElement>(selector)];
-        for (let index = 0; index < Math.min(100, candidates.length); index++) {
-          const element = candidates[index]; if (!element.getClientRects().length || element.closest("[hidden],.ui-drag-source") || getComputedStyle(element).visibility === "hidden") continue;
-          const r = element.getBoundingClientRect(); if (!r.width || !r.height || r.bottom < 0 || r.top > height || r.right < 0 || r.left > width) continue;
-          const localFx = elementEffects(raw.current,a,target,element); if(!effectVisible(localFx))continue;
+        for (let index = 0; index < Math.min(100, candidates.length) && processed < 350; index++) {
+          const element = candidates[index];
+          if (
+            !element.getClientRects().length ||
+            element.closest("[hidden],.ui-drag-source") ||
+            getComputedStyle(element).visibility === "hidden"
+          )
+            continue;
+          const r = element.getBoundingClientRect();
+          if (
+            !r.width ||
+            !r.height ||
+            r.bottom < 0 ||
+            r.top > height ||
+            r.right < 0 ||
+            r.left > width
+          )
+            continue;
+          const localFx = elementEffects(raw.current, a, target, element, targets);
+          if (!effectVisible(localFx)) continue;
           context.strokeStyle = context.fillStyle = context.shadowColor = localFx.color ?? a.accent;
           context.shadowBlur = (localFx.glow ?? a.glow) * 12;
-          const localTime = phase * localFx.motion;
+          const localTime = phase * localFx.motion,
+            scope = effectScope(target, element);
+          processed++;
           moving ||= localFx.motion > 0;
-          const seed = effectSeed(`${target}:${element.dataset.uiFunction ?? element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? `${element.className}:${index}`}`);
+          const seed = effectSeed(
+            `${target.id}:${element.dataset.uiFunction ?? element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? `${element.className}:${index}`}`,
+          );
           if (localFx.effect === "electric-text") {
-            electricBudget -= drawUIElectricText(context, element, r, localFx, localTime, a.opacity * (localFx.opacity ?? 1), !reduced.matches && localFx.motion > 0, electricBudget);
+            electricBudget -= drawUIElectricText(
+              context,
+              element,
+              r,
+              localFx,
+              localTime,
+              a.opacity * (localFx.opacity ?? 1),
+              !reduced.matches && localFx.motion > 0,
+              electricBudget,
+              scope,
+            );
             continue;
           }
           if (localFx.effect === "lightning") {
-            lightningBudget -= drawUILightning(context, element, r, localFx, localTime, seed, a.opacity * (localFx.opacity ?? 1), !reduced.matches && localFx.motion > 0, lightningBudget);
+            lightningBudget -= drawUILightning(
+              context,
+              element,
+              r,
+              localFx,
+              localTime,
+              seed,
+              a.opacity * (localFx.opacity ?? 1),
+              !reduced.matches && localFx.motion > 0,
+              lightningBudget,
+              scope,
+            );
             continue;
           }
           const snow = localFx.effect === "falling-stars";
-          const count = Math.ceil(localFx.density * Math.min(snow ? 40 : 12, Math.max(3, snow ? r.width * r.height / 1800 : (r.width + r.height) / 90)));
+          const count = Math.ceil(
+            localFx.density *
+              Math.min(
+                snow ? 40 : 12,
+                Math.max(3, snow ? (r.width * r.height) / 1800 : (r.width + r.height) / 90),
+              ),
+          );
           for (let i = 0; i < count; i++) {
             const falling = fallingStar(seed, i, localTime);
-            const p = snow ? { x: falling.x * Math.max(0, r.width - 8) + 4, y: falling.y * Math.max(0, r.height - 8) + 4 } : perimeterPoint(r.width + 4, r.height + 4, seed + i / count + localTime * 0.025);
-            const x = r.x + p.x - (snow ? 0 : 2), y = r.y + p.y - (snow ? 0 : 2);
-            context.globalAlpha = a.opacity * (localFx.opacity ?? 1) * localFx.intensity * (snow ? falling.twinkle : 0.35 + 0.65 * (Math.sin(localTime * 2.5 + i * 2 + seed * 21) + 1) / 2);
+            const p = snow
+              ? {
+                  x: falling.x * Math.max(0, r.width - 8) + 4,
+                  y: falling.y * Math.max(0, r.height - 8) + 4,
+                }
+              : perimeterPoint(r.width + 4, r.height + 4, seed + i / count + localTime * 0.025);
+            const x = r.x + p.x - (snow ? 0 : 2),
+              y = r.y + p.y - (snow ? 0 : 2);
+            context.globalAlpha =
+              a.opacity *
+              (localFx.opacity ?? 1) *
+              localFx.intensity *
+              (snow
+                ? falling.twinkle
+                : 0.35 + (0.65 * (Math.sin(localTime * 2.5 + i * 2 + seed * 21) + 1)) / 2);
             context.beginPath();
-            if (localFx.effect === "stars" || localFx.effect === "starfield" || snow) { const size = 3 * (localFx.effect === "starfield" ? localFx.starSize ?? 1 : 1); context.moveTo(x - size, y); context.lineTo(x + size, y); context.moveTo(x, y - size); context.lineTo(x, y + size); context.stroke(); }
-            else if (localFx.effect === "sparks") { context.moveTo(x - 1, y + 3); context.lineTo(x + 1, y - 3); context.stroke(); }
-            else { context.arc(x, y, 1.3, 0, Math.PI * 2); context.fill(); }
+            if (localFx.effect === "stars" || localFx.effect === "starfield" || snow) {
+              const size = 3 * (localFx.effect === "starfield" ? (localFx.starSize ?? 1) : 1);
+              context.moveTo(x - size, y);
+              context.lineTo(x + size, y);
+              context.moveTo(x, y - size);
+              context.lineTo(x, y + size);
+              context.stroke();
+            } else if (localFx.effect === "sparks") {
+              context.moveTo(x - 1, y + 3);
+              context.lineTo(x + 1, y - 3);
+              context.stroke();
+            } else {
+              context.arc(x, y, 1.3, 0, Math.PI * 2);
+              context.fill();
+            }
           }
         }
       }
-      context.globalAlpha = 1; context.shadowBlur = 0;
+      context.globalAlpha = 1;
+      context.shadowBlur = 0;
       if (!reduced.matches && moving) timer = setTimeout(request, 1000 / 30);
     };
-    const request = () => { if (!frame) frame = requestAnimationFrame(draw); };
+    const request = () => {
+      if (!frame) frame = requestAnimationFrame(draw);
+    };
     redraw.current = request;
-    const resume = () => { previous = 0; request(); };
-    const fontsLoaded = () => { clearUILightningContours(); request(); };
-    const observer = new MutationObserver(() => { if (current.current.theme === "neon" && selectors.some(([target]) => effectVisible(resolveTargetSparkles(current.current, target))||Object.values(raw.current.controller?.instances??{}).some(instance=>instance.base===`vfx.${target}`))) request(); });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
-    document.fonts.addEventListener("loadingdone", fontsLoaded); window.addEventListener("resize", request); document.addEventListener("load", request, true); document.addEventListener("scroll", request, true); document.addEventListener("input", request, true); document.addEventListener("visibilitychange", resume); reduced.addEventListener("change", resume); request();
-    return () => { document.fonts.removeEventListener("loadingdone", fontsLoaded); observer.disconnect(); cancelAnimationFrame(frame); if (timer !== undefined) clearTimeout(timer); window.removeEventListener("resize", request); document.removeEventListener("load", request, true); document.removeEventListener("scroll", request, true); document.removeEventListener("input", request, true); document.removeEventListener("visibilitychange", resume); reduced.removeEventListener("change", resume); redraw.current = () => {}; };
+    const resume = () => {
+      previous = 0;
+      request();
+    };
+    const fontsLoaded = () => {
+      clearUILightningContours();
+      request();
+    };
+    const observer = new MutationObserver(() => {
+      if (
+        current.current.theme === "neon" &&
+        uiEffectTargets.some(
+          (target) =>
+            effectVisible(effectsFor(current.current, target.id)) ||
+            Object.values(raw.current.controller?.instances ?? {}).some(
+              (instance) => instance.base === target.id,
+            ),
+        )
+      )
+        request();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["style", "class", "hidden"],
+    });
+    document.fonts.addEventListener("loadingdone", fontsLoaded);
+    window.addEventListener("resize", request);
+    document.addEventListener("load", request, true);
+    document.addEventListener("scroll", request, true);
+    document.addEventListener("input", request, true);
+    document.addEventListener("visibilitychange", resume);
+    reduced.addEventListener("change", resume);
+    request();
+    return () => {
+      document.fonts.removeEventListener("loadingdone", fontsLoaded);
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      if (timer !== undefined) clearTimeout(timer);
+      window.removeEventListener("resize", request);
+      document.removeEventListener("load", request, true);
+      document.removeEventListener("scroll", request, true);
+      document.removeEventListener("input", request, true);
+      document.removeEventListener("visibilitychange", resume);
+      reduced.removeEventListener("change", resume);
+      redraw.current = () => {};
+    };
   }, []);
-  useEffect(() => { redraw.current(); }, [appearance]);
+  useEffect(() => {
+    redraw.current();
+  }, [appearance]);
   return <canvas ref={canvas} className="window-sparkles" aria-hidden="true" />;
 }

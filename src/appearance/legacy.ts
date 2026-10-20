@@ -27,17 +27,17 @@ export const LEGACY_CONTROLS: Record<string, { label: string; property: string; 
       property: "opacity",
       target: "ui.windows.background",
     },
-    "ui:appearance:effect": { label: "Animation", property: "effect", target: "vfx" },
+    "ui:appearance:effect": { label: "Animation", property: "effect", target: "all" },
     "ui:appearance:effectIntensity": {
       label: "Effect intensity",
       property: "intensity",
-      target: "vfx",
+      target: "all",
     },
-    "ui:appearance:density": { label: "Density", property: "density", target: "vfx" },
-    "ui:appearance:motion": { label: "Animation speed", property: "speed", target: "vfx" },
-    "ui:animation:color": { label: "VFX color", property: "color", target: "vfx" },
-    "ui:animation:starSize": { label: "Star size", property: "size", target: "vfx" },
-    "ui:animation:boltLength": { label: "Lightning length", property: "length", target: "vfx" },
+    "ui:appearance:density": { label: "Density", property: "density", target: "all" },
+    "ui:appearance:motion": { label: "Animation speed", property: "speed", target: "all" },
+    "ui:animation:color": { label: "Animation color", property: "effectColor", target: "all" },
+    "ui:animation:starSize": { label: "Star size", property: "size", target: "all" },
+    "ui:animation:boltLength": { label: "Lightning length", property: "length", target: "all" },
   };
 for (const group of ["nodes", "binders"])
   for (const property of ["color", "opacity", "glow"])

@@ -1,6 +1,8 @@
 import { EFFECT_KINDS } from "../graph/effects.ts";
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
 import { type Controller, type Target, type Value, normalizeController } from "./model.ts";
+import { migrateEffects } from "./migrateEffects.ts";
+import type { AnimationTarget } from "../graph/effects.ts";
 export type Property = {
   id: string;
   label: string;
@@ -115,6 +117,28 @@ export const PROPERTIES: Property[] = [
     options: FONT_OPTIONS,
   },
 ];
+// Effect controls describe a target's presentation, never another target branch.
+export const EFFECT_PROPERTIES = [
+  "effect",
+  "speed",
+  "intensity",
+  "density",
+  "size",
+  "length",
+  "effectColor",
+  "effectBrightness",
+  "effectOpacity",
+  "effectGlow",
+];
+for (const [id, label, source] of [
+  ["effectColor", "Animation color", "color"],
+  ["effectBrightness", "Animation brightness", "brightness"],
+  ["effectOpacity", "Animation opacity", "opacity"],
+  ["effectGlow", "Animation glow", "glow"],
+] as const) {
+  const original = PROPERTIES.find((p) => p.id === source)!;
+  PROPERTIES.push({ ...original, id, label });
+}
 export const propertyFor = (id: string) => PROPERTIES.find((p) => p.id === id);
 export function validateProperty(id: string, value: unknown): Value | undefined {
   const p = propertyFor(id);
@@ -128,13 +152,25 @@ export function validateProperty(id: string, value: unknown): Value | undefined 
   if (id === "font") return typeof value === "string" ? normalizeFont(value) : undefined;
   return p.options?.some((o) => o.id === value) ? (value as string) : undefined;
 }
-export const loadController = (value: unknown) => normalizeController(value, validateProperty);
+export const loadController = (value: unknown) =>
+  migrateEffects(
+    normalizeController(value, validateProperty),
+    LEGACY_EFFECT_TARGETS,
+    EFFECT_PROPERTIES,
+  );
 export type Binding = {
   selector?: string;
   css?: string;
   legacy?: string;
   text?: boolean;
   fallback?: string;
+  animation?: {
+    kind: "text" | "icons" | "surface";
+    source?: AnimationTarget;
+    glyphsOnly?: boolean;
+    selector?: string;
+    priority?: number;
+  };
 };
 export type RegisteredTarget = Target & { binding?: Binding };
 const surface = ["color", "brightness", "opacity", "glow"],
@@ -142,8 +178,59 @@ const surface = ["color", "brightness", "opacity", "glow"],
 const entries: RegisteredTarget[] = [];
 const branch = (id: string, parent: string | undefined, label: string) =>
   entries.push({ id, parent, label });
-const part = (id: string, parent: string, label: string, binding: Binding, properties = surface) =>
-  entries.push({ id, parent, label, properties, binding });
+const part = (
+  id: string,
+  parent: string,
+  label: string,
+  binding: Binding,
+  properties = surface,
+) => {
+  if (binding.selector) {
+    const kind = binding.text ? "text" : "surface";
+    const source: AnimationTarget | undefined = binding.text
+      ? id === "text.ui.buttons"
+        ? "buttons"
+        : id === "text.ui.contents" || id === "text.ui.labels" || id === "text.ui.placeholders"
+          ? "fields"
+          : "windows"
+      : binding.css === "border-color"
+        ? id.startsWith("ui.fields.")
+          ? "fields"
+          : id.startsWith("ui.buttons.")
+            ? "buttons"
+            : id.startsWith("ui.windows.") || id.startsWith("ui.headers.")
+              ? "windows"
+              : undefined
+        : undefined;
+    const priority =
+      (
+        {
+          titles: 50,
+          shortcuts: 60,
+          headings: 40,
+          buttons: 30,
+          labels: 20,
+          placeholders: 35,
+          contents: 30,
+        } as Record<string, number>
+      )[id.split(".").at(-1)!] ?? 0;
+    binding = { ...binding, animation: { kind, source, glyphsOnly: !!binding.text, priority } };
+  }
+  if (binding.animation) properties = [...properties, ...EFFECT_PROPERTIES];
+  entries.push({
+    id,
+    parent,
+    label,
+    properties: [...new Set(properties)],
+    binding,
+    effectKinds:
+      binding.animation?.kind === "surface"
+        ? EFFECT_KINDS.filter((kind) => kind !== "electric-text")
+        : binding.animation
+          ? EFFECT_KINDS
+          : undefined,
+  });
+};
 branch("all", undefined, "Everything");
 branch("ui", "all", "Windows / frames / controls");
 branch("ui.windows", "ui", "Window and frame surfaces");
@@ -300,48 +387,84 @@ for (const [id, label, selector] of [
     { selector, css: "color", legacy: "textColor", text: true },
     text,
   );
-part("text.nodes", "text", "Node text · defaults", { legacy: "nodeText" }, text);
-part("text.binders", "text", "Binder text · defaults", { legacy: "binderText" }, text);
+part(
+  "text.nodes",
+  "text",
+  "Node text · defaults",
+  { legacy: "nodeText", animation: { kind: "text", source: "nodes" } },
+  text,
+);
+part(
+  "text.binders",
+  "text",
+  "Binder text · defaults",
+  { legacy: "binderText", animation: { kind: "text", source: "binders", glyphsOnly: true } },
+  text,
+);
 branch("symbols", "all", "Icons / symbols / visual assets");
-part("symbols.ui", "symbols", "UI icons", { legacy: "accent" });
-part("symbols.nodes", "symbols", "Node visuals · defaults", { legacy: "nodes.color" });
-part("symbols.binders", "symbols", "Binder operators · defaults", { legacy: "binders.color" });
+part("symbols.ui", "symbols", "UI icons", {
+  legacy: "accent",
+  animation: {
+    kind: "icons",
+    source: "buttons",
+    glyphsOnly: true,
+    selector: "button img,.ui-frame-handle img,.appearance-icon-mask",
+  },
+});
+part("symbols.nodes", "symbols", "Node visuals · defaults", {
+  legacy: "nodes.color",
+  animation: { kind: "icons", source: "nodes" },
+});
+part("symbols.binders", "symbols", "Binder operators · defaults", {
+  legacy: "binders.color",
+  animation: { kind: "icons", source: "binders", glyphsOnly: true },
+});
 branch("omnium", "all", "Omnium · defaults");
 branch("omnium.nodes", "omnium", "Nodes");
-part("omnium.nodes.body", "omnium.nodes", "Sphere / geometric body", { legacy: "nodes.color" });
-part("omnium.nodes.background", "omnium.nodes", "Label background", { legacy: "background" });
-part("omnium.nodes.contour", "omnium.nodes", "Label contour", { legacy: "nodes.color" });
+part("omnium.nodes.body", "omnium.nodes", "Sphere / geometric body", {
+  legacy: "nodes.color",
+  animation: { kind: "surface", source: "nodes" },
+});
+part("omnium.nodes.background", "omnium.nodes", "Label background", {
+  legacy: "background",
+  animation: { kind: "surface" },
+});
+part("omnium.nodes.contour", "omnium.nodes", "Label contour", {
+  legacy: "nodes.color",
+  animation: { kind: "surface" },
+});
 branch("omnium.binders", "omnium", "Binders");
-part("omnium.binders.path", "omnium.binders", "Connection path", { legacy: "binders.color" });
-part("omnium.binders.background", "omnium.binders", "Label background", { legacy: "background" });
-part("omnium.selection", "omnium", "Selection / focus rings", { legacy: "nodes.color" });
+part("omnium.binders.path", "omnium.binders", "Connection path", {
+  legacy: "binders.color",
+  animation: { kind: "surface", source: "binders" },
+});
+part("omnium.binders.background", "omnium.binders", "Label background", {
+  legacy: "background",
+  animation: { kind: "surface" },
+});
+part("omnium.selection", "omnium", "Selection / focus rings", {
+  legacy: "nodes.color",
+  animation: { kind: "surface" },
+});
 branch("workspace", "all", "Workspace environment");
-part("workspace.background", "workspace", "Background", { legacy: "background" }, [
-  "color",
-  "brightness",
-]);
-branch("vfx", "all", "VFX");
-for (const [id, label] of [
-  ["windows", "Windows / frames"],
-  ["buttons", "Buttons"],
-  ["fields", "Fields"],
-  ["nodes", "Nodes"],
-  ["binders", "Binders / operators"],
-  ["background", "Background"],
-] as const)
-  part(`vfx.${id}`, "vfx", label, { legacy: `vfx.${id}` }, [
-    "color",
-    "brightness",
-    "opacity",
-    "glow",
-    "effect",
-    "speed",
-    "intensity",
-    "density",
-    "size",
-    "length",
-  ]);
+part(
+  "workspace.background",
+  "workspace",
+  "Background",
+  { legacy: "background", animation: { kind: "surface", source: "background" } },
+  ["color", "brightness"],
+);
 export const TARGETS: readonly RegisteredTarget[] = entries;
+const LEGACY_EFFECT_TARGETS = Object.fromEntries(
+  ["windows", "buttons", "fields", "nodes", "binders", "background"].map((source) => [
+    `vfx.${source}`,
+    TARGETS.filter((t) => t.binding?.animation?.source === source).map((t) => ({
+      id: t.id,
+      glyphsOnly: t.binding?.animation?.glyphsOnly,
+      effectKinds: t.effectKinds,
+    })),
+  ]),
+);
 export function controllerTargets(state: Controller): RegisteredTarget[] {
   const targets = [...TARGETS];
   const parents = new Set<string>();
@@ -358,6 +481,7 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
       parent,
       label: instance.label,
       properties: base.properties,
+      effectKinds: base.effectKinds,
       instance,
       binding: base.binding,
     });

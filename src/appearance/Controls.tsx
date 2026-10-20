@@ -13,6 +13,7 @@ export function PropertyEditor({
   onCommit,
   disabled = false,
   label,
+  effectKinds,
 }: {
   property: string;
   value: Value;
@@ -20,6 +21,7 @@ export function PropertyEditor({
   onCommit: (value: Value) => void;
   disabled?: boolean;
   label?: string;
+  effectKinds?: readonly string[];
 }) {
   const ctx = useAppearance();
   const p = propertyFor(property)!;
@@ -67,11 +69,13 @@ export function PropertyEditor({
         value={String(value)}
         onChange={(e) => onCommit(e.target.value)}
       >
-        {p.options?.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
+        {p.options
+          ?.filter((o) => p.id !== "effect" || !effectKinds || effectKinds.includes(o.id))
+          .map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
         {p.id === "font" &&
           ctx?.fonts?.map((o) => (
             <option key={o.id} value={o.id}>

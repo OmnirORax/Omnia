@@ -14,9 +14,7 @@ export function MasterController() {
   const { state, targets } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
     [savedQuery, setQuery] = useState(""),
-    [expanded, setExpanded] = useState<Set<string>>(
-      () => new Set(["all", "ui", "text", "omnium", "vfx"]),
-    );
+    [expanded, setExpanded] = useState<Set<string>>(() => new Set(["all", "ui", "text", "omnium"]));
   const property = ctx.location?.property ?? selectedProperty,
     query = ctx.location ? "" : savedQuery;
   const active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
@@ -39,8 +37,15 @@ export function MasterController() {
     for (const t of targets) map.set(t.parent ?? "", [...(map.get(t.parent ?? "") ?? []), t]);
     return map;
   }, [structureKey]);
+  const currentEffect = active.adjustments?.effect ?? "off";
   const applicable = (t: RegisteredTarget): boolean =>
-    (descendants.get(t.id) ?? []).some((child) => child.properties?.includes(property));
+    (descendants.get(t.id) ?? []).some(
+      (child) =>
+        child.properties?.includes(property) &&
+        (property !== "effect" ||
+          !child.effectKinds ||
+          child.effectKinds.includes(String(currentEffect))),
+    );
   const matches = (t: RegisteredTarget): boolean =>
     !query ||
     t.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -160,6 +165,7 @@ export function MasterController() {
           {target.properties?.includes(property) && (
             <PropertyEditor
               property={property}
+              effectKinds={target.effectKinds}
               label={`${target.label} ${property}`}
               value={valueFor(ctx.base, state, target, property)}
               onPreview={(v) => change(v, true, target.id)}

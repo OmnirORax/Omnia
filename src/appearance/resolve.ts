@@ -1,24 +1,75 @@
 import type { WorkspaceSettings } from "../workspaceActions";
-import { resolveTargetSparkles, type AnimationTarget } from "../graph/effects.ts";
+import {
+  resolveTargetSparkles,
+  type AnimationTarget,
+  type SparkleStyle,
+} from "../graph/effects.ts";
 import { connected, type Controller, type Value } from "./model.ts";
-import { controllerTargets, propertyFor, TARGETS, type RegisteredTarget } from "./registry.ts";
+import {
+  controllerTargets,
+  propertyFor,
+  TARGETS,
+  type RegisteredTarget,
+  EFFECT_PROPERTIES,
+} from "./registry.ts";
 export type Appearance = WorkspaceSettings["appearance"];
+const glyphEffect = (effect: string) => effect === "electric-text" || effect === "lightning";
+function legacyEffects(base: Appearance, target: RegisteredTarget): SparkleStyle {
+  const binding = target.binding?.animation;
+  const fx = resolveTargetSparkles(base, binding?.source ?? "windows");
+  if (!binding?.source) return { ...fx, effect: "off" };
+  if (binding.glyphsOnly && !glyphEffect(fx.effect)) {
+    const windows = resolveTargetSparkles(base, "windows");
+    return target.id.startsWith("text.ui.") || target.id === "symbols.ui"
+      ? glyphEffect(windows.effect)
+        ? windows
+        : { ...fx, effect: "off" }
+      : { ...fx, effect: "off" };
+  }
+  return fx;
+}
+/** The same animation properties are consumed by every renderer. */
+export function effectsFor(theme: Appearance, id: string | RegisteredTarget): SparkleStyle {
+  const target = typeof id === "string" ? TARGETS.find((t) => t.id === id)! : id;
+  const values = !target.instance ? theme.renderDefaults?.[target.id] : undefined;
+  const get = (p: string) =>
+    values?.[p] ??
+    (theme.controller
+      ? valueFor(theme, theme.controller, target, p)
+      : legacyValue(theme, target, p));
+  return effectsFromValues(get);
+}
+export function effectsFromValues(get: (property: string) => Value): SparkleStyle {
+  const effect = get("effect") as SparkleStyle["effect"];
+  return {
+    effect,
+    color: brightHex(get("effectColor") as string, Number(get("effectBrightness"))),
+    brightness: 1,
+    opacity: Number(get("effectOpacity")),
+    glow: Number(get("effectGlow")),
+    motion: Number(get("speed")),
+    intensity: Number(get("intensity")),
+    density: Math.min(effect === "starfield" ? 4 : 1, Number(get("density"))),
+    starSize: Number(get("size")),
+    boltLength: Number(get("length")),
+  };
+}
 export function legacyValue(base: Appearance, target: RegisteredTarget, property: string): Value {
   const key = target.binding?.legacy ?? "accent",
     node = key.startsWith("nodes") ? base.nodes : base.binders;
-  if (key.startsWith("vfx.")) {
-    const fx = resolveTargetSparkles(base, key.slice(4) as AnimationTarget);
+  if (EFFECT_PROPERTIES.includes(property)) {
+    const fx = legacyEffects(base, target);
     const map: Record<string, Value | undefined> = {
-      color: fx.color ?? base.accent,
       effect: fx.effect,
       speed: fx.motion,
       intensity: fx.intensity,
       density: fx.density,
       size: fx.starSize ?? 1,
       length: fx.boltLength ?? 0.35,
-      brightness: fx.brightness ?? 1,
-      opacity: fx.opacity ?? 1,
-      glow: fx.glow ?? base.glow,
+      effectColor: fx.color ?? base.accent,
+      effectBrightness: fx.brightness ?? 1,
+      effectOpacity: fx.opacity ?? 1,
+      effectGlow: fx.glow ?? base.glow,
     };
     return map[property] ?? propertyFor(property)?.initial ?? 0;
   }
@@ -147,34 +198,37 @@ export function resolveControllerAppearance(base: Appearance): Appearance {
         glow: values.glow as number,
       };
     }
-    if (target.id.startsWith("vfx.")) {
-      const name = target.id.slice(4) as AnimationTarget;
-      const effects = {
-        effect: values.effect as Appearance["effect"],
-        color: brightHex(values.color as string, values.brightness as number),
-        opacity: values.opacity as number,
-        glow: values.glow as number,
-        brightness: 1,
-        motion: values.speed as number,
-        intensity: values.intensity as number,
-        density: values.density as number,
-        starSize: values.size as number,
-        boltLength: values.length as number,
-      };
-      if (name === "nodes" || name === "binders") out[name] = { ...out[name], effects };
-      else out.surfaceEffects[name] = effects;
-      // Keep the existing per-category switch when no controller override exists.
-      out.effectTargets[name] =
-        base.effectTargets[name] && connected(state, [...TARGETS], target.id, "effect");
-      if (state.values[target.id]?.effect !== undefined && effects.effect !== "off")
-        out.effectTargets[name] = connected(state, [...TARGETS], target.id, "effect");
-    }
+  }
+  // Compatibility for existing render paths; the editable data stays on real targets.
+  for (const [name, id] of Object.entries({
+    nodes: "omnium.nodes.body",
+    binders: "omnium.binders.path",
+    background: "workspace.background",
+    windows: "ui.windows.contour",
+    buttons: "ui.buttons.contour",
+    fields: "ui.fields.single.contour",
+  })) {
+    const effects = effectsFor(out, id);
+    if (name === "nodes" || name === "binders") out[name] = { ...out[name], effects };
+    else out.surfaceEffects[name as "windows" | "buttons" | "fields" | "background"] = effects;
+    out.effectTargets[name as AnimationTarget] = effects.effect !== "off";
   }
   const glowValues = TARGETS.filter(
-    (t) => t.id.startsWith("omnium.") || t.id === "vfx.nodes" || t.id === "vfx.binders",
+    (t) =>
+      t.id.startsWith("omnium.") ||
+      t.id === "text.nodes" ||
+      t.id === "text.binders" ||
+      t.id.startsWith("symbols."),
   )
-    .filter((t) => state.values[t.id]?.glow !== undefined)
-    .map((t) => Number(out.renderDefaults[t.id]?.glow ?? 0));
+    .filter(
+      (t) => state.values[t.id]?.glow !== undefined || state.values[t.id]?.effectGlow !== undefined,
+    )
+    .map((t) =>
+      Math.max(
+        Number(out.renderDefaults[t.id]?.glow ?? 0),
+        Number(out.renderDefaults[t.id]?.effectGlow ?? 0),
+      ),
+    );
   if (glowValues.length) out.glow = Math.min(1, Math.max(base.glow, ...glowValues));
   return out;
 }
