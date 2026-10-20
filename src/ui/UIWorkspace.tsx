@@ -810,7 +810,7 @@ export function UIWorkspace({
     const start = (event: MouseEvent) => {
       cancelFrame(); layoutSource = undefined;
       const target = event.target as Element;
-      if (target.closest("input,select,textarea")) return;
+      if (target.closest("input,select,textarea,[data-ui-search]")) return;
       const mini = target.closest<HTMLElement>("[data-ui-control]");
       const handle = target.closest<HTMLElement>("[data-ui-drag]");
       const fn = target.closest<HTMLElement>("[data-ui-function]");
@@ -1479,7 +1479,7 @@ export function UIWorkspace({
     const pointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || pointer || event.defaultPrevented) return;
       const target = event.target as Element;
-      if (target.closest("input,select,textarea,a,[contenteditable=true],.window-resize-grip,[data-ui-resize]")) return;
+      if (target.closest("input,select,textarea,a,[contenteditable=true],[data-ui-search],.window-resize-grip,[data-ui-resize]")) return;
       const handle = target.closest<HTMLElement>("[data-ui-control],[data-ui-drag],[data-ui-function]");
       if (!handle?.draggable) return;
       pointer = { down: event, started: false };

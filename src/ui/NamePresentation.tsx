@@ -174,7 +174,7 @@ export function NameVisibilityControl() {
   const ui = useUI();
   return (
     <UIField id="ui:hideNames" label="Hide names" category="Appearance">
-      <label>
+      <label className="ui-checkbox-control">
         <input
           type="checkbox"
           aria-label="Hide names"

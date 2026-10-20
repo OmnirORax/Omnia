@@ -194,7 +194,7 @@ export function MasterController() {
   };
   return (
     <section className="appearance-controller" aria-label="Master appearance controller">
-      <div className="appearance-sets">
+      <div className="appearance-sets" role="group" aria-label="Appearance targeting sets">
         <select
           aria-label="Appearance set"
           value={active.id}

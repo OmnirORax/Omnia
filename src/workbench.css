@@ -43,7 +43,8 @@
 .floating-body[hidden] { display: none; }
 .floating-window.is-collapsed { pointer-events: none; }
 .floating-window.is-collapsed .floating-window-content { background: transparent; border: 0; box-shadow: none; pointer-events: none; }
-.floating-body :is(input:not([type=checkbox]):not([type=color]):not([type=range]), textarea, select) { max-width: 100%; min-width: 0; width: 100%; box-sizing: border-box; }
+.floating-body :is(input:not([type=checkbox]):not([type=color]):not([type=range]), select) { max-width: 100%; min-width: 0; width: auto; field-sizing: content; box-sizing: border-box; }
+.floating-body textarea { max-width: 100%; min-width: 0; width: 100%; box-sizing: border-box; }
 .floating-body :is(button, label, p, span, code, strong) { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
 .floating-body .binding-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(65px, 100px) 28px; align-items: start; gap: 4px; }
 .floating-body .binding-row button { max-width: 100%; height: auto; }
@@ -66,13 +67,13 @@
 .ui-native-frame-slot > .ui-structured-frame { width: 100% !important; max-width: 100% !important; }
 .ui-menu-panel > .frame-chrome.floating-title { width: auto; margin: 0; }
 .ui-menu-panel > .frame-chrome > .ui-frame-tools > .ui-frame-handle { position: relative; min-width: 0; background: transparent; border-color: transparent; }
-.ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button { padding: 7px 9px; }
-.ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button::after { content: "▾"; margin-left: 6px; font-size: 9px; }
+.ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close) { padding: 7px 9px; }
+.ui-menu-panel > .frame-chrome .ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close)::after { content: "▾"; margin-left: 6px; font-size: 9px; }
 .ui-menu-panel:has(> .ui-panel-body:not([hidden])) { z-index: 90; }
 .ui-menu-panel:has(> .ui-panel-body:not([hidden])) > .frame-chrome .ui-frame-handle { background: #e6eef8; }
 .ui-menu-panel > .ui-panel-body { position: absolute; top: calc(100% + 4px); z-index: 90; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; overflow: auto; box-sizing: border-box; border: 1px solid #b4c5d5; border-radius: 7px; background: #f8faff; color: #233348; box-shadow: 0 8px 24px #0003; }
 .ui-menu-panel > .ui-panel-body > .ui-dock-area { flex-direction: column; gap: 6px; padding: 0; }
-.ui-menu-panel .ui-form-control { width: 100%; }
+.ui-menu-panel .ui-form-control { width: fit-content; }
 .ui-menu-panel .ui-form-control > label { display: flex; flex-direction: column; gap: 4px; margin: 0 0 6px; font-size: 12px; }
 .ui-menu-panel :is(input,select,textarea) { max-width: 100%; min-width: 0; box-sizing: border-box; }
 .primary-charting-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; border-left: 1px solid #cad7e5; padding-left: 10px; margin-left: 4px; }
@@ -144,7 +145,7 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .ui-dock-area[hidden],.ui-embedded-dock-layout[hidden] { display: none !important; }
 .ui-resident-slot { position: relative; flex: 0 1 auto; min-width: 0; max-width: 100%; pointer-events: auto; }
 .ui-resident-slot > .ui-function { max-width: 230px; }
-.ui-resident-slot > .ui-form-control { max-width: 240px; width: 220px; }
+.ui-resident-slot > .ui-form-control { max-width: 100%; width: fit-content; }
 .ui-row-break { flex-basis: 100%; height: 0; margin: -7px 0; pointer-events: none; }
 .ui-contour { position: absolute; inset: 0; overflow: visible; pointer-events: visiblePainted; }
 .ui-dock-area .empty-ui-slot { position: relative; width: 110px; height: 44px; border-radius: 14px; pointer-events: auto; }
@@ -185,7 +186,7 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .ui-placement-preview { position: fixed; z-index: 30000; border: 2px solid #69b5ff; border-radius: 7px; background: #3a8cdd26; pointer-events: none; }
 .ui-snap-preview { left: 16px; bottom: 16px; max-width: calc(100vw - 32px); }
 .ui-form-control { position: relative; display: flex; align-items: flex-start; gap: 4px; cursor: default; max-width: 100%; }
-.ui-form-control > label { flex: 1; }
+.ui-form-control > label { flex: 0 1 auto; }
 .ui-field-grip { display: inline-block; flex-shrink: 0; min-width: 13px; padding: 4px 0; color: #6c859e; cursor: grab; user-select: none; }
 .ui-form-control input, .ui-form-control select, .ui-form-control textarea { max-width: 100%; min-width: 0; }
 .docked-window.floating-window { position: absolute !important; z-index: 1 !important; }
@@ -465,7 +466,7 @@ label {
 input,
 textarea,
 select {
-  width: 100%;
+  width: auto;
   border: 1px solid #cbd3de;
   border-radius: 5px;
   background: white;
@@ -473,7 +474,9 @@ select {
   color: #233348;
   min-width: 0;
 }
+input:not([type="range"]):not([type="color"]), select { field-sizing: content; align-self: flex-start; max-width: 100%; }
 textarea {
+  width: 100%;
   resize: vertical;
 }
 .sidebar label:has(input[type="checkbox"]) {
@@ -846,7 +849,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .appearance-icon-mask { display: inline-block; width: 1.4em; height: 1.4em; mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat; }
 @media (prefers-reduced-motion: reduce) { .appearance-instance-found { animation: none; } }
 :is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row-name { min-width: 55px !important; flex: 1 1 55px; }
-:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > select { width: 105px !important; max-width: 105px !important; flex: 0 1 105px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > select { width: auto !important; max-width: 100% !important; flex: 0 1 auto; }
 :is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > .appearance-number { flex: 0 1 78px; max-width: 78px !important; }
 :is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-lock-area { flex: 0 0 22px; }
 :is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-number input { width: 42px !important; min-width: 25px !important; }
@@ -896,10 +899,10 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 }
 .ui-frame-close:hover { background: color-mix(in srgb, var(--omnium-accent, #386991) 20%, transparent); }
 .ui-frame-close img { width: 10px; height: 10px; object-fit: contain; }
-.ui-frame-handle { padding-right: 14px; }
+.ui-frame-handle { padding-right: 0; }
 .ui-frame-handle.icon-handle { padding-right: 0; }
 .ui-inline-frame-bar { position: relative; display: inline-flex; min-width: 0; max-width: 100%; }
-.ui-inline-frame-bar > .property-node-name { padding-right: 18px; }
+.ui-inline-frame-bar > .property-node-name { padding-right: 32px; }
 .ui-dock-tab-with-close { position: relative; display: inline-flex; align-items: stretch; flex-shrink: 0; }
 .ui-dock-tab-with-close > .ui-dock-tab { padding-right: 18px; }
 [data-ui-resident-root][hidden] { display: none !important; }
@@ -907,3 +910,36 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .ui-docked-panel > .ui-legacy-search { right: 36px; }
 .ui-popup-close { position: absolute; right: 4px; top: 3px; width: 14px; height: 14px; min-height: 14px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: 11px/1 sans-serif; }
 :is(.ui-background-menu,.ui-frame-search-popup):has(> .ui-popup-close) { padding-top: 20px; }
+
+/* Controls size to their values; only intentional editing/search surfaces fill a row. */
+.ui-form-control { width: fit-content; }
+.ui-form-control :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"]),select) {
+  width: auto; field-sizing: content; max-width: 100%; min-width: 3ch;
+}
+.floating-body input[type="search"] { min-width: min(18ch, 100%); }
+.ui-form-control label:has(> input:is([type="checkbox"],[type="radio"])),
+.floating-body label:has(> input:is([type="checkbox"],[type="radio"])),
+label.ui-checkbox-control {
+  display: inline-flex; flex-direction: row; align-items: center; justify-content: flex-start;
+  flex: 0 1 auto; width: fit-content; max-width: 100%; gap: 6px; margin: 0;
+}
+label:has(> input:is([type="checkbox"],[type="radio"])) > input:is([type="checkbox"],[type="radio"]) {
+  width: auto; min-width: 0; flex: 0 0 auto; margin: 0;
+}
+.appearance-sets { width: fit-content; max-width: 100%; margin: 0 0 6px; gap: 4px; padding: 4px;
+  border: 1px solid var(--omnium-border, #91abc344); border-radius: 6px;
+}
+.floating-body .appearance-sets > :is(input,select) { width: auto; min-width: 4ch; max-width: 100%; field-sizing: content; }
+.appearance-sets > button { padding: 2px 5px; min-width: 20px; min-height: 24px; }
+.appearance-controller .ui-form-control:has(.ui-checkbox-control) { margin-block: 4px; padding: 4px 0; }
+/* The bordered bar owns its operators; no loose tools beyond its contour. */
+.ui-inline-frame-bar { border: 1px solid var(--omnium-border, #91abc3); border-radius: 6px; background: var(--omnium-handle, #e6eef8ee); color: inherit; }
+.ui-inline-frame-bar > .property-node-name { border: 0; background: transparent; }
+.ui-frame-operators { position: absolute; right: 2px; top: 2px; display: inline-flex; align-items: center; gap: 2px; pointer-events: auto; }
+.ui-frame-operators > .ui-frame-close,
+.frame-chrome .ui-frame-operators > .ui-frame-close { position: relative; inset: auto; }
+.ui-frame-operators > .ui-frame-search-toggle { width: 12px; height: 12px; min-width: 12px; min-height: 12px; flex: 0 0 12px; padding: 0; }
+.ui-frame-operators > .ui-frame-search-toggle svg { width: 10px; height: 10px; }
+.ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close) { padding-right: 32px; }
+.ui-frame-handle.icon-handle > button { padding-top: 12px; }
+.ui-frame-tools { width: max-content; max-width: 100%; }

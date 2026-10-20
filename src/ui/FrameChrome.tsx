@@ -56,6 +56,16 @@ export function FrameChrome({
     ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows },
   }, container)));
   const closeButton = <FrameCloseButton container={container} title={title} onClose={close} label={closeLabel} />;
+  const operators = (
+    <span className="ui-frame-operators">
+      <FrameSearch
+        container={container}
+        title={title}
+        expand={() => { if (state.collapsed && !fixed) onChange({ collapsed: false }); }}
+      />
+      {closeButton}
+    </span>
+  );
   const openFrameMenu = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -114,7 +124,7 @@ export function FrameChrome({
           )}
           <ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${container}`]} />
         </button>
-        {closeButton}
+        {operators}
         </div>
       </div>
     );
@@ -170,15 +180,8 @@ export function FrameChrome({
             )}
             <ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${container}`]} />
           </button>
-          {closeButton}
+          {operators}
         </div>
-        <FrameSearch
-          container={container}
-          title={title}
-          expand={() => {
-            if (state.collapsed && !fixed) onChange({ collapsed: false });
-          }}
-        />
       </div>
     </header>
   );
