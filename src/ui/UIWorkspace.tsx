@@ -32,6 +32,7 @@ import {
 import { useDragActivationGuard } from "./activationGuard";
 import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
 import { FloatingWindow } from "./FloatingWindow";
+import { EmbeddedGroup } from "./EmbeddedGroup";
 import {
   detachFunction,
   functionPinned,
@@ -1798,19 +1799,21 @@ export function UIWorkspace({
             configureControl(null);
           }}
         >
-          <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
-          {configuredFrame && frameActions.get(configuredFrame)?.onRename && (
-            <label>
-              Name
-              <UINameInput
-                label="Frame name"
-                value={layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)!.title}
-                onRename={(name) => frameActions.get(configuredFrame)?.onRename?.(name)}
-              />
-            </label>
-          )}
+          <EmbeddedGroup id="arrange:appearance" title="Appearance" className="arrange-section">
+            <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
+          </EmbeddedGroup>
           {!configuredControl && (
-            <>
+            <EmbeddedGroup id="arrange:display" title={configuredFrame ? "Frame handle" : "Display"} className="arrange-section">
+              {configuredFrame && frameActions.get(configuredFrame)?.onRename && (
+                <label>
+                  Name
+                  <UINameInput
+                    label="Frame name"
+                    value={layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)!.title}
+                    onRename={(name) => frameActions.get(configuredFrame)?.onRename?.(name)}
+                  />
+                </label>
+              )}
               <label>
                 Display
                 <select
@@ -1836,34 +1839,44 @@ export function UIWorkspace({
                   <option value="triangle">Triangle</option>
                 </select>
               </label>
-            </>
+            </EmbeddedGroup>
           )}
-          {shortcuts && (() => {
-            const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
-            const id = buttonShortcutId(target);
-            const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
-            return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
-          })()}
-          <VisualControls
-            key={
-              configuredControl
-                ? `${configuredControl.owner}:${configuredControl.control}`
-                : (configuredFrame ?? configured)
-            }
-            label={
-              configuredControl ? "Frame control" : configuredFrame ? "Frame handle" : "Function"
-            }
-            allowModels={false}
-            iconColor={configuredControl ? "#829eb9" : "#254e73"}
-            value={{ assetId: style.assetId, character: style.character, showText: false }}
-            assets={layout.assets}
-            onChange={(v) => setStyle({ mode: "icon", assetId: v.assetId, character: v.character })}
-            onAsset={(asset, visual) =>
-              setStyle({ mode: "icon", character: undefined, assetId: visual.assetId }, asset)
-            }
-          />
+          {shortcuts && (
+            <EmbeddedGroup id="arrange:shortcut" title="Shortcut" className="arrange-section">
+              {(() => {
+                const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
+                const id = buttonShortcutId(target);
+                const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
+                return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
+              })()}
+            </EmbeddedGroup>
+          )}
+          <EmbeddedGroup
+            id="arrange:visual"
+            title={configuredControl ? "Frame control visual" : configuredFrame ? "Frame handle visual" : "Function visual"}
+            className="arrange-section"
+          >
+            <VisualControls
+              key={
+                configuredControl
+                  ? `${configuredControl.owner}:${configuredControl.control}`
+                  : (configuredFrame ?? configured)
+              }
+              label={
+                configuredControl ? "Frame control" : configuredFrame ? "Frame handle" : "Function"
+              }
+              allowModels={false}
+              iconColor={configuredControl ? "#829eb9" : "#254e73"}
+              value={{ assetId: style.assetId, character: style.character, showText: false }}
+              assets={layout.assets}
+              onChange={(v) => setStyle({ mode: "icon", assetId: v.assetId, character: v.character })}
+              onAsset={(asset, visual) =>
+                setStyle({ mode: "icon", character: undefined, assetId: visual.assetId }, asset)
+              }
+            />
+          </EmbeddedGroup>
           {selected && (
-            <>
+            <EmbeddedGroup id="arrange:placement" title="Placement" className="arrange-section">
               <button
                 onClick={() =>
                   update((s) => ({
@@ -1889,7 +1902,7 @@ export function UIWorkspace({
               >
                 Return to default location
               </button>
-            </>
+            </EmbeddedGroup>
           )}
         </FloatingWindow>
       )}

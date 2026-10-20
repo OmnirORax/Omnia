@@ -22,7 +22,8 @@ import { nativeActionId } from "./NativeActions";
 export function EmbeddedGroup({
   id,
   title,
-  expanded,
+  expanded: expandedOverride,
+  defaultExpanded = true,
   selected,
   className = "",
   nodeId,
@@ -31,11 +32,12 @@ export function EmbeddedGroup({
 }: {
   id: string;
   title: string;
-  expanded: boolean;
+  expanded?: boolean;
+  defaultExpanded?: boolean;
   selected?: boolean;
   className?: string;
   nodeId?: string;
-  onToggle: (event: MouseEvent<HTMLButtonElement>) => void;
+  onToggle?: (event: MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
 }) {
   const appearance = useAppearance();
@@ -43,6 +45,7 @@ export function EmbeddedGroup({
     home = useContext(UIHomeContext),
     parent = useContext(UIContainerContext) ?? home,
     key = `window:${id}`;
+  const expanded = expandedOverride ?? !(ui.layout.windows[id]?.collapsed ?? !defaultExpanded);
   const root = useRef<HTMLDivElement>(null);
   const [z, setZ] = useState(nextWindowLayer);
   const initial: WindowState = {
