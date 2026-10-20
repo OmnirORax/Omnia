@@ -79,6 +79,7 @@ import { useFrameBounds, residentBounds } from "./frameBounds";
 import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
+const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
@@ -431,6 +432,8 @@ type DragState = {
   dy: number;
   originOffset: { x: number; y: number };
   slots: Map<string, { key: string; r: Rect }[]>;
+  targetBounds: Map<Element, DOMRect>;
+  zoneOrigins: Map<Element, { x: number; y: number }>;
   cancelled?: boolean;
   control?: { owner: string; control: string };
 };
@@ -798,6 +801,16 @@ export function UIWorkspace({
           })),
         ]),
       );
+      // In-flow ghosts can enlarge/reflow their dock. They must not change the
+      // hit regions or coordinate origin used to decide this same gesture.
+      const targetBounds = new Map(
+        [...document.querySelectorAll(dropGeometrySelector)].map(el => [el, el.getBoundingClientRect()]),
+      );
+      const zoneOrigins = new Map(
+        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map(el => [el, {
+          x: Number(el.dataset.originX || 0), y: Number(el.dataset.originY || 0),
+        }]),
+      );
       drag.current = {
         key,
         width: r.width,
@@ -809,6 +822,8 @@ export function UIWorkspace({
           y: (root?.getBoundingClientRect().y ?? r.y) - r.y,
         },
         slots,
+        targetBounds,
+        zoneOrigins,
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
@@ -818,12 +833,14 @@ export function UIWorkspace({
       const source = drag.current;
       if (!source || source.cancelled) return null;
       const s = effectiveLayout();
+      const boundsOf = (element: Element): DOMRect => source.targetBounds.get(element) ?? element.getBoundingClientRect();
+      const originOf = (element: HTMLElement) => source.zoneOrigins.get(element) ?? { x: Number(element.dataset.originX || 0), y: Number(element.dataset.originY || 0) };
       if (source.control) {
         const element = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
           (e) => e.dataset.uiChrome === source.control!.owner,
         );
         if (!element) return null;
-        const r = element.getBoundingClientRect();
+        const r = boundsOf(element);
         let position = { x: x - source.dx - r.x, y: y - source.dy - r.y };
         const container = getContainer(s, source.control.owner);
         const grid =
@@ -832,11 +849,11 @@ export function UIWorkspace({
           const body = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
             (n) => n.dataset.uiDropZone === source.control!.owner,
           );
-          const b = body?.getBoundingClientRect();
+          const b = body ? boundsOf(body) : undefined;
           const origin = b
             ? {
-                x: b.x - r.x - Number(body?.dataset.originX || 0) + grid.origin.x,
-                y: b.y - r.y - Number(body?.dataset.originY || 0) + grid.origin.y,
+                x: b.x - r.x - (body ? originOf(body).x : 0) + grid.origin.x,
+                y: b.y - r.y - (body ? originOf(body).y : 0) + grid.origin.y,
               }
             : grid.origin;
           position = snapPosition(
@@ -846,7 +863,7 @@ export function UIWorkspace({
             [...element.querySelectorAll<HTMLElement>(".frame-mini-control,.ui-frame-handle")]
               .filter((n) => n.dataset.uiControl !== source.control!.control)
               .map((n) => {
-                const q = n.getBoundingClientRect();
+                const q = boundsOf(n);
                 return { x: q.x - r.x, y: q.y - r.y, width: q.width, height: q.height };
               }),
           );
@@ -865,7 +882,11 @@ export function UIWorkspace({
       // Native dragging leaves the source at its old location. Look through that
       // surface so it cannot block a destination underneath it. Descendant frames
       // retain their own roots, allowing cycle/pinning rejection to remain explicit.
-      const hitElements = document.elementsFromPoint(x, y);
+      const hitElements = document.elementsFromPoint(x, y).filter(el => {
+        if (el.closest("[data-ui-ghost],.ui-drag-source")) return false;
+        const target = el.closest(dropGeometrySelector);
+        return !target || rectDistance(x, y, boundsOf(target)) === 0;
+      });
       if (
         source.key.startsWith("window:") &&
         s.windows[source.key.slice(7)]?.inline &&
@@ -885,7 +906,7 @@ export function UIWorkspace({
         const area = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
           (el) => el.dataset.uiDropZone === scope,
         );
-        if (!area || rectDistance(x, y, area.getBoundingClientRect()) > DOCK_DISTANCE)
+        if (!area || rectDistance(x, y, boundsOf(area)) > DOCK_DISTANCE)
           return { text: "This control stays in its owning menu" };
       }
       const hitOwner = elements[0]?.closest<HTMLElement>("[data-ui-resident-root],.toolbar");
@@ -899,7 +920,7 @@ export function UIWorkspace({
                   `function:${el.dataset.uiFunction}` !== source.key &&
                   el.closest("[data-ui-resident-root],.toolbar") === hitOwner,
               )
-              .map((el) => ({ el, d: rectDistance(x, y, el.getBoundingClientRect()) }))
+              .map((el) => ({ el, d: rectDistance(x, y, boundsOf(el)) }))
               .filter((item) => item.d <= 12)
               .sort((a, b) => a.d - b.d)[0]?.el
           : undefined);
@@ -916,7 +937,7 @@ export function UIWorkspace({
           peer.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot;
         if (functionPinned(s, target) || (targetOwner && residentPinned(s, targetOwner)))
           return { text: "Unpin this field or window before rearranging" };
-        const r = peer.getBoundingClientRect(),
+        const r = boundsOf(peer),
           parentStyle = peer.parentElement ? getComputedStyle(peer.parentElement) : null;
         const horizontal = parentStyle?.display === "flex" && parentStyle.flexDirection === "row";
         const after = horizontal ? x > r.x + r.width / 2 : y > r.y + r.height / 2;
@@ -944,7 +965,7 @@ export function UIWorkspace({
           const zone = strip ?? slot.parentElement?.closest<HTMLElement>("[data-ui-drop-zone]");
           const target = strip?.dataset.uiFrameStrip ?? zone?.dataset.uiDropZone;
           if (!zone || !target || !canDock(s, source.key, target)) return [];
-          const r = slot.getBoundingClientRect();
+          const r = boundsOf(slot);
           if (!r.width || !r.height || rectDistance(x, y, r) > 14) return [];
           if (rectDistance(x, y, r) === 0 && !elements.some(el => slot.contains(el))) return [];
           const vertical = strip?.classList.contains("is-vertical");
@@ -967,8 +988,8 @@ export function UIWorkspace({
             frameStrip: { target: hit.target, orderId: hit.strip.dataset.uiFrameOrder!, nativeKeys: JSON.parse(hit.strip.dataset.uiFrameNative ?? "[]"), peer: hit.key, after, keys: [...hit.strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order)).map(el => el.dataset.uiFrameSlot!) },
           };
           const c = getContainer(s, hit.target)!;
-          const bounds = hit.zone.getBoundingClientRect();
-          const ox = Number(hit.zone.dataset.originX || 0), oy = Number(hit.zone.dataset.originY || 0);
+          const bounds = boundsOf(hit.zone);
+          const ox = originOf(hit.zone).x, oy = originOf(hit.zone).y;
           const boxes = new Map((source.slots.get(hit.target) ?? []).map(slot => [slot.key, { x: slot.r.x - bounds.x + ox + hit.zone.scrollLeft, y: slot.r.y - bounds.y + oy + hit.zone.scrollTop, width: slot.r.width, height: slot.r.height }]));
           if (boxes.has(hit.key)) {
             const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side, c.arrangement);
@@ -978,7 +999,7 @@ export function UIWorkspace({
         }
       }
       const candidateHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle,[data-ui-inline-handle]");
-      const handleBounds = candidateHandle?.getBoundingClientRect();
+      const handleBounds = candidateHandle ? boundsOf(candidateHandle) : undefined;
       // Dock into the middle of a handle; its perimeter belongs to adjacent placement.
       const inset = handleBounds ? Math.min(18, handleBounds.width / 4) : 0;
       const handle =
@@ -993,6 +1014,7 @@ export function UIWorkspace({
       const directInline =
         elements[0]?.closest<HTMLElement>("[data-ui-inline-group]")?.dataset.uiInlineGroup;
       const inlineTarget = handleTarget ?? directInline;
+      const inlineRoot = elements[0]?.closest<HTMLElement>("[data-ui-inline-group]");
       if (
         inlineTarget &&
         getContainer(s, inlineTarget) &&
@@ -1003,9 +1025,7 @@ export function UIWorkspace({
           return { text: "Cannot place a group inside itself, its descendants or a pinned group" };
         return {
           text: `Add to ${frameActions.get(inlineTarget)?.title ?? "group"}`,
-          rect: elements[0]
-            ?.closest<HTMLElement>("[data-ui-inline-group]")
-            ?.getBoundingClientRect(),
+          rect: inlineRoot ? boundsOf(inlineRoot) : undefined,
           dock: {
             key: source.key,
             target: inlineTarget,
@@ -1039,7 +1059,7 @@ export function UIWorkspace({
           own = zones.find((e) => e.dataset.uiDropZone === owner);
         if (
           own &&
-          rectDistance(x, y, own.getBoundingClientRect()) === 0 &&
+          rectDistance(x, y, boundsOf(own)) === 0 &&
           canDock(s, source.key, owner!)
         )
           zone = own;
@@ -1047,21 +1067,21 @@ export function UIWorkspace({
       if (!zone && (!handleTarget || handleTarget === source.key))
         zone = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")]
           .filter((e) => e.getClientRects().length && canDock(s, source.key, e.dataset.uiDropZone!))
-          .map((e) => ({ e, distance: rectDistance(x, y, e.getBoundingClientRect()) }))
+          .map((e) => ({ e, distance: rectDistance(x, y, boundsOf(e)) }))
           .filter((p) => p.distance <= DOCK_DISTANCE)
           .sort(
             (a, b) =>
               a.distance - b.distance ||
-              a.e.getBoundingClientRect().width * a.e.getBoundingClientRect().height -
-                b.e.getBoundingClientRect().width * b.e.getBoundingClientRect().height,
+              boundsOf(a.e).width * boundsOf(a.e).height -
+                boundsOf(b.e).width * boundsOf(b.e).height,
           )[0]?.e;
       if (zone) {
         const target = zone.dataset.uiDropZone!,
           c = getContainer(s, target)!,
           members = c.members ?? [];
-        const bounds = zone.getBoundingClientRect();
-        const ox = Number(zone.dataset.originX || 0),
-          oy = Number(zone.dataset.originY || 0);
+        const bounds = boundsOf(zone);
+        const ox = originOf(zone).x,
+          oy = originOf(zone).y;
         const boxes = new Map(
           (source.slots.get(target) ?? []).map((slot) => [
             slot.key,
@@ -1125,7 +1145,7 @@ export function UIWorkspace({
       const tab = handle?.closest<HTMLElement>("[data-ui-chrome]");
       if (tab && canDock(s, source.key, tab.dataset.uiChrome!)) {
         const target = tab.dataset.uiChrome!,
-          r = tab.getBoundingClientRect();
+          r = boundsOf(tab);
         const members = getContainer(s, target)?.members ?? [];
         const position =
           members.length && members.every((m) => m.position && m.size)
@@ -1161,7 +1181,7 @@ export function UIWorkspace({
         return {
           text: "Group into a collapsed frame",
           group: `function:${other.dataset.uiFunction}`,
-          rect: other.getBoundingClientRect(),
+          rect: boundsOf(other),
         };
       const desired = {
         x: Math.max(
@@ -1184,7 +1204,7 @@ export function UIWorkspace({
             (el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`) !== source.key &&
             !ownerOf(s, el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`),
         )
-        .map((el) => el.getBoundingClientRect());
+        .map((el) => boundsOf(el));
       const position =
         s.arrangement?.mode === "snap" && s.arrangement.grid
           ? snapPosition(desired, source, s.arrangement.grid, occupied)

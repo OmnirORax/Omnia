@@ -147,6 +147,7 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .ui-contour { position: absolute; inset: 0; overflow: visible; pointer-events: visiblePainted; }
 .ui-dock-area .empty-ui-slot { position: relative; width: 110px; height: 44px; border-radius: 14px; pointer-events: auto; }
 .ui-drop-ghost { display: grid; place-content: center; min-width: 44px; min-height: 28px; padding: 5px; border-radius: 8px; outline: 2px solid #6bb8ff; background: #388bdf44; color: #9bceff; font-size: 11px; overflow-wrap: anywhere; }
+.ui-drop-ghost { pointer-events: none; }
 .is-drop-target { outline: 1px dashed #69b5ff99; outline-offset: 3px; }
 .ui-placement-preview { position: fixed; z-index: 30000; border: 2px solid #69b5ff; border-radius: 7px; background: #3a8cdd26; pointer-events: none; }
 .ui-snap-preview { left: 16px; bottom: 16px; max-width: calc(100vw - 32px); }
