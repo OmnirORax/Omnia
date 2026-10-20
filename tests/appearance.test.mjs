@@ -216,3 +216,86 @@ test("old VFX values, locks, plugs and local references migrate without overwrit
   );
   assert.deepEqual(loadController(migrated), migrated);
 });
+
+// Appearance recovery is a persistence boundary, so verify it without a browser suite.
+import { emptyUILayout } from "../src/ui/layout.ts";
+import { startSession, currentState, editSession, applySession, travelSession } from "../src/appearance/session.ts";
+import { appendCheckpoint, parseCheckpoints, safeAppearance } from "../src/appearance/checkpoints.ts";
+import { PROPERTY_TREE, propertyPath } from "../src/appearance/propertyTree.ts";
+import { PROPERTIES, validateProperty } from "../src/appearance/registry.ts";
+
+test("appearance previews never enter saved settings; Apply is one undo step", () => {
+  const initial = { layout: emptyUILayout(), settings: defaultSettings() };
+  let session = startSession(initial);
+  for (const accent of ["#8844aa", "#ff0000", "#000000"]) {
+    const current = currentState(session);
+    session = editSession(session, { ...current, settings: { ...current.settings, appearance: { ...current.settings.appearance, accent } } });
+  }
+  assert.deepEqual(session.saved.present, initial);
+  assert.equal(session.saved.past.length, 0);
+  assert.equal(currentState(session).settings.appearance.accent, "#000000");
+  session = travelSession(session, "undo", 2);
+  assert.equal(currentState(session).settings.appearance.accent, "#8844aa");
+  session = travelSession(session, "redo", 2);
+  const applied = applySession(session);
+  assert.equal(applied.draft, null);
+  assert.equal(applied.saved.past.length, 1);
+  assert.equal(travelSession(applied, "undo").saved.present.settings.appearance.accent, initial.settings.appearance.accent);
+  assert.equal(travelSession(travelSession(applied, "undo"), "redo").saved.present.settings.appearance.accent, "#000000");
+});
+
+test("layout and controls save independently; discard preserves them and prior appearance", () => {
+  const initial = { layout: emptyUILayout(), settings: defaultSettings() };
+  let session = startSession(initial);
+  session = editSession(session, { ...initial, settings: { ...initial.settings, appearance: { ...initial.settings.appearance, opacity: 0 } } });
+  const pending = currentState(session);
+  session = editSession(session, { layout: { ...pending.layout, panels: { "@theme": false } }, settings: { ...pending.settings, isolateFocus: true } });
+  assert.equal(session.saved.present.settings.appearance.opacity, 1);
+  assert.equal(session.saved.present.layout.panels["@theme"], false);
+  assert.equal(session.saved.present.settings.isolateFocus, true);
+  const discarded = currentState({ ...session, draft: null });
+  assert.equal(discarded.settings.appearance.opacity, 1);
+  assert.equal(discarded.settings.isolateFocus, true);
+  assert.deepEqual(discarded.layout, session.saved.present.layout);
+  // Applying a live picker preview also preserves its latest value atomically.
+  const applied = applySession(session, { ...pending.settings.appearance, accent: "#123456" });
+  assert.equal(applied.saved.present.settings.appearance.accent, "#123456");
+});
+
+test("checkpoints retain the newest ten normalized snapshots and allow named manual saves", () => {
+  const appearance = defaultSettings().appearance;
+  let checkpoints = appendCheckpoint([], appearance, "Original");
+  const original = structuredClone(checkpoints[0]);
+  assert.equal(appendCheckpoint(checkpoints, appearance), checkpoints);
+  checkpoints = appendCheckpoint(checkpoints, appearance, "Named save", true);
+  assert.equal(checkpoints.length, 2);
+  for (let i = 0; i < 15; i++) checkpoints = appendCheckpoint(checkpoints, { ...appearance, glow: i / 20 }, `Save ${i}`);
+  assert.equal(checkpoints.length, 10);
+  assert.equal(checkpoints[0].name, "Save 5");
+  assert.equal(checkpoints.at(-1).name, "Save 14");
+  assert.deepEqual(parseCheckpoints(JSON.parse(JSON.stringify(checkpoints))), checkpoints);
+  assert.deepEqual(original.appearance, normalizeSettings({ appearance }).appearance);
+  assert.equal(parseCheckpoints([null, { id: "broken" }, ...checkpoints, checkpoints[0]]).length, 10);
+  const safe = safeAppearance();
+  assert.equal(safe.effect, "off");
+  assert.equal(safe.opacity, 1);
+  assert.equal(safe.font, "system");
+  assert.deepEqual(safe.controller.values, {});
+});
+
+test("each registered adjuster has one property node; styles apply only to supported renderer targets", () => {
+  const flatten = nodes => nodes.flatMap(node => [...(node.property ? [node.property] : []), ...flatten(node.children ?? [])]);
+  const ids = flatten(PROPERTY_TREE);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.deepEqual([...ids].sort(), PROPERTIES.map(p => p.id).sort());
+  assert.deepEqual(propertyPath("effectColor"), ["effect", "effectAppearance", "effectColor"]);
+  assert.deepEqual(propertyPath("textSpacing"), ["font", "textSpacing"]);
+  const targets = controllerTargets(emptyController());
+  assert.ok(targets.find(t => t.id === "text.ui.buttons").properties.includes("textSize"));
+  assert.ok(!targets.find(t => t.id === "text.nodes").properties.includes("textSize"));
+  assert.ok(targets.find(t => t.id === "omnium.binders.path").properties.includes("contourWidth"));
+  assert.ok(!targets.find(t => t.id === "symbols.nodes").properties.includes("saturation"));
+  assert.equal(validateProperty("gradient", true), true);
+  assert.equal(validateProperty("gradient", "true"), undefined);
+  assert.equal(validateProperty("contourWidth", 50), 12);
+});

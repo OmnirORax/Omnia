@@ -232,7 +232,7 @@ export function buildTextScene(
     const color = style.color;
     const related = !selectedId || b.source === selectedId || b.target === selectedId;
     const opacity = style.opacity;
-    const material = new LineMaterial({ color: new THREE.Color(color).getHex(), linewidth: 1.5, worldUnits: false, alphaToCoverage: true, transparent: true, depthWrite: false, opacity, dashed: b.kind === "visual" || b.kind === "variant", dashSize: 0.15, gapSize: 0.1 });
+    const material = new LineMaterial({ color: new THREE.Color(color).getHex(), linewidth: Number(theme.renderDefaults?.["omnium.binders.path"]?.contourWidth ?? 1.5), worldUnits: false, alphaToCoverage: true, transparent: true, depthWrite: false, opacity, dashed: b.kind === "visual" || b.kind === "variant", dashSize: 0.15, gapSize: 0.1 });
     const line = new Line2(new LineGeometry(), material);
     line.userData.glowIntensity = style.glow;
     const defaultArrow = new THREE.Mesh(
@@ -301,6 +301,7 @@ export function buildTextScene(
       const style = resolveAppearance(next.binders, next.theme === "neon" ? next.accent : b.kind === "relationship" ? "#9fc4e9" : b.kind === "composition" ? "#83c9c1" : "#7d8c9e", b.color ? { color: b.color, opacity: b.opacity ?? next.binders.opacity, glow: b.glow } : undefined);
       const text = resolveAppearance(next.nodes, fallback, b.textAppearance);
       item.opacity = style.opacity * next.opacity; item.textOpacity = (b.textAppearance?.opacity ?? Number(next.renderDefaults?.['text.binders']?.opacity ?? text.opacity)) * next.opacity;
+      item.line.material.linewidth = Number(next.renderDefaults?.["omnium.binders.path"]?.contourWidth ?? 1.5);
       item.line.material.color.set(style.color); item.line.userData.glowIntensity = style.glow;
       const operator=symbolStyle(next,'symbols.binders',b.color,style.color);
       item.arrow.userData.glowIntensity = b.glow??operator.glow;

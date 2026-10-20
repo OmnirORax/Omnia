@@ -6,7 +6,7 @@ import { getContainer, residentKey, updateContainer } from "./layout";
 export type SearchResult = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
 export const normalizeSearch = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 export const rootFor = (key: string) => key === "workspace" ? document.body : [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
-export const nameFor = (ui: UIContextValue, key: string) => ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
+export const nameFor = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
 
 /** Index control labels, never input values or canonical graph data. */
 export function frameControls(ui: UIContextValue, container: string): SearchResult[] {
@@ -24,6 +24,7 @@ export function frameControls(ui: UIContextValue, container: string): SearchResu
   };
   for (const element of root?.querySelectorAll<HTMLElement>("[data-ui-function],.binding-row,label,button,input,select,textarea") ?? []) {
     if ((element.closest("[data-ui-search],.frame-chrome") || container === "workspace" && element.closest("[data-ui-palette],[data-shortcut-runner]")) || element.matches('input[type="hidden"],input[type="file"]')) continue;
+    if (element.hasAttribute("data-ui-native-hidden")) continue;
     const fnElement = element.closest<HTMLElement>("[data-ui-function]"), row = element.closest<HTMLElement>(".binding-row");
     if (fnElement && (fnElement !== element || element.parentElement?.closest("[data-ui-function]")) || row && row !== element && !row.closest("[data-ui-function]") || !fnElement && !row && element.parentElement?.closest("label")) continue;
     const id = element.dataset.uiFunction, fn = id ? functions.get(id) : undefined;
@@ -80,7 +81,7 @@ export function FrameSearch({ container, title, expand }: { container: string; t
     let frame = 0, attempts = 0, timer: ReturnType<typeof setTimeout> | undefined, found: HTMLElement | undefined;
     const locate = () => {
       const root = rootFor(container);
-      found = result.functionId ? [...root?.querySelectorAll<HTMLElement>("[data-ui-function]") ?? []].find(element => element.dataset.uiFunction === result.functionId) : result.element;
+      found = result.functionId ? [...root?.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])") ?? []].find(element => element.dataset.uiFunction === result.functionId) : result.element;
       if (!found?.isConnected) { if (++attempts < 8) frame = requestAnimationFrame(locate); return; }
       let ancestor: HTMLElement | null = found;
       while (ancestor && ancestor !== root) { if (ancestor instanceof HTMLDetailsElement) ancestor.open = true; ancestor = ancestor.parentElement; }

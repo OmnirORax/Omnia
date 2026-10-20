@@ -2,12 +2,13 @@ import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import { fitWindow, ownerOf, releaseResident, residentPinned, type WindowState } from "./layout";
-import { useUI, UIHomeContext } from "./context";
+import { useUI, UIHomeContext, UIContainerContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
 import { useFrameBounds } from "./frameBounds";
 let front = 100;
+export const nextWindowLayer = () => ++front;
 export function FloatingWindow({
   id,
   title,
@@ -60,7 +61,7 @@ export function FloatingWindow({
       ui.defaults.delete(id);
     };
   }, [id]);
-  const [z, setZ] = useState(() => ++front);
+  const [z, setZ] = useState(nextWindowLayer);
   const set = (patch: Partial<WindowState>) =>
     ui.update((layout) => ({
       ...layout,
@@ -148,7 +149,7 @@ export function FloatingWindow({
           // Portal events also bubble through their React owner. A child editor
           // must not raise the library/inspector that opened it above itself.
           event.stopPropagation();
-          setZ(++front);
+          setZ(nextWindowLayer());
           onInteract?.();
         }}
         onDragStop={(_, data) => set({ x: data.x, y: data.y })}
@@ -196,8 +197,10 @@ export function FloatingWindow({
           />
           <div className="floating-body" hidden={state.collapsed}>
             <UIHomeContext.Provider value={key}>
-              {children}
-              <DockArea container={key} contour={false} />
+              <UIContainerContext.Provider value={key}>
+                {children}
+                <DockArea container={key} contour={false} />
+              </UIContainerContext.Provider>
             </UIHomeContext.Provider>
           </div>
         </div>

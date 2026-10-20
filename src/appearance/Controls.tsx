@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
-import { PROPERTIES, propertyFor } from "./registry";
+import { propertyFor } from "./registry";
 import type { Value } from "./model";
 import { applyValue, included } from "./model";
 import { useAppearance } from "./Context";
@@ -31,9 +31,13 @@ export function PropertyEditor({
     callbacks = useRef({ onCommit });
   callbacks.current = { onCommit };
   const [number, setNumber] = useState(Number(value));
+  const [numberText, setNumberText] = useState(String(value));
+  const typingNumber = useRef(false),
+    beforeNumber = useRef(value);
   useEffect(() => {
     draft.current = value;
     setNumber(Number(value));
+    if (!typingNumber.current) setNumberText(String(value));
   }, [value]);
   useEffect(() => {
     if (p.kind !== "number") return;
@@ -61,34 +65,56 @@ export function PropertyEditor({
         onChange={onCommit}
       />
     );
-  if (p.kind === "select")
+  if (p.kind === "toggle")
     return (
-      <select
-        aria-label={label ?? p.label}
-        disabled={disabled}
-        value={String(value)}
-        onChange={(e) => onCommit(e.target.value)}
-      >
-        {p.options
-          ?.filter((o) => p.id !== "effect" || !effectKinds || effectKinds.includes(o.id))
-          .map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        {p.id === "font" &&
-          ctx?.fonts?.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        {p.id === "font" &&
-          !p.options?.some((o) => o.id === value) &&
-          !ctx?.fonts?.some((o) => o.id === value) && (
-            <option value={String(value)}>Imported font (not loaded)</option>
-          )}
-      </select>
+      <label>
+        <input
+          aria-label={label ?? p.label}
+          type="checkbox"
+          checked={Boolean(value)}
+          disabled={disabled}
+          onChange={(e) => onCommit(e.target.checked)}
+        />
+        {Boolean(value) ? "On" : "Off"}
+      </label>
     );
+  if (p.kind === "select") {
+    const options = [
+      ...(p.options ?? []).filter(
+        (o) => p.id !== "effect" || !effectKinds || effectKinds.includes(o.id),
+      ),
+      ...(p.id === "font" ? (ctx?.fonts ?? []).map((f) => ({ id: f.id, label: f.name })) : []),
+    ];
+    if (p.id === "font" && !options.some((o) => o.id === value))
+      options.push({ id: String(value), label: "Imported font (not loaded)" });
+    return (
+      <div className="property-options" role="group" aria-label={label ?? p.label}>
+        {options.map((option) => (
+          <button
+            type="button"
+            key={option.id}
+            data-ui-id={option.id}
+            aria-pressed={value === option.id}
+            disabled={disabled}
+            onClick={() => onCommit(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  const finishNumber = () => {
+    if (!typingNumber.current) return;
+    typingNumber.current = false;
+    const n = numberText.trim() ? Number(numberText) : NaN;
+    const next = Number.isFinite(n)
+      ? Math.max(p.min!, Math.min(p.max!, n))
+      : Number(beforeNumber.current);
+    setNumber(next);
+    setNumberText(String(next));
+    onCommit(next);
+  };
   return (
     <span className="appearance-number">
       <input
@@ -105,10 +131,50 @@ export function PropertyEditor({
           editing.current = true;
           draft.current = next;
           setNumber(next);
+          setNumberText(String(next));
           onPreview(next);
         }}
       />
-      <output>{Number(number.toFixed(2))}</output>
+      <input
+        type="number"
+        className="appearance-precise"
+        aria-label={`${label ?? p.label} precise value`}
+        min={p.min}
+        max={p.max}
+        step={p.step}
+        disabled={disabled}
+        value={numberText}
+        onFocus={() => {
+          typingNumber.current = true;
+          beforeNumber.current = value;
+        }}
+        onChange={(event) => {
+          setNumberText(event.target.value);
+          const n = event.target.value.trim() ? Number(event.target.value) : NaN;
+          if (Number.isFinite(n)) {
+            const next = Math.max(p.min!, Math.min(p.max!, n));
+            setNumber(next);
+            onPreview(next);
+          }
+        }}
+        onBlur={finishNumber}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.blur();
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            typingNumber.current = false;
+            setNumber(Number(beforeNumber.current));
+            setNumberText(String(beforeNumber.current));
+            onPreview(beforeNumber.current);
+            event.currentTarget.blur();
+          }
+        }}
+      />
     </span>
   );
 }
@@ -140,26 +206,5 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
       onPreview={(v) => change(v, true)}
       onCommit={(v) => change(v)}
     />
-  );
-}
-export function PropertySelect({
-  value,
-  onChange,
-  available,
-}: {
-  value: string;
-  onChange: (id: string) => void;
-  available?: string[];
-}) {
-  return (
-    <select
-      aria-label="Appearance adjuster"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {PROPERTIES.filter((p) => !available || available.includes(p.id)).map((p) => (
-        <option value={p.id}>{p.label}</option>
-      ))}
-    </select>
   );
 }

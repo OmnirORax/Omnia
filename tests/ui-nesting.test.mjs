@@ -8,6 +8,7 @@ import {
   ownerOf,
   canDock,
   resetContainer,
+  collapseResidentBranch,
 } from "../src/ui/layout.ts";
 import { startHistory, recordHistory, undoHistory, redoHistory } from "../src/ui/history.ts";
 import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
@@ -204,4 +205,67 @@ test("category magnetism is proximity-limited and releases with distance or its 
   assert.equal(magnetActive(205, 115, rect, true, true), false);
   assert.equal(magnetActive(185, 115, rect, true, false), false);
   assert.equal(magnetActive(185, 115, rect, false, true), false);
+});
+
+test("embedded groups share window ownership, reject containment cycles and preserve complete groups through undo/save", () => {
+  const layout = emptyUILayout();
+  const window = (parent, collapsed = false) => ({
+    x: 50,
+    y: 60,
+    width: 220,
+    height: 140,
+    collapsed,
+    pinned: false,
+    inline: { parent },
+  });
+  layout.windows.host = { x: 0, y: 0, width: 500, height: 500, collapsed: false, pinned: false };
+  layout.windows.lighting = window("window:host");
+  layout.windows.glow = window("window:lighting");
+  layout.windows.opacity = window("window:host", true);
+  const original = validateUILayout(layout);
+  assert.equal(ownerOf(original, "window:glow"), "window:lighting");
+  assert.equal(canDock(original, "window:lighting", "window:glow"), false);
+  const moved = dockResident(original, "window:opacity", "window:lighting", 0);
+  assert.equal(ownerOf(moved, "window:opacity"), "window:lighting");
+  assert.equal(moved.windows.opacity.inline.detached, true);
+  assert.equal(moved.windows.lighting.members[0].kind, "window");
+  assert.deepEqual(validateUILayout(JSON.parse(JSON.stringify(moved))), moved);
+  assert.equal(ownerOf(original, "window:opacity"), "window:host");
+  const collapsed = collapseResidentBranch(moved, "window:lighting", true);
+  assert.equal(collapsed.windows.opacity.collapsed, true);
+  assert.equal(collapsed.windows.glow.collapsed, true);
+  const reopened = collapseResidentBranch(collapsed, "window:lighting", false);
+  assert.equal(reopened.windows.opacity.collapsed, false);
+  const history = recordHistory(startHistory(original), moved);
+  assert.deepEqual(undoHistory(history).present, original);
+  assert.deepEqual(redoHistory(undoHistory(history)).present, moved);
+  const bad = structuredClone(original);
+  bad.windows.lighting.inline.parent = "window:glow";
+  assert.throws(() => validateUILayout(bad), /Circular/);
+  const pinned = structuredClone(original);
+  pinned.windows.lighting.pinned = true;
+  assert.equal(canDock(pinned, "window:glow", "window:host"), false);
+});
+
+test("future embedded groups in entity-owned menus inherit the same fixed scope", () => {
+  const layout = emptyUILayout();
+  const window = (parent) => ({
+    x: 20,
+    y: 30,
+    width: 240,
+    height: 180,
+    collapsed: false,
+    pinned: false,
+    ...(parent ? { inline: { parent } } : {}),
+  });
+  layout.windows["context:node"] = window();
+  layout.windows.settings = window();
+  layout.windows.future = window("window:context:node");
+  layout.windows.child = window("window:future");
+  validateUILayout(layout);
+  assert.equal(canDock(layout, "window:child", "window:context:node"), true);
+  assert.equal(canDock(layout, "window:child", "window:settings"), false);
+  assert.equal(floatResident(layout, "window:child", 600, 500), layout);
+  assert.equal(canDock(layout, "function:context:node:createChild", "window:future"), true);
+  assert.equal(canDock(layout, "function:outside", "window:future"), false);
 });

@@ -147,6 +147,8 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .ui-contour { position: absolute; inset: 0; overflow: visible; pointer-events: visiblePainted; }
 .ui-dock-area .empty-ui-slot { position: relative; width: 110px; height: 44px; border-radius: 14px; pointer-events: auto; }
 .ui-drop-ghost { display: grid; place-content: center; min-width: 44px; min-height: 28px; padding: 5px; border-radius: 8px; outline: 2px solid #6bb8ff; background: #388bdf44; color: #9bceff; font-size: 11px; overflow-wrap: anywhere; }
+.ui-drop-ghost { pointer-events: none; }
+.ui-dock-preview-overlay { position: fixed; z-index: 30000; box-sizing: border-box; }
 .is-drop-target { outline: 1px dashed #69b5ff99; outline-offset: 3px; }
 .ui-placement-preview { position: fixed; z-index: 30000; border: 2px solid #69b5ff; border-radius: 7px; background: #3a8cdd26; pointer-events: none; }
 .ui-snap-preview { left: 16px; bottom: 16px; max-width: calc(100vw - 32px); }
@@ -762,6 +764,9 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .appearance-sets > input { min-width: 80px; width: 100px; }
 .appearance-sets > select { max-width: 120px; }
 .appearance-controller > input[type="search"] { width: 100%; margin-bottom: 6px; }
+.appearance-hierarchy { padding: 6px; border: 1px solid var(--omnium-border, #91abc344); border-radius: 8px; }
+.appearance-hierarchy > .property-node-contents { width: min(460px, calc(100vw - 40px)); max-width: 100%; }
+.appearance-hierarchy input[type="search"] { width: 100%; margin-bottom: 6px; }
 .appearance-adjuster > select { max-width: 150px; }
 .appearance-adjuster > .appearance-number { flex: 1; }
 .appearance-number { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
@@ -771,6 +776,17 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .appearance-branch { border-left: 1px solid color-mix(in srgb,currentColor 15%,transparent); }
 .appearance-row { display: flex; align-items: center; gap: 3px; min-height: 34px; padding-right: 2px; }
 .appearance-row-name { flex: 1; min-width: 55px; font-size: 11px; overflow-wrap: anywhere; }
+.ui-editable-label { cursor: text; }
+[data-ui-drag],button[draggable="true"][data-ui-function],.ui-bubble-drag { touch-action: none; }
+html.ui-pointer-dragging,html.ui-pointer-dragging * { cursor: grabbing !important; user-select: none !important; }
+.ui-name-input { min-width: 0; width: 100%; box-sizing: border-box; }
+[data-ui-name-symbol]::before { content: attr(data-ui-name-symbol); display: inline-block; margin-inline-end: .35em; font-size: var(--ui-name-size, 12px); line-height: 1.2; vertical-align: middle; }
+[data-ui-name-symbol=""]::before { display: none; }
+html[data-ui-hide-names] [data-ui-name-symbol],
+html[data-ui-hide-names] [data-ui-name-symbol] :is(span,strong,b,small):not(.ui-shortcut-label) { font-size: 0 !important; }
+html[data-ui-hide-names] [data-ui-name-symbol]::before { font-size: var(--ui-name-size, 12px) !important; margin-inline-end: 0; }
+html[data-ui-hide-names] [data-ui-name-symbol] :is(input,select,textarea,output,.ui-shortcut-label,[data-ui-name-value]) { font-size: var(--ui-name-size, 12px) !important; }
+html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size: 22px !important; }
 .appearance-row > .appearance-number { max-width: 85px; }
 .appearance-row > .appearance-number input { width: 50px; }
 .appearance-row > select { max-width: 110px; font-size: 10px; }
@@ -793,9 +809,42 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .appearance-instance-found { outline: 2px solid currentColor !important; outline-offset: 3px; animation: ui-search-pulse .9s ease-in-out infinite alternate; }
 .appearance-icon-mask { display: inline-block; width: 1.4em; height: 1.4em; mask-size: contain; mask-position: center; mask-repeat: no-repeat; -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat; }
 @media (prefers-reduced-motion: reduce) { .appearance-instance-found { animation: none; } }
-.floating-window .appearance-controller .appearance-row-name { min-width: 55px !important; flex: 1 1 55px; }
-.floating-window .appearance-controller .appearance-row > select { width: 105px !important; max-width: 105px !important; flex: 0 1 105px; }
-.floating-window .appearance-controller .appearance-row > .appearance-number { flex: 0 1 78px; max-width: 78px !important; }
-.floating-window .appearance-controller .appearance-row .appearance-lock-area { flex: 0 0 22px; }
-.floating-window .appearance-controller .appearance-row .appearance-number input { width: 42px !important; min-width: 25px !important; }
-.floating-window .appearance-controller .appearance-row .appearance-number output { min-width: 2em; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row-name { min-width: 55px !important; flex: 1 1 55px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > select { width: 105px !important; max-width: 105px !important; flex: 0 1 105px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > .appearance-number { flex: 0 1 78px; max-width: 78px !important; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-lock-area { flex: 0 0 22px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-number input { width: 42px !important; min-width: 25px !important; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row .appearance-number output { min-width: 2em; }
+
+/* Expandable adjusters use the same editors and stable action IDs as detached controls. */
+.property-roots { margin-block: 10px; }
+.property-roots > small { display: block; margin-bottom: 6px; }
+.property-root-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.property-node { min-width: 0; max-width: 100%; }
+.property-root-row > .property-node { flex: 0 1 auto; }
+.property-node-heading { display: flex; gap: 2px; align-items: center; }
+.property-node-heading button { padding: 3px 5px; min-height: 24px; }
+.property-node.is-selected > .property-node-heading .property-node-name { border-color: var(--omnium-accent); box-shadow: 0 0 5px color-mix(in srgb, var(--omnium-accent) 45%, transparent); }
+.property-node-contents { border-left: 1px solid color-mix(in srgb, var(--omnium-accent) 25%, transparent); padding: 6px 0 2px 8px; margin-left: 7px; max-width: 280px; }
+.property-node-children { display: grid; gap: 5px; }
+.property-node-editor { margin-bottom: 6px; }
+.property-options { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; max-height: 180px; overflow: auto; }
+.property-options button { padding: 3px 5px; font-size: 11px; }
+.property-options button[aria-pressed="true"] { outline: 1px solid var(--omnium-accent); }
+.appearance-number { max-width: 100%; }
+.appearance-number input[type="number"].appearance-precise { width: 58px !important; min-width: 38px !important; padding: 2px; font-size: 11px; }
+:is(.floating-window .appearance-controller,.appearance-hierarchy) .appearance-row > .appearance-number { max-width: 118px !important; flex-basis: 118px; }
+
+/* Embedded groups are ordinary UI windows with compact, flowing contents. */
+.ui-inline-group { min-width: 0; max-width: 100%; width: max-content; }
+.ui-inline-group [data-ui-inline-handle] { cursor: grab; }
+.ui-inline-group [data-ui-inline-handle]:active { cursor: grabbing; }
+.ui-inline-group > .property-node-contents > .ui-dock-area { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; margin: 0; padding: 3px 0; }
+.ui-inline-group > .property-node-contents > .ui-dock-empty { min-width: 0; min-height: 0; padding: 0; }
+.ui-inline-group .function-icon img { width: 70%; height: 70%; object-fit: contain; }
+.arrange-section { width: 100%; margin-bottom: 8px; }
+.arrange-section > .property-node-contents { max-width: none; }
+.arrange-section > .property-node-contents > :is(.contextual-appearance,.visual-controls) { margin: 0; padding: 0; border: 0; }
+.arrange-section > .property-node-contents > :is(.contextual-appearance,.visual-controls) > legend { display: none; }
+.ui-missing-group { display: block; padding: 8px; max-width: 220px; border: 1px dashed currentColor; }
+.property-node-heading .function-icon { width: 44px; height: 44px; padding: 6px; }

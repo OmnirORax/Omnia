@@ -1,3 +1,9 @@
+import { captureNativeActions, NativeActions } from "./NativeActions";
+import { UINameInput } from "./EditableLabel";
+import { NamePresentation } from "./NamePresentation";
+import { createTransientStore } from "./transientStore";
+import { PlacementPreviewOverlay } from "./PlacementPreview";
+import { captureUIPointer } from "./drag";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -9,6 +15,7 @@ import {
   useState,
   useCallback,
   useContext,
+  useMemo,
   type DragEvent,
   type ReactNode,
   type ReactElement,
@@ -25,6 +32,7 @@ import {
 import { useDragActivationGuard } from "./activationGuard";
 import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
 import { FloatingWindow } from "./FloatingWindow";
+import { EmbeddedGroup } from "./EmbeddedGroup";
 import {
   detachFunction,
   functionPinned,
@@ -53,7 +61,7 @@ import {
   resetContainer,
   validateUILayout,
   orderNativeFunction,
-  contextOwner,
+  residentContextScope,
   type WindowState,
   type UIResident,
 } from "./layout";
@@ -72,6 +80,7 @@ import { useFrameBounds, residentBounds } from "./frameBounds";
 import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
+const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
@@ -139,7 +148,7 @@ function FunctionElement({
     "data-ui-resident": resident ? "true" : undefined,
     "data-ui-native-anchor": nativeAnchor?.key,
     "data-ui-native-home": nativeAnchor?.id,
-    title: `${fn.label}${ui.shortcutBindings?.[buttonShortcutId(fn.id)] ? ` (${ui.shortcutBindings[buttonShortcutId(fn.id)]})` : ""}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
+    title: ui.layout.hideNames ? fn.label : "",
     draggable:
       (!fn.control || palette || style.mode === "icon") && !functionPinned(ui.layout, fn.id),
     onDragStart: (e: DragEvent) => {
@@ -166,7 +175,7 @@ function FunctionElement({
           <span
             key={edge}
             className={`ui-field-edge edge-${edge}`}
-            title={`Drag ${fn.label}`}
+            title={ui.layout.hideNames ? fn.label : ""}
             data-ui-drag={`function:${fn.id}`}
             draggable={!functionPinned(ui.layout, fn.id)}
             onDragStart={(e) => startResidentDrag(e, `function:${fn.id}`)}
@@ -178,6 +187,7 @@ function FunctionElement({
     ) : (
       cloneElement(fn.control ? <button onClick={() => setControlOpen(true)} /> : original, {
         ...shared,
+        "data-ui-name": fn.label,
         disabled: false,
         "aria-disabled": original.props.disabled || undefined,
         "aria-pressed":
@@ -423,6 +433,9 @@ type DragState = {
   dy: number;
   originOffset: { x: number; y: number };
   slots: Map<string, { key: string; r: Rect }[]>;
+  targetZones: Map<string, HTMLElement>;
+  targetBounds: Map<Element, DOMRect>;
+  zoneOrigins: Map<Element, { x: number; y: number }>;
   cancelled?: boolean;
   control?: { owner: string; control: string };
 };
@@ -474,9 +487,9 @@ export function UIWorkspace({
     },
     [sources],
   );
-  const functions = [
+  const functions = useMemo(() => [
     ...new Map([...definitions, ...Object.values(registered)].map((fn) => [fn.id, fn])).values(),
-  ];
+  ], [definitions, registered]);
   const libraryOpen = layout.panels["@library"] ?? false;
   const setLibraryOpen = (value: boolean) =>
     update((s) => ({ ...s, panels: { ...s.panels, "@library": value } }));
@@ -488,9 +501,7 @@ export function UIWorkspace({
     control: "collapse" | "pin" | "close";
   } | null>(null);
   const [anchorTarget, setAnchorTarget] = useState<string | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null),
-    previewRef = useRef(preview);
-  previewRef.current = preview;
+  const [placementPreview] = useState(() => createTransientStore<Preview | null>(null));
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
   const menuRoot = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -604,7 +615,7 @@ export function UIWorkspace({
   const reset = () => {
     buttonSelection.clear();
     configure(null); configureFrame(null); configureControl(null);
-    setAnchorTarget(null); setPreview(null); setMenu(null); setQuery("");
+    setAnchorTarget(null); placementPreview.set(null); setMenu(null); setQuery("");
     onReset();
   };
   const resetRef = useRef(reset); resetRef.current = reset;
@@ -735,11 +746,26 @@ export function UIWorkspace({
     };
   }, [anchorTarget]);
   useEffect(() => {
+    let previewFrame = 0;
+    let pointer: { down: PointerEvent; started: boolean; release?: () => void } | null = null;
+    let pendingPoint: { x: number; y: number } | null = null;
+    const cancelFrame = () => {
+      cancelAnimationFrame(previewFrame); previewFrame = 0; pendingPoint = null;
+    };
+    let layoutSource: UILayout | undefined, dragLayout: UILayout;
+    const effectiveLayout = () => {
+      if (layoutSource !== current.current.layout) {
+        layoutSource = current.current.layout;
+        dragLayout = ensure(layoutSource);
+      }
+      return dragLayout;
+    };
     const show = (value: Preview | null) => {
-      previewRef.current = value;
-      setPreview((old) => (JSON.stringify(old) === JSON.stringify(value) ? old : value));
+      const old = placementPreview.getSnapshot();
+      if (JSON.stringify(old) !== JSON.stringify(value)) placementPreview.set(value);
     };
     const start = (event: MouseEvent) => {
+      cancelFrame(); layoutSource = undefined;
       const target = event.target as Element;
       if (target.closest("input,select,textarea")) return;
       const mini = target.closest<HTMLElement>("[data-ui-control]");
@@ -768,14 +794,27 @@ export function UIWorkspace({
           : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle));
       const r = root ? residentBounds(root) : undefined;
       if (!r) return;
+      const targetZones = new Map(
+        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map(zone => [zone.dataset.uiDropZone!, zone]),
+      );
       const slots = new Map(
-        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map((zone) => [
-          zone.dataset.uiDropZone!,
+        [...targetZones].map(([key, zone]) => [
+          key,
           [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")].map((slot) => ({
             key: slot.dataset.uiSlotKey!,
             r: slot.getBoundingClientRect(),
           })),
         ]),
+      );
+      // Resolve against one gesture snapshot; overlay feedback never changes
+      // the live residents, drop hit regions or coordinate origins.
+      const targetBounds = new Map(
+        [...document.querySelectorAll(dropGeometrySelector)].map(el => [el, el.getBoundingClientRect()]),
+      );
+      const zoneOrigins = new Map(
+        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map(el => [el, {
+          x: Number(el.dataset.originX || 0), y: Number(el.dataset.originY || 0),
+        }]),
       );
       drag.current = {
         key,
@@ -788,21 +827,26 @@ export function UIWorkspace({
           y: (root?.getBoundingClientRect().y ?? r.y) - r.y,
         },
         slots,
+        targetZones,
+        targetBounds,
+        zoneOrigins,
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
       };
     };
-    const resolve = (x: number, y: number): Preview | null => {
+    const resolveTarget = (x: number, y: number): Preview | null => {
       const source = drag.current;
       if (!source || source.cancelled) return null;
-      const s = ensure(current.current.layout);
+      const s = effectiveLayout();
+      const boundsOf = (element: Element): DOMRect => source.targetBounds.get(element) ?? element.getBoundingClientRect();
+      const originOf = (element: HTMLElement) => source.zoneOrigins.get(element) ?? { x: Number(element.dataset.originX || 0), y: Number(element.dataset.originY || 0) };
       if (source.control) {
         const element = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
           (e) => e.dataset.uiChrome === source.control!.owner,
         );
         if (!element) return null;
-        const r = element.getBoundingClientRect();
+        const r = boundsOf(element);
         let position = { x: x - source.dx - r.x, y: y - source.dy - r.y };
         const container = getContainer(s, source.control.owner);
         const grid =
@@ -811,11 +855,11 @@ export function UIWorkspace({
           const body = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
             (n) => n.dataset.uiDropZone === source.control!.owner,
           );
-          const b = body?.getBoundingClientRect();
+          const b = body ? boundsOf(body) : undefined;
           const origin = b
             ? {
-                x: b.x - r.x - Number(body?.dataset.originX || 0) + grid.origin.x,
-                y: b.y - r.y - Number(body?.dataset.originY || 0) + grid.origin.y,
+                x: b.x - r.x - (body ? originOf(body).x : 0) + grid.origin.x,
+                y: b.y - r.y - (body ? originOf(body).y : 0) + grid.origin.y,
               }
             : grid.origin;
           position = snapPosition(
@@ -825,7 +869,7 @@ export function UIWorkspace({
             [...element.querySelectorAll<HTMLElement>(".frame-mini-control,.ui-frame-handle")]
               .filter((n) => n.dataset.uiControl !== source.control!.control)
               .map((n) => {
-                const q = n.getBoundingClientRect();
+                const q = boundsOf(n);
                 return { x: q.x - r.x, y: q.y - r.y, width: q.width, height: q.height };
               }),
           );
@@ -844,22 +888,32 @@ export function UIWorkspace({
       // Native dragging leaves the source at its old location. Look through that
       // surface so it cannot block a destination underneath it. Descendant frames
       // retain their own roots, allowing cycle/pinning rejection to remain explicit.
-      const elements = document
-        .elementsFromPoint(x, y)
-        .filter(
-          (el) =>
-            el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot !==
-              source.key &&
-            `function:${el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction}` !==
-              source.key,
-        );
-      const scope = contextOwner(source.key);
+      const hitElements = document.elementsFromPoint(x, y).filter(el => {
+        if (el.closest("[data-ui-ghost],.ui-drag-source")) return false;
+        const target = el.closest(dropGeometrySelector);
+        return !target || rectDistance(x, y, boundsOf(target)) === 0;
+      });
+      if (
+        source.key.startsWith("window:") &&
+        s.windows[source.key.slice(7)]?.inline &&
+        hitElements[0]?.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ===
+          source.key
+      )
+        return { text: "Drop outside this group to move it; Esc cancels" };
+      const elements = hitElements.filter(
+        (el) =>
+          el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot !==
+            source.key &&
+          `function:${el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction}` !==
+            source.key,
+      );
+      const scope = residentContextScope(s, source.key);
       if (scope) {
         const area = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
           (el) => el.dataset.uiDropZone === scope,
         );
-        if (!area || rectDistance(x, y, area.getBoundingClientRect()) > DOCK_DISTANCE)
-          return { text: "This action stays in its node menu" };
+        if (!area || rectDistance(x, y, boundsOf(area)) > DOCK_DISTANCE)
+          return { text: "This control stays in its owning menu" };
       }
       const hitOwner = elements[0]?.closest<HTMLElement>("[data-ui-resident-root],.toolbar");
       const peer =
@@ -872,7 +926,7 @@ export function UIWorkspace({
                   `function:${el.dataset.uiFunction}` !== source.key &&
                   el.closest("[data-ui-resident-root],.toolbar") === hitOwner,
               )
-              .map((el) => ({ el, d: rectDistance(x, y, el.getBoundingClientRect()) }))
+              .map((el) => ({ el, d: rectDistance(x, y, boundsOf(el)) }))
               .filter((item) => item.d <= 12)
               .sort((a, b) => a.d - b.d)[0]?.el
           : undefined);
@@ -889,7 +943,7 @@ export function UIWorkspace({
           peer.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot;
         if (functionPinned(s, target) || (targetOwner && residentPinned(s, targetOwner)))
           return { text: "Unpin this field or window before rearranging" };
-        const r = peer.getBoundingClientRect(),
+        const r = boundsOf(peer),
           parentStyle = peer.parentElement ? getComputedStyle(peer.parentElement) : null;
         const horizontal = parentStyle?.display === "flex" && parentStyle.flexDirection === "row";
         const after = horizontal ? x > r.x + r.width / 2 : y > r.y + r.height / 2;
@@ -917,7 +971,7 @@ export function UIWorkspace({
           const zone = strip ?? slot.parentElement?.closest<HTMLElement>("[data-ui-drop-zone]");
           const target = strip?.dataset.uiFrameStrip ?? zone?.dataset.uiDropZone;
           if (!zone || !target || !canDock(s, source.key, target)) return [];
-          const r = slot.getBoundingClientRect();
+          const r = boundsOf(slot);
           if (!r.width || !r.height || rectDistance(x, y, r) > 14) return [];
           if (rectDistance(x, y, r) === 0 && !elements.some(el => slot.contains(el))) return [];
           const vertical = strip?.classList.contains("is-vertical");
@@ -940,8 +994,8 @@ export function UIWorkspace({
             frameStrip: { target: hit.target, orderId: hit.strip.dataset.uiFrameOrder!, nativeKeys: JSON.parse(hit.strip.dataset.uiFrameNative ?? "[]"), peer: hit.key, after, keys: [...hit.strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order)).map(el => el.dataset.uiFrameSlot!) },
           };
           const c = getContainer(s, hit.target)!;
-          const bounds = hit.zone.getBoundingClientRect();
-          const ox = Number(hit.zone.dataset.originX || 0), oy = Number(hit.zone.dataset.originY || 0);
+          const bounds = boundsOf(hit.zone);
+          const ox = originOf(hit.zone).x, oy = originOf(hit.zone).y;
           const boxes = new Map((source.slots.get(hit.target) ?? []).map(slot => [slot.key, { x: slot.r.x - bounds.x + ox + hit.zone.scrollLeft, y: slot.r.y - bounds.y + oy + hit.zone.scrollTop, width: slot.r.width, height: slot.r.height }]));
           if (boxes.has(hit.key)) {
             const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side, c.arrangement);
@@ -950,8 +1004,8 @@ export function UIWorkspace({
           }
         }
       }
-      const candidateHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle");
-      const handleBounds = candidateHandle?.getBoundingClientRect();
+      const candidateHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle,[data-ui-inline-handle]");
+      const handleBounds = candidateHandle ? boundsOf(candidateHandle) : undefined;
       // Dock into the middle of a handle; its perimeter belongs to adjacent placement.
       const inset = handleBounds ? Math.min(18, handleBounds.width / 4) : 0;
       const handle =
@@ -963,6 +1017,31 @@ export function UIWorkspace({
           ? candidateHandle
           : undefined;
       const handleTarget = handle?.dataset.uiDrag;
+      const directInline =
+        elements[0]?.closest<HTMLElement>("[data-ui-inline-group]")?.dataset.uiInlineGroup;
+      const inlineTarget = handleTarget ?? directInline;
+      const inlineRoot = elements[0]?.closest<HTMLElement>("[data-ui-inline-group]");
+      if (
+        inlineTarget &&
+        getContainer(s, inlineTarget) &&
+        "inline" in getContainer(s, inlineTarget)! &&
+        (getContainer(s, inlineTarget) as WindowState).inline
+      ) {
+        if (!canDock(s, source.key, inlineTarget))
+          return { text: "Cannot place a group inside itself, its descendants or a pinned group" };
+        return {
+          text: `Add to ${frameActions.get(inlineTarget)?.title ?? "group"}`,
+          rect: inlineRoot ? boundsOf(inlineRoot) : undefined,
+          dock: {
+            key: source.key,
+            target: inlineTarget,
+            index: getContainer(s, inlineTarget)?.members?.length ?? 0,
+            breakBefore: false,
+            width: source.width,
+            height: source.height,
+          },
+        };
+      }
       if (handleTarget && handleTarget !== source.key && !canDock(s, source.key, handleTarget))
         return { text: "Cannot dock into a pinned frame or into this frame’s own contents" };
       const directZone = elements
@@ -986,7 +1065,7 @@ export function UIWorkspace({
           own = zones.find((e) => e.dataset.uiDropZone === owner);
         if (
           own &&
-          rectDistance(x, y, own.getBoundingClientRect()) === 0 &&
+          rectDistance(x, y, boundsOf(own)) === 0 &&
           canDock(s, source.key, owner!)
         )
           zone = own;
@@ -994,21 +1073,21 @@ export function UIWorkspace({
       if (!zone && (!handleTarget || handleTarget === source.key))
         zone = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")]
           .filter((e) => e.getClientRects().length && canDock(s, source.key, e.dataset.uiDropZone!))
-          .map((e) => ({ e, distance: rectDistance(x, y, e.getBoundingClientRect()) }))
+          .map((e) => ({ e, distance: rectDistance(x, y, boundsOf(e)) }))
           .filter((p) => p.distance <= DOCK_DISTANCE)
           .sort(
             (a, b) =>
               a.distance - b.distance ||
-              a.e.getBoundingClientRect().width * a.e.getBoundingClientRect().height -
-                b.e.getBoundingClientRect().width * b.e.getBoundingClientRect().height,
+              boundsOf(a.e).width * boundsOf(a.e).height -
+                boundsOf(b.e).width * boundsOf(b.e).height,
           )[0]?.e;
       if (zone) {
         const target = zone.dataset.uiDropZone!,
           c = getContainer(s, target)!,
           members = c.members ?? [];
-        const bounds = zone.getBoundingClientRect();
-        const ox = Number(zone.dataset.originX || 0),
-          oy = Number(zone.dataset.originY || 0);
+        const bounds = boundsOf(zone);
+        const ox = originOf(zone).x,
+          oy = originOf(zone).y;
         const boxes = new Map(
           (source.slots.get(target) ?? []).map((slot) => [
             slot.key,
@@ -1072,7 +1151,7 @@ export function UIWorkspace({
       const tab = handle?.closest<HTMLElement>("[data-ui-chrome]");
       if (tab && canDock(s, source.key, tab.dataset.uiChrome!)) {
         const target = tab.dataset.uiChrome!,
-          r = tab.getBoundingClientRect();
+          r = boundsOf(tab);
         const members = getContainer(s, target)?.members ?? [];
         const position =
           members.length && members.every((m) => m.position && m.size)
@@ -1108,7 +1187,7 @@ export function UIWorkspace({
         return {
           text: "Group into a collapsed frame",
           group: `function:${other.dataset.uiFunction}`,
-          rect: other.getBoundingClientRect(),
+          rect: boundsOf(other),
         };
       const desired = {
         x: Math.max(
@@ -1131,7 +1210,7 @@ export function UIWorkspace({
             (el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`) !== source.key &&
             !ownerOf(s, el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`),
         )
-        .map((el) => el.getBoundingClientRect());
+        .map((el) => boundsOf(el));
       const position =
         s.arrangement?.mode === "snap" && s.arrangement.grid
           ? snapPosition(desired, source, s.arrangement.grid, occupied)
@@ -1148,24 +1227,75 @@ export function UIWorkspace({
         rect: { ...position, width: source.width, height: source.height },
       };
     };
+    const resolve = (x: number, y: number): Preview | null => {
+      const proposal = resolveTarget(x, y), source = drag.current;
+      if (!proposal?.dock || !source) return proposal;
+      const dock = proposal.dock, zone = source.targetZones.get(dock.target);
+      const bounds = zone && source.targetBounds.get(zone);
+      // Closed contents have no measurable layout; retain their existing append
+      // behavior rather than turning zero-sized DOM boxes into saved positions.
+      if (!zone || !bounds || !zone.getClientRects().length) return proposal;
+      const origin = source.zoneOrigins.get(zone) ?? { x: 0, y: 0 };
+      const boxes = new Map((source.slots.get(dock.target) ?? []).map(slot => [slot.key, {
+        x: slot.r.x - bounds.x + origin.x + zone.scrollLeft,
+        y: slot.r.y - bounds.y + origin.y + zone.scrollTop,
+        width: slot.r.width, height: slot.r.height,
+      }]));
+      const container = getContainer(effectiveLayout(), dock.target)!;
+      const baseline = dock.baseline ?? snapshotPositions(container.members ?? [], boxes, residentKey);
+      const obstacles = [...boxes].filter(([key]) => key !== source.key).map(([, box]) => box);
+      let position = dock.position;
+      if (!position) {
+        position = { x: 12, y: Math.max(12, ...obstacles.map(box => box.y + box.height + 14)) };
+        if (container.arrangement?.mode === "snap" && container.arrangement.grid)
+          position = snapPosition(position, source, container.arrangement.grid, obstacles);
+      }
+      return { ...proposal, dock: {
+        ...dock, baseline, position,
+        screenRect: {
+          x: bounds.x - origin.x - zone.scrollLeft + position.x,
+          y: bounds.y - origin.y - zone.scrollTop + position.y,
+          width: dock.width, height: dock.height,
+        },
+      } };
+    };
     const over = (e: globalThis.DragEvent) => {
       if (!drag.current || drag.current.cancelled) return;
       e.preventDefault();
       e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-      show(resolve(e.clientX, e.clientY));
+      pendingPoint = { x: e.clientX, y: e.clientY };
+      if (!previewFrame) previewFrame = requestAnimationFrame(() => {
+        previewFrame = 0;
+        const point = pendingPoint; pendingPoint = null;
+        if (point && drag.current && !drag.current.cancelled) show(resolve(point.x, point.y));
+      });
     };
     const drop = (e: MouseEvent) => {
       const source = drag.current;
       if (!source || source.cancelled) return;
       e.preventDefault();
       e.stopPropagation();
+      cancelFrame();
       const p = resolve(e.clientX, e.clientY);
       show(null);
       drag.current = null;
       if (!p) return;
       current.current.update((previous) => {
         let s = ensure(previous);
+        const payload = getContainer(s, source.key);
+        if (payload && "inline" in payload && payload.inline) {
+          const root = [...document.querySelectorAll<HTMLElement>("[data-ui-inline-group]")].find(
+            (root) => root.dataset.uiInlineGroup === source.key,
+          );
+          if (root)
+            s = updateContainer(s, source.key, {
+              inline: {
+                ...payload.inline,
+                actionIds: { ...payload.inline.actionIds, ...captureNativeActions(root) },
+              },
+            });
+        }
         if (p.frameStrip) {
           const strip = p.frameStrip;
           if (!canDock(s, source.key, strip.target)) return previous;
@@ -1198,6 +1328,9 @@ export function UIWorkspace({
           const d = p.dock;
           if (d.baseline) s = updateContainer(s, d.target, { members: d.baseline });
           s = dockResident(s, source.key, d.target, d.index, d.breakBefore);
+          const destination = getContainer(s, d.target);
+          if (destination && "inline" in destination && destination.inline)
+            s = updateContainer(s, d.target, { collapsed: false });
           if (d.position)
             s = updateContainer(s, d.target, {
               members: getContainer(s, d.target)!.members!.map((m) =>
@@ -1249,27 +1382,86 @@ export function UIWorkspace({
       });
     };
     const end = () => {
+      cancelFrame();
       drag.current = null;
       show(null);
     };
+    const cancelPointer = () => {
+      const active = pointer; pointer = null;
+      end(); active?.release?.();
+    };
+    const pointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || pointer || event.defaultPrevented) return;
+      const target = event.target as Element;
+      if (target.closest("input,select,textarea,a,[contenteditable=true],.window-resize-grip")) return;
+      const handle = target.closest<HTMLElement>("[data-ui-control],[data-ui-drag],[data-ui-function]");
+      if (!handle?.draggable) return;
+      pointer = { down: event, started: false };
+    };
+    const pointerMove = (event: PointerEvent) => {
+      const active = pointer;
+      if (!active || event.pointerId !== active.down.pointerId) return;
+      if ((event.buttons & 1) === 0) { cancelPointer(); return; }
+      if (!active.started) {
+        if (Math.hypot(event.clientX - active.down.clientX, event.clientY - active.down.clientY) <= 5) return;
+        if (!(active.down.target instanceof Element) || !active.down.target.isConnected) { cancelPointer(); return; }
+        start(active.down);
+        if (!drag.current) { cancelPointer(); return; }
+        active.started = true;
+        active.release = captureUIPointer(event.pointerId, event.pointerType);
+      }
+      event.preventDefault(); event.stopImmediatePropagation();
+      over(event as unknown as globalThis.DragEvent);
+    };
+    const pointerUp = (event: PointerEvent) => {
+      const active = pointer;
+      if (!active || event.pointerId !== active.down.pointerId || event.button !== 0) return;
+      pointer = null;
+      try { if (active.started) drop(event); }
+      finally { active.release?.(); }
+    };
+    const pointerCancel = (event: PointerEvent) => {
+      if (pointer?.down.pointerId === event.pointerId) cancelPointer();
+    };
+    const preventContext = (event: Event) => {
+      if (pointer?.started) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
+    const nativeStart = (event: globalThis.DragEvent) => {
+      if (pointer) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      start(event);
+    };
+    const nativeEnd = () => { if (!pointer) end(); };
+    const nativeDrop = (event: globalThis.DragEvent) => { if (!pointer) drop(event); };
     const keydown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && drag.current) {
+      if (e.key === "Escape" && (drag.current || pointer?.started)) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        drag.current.cancelled = true;
-        show(null);
+        cancelPointer();
       }
     };
-    window.addEventListener("dragstart", start, true);
+    window.addEventListener("pointerdown", pointerDown, true);
+    window.addEventListener("pointermove", pointerMove, true);
+    window.addEventListener("pointerup", pointerUp, true);
+    window.addEventListener("pointercancel", pointerCancel, true);
+    window.addEventListener("contextmenu", preventContext, true);
+    window.addEventListener("blur", cancelPointer);
+    window.addEventListener("dragstart", nativeStart, true);
     window.addEventListener("dragover", over, true);
-    window.addEventListener("drop", drop, true);
-    window.addEventListener("dragend", end);
+    window.addEventListener("drop", nativeDrop, true);
+    window.addEventListener("dragend", nativeEnd);
     window.addEventListener("keydown", keydown, true);
     return () => {
-      window.removeEventListener("dragstart", start, true);
+      cancelPointer();
+      window.removeEventListener("pointerdown", pointerDown, true);
+      window.removeEventListener("pointermove", pointerMove, true);
+      window.removeEventListener("pointerup", pointerUp, true);
+      window.removeEventListener("pointercancel", pointerCancel, true);
+      window.removeEventListener("contextmenu", preventContext, true);
+      window.removeEventListener("blur", cancelPointer);
+      window.removeEventListener("dragstart", nativeStart, true);
       window.removeEventListener("dragover", over, true);
-      window.removeEventListener("drop", drop, true);
-      window.removeEventListener("dragend", end);
+      window.removeEventListener("drop", nativeDrop, true);
+      window.removeEventListener("dragend", nativeEnd);
       window.removeEventListener("keydown", keydown, true);
     };
   }, []);
@@ -1348,6 +1540,7 @@ export function UIWorkspace({
           width={w?.width ?? 380}
           height={w?.collapsed ? 44 : (w?.height ?? 400)}
           collapsed={w?.collapsed}
+          autoSize={!!w?.inline}
         />
       );
     }
@@ -1372,6 +1565,12 @@ export function UIWorkspace({
           configureControl(null);
           configure(id);
         },
+        configureFrame: (owner) => {
+          configure(null);
+          configureControl(null);
+          configureFrame(owner);
+          setMenu(null);
+        },
         configureControl: (owner, control) => {
           configure(null);
           configureFrame(null);
@@ -1382,7 +1581,7 @@ export function UIWorkspace({
         createFrame,
         library: () => setLibraryOpen(true),
         frameMenu,
-        preview: preview?.dock ?? null,
+        placementPreview,
         defaults,
         frameActions,
         renderResident,
@@ -1393,6 +1592,8 @@ export function UIWorkspace({
     >
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
+      <NativeActions />
+      <NamePresentation />
       {children}
       {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">
@@ -1445,18 +1646,7 @@ export function UIWorkspace({
             <FunctionFrame frame={f} key={f.id} />
           ))}
       </div>
-      {preview?.rect && (
-        <div
-          className="ui-placement-preview"
-          style={{
-            left: preview.rect.x,
-            top: preview.rect.y,
-            width: preview.rect.width,
-            height: preview.rect.height,
-          }}
-        />
-      )}
-      {preview && <div className="ui-snap-preview">{preview.text}</div>}
+      <PlacementPreviewOverlay />
       {menu && (
         <div
           ref={menuRoot}
@@ -1480,14 +1670,14 @@ export function UIWorkspace({
               {frameActions.get(menu.owner)?.onRename && (
                 <label className="frame-name-editor">
                   Frame name
-                  <input
-                    aria-label="UI frame name"
+                  <UINameInput
+                    label="UI frame name"
                     value={
                       "name" in menuContainer
                         ? menuContainer.name
-                        : frameActions.get(menu.owner)!.title
+                        : layout.labels?.[menu.owner] ?? frameActions.get(menu.owner)!.title
                     }
-                    onChange={(e) => frameActions.get(menu.owner!)?.onRename?.(e.target.value)}
+                    onRename={(name) => frameActions.get(menu.owner!)?.onRename?.(name)}
                   />
                 </label>
               )}
@@ -1631,7 +1821,7 @@ export function UIWorkspace({
             configuredControl
               ? `Arrange ${configuredControl.control} icon`
               : configuredFrame
-                ? "Arrange frame handle"
+                ? `Arrange frame: ${layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)?.title ?? configuredFrame}`
                 : `Arrange: ${selected!.label}`
           }
           width={370}
@@ -1642,9 +1832,21 @@ export function UIWorkspace({
             configureControl(null);
           }}
         >
-          <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
+          <EmbeddedGroup id="arrange:appearance" title="Appearance" className="arrange-section">
+            <ContextualAppearance owner={configuredFrame ?? (selected ? `function:${selected.id}` : configuredControl?.owner ?? '')} label={configuredFrame ? frameActions.get(configuredFrame)?.title ?? configuredFrame : selected?.label ?? 'Frame control'} control={selected?.control} />
+          </EmbeddedGroup>
           {!configuredControl && (
-            <>
+            <EmbeddedGroup id="arrange:display" title={configuredFrame ? "Frame handle" : "Display"} className="arrange-section">
+              {configuredFrame && frameActions.get(configuredFrame)?.onRename && (
+                <label>
+                  Name
+                  <UINameInput
+                    label="Frame name"
+                    value={layout.labels?.[configuredFrame] ?? frameActions.get(configuredFrame)!.title}
+                    onRename={(name) => frameActions.get(configuredFrame)?.onRename?.(name)}
+                  />
+                </label>
+              )}
               <label>
                 Display
                 <select
@@ -1670,34 +1872,44 @@ export function UIWorkspace({
                   <option value="triangle">Triangle</option>
                 </select>
               </label>
-            </>
+            </EmbeddedGroup>
           )}
-          {shortcuts && (() => {
-            const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
-            const id = buttonShortcutId(target);
-            const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
-            return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
-          })()}
-          <VisualControls
-            key={
-              configuredControl
-                ? `${configuredControl.owner}:${configuredControl.control}`
-                : (configuredFrame ?? configured)
-            }
-            label={
-              configuredControl ? "Frame control" : configuredFrame ? "Frame handle" : "Function"
-            }
-            allowModels={false}
-            iconColor={configuredControl ? "#829eb9" : "#254e73"}
-            value={{ assetId: style.assetId, character: style.character, showText: false }}
-            assets={layout.assets}
-            onChange={(v) => setStyle({ mode: "icon", assetId: v.assetId, character: v.character })}
-            onAsset={(asset, visual) =>
-              setStyle({ mode: "icon", character: undefined, assetId: visual.assetId }, asset)
-            }
-          />
+          {shortcuts && (
+            <EmbeddedGroup id="arrange:shortcut" title="Shortcut" className="arrange-section">
+              {(() => {
+                const target = configuredControl ? `@control:${configuredControl.control}:${configuredControl.owner}` : configuredFrame ? `@frame:${configuredFrame}` : selected!.id;
+                const id = buttonShortcutId(target);
+                const label = configuredControl ? `${configuredControl.control} ${frameActions.get(configuredControl.owner)?.title ?? "frame"}` : configuredFrame ? frameActions.get(configuredFrame)?.title ?? "Frame" : selected!.label;
+                return <div className="binding-row"><span>Shortcut</span><button aria-label="Assign button shortcut" onClick={() => shortcuts.onCapture(id, label)}>{shortcuts.capturing === id ? "Press a key…" : shortcuts.bindings[id] || "Assign shortcut"}</button><button aria-label="Clear button shortcut" onClick={() => shortcuts.onClear(id)}>Clear</button></div>;
+              })()}
+            </EmbeddedGroup>
+          )}
+          <EmbeddedGroup
+            id="arrange:visual"
+            title={configuredControl ? "Frame control visual" : configuredFrame ? "Frame handle visual" : "Function visual"}
+            className="arrange-section"
+          >
+            <VisualControls
+              key={
+                configuredControl
+                  ? `${configuredControl.owner}:${configuredControl.control}`
+                  : (configuredFrame ?? configured)
+              }
+              label={
+                configuredControl ? "Frame control" : configuredFrame ? "Frame handle" : "Function"
+              }
+              allowModels={false}
+              iconColor={configuredControl ? "#829eb9" : "#254e73"}
+              value={{ assetId: style.assetId, character: style.character, showText: false }}
+              assets={layout.assets}
+              onChange={(v) => setStyle({ mode: "icon", assetId: v.assetId, character: v.character })}
+              onAsset={(asset, visual) =>
+                setStyle({ mode: "icon", character: undefined, assetId: visual.assetId }, asset)
+              }
+            />
+          </EmbeddedGroup>
           {selected && (
-            <>
+            <EmbeddedGroup id="arrange:placement" title="Placement" className="arrange-section">
               <button
                 onClick={() =>
                   update((s) => ({
@@ -1723,7 +1935,7 @@ export function UIWorkspace({
               >
                 Return to default location
               </button>
-            </>
+            </EmbeddedGroup>
           )}
         </FloatingWindow>
       )}

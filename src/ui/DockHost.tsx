@@ -19,14 +19,17 @@ export function DockHost({
   width,
   height,
   collapsed = false,
+  autoSize = false,
 }: {
   id: string;
   width: number;
   height: number;
   collapsed?: boolean;
+  autoSize?: boolean;
 }) {
   const root = useRef<HTMLDivElement | null>(null),
-    [size, setSize] = useState({ width: 64, height: 56 });
+    [size, setSize] = useState({ width: 64, height: 56 }),
+    [missing, setMissing] = useState(false);
   const ref = useCallback(
     (node: HTMLDivElement | null) => {
       root.current = node;
@@ -38,9 +41,11 @@ export function DockHost({
   );
   useLayoutEffect(() => {
     const node = root.current;
-    if (!node || !collapsed) return;
+    if (!node || (!collapsed && !autoSize)) return;
     const measure = () => {
-      const r = node.firstElementChild?.getBoundingClientRect();
+      const child = node.querySelector<HTMLElement>(":scope > :not([data-ui-missing])");
+      setMissing(!child);
+      const r = child?.getBoundingClientRect();
       if (r)
         setSize((old) =>
           Math.abs(old.width - r.width) < 0.5 && Math.abs(old.height - r.height) < 0.5
@@ -51,7 +56,8 @@ export function DockHost({
     const resize = new ResizeObserver(measure);
     const observe = () => {
       resize.disconnect();
-      if (node.firstElementChild) resize.observe(node.firstElementChild);
+      const child = node.querySelector(":scope > :not([data-ui-missing])");
+      if (child) resize.observe(child);
       measure();
     };
     const changes = new MutationObserver(observe);
@@ -61,16 +67,22 @@ export function DockHost({
       resize.disconnect();
       changes.disconnect();
     };
-  }, [collapsed]);
+  }, [collapsed, autoSize]);
   return (
     <div
       className={`ui-window-host ${collapsed ? "collapsed-ui-host" : ""}`}
       ref={ref}
       style={{
-        width: collapsed ? size.width : width,
-        height: collapsed ? size.height : height,
+        width: autoSize ? "max-content" : collapsed ? size.width : width,
+        height: autoSize ? "auto" : collapsed ? size.height : height,
         maxWidth: "100%",
       }}
-    />
+    >
+      {autoSize && missing && (
+        <span data-ui-missing className="ui-missing-group">
+          Open the original window to use this group.
+        </span>
+      )}
+    </div>
   );
 }

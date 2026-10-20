@@ -4,13 +4,21 @@ import { useAppearance } from "./Context";
 import { ancestry, applyValue, cycleTarget, included, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
-import { PropertyEditor, PropertySelect } from "./Controls";
+import { PropertyTree } from "./PropertyTree";
+import { PropertyEditor } from "./Controls";
 import { LockControl } from "./LockControl";
 import { rootFor } from "../ui/FrameSearch";
 import { FunctionControl } from "../ui/UIWorkspace";
+import { EditableLabel } from "../ui/EditableLabel";
+import { NameVisibilityControl } from "../ui/NamePresentation";
+import { EmbeddedGroup } from "../ui/EmbeddedGroup";
+import { useUI } from "../ui/context";
+import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 
 export function MasterController() {
   const ctx = useAppearance()!;
+  const ui = useUI();
+  const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
   const { state, targets } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
     [savedQuery, setQuery] = useState(""),
@@ -74,7 +82,7 @@ export function MasterController() {
         locate: () => {
           const owner = target.instance!.owner;
           return owner.startsWith("function:")
-            ? [...document.querySelectorAll<HTMLElement>("[data-ui-function]")].find(
+            ? [...document.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(
                 (el) =>
                   el.dataset.uiFunction === owner.slice(9) &&
                   !el.closest("[data-ui-palette],[data-shortcut-runner]"),
@@ -152,7 +160,7 @@ export function MasterController() {
             ⏻
           </button>
           <span className="appearance-row-name">
-            {target.label}
+            <EditableLabel id={`appearance:target:${target.id}`} fallback={target.label} />
             {refined && (
               <span
                 className="appearance-refined"
@@ -240,31 +248,47 @@ export function MasterController() {
           ×
         </button>
       </div>
-      <div className="appearance-adjuster">
-        <PropertySelect
-          value={property}
-          onChange={(id) => {
-            ctx.preview(null);
+      <NameVisibilityControl />
+      <PropertyTree
+        selected={property}
+        onSelect={(id) => {
+          ctx.preview(null);
+          ctx.locate(null, true);
+          setProperty(id);
+        }}
+        renderEditor={(id) => <FunctionControl id={`ui:master:${id}`} />}
+      />
+      <EmbeddedGroup
+        id={APPEARANCE_HIERARCHY_ID}
+        title="Visual hierarchy"
+        className="appearance-hierarchy"
+        expanded={hierarchyOpen}
+        onToggle={() => {
+          ctx.locate(null, true);
+          ui.update(layout => {
+            const windows = { ...Object.fromEntries(ui.defaults), ...layout.windows };
+            return { ...layout, windows: {
+              ...windows,
+              [APPEARANCE_HIERARCHY_ID]: { ...windows[APPEARANCE_HIERARCHY_ID], collapsed: hierarchyOpen },
+            } };
+          });
+        }}
+      >
+        <input
+          type="search"
+          aria-label="Find appearance branch"
+          placeholder="Find a branch…"
+          value={query}
+          onChange={(e) => {
             ctx.locate(null, true);
-            setProperty(id);
+            setQuery(e.target.value);
           }}
         />
-        <FunctionControl id={`ui:master:${property}`} />
-      </div>
-      <input
-        type="search"
-        aria-label="Find appearance branch"
-        placeholder="Find a branch…"
-        value={query}
-        onChange={(e) => {
-          ctx.locate(null, true);
-          setQuery(e.target.value);
-        }}
-      />
-      <small>● include · ○ exclude · ◎ only · ⏻ plug · ◆ local refinement</small>
-      <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
-        {(children.get("") ?? []).map((t) => row(t, 0))}
-      </div>
+        <small>● include · ○ exclude · ◎ only · ⏻ plug · ◆ local refinement</small>
+        <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
+          {(children.get("") ?? []).map((t) => row(t, 0))}
+        </div>
+      </EmbeddedGroup>
     </section>
   );
 }

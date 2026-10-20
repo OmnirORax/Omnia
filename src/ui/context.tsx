@@ -1,6 +1,7 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from "react";
 import type { UILayout, WindowState, UIResident } from "./layout";
-import type { DockPreview } from "./drag";
+import type { PlacementPreview } from "./drag";
+import type { TransientStore } from "./transientStore";
 export type UIFunction = {
   id: string;
   label: string;
@@ -18,13 +19,14 @@ export type UIContextValue = {
   shortcutBindings?: Record<string, string>;
   registerFunction: (fn: UIFunction) => () => void;
   configure: (id: string | null) => void;
+  configureFrame: (key: string) => void;
   createFrame: (x: number, y: number) => void;
   library: () => void;
   frameMenu: (key: string, x: number, y: number) => void;
   configureControl: (owner: string, control: "collapse" | "pin" | "close") => void;
   anchorTarget: string | null;
   chooseMode: (owner: string, mode: "free" | "snap") => void;
-  preview: DockPreview | null;
+  placementPreview: TransientStore<PlacementPreview | null>;
   defaults: Map<string, WindowState>;
   frameActions: Map<
     string,
@@ -45,6 +47,8 @@ export type UIContextValue = {
 };
 export const UIContext = createContext<UIContextValue | null>(null);
 export const UIHomeContext = createContext("workspace");
+/** Native anchor identity stays at home while groups use separate container ownership. */
+export const UIContainerContext = createContext<string | undefined>(undefined);
 export function useUI() {
   const value = useContext(UIContext);
   if (!value) throw new Error("UI workspace is not mounted.");

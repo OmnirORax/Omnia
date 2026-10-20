@@ -19,6 +19,8 @@ import {
 import { type Appearance, valueFor } from "./resolve";
 export type AppearanceLocation = { target: string; property: string };
 export type AppearanceBridge = {
+  safe?: boolean;
+  subtreeModifier?: "shift" | "alt" | "ctrl" | "none";
   base: Appearance;
   commit: (state: Controller) => void;
   preview: (state: Controller | null) => void;
@@ -63,7 +65,8 @@ export function AppearanceProvider({
   const targets = useMemo(
     () =>
       controllerTargets(state).map((target) => {
-        if (!target.instance) return target;
+        const customLabel = ui.layout.labels?.[`appearance:target:${target.id}`];
+        if (!target.instance) return customLabel ? { ...target, label: customLabel } : target;
         const owner = target.instance.owner,
           path: string[] = [],
           seen = new Set<string>();
@@ -80,7 +83,7 @@ export function AppearanceProvider({
           ? ui.functions.find((f) => f.id === owner.slice(9))?.label
           : (ui.frameActions.get(owner)?.title ??
             ui.layout.frames.find((f) => `frame:${f.id}` === owner)?.name);
-        return { ...target, label: label ?? target.label, instance: { ...target.instance, path } };
+        return { ...target, label: customLabel ?? label ?? target.label, instance: { ...target.instance, path } };
       }),
     [state, ui.layout, ui.functions],
   );
@@ -127,7 +130,7 @@ export function AppearanceProvider({
       (e) => e.dataset.uiResidentRoot === owner,
     );
     if (owner.startsWith("function:"))
-      element = [...document.querySelectorAll<HTMLElement>("[data-ui-function]")].find(
+      element = [...document.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(
         (e) => e.dataset.uiFunction === owner.slice(9),
       );
     let root = element?.closest<HTMLElement>("[data-ui-resident-root]");

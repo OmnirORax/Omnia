@@ -1,3 +1,6 @@
+import { AppearanceRecovery } from "./appearance/Recovery";
+import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
+import { sameAppearance } from "./appearance/session";
 import { MasterController } from "./appearance/MasterController";
 import { resolveControllerAppearance } from "./appearance/resolve";
 import { applyValue, type Controller } from "./appearance/model";
@@ -77,16 +80,22 @@ function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
-  const { layout: savedUILayout, update: updateUI, settings: savedSettings, setSettings } = ui;
+  const { layout: savedUILayout, update: updateUI, savedSettings, setSettings } = ui;
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchReveal, setSearchReveal] = useState<SearchReveal | null>(null);
   const uiLayout = useMemo(() => revealSearchPath(savedUILayout, searchReveal), [savedUILayout, searchReveal]);
   const [colorPreview, setColorPreview] = useState<ColorPreview | null>(null);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
-  const settings = useMemo(() => appearancePreview ? { ...savedSettings, appearance: appearancePreview } : savedSettings, [savedSettings, appearancePreview]);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [safeView, setSafeView] = useState(() => new URLSearchParams(window.location.search).get("safe-ui") === "1");
+  const [checkpoints, setCheckpoints] = useState(loadCheckpoints);
+  const [recoveryError, setRecoveryError] = useState("");
+  const previewAppearance = appearancePreview ?? ui.settings.appearance;
+  const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
+  const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
   const renderedAppearance = useMemo(() => resolveControllerAppearance(settings.appearance), [settings.appearance]);
   const renderSettings = useMemo(() => ({ ...settings, appearance: renderedAppearance }), [settings, renderedAppearance]);
-  useEffect(() => setAppearancePreview(null), [savedSettings]);
+  useEffect(() => setAppearancePreview(null), [ui.settings.appearance]);
   const [themePresets, setThemePresets] = useState(loadThemePresets);
   const [themePresetName, setThemePresetName] = useState("My theme");
   const [selectedThemePreset, setSelectedThemePreset] = useState("");
@@ -314,7 +323,7 @@ function Workbench() {
   }
   async function exportTemplate() {
     try {
-      const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings, fonts: (await Promise.all(appearanceFonts(settings.appearance).map(embeddedFont))).flat() };
+      const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings: { ...ui.settings, appearance: previewAppearance }, fonts: (await Promise.all(appearanceFonts(previewAppearance).map(embeddedFont))).flat() };
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
       );
@@ -725,6 +734,40 @@ function Workbench() {
       setSelection({ kind: "node", id });
     } catch (e) { setError(message(e)); }
   }
+  function storeCheckpoints(next: Checkpoint[]) {
+    try {
+      localStorage.setItem(CHECKPOINTS_KEY, JSON.stringify(next));
+      setCheckpoints(next);
+      setRecoveryError("");
+      return true;
+    } catch {
+      setRecoveryError("Could not save appearance checkpoints in this browser. Export a theme backup before continuing.");
+      setRecoveryOpen(true);
+      return false;
+    }
+  }
+  function applyAppearance() {
+    const next = normalizeSettings({ ...savedSettings, appearance: previewAppearance });
+    const previous = checkpoints.length ? checkpoints : appendCheckpoint([], savedSettings.appearance, "Before first appearance change");
+    if (!storeCheckpoints(appendCheckpoint(previous, next.appearance))) return;
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); }
+    catch { setRecoveryError("Appearance could not be saved. Your preview is still open; export a theme backup."); setRecoveryOpen(true); return; }
+    ui.applyAppearance(next.appearance);
+    setAppearancePreview(null);
+    setRecoveryError("");
+  }
+  function discardAppearance() {
+    setAppearancePreview(null);
+    ui.discardAppearance();
+    setRecoveryError("");
+    setRecoveryOpen(false);
+  }
+  function restoreAppearance(appearance: WorkspaceSettings["appearance"]) {
+    setAppearancePreview(null);
+    setSettings(old => ({ ...old, appearance: structuredClone(appearance) }));
+    setSafeView(false);
+    setRecoveryError("");
+  }
   function storeThemePresets(next: ThemeTemplate[]) {
     try {
       if (next.length > 50) throw new Error("Keep up to 50 saved themes; export or remove one first.");
@@ -735,14 +778,14 @@ function Workbench() {
     } catch (e) { setError(`Theme could not be saved. ${message(e)}`); return false; }
   }
   function saveThemePreset() {
-    const preset = themeTemplate(themePresetName, settings.appearance);
+    const preset = themeTemplate(themePresetName, previewAppearance);
     if (storeThemePresets([...themePresets.filter(item => item.name !== preset.name), preset])) {
       setSelectedThemePreset(preset.name); setThemePresetName(preset.name);
     }
   }
   async function exportTheme() {
     try {
-      const preset = themeTemplate(themePresetName, settings.appearance, (await Promise.all(appearanceFonts(settings.appearance).map(embeddedFont))).flat());
+      const preset = themeTemplate(themePresetName, previewAppearance, (await Promise.all(appearanceFonts(previewAppearance).map(embeddedFont))).flat());
       const url = URL.createObjectURL(new Blob([JSON.stringify(preset, null, 2)], { type: "application/json" }));
       const link = window.document.createElement("a"); link.href = url; link.download = "omnium-theme.json"; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -846,10 +889,10 @@ function Workbench() {
   function runAction(action: ActionId, steps = 1) {
     switch (action) {
       case "searchUI": setSearchOpen(true); break;
-      case "ui:undo": ui.undo(steps); break;
+      case "ui:undo": setAppearancePreview(null); ui.undo(steps); break;
       case "theme": setSettings(old => ({ ...old, appearance: { ...old.appearance, theme: old.appearance.theme === "neon" ? "classic" : "neon" } })); break;
       case "appearance": setThemeOpen(true); break;
-      case "ui:redo": ui.redo(steps); break;
+      case "ui:redo": setAppearancePreview(null); ui.redo(steps); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
@@ -983,7 +1026,10 @@ function Workbench() {
   for(const id of ["ui:animation:scope","ui:animation:inherit","ui:animation:targets","ui:appearance:scope","ui:appearance:inherit","ui:atmosphere"])if(savedThemeControls.has(id))replaceFunction(id,"Master appearance controller",<button onClick={()=>setThemeOpen(true)}>Open appearance tree</button>);
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => setSettings(old=>({...old,appearance:{...old.appearance,theme:event.target.value as WorkspaceSettings["appearance"]["theme"]}}))}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>,true);
   replaceFunction("ui:appearance:importFont", "Import font", <button disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
-  replaceFunction("ui:resetAppearance", "Reset entire theme", <button onClick={()=>{setAppearancePreview(null);setSettings(old=>({...old,appearance:defaultSettings().appearance}));}}>Reset entire theme</button>);
+  replaceFunction("ui:resetAppearance", "Preview default appearance", <button onClick={()=>restoreAppearance(defaultSettings().appearance)}>Preview default appearance</button>);
+  replaceFunction("ui:appearance:apply", "Apply appearance", <button disabled={!appearancePending} onClick={applyAppearance}>Apply appearance</button>);
+  replaceFunction("ui:appearance:discard", "Discard appearance preview", <button disabled={!appearancePending} onClick={()=>setRecoveryOpen(true)}>Discard preview…</button>);
+  replaceFunction("ui:appearance:recovery", "Appearance recovery / checkpoints", <button onClick={()=>setRecoveryOpen(true)}>Recovery / checkpoints (hold Esc 2s)</button>);
   replaceFunction("ui:themePreset:name", "Theme template name", <label>Template name<input aria-label="Theme template name" maxLength={80} value={themePresetName} onChange={event => setThemePresetName(event.target.value)} /></label>, true);
   replaceFunction("ui:themePreset:select", "Saved themes", <label>Saved themes<select aria-label="Saved themes" value={selectedThemePreset} onChange={event => { setSelectedThemePreset(event.target.value); setThemePresetName(event.target.value || "My theme"); }}><option value="">Choose a saved theme</option>{themePresets.map(preset => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select></label>, true);
   replaceFunction("ui:themePreset:save", "Save theme template", <button onClick={saveThemePreset}>Save / update theme</button>);
@@ -1003,8 +1049,8 @@ function Workbench() {
   replaceFunction("cameraOrigin", "Go to world origin", <button onClick={() => runAction("cameraOrigin")}>Origin</button>);
   replaceFunction("rollLeft", "Roll view left 90°", <button onClick={() => runAction("rollLeft")}>↶ 90°</button>);
   replaceFunction("rollRight", "Roll view right 90°", <button onClick={() => runAction("rollRight")}>↷ 90°</button>);
-  replaceFunction("ui:undo", "Undo UI", <button onClick={() => ui.undo()} disabled={!ui.canUndo}>Undo UI</button>);
-  replaceFunction("ui:redo", "Redo UI", <button onClick={() => ui.redo()} disabled={!ui.canRedo}>Redo UI</button>);
+  replaceFunction("ui:undo", "Undo UI", <button onClick={() => runAction("ui:undo")} disabled={!ui.canUndo}>Undo UI</button>);
+  replaceFunction("ui:redo", "Redo UI", <button onClick={() => runAction("ui:redo")} disabled={!ui.canRedo}>Redo UI</button>);
   replaceFunction("ui:newView", "New layout view", <button onClick={newView}>+ Layout view</button>);
   replaceFunction("ui:export", "Export JSON", <button onClick={exportJSON}>Export JSON</button>);
   replaceFunction("ui:saveTemplate", "Save UI template", <button onClick={exportTemplate}>Save UI template</button>);
@@ -1026,7 +1072,8 @@ function Workbench() {
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   return (
-    <UIWorkspace appearance={{ base: settings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...savedSettings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
+    <UIWorkspace appearance={{ subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -2006,9 +2053,10 @@ function Workbench() {
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
+        <p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>
         <MasterController />
         <section aria-label="Theme utilities"><h3>Theme utilities</h3>
-          {["ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:appearance:apply", "ui:appearance:discard", "ui:appearance:recovery", "ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
         </section>
         <section aria-label="Theme templates"><h3>Theme templates</h3>
           <p>Save colors, window appearance and animations together.</p>
@@ -2031,7 +2079,7 @@ function Workbench() {
         {Array.from(new Set(ACTIONS.map(action=>action.category))).map(category=><div key={category} className="settings-category"><h3>{category}</h3>{ACTIONS.filter(action=>action.category===category).map(action=><FunctionControl key={action.id} id={`shortcut:${action.id}`}/>)}</div>)}
         <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
-    </div><WindowSparkles source={settings.appearance} appearance={renderedAppearance} /></UIWorkspace>
+    </div><WindowSparkles source={settings.appearance} appearance={renderedAppearance} /></UIWorkspace></>
   );
 }
 export default function App() {

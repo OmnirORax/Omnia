@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createTransientStore } from "./transientStore";
 import {
   canDock,
   contextOwner,
@@ -22,7 +23,7 @@ import {
   type ButtonBox,
 } from "./selection";
 import { snapPosition, snapshotPositions, type PositionedBox } from "./positioning";
-import { rectDistance } from "./drag";
+import { captureUIPointer, rectDistance } from "./drag";
 import { residentBounds } from "./frameBounds";
 
 const selectable = "button[data-ui-function]:not([data-ui-palette])";
@@ -75,6 +76,8 @@ type Gesture = {
   initial: Set<string>;
   clickId?: string;
   align?: boolean;
+  pointerId?: number;
+  release?: () => void;
 };
 type AlignmentPreview = {
   target: ButtonBox;
@@ -100,19 +103,31 @@ export function useButtonSelection({
   const [ids, setIds] = useState<Set<string>>(() => new Set()),
     [mode, setMode] = useState(false),
     [aligning, setAligning] = useState(false),
-    [alignment, setAlignment] = useState<AlignmentPreview | null>(null),
-    [rectangle, setRectangle] = useState<PositionedBox | null>(null),
-    [previews, setPreviews] = useState<ButtonBox[]>([]),
-    [message, setMessage] = useState(""),
     [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [visuals] = useState(() => createTransientStore({
+    alignment: null as AlignmentPreview | null,
+    rectangle: null as PositionedBox | null,
+    previews: [] as ButtonBox[],
+    message: "",
+  }));
+  const setAlignment = (alignment: AlignmentPreview | null) => visuals.set({ ...visuals.getSnapshot(), alignment });
+  const setRectangle = (rectangle: PositionedBox | null) => visuals.set({ ...visuals.getSnapshot(), rectangle });
+  const setPreviews = (previews: ButtonBox[]) => visuals.set({ ...visuals.getSnapshot(), previews });
+  const setMessage = (message: string) => {
+    if (message !== visuals.getSnapshot().message) visuals.set({ ...visuals.getSnapshot(), message });
+  };
   const current = useRef({ layout, update, functions, ids, mode, aligning });
   current.current = { layout, update, functions, ids, mode, aligning };
   const gesture = useRef<Gesture | null>(null);
   const select = (next: Set<string>) => {
+    if (next.size === current.current.ids.size && [...next].every((id) => current.current.ids.has(id))) return;
     current.current.ids = next;
     setIds(next);
   };
   const clear = () => {
+    const active = gesture.current;
+    gesture.current = null;
+    active?.release?.();
     select(new Set());
     setMode(false);
     current.current.aligning = false;
@@ -396,6 +411,9 @@ export function useButtonSelection({
     return () => document.body.classList.remove("ui-select-mode");
   }, [mode, aligning]);
   useEffect(() => {
+    let moveFrame = 0;
+    let pendingMove: PointerEvent | null = null;
+    const cancelMove = () => { cancelAnimationFrame(moveFrame); moveFrame = 0; pendingMove = null; };
     const down = (e: PointerEvent) => {
       if (e.button !== 0) {
         if ((gesture.current || current.current.aligning) && (e.button === 3 || e.button === 4)) cancel();
@@ -417,7 +435,7 @@ export function useButtonSelection({
         gesture.current = {
           start: { x: e.clientX, y: e.clientY }, boxes: [],
           bounds: { x: 0, y: 0, width: 0, height: 0 },
-          moved: false, initial: new Set(state.ids), align: true,
+          moved: false, initial: new Set(state.ids), align: true, pointerId: e.pointerId,
         };
         return;
       }
@@ -462,6 +480,8 @@ export function useButtonSelection({
           moved: false,
           initial: new Set(next),
           clickId: id,
+          pointerId: e.pointerId,
+          release: captureUIPointer(e.pointerId, e.pointerType),
         };
       } else if (
         (state.mode || (additive && target.closest("[data-ui-resident-root],.toolbar"))) &&
@@ -480,15 +500,18 @@ export function useButtonSelection({
           additive,
           scope: scope?.startsWith("window:context:") ? scope : undefined,
           initial: new Set(additive ? state.ids : []),
+          pointerId: e.pointerId,
+          release: captureUIPointer(e.pointerId, e.pointerType),
         };
         setRectangle({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
         setMenu(null);
       }
     };
-    const move = (e: PointerEvent) => {
+    const moveNow = (e: PointerEvent) => {
       const g = gesture.current;
+      if (g && g.pointerId !== e.pointerId) return;
       if (current.current.aligning) {
-        ops.current.previewAlignment(e.target as Element, e.clientX, e.clientY);
+        ops.current.previewAlignment(document.elementFromPoint(e.clientX, e.clientY) ?? e.target as Element, e.clientX, e.clientY);
         if (g) {
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -529,18 +552,33 @@ export function useButtonSelection({
         }
       }
     };
+    const move = (e: PointerEvent) => {
+      if (!gesture.current && !current.current.aligning) return;
+      if (gesture.current && gesture.current.pointerId !== e.pointerId) return;
+      if (gesture.current && (e.buttons & 1) === 0) { cancel(); return; }
+      if (gesture.current) { e.preventDefault(); e.stopImmediatePropagation(); }
+      pendingMove = e;
+      if (!moveFrame) moveFrame = requestAnimationFrame(() => {
+        moveFrame = 0;
+        const event = pendingMove; pendingMove = null;
+        if (event) moveNow(event);
+      });
+    };
     const up = (e: PointerEvent) => {
       const g = gesture.current;
-      if (!g) return;
+      if (!g || g.pointerId !== e.pointerId || e.button !== 0) return;
+      cancelMove();
+      moveNow(e);
       e.preventDefault();
       e.stopImmediatePropagation();
       suppress();
       gesture.current = null;
+      g.release?.();
       setRectangle(null);
       setPreviews([]);
       if (g.align) {
         if (g.moved) return;
-        const result = ops.current.previewAlignment(e.target as Element, e.clientX, e.clientY);
+        const result = ops.current.previewAlignment(document.elementFromPoint(e.clientX, e.clientY) ?? e.target as Element, e.clientX, e.clientY);
         if (result?.next) {
           current.current.update(() => result.next!);
           current.current.aligning = false;
@@ -560,8 +598,11 @@ export function useButtonSelection({
       }
     };
     const cancel = () => {
+      cancelMove();
       if (!gesture.current && !current.current.aligning) return;
+      const active = gesture.current;
       gesture.current = null;
+      active?.release?.();
       current.current.aligning = false;
       setAligning(false);
       setAlignment(null);
@@ -594,17 +635,32 @@ export function useButtonSelection({
         else ops.current.clear();
       }
     };
+    const pointerCancel = (event: PointerEvent) => {
+      if (gesture.current?.pointerId === event.pointerId) cancel();
+    };
+    const preventContext = (event: Event) => {
+      if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
+    const preventNative = (event: DragEvent) => {
+      if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerup", up, true);
-    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("pointercancel", pointerCancel, true);
+    window.addEventListener("contextmenu", preventContext, true);
+    window.addEventListener("dragstart", preventNative, true);
     window.addEventListener("blur", cancel);
     window.addEventListener("keydown", key, true);
     return () => {
+      cancelMove();
+      const active = gesture.current; gesture.current = null; active?.release?.();
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
-      window.removeEventListener("pointercancel", cancel, true);
+      window.removeEventListener("pointercancel", pointerCancel, true);
+      window.removeEventListener("contextmenu", preventContext, true);
+      window.removeEventListener("dragstart", preventNative, true);
       window.removeEventListener("blur", cancel);
       window.removeEventListener("keydown", key, true);
     };
@@ -613,10 +669,7 @@ export function useButtonSelection({
     ids,
     mode,
     aligning,
-    alignment,
-    rectangle,
-    previews,
-    message,
+    visuals,
     menu,
     compact,
     align,
@@ -629,34 +682,35 @@ export function ButtonSelectionOverlay({
 }: {
   selection: ReturnType<typeof useButtonSelection>;
 }) {
+  const visual = useSyncExternalStore(selection.visuals.subscribe, selection.visuals.getSnapshot);
   return (
     <>
-      {selection.rectangle && (
+      {visual.rectangle && (
         <div
           className="ui-selection-rectangle"
           style={{
-            left: selection.rectangle.x,
-            top: selection.rectangle.y,
-            width: selection.rectangle.width,
-            height: selection.rectangle.height,
+            left: visual.rectangle.x,
+            top: visual.rectangle.y,
+            width: visual.rectangle.width,
+            height: visual.rectangle.height,
           }}
         />
       )}
-      {selection.previews.map((b) => (
+      {visual.previews.map((b) => (
         <div
           key={b.id}
           className="ui-placement-preview"
           style={{ left: b.x, top: b.y, width: b.width, height: b.height }}
         />
       ))}
-      {selection.alignment && (
+      {visual.alignment && (
         <div
-          className={`ui-alignment-edge${selection.alignment.next ? "" : " invalid"}`}
+          className={`ui-alignment-edge${visual.alignment.next ? "" : " invalid"}`}
           style={{
-            left: selection.alignment.target.x + (selection.alignment.edge === "right" ? selection.alignment.target.width : 0),
-            top: selection.alignment.target.y + (selection.alignment.edge === "bottom" ? selection.alignment.target.height : 0),
-            width: selection.alignment.edge === "left" || selection.alignment.edge === "right" ? 0 : selection.alignment.target.width,
-            height: selection.alignment.edge === "top" || selection.alignment.edge === "bottom" ? 0 : selection.alignment.target.height,
+            left: visual.alignment.target.x + (visual.alignment.edge === "right" ? visual.alignment.target.width : 0),
+            top: visual.alignment.target.y + (visual.alignment.edge === "bottom" ? visual.alignment.target.height : 0),
+            width: visual.alignment.edge === "left" || visual.alignment.edge === "right" ? 0 : visual.alignment.target.width,
+            height: visual.alignment.edge === "top" || visual.alignment.edge === "bottom" ? 0 : visual.alignment.target.height,
           }}
         />
       )}
@@ -676,9 +730,9 @@ export function ButtonSelectionOverlay({
           </small>
         </div>
       )}
-      {selection.message && (
+      {visual.message && (
         <div className="ui-selection-message" role="status">
-          {selection.message}
+          {visual.message}
         </div>
       )}
       {selection.menu && (

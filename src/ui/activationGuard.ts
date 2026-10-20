@@ -34,8 +34,13 @@ export function useDragActivationGuard() {
     };
     const start = (e: DragEvent) => {
       if (e.target instanceof Element && e.target.closest(UI)) {
-        native.current = true;
-        blocked.current = Infinity;
+        // Internal pointer dragging prevents the browser's native drag later in
+        // this dispatch. A cancelled native start must not leave this guard active.
+        queueMicrotask(() => {
+          if (e.defaultPrevented) return;
+          native.current = true;
+          blocked.current = Infinity;
+        });
       }
     };
     const end = () => {

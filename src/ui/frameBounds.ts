@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 export type ContentBounds = { x: number; y: number; width: number; height: number };
 /** Measure occupied content, never the saved wrapping width of a contour frame. */
 export function residentBounds(root: HTMLElement): ContentBounds {
@@ -23,15 +23,24 @@ export function residentBounds(root: HTMLElement): ContentBounds {
   };
 }
 export function useFrameBounds() {
-  const ref = useRef<HTMLDivElement>(null),
+  const [root, ref] = useState<HTMLDivElement | null>(null),
     [bounds, setBounds] = useState<ContentBounds>({ x: -8, y: -8, width: 160, height: 58 });
   useLayoutEffect(() => {
-    const root = ref.current;
     if (!root) return;
     let raf = 0;
+    let structureChanged = true;
     const measure = () => {
-      cancelAnimationFrame(raf);
+      if (raf) return;
       raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (structureChanged) {
+          structureChanged = false;
+          resize.disconnect();
+          resize.observe(root);
+          root
+            .querySelectorAll(".ui-frame-tools,.ui-resident-slot,.empty-ui-slot")
+            .forEach((el) => resize.observe(el));
+        }
         const box = residentBounds(root),
           origin = root.getBoundingClientRect();
         const next = {
@@ -50,12 +59,8 @@ export function useFrameBounds() {
       });
     };
     const resize = new ResizeObserver(measure);
-    const observe = () => {
-      resize.disconnect();
-      resize.observe(root);
-      root
-        .querySelectorAll(".ui-frame-tools,.ui-resident-slot,.empty-ui-slot")
-        .forEach((el) => resize.observe(el));
+    const observe = (records: MutationRecord[]) => {
+      if (records.some((record) => record.type === "childList")) structureChanged = true;
       measure();
     };
     const mutations = new MutationObserver(observe);
@@ -65,12 +70,12 @@ export function useFrameBounds() {
       attributes: true,
       attributeFilter: ["style", "class", "hidden"],
     });
-    observe();
+    measure();
     return () => {
       resize.disconnect();
       mutations.disconnect();
       cancelAnimationFrame(raf);
     };
-  });
+  }, [root]);
   return { ref, bounds };
 }

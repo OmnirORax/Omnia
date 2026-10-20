@@ -4,7 +4,8 @@ import { instanceId } from "./registry";
 import { toggleRule } from "./model";
 import { valueFor } from "./resolve";
 import { LockControl } from "./LockControl";
-import { PropertyEditor, PropertySelect } from "./Controls";
+import { PropertyTree } from "./PropertyTree";
+import { PropertyEditor } from "./Controls";
 
 export function ContextualAppearance({
   owner,
@@ -32,14 +33,12 @@ export function ContextualAppearance({
     target = instance ?? base;
   const props = base.properties ?? [],
     p = props.includes(property) ? property : props[0];
-  const change = (v: string | number | boolean, preview = false) =>
-    ctx.customize(base.id, owner, label, p, v, preview);
   const initialize = () => {
     const next = structuredClone(ctx.state);
     if (!next.instances[id]) {
       const path: string[] = [];
       const element = owner.startsWith("function:")
-        ? [...document.querySelectorAll<HTMLElement>("[data-ui-function]")].find(
+        ? [...document.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(
             (el) =>
               el.dataset.uiFunction === owner.slice(9) &&
               !el.closest("[data-ui-palette],[data-shortcut-runner]"),
@@ -84,16 +83,23 @@ export function ContextualAppearance({
           ))}
         </select>
       </label>
-      <PropertySelect value={p} onChange={setProperty} available={props} />
+      <PropertyTree
+        scope="local"
+        selected={p}
+        onSelect={setProperty}
+        available={props}
+        renderEditor={(id) => (
+          <PropertyEditor
+            property={id}
+            effectKinds={target.effectKinds}
+            label={`${label} local ${id}`}
+            value={valueFor(ctx.base, ctx.state, target, id)}
+            onPreview={(v) => ctx.customize(base.id, owner, label, id, v, true)}
+            onCommit={(v) => ctx.customize(base.id, owner, label, id, v)}
+          />
+        )}
+      />
       <div className="appearance-local-value">
-        <PropertyEditor
-          property={p}
-          effectKinds={target.effectKinds}
-          label={`${label} local ${p}`}
-          value={valueFor(ctx.base, ctx.state, target, p)}
-          onPreview={(v) => change(v, true)}
-          onCommit={(v) => change(v)}
-        />
         <LockControl
           label={`local ${label}`}
           rule={rule}

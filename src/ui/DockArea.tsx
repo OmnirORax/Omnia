@@ -1,5 +1,7 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUI } from "./context";
+import { useDockPreview } from "./PlacementPreview";
+import { createPortal } from "react-dom";
 import {
   getContainer,
   residentKey,
@@ -67,35 +69,20 @@ export function DockArea({ container, contour = true }: { container: string; con
     [shapes, setShapes] = useState<Shape[]>([]),
     [handle, setHandle] = useState<Shape | null>(null),
     [moving, setMoving] = useState<{ x: number; y: number } | null>(null);
-  const gesture = useRef<{ x: number; y: number; offset: { x: number; y: number } } | null>(null);
+  const gesture = useRef<{ pointerId: number; x: number; y: number; offset: { x: number; y: number } } | null>(null);
+  const measureContent = useRef<() => void>(() => {});
   const state = getContainer(ui.layout, container);
   const members = state?.members ?? [];
-  const preview = ui.preview?.target === container ? ui.preview : null;
-  const entries: (UIResident & { ghost?: boolean; dragSource?: boolean })[] = [
-    ...(preview?.baseline ?? members),
-  ];
-  if (preview) {
-    const old = entries.findIndex((m) => residentKey(m) === preview.key);
-    // Keep the native drag source mounted until drop/dragend. Removing it can cancel
-    // Chromium's drag session while the ghost is being measured.
-    const original = old >= 0 ? entries.splice(old, 1)[0] : null;
-    const colon = preview.key.indexOf(":");
-    entries.splice(Math.max(0, preview.index - (old >= 0 && old < preview.index ? 1 : 0)), 0, {
-      kind: preview.key.slice(0, colon) as UIResident["kind"],
-      id: preview.key.slice(colon + 1),
-      ghost: true,
-      breakBefore: preview.breakBefore,
-      position: preview.position,
-      size: { width: preview.width, height: preview.height },
-    });
-    if (original) entries.push({ ...original, dragSource: true });
-  }
-  const occupied = entries.filter((m) => !m.dragSource);
+  const preview = useDockPreview(container);
+  // A proposal must not resize/reflow real residents, hide the source, or alter
+  // frame measurements. Only a committed drop changes the authored arrangement.
+  const entries = members;
+  const occupied = members;
   const positioned = occupied.length > 0 && occupied.every((m) => m.position && m.size);
   const minX = positioned ? Math.min(0, ...occupied.map((m) => m.position!.x - 12)) : 0,
     minY = positioned ? Math.min(0, ...occupied.map((m) => m.position!.y - 12)) : 0;
   const offset = moving ?? state?.bodyOffset ?? { x: 0, y: 0 };
-  const connections = bridges(shapes);
+  const connections = useMemo(() => bridges(shapes), [shapes]);
   useLayoutEffect(() => {
     const cancel = (e: KeyboardEvent) => {
       if (e.key === "Escape" && gesture.current) {
@@ -113,8 +100,9 @@ export function DockArea({ container, contour = true }: { container: string; con
     if (!node) return;
     let frame = 0;
     const measure = () => {
-      cancelAnimationFrame(frame);
+      if (frame) return;
       frame = requestAnimationFrame(() => {
+        frame = 0;
         const bounds = node.getBoundingClientRect();
         const chrome = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
           (e) => e.dataset.uiChrome === container,
@@ -153,15 +141,24 @@ export function DockArea({ container, contour = true }: { container: string; con
         );
       });
     };
+    measureContent.current = measure;
     const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    node.querySelectorAll(":scope > .ui-resident-slot").forEach((slot) => observer.observe(slot));
-    measure();
+    const observe = () => {
+      observer.disconnect();
+      observer.observe(node);
+      node.querySelectorAll(":scope > .ui-resident-slot").forEach((slot) => observer.observe(slot));
+      measure();
+    };
+    const children = new MutationObserver(observe);
+    children.observe(node, { childList: true });
+    observe();
     return () => {
       observer.disconnect();
+      children.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [ui.layout, ui.preview, container, moving]);
+  }, [container]);
+  useLayoutEffect(() => { measureContent.current(); }, [ui.layout, moving]);
   return (
     <div
       className={`ui-dock-area ${preview ? "is-drop-target" : ""} ${!contour && !entries.length ? "ui-dock-empty" : ""}`}
@@ -275,6 +272,7 @@ export function DockArea({ container, contour = true }: { container: string; con
               e.preventDefault();
               e.stopPropagation();
               gesture.current = {
+                pointerId: e.pointerId,
                 x: e.clientX,
                 y: e.clientY,
                 offset: state?.bodyOffset ?? { x: 0, y: 0 },
@@ -283,14 +281,14 @@ export function DockArea({ container, contour = true }: { container: string; con
             }}
             onPointerMove={(e) => {
               const g = gesture.current;
-              if (!g) return;
+              if (!g || g.pointerId !== e.pointerId) return;
               setMoving({ x: g.offset.x + e.clientX - g.x, y: g.offset.y + e.clientY - g.y });
             }}
             onPointerUp={(e) => {
               const g = gesture.current;
-              if (!g) return;
+              if (!g || g.pointerId !== e.pointerId || e.button !== 0) return;
               gesture.current = null;
-              e.currentTarget.releasePointerCapture(e.pointerId);
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
               const next = { x: g.offset.x + e.clientX - g.x, y: g.offset.y + e.clientY - g.y };
               setMoving(null);
               if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 2)
@@ -304,40 +302,35 @@ export function DockArea({ container, contour = true }: { container: string; con
         </svg>
       )}
       {!members.length && contour && (
-        <div
-          className="empty-ui-slot"
-          style={preview ? { position: "absolute", left: 12, top: 12, opacity: 0 } : undefined}
-        >
+        <div className="empty-ui-slot">
           Drop a function, field or frame here
         </div>
       )}
       {entries.map((member) => (
         <ResidentSlot
-          key={member.ghost ? "@preview" : residentKey(member)}
+          key={residentKey(member)}
           member={member}
-          ghost={member.ghost}
-          dragSource={member.dragSource}
-          width={preview?.width}
-          height={preview?.height}
           origin={{ x: minX, y: minY }}
         />
       ))}
+      {preview?.screenRect && createPortal(
+        <div
+          className="ui-drop-ghost ui-dock-preview-overlay"
+          data-ui-ghost="true"
+          data-ui-preview-target={container}
+          aria-hidden="true"
+          style={{ left: preview.screenRect.x, top: preview.screenRect.y, width: preview.screenRect.width, height: preview.screenRect.height }}
+        >Drop here{preview.magnetic ? " · magnetic" : ""}</div>,
+        document.body,
+      )}
     </div>
   );
 }
 function ResidentSlot({
   member,
-  ghost,
-  dragSource,
-  width,
-  height,
   origin,
 }: {
   member: UIResident;
-  ghost?: boolean;
-  dragSource?: boolean;
-  width?: number;
-  height?: number;
   origin: { x: number; y: number };
 }) {
   const ui = useUI();
@@ -347,11 +340,9 @@ function ResidentSlot({
         <span className="ui-row-break" aria-hidden="true" />
       )}
       <div
-        className={`ui-resident-slot ${member.position ? "is-positioned" : ""} ${ghost ? "ui-drop-ghost" : ""} ${dragSource ? "ui-drag-source" : ""}`}
-        data-ui-slot-key={ghost ? undefined : residentKey(member)}
-        data-ui-ghost={ghost ? "true" : undefined}
+        className={`ui-resident-slot ${member.position ? "is-positioned" : ""}`}
+        data-ui-slot-key={residentKey(member)}
         style={{
-          ...(dragSource ? { visibility: "hidden", pointerEvents: "none" } : {}),
           ...(member.position
             ? {
                 position: "absolute",
@@ -363,14 +354,9 @@ function ResidentSlot({
                     : undefined,
               }
             : {}),
-          ...(ghost ? { width, height } : {}),
         }}
       >
-        {ghost ? (
-          <span>Drop here{ui.preview?.magnetic ? " · magnetic" : ""}</span>
-        ) : (
-          ui.renderResident(member)
-        )}
+        {ui.renderResident(member)}
       </div>
     </>
   );

@@ -4,10 +4,12 @@ import { getContainer, ownerOf, updateContainer, type UILayout } from "./layout"
 import { PROPERTIES, type RegisteredTarget } from '../appearance/registry';
 import { ancestry } from '../appearance/model';
 import type { AppearanceLocation } from '../appearance/Context';
+import { APPEARANCE_HIERARCHY_ID } from '../appearance/propertyTree';
 
 export type SearchReveal = { path: string[] };
 export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; appearance?:AppearanceLocation };
 const titles: Record<string, string> = {
+  [`window:${APPEARANCE_HIERARCHY_ID}`]: "Visual hierarchy",
   "window:theme": "Theme / aesthetics", "window:settings": "Workspace settings",
   "window:shortcuts": "Shortcut display", "window:panel:menu:file": "File",
   "window:panel:menu:create": "Create", "window:panel:menu:view": "View",
@@ -17,9 +19,10 @@ const titles: Record<string, string> = {
   "window:panel:types": "Relationship types", "window:panel:relationships": "Relationships",
   "window:panel:ai": "External AI proposal", "window:panel:help": "Workspace help",
 };
-export const searchTitle = (ui: UIContextValue, key: string) => ui.frameActions.get(key)?.title ?? titles[key] ?? nameFor(ui, key);
+export const searchTitle = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? titles[key] ?? nameFor(ui, key);
 function nativeHome(fn: UIFunction): string {
   const id = fn.id;
+  if (id.startsWith("ui:native:") && fn.scope) return fn.scope;
   if (/^ui:(master:|appearance:|animation:|themePreset:|glow$|resetAppearance$|atmosphere$)/.test(id)) return "window:theme";
   if (/^(shortcut:|ui:(sphereDiameter|radius|clearance|settingsSnap|subtreeModifier|gesture:|mouse:|camera:))/.test(id)) return "window:settings";
   if (/^ui:(import|export|saveTemplate|loadTemplate)$/.test(id)) return "window:panel:menu:file";
@@ -74,8 +77,15 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
     const found = byFunction.get(fn.id);
     add(found ?? { key: `function:${fn.id}`, label: fn.label, functionId: fn.id, path: fallbackPath.filter(key => key !== "workspace") }, fn);
   }
+  const hierarchy = `window:${APPEARANCE_HIERARCHY_ID}`;
+  const hierarchyOwners: string[] = [];
+  const effective = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
+  for(let key: string | undefined = hierarchy; key && key !== 'workspace' && !hierarchyOwners.includes(key); key = ownerOf(effective, key)) hierarchyOwners.unshift(key);
+  // The source window mounts the live controller even when its group lives elsewhere.
+  const hierarchyPath = [...new Set(['window:theme', ...hierarchyOwners])];
   for(const target of appearanceTargets.filter(t=>t.properties))for(const property of PROPERTIES.filter(p=>target.properties!.includes(p.id))){
-    results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${property.label}`,heading:['Theme / aesthetics','Master appearance controller',...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:'window:theme',path:['window:theme'],available:true,appearance:{target:target.id,property:property.id}});
+    const propertyName = ui.layout.labels?.[`window:property:master:${property.id}`] ?? property.label;
+    results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${propertyName}`,heading:[...hierarchyPath.map(key=>searchTitle(ui,key)),...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:hierarchy,path:hierarchyPath,available:true,appearance:{target:target.id,property:property.id}});
   }
   return results.sort((a, b) => a.heading.localeCompare(b.heading) || a.label.localeCompare(b.label));
 }
@@ -94,10 +104,10 @@ export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null):
 export function locateSearchResult(result: GlobalResult): HTMLElement | undefined {
   const root = rootFor(result.home) ?? document.body;
   if(result.appearance){
-    if(result.functionId)return [...root.querySelectorAll<HTMLElement>('[data-ui-function]')].find(el=>el.dataset.uiFunction===result.functionId);
+    if(result.functionId)return [...root.querySelectorAll<HTMLElement>('[data-ui-function]:not([data-ui-native-hidden])')].find(el=>el.dataset.uiFunction===result.functionId);
     const row=[...root.querySelectorAll<HTMLElement>('[data-appearance-target]')].find(el=>el.dataset.appearanceTarget===result.appearance!.target)?.querySelector<HTMLElement>(':scope > .appearance-row');
-    return row?.querySelector<HTMLElement>('input,select')??row??undefined;
+    return row?.querySelector<HTMLElement>('input,select,[aria-pressed="true"],.property-options button')??row??undefined;
   }
-  if (result.functionId) return [...root.querySelectorAll<HTMLElement>("[data-ui-function]")].find(element => element.dataset.uiFunction === result.functionId && !element.closest("[data-ui-search],[data-ui-palette],[data-shortcut-runner]"));
+  if (result.functionId) return [...root.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(element => element.dataset.uiFunction === result.functionId && !element.closest("[data-ui-search],[data-ui-palette],[data-shortcut-runner]"));
   return result.element?.isConnected ? result.element : undefined;
 }
