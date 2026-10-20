@@ -1,6 +1,8 @@
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
 import { NamePresentation } from "./NamePresentation";
+import { createTransientStore } from "./transientStore";
+import { PlacementPreviewOverlay } from "./PlacementPreview";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -12,6 +14,7 @@ import {
   useState,
   useCallback,
   useContext,
+  useMemo,
   type DragEvent,
   type ReactNode,
   type ReactElement,
@@ -478,9 +481,9 @@ export function UIWorkspace({
     },
     [sources],
   );
-  const functions = [
+  const functions = useMemo(() => [
     ...new Map([...definitions, ...Object.values(registered)].map((fn) => [fn.id, fn])).values(),
-  ];
+  ], [definitions, registered]);
   const libraryOpen = layout.panels["@library"] ?? false;
   const setLibraryOpen = (value: boolean) =>
     update((s) => ({ ...s, panels: { ...s.panels, "@library": value } }));
@@ -492,9 +495,7 @@ export function UIWorkspace({
     control: "collapse" | "pin" | "close";
   } | null>(null);
   const [anchorTarget, setAnchorTarget] = useState<string | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null),
-    previewRef = useRef(preview);
-  previewRef.current = preview;
+  const [placementPreview] = useState(() => createTransientStore<Preview | null>(null));
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
   const menuRoot = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -608,7 +609,7 @@ export function UIWorkspace({
   const reset = () => {
     buttonSelection.clear();
     configure(null); configureFrame(null); configureControl(null);
-    setAnchorTarget(null); setPreview(null); setMenu(null); setQuery("");
+    setAnchorTarget(null); placementPreview.set(null); setMenu(null); setQuery("");
     onReset();
   };
   const resetRef = useRef(reset); resetRef.current = reset;
@@ -739,11 +740,25 @@ export function UIWorkspace({
     };
   }, [anchorTarget]);
   useEffect(() => {
+    let previewFrame = 0;
+    let pendingPoint: { x: number; y: number } | null = null;
+    const cancelFrame = () => {
+      cancelAnimationFrame(previewFrame); previewFrame = 0; pendingPoint = null;
+    };
+    let layoutSource: UILayout | undefined, dragLayout: UILayout;
+    const effectiveLayout = () => {
+      if (layoutSource !== current.current.layout) {
+        layoutSource = current.current.layout;
+        dragLayout = ensure(layoutSource);
+      }
+      return dragLayout;
+    };
     const show = (value: Preview | null) => {
-      previewRef.current = value;
-      setPreview((old) => (JSON.stringify(old) === JSON.stringify(value) ? old : value));
+      const old = placementPreview.getSnapshot();
+      if (JSON.stringify(old) !== JSON.stringify(value)) placementPreview.set(value);
     };
     const start = (event: MouseEvent) => {
+      cancelFrame(); layoutSource = undefined;
       const target = event.target as Element;
       if (target.closest("input,select,textarea")) return;
       const mini = target.closest<HTMLElement>("[data-ui-control]");
@@ -800,7 +815,7 @@ export function UIWorkspace({
     const resolve = (x: number, y: number): Preview | null => {
       const source = drag.current;
       if (!source || source.cancelled) return null;
-      const s = ensure(current.current.layout);
+      const s = effectiveLayout();
       if (source.control) {
         const element = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
           (e) => e.dataset.uiChrome === source.control!.owner,
@@ -1189,13 +1204,19 @@ export function UIWorkspace({
       e.preventDefault();
       e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-      show(resolve(e.clientX, e.clientY));
+      pendingPoint = { x: e.clientX, y: e.clientY };
+      if (!previewFrame) previewFrame = requestAnimationFrame(() => {
+        previewFrame = 0;
+        const point = pendingPoint; pendingPoint = null;
+        if (point && drag.current && !drag.current.cancelled) show(resolve(point.x, point.y));
+      });
     };
     const drop = (e: MouseEvent) => {
       const source = drag.current;
       if (!source || source.cancelled) return;
       e.preventDefault();
       e.stopPropagation();
+      cancelFrame();
       const p = resolve(e.clientX, e.clientY);
       show(null);
       drag.current = null;
@@ -1301,6 +1322,7 @@ export function UIWorkspace({
       });
     };
     const end = () => {
+      cancelFrame();
       drag.current = null;
       show(null);
     };
@@ -1309,6 +1331,7 @@ export function UIWorkspace({
         e.preventDefault();
         e.stopImmediatePropagation();
         drag.current.cancelled = true;
+        cancelFrame();
         show(null);
       }
     };
@@ -1318,6 +1341,7 @@ export function UIWorkspace({
     window.addEventListener("dragend", end);
     window.addEventListener("keydown", keydown, true);
     return () => {
+      cancelFrame();
       window.removeEventListener("dragstart", start, true);
       window.removeEventListener("dragover", over, true);
       window.removeEventListener("drop", drop, true);
@@ -1441,7 +1465,7 @@ export function UIWorkspace({
         createFrame,
         library: () => setLibraryOpen(true),
         frameMenu,
-        preview: preview?.dock ?? null,
+        placementPreview,
         defaults,
         frameActions,
         renderResident,
@@ -1506,18 +1530,7 @@ export function UIWorkspace({
             <FunctionFrame frame={f} key={f.id} />
           ))}
       </div>
-      {preview?.rect && (
-        <div
-          className="ui-placement-preview"
-          style={{
-            left: preview.rect.x,
-            top: preview.rect.y,
-            width: preview.rect.width,
-            height: preview.rect.height,
-          }}
-        />
-      )}
-      {preview && <div className="ui-snap-preview">{preview.text}</div>}
+      <PlacementPreviewOverlay />
       {menu && (
         <div
           ref={menuRoot}

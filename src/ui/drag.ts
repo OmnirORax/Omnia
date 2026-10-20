@@ -41,3 +41,4 @@ export type DockPreview = {
   position?: Cell;
   baseline?: UIResident[];
 };
+export type PlacementPreview = { dock?: DockPreview; rect?: Rect; text: string };

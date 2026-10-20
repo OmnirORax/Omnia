@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createTransientStore } from "./transientStore";
 import {
   canDock,
   contextOwner,
@@ -100,15 +101,24 @@ export function useButtonSelection({
   const [ids, setIds] = useState<Set<string>>(() => new Set()),
     [mode, setMode] = useState(false),
     [aligning, setAligning] = useState(false),
-    [alignment, setAlignment] = useState<AlignmentPreview | null>(null),
-    [rectangle, setRectangle] = useState<PositionedBox | null>(null),
-    [previews, setPreviews] = useState<ButtonBox[]>([]),
-    [message, setMessage] = useState(""),
     [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [visuals] = useState(() => createTransientStore({
+    alignment: null as AlignmentPreview | null,
+    rectangle: null as PositionedBox | null,
+    previews: [] as ButtonBox[],
+    message: "",
+  }));
+  const setAlignment = (alignment: AlignmentPreview | null) => visuals.set({ ...visuals.getSnapshot(), alignment });
+  const setRectangle = (rectangle: PositionedBox | null) => visuals.set({ ...visuals.getSnapshot(), rectangle });
+  const setPreviews = (previews: ButtonBox[]) => visuals.set({ ...visuals.getSnapshot(), previews });
+  const setMessage = (message: string) => {
+    if (message !== visuals.getSnapshot().message) visuals.set({ ...visuals.getSnapshot(), message });
+  };
   const current = useRef({ layout, update, functions, ids, mode, aligning });
   current.current = { layout, update, functions, ids, mode, aligning };
   const gesture = useRef<Gesture | null>(null);
   const select = (next: Set<string>) => {
+    if (next.size === current.current.ids.size && [...next].every((id) => current.current.ids.has(id))) return;
     current.current.ids = next;
     setIds(next);
   };
@@ -396,6 +406,9 @@ export function useButtonSelection({
     return () => document.body.classList.remove("ui-select-mode");
   }, [mode, aligning]);
   useEffect(() => {
+    let moveFrame = 0;
+    let pendingMove: PointerEvent | null = null;
+    const cancelMove = () => { cancelAnimationFrame(moveFrame); moveFrame = 0; pendingMove = null; };
     const down = (e: PointerEvent) => {
       if (e.button !== 0) {
         if ((gesture.current || current.current.aligning) && (e.button === 3 || e.button === 4)) cancel();
@@ -485,7 +498,7 @@ export function useButtonSelection({
         setMenu(null);
       }
     };
-    const move = (e: PointerEvent) => {
+    const moveNow = (e: PointerEvent) => {
       const g = gesture.current;
       if (current.current.aligning) {
         ops.current.previewAlignment(e.target as Element, e.clientX, e.clientY);
@@ -529,9 +542,21 @@ export function useButtonSelection({
         }
       }
     };
+    const move = (e: PointerEvent) => {
+      if (!gesture.current && !current.current.aligning) return;
+      if (gesture.current) { e.preventDefault(); e.stopImmediatePropagation(); }
+      pendingMove = e;
+      if (!moveFrame) moveFrame = requestAnimationFrame(() => {
+        moveFrame = 0;
+        const event = pendingMove; pendingMove = null;
+        if (event) moveNow(event);
+      });
+    };
     const up = (e: PointerEvent) => {
       const g = gesture.current;
       if (!g) return;
+      cancelMove();
+      moveNow(e);
       e.preventDefault();
       e.stopImmediatePropagation();
       suppress();
@@ -560,6 +585,7 @@ export function useButtonSelection({
       }
     };
     const cancel = () => {
+      cancelMove();
       if (!gesture.current && !current.current.aligning) return;
       gesture.current = null;
       current.current.aligning = false;
@@ -601,6 +627,7 @@ export function useButtonSelection({
     window.addEventListener("blur", cancel);
     window.addEventListener("keydown", key, true);
     return () => {
+      cancelMove();
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
@@ -613,10 +640,7 @@ export function useButtonSelection({
     ids,
     mode,
     aligning,
-    alignment,
-    rectangle,
-    previews,
-    message,
+    visuals,
     menu,
     compact,
     align,
@@ -629,34 +653,35 @@ export function ButtonSelectionOverlay({
 }: {
   selection: ReturnType<typeof useButtonSelection>;
 }) {
+  const visual = useSyncExternalStore(selection.visuals.subscribe, selection.visuals.getSnapshot);
   return (
     <>
-      {selection.rectangle && (
+      {visual.rectangle && (
         <div
           className="ui-selection-rectangle"
           style={{
-            left: selection.rectangle.x,
-            top: selection.rectangle.y,
-            width: selection.rectangle.width,
-            height: selection.rectangle.height,
+            left: visual.rectangle.x,
+            top: visual.rectangle.y,
+            width: visual.rectangle.width,
+            height: visual.rectangle.height,
           }}
         />
       )}
-      {selection.previews.map((b) => (
+      {visual.previews.map((b) => (
         <div
           key={b.id}
           className="ui-placement-preview"
           style={{ left: b.x, top: b.y, width: b.width, height: b.height }}
         />
       ))}
-      {selection.alignment && (
+      {visual.alignment && (
         <div
-          className={`ui-alignment-edge${selection.alignment.next ? "" : " invalid"}`}
+          className={`ui-alignment-edge${visual.alignment.next ? "" : " invalid"}`}
           style={{
-            left: selection.alignment.target.x + (selection.alignment.edge === "right" ? selection.alignment.target.width : 0),
-            top: selection.alignment.target.y + (selection.alignment.edge === "bottom" ? selection.alignment.target.height : 0),
-            width: selection.alignment.edge === "left" || selection.alignment.edge === "right" ? 0 : selection.alignment.target.width,
-            height: selection.alignment.edge === "top" || selection.alignment.edge === "bottom" ? 0 : selection.alignment.target.height,
+            left: visual.alignment.target.x + (visual.alignment.edge === "right" ? visual.alignment.target.width : 0),
+            top: visual.alignment.target.y + (visual.alignment.edge === "bottom" ? visual.alignment.target.height : 0),
+            width: visual.alignment.edge === "left" || visual.alignment.edge === "right" ? 0 : visual.alignment.target.width,
+            height: visual.alignment.edge === "top" || visual.alignment.edge === "bottom" ? 0 : visual.alignment.target.height,
           }}
         />
       )}
@@ -676,9 +701,9 @@ export function ButtonSelectionOverlay({
           </small>
         </div>
       )}
-      {selection.message && (
+      {visual.message && (
         <div className="ui-selection-message" role="status">
-          {selection.message}
+          {visual.message}
         </div>
       )}
       {selection.menu && (

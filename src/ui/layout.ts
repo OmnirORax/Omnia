@@ -453,7 +453,12 @@ export function collapseResidentBranch(
   return next;
 }
 export function getContainer(layout: UILayout, key: string) {
-  return containers(layout).find(([id]) => id === key)?.[1];
+  if (key.startsWith("window:")) {
+    const id = key.slice(7);
+    return Object.hasOwn(layout.windows, id) ? layout.windows[id] : undefined;
+  }
+  if (key.startsWith("frame:")) return layout.frames.find((frame) => frame.id === key.slice(6));
+  return undefined;
 }
 export function ownerOf(layout: UILayout, key: string) {
   const explicit = containers(layout).find(([, c]) =>

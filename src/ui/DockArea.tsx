@@ -1,5 +1,6 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUI } from "./context";
+import { useDockPreview } from "./PlacementPreview";
 import {
   getContainer,
   residentKey,
@@ -68,9 +69,10 @@ export function DockArea({ container, contour = true }: { container: string; con
     [handle, setHandle] = useState<Shape | null>(null),
     [moving, setMoving] = useState<{ x: number; y: number } | null>(null);
   const gesture = useRef<{ x: number; y: number; offset: { x: number; y: number } } | null>(null);
+  const measureContent = useRef<() => void>(() => {});
   const state = getContainer(ui.layout, container);
   const members = state?.members ?? [];
-  const preview = ui.preview?.target === container ? ui.preview : null;
+  const preview = useDockPreview(container);
   const entries: (UIResident & { ghost?: boolean; dragSource?: boolean })[] = [
     ...(preview?.baseline ?? members),
   ];
@@ -95,7 +97,7 @@ export function DockArea({ container, contour = true }: { container: string; con
   const minX = positioned ? Math.min(0, ...occupied.map((m) => m.position!.x - 12)) : 0,
     minY = positioned ? Math.min(0, ...occupied.map((m) => m.position!.y - 12)) : 0;
   const offset = moving ?? state?.bodyOffset ?? { x: 0, y: 0 };
-  const connections = bridges(shapes);
+  const connections = useMemo(() => bridges(shapes), [shapes]);
   useLayoutEffect(() => {
     const cancel = (e: KeyboardEvent) => {
       if (e.key === "Escape" && gesture.current) {
@@ -113,8 +115,9 @@ export function DockArea({ container, contour = true }: { container: string; con
     if (!node) return;
     let frame = 0;
     const measure = () => {
-      cancelAnimationFrame(frame);
+      if (frame) return;
       frame = requestAnimationFrame(() => {
+        frame = 0;
         const bounds = node.getBoundingClientRect();
         const chrome = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
           (e) => e.dataset.uiChrome === container,
@@ -153,15 +156,24 @@ export function DockArea({ container, contour = true }: { container: string; con
         );
       });
     };
+    measureContent.current = measure;
     const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    node.querySelectorAll(":scope > .ui-resident-slot").forEach((slot) => observer.observe(slot));
-    measure();
+    const observe = () => {
+      observer.disconnect();
+      observer.observe(node);
+      node.querySelectorAll(":scope > .ui-resident-slot").forEach((slot) => observer.observe(slot));
+      measure();
+    };
+    const children = new MutationObserver(observe);
+    children.observe(node, { childList: true });
+    observe();
     return () => {
       observer.disconnect();
+      children.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [ui.layout, ui.preview, container, moving]);
+  }, [container]);
+  useLayoutEffect(() => { measureContent.current(); }, [ui.layout, preview, moving]);
   return (
     <div
       className={`ui-dock-area ${preview ? "is-drop-target" : ""} ${!contour && !entries.length ? "ui-dock-empty" : ""}`}
@@ -319,6 +331,7 @@ export function DockArea({ container, contour = true }: { container: string; con
           dragSource={member.dragSource}
           width={preview?.width}
           height={preview?.height}
+          magnetic={preview?.magnetic}
           origin={{ x: minX, y: minY }}
         />
       ))}
@@ -332,6 +345,7 @@ function ResidentSlot({
   width,
   height,
   origin,
+  magnetic,
 }: {
   member: UIResident;
   ghost?: boolean;
@@ -339,6 +353,7 @@ function ResidentSlot({
   width?: number;
   height?: number;
   origin: { x: number; y: number };
+  magnetic?: boolean;
 }) {
   const ui = useUI();
   return (
@@ -367,7 +382,7 @@ function ResidentSlot({
         }}
       >
         {ghost ? (
-          <span>Drop here{ui.preview?.magnetic ? " · magnetic" : ""}</span>
+          <span>Drop here{magnetic ? " · magnetic" : ""}</span>
         ) : (
           ui.renderResident(member)
         )}

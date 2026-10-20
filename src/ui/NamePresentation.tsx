@@ -32,10 +32,35 @@ export function NamePresentation() {
   const scanRef = useRef<() => void>(() => {});
   useEffect(() => {
     let frame = 0;
+    let full = true;
+    const dirty = new Set<Element>();
+    const written = new WeakMap<Element, Map<string, string>>();
+    const write = (element: HTMLElement, attribute: string, value: string) => {
+      if (element.getAttribute(attribute) === value) return;
+      const attributes = written.get(element) ?? new Map<string, string>();
+      attributes.set(attribute, value);
+      written.set(element, attributes);
+      element.setAttribute(attribute, value);
+    };
     const scan = () => {
       frame = 0;
       const active = latest.current;
-      for (const element of document.querySelectorAll<HTMLElement>(selector)) {
+      const candidates = new Set<HTMLElement>();
+      if (full)
+        document
+          .querySelectorAll<HTMLElement>(selector)
+          .forEach((element) => candidates.add(element));
+      else
+        for (const root of dirty) {
+          if (!root.isConnected) continue;
+          if (root instanceof HTMLElement && root.matches(selector)) candidates.add(root);
+          root
+            .querySelectorAll<HTMLElement>(selector)
+            .forEach((element) => candidates.add(element));
+        }
+      full = false;
+      dirty.clear();
+      for (const element of candidates) {
         if (!element.closest(scope) || element.closest(ignored)) continue;
         if (
           element.matches("strong") &&
@@ -54,7 +79,7 @@ export function NamePresentation() {
         if (!name) continue;
         // Every named control retains an accessible name, even in symbol-only mode.
         if (element.matches("button") && !element.hasAttribute("aria-label")) {
-          element.setAttribute("aria-label", name);
+          write(element, "aria-label", name);
           element.dataset.uiPresentationAria = "true";
         } else if (
           element.dataset.uiPresentationAria &&
@@ -62,10 +87,10 @@ export function NamePresentation() {
           !element.dataset.uiName &&
           element.getAttribute("aria-label") !== ownText
         ) {
-          element.setAttribute("aria-label", ownText);
+          write(element, "aria-label", ownText);
         }
         const tooltip = active.layout.hideNames ? name : "";
-        if (element.title !== tooltip) element.title = tooltip;
+        write(element, "title", tooltip);
         const custom =
           element.matches(".function-icon,[data-ui-native-icon]") ||
           !!element.closest(".icon-handle,[data-ui-control]");
@@ -74,10 +99,10 @@ export function NamePresentation() {
         const namedText = /[\p{L}\p{N}]/u.test(ownText);
         const decoratable = element.matches(captions);
         if (!decoratable || custom || !namedText) {
-          delete element.dataset.uiNameSymbol;
+          if (element.hasAttribute("data-ui-name-symbol")) delete element.dataset.uiNameSymbol;
           continue;
         }
-        if (!element.dataset.uiNameSymbol) {
+        if (!element.hasAttribute("data-ui-name-symbol")) {
           const size = getComputedStyle(element).fontSize;
           element.style.setProperty("--ui-name-size", parseFloat(size) > 0 ? size : "12px");
         }
@@ -86,16 +111,38 @@ export function NamePresentation() {
           element.dataset.uiFunction ||
           element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ||
           "";
-        element.dataset.uiNameSymbol = asset
-          ? ""
-          : element.dataset.uiSymbol || nameSymbol(id, name);
+        const symbol = asset ? "" : element.dataset.uiSymbol || nameSymbol(id, name);
+        if (element.dataset.uiNameSymbol !== symbol) element.dataset.uiNameSymbol = symbol;
       }
     };
-    scanRef.current = scan;
+    scanRef.current = () => {
+      full = true;
+      scan();
+    };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(scan);
     };
-    const observer = new MutationObserver(schedule);
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const element =
+          record.target instanceof Element ? record.target : record.target.parentElement;
+        if (!element || element.closest("style,script,canvas")) continue;
+        if (record.type === "attributes") {
+          const attribute = record.attributeName!;
+          const expected = written.get(element)?.get(attribute);
+          if (expected !== undefined && element.getAttribute(attribute) === expected) continue;
+          dirty.add(element);
+        } else {
+          const caption = element.closest(captions);
+          if (caption) dirty.add(caption);
+          if (record.type === "childList")
+            record.addedNodes.forEach((node) => {
+              if (node instanceof Element) dirty.add(node);
+            });
+        }
+      }
+      if (dirty.size) schedule();
+    });
     observer.observe(document.body, {
       subtree: true,
       childList: true,
@@ -119,7 +166,7 @@ export function NamePresentation() {
   useEffect(() => {
     document.documentElement.toggleAttribute("data-ui-hide-names", !!ui.layout.hideNames);
     scanRef.current();
-  }, [ui.layout.hideNames, ui.functions]);
+  }, [ui.layout.hideNames]);
   return null;
 }
 

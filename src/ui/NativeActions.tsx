@@ -65,8 +65,12 @@ const eligible = (button: HTMLButtonElement) =>
 const caption = (button: HTMLButtonElement) => {
   const text = button.textContent?.trim();
   const title = button.dataset.uiNameFallback || (!button.dataset.uiNativeTitle && button.title);
-  const label = (!button.dataset.uiNativeLabel && !button.dataset.uiPresentationAria && button.getAttribute("aria-label")) ||
-    (text && /[\p{L}\p{N}]/u.test(text) ? text : title || text) || "Button";
+  const label =
+    (!button.dataset.uiNativeLabel &&
+      !button.dataset.uiPresentationAria &&
+      button.getAttribute("aria-label")) ||
+    (text && /[\p{L}\p{N}]/u.test(text) ? text : title || text) ||
+    "Button";
   return label.replace(/\s+/g, " ").trim().slice(0, 200);
 };
 type Entry = {
@@ -113,7 +117,8 @@ export function NativeActions() {
     element.toggleAttribute("data-ui-native-icon", style?.mode === "icon");
     if (style?.mode === "icon") {
       if (!element.hasAttribute("aria-label") || element.dataset.uiNativeLabel) {
-        element.setAttribute("aria-label", entry.label);
+        if (element.getAttribute("aria-label") !== entry.label)
+          element.setAttribute("aria-label", entry.label);
         element.dataset.uiNativeLabel = "true";
       }
       element.dataset.uiNativeGeometry = style.geometry;
@@ -144,6 +149,8 @@ export function NativeActions() {
   }, [ui.layout, ui.shortcutBindings]);
   useEffect(() => {
     let frame = 0;
+    const dirty = new Set<HTMLButtonElement>();
+    let removed = false;
     const register = (button: HTMLButtonElement): Entry | undefined => {
       if (!eligible(button)) return;
       let entry = entries.current.get(button);
@@ -190,29 +197,41 @@ export function NativeActions() {
     };
     const scan = () => {
       frame = 0;
-      for (const [button, entry] of entries.current)
-        if (!button.isConnected) {
-          entry.release();
-          button.removeEventListener("contextmenu", entry.context);
-          entries.current.delete(button);
-        }
-      document.body.querySelectorAll<HTMLButtonElement>("button").forEach(register);
+      if (removed)
+        for (const [button, entry] of entries.current)
+          if (!button.isConnected) {
+            entry.release();
+            button.removeEventListener("contextmenu", entry.context);
+            entries.current.delete(button);
+          }
+      removed = false;
+      for (const button of dirty) if (button.isConnected) register(button);
+      dirty.clear();
     };
     const observer = new MutationObserver((records) => {
-      // Paint/style updates are frequent; only action/content changes trigger discovery.
-      if (
-        !records.some(
-          (record) =>
-            !(
-              record.target instanceof Element ? record.target : record.target.parentElement
-            )?.closest("style,script,canvas"),
-        )
-      )
-        return;
-      if (!frame) frame = requestAnimationFrame(scan);
+      for (const record of records) {
+        const element =
+          record.target instanceof Element ? record.target : record.target.parentElement;
+        if (!element || element.closest("style,script,canvas")) continue;
+        const button = element.closest<HTMLButtonElement>("button");
+        if (button) dirty.add(button);
+        if (record.type === "childList") {
+          for (const node of record.addedNodes)
+            if (node instanceof Element) {
+              if (node instanceof HTMLButtonElement) dirty.add(node);
+              node
+                .querySelectorAll<HTMLButtonElement>("button")
+                .forEach((button) => dirty.add(button));
+            }
+          for (const node of record.removedNodes)
+            if (node instanceof Element && (node.matches("button") || node.querySelector("button")))
+              removed = true;
+        }
+      }
+      if ((dirty.size || removed) && !frame) frame = requestAnimationFrame(scan);
     });
     observer.observe(document.body, { childList: true, characterData: true, subtree: true });
-    scan();
+    document.body.querySelectorAll<HTMLButtonElement>("button").forEach(register);
     return () => {
       observer.disconnect();
       cancelAnimationFrame(frame);
