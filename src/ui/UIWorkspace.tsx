@@ -1,6 +1,7 @@
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
 import { useOutsideDismiss } from "./useOutsideDismiss";
+import { useCursorTracking } from "./cursorPosition";
 import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
@@ -290,6 +291,7 @@ export function UIPanel({
     return (
       <FloatingWindow
         id={`panel:${id}`}
+        openAtCursor={false}
         title={title}
         width={400}
         height={560}
@@ -492,6 +494,7 @@ export function UIWorkspace({
   search?: GlobalSearchProps;
   appearance?: AppearanceBridge;
 }) {
+  useCursorTracking();
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
   const [registered, setRegistered] = useState<Record<string, UIFunction>>({});
@@ -532,6 +535,8 @@ export function UIWorkspace({
     owner: string;
     control: "collapse" | "pin" | "close";
   } | null>(null);
+  const [appearanceOpening, setAppearanceOpening] = useState(0);
+  const reopenAppearance = () => setAppearanceOpening(value => value + 1);
   const [anchorTarget, setAnchorTarget] = useState<string | null>(null);
   const [placementPreview] = useState(() => createTransientStore<Preview | null>(null));
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
@@ -1638,17 +1643,20 @@ export function UIWorkspace({
         shortcutBindings: shortcuts?.bindings,
         registerFunction,
         configure: (id) => {
+          if (id) reopenAppearance();
           configureFrame(null);
           configureControl(null);
           configure(id);
         },
         configureFrame: (owner) => {
+          reopenAppearance();
           configure(null);
           configureControl(null);
           configureFrame(owner);
           setMenu(null);
         },
         configureControl: (owner, control) => {
+          reopenAppearance();
           configure(null);
           configureFrame(null);
           configureControl({ owner, control });
@@ -1677,7 +1685,7 @@ export function UIWorkspace({
       <div hidden ref={shortcutRunners} aria-hidden="true">
         {functions.filter(fn => !fn.control && fn.available !== false && Object.hasOwn(shortcuts?.bindings ?? {}, `button:${fn.id}`)).map(fn => <span key={fn.id} data-shortcut-runner={fn.id}>{fn.element}</span>)}
       </div>
-      {shortcutField && <FloatingWindow id="shortcut-field" title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
+      {shortcutField && <FloatingWindow id="shortcut-field" openingKey={shortcutField} title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
       {shortcutNotice && <div className="ui-anchor-prompt ui-shortcut-notice" role="status">{shortcutNotice}<button onClick={() => setShortcutNotice("")}>Dismiss</button></div>}
       <ButtonSelectionOverlay selection={buttonSelection} />
       {anchorTarget && (
@@ -1775,6 +1783,7 @@ export function UIWorkspace({
                 onClick={() => {
                   configure(null);
                   configureControl(null);
+                  reopenAppearance();
                   configureFrame(menu.owner!);
                   setMenu(null);
                 }}
@@ -1882,6 +1891,7 @@ export function UIWorkspace({
       {(selected || selectedContainer) && (
         <FloatingWindow
           id="function-appearance"
+          openingKey={appearanceOpening}
           className="function-appearance"
           title={
             configuredControl

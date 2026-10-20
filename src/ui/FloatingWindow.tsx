@@ -10,6 +10,7 @@ import { useFrameBounds } from "./frameBounds";
 import { useDockResident, useDockWorkspace } from "./DockWorkspace";
 import { fitDockRect } from "./docking";
 import { keepFloatingHandleVisible } from "./positioning";
+import { cursorPosition } from "./cursorPosition";
 let front = 100;
 export const nextWindowLayer = () => ++front;
 export function FloatingWindow({
@@ -24,6 +25,8 @@ export function FloatingWindow({
   x,
   y,
   role = "dialog",
+  openAtCursor = role === "dialog",
+  openingKey,
   className = "",
   modal = false,
   onInteract,
@@ -39,6 +42,9 @@ export function FloatingWindow({
   x?: number;
   y?: number;
   role?: "dialog" | "complementary";
+  /** Popups open at the pointer; persistent workspace panels opt out. */
+  openAtCursor?: boolean;
+  openingKey?: string | number;
   className?: string;
   modal?: boolean;
   onInteract?: () => void;
@@ -60,9 +66,9 @@ export function FloatingWindow({
   const state = fitWindow(saved, window.innerWidth, window.innerHeight);
   const workspace = useDockWorkspace();
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
-  const available = !owner && workspace.active ? workspace.floating : viewport;
+  const available = !owner && !openAtCursor && workspace.active ? workspace.floating : viewport;
   const desired = state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state;
-  const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !owner, saved.floatingOverflow);
+  const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !owner && !openAtCursor, saved.floatingOverflow);
   const dockFill = !!host?.classList.contains("ui-dock-fill");
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
@@ -71,6 +77,23 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, setZ] = useState(nextWindowLayer);
+  useLayoutEffect(() => {
+    if (!openAtCursor || owner) return;
+    const point = cursorPosition();
+    ui.update(layout => {
+      const current = layout.windows[id] ?? initial;
+      return {
+        ...layout,
+        windows: {
+          ...layout.windows,
+          [id]: fitWindow({ ...current, ...point, collapsed: false, floatingOverflow: false }, innerWidth, innerHeight),
+        },
+      };
+    });
+    setZ(nextWindowLayer());
+    // Opening a new target also repositions an editor that is already mounted.
+    // Saved coordinate updates during dragging must not recenter it.
+  }, [id, openAtCursor, openingKey]);
   const set = (patch: Partial<WindowState>) =>
     ui.update((layout) => ({
       ...layout,
