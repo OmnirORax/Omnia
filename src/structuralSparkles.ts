@@ -34,7 +34,8 @@ export function createStructuralSparkles(scene: THREE.Scene) {
     const map = texture(fx.effect);
     if (points.material.map !== map) { points.material.map = map; points.material.needsUpdate = true; }
     points.material.size = fx.effect === "starfield" ? 5 * (fx.starSize ?? 1) : fx.effect === "sparks" ? 9 : fx.effect === "dust" ? 3 : 5;
-    points.material.opacity = fx.intensity;
+    points.material.opacity = fx.intensity * (fx.opacity ?? 1);
+    points.userData.glowIntensity = fx.glow ?? 0.25;
   };
   const finish = (points: typeof nodes, count: number) => {
     points.geometry.setDrawRange(0, count);

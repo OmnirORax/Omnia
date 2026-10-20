@@ -1,3 +1,4 @@
+import { useIconTint } from "../appearance/Styles";
 import { useLayoutEffect } from "react";
 import { ShortcutHint } from "./ShortcutHint";
 import { useUI } from "./context";
@@ -28,6 +29,7 @@ export function FrameChrome({
   className?: string;
   fixed?: boolean;
 }) {
+  const iconTint = useIconTint(container);
   const ui = useUI(),
     style = state.chrome?.style ?? { mode: "text", geometry: "circle" },
     asset = ui.layout.assets.find((a) => a.id === style.assetId);
@@ -64,9 +66,9 @@ export function FrameChrome({
         >
           {style.mode === "icon" ? (
             asset ? (
-              <img src={asset.dataUrl} alt="" />
+              <>{iconTint.color ? <span className="appearance-icon-mask" style={{...iconTint.style, backgroundColor: iconTint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} /> : <img src={asset.dataUrl} alt="" style={iconTint.style}/>}</>
             ) : (
-              style.character || "○"
+              <span style={{...iconTint.style,color:iconTint.color}}>{style.character || "○"}</span>
             )
           ) : (
             <strong>{title}</strong>

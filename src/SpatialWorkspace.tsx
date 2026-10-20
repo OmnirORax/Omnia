@@ -19,7 +19,7 @@ import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
 import { EntityMenu } from "./ui/EntityMenu";
 import { FunctionControl } from "./ui/UIWorkspace";
-import { isCustomFont } from "./fonts";
+import { normalizeFont, isCustomFont } from "./fonts";
 import { loadFont } from "./fontLibrary";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
@@ -106,15 +106,17 @@ export default function SpatialWorkspace(props: Props) {
   }, []);
   const [ready, setReady] = useState(false);
   const [fontRevision, setFontRevision] = useState(0);
+  const nodeFont = normalizeFont(settings.appearance.renderDefaults?.['text.nodes']?.font ?? settings.appearance.font);
+  const binderFont = normalizeFont(settings.appearance.renderDefaults?.['text.binders']?.font ?? settings.appearance.font);
   useEffect(() => {
-    if (settings.appearance.font !== "electric" && !isCustomFont(settings.appearance.font)) return;
+    if (![settings.appearance.font, nodeFont, binderFont].some(font => font === "electric" || isCustomFont(font))) return;
     let active = true;
     const refresh = () => { if (active) setFontRevision(revision => revision + 1); };
     window.document.fonts.addEventListener("loadingdone", refresh);
     // Canvas textures must be regenerated after the bundled face finishes loading.
-    loadFont(settings.appearance.font).then(refresh).catch(() => { /* The selected family already includes a system fallback. */ });
+    Promise.all([...new Set([settings.appearance.font, nodeFont, binderFont])].map(font => loadFont(font))).then(refresh).catch(() => { /* The selected family already includes a system fallback. */ });
     return () => { active = false; window.document.fonts.removeEventListener("loadingdone", refresh); };
-  }, [settings.appearance.font]);
+  }, [settings.appearance.font, nodeFont, binderFont]);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<Menu | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -510,7 +512,7 @@ export default function SpatialWorkspace(props: Props) {
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, fontRevision, settings.appearance.theme]);
+  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
   useEffect(() => {
     textScene.current?.applyTheme(settings.appearance, props.colorPreview);

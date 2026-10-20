@@ -1,8 +1,10 @@
+import { transientReveal, type RevealSession } from './transientReveal';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUI } from "./context";
-import { normalizeSearch, rootFor } from "./FrameSearch";
+import { normalizeSearch } from "./FrameSearch";
 import { globalControls, locateSearchResult, type GlobalResult, type SearchReveal } from "./search";
+import { useAppearance } from '../appearance/Context';
 
 export type GlobalSearchProps = {
   open: boolean;
@@ -22,10 +24,11 @@ export function GlobalSearch(props: GlobalSearchProps) {
   return props.open ? <SearchSession {...props} origin={cursor.current} /> : null;
 }
 function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps & { origin: Point }) {
-  const ui = useUI(), id = useId();
+  const ui = useUI(), appearance=useAppearance(),id = useId();
+  const appearanceRef=useRef(appearance);appearanceRef.current=appearance;
   const callbacks = useRef({ onClose, onPreview, onKeep }); callbacks.current = { onClose, onPreview, onKeep };
   // A stable index prevents hover revelation from reordering the list under the pointer.
-  const [index] = useState(() => globalControls(ui));
+  const [index] = useState(() => globalControls(ui,appearance?.targets));
   const [query, setQuery] = useState(""), [active, setActive] = useState(-1), [notice, setNotice] = useState("");
   const input = useRef<HTMLInputElement>(null), popup = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(origin), [dragging, setDragging] = useState(false);
@@ -41,7 +44,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
     window.addEventListener("resize", fit); fit();
     return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
   }, []);
-  const restore = useRef<(keep?: boolean) => void>(() => {}), restoreFrame = useRef(0), locating = useRef(0);
+  const revealSession = useRef<RevealSession | null>(null);
   const tokens = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
   const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.heading} ${result.label}`).includes(token)));
   const visible = matches.slice(0, 100);
@@ -50,7 +53,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
     visible.forEach((result, position) => grouped.set(result.heading, [...(grouped.get(result.heading) ?? []), { result, position }]));
     return [...grouped];
   }, [visible]);
-  const stopPreview = () => { cancelAnimationFrame(locating.current); restore.current(); restore.current = () => {}; callbacks.current.onPreview(null); };
+  const stopPreview = () => { revealSession.current?.stop(); revealSession.current = null; appearanceRef.current?.locate(null); };
   const close = () => { stopPreview(); callbacks.current.onClose(); };
   useEffect(() => {
     input.current?.focus();
@@ -61,49 +64,17 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
     document.addEventListener("pointerdown", outside, true); window.addEventListener("keydown", key, true);
     return () => {
       document.removeEventListener("pointerdown", outside, true); window.removeEventListener("keydown", key, true);
-      cancelAnimationFrame(locating.current); restore.current(); callbacks.current.onPreview(null);
+      revealSession.current?.stop(); appearanceRef.current?.locate(null); callbacks.current.onPreview(null);
     };
   }, []);
   const preview = (result: GlobalResult, position: number, ready?: (element: HTMLElement | undefined) => void) => {
-    stopPreview(); cancelAnimationFrame(restoreFrame.current); setActive(position); setNotice("");
-    const scroll = new Map<Element, { left: number; top: number }>();
-    document.querySelectorAll<HTMLElement>(".sidebar,.floating-window-content,.ui-panel-body,[data-ui-drop-zone]").forEach(element => scroll.set(element, { left: element.scrollLeft, top: element.scrollTop }));
-    const details: HTMLDetailsElement[] = [], raised = new Map<HTMLElement, string>();
-    let found: HTMLElement | undefined, attempts = 0;
-    const resetScroll = () => { for (const [element, point] of scroll) if (element.isConnected) { element.scrollLeft = point.left; element.scrollTop = point.top; } };
-    restore.current = (keep = false) => {
-      found?.classList.remove("ui-search-pulsing");
-      for (const [element, z] of raised) element.style.zIndex = z;
-      if (!keep) {
-        details.forEach(element => { if (element.isConnected) element.open = false; });
-        resetScroll(); restoreFrame.current = requestAnimationFrame(resetScroll);
-      }
-    };
-    callbacks.current.onPreview({ path: result.path });
-    const locate = () => {
-      found = locateSearchResult(result);
-      if (found) {
-        let parent: HTMLElement | null = found;
-        while (parent) {
-          if (!scroll.has(parent)) scroll.set(parent, { left: parent.scrollLeft, top: parent.scrollTop });
-          if (parent instanceof HTMLDetailsElement && !parent.open) { details.push(parent); parent.open = true; }
-          if (parent.classList.contains("floating-window") && !raised.has(parent)) { raised.set(parent, parent.style.zIndex); parent.style.zIndex = "35000"; }
-          parent = parent.parentElement;
-        }
-      }
-      if (!found?.getClientRects().length) {
-        if (++attempts < 20) { locating.current = requestAnimationFrame(locate); return; }
-        const home = rootFor(result.home);
-        home?.classList.add("ui-search-pulsing");
-        const reset = restore.current; restore.current = keep => { home?.classList.remove("ui-search-pulsing"); reset(keep); };
-        setNotice(result.available ? "This control needs its relevant context or option enabled." : "Select the relevant node or relationship to use this control.");
-        ready?.(undefined); return;
-      }
-      found.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
-      found.classList.add("ui-search-pulsing"); ready?.(found);
-    };
-    locating.current = requestAnimationFrame(locate);
+    stopPreview(); setActive(position); setNotice("");
+    if(result.appearance)appearanceRef.current?.locate(result.appearance);
+    revealSession.current = transientReveal({path:result.path,locate:()=>locateSearchResult(result),reveal:path=>callbacks.current.onPreview(path?{path}:null),onReady:element=>ready?.(element),onMissing:()=>{
+      setNotice(result.available ? "This control needs its relevant context or option enabled." : "Select the relevant node or relationship to use this control.");ready?.(undefined);
+    }});
   };
+
   const choose = (result: GlobalResult, position: number, navigate: boolean) => {
     preview(result, position, element => {
       const fn = ui.functions.find(fn => fn.id === result.functionId);
@@ -114,8 +85,8 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
       }
       if (navigate || fn?.control || target.matches("input,select,textarea,[contenteditable=true]")) {
         // Keep only expansion state; discard transient scroll/z-order/decoration.
-        cancelAnimationFrame(restoreFrame.current);
-        restore.current(true); restore.current = () => {};
+        if(result.appearance)appearanceRef.current?.locate(result.appearance,true);
+        revealSession.current?.stop(true); revealSession.current = null;
         callbacks.current.onKeep({ path: result.path }); callbacks.current.onClose();
         requestAnimationFrame(() => {
           const actual = locateSearchResult(result), control = actual ? focusable(actual) : null;
