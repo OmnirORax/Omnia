@@ -773,6 +773,13 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .appearance-row-name { flex: 1; min-width: 55px; font-size: 11px; overflow-wrap: anywhere; }
 .ui-editable-label { cursor: text; }
 .ui-name-input { min-width: 0; width: 100%; box-sizing: border-box; }
+[data-ui-name-symbol]::before { content: attr(data-ui-name-symbol); display: inline-block; margin-inline-end: .35em; font-size: var(--ui-name-size, 12px); line-height: 1.2; vertical-align: middle; }
+[data-ui-name-symbol=""]::before { display: none; }
+html[data-ui-hide-names] [data-ui-name-symbol],
+html[data-ui-hide-names] [data-ui-name-symbol] :is(span,strong,b,small):not(.ui-shortcut-label) { font-size: 0 !important; }
+html[data-ui-hide-names] [data-ui-name-symbol]::before { font-size: var(--ui-name-size, 12px) !important; margin-inline-end: 0; }
+html[data-ui-hide-names] [data-ui-name-symbol] :is(input,select,textarea,output,.ui-shortcut-label,[data-ui-name-value]) { font-size: var(--ui-name-size, 12px) !important; }
+html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size: 22px !important; }
 .appearance-row > .appearance-number { max-width: 85px; }
 .appearance-row > .appearance-number input { width: 50px; }
 .appearance-row > select { max-width: 110px; font-size: 10px; }

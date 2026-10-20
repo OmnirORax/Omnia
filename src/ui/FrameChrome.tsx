@@ -6,6 +6,7 @@ import { startResidentDrag } from "./drag";
 import type { WindowState } from "./layout";
 import { FrameSearch } from "./FrameSearch";
 import { useUILabel } from "./EditableLabel";
+import { nameSymbol } from "./nameSymbols";
 
 export function FrameChrome({
   container,
@@ -70,7 +71,9 @@ export function FrameChrome({
           aria-expanded={!state.collapsed}
           aria-pressed={selected}
           aria-label={title}
-          title={`${title} · click to expand/collapse; drag to move; right-click to customize`}
+          data-ui-name={title}
+          data-ui-symbol={nameSymbol(container, defaultTitle)}
+          title={ui.layout.hideNames ? title : ""}
           onClick={onToggle ?? (() => onChange({ collapsed: !state.collapsed }))}
           onDragStart={(event) => startResidentDrag(event, container)}
           onContextMenu={(event) => {
@@ -126,9 +129,11 @@ export function FrameChrome({
           data-ui-drag={fixed ? undefined : container}
           draggable={!fixed && !state.pinned}
           onDragStart={(e) => startResidentDrag(e, container)}
-          title={`${title} · ${fixed ? "right-click to arrange" : "click to collapse/expand; drag to move or dock; right-click for settings"}`}
+          title={ui.layout.hideNames ? title : ""}
         >
           <button
+            data-ui-name={title}
+            data-ui-symbol={nameSymbol(container, defaultTitle)}
             aria-label={`Toggle frame ${title}`}
             aria-expanded={!state.collapsed}
             onClick={() => !fixed && onChange({ collapsed: !state.collapsed })}

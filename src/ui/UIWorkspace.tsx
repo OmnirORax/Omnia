@@ -1,5 +1,6 @@
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
+import { NamePresentation } from "./NamePresentation";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -141,7 +142,7 @@ function FunctionElement({
     "data-ui-resident": resident ? "true" : undefined,
     "data-ui-native-anchor": nativeAnchor?.key,
     "data-ui-native-home": nativeAnchor?.id,
-    title: `${fn.label}${ui.shortcutBindings?.[buttonShortcutId(fn.id)] ? ` (${ui.shortcutBindings[buttonShortcutId(fn.id)]})` : ""}${item?.pinned ? " (pinned)" : " · drag to arrange; right-click to customize"}`,
+    title: ui.layout.hideNames ? fn.label : "",
     draggable:
       (!fn.control || palette || style.mode === "icon") && !functionPinned(ui.layout, fn.id),
     onDragStart: (e: DragEvent) => {
@@ -168,7 +169,7 @@ function FunctionElement({
           <span
             key={edge}
             className={`ui-field-edge edge-${edge}`}
-            title={`Drag ${fn.label}`}
+            title={ui.layout.hideNames ? fn.label : ""}
             data-ui-drag={`function:${fn.id}`}
             draggable={!functionPinned(ui.layout, fn.id)}
             onDragStart={(e) => startResidentDrag(e, `function:${fn.id}`)}
@@ -180,6 +181,7 @@ function FunctionElement({
     ) : (
       cloneElement(fn.control ? <button onClick={() => setControlOpen(true)} /> : original, {
         ...shared,
+        "data-ui-name": fn.label,
         disabled: false,
         "aria-disabled": original.props.disabled || undefined,
         "aria-pressed":
@@ -1451,6 +1453,7 @@ export function UIWorkspace({
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
       <NativeActions />
+      <NamePresentation />
       {children}
       {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">

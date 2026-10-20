@@ -62,16 +62,13 @@ const eligible = (button: HTMLButtonElement) =>
   !button.closest(
     ".function-appearance,[data-shortcut-runner],[data-ui-palette],[data-ui-search],.ui-frame-handle,[data-ui-inline-handle],[data-ui-control]",
   );
-const caption = (button: HTMLButtonElement) =>
-  (
-    (!button.dataset.uiNativeLabel && button.getAttribute("aria-label")) ||
-    button.textContent ||
-    (!button.dataset.uiNativeTitle && button.title) ||
-    "Button"
-  )
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200) || "Button";
+const caption = (button: HTMLButtonElement) => {
+  const text = button.textContent?.trim();
+  const title = button.dataset.uiNameFallback || (!button.dataset.uiNativeTitle && button.title);
+  const label = (!button.dataset.uiNativeLabel && !button.dataset.uiPresentationAria && button.getAttribute("aria-label")) ||
+    (text && /[\p{L}\p{N}]/u.test(text) ? text : title || text) || "Button";
+  return label.replace(/\s+/g, " ").trim().slice(0, 200);
+};
 type Entry = {
   element: HTMLButtonElement;
   id: string;
@@ -101,13 +98,14 @@ export function NativeActions() {
       { layout, shortcutBindings } = latest.current;
     const item = layout.items[id],
       style = item?.style;
+    if (element.title && !element.dataset.uiNativeTitle && !element.dataset.uiNameFallback)
+      element.dataset.uiNameFallback = element.title.split(/\s*·\s*|;\s*/)[0];
     // Unknown expandable buttons are not complete movable groups. Their declared
     // container must provide the payload; never hide/move a header on its own.
     element.draggable = !element.hasAttribute("aria-expanded") && !functionPinned(layout, id);
-    if (!element.title || element.dataset.uiNativeTitle) {
-      element.title = `${entry.label} · right-click to customize`;
-      element.dataset.uiNativeTitle = "true";
-    }
+    const title = layout.hideNames ? entry.label : "";
+    if (element.title !== title) element.title = title;
+    element.dataset.uiNativeTitle = "true";
     element.toggleAttribute(
       "data-ui-native-hidden",
       !!ownerOf(layout, `function:${id}`) || (!!item && (!item.home || !!item.anchorId)),

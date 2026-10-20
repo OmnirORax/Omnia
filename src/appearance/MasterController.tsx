@@ -10,6 +10,7 @@ import { LockControl } from "./LockControl";
 import { rootFor } from "../ui/FrameSearch";
 import { FunctionControl } from "../ui/UIWorkspace";
 import { EditableLabel } from "../ui/EditableLabel";
+import { NameVisibilityControl } from "../ui/NamePresentation";
 
 export function MasterController() {
   const ctx = useAppearance()!;
@@ -242,6 +243,7 @@ export function MasterController() {
           ×
         </button>
       </div>
+      <NameVisibilityControl />
       <PropertyTree
         selected={property}
         onSelect={(id) => {

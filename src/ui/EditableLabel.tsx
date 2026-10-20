@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUI } from "./context";
+import { nameSymbol } from "./nameSymbols";
 
 /** Display names are UI preferences. IDs, ownership and property semantics never change. */
 export function useUILabel(id: string, fallback: string) {
@@ -63,6 +64,7 @@ export function UINameInput({
 }
 
 export function EditableLabel({ id, fallback }: { id: string; fallback: string }) {
+  const ui = useUI();
   const [name, rename] = useUILabel(id, fallback);
   const [editing, setEditing] = useState(false);
   return editing ? (
@@ -70,7 +72,9 @@ export function EditableLabel({ id, fallback }: { id: string; fallback: string }
   ) : (
     <span
       className="ui-editable-label"
-      title="Double-click or right-click to rename · F2 when focused"
+      title={ui.layout.hideNames ? name : ""}
+      data-ui-name={name}
+      data-ui-symbol={nameSymbol(id, fallback)}
       tabIndex={0}
       onDoubleClick={(event) => {
         event.stopPropagation();

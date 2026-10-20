@@ -81,6 +81,7 @@ export type UILayout = {
   arrangement?: UIArrangement;
   nativeOrders?: Record<string, string[]>;
   labels?: Record<string, string>;
+  hideNames?: boolean;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -115,6 +116,8 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (layout.hideNames !== undefined && typeof layout.hideNames !== "boolean")
+    throw new Error("Invalid UI name visibility.");
   if (
     layout.labels !== undefined &&
     (!record(layout.labels) ||
