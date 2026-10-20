@@ -739,8 +739,9 @@ button.active,
 :root[data-omnium-theme="neon"] :is(.ui-function.ui-selected, .ui-alignment-edge:not(.invalid)) { outline-color: var(--omnium-accent); border-color: var(--omnium-accent); box-shadow: 0 0 8px var(--omnium-soft-border); }
 :root[data-omnium-theme="neon"] :is(.floating-backdrop, .workspace-dialog-backdrop) { background: color-mix(in srgb, var(--omnium-base) 55%, transparent); }
 
-.ui-global-search { top: 70px; left: 16px; width: min(420px, calc(100vw - 32px)); max-height: min(620px, calc(100dvh - 90px)); }
-.ui-global-search > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ui-global-search { top: 70px; left: 16px; width: min(420px, calc(100vw - 32px)); max-height: min(620px, calc(100dvh - 16px)); }
+.ui-global-search > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: grab; touch-action: none; user-select: none; }
+.ui-global-search.is-moving > header { cursor: grabbing; }
 .ui-global-search > header button { border: 0; background: transparent; padding: 2px 6px; }
 .ui-global-search .ui-frame-search-results section { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; }
 .ui-global-search .ui-frame-search-results h3 { position: sticky; top: 0; margin: 0; padding: 8px 6px 5px; font-size: 12px; background: var(--omnium-base, #f8faff); overflow-wrap: anywhere; }

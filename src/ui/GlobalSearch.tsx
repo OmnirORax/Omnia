@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUI } from "./context";
 import { normalizeSearch, rootFor } from "./FrameSearch";
@@ -11,16 +11,36 @@ export type GlobalSearchProps = {
   onKeep: (reveal: SearchReveal) => void;
 };
 const focusable = (element: HTMLElement) => element.matches("button,input,select,textarea,a,[contenteditable=true]") ? element : element.querySelector<HTMLElement>("input,select,textarea,button,a,[contenteditable=true]");
+type Point = { x: number; y: number };
 export function GlobalSearch(props: GlobalSearchProps) {
-  return props.open ? <SearchSession {...props} /> : null;
+  const cursor = useRef<Point>({ x: innerWidth / 2, y: innerHeight / 3 });
+  useEffect(() => {
+    const track = (event: PointerEvent) => { cursor.current = { x: event.clientX, y: event.clientY }; };
+    document.addEventListener("pointermove", track, true); document.addEventListener("pointerdown", track, true);
+    return () => { document.removeEventListener("pointermove", track, true); document.removeEventListener("pointerdown", track, true); };
+  }, []);
+  return props.open ? <SearchSession {...props} origin={cursor.current} /> : null;
 }
-function SearchSession({ onClose, onPreview, onKeep }: GlobalSearchProps) {
+function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps & { origin: Point }) {
   const ui = useUI(), id = useId();
   const callbacks = useRef({ onClose, onPreview, onKeep }); callbacks.current = { onClose, onPreview, onKeep };
   // A stable index prevents hover revelation from reordering the list under the pointer.
   const [index] = useState(() => globalControls(ui));
   const [query, setQuery] = useState(""), [active, setActive] = useState(-1), [notice, setNotice] = useState("");
   const input = useRef<HTMLInputElement>(null), popup = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState(origin), [dragging, setDragging] = useState(false);
+  const drag = useRef<{ pointer: number; offset: Point } | null>(null);
+  const clamp = (point: Point) => {
+    const bounds = popup.current?.getBoundingClientRect();
+    return { x: Math.max(8, Math.min(point.x, innerWidth - (bounds?.width ?? 420) - 8)), y: Math.max(8, Math.min(point.y, innerHeight - (bounds?.height ?? 300) - 8)) };
+  };
+  useLayoutEffect(() => {
+    const fit = () => setPosition(point => { const next = clamp(point); return next.x === point.x && next.y === point.y ? point : next; });
+    const observer = new ResizeObserver(fit);
+    if (popup.current) observer.observe(popup.current);
+    window.addEventListener("resize", fit); fit();
+    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
+  }, []);
   const restore = useRef<(keep?: boolean) => void>(() => {}), restoreFrame = useRef(0), locating = useRef(0);
   const tokens = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
   const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.heading} ${result.label}`).includes(token)));
@@ -110,7 +130,7 @@ function SearchSession({ onClose, onPreview, onKeep }: GlobalSearchProps) {
       }
     });
   };
-  return createPortal(<div ref={popup} className="ui-frame-search-popup ui-global-search" data-ui-search role="dialog" aria-label="Global UI search" onPointerDown={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={event => {
+  return createPortal(<div ref={popup} className={`ui-frame-search-popup ui-global-search ${dragging ? "is-moving" : ""}`} style={{ left: position.x, top: position.y }} data-ui-search role="dialog" aria-label="Global UI search" onPointerDown={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={event => {
     event.stopPropagation();
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault(); const position = (active + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % Math.max(1, visible.length);
@@ -118,7 +138,18 @@ function SearchSession({ onClose, onPreview, onKeep }: GlobalSearchProps) {
     }
     if (event.key === "Enter" && visible[active < 0 ? 0 : active]) { event.preventDefault(); const position = active < 0 ? 0 : active; choose(visible[position], position, event.shiftKey); }
   }}>
-    <header><strong>Search UI</strong><button aria-label="Close global UI search" onClick={close}>×</button></header>
+    <header title="Drag to move search" onPointerDown={event => {
+      if (event.button !== 0 || (event.target as Element).closest("button")) return;
+      event.preventDefault(); event.stopPropagation(); stopPreview();
+      drag.current = { pointer: event.pointerId, offset: { x: event.clientX - position.x, y: event.clientY - position.y } };
+      event.currentTarget.setPointerCapture(event.pointerId); setDragging(true);
+    }} onPointerMove={event => {
+      if (drag.current?.pointer !== event.pointerId) return;
+      setPosition(clamp({ x: event.clientX - drag.current.offset.x, y: event.clientY - drag.current.offset.y }));
+    }} onPointerUp={event => {
+      if (drag.current?.pointer !== event.pointerId) return;
+      drag.current = null; setDragging(false); event.currentTarget.releasePointerCapture(event.pointerId);
+    }} onPointerCancel={() => { drag.current = null; setDragging(false); }} onLostPointerCapture={() => { drag.current = null; setDragging(false); }}><strong>Search UI</strong><button aria-label="Close global UI search" onClick={close}>×</button></header>
     <input ref={input} type="search" aria-label="Search all UI controls" placeholder="Find a function or setting…" value={query} onChange={event => { stopPreview(); setQuery(event.target.value); setActive(-1); setNotice(""); }} role="combobox" aria-expanded="true" aria-controls={id} aria-activedescendant={active >= 0 && visible[active] ? `${id}-${active}` : undefined} />
     <div id={id} className="ui-frame-search-results" role="listbox" aria-label="Global UI results" onMouseLeave={stopPreview}>
       {groups.map(([heading, entries]) => <section key={heading} role="group" aria-label={heading}><h3>{heading}</h3>{entries.map(({ result, position }) => <button key={result.key} id={`${id}-${position}`} role="option" aria-selected={position === active} aria-disabled={!result.available || undefined} title="Hover to reveal · click to use · right-click to go there" onMouseEnter={() => preview(result, position)} onMouseLeave={stopPreview} onPointerDown={event => event.preventDefault()} onClick={() => choose(result, position, false)} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); choose(result, position, true); }}><span>{result.label}</span>{!result.available && <small>Needs a selected node or relationship</small>}</button>)}</section>)}
