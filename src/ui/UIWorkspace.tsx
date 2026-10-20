@@ -433,6 +433,7 @@ type DragState = {
   dy: number;
   originOffset: { x: number; y: number };
   slots: Map<string, { key: string; r: Rect }[]>;
+  targetZones: Map<string, HTMLElement>;
   targetBounds: Map<Element, DOMRect>;
   zoneOrigins: Map<Element, { x: number; y: number }>;
   cancelled?: boolean;
@@ -793,17 +794,20 @@ export function UIWorkspace({
           : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle));
       const r = root ? residentBounds(root) : undefined;
       if (!r) return;
+      const targetZones = new Map(
+        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map(zone => [zone.dataset.uiDropZone!, zone]),
+      );
       const slots = new Map(
-        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map((zone) => [
-          zone.dataset.uiDropZone!,
+        [...targetZones].map(([key, zone]) => [
+          key,
           [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")].map((slot) => ({
             key: slot.dataset.uiSlotKey!,
             r: slot.getBoundingClientRect(),
           })),
         ]),
       );
-      // In-flow ghosts can enlarge/reflow their dock. They must not change the
-      // hit regions or coordinate origin used to decide this same gesture.
+      // Resolve against one gesture snapshot; overlay feedback never changes
+      // the live residents, drop hit regions or coordinate origins.
       const targetBounds = new Map(
         [...document.querySelectorAll(dropGeometrySelector)].map(el => [el, el.getBoundingClientRect()]),
       );
@@ -823,6 +827,7 @@ export function UIWorkspace({
           y: (root?.getBoundingClientRect().y ?? r.y) - r.y,
         },
         slots,
+        targetZones,
         targetBounds,
         zoneOrigins,
         control: mini
@@ -830,7 +835,7 @@ export function UIWorkspace({
           : undefined,
       };
     };
-    const resolve = (x: number, y: number): Preview | null => {
+    const resolveTarget = (x: number, y: number): Preview | null => {
       const source = drag.current;
       if (!source || source.cancelled) return null;
       const s = effectiveLayout();
@@ -1221,6 +1226,38 @@ export function UIWorkspace({
         text: s.arrangement?.mode === "snap" ? "Workspace snap" : "Place freely",
         rect: { ...position, width: source.width, height: source.height },
       };
+    };
+    const resolve = (x: number, y: number): Preview | null => {
+      const proposal = resolveTarget(x, y), source = drag.current;
+      if (!proposal?.dock || !source) return proposal;
+      const dock = proposal.dock, zone = source.targetZones.get(dock.target);
+      const bounds = zone && source.targetBounds.get(zone);
+      // Closed contents have no measurable layout; retain their existing append
+      // behavior rather than turning zero-sized DOM boxes into saved positions.
+      if (!zone || !bounds || !zone.getClientRects().length) return proposal;
+      const origin = source.zoneOrigins.get(zone) ?? { x: 0, y: 0 };
+      const boxes = new Map((source.slots.get(dock.target) ?? []).map(slot => [slot.key, {
+        x: slot.r.x - bounds.x + origin.x + zone.scrollLeft,
+        y: slot.r.y - bounds.y + origin.y + zone.scrollTop,
+        width: slot.r.width, height: slot.r.height,
+      }]));
+      const container = getContainer(effectiveLayout(), dock.target)!;
+      const baseline = dock.baseline ?? snapshotPositions(container.members ?? [], boxes, residentKey);
+      const obstacles = [...boxes].filter(([key]) => key !== source.key).map(([, box]) => box);
+      let position = dock.position;
+      if (!position) {
+        position = { x: 12, y: Math.max(12, ...obstacles.map(box => box.y + box.height + 14)) };
+        if (container.arrangement?.mode === "snap" && container.arrangement.grid)
+          position = snapPosition(position, source, container.arrangement.grid, obstacles);
+      }
+      return { ...proposal, dock: {
+        ...dock, baseline, position,
+        screenRect: {
+          x: bounds.x - origin.x - zone.scrollLeft + position.x,
+          y: bounds.y - origin.y - zone.scrollTop + position.y,
+          width: dock.width, height: dock.height,
+        },
+      } };
     };
     const over = (e: globalThis.DragEvent) => {
       if (!drag.current || drag.current.cancelled) return;

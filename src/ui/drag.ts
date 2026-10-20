@@ -45,6 +45,7 @@ export function magnetActive(
   return sameCategory && enabled && rectDistance(x, y, target) <= MAGNET_DISTANCE;
 }
 export type DockPreview = {
+  screenRect?: Rect;
   key: string;
   target: string;
   index: number;

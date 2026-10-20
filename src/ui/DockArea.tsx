@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUI } from "./context";
 import { useDockPreview } from "./PlacementPreview";
+import { createPortal } from "react-dom";
 import {
   getContainer,
   residentKey,
@@ -73,26 +74,10 @@ export function DockArea({ container, contour = true }: { container: string; con
   const state = getContainer(ui.layout, container);
   const members = state?.members ?? [];
   const preview = useDockPreview(container);
-  const entries: (UIResident & { ghost?: boolean; dragSource?: boolean })[] = [
-    ...(preview?.baseline ?? members),
-  ];
-  if (preview) {
-    const old = entries.findIndex((m) => residentKey(m) === preview.key);
-    // Keep the native drag source mounted until drop/dragend. Removing it can cancel
-    // Chromium's drag session while the ghost is being measured.
-    const original = old >= 0 ? entries.splice(old, 1)[0] : null;
-    const colon = preview.key.indexOf(":");
-    entries.splice(Math.max(0, preview.index - (old >= 0 && old < preview.index ? 1 : 0)), 0, {
-      kind: preview.key.slice(0, colon) as UIResident["kind"],
-      id: preview.key.slice(colon + 1),
-      ghost: true,
-      breakBefore: preview.breakBefore,
-      position: preview.position,
-      size: { width: preview.width, height: preview.height },
-    });
-    if (original) entries.push({ ...original, dragSource: true });
-  }
-  const occupied = entries.filter((m) => !m.dragSource);
+  // A proposal must not resize/reflow real residents, hide the source, or alter
+  // frame measurements. Only a committed drop changes the authored arrangement.
+  const entries = members;
+  const occupied = members;
   const positioned = occupied.length > 0 && occupied.every((m) => m.position && m.size);
   const minX = positioned ? Math.min(0, ...occupied.map((m) => m.position!.x - 12)) : 0,
     minY = positioned ? Math.min(0, ...occupied.map((m) => m.position!.y - 12)) : 0;
@@ -173,7 +158,7 @@ export function DockArea({ container, contour = true }: { container: string; con
       cancelAnimationFrame(frame);
     };
   }, [container]);
-  useLayoutEffect(() => { measureContent.current(); }, [ui.layout, preview, moving]);
+  useLayoutEffect(() => { measureContent.current(); }, [ui.layout, moving]);
   return (
     <div
       className={`ui-dock-area ${preview ? "is-drop-target" : ""} ${!contour && !entries.length ? "ui-dock-empty" : ""}`}
@@ -317,44 +302,36 @@ export function DockArea({ container, contour = true }: { container: string; con
         </svg>
       )}
       {!members.length && contour && (
-        <div
-          className="empty-ui-slot"
-          style={preview ? { position: "absolute", left: 12, top: 12, opacity: 0 } : undefined}
-        >
+        <div className="empty-ui-slot">
           Drop a function, field or frame here
         </div>
       )}
       {entries.map((member) => (
         <ResidentSlot
-          key={member.ghost ? "@preview" : residentKey(member)}
+          key={residentKey(member)}
           member={member}
-          ghost={member.ghost}
-          dragSource={member.dragSource}
-          width={preview?.width}
-          height={preview?.height}
-          magnetic={preview?.magnetic}
           origin={{ x: minX, y: minY }}
         />
       ))}
+      {preview?.screenRect && createPortal(
+        <div
+          className="ui-drop-ghost ui-dock-preview-overlay"
+          data-ui-ghost="true"
+          data-ui-preview-target={container}
+          aria-hidden="true"
+          style={{ left: preview.screenRect.x, top: preview.screenRect.y, width: preview.screenRect.width, height: preview.screenRect.height }}
+        >Drop here{preview.magnetic ? " · magnetic" : ""}</div>,
+        document.body,
+      )}
     </div>
   );
 }
 function ResidentSlot({
   member,
-  ghost,
-  dragSource,
-  width,
-  height,
   origin,
-  magnetic,
 }: {
   member: UIResident;
-  ghost?: boolean;
-  dragSource?: boolean;
-  width?: number;
-  height?: number;
   origin: { x: number; y: number };
-  magnetic?: boolean;
 }) {
   const ui = useUI();
   return (
@@ -363,11 +340,9 @@ function ResidentSlot({
         <span className="ui-row-break" aria-hidden="true" />
       )}
       <div
-        className={`ui-resident-slot ${member.position ? "is-positioned" : ""} ${ghost ? "ui-drop-ghost" : ""} ${dragSource ? "ui-drag-source" : ""}`}
-        data-ui-slot-key={ghost ? undefined : residentKey(member)}
-        data-ui-ghost={ghost ? "true" : undefined}
+        className={`ui-resident-slot ${member.position ? "is-positioned" : ""}`}
+        data-ui-slot-key={residentKey(member)}
         style={{
-          ...(dragSource ? { visibility: "hidden", pointerEvents: "none" } : {}),
           ...(member.position
             ? {
                 position: "absolute",
@@ -379,14 +354,9 @@ function ResidentSlot({
                     : undefined,
               }
             : {}),
-          ...(ghost ? { width, height } : {}),
         }}
       >
-        {ghost ? (
-          <span>Drop here{magnetic ? " · magnetic" : ""}</span>
-        ) : (
-          ui.renderResident(member)
-        )}
+        {ui.renderResident(member)}
       </div>
     </>
   );
