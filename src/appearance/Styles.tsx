@@ -116,13 +116,18 @@ export function AppearanceStyles() {
   }, [context]);
   return <style data-appearance-registry>{css}</style>;
 }
-export function useIconTint(owner: string) {
+export function useIconTint(owner: string, fallbackOwner?: string) {
   const ctx = useAppearance();
   if (!ctx || ctx.safe) return {};
   const instance = ctx.targets.find(
     (t) => t.instance?.base === "symbols.ui" && t.instance.owner === owner,
   );
-  const target = instance ?? ctx.targets.find((t) => t.id === "symbols.ui");
+  const fallback = fallbackOwner
+    ? ctx.targets.find(
+        (t) => t.instance?.base === "symbols.ui" && t.instance.owner === fallbackOwner,
+      )
+    : undefined;
+  const target = instance ?? fallback ?? ctx.targets.find((t) => t.id === "symbols.ui");
   if (!target) return {};
   const get = (p: string) => valueFor(ctx.base, ctx.state, target, p);
   const custom = ctx.state.values[target.id] ?? {},

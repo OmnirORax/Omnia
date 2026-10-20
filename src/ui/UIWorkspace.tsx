@@ -1,4 +1,4 @@
-import { NativeActions } from "./NativeActions";
+import { captureNativeActions, NativeActions } from "./NativeActions";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -54,7 +54,7 @@ import {
   resetContainer,
   validateUILayout,
   orderNativeFunction,
-  contextOwner,
+  residentContextScope,
   type WindowState,
   type UIResident,
 } from "./layout";
@@ -845,22 +845,28 @@ export function UIWorkspace({
       // Native dragging leaves the source at its old location. Look through that
       // surface so it cannot block a destination underneath it. Descendant frames
       // retain their own roots, allowing cycle/pinning rejection to remain explicit.
-      const elements = document
-        .elementsFromPoint(x, y)
-        .filter(
-          (el) =>
-            el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot !==
-              source.key &&
-            `function:${el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction}` !==
-              source.key,
-        );
-      const scope = contextOwner(source.key);
+      const hitElements = document.elementsFromPoint(x, y);
+      if (
+        source.key.startsWith("window:") &&
+        s.windows[source.key.slice(7)]?.inline &&
+        hitElements[0]?.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ===
+          source.key
+      )
+        return { text: "Drop outside this group to move it; Esc cancels" };
+      const elements = hitElements.filter(
+        (el) =>
+          el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot !==
+            source.key &&
+          `function:${el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction}` !==
+            source.key,
+      );
+      const scope = residentContextScope(s, source.key);
       if (scope) {
         const area = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
           (el) => el.dataset.uiDropZone === scope,
         );
         if (!area || rectDistance(x, y, area.getBoundingClientRect()) > DOCK_DISTANCE)
-          return { text: "This action stays in its node menu" };
+          return { text: "This control stays in its owning menu" };
       }
       const hitOwner = elements[0]?.closest<HTMLElement>("[data-ui-resident-root],.toolbar");
       const peer =
@@ -951,7 +957,7 @@ export function UIWorkspace({
           }
         }
       }
-      const candidateHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle");
+      const candidateHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle,[data-ui-inline-handle]");
       const handleBounds = candidateHandle?.getBoundingClientRect();
       // Dock into the middle of a handle; its perimeter belongs to adjacent placement.
       const inset = handleBounds ? Math.min(18, handleBounds.width / 4) : 0;
@@ -964,6 +970,32 @@ export function UIWorkspace({
           ? candidateHandle
           : undefined;
       const handleTarget = handle?.dataset.uiDrag;
+      const directInline =
+        elements[0]?.closest<HTMLElement>("[data-ui-inline-group]")?.dataset.uiInlineGroup;
+      const inlineTarget = handleTarget ?? directInline;
+      if (
+        inlineTarget &&
+        getContainer(s, inlineTarget) &&
+        "inline" in getContainer(s, inlineTarget)! &&
+        (getContainer(s, inlineTarget) as WindowState).inline
+      ) {
+        if (!canDock(s, source.key, inlineTarget))
+          return { text: "Cannot place a group inside itself, its descendants or a pinned group" };
+        return {
+          text: `Add to ${frameActions.get(inlineTarget)?.title ?? "group"}`,
+          rect: elements[0]
+            ?.closest<HTMLElement>("[data-ui-inline-group]")
+            ?.getBoundingClientRect(),
+          dock: {
+            key: source.key,
+            target: inlineTarget,
+            index: getContainer(s, inlineTarget)?.members?.length ?? 0,
+            breakBefore: false,
+            width: source.width,
+            height: source.height,
+          },
+        };
+      }
       if (handleTarget && handleTarget !== source.key && !canDock(s, source.key, handleTarget))
         return { text: "Cannot dock into a pinned frame or into this frame’s own contents" };
       const directZone = elements
@@ -1167,6 +1199,19 @@ export function UIWorkspace({
       if (!p) return;
       current.current.update((previous) => {
         let s = ensure(previous);
+        const payload = getContainer(s, source.key);
+        if (payload && "inline" in payload && payload.inline) {
+          const root = [...document.querySelectorAll<HTMLElement>("[data-ui-inline-group]")].find(
+            (root) => root.dataset.uiInlineGroup === source.key,
+          );
+          if (root)
+            s = updateContainer(s, source.key, {
+              inline: {
+                ...payload.inline,
+                actionIds: { ...payload.inline.actionIds, ...captureNativeActions(root) },
+              },
+            });
+        }
         if (p.frameStrip) {
           const strip = p.frameStrip;
           if (!canDock(s, source.key, strip.target)) return previous;
@@ -1199,6 +1244,9 @@ export function UIWorkspace({
           const d = p.dock;
           if (d.baseline) s = updateContainer(s, d.target, { members: d.baseline });
           s = dockResident(s, source.key, d.target, d.index, d.breakBefore);
+          const destination = getContainer(s, d.target);
+          if (destination && "inline" in destination && destination.inline)
+            s = updateContainer(s, d.target, { collapsed: false });
           if (d.position)
             s = updateContainer(s, d.target, {
               members: getContainer(s, d.target)!.members!.map((m) =>
@@ -1349,6 +1397,7 @@ export function UIWorkspace({
           width={w?.width ?? 380}
           height={w?.collapsed ? 44 : (w?.height ?? 400)}
           collapsed={w?.collapsed}
+          autoSize={!!w?.inline}
         />
       );
     }
@@ -1372,6 +1421,12 @@ export function UIWorkspace({
           configureFrame(null);
           configureControl(null);
           configure(id);
+        },
+        configureFrame: (owner) => {
+          configure(null);
+          configureControl(null);
+          configureFrame(owner);
+          setMenu(null);
         },
         configureControl: (owner, control) => {
           configure(null);
@@ -1633,7 +1688,7 @@ export function UIWorkspace({
             configuredControl
               ? `Arrange ${configuredControl.control} icon`
               : configuredFrame
-                ? "Arrange frame handle"
+                ? `Arrange frame: ${frameActions.get(configuredFrame)?.title ?? configuredFrame}`
                 : `Arrange: ${selected!.label}`
           }
           width={370}

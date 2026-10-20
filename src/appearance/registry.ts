@@ -289,14 +289,14 @@ part(
   "ui.windows",
   "Background",
   {
-    selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar",
+    selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents",
     css: "background-color",
     legacy: "windowBackground",
   },
   [...surface, "blur"],
 );
 part("ui.windows.contour", "ui.windows", "Outer contour", {
-  selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar",
+  selector: ".floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents",
   css: "border-color",
   legacy: "accent",
 });
@@ -307,12 +307,12 @@ part("ui.windows.dividers", "ui.windows", "Dividers / separators", {
 });
 branch("ui.headers", "ui", "Frame handles / headers");
 part("ui.headers.background", "ui.headers", "Background", {
-  selector: ".ui-frame-handle,.entity-menu-header",
+  selector: ".ui-frame-handle,.entity-menu-header,[data-ui-inline-handle]",
   css: "background-color",
   legacy: "headerBackground",
 });
 part("ui.headers.contour", "ui.headers", "Contour", {
-  selector: ".ui-frame-handle,.entity-menu-header",
+  selector: ".ui-frame-handle,.entity-menu-header,[data-ui-inline-handle]",
   css: "border-color",
   legacy: "accent",
 });
@@ -416,7 +416,7 @@ for (const [id, label, selector] of [
   [
     "titles",
     "Window / frame titles",
-    ".ui-frame-handle button,.entity-menu-header strong,.brand strong",
+    ".ui-frame-handle button,.entity-menu-header strong,.brand strong,[data-ui-inline-handle]",
   ],
   ["headings", "Section / category headings", "h1,h2,h3,legend"],
   ["buttons", "Button labels", "button"],

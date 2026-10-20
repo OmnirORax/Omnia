@@ -19,9 +19,8 @@ try {
   await p.waitForFunction(() =>
     document
       .querySelector('[data-property-node="effect"] > .property-node-heading .property-node-name')
-      ?.dataset.uiFunction?.startsWith("ui:native:"),
+      ?.dataset.uiDrag?.startsWith("window:property:"),
   );
-  const aid = await animation.getAttribute("data-ui-function");
   await animation.click({ button: "right" });
   const dialog = p.locator(".function-appearance");
   await dialog.waitFor();
@@ -30,11 +29,11 @@ try {
     await p.getByRole("button", { name: "Frame handle appearance", exact: true }).count(),
     0,
   );
-  await dialog.getByLabel("Function display", { exact: true }).selectOption("icon");
-  await dialog.getByLabel("Function symbol", { exact: true }).fill("A");
+  await dialog.getByLabel("Frame handle display", { exact: true }).selectOption("icon");
+  await dialog.getByLabel("Frame handle symbol", { exact: true }).fill("A");
   await p.keyboard.press("Escape");
-  assert.equal(await animation.getAttribute("data-ui-native-icon"), "");
-  assert.match(await animation.evaluate((e) => getComputedStyle(e, "::before").content), /A/);
+  assert.equal(await animation.evaluate((e) => e.classList.contains("function-icon")), true);
+  assert.match(await animation.innerText(), /A/);
   // Property clicks still expand after icon conversion.
   await animation.click();
   await master.getByRole("group", { name: "Adjust selected effect", exact: true }).waitFor();
@@ -83,7 +82,7 @@ try {
   await future.click();
   assert.equal(await p.evaluate(() => window.futureClicks), 1);
   const saved = await p.evaluate(() => JSON.parse(localStorage.getItem("omnium.ui.layout.v1")));
-  assert.equal(saved.items[aid].style.character, "A");
+  assert.equal(saved.windows["property:master:effect"].chrome.style.character, "A");
   assert.equal(saved.items[fid].style.character, "F");
   assert.equal(saved.windows.theme?.chrome?.style?.character, undefined);
   // Replacing DOM as a future component remount does keeps its stable customization.
@@ -101,6 +100,24 @@ try {
   assert.equal(
     await p.locator('[data-ui-id="future-action"]').getAttribute("data-ui-function"),
     fid,
+  );
+  await p.evaluate(() => {
+    const button = document.createElement("button");
+    button.textContent = "Unregistered expandable group";
+    button.setAttribute("aria-expanded", "false");
+    document.querySelector('[data-ui-resident-root="window:future-feature"]').append(button);
+  });
+  await p.waitForFunction(() =>
+    [...document.querySelectorAll("button")].some(
+      (button) =>
+        button.textContent === "Unregistered expandable group" && button.dataset.uiAutoAction,
+    ),
+  );
+  assert.equal(
+    await p
+      .getByRole("button", { name: "Unregistered expandable group", exact: true })
+      .evaluate((button) => button.draggable),
+    false,
   );
   assert.deepEqual(errors, []);
   console.log(

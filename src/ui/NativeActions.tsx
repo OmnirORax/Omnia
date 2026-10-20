@@ -4,9 +4,7 @@ import { functionPinned, ownerOf } from "./layout";
 
 /** Identity is scoped to the owning frame and structural anchors, never to displayed text.
  * Authors can supply data-ui-id for stability across future markup reorganizations. */
-export function nativeActionId(button: HTMLButtonElement): string {
-  const owner =
-    button.closest<HTMLElement>("[data-ui-resident-root],.toolbar,.sidebar") ?? document.body;
+export function nativeActionPath(button: Element, owner: Element): string {
   const parts: string[] = [];
   let element: Element | null = button;
   while (element && element !== owner) {
@@ -20,19 +18,49 @@ export function nativeActionId(button: HTMLButtonElement): string {
       );
     element = element.parentElement;
   }
+  return parts.join("/");
+}
+export function captureNativeActions(root: HTMLElement): Record<string, string> {
+  return Object.fromEntries(
+    [...root.querySelectorAll<HTMLElement>("[data-ui-auto-action]")].map((button) => [
+      nativeActionPath(button, root),
+      button.dataset.uiFunction!,
+    ]),
+  );
+}
+export function nativeActionId(button: HTMLButtonElement): string {
+  for (
+    let group = button.closest<HTMLElement>("[data-ui-inline-group]");
+    group;
+    group = group.parentElement?.closest<HTMLElement>("[data-ui-inline-group]") ?? null
+  ) {
+    const identities = JSON.parse(group.dataset.uiActionIds || "{}");
+    const id = identities[nativeActionPath(button, group)];
+    if (typeof id === "string") return id;
+  }
+  const owner =
+    [...ancestors(button)].find(
+      (element) =>
+        element.matches("[data-ui-resident-root],.toolbar,.sidebar") &&
+        !element.hasAttribute("data-ui-inline-group"),
+    ) ?? document.body;
+  const path = nativeActionPath(button, owner);
   const hash = (value: string) => {
     let result = 14695981039346656037n;
     for (const char of value)
       result = BigInt.asUintN(64, (result ^ BigInt(char.codePointAt(0)!)) * 1099511628211n);
     return result.toString(36);
   };
-  return `ui:native:${hash(owner.dataset.uiResidentRoot ?? owner.className)}:${hash(parts.join("/"))}`;
+  return `ui:native:${hash(owner.dataset.uiResidentRoot ?? owner.className)}:${hash(path)}`;
+}
+function* ancestors(element: HTMLElement): Generator<HTMLElement> {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) yield parent;
 }
 const eligible = (button: HTMLButtonElement) =>
   (!button.dataset.uiFunction || !!button.dataset.uiAutoAction) &&
   !!button.closest("[data-ui-resident-root],.toolbar,.sidebar,.ui-workspace-overlay") &&
   !button.closest(
-    ".function-appearance,[data-shortcut-runner],[data-ui-palette],[data-ui-search],.ui-frame-handle,[data-ui-control]",
+    ".function-appearance,[data-shortcut-runner],[data-ui-palette],[data-ui-search],.ui-frame-handle,[data-ui-inline-handle],[data-ui-control]",
   );
 const caption = (button: HTMLButtonElement) =>
   (
@@ -73,7 +101,9 @@ export function NativeActions() {
       { layout, shortcutBindings } = latest.current;
     const item = layout.items[id],
       style = item?.style;
-    element.draggable = !functionPinned(layout, id);
+    // Unknown expandable buttons are not complete movable groups. Their declared
+    // container must provide the payload; never hide/move a header on its own.
+    element.draggable = !element.hasAttribute("aria-expanded") && !functionPinned(layout, id);
     if (!element.title || element.dataset.uiNativeTitle) {
       element.title = `${entry.label} · right-click to customize`;
       element.dataset.uiNativeTitle = "true";

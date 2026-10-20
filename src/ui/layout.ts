@@ -18,6 +18,12 @@ export type WindowState = {
   magnetic?: boolean;
   arrangement?: UIArrangement;
   bodyOffset?: Cell;
+  inline?: {
+    parent: string;
+    detached?: boolean;
+    actionIds?: Record<string, string>;
+    handleId?: string;
+  };
 };
 export type UIResident = {
   kind: "function" | "frame" | "window";
@@ -126,7 +132,7 @@ export function validateUILayout(value: unknown): UILayout {
   if (
     Object.keys(layout.items).length > 500 ||
     layout.frames.length > 100 ||
-    Object.keys(layout.windows).length > 100 ||
+    Object.keys(layout.windows).length > 500 ||
     Object.keys(layout.menus).length > 50 ||
     layout.assets.length > 100
   )
@@ -241,6 +247,34 @@ export function validateUILayout(value: unknown): UILayout {
     return validateUILayout(next);
   }
   const owners = new Map<string, string>();
+  for (const [id, window] of Object.entries(layout.windows)) {
+    const inline = window.inline;
+    if (!inline) continue;
+    if (
+      !record(inline) ||
+      typeof inline.parent !== "string" ||
+      (inline.parent !== "workspace" && !getContainer(layout, inline.parent)) ||
+      (inline.detached !== undefined && typeof inline.detached !== "boolean")
+    )
+      throw new Error("Invalid embedded UI group home.");
+    if (
+      inline.handleId !== undefined &&
+      (typeof inline.handleId !== "string" || inline.handleId.length > 200)
+    )
+      throw new Error("Invalid embedded handle identity.");
+    if (
+      inline.actionIds &&
+      (!record(inline.actionIds) ||
+        Object.keys(inline.actionIds).length > 1000 ||
+        Object.entries(inline.actionIds).some(
+          ([path, action]) =>
+            path.length > 4000 || typeof action !== "string" || action.length > 200,
+        ))
+    )
+      throw new Error("Invalid embedded action identities.");
+    if (!inline.detached && inline.parent !== "workspace")
+      owners.set(`window:${id}`, inline.parent);
+  }
   for (const [key, container] of containers(layout)) {
     if (
       container.bodyOffset &&
@@ -318,8 +352,9 @@ export function validateUILayout(value: unknown): UILayout {
       if (member.kind === "window" && !layout.windows[member.id])
         throw new Error("Missing nested UI window.");
       const token = residentKey(member);
-      const scope = contextOwner(token);
-      if ((scope && scope !== key) || (key.startsWith("window:context:") && scope !== key))
+      const scope = residentContextScope(layout, token),
+        targetScope = residentContextScope(layout, key);
+      if ((scope || targetScope) && scope !== targetScope)
         throw new Error("Context actions must stay in their owning menu.");
       if (member.kind === "function" && layout.items[member.id]?.anchorId)
         throw new Error("A function cannot be both anchored and frame-owned.");
@@ -380,11 +415,40 @@ export function containers(layout: UILayout): [string, UIFrame | WindowState][] 
     ),
   ];
 }
+/** UI-only traversal follows actual ownership, including embedded native homes. */
+export function residentBranch(layout: UILayout, root: string): string[] {
+  return containers(layout)
+    .map(([key]) => key)
+    .filter((key) => {
+      const seen = new Set<string>();
+      let parent: string | undefined = key;
+      while (parent && !seen.has(parent)) {
+        if (parent === root) return true;
+        seen.add(parent);
+        parent = ownerOf(layout, parent);
+      }
+      return false;
+    });
+}
+export function collapseResidentBranch(
+  layout: UILayout,
+  root: string,
+  collapsed: boolean,
+): UILayout {
+  let next = layout;
+  for (const key of residentBranch(layout, root)) next = updateContainer(next, key, { collapsed });
+  return next;
+}
 export function getContainer(layout: UILayout, key: string) {
   return containers(layout).find(([id]) => id === key)?.[1];
 }
 export function ownerOf(layout: UILayout, key: string) {
-  return containers(layout).find(([, c]) => c.members?.some((m) => residentKey(m) === key))?.[0];
+  const explicit = containers(layout).find(([, c]) =>
+    c.members?.some((m) => residentKey(m) === key),
+  )?.[0];
+  if (explicit) return explicit;
+  const inline = key.startsWith("window:") ? layout.windows[key.slice(7)]?.inline : undefined;
+  return inline && !inline.detached && inline.parent !== "workspace" ? inline.parent : undefined;
 }
 export function residentPinned(layout: UILayout, key: string): boolean {
   const seen = new Set<string>();
@@ -415,10 +479,26 @@ export function updateContainer(
     windows: { ...layout.windows, [m.id]: { ...layout.windows[m.id], ...patch } },
   };
 }
+/** Entity-owned menus keep all nested groups/actions within their original scope. */
+export function residentContextScope(layout: UILayout, key: string): string | undefined {
+  const direct = contextOwner(key);
+  if (direct) return direct;
+  const seen = new Set<string>();
+  let owner: string | undefined = key;
+  while (owner && !seen.has(owner)) {
+    if (owner.startsWith("window:context:")) return owner;
+    seen.add(owner);
+    const inline: WindowState["inline"] = owner.startsWith("window:")
+      ? layout.windows[owner.slice(7)]?.inline
+      : undefined;
+    owner = inline?.parent ?? ownerOf(layout, owner);
+  }
+  return undefined;
+}
 export function canDock(layout: UILayout, resident: string, target: string) {
-  const scope = contextOwner(resident);
-  if ((scope && scope !== target) || (target.startsWith("window:context:") && scope !== target))
-    return false;
+  const scope = residentContextScope(layout, resident),
+    targetScope = residentContextScope(layout, target);
+  if ((scope || targetScope) && scope !== targetScope) return false;
   if (
     resident === target ||
     !getContainer(layout, target) ||
@@ -441,6 +521,16 @@ export function contextOwner(key: string) {
 export function releaseResident(layout: UILayout, key: string): UILayout {
   let next = layout;
   const resident = readResident(key);
+  if (resident.kind === "window" && layout.windows[resident.id]?.inline) {
+    const window = layout.windows[resident.id];
+    next = {
+      ...next,
+      windows: {
+        ...next.windows,
+        [resident.id]: { ...window, inline: { ...window.inline!, detached: true } },
+      },
+    };
+  }
   if (resident.kind === "function" && layout.items[resident.id]?.anchorId) {
     const { anchorId: _anchor, ...item } = layout.items[resident.id];
     next = { ...next, items: { ...next.items, [resident.id]: item } };
@@ -519,7 +609,7 @@ export function dockResident(
   return validateUILayout(next);
 }
 export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
-  if (contextOwner(key) || key.startsWith("window:context:")) return layout;
+  if (residentContextScope(layout, key) || key.startsWith("window:context:")) return layout;
   if (residentPinned(layout, key)) return layout;
   const next = releaseResident(layout, key),
     m = readResident(key);

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { collapseResidentBranch, ownerOf } from "../ui/layout";
+import { EmbeddedGroup } from "../ui/EmbeddedGroup";
 import { useUI } from "../ui/context";
-import { PROPERTY_TREE, propertyPath, subtreeIds, type PropertyNode } from "./propertyTree";
+import { PROPERTY_TREE, propertyPath, type PropertyNode } from "./propertyTree";
 import { useAppearance } from "./Context";
 import { propertyFor } from "./registry";
 import { subtreeGesture } from "../workspaceActions";
@@ -21,75 +23,80 @@ export function PropertyTree({
   const ui = useUI(),
     ctx = useAppearance();
   const prefix = `@appearance-properties:${scope}:`;
-  const reveal = ctx?.location ? propertyPath(ctx.location.property) : [];
+
   const supported = (node: PropertyNode): boolean =>
     !available ||
     (!!node.property && available.includes(node.property)) ||
     (node.children ?? []).some(supported);
+  const groupId = (id: string) => `property:${scope}:${id}`;
+  const reveal = new Set<string>();
+  if (ctx?.location) {
+    const path = propertyPath(ctx.location.property);
+    let key: string | undefined = `window:${groupId(path.at(-1) ?? ctx.location.property)}`;
+    const effective = {
+      ...ui.layout,
+      windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows },
+    };
+    while (key && !reveal.has(key)) {
+      reveal.add(key);
+      key = ownerOf(effective, key);
+    }
+  }
   const open = (node: PropertyNode) =>
-    reveal.includes(node.id) || (ui.layout.panels[prefix + node.id] ?? node.id === "color");
+    reveal.has(`window:${groupId(node.id)}`) ||
+    !(
+      ui.layout.windows[groupId(node.id)]?.collapsed ??
+      !(ui.layout.panels[prefix + node.id] ?? node.id === "color")
+    );
   const toggle = (node: PropertyNode, all = false) =>
-    ui.update((layout) => ({
-      ...layout,
-      panels: {
-        ...layout.panels,
-        ...Object.fromEntries(
-          (all ? subtreeIds(node) : [node.id]).map((id) => [prefix + id, !open(node)]),
-        ),
-      },
-    }));
+    ui.update((layout) => {
+      const expanded = !open(node),
+        windows = { ...Object.fromEntries(ui.defaults), ...layout.windows };
+      let next = { ...layout, windows, panels: { ...layout.panels, [prefix + node.id]: expanded } };
+      if (all) next = collapseResidentBranch(next, `window:${groupId(node.id)}`, !expanded);
+      else if (windows[groupId(node.id)])
+        next.windows[groupId(node.id)] = { ...windows[groupId(node.id)], collapsed: !expanded };
+      return next;
+    });
   const row = (node: PropertyNode): ReactNode => {
     if (!supported(node)) return null;
     const expanded = open(node),
       children = (node.children ?? []).filter(supported),
       p = node.property && propertyFor(node.property);
     return (
-      <div
-        className={`property-node ${selected === node.property ? "is-selected" : ""}`}
+      <EmbeddedGroup
         key={node.id}
-        data-property-node={node.id}
+        id={groupId(node.id)}
+        title={node.label}
+        expanded={expanded}
+        selected={selected === node.property}
+        className={`property-node ${selected === node.property ? "is-selected" : ""}`}
+        nodeId={node.id}
+        onToggle={(event) => {
+          if (event.detail > 1) return;
+          if (subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift")) {
+            toggle(node, true);
+            return;
+          }
+          if (node.property) onSelect(node.property);
+          toggle(node);
+        }}
       >
-        <div className="property-node-heading">
-          <button
-            type="button"
-            className="property-node-name"
-            data-ui-id="property"
-            aria-pressed={selected === node.property}
-            aria-expanded={expanded}
-            onClick={(event) => {
-              if (event.detail > 1) return;
-              if (subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift")) {
-                toggle(node, true);
-                return;
-              }
-              if (node.property) onSelect(node.property);
-              toggle(node);
+        {p && node.property && (
+          <div
+            className="property-node-editor"
+            onFocusCapture={() => {
+              if (node.property && node.property !== selected) onSelect(node.property);
+            }}
+            onPointerDownCapture={() => {
+              if (node.property && node.property !== selected) onSelect(node.property);
             }}
           >
-            {node.label}
-          </button>
-        </div>
-        {expanded && (
-          <div className="property-node-contents">
-            {p && node.property && (
-              <div
-                className="property-node-editor"
-                onFocusCapture={() => {
-                  if (node.property && node.property !== selected) onSelect(node.property);
-                }}
-                onPointerDownCapture={() => {
-                  if (node.property && node.property !== selected) onSelect(node.property);
-                }}
-              >
-                {renderEditor(node.property)}
-              </div>
-            )}
-            {children.length > 0 && (
-              <div className="property-node-children">{children.map(row)}</div>
-            )}
+            {renderEditor(node.property)}
           </div>
         )}
-      </div>
+        {children.length > 0 && <div className="property-node-children">{children.map(row)}</div>}
+      </EmbeddedGroup>
     );
   };
   return (
