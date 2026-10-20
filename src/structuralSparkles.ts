@@ -1,27 +1,39 @@
 import * as THREE from "three";
-import { effectSeed, effectVisible, fallingStar, perimeterPoint, resolveTargetSparkles, type EffectKind, type SparkleStyle } from "./graph/effects";
+import { MAX_STAR_DENSITY, effectSeed, effectVisible, fallingStar, perimeterPoint, resolveTargetSparkles, type EffectKind, type SparkleStyle } from "./graph/effects";
 import type { WorkspaceSettings } from "./workspaceActions";
 import type { TextScene } from "./textScene";
 
 /** Bounded particle batches follow rendered geometry, never canonical layout. */
 export function createStructuralSparkles(scene: THREE.Scene) {
   const maximum = 2048;
-  const batch = () => {
+  const starCapacity = 720 * MAX_STAR_DENSITY;
+  const batch = (capacity = maximum) => {
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(maximum * 3), 3).setUsage(THREE.DynamicDrawUsage));
-    geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(maximum * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage));
     geometry.setDrawRange(0, 0);
     const points = new THREE.Points(geometry, new THREE.PointsMaterial({ vertexColors: true, transparent: true, depthWrite: false, sizeAttenuation: false, blending: THREE.AdditiveBlending }));
     points.frustumCulled = false; points.userData.glowIntensity = 0.25; scene.add(points); return points;
   };
-  const nodes = batch(), binders = batch(), background = batch(), point = new THREE.Vector3(), color = new THREE.Color();
+  const nodes = batch(), binders = batch(), background = batch(starCapacity), point = new THREE.Vector3(), color = new THREE.Color();
+  // The original atmosphere's fixed seed and world-space distribution.
+  // Reuse the existing background batch rather than adding another render loop.
+  let randomSeed = 173;
+  const random = () => { randomSeed = (Math.imul(randomSeed, 1664525) + 1013904223) >>> 0; return randomSeed / 4294967296; };
+  const starfield = new Float32Array(starCapacity * 3);
+  const starTwinkles = new Float32Array(starCapacity * 2);
+  for (let i = 0; i < starCapacity; i++) {
+    const angle = random() * Math.PI * 2, z = random() * 2 - 1, radius = 12 + random() * 115;
+    starfield.set([Math.cos(angle) * Math.sqrt(1 - z * z) * radius, z * radius, Math.sin(angle) * Math.sqrt(1 - z * z) * radius], i * 3);
+    starTwinkles.set([effectSeed(`star-phase:${i}`) * Math.PI * 2, 2.5 + effectSeed(`star-speed:${i}`) * 4], i * 2);
+  }
   nodes.name = "Node outline sparkles"; binders.name = "Binder path sparkles";
   background.name = "Background animation"; background.renderOrder = -1000;
   const configure = (points: typeof nodes, fx: SparkleStyle, active: boolean, texture: (kind: EffectKind) => THREE.Texture) => {
     points.visible = active && fx.effect !== "lightning" && fx.effect !== "electric-text" && effectVisible(fx);
     const map = texture(fx.effect);
     if (points.material.map !== map) { points.material.map = map; points.material.needsUpdate = true; }
-    points.material.size = fx.effect === "sparks" ? 9 : fx.effect === "dust" ? 3 : 5;
+    points.material.size = fx.effect === "starfield" ? 5 * (fx.starSize ?? 1) : fx.effect === "sparks" ? 9 : fx.effect === "dust" ? 3 : 5;
     points.material.opacity = fx.intensity;
   };
   const finish = (points: typeof nodes, count: number) => {
@@ -73,7 +85,19 @@ export function createStructuralSparkles(scene: THREE.Scene) {
         }
       }
       finish(binders, count); count = 0;
-      if (background.visible) {
+      if (background.visible && backgroundFx.effect === "starfield") {
+        const time = seconds * backgroundFx.motion;
+        background.position.set(0, 0, 0); background.rotation.set(0, time * 0.025, 0);
+        background.material.size = 3 * (backgroundFx.starSize ?? 1);
+        color.set(backgroundFx.color ?? theme.accent);
+        const n = Math.round(720 * backgroundFx.density);
+        for (let i = 0; i < n; i++) {
+          point.fromArray(starfield, i * 3);
+          const wave = (Math.sin(time * starTwinkles[i * 2 + 1] + starTwinkles[i * 2]) + 1) / 2;
+          const twinkle = 0.12 + 0.88 * wave * wave * wave;
+          write(background, count++, point, color, theme.opacity * twinkle);
+        }
+      } else if (background.visible) {
         // A camera-relative backdrop behind charted geometry, independent of atlas bounds.
         const depth = camera.far * 0.9, halfHeight = depth * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV() / 2));
         background.position.copy(camera.position); background.quaternion.copy(camera.quaternion);

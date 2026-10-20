@@ -107,9 +107,9 @@ export function validateGLB(buffer: ArrayBuffer) {
       "Use a self-contained GLB without unsupported decoder extensions or external files.",
     );
 }
-export function visualFootprint(label: { width: number; height: number }, visual?: Visual) {
+export function visualFootprint(label: { width: number; height: number }, visual?: Visual, sphereDiameter = DEFAULT_SPHERE_DIAMETER) {
   const hasObject = !!(visual?.assetId || visual?.character),
-    size = visual?.size ?? (hasObject ? 1.4 : DEFAULT_SPHERE_DIAMETER);
+    size = visual?.size ?? (hasObject ? 1.4 : sphereDiameter);
   const showText = label.width > 0 && label.height > 0 && visual?.showText !== false;
   const sphere = !hasObject && !showText;
   return {

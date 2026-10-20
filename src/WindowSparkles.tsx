@@ -53,7 +53,7 @@ export function WindowSparkles({ appearance }: { appearance: WorkspaceSettings["
             const x = r.x + p.x - (snow ? 0 : 2), y = r.y + p.y - (snow ? 0 : 2);
             context.globalAlpha = a.opacity * fx.intensity * (snow ? falling.twinkle : 0.35 + 0.65 * (Math.sin(time * 2.5 + i * 2 + seed * 21) + 1) / 2);
             context.beginPath();
-            if (fx.effect === "stars" || snow) { context.moveTo(x - 3, y); context.lineTo(x + 3, y); context.moveTo(x, y - 3); context.lineTo(x, y + 3); context.stroke(); }
+            if (fx.effect === "stars" || fx.effect === "starfield" || snow) { const size = 3 * (fx.effect === "starfield" ? fx.starSize ?? 1 : 1); context.moveTo(x - size, y); context.lineTo(x + size, y); context.moveTo(x, y - size); context.lineTo(x, y + size); context.stroke(); }
             else if (fx.effect === "sparks") { context.moveTo(x - 1, y + 3); context.lineTo(x + 1, y - 3); context.stroke(); }
             else { context.arc(x, y, 1.3, 0, Math.PI * 2); context.fill(); }
           }

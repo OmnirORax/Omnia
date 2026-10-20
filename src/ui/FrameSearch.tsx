@@ -3,14 +3,14 @@ import { createPortal } from "react-dom";
 import { useUI, type UIContextValue } from "./context";
 import { getContainer, residentKey, updateContainer } from "./layout";
 
-type Result = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
-const normalize = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
-const rootFor = (key: string) => [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
-const nameFor = (ui: UIContextValue, key: string) => ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
+export type SearchResult = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
+export const normalizeSearch = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+export const rootFor = (key: string) => key === "workspace" ? document.body : [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
+export const nameFor = (ui: UIContextValue, key: string) => ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
 
 /** Index control labels, never input values or canonical graph data. */
-function controls(ui: UIContextValue, container: string): Result[] {
-  const results = new Map<string, Result>(), root = rootFor(container);
+export function frameControls(ui: UIContextValue, container: string): SearchResult[] {
+  const results = new Map<string, SearchResult>(), root = rootFor(container);
   const functions = new Map(ui.functions.map(fn => [fn.id, fn]));
   const pathTo = (element: HTMLElement) => {
     const path: string[] = [];
@@ -23,7 +23,7 @@ function controls(ui: UIContextValue, container: string): Result[] {
     return path;
   };
   for (const element of root?.querySelectorAll<HTMLElement>("[data-ui-function],.binding-row,label,button,input,select,textarea") ?? []) {
-    if (element.closest("[data-ui-search],.frame-chrome") || element.matches('input[type="hidden"],input[type="file"]')) continue;
+    if ((element.closest("[data-ui-search],.frame-chrome") || container === "workspace" && element.closest("[data-ui-palette],[data-shortcut-runner]")) || element.matches('input[type="hidden"],input[type="file"]')) continue;
     const fnElement = element.closest<HTMLElement>("[data-ui-function]"), row = element.closest<HTMLElement>(".binding-row");
     if (fnElement && (fnElement !== element || element.parentElement?.closest("[data-ui-function]")) || row && row !== element && !row.closest("[data-ui-function]") || !fnElement && !row && element.parentElement?.closest("label")) continue;
     const id = element.dataset.uiFunction, fn = id ? functions.get(id) : undefined;
@@ -56,9 +56,9 @@ export function FrameSearch({ container, title, expand }: { container: string; t
   const toggle = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
   const cleanup = useRef<() => void>(() => {});
   useEffect(() => () => cleanup.current(), []);
-  const index = useMemo(() => open ? controls(ui, container) : [], [open, query, ui.layout, ui.functions, container]);
-  const tokens = normalize(query).trim().split(/\s+/).filter(Boolean);
-  const matches = index.filter(result => tokens.every(token => normalize(`${result.label} ${result.path.slice(1).map(key => nameFor(ui, key)).join(" ")}`).includes(token)));
+  const index = useMemo(() => open ? frameControls(ui, container) : [], [open, query, ui.layout, ui.functions, container]);
+  const tokens = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
+  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.label} ${result.path.slice(1).map(key => nameFor(ui, key)).join(" ")}`).includes(token)));
   const visible = matches.slice(0, 40);
   useEffect(() => { if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: "nearest" }); }, [open, active, query]);
   const close = () => { setOpen(false); setQuery(""); setActive(0); };
@@ -74,7 +74,7 @@ export function FrameSearch({ container, title, expand }: { container: string; t
     document.addEventListener("pointerdown", outside, true); window.addEventListener("resize", place); window.addEventListener("scroll", place, true);
     return () => { document.removeEventListener("pointerdown", outside, true); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
-  const reveal = (result: Result) => {
+  const reveal = (result: SearchResult) => {
     cleanup.current(); close();
     ui.update(layout => result.path.reduce((next, key) => getContainer(next, key)?.collapsed ? updateContainer(next, key, { collapsed: false }) : next, layout));
     let frame = 0, attempts = 0, timer: ReturnType<typeof setTimeout> | undefined, found: HTMLElement | undefined;

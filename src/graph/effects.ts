@@ -1,18 +1,21 @@
-export const EFFECT_KINDS = ["stars", "electric-text", "lightning", "falling-stars", "dust", "sparks", "off"] as const;
+export const EFFECT_KINDS = ["stars", "starfield", "electric-text", "lightning", "falling-stars", "dust", "sparks", "off"] as const;
+export const MAX_STAR_DENSITY = 4;
+export const MAX_STAR_SIZE = 3;
 export type EffectKind = (typeof EFFECT_KINDS)[number];
 export const ANIMATION_TARGETS = ["windows", "buttons", "fields", "nodes", "binders", "background"] as const;
 export type AnimationTarget = (typeof ANIMATION_TARGETS)[number];
 export type SurfaceTarget = Exclude<AnimationTarget, "nodes" | "binders">;
 export const ANIMATION_LABELS: Record<AnimationTarget, string> = { windows: "Windows / frames", buttons: "Buttons", fields: "Fields", nodes: "Nodes", binders: "Binders", background: "Background" };
-export type SparkleStyle = { effect: EffectKind; intensity: number; density: number; motion: number; boltLength?: number; color?: string };
-export type SparkleDefaults = { effect: EffectKind; atmosphere: boolean; effectIntensity: number; density: number; motion: number; lightningLength?: number; effectColor?: string };
+export type SparkleStyle = { effect: EffectKind; intensity: number; density: number; motion: number; boltLength?: number; starSize?: number; color?: string };
+export type SparkleDefaults = { effect: EffectKind; atmosphere: boolean; effectIntensity: number; density: number; motion: number; lightningLength?: number; starSize?: number; effectColor?: string };
 type EffectSources = SparkleDefaults & {
   nodes?: { effects?: Partial<SparkleStyle> }; binders?: { effects?: Partial<SparkleStyle> };
   effectTargets?: Partial<Record<AnimationTarget, boolean>>;
   surfaceEffects?: Partial<Record<SurfaceTarget, Partial<SparkleStyle>>>;
 };
 export function resolveSparkles(global: SparkleDefaults, overrides?: Partial<SparkleStyle>): SparkleStyle {
-  return { effect: overrides?.effect ?? (global.atmosphere ? global.effect : "off"), intensity: overrides?.intensity ?? global.effectIntensity, density: overrides?.density ?? global.density, motion: overrides?.motion ?? global.motion, color: overrides?.color ?? global.effectColor, boltLength: overrides?.boltLength ?? global.lightningLength ?? 0.35 };
+  const effect = overrides?.effect ?? (global.atmosphere ? global.effect : "off");
+  return { effect, intensity: overrides?.intensity ?? global.effectIntensity, density: Math.min(effect === "starfield" ? MAX_STAR_DENSITY : 1, overrides?.density ?? global.density), starSize: overrides?.starSize ?? global.starSize ?? 1, motion: overrides?.motion ?? global.motion, color: overrides?.color ?? global.effectColor, boltLength: overrides?.boltLength ?? global.lightningLength ?? 0.35 };
 }
 export function resolveTargetSparkles(source: EffectSources, target: AnimationTarget): SparkleStyle {
   const override = target === "nodes" || target === "binders" ? source[target]?.effects : source.surfaceEffects?.[target];
@@ -25,7 +28,7 @@ export function normalizeSparkleOverrides(input: unknown): Partial<SparkleStyle>
   const value = input as Partial<SparkleStyle>;
   if (/^#[0-9a-f]{6}$/i.test(value.color ?? "")) result.color = value.color;
   if (EFFECT_KINDS.includes(value.effect as EffectKind)) result.effect = value.effect;
-  for (const key of ["intensity", "density", "motion", "boltLength"] as const) if (typeof value[key] === "number" && Number.isFinite(value[key])) result[key] = Math.max(0, Math.min(1, value[key]));
+  for (const key of ["intensity", "density", "motion", "boltLength", "starSize"] as const) if (typeof value[key] === "number" && Number.isFinite(value[key])) result[key] = Math.max(key === "starSize" ? 0.1 : 0, Math.min(key === "density" ? MAX_STAR_DENSITY : key === "starSize" ? MAX_STAR_SIZE : 1, value[key]));
   return result;
 }
 export const effectVisible = (fx: SparkleStyle) => fx.effect !== "off" && fx.intensity > 0 && fx.density > 0;

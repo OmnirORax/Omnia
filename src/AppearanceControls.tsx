@@ -1,4 +1,5 @@
 import type { Appearance, BinderPresentation } from "./graph/structural";
+import { ColorInput } from "./ui/ColorInput";
 import { UIField } from "./ui/UIField";
 
 export function AppearanceControls({
@@ -6,11 +7,13 @@ export function AppearanceControls({
   value,
   defaults,
   onChange,
+  onPreview,
 }: {
   label: string;
   value?: Appearance;
   defaults: Appearance;
   onChange: (value: Appearance | undefined) => void;
+  onPreview?: (value: Appearance) => void;
 }) {
   const current = { ...defaults, ...value, glow: value?.glow ?? defaults.glow ?? 1 };
   return (
@@ -23,11 +26,11 @@ export function AppearanceControls({
       >
         <label>
           Color
-          <input
+          <ColorInput
             aria-label={`${label} color`}
-            type="color"
             value={current.color}
-            onChange={(event) => onChange({ ...current, glow: value?.glow, color: event.target.value })}
+            onPreview={color => onPreview?.({ ...current, glow: value?.glow, color })}
+            onChange={(color) => onChange({ ...current, glow: value?.glow, color })}
           />
         </label>
       </UIField>
@@ -62,10 +65,12 @@ export function BinderControls({
   composition = false,
   defaultText = "",
   binderDefaults,
+  onPreview,
   textDefaults = { color: "#dce9fa", opacity: 1, glow: 1 },
 }: {
   value: BinderPresentation;
   onChange: (value: BinderPresentation) => void;
+  onPreview?: (value: BinderPresentation) => void;
   composition?: boolean;
   defaultText?: string;
   binderDefaults?: Appearance;
@@ -90,9 +95,10 @@ export function BinderControls({
         label="Binder"
         value={value.appearance}
         defaults={binderDefaults ?? { color: composition ? "#83c9c1" : "#9fc4e9", opacity: 0.85, glow: 0.7 }}
+        onPreview={appearance => onPreview?.({ appearance })}
         onChange={(appearance) => onChange({ appearance })}
       />
-      <AppearanceControls label="Binder text" value={value.textAppearance} defaults={textDefaults} onChange={textAppearance => onChange({ textAppearance })} />
+      <AppearanceControls label="Binder text" value={value.textAppearance} defaults={textDefaults} onPreview={textAppearance => onPreview?.({ textAppearance })} onChange={textAppearance => onChange({ textAppearance })} />
       <h3>Binder operators</h3>
       <p>
         Text annotations for this binder.{" "}

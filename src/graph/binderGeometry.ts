@@ -22,17 +22,17 @@ export function binderGap(binder: Pick<DisplayBinder, "visual" | "label">, direc
   const text = binder.visual?.showText === false ? 0 : 0.7 * (direction ? Math.abs(direction.x) * label.width + Math.abs(direction.y) * label.height : Math.max(label.width, label.height));
   return Math.max(BINDER_LENGTH_RATIO * operatorExtent(binder.visual), text + 0.35);
 }
-export function placementFootprint(doc: Document, placement: Placement) {
-  return visualFootprint(labelSize(doc.entities.find(e => e.id === placement.entityId)?.label ?? ""), placement.visual);
+export function placementFootprint(doc: Document, placement: Placement, sphereDiameter?: number) {
+  return visualFootprint(labelSize(doc.entities.find(e => e.id === placement.entityId)?.label ?? ""), placement.visual, sphereDiameter);
 }
-export function surfaceExtent(doc: Document, placement: Placement, direction: XYZ) {
-  const size = placementFootprint(doc, placement);
+export function surfaceExtent(doc: Document, placement: Placement, direction: XYZ, sphereDiameter?: number) {
+  const size = placementFootprint(doc, placement, sphereDiameter);
   if (size.sphere) return size.width / 2;
   return Math.min(...(["x", "y", "z"] as const).map(axis => Math.abs(direction[axis]) > 1e-9
     ? (axis === "x" ? size.width : axis === "y" ? size.height : size.depth) / 2 / Math.abs(direction[axis]) : Infinity));
 }
-export function minimumBinderDistance(doc: Document, binder: DisplayBinder, direction: XYZ) {
+export function minimumBinderDistance(doc: Document, binder: DisplayBinder, direction: XYZ, sphereDiameter?: number) {
   const from = doc.placements.find(p => p.id === binder.source)!;
   const to = doc.placements.find(p => p.id === binder.target)!;
-  return surfaceExtent(doc, from, direction) + surfaceExtent(doc, to, direction) + binderGap(binder, direction);
+  return surfaceExtent(doc, from, direction, sphereDiameter) + surfaceExtent(doc, to, direction, sphereDiameter) + binderGap(binder, direction);
 }
