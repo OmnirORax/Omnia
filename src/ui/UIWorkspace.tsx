@@ -1401,13 +1401,14 @@ export function UIWorkspace({
     const pointerMove = (event: PointerEvent) => {
       const active = pointer;
       if (!active || event.pointerId !== active.down.pointerId) return;
+      if ((event.buttons & 1) === 0) { cancelPointer(); return; }
       if (!active.started) {
         if (Math.hypot(event.clientX - active.down.clientX, event.clientY - active.down.clientY) <= 5) return;
         if (!(active.down.target instanceof Element) || !active.down.target.isConnected) { cancelPointer(); return; }
         start(active.down);
         if (!drag.current) { cancelPointer(); return; }
         active.started = true;
-        active.release = captureUIPointer(event.pointerId);
+        active.release = captureUIPointer(event.pointerId, event.pointerType);
       }
       event.preventDefault(); event.stopImmediatePropagation();
       over(event as unknown as globalThis.DragEvent);
@@ -1421,9 +1422,6 @@ export function UIWorkspace({
     };
     const pointerCancel = (event: PointerEvent) => {
       if (pointer?.down.pointerId === event.pointerId) cancelPointer();
-    };
-    const captureLost = (event: PointerEvent) => {
-      if (event.target === document.documentElement) pointerCancel(event);
     };
     const preventContext = (event: Event) => {
       if (pointer?.started) { event.preventDefault(); event.stopImmediatePropagation(); }
@@ -1445,7 +1443,6 @@ export function UIWorkspace({
     window.addEventListener("pointermove", pointerMove, true);
     window.addEventListener("pointerup", pointerUp, true);
     window.addEventListener("pointercancel", pointerCancel, true);
-    window.addEventListener("lostpointercapture", captureLost, true);
     window.addEventListener("contextmenu", preventContext, true);
     window.addEventListener("blur", cancelPointer);
     window.addEventListener("dragstart", nativeStart, true);
@@ -1459,7 +1456,6 @@ export function UIWorkspace({
       window.removeEventListener("pointermove", pointerMove, true);
       window.removeEventListener("pointerup", pointerUp, true);
       window.removeEventListener("pointercancel", pointerCancel, true);
-      window.removeEventListener("lostpointercapture", captureLost, true);
       window.removeEventListener("contextmenu", preventContext, true);
       window.removeEventListener("blur", cancelPointer);
       window.removeEventListener("dragstart", nativeStart, true);

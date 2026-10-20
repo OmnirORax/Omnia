@@ -52,6 +52,14 @@ try {
   await p.waitForFunction(() => document.documentElement.hasPointerCapture(window.dragPointer));
   await p.mouse.move(650, 750, { steps: 7 });
   await p.waitForFunction(() => document.querySelector(".ui-placement-preview"));
+  // Losing capture while the mouse stays down must not end the logical drag.
+  await p.evaluate(() => document.documentElement.releasePointerCapture(window.dragPointer));
+  await p.mouse.move(670, 760, { steps: 2 });
+  await p.waitForFunction(() => document.documentElement.hasPointerCapture(window.dragPointer));
+  await p.evaluate(() => document.querySelector("canvas").setPointerCapture(window.dragPointer));
+  await p.mouse.move(680, 765, { steps: 2 });
+  await p.waitForFunction(() => document.documentElement.hasPointerCapture(window.dragPointer));
+  assert.ok(await p.locator(".ui-placement-preview").count(), "capture loss/theft must retain the drag");
   assert.equal(
     await p.evaluate(() => localStorage.getItem("omnium.ui.layout.v1")),
     before,
@@ -106,9 +114,35 @@ try {
     await p.evaluate(() => document.documentElement.hasPointerCapture(window.dragPointer)),
     false,
   );
+  // A cancelled mouse pointer stream may discard its preview, but must not
+  // grant the same still-held physical press to a new camera pointer sequence.
+  const b3 = await handle().boundingBox();
+  await p.mouse.move(b3.x + 8, b3.y + 8);
+  await p.mouse.down();
+  await p.mouse.move(850, 700, { steps: 3 });
+  await p.waitForFunction(() => document.documentElement.hasPointerCapture(window.dragPointer));
+  await p.evaluate(() => {
+    window.dispatchEvent(new PointerEvent("pointercancel", {
+      pointerId: window.dragPointer, pointerType: "mouse", buttons: 1, bubbles: true,
+    }));
+    window.dispatchEvent(new Event("blur"));
+    document.querySelector("canvas").dispatchEvent(new PointerEvent("pointerdown", {
+      pointerId: window.dragPointer, pointerType: "mouse", button: 0, buttons: 1,
+      clientX: 850, clientY: 700, bubbles: true, cancelable: true,
+    }));
+  });
+  await p.mouse.move(650, 600, { steps: 3 });
+  assert.equal(await camera(), uiCamera, "cancel/blur must not hand a held UI press to the camera");
+  assert.equal(await p.evaluate(() => localStorage.getItem("omnium.ui.layout.v1")), committed);
+  await p.mouse.up();
+  await p.mouse.move(650, 650);
+  await p.mouse.down();
+  await p.mouse.move(690, 670, { steps: 3 });
+  await p.mouse.up();
+  await p.waitForFunction((before) => document.querySelector('[data-camera="position"]').textContent !== before, uiCamera);
   assert.deepEqual(errors, []);
   console.log(
-    "UI capture/reflow, interrupted camera cleanup, fresh camera pan, and camera isolation through drag/Esc pass.",
+    "Capture loss/theft retain the UI drag; Esc/cancel/blur isolate a held press from the camera; real release restores navigation.",
   );
 } finally {
   await browser.close();

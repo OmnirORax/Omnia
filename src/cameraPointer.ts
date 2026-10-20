@@ -1,3 +1,5 @@
+import { claimUIPress, observeUIPress, uiPointerHeld } from "./ui/pointerOwnership";
+
 /** A press belongs to the surface where it began, until its actual release.
  * OrbitControls listens on document; pointer capture alone cannot isolate it
  * from UI gestures or clear its state after an interrupted canvas gesture. */
@@ -7,7 +9,6 @@ export function guardCameraPointer(
   cancelWorkspaceGesture: () => void,
 ) {
   const world = new Set<number>();
-  const ui = new Set<number>();
   const cancelWorld = () => {
     if (!world.size) return;
     const pointers = [...world];
@@ -16,14 +17,18 @@ export function guardCameraPointer(
       if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
     cancelWorkspaceGesture();
   };
+  // Explicit drag claims also reach us when a UI handler consumes pointerdown
+  // before this listener runs (for example a selected-button gesture).
+  const unsubscribe = observeUIPress(active => {
+    setUIActive(active);
+    if (active) cancelWorld();
+  });
   const down = (event: PointerEvent) => {
     if (!event.composedPath().includes(canvas)) {
-      ui.add(event.pointerId);
-      setUIActive(true);
-      cancelWorld();
+      claimUIPress(event.pointerId, event.pointerType, event.buttons);
       return;
     }
-    if (ui.size) {
+    if (uiPointerHeld()) {
       event.preventDefault();
       event.stopImmediatePropagation();
       return;
@@ -39,15 +44,14 @@ export function guardCameraPointer(
       cancelWorld();
     }
     world.delete(event.pointerId);
-    if (ui.delete(event.pointerId)) setUIActive(ui.size > 0);
   };
   const lost = (event: PointerEvent) => {
     if (event.target === canvas && world.has(event.pointerId)) cancelWorld();
   };
   const blur = () => {
     cancelWorld();
-    ui.clear();
-    setUIActive(false);
+    // Focus loss is not evidence that a held mouse button was released.
+    setUIActive(uiPointerHeld());
   };
   window.addEventListener("pointerdown", down, true);
   window.addEventListener("pointerup", up, true);
@@ -55,8 +59,9 @@ export function guardCameraPointer(
   window.addEventListener("lostpointercapture", lost, true);
   window.addEventListener("blur", blur);
   return {
-    owns: (event: PointerEvent) => !ui.size && world.has(event.pointerId),
+    owns: (event: PointerEvent) => !uiPointerHeld() && world.has(event.pointerId),
     dispose: () => {
+      unsubscribe();
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointerup", up, true);
       window.removeEventListener("pointercancel", up, true);

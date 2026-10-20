@@ -481,7 +481,7 @@ export function useButtonSelection({
           initial: new Set(next),
           clickId: id,
           pointerId: e.pointerId,
-          release: captureUIPointer(e.pointerId),
+          release: captureUIPointer(e.pointerId, e.pointerType),
         };
       } else if (
         (state.mode || (additive && target.closest("[data-ui-resident-root],.toolbar"))) &&
@@ -501,7 +501,7 @@ export function useButtonSelection({
           scope: scope?.startsWith("window:context:") ? scope : undefined,
           initial: new Set(additive ? state.ids : []),
           pointerId: e.pointerId,
-          release: captureUIPointer(e.pointerId),
+          release: captureUIPointer(e.pointerId, e.pointerType),
         };
         setRectangle({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
         setMenu(null);
@@ -554,6 +554,8 @@ export function useButtonSelection({
     };
     const move = (e: PointerEvent) => {
       if (!gesture.current && !current.current.aligning) return;
+      if (gesture.current && gesture.current.pointerId !== e.pointerId) return;
+      if (gesture.current && (e.buttons & 1) === 0) { cancel(); return; }
       if (gesture.current) { e.preventDefault(); e.stopImmediatePropagation(); }
       pendingMove = e;
       if (!moveFrame) moveFrame = requestAnimationFrame(() => {
@@ -636,9 +638,6 @@ export function useButtonSelection({
     const pointerCancel = (event: PointerEvent) => {
       if (gesture.current?.pointerId === event.pointerId) cancel();
     };
-    const captureLost = (event: PointerEvent) => {
-      if (event.target === document.documentElement) pointerCancel(event);
-    };
     const preventContext = (event: Event) => {
       if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
@@ -649,7 +648,6 @@ export function useButtonSelection({
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerup", up, true);
     window.addEventListener("pointercancel", pointerCancel, true);
-    window.addEventListener("lostpointercapture", captureLost, true);
     window.addEventListener("contextmenu", preventContext, true);
     window.addEventListener("dragstart", preventNative, true);
     window.addEventListener("blur", cancel);
@@ -661,7 +659,6 @@ export function useButtonSelection({
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
       window.removeEventListener("pointercancel", pointerCancel, true);
-      window.removeEventListener("lostpointercapture", captureLost, true);
       window.removeEventListener("contextmenu", preventContext, true);
       window.removeEventListener("dragstart", preventNative, true);
       window.removeEventListener("blur", cancel);
