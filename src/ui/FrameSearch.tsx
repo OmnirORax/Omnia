@@ -79,7 +79,8 @@ export function FrameSearch({ container, title, expand }: { container: string; t
     cleanup.current(); close();
     ui.update(layout => result.path.reduce((previous, key) => {
       const next = activateDockMember(previous, key);
-      return getContainer(next, key)?.collapsed ? updateContainer(next, key, { collapsed: false }) : next;
+      const state = getContainer(next, key);
+      return state?.collapsed || state?.closed ? updateContainer(next, key, { collapsed: false, closed: false }) : next;
     }, layout));
     let frame = 0, attempts = 0, timer: ReturnType<typeof setTimeout> | undefined, found: HTMLElement | undefined;
     const locate = () => {
@@ -107,6 +108,7 @@ export function FrameSearch({ container, title, expand }: { container: string; t
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActive(index => (index + (event.key === "ArrowDown" ? 1 : -1) + Math.max(1, visible.length)) % Math.max(1, visible.length)); }
       if (event.key === "Enter" && event.target === input.current && visible[active]) { event.preventDefault(); reveal(visible[active]); }
     }}>
+      <button className="ui-popup-close" aria-label={`Close search in ${title}`} onClick={close}>×</button>
       <input ref={input} type="search" aria-label={`Search controls in ${title}`} placeholder="Find a button, setting or field…" value={query} onChange={event => { setQuery(event.target.value); setActive(0); }} role="combobox" aria-expanded="true" aria-controls={id} aria-activedescendant={visible[active] ? `${id}-${active}` : undefined} />
       <div className="ui-frame-search-results" id={id} role="listbox" aria-label={`UI controls in ${title}`}>
         {visible.map((result, index) => <button key={result.key} id={`${id}-${index}`} role="option" aria-selected={index === active} onMouseEnter={() => setActive(index)} onClick={() => reveal(result)} title={`Show ${result.label}`}><span>{result.label}</span>{result.path.length > 1 && <small>{result.path.slice(1).map(key => nameFor(ui, key)).join(" › ")}</small>}</button>)}

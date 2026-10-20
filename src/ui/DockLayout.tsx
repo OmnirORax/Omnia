@@ -8,6 +8,7 @@ import { FrameSearch, nameFor } from "./FrameSearch";
 import { useIconTint } from "../appearance/Styles";
 import { ShortcutHint } from "./ShortcutHint";
 import { nameSymbol } from "./nameSymbols";
+import { FrameCloseButton } from "./FrameCloseButton";
 
 export function DockLayout({ container }: { container: string }) {
   const ui = useUI(), tree = getContainer(ui.layout, container)?.dockLayout;
@@ -23,7 +24,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
     <div className="ui-dock-tabs" role="tablist" aria-label="Docked frames">
       {node.keys.map(key => {
         const title = nameFor(ui, key), state = getContainer(ui.layout, key), style = state?.chrome?.style;
-        return <button key={key} type="button" role="tab" aria-selected={key === node.active}
+        return <span key={key} className="ui-dock-tab-with-close"><button type="button" role="tab" aria-selected={key === node.active}
           className={`ui-dock-tab ${style?.mode === "icon" ? `function-icon shape-${style.geometry}` : ""}`}
           data-ui-drag={key} data-ui-inline-handle data-ui-name={title} data-ui-symbol={nameSymbol(key, title)} data-ui-proxy-for={key}
           aria-label={title} title={ui.layout.hideNames || style?.mode === "icon" ? title : ""}
@@ -34,7 +35,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
             const current = getContainer(layout, container)?.dockLayout;
             return current ? updateContainer(updateContainer(layout, key, { collapsed: false }), container, { dockLayout: updateDockNode(current, path, value => value.kind === "tabs" ? { ...value, active: key } : value) }) : layout;
           })}
-        ><DockTabLabel id={key} title={title} /><ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${key}`]} /></button>;
+        ><DockTabLabel id={key} title={title} /><ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${key}`]} /></button><FrameCloseButton container={key} title={title} /></span>;
       })}
     </div>
     <FrameSearch container={node.active} title={nameFor(ui, node.active)} expand={() => {}} />

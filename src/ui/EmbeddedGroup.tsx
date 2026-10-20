@@ -67,7 +67,7 @@ export function EmbeddedGroup({
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
   const available = workspace.active ? workspace.floating : viewport;
   const desired = { x: state.x, y: state.y, width: root.current?.getBoundingClientRect().width || state.width, height: root.current?.getBoundingClientRect().height || state.height };
-  const visible = useDockResident(key, state.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, state.chrome?.handle) : fitDockRect(desired, available), !atHome && !host, state.floatingOverflow);
+  const visible = useDockResident(key, state.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, state.chrome?.handle) : fitDockRect(desired, available), !state.closed && !atHome && !host, state.floatingOverflow);
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -145,6 +145,7 @@ export function EmbeddedGroup({
   const content = (
     <div
       ref={root}
+      hidden={state.closed}
       className={`ui-inline-group ${className}`}
       onMouseDown={(event) => {
         if (!atHome && !host) {

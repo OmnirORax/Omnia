@@ -791,6 +791,7 @@ export function ButtonSelectionOverlay({
             top: Math.max(8, Math.min(selection.menu.y, window.innerHeight - 120)),
           }}
         >
+          <button className="ui-popup-close" aria-label="Close selection menu" onClick={selection.closeMenu}>×</button>
           <button disabled={selection.ids.size < 2} onClick={selection.group}>Group into frame</button>
           <button onClick={selection.compact}>Compact selected UI</button>
           <button onClick={selection.align}>Align UI to a button boundary</button>

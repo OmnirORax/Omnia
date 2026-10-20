@@ -47,6 +47,7 @@ import {
 import { VisualControls } from "../VisualControls";
 import { ShortcutHint } from "./ShortcutHint";
 import { FrameChrome } from "./FrameChrome";
+import { FrameCloseButton } from "./FrameCloseButton";
 import { GlobalSearch, type GlobalSearchProps } from "./GlobalSearch";
 import { FrameSearch } from "./FrameSearch";
 import { DockArea } from "./DockArea";
@@ -60,6 +61,7 @@ import {
   groupResidents,
   updateContainer,
   releaseResident,
+  closeContainer,
   residentKey,
   residentPinned,
   resetContainer,
@@ -287,6 +289,7 @@ export function UIPanel({
   }, [id, ui.layout.panels[id], owner]);
   const float = (value: boolean) =>
     ui.update((layout) => ({ ...layout, panels: { ...layout.panels, [id]: value } }));
+  if (state.closed) return null;
   if (ui.layout.panels[id] || owner)
     return (
       <FloatingWindow
@@ -296,15 +299,16 @@ export function UIPanel({
         width={400}
         height={560}
         onClose={() =>
-          ui.update((s) => ({ ...releaseResident(s, key), panels: { ...s.panels, [id]: false } }))
+          ui.update((s) => ({ ...closeContainer(s, key), panels: { ...s.panels, [id]: false } }))
         }
-        closeLabel={`Dock ${title}`}
+        closeLabel={`Close ${title}`}
       >
         <section className={className}>{children}</section>
       </FloatingWindow>
     );
   if (!menu && !ui.layout.panels["@organized"]) return (
     <section className={`ui-docked-panel ${className}`} data-ui-resident-root={key}>
+      <FrameCloseButton container={key} title={title} />
       <div className="ui-legacy-search"><FrameSearch container={key} title={title} expand={() => {}} /></div>
       <button className="detach-panel" title={`Float ${title}`} aria-label={`Undock ${id} panel`} data-ui-drag={key} draggable onDragStart={e => startResidentDrag(e, key)} onClick={() => float(true)}>↗</button>
       <UIHomeContext.Provider value={key}>{children}<DockArea container={key} contour={false} /></UIHomeContext.Provider>
@@ -1732,6 +1736,7 @@ export function UIWorkspace({
             top: Math.min(menu.y, window.innerHeight - 230),
           }}
         >
+          <button className="ui-popup-close" aria-label="Close frame menu" onClick={() => setMenu(null)}>×</button>
           <button onClick={() => chooseMode(menu.owner ?? "@workspace", "free")}>
             Free-hand mode
             {(menuContainer?.arrangement ?? layout.arrangement)?.mode !== "snap" ? " ✓" : ""}
@@ -1852,6 +1857,15 @@ export function UIWorkspace({
             onChange={(e) => setQuery(e.target.value)}
           />
           <div className="function-library categorized-library">
+            {Object.entries(layout.windows).some(([, state]) => state.closed) && (
+              <details open><summary>Closed frames</summary>
+                {Object.entries(layout.windows).filter(([, state]) => state.closed).map(([id]) => {
+                  const key = `window:${id}`;
+                  const title = layout.labels?.[key] ?? frameActions.get(key)?.title ?? id.replace(/^panel:/, "");
+                  return <button key={id} onClick={() => update(layout => updateContainer(layout, key, { closed: false, collapsed: false }))}>Open {title}</button>;
+                })}
+              </details>
+            )}
             {LIBRARY_CATEGORIES.map((category) => {
               const entries = functions
                 .filter(

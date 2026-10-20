@@ -7,6 +7,8 @@ import type { WindowState } from "./layout";
 import { FrameSearch } from "./FrameSearch";
 import { useUILabel } from "./EditableLabel";
 import { nameSymbol } from "./nameSymbols";
+import { FrameCloseButton } from "./FrameCloseButton";
+import { closeContainer } from "./layout";
 
 export function FrameChrome({
   container,
@@ -50,13 +52,17 @@ export function FrameChrome({
   const ui = useUI(),
     style = state.chrome?.style ?? { mode: "text", geometry: "circle" },
     asset = ui.layout.assets.find((a) => a.id === style.assetId);
+  const close = onClose ?? (() => ui.update(layout => closeContainer({
+    ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows },
+  }, container)));
+  const closeButton = <FrameCloseButton container={container} title={title} onClose={close} label={closeLabel} />;
   const openFrameMenu = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     ui.frameMenu(container, event.clientX, event.clientY);
   };
   useLayoutEffect(() => {
-    const actions = { title, label: label ?? title, state, onChange, onRename, onClose, closeLabel };
+    const actions = { title, label: label ?? title, state, onChange, onRename, onClose: close, closeLabel };
     ui.frameActions.set(container, actions);
     return () => {
       if (ui.frameActions.get(container) === actions) ui.frameActions.delete(container);
@@ -107,11 +113,12 @@ export function FrameChrome({
           )}
           <ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${container}`]} />
         </button>
+        {closeButton}
       </div>
     );
   return (
     <header
-      className={`floating-title frame-chrome ${className} ${state.pinned ? "is-pinned" : ""}`}
+      className={`floating-title frame-chrome ${className} ${state.pinned ? "is-pinned" : ""} ${state.collapsed ? "is-collapsed" : ""}`}
       data-ui-chrome={container}
       data-ui-container-key={container}
       onContextMenu={openFrameMenu}
@@ -169,7 +176,9 @@ export function FrameChrome({
             if (state.collapsed && !fixed) onChange({ collapsed: false });
           }}
         />
+        {state.collapsed && closeButton}
       </div>
+      {!state.collapsed && closeButton}
     </header>
   );
 }

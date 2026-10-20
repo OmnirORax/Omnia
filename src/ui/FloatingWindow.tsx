@@ -68,7 +68,7 @@ export function FloatingWindow({
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
   const available = !owner && !openAtCursor && workspace.active ? workspace.floating : viewport;
   const desired = state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state;
-  const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !owner && !openAtCursor, saved.floatingOverflow);
+  const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !saved.closed && !owner && !openAtCursor, saved.floatingOverflow);
   const dockFill = !!host?.classList.contains("ui-dock-fill");
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
@@ -86,7 +86,7 @@ export function FloatingWindow({
         ...layout,
         windows: {
           ...layout.windows,
-          [id]: fitWindow({ ...current, ...point, collapsed: false, floatingOverflow: false }, innerWidth, innerHeight),
+          [id]: fitWindow({ ...current, ...point, collapsed: false, closed: false, floatingOverflow: false }, innerWidth, innerHeight),
         },
       };
     });
@@ -134,7 +134,7 @@ export function FloatingWindow({
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [id, ui.update]);
-  if (owner && !host) return null;
+  if (saved.closed || owner && !host) return null;
   return createPortal(
     <>
       {modal && !state.collapsed && !owner && (

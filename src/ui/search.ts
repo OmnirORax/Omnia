@@ -98,7 +98,7 @@ export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null):
     const flag = key === "window:theme" ? "@theme" : key === "window:settings" ? "@settings" : key === "window:shortcuts" ? "@shortcuts" : undefined;
     if (flag) next = { ...next, panels: { ...next.panels, [flag]: true } };
     const container = getContainer(next, key);
-    if (container?.collapsed) next = updateContainer(next, key, { collapsed: false });
+    if (container?.collapsed || container?.closed) next = updateContainer(next, key, { collapsed: false, closed: false });
   }
   return next;
 }

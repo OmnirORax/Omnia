@@ -14,6 +14,7 @@ export type WindowState = {
   width: number;
   height: number;
   collapsed: boolean;
+  closed?: boolean;
   pinned: boolean;
   members?: UIResident[];
   chrome?: FrameChrome;
@@ -66,6 +67,7 @@ export type UIFrame = {
   y: number;
   cellSize: number;
   collapsed: boolean;
+  closed?: boolean;
   pinned: boolean;
   members?: UIResident[];
   width?: number;
@@ -298,6 +300,7 @@ export function validateUILayout(value: unknown): UILayout {
       owners.set(`window:${id}`, inline.parent);
   }
   for (const [key, container] of containers(layout)) {
+    if (container.closed !== undefined && typeof container.closed !== "boolean") throw new Error("Invalid frame visibility.");
     if (container.floatingOverflow !== undefined && typeof container.floatingOverflow !== "boolean") throw new Error("Invalid floating placement.");
     if (container.dockLayout) validateDockNode(container.dockLayout, new Set((container.members ?? []).map(residentKey)));
     if ("dockGroup" in container && container.dockGroup !== undefined && typeof container.dockGroup !== "boolean") throw new Error("Invalid dock group.");
@@ -591,6 +594,13 @@ export function releaseResident(layout: UILayout, key: string): UILayout {
         ...(c.dockLayout ? { dockLayout: removeDockKey(c.dockLayout, key) } : {}),
       });
   return next;
+}
+/** Hide a frame without deleting its controls. Release explicit docking so closed
+ * tabs do not leave empty panes; an embedded group's native home is preserved. */
+export function closeContainer(layout: UILayout, key: string): UILayout {
+  const state = key.startsWith("window:") ? layout.windows[key.slice(7)] : undefined;
+  const released = state?.inline && !state.inline.detached ? layout : releaseResident(layout, key);
+  return pruneEmptyDockGroups(updateContainer(released, key, { closed: true }));
 }
 export function pruneEmptyDockGroups(layout: UILayout): UILayout {
   let next = layout;

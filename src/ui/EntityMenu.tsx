@@ -109,6 +109,7 @@ export function EntityMenu<T extends string>({
           title={`${kind} actions`}
           state={state}
           fixed
+          onClose={onDismiss}
           onChange={(patch) => ui.update((s) => updateContainer(s, key, patch))}
         />
         <DockArea container={key} />

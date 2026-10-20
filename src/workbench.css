@@ -884,3 +884,27 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .arrange-section > .property-node-contents > :is(.contextual-appearance,.visual-controls) > legend { display: none; }
 .ui-missing-group { display: block; padding: 8px; max-width: 220px; border: 1px dashed currentColor; }
 .property-node-heading .function-icon { width: 44px; height: 44px; padding: 6px; }
+
+/* One direct close control for every frame, including embedded groups and dock tabs. */
+.ui-frame-close, .frame-chrome .ui-frame-close {
+  position: absolute; top: 0; right: 0; left: auto; flex: 0 0 24px;
+  display: inline-grid; place-items: center; width: 24px; height: 26px;
+  min-width: 24px; min-height: 24px; margin: 0; padding: 2px;
+  border: 0; background: transparent; color: inherit; box-shadow: none;
+  font: 18px/1 sans-serif; cursor: pointer; pointer-events: auto;
+}
+.ui-frame-close:hover { background: color-mix(in srgb, var(--omnium-accent, #386991) 20%, transparent); border-radius: 4px; }
+.ui-frame-close img { width: 18px; height: 18px; object-fit: contain; }
+.frame-chrome:not(.is-collapsed) > .ui-frame-tools { max-width: calc(100% - 28px); }
+.frame-chrome.is-collapsed > .ui-frame-tools { padding-right: 26px; }
+.property-node-heading { position: relative; padding-right: 26px; }
+.ui-dock-tab-with-close { position: relative; display: inline-flex; align-items: center; padding-right: 24px; }
+.ui-dock-tab-with-close > .ui-frame-close { top: 50%; transform: translateY(-50%); }
+[data-ui-resident-root][hidden] { display: none !important; }
+
+.ui-frame-close, .frame-chrome .ui-frame-close { z-index: 1; }
+.ui-docked-panel > .detach-panel { right: 30px; }
+.ui-docked-panel > .ui-legacy-search { right: 60px; }
+.ui-dock-tab-with-close { flex-shrink: 0; }
+.ui-popup-close { position: absolute; right: 4px; top: 3px; width: 24px; min-height: 24px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: 18px/1 sans-serif; }
+:is(.ui-background-menu,.ui-frame-search-popup):has(> .ui-popup-close) { padding-top: 30px; }
