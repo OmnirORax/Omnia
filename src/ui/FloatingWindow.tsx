@@ -11,8 +11,8 @@ import { useDockResident, useDockWorkspace } from "./DockWorkspace";
 import { fitDockRect } from "./docking";
 import { keepFloatingHandleVisible } from "./positioning";
 import { cursorPosition } from "./cursorPosition";
-let front = 100;
-export const nextWindowLayer = () => ++front;
+import { nextWindowLayer } from "./layers";
+export { nextWindowLayer } from "./layers";
 export function FloatingWindow({
   id,
   title,

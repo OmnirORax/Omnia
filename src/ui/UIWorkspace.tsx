@@ -8,6 +8,7 @@ import { UIEditor } from "./UIEditor";
 import { CustomControls, CustomControlSettings } from "./CustomControls";
 import { removeCustomControl } from "./authoring";
 import { useOutsideDismiss } from "./useOutsideDismiss";
+import { ContextMenu } from "./ContextMenu";
 import { useCursorTracking } from "./cursorPosition";
 import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
@@ -1732,10 +1733,9 @@ export function UIWorkspace({
       </div>
       <PlacementPreviewOverlay />
       {menu && (
-        <div
+        <ContextMenu
+          opening={menu}
           ref={menuRoot}
-          className="ui-background-menu"
-          role="menu"
           aria-label="UI frame settings"
           style={{
             left: Math.min(menu.x, window.innerWidth - 250),
@@ -1842,7 +1842,7 @@ export function UIWorkspace({
             UI library
           </button>
           <button onClick={() => setMenu(null)}>Close</button>
-        </div>
+        </ContextMenu>
       )}
       {libraryOpen && (
         <FloatingWindow

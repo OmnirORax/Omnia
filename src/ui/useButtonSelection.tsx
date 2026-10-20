@@ -28,6 +28,7 @@ import { snapPosition, snapshotPositions, type PositionedBox } from "./positioni
 import { captureUIPointer, rectDistance } from "./drag";
 import { residentBounds } from "./frameBounds";
 import { useOutsideDismiss } from "./useOutsideDismiss";
+import { ContextMenu } from "./ContextMenu";
 
 const selectable = '[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]';
 const idOf = (el: HTMLElement) => el.dataset.uiDrag && /^(window|frame):/.test(el.dataset.uiDrag) ? el.dataset.uiDrag : el.dataset.uiFunction!;
@@ -781,10 +782,10 @@ export function ButtonSelectionOverlay({
         </div>
       )}
       {selection.menu && (
-        <div
+        <ContextMenu
+          opening={selection.menu}
           ref={menuRoot}
-          className="ui-background-menu ui-selection-tools"
-          role="menu"
+          className="ui-selection-tools"
           aria-label="Selected UI actions"
           style={{
             left: Math.max(8, Math.min(selection.menu.x, window.innerWidth - 240)),
@@ -796,7 +797,7 @@ export function ButtonSelectionOverlay({
           <button onClick={selection.compact}>Compact selected UI</button>
           <button onClick={selection.align}>Align UI to a button boundary</button>
           <button onClick={selection.clear}>Clear UI selection</button>
-        </div>
+        </ContextMenu>
       )}
     </>
   );
