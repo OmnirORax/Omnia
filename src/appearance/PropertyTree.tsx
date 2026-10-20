@@ -52,29 +52,17 @@ export function PropertyTree({
         <div className="property-node-heading">
           <button
             type="button"
-            data-ui-id="disclosure"
-            aria-label={`${expanded ? "Collapse" : "Expand"} property ${node.label}`}
-            aria-expanded={expanded}
-            onClick={(event) =>
-              toggle(node, subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift"))
-            }
-          >
-            {expanded ? "▾" : "▸"}
-          </button>
-          <button
-            type="button"
             className="property-node-name"
             data-ui-id="property"
             aria-pressed={selected === node.property}
+            aria-expanded={expanded}
             onClick={(event) => {
+              if (event.detail > 1) return;
               if (subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift")) {
                 toggle(node, true);
                 return;
               }
               if (node.property) onSelect(node.property);
-            }}
-            onDoubleClick={(event) => {
-              event.preventDefault();
               toggle(node);
             }}
           >
@@ -106,9 +94,7 @@ export function PropertyTree({
   };
   return (
     <div className="property-roots" role="group" aria-label="Appearance properties">
-      <small>
-        Click to select · double-click to expand/collapse · subtree modifier for all levels
-      </small>
+      <small>Click a property to expand/collapse · subtree modifier for all levels</small>
       <div className="property-root-row">{PROPERTY_TREE.map(row)}</div>
     </div>
   );

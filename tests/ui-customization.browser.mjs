@@ -35,8 +35,8 @@ try {
   await p.keyboard.press("Escape");
   assert.equal(await animation.getAttribute("data-ui-native-icon"), "");
   assert.match(await animation.evaluate((e) => getComputedStyle(e, "::before").content), /A/);
-  // Original double-click behavior remains connected after icon conversion.
-  await animation.dblclick();
+  // Property clicks still expand after icon conversion.
+  await animation.click();
   await master.getByRole("group", { name: "Adjust selected effect", exact: true }).waitFor();
   const choice = master
     .getByRole("group", { name: "Adjust selected effect", exact: true })

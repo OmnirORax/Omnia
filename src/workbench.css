@@ -808,7 +808,6 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .property-root-row > .property-node { flex: 0 1 auto; }
 .property-node-heading { display: flex; gap: 2px; align-items: center; }
 .property-node-heading button { padding: 3px 5px; min-height: 24px; }
-.property-node-heading button:first-child { border: 0; background: transparent; }
 .property-node.is-selected > .property-node-heading .property-node-name { border-color: var(--omnium-accent); box-shadow: 0 0 5px color-mix(in srgb, var(--omnium-accent) 45%, transparent); }
 .property-node-contents { border-left: 1px solid color-mix(in srgb, var(--omnium-accent) 25%, transparent); padding: 6px 0 2px 8px; margin-left: 7px; max-width: 280px; }
 .property-node-children { display: grid; gap: 5px; }
