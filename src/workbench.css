@@ -425,7 +425,6 @@ textarea:focus-visible {
 .appearance-controls > .ui-form-control { flex: 1 1 85px; }
 .appearance-controls > button { font-size: 11px; }
 .appearance-controls label { flex: 1; margin: 0; }
-.appearance-controls input[type="color"] { height: 34px; padding: 3px; }
 .appearance-controls input[type="range"] { padding: 5px 0; }
 .operator-row { display: flex; align-items: center; gap: 5px; }
 .operator-row label { flex: 1; }
@@ -739,7 +738,6 @@ button.active,
   50% { text-shadow: var(--omnium-text-shadow, 0 0 0 transparent), 0 0 18px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * var(--omnium-glow, .22) * 75%), transparent); }
 }
 .ui-form-control input[type="range"] { width: 100%; box-sizing: border-box; }
-.ui-form-control input[type="color"] { height: 34px; padding: 3px; }
 @media (prefers-reduced-motion: reduce) {
   :root[data-omnium-theme="neon"] button { transition: none; }
   :root[data-omnium-theme="neon"] .brand strong { animation: none; }
@@ -824,7 +822,7 @@ button.active,
 @media (prefers-reduced-motion: reduce) { .ui-search-pulsing { animation: none !important; } }
 
 /* Compact native swatches keep their keyboard/picker behavior. */
-input[type="color"] { width: 28px !important; height: 28px; min-width: 28px !important; flex: 0 0 28px; padding: 0 !important; border-radius: 50% !important; overflow: hidden; cursor: pointer; }
+input[type="color"] { width: var(--ui-swatch-size, 28px) !important; height: var(--ui-swatch-size, 28px) !important; min-width: var(--ui-swatch-size, 28px) !important; max-width: var(--ui-swatch-size, 28px) !important; min-height: var(--ui-swatch-size, 28px) !important; max-height: var(--ui-swatch-size, 28px) !important; flex: 0 0 var(--ui-swatch-size, 28px); aspect-ratio: 1; box-sizing: border-box; padding: 0 !important; border-radius: 50% !important; overflow: hidden; cursor: pointer; }
 input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
 input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
 input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }

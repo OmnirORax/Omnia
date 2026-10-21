@@ -157,7 +157,7 @@ function FunctionElement({
     ) : asset ? (
       iconTint.color ? <span className="appearance-icon-mask" style={{ ...iconTint.style, backgroundColor: iconTint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} /> : <img src={asset.dataUrl} alt="" style={iconTint.style}/>
     ) : (
-      <span style={{...iconTint.style,color:iconTint.color}}>{style.character || "○"}</span>
+      <span style={{...iconTint.style,color:iconTint.color ?? iconTint.glyphColor}}>{style.character || "○"}</span>
     );
   const original = fn.element as ReactElement<{
     onClick?: () => void;

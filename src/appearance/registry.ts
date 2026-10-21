@@ -205,6 +205,8 @@ export type Binding = {
   };
 };
 export type RegisteredTarget = Target & { binding?: Binding };
+/** Inline artwork has its own ink; it never inherits a text target's color. */
+export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];
@@ -246,7 +248,7 @@ const part = (
           contents: 30,
         } as Record<string, number>
       )[id.split(".").at(-1)!] ?? 0;
-    binding = { ...binding, animation: { kind, source, glyphsOnly: !!binding.text, priority } };
+    binding = { ...binding, animation: binding.animation ?? { kind, source, glyphsOnly: !!binding.text, priority } };
   }
   if (binding.selector && binding.css === "border-color")
     properties = [...properties, "contourWidth", "contourStyle"];
@@ -419,7 +421,7 @@ for (const [id, label, selector] of [
     ".ui-frame-handle button,.entity-menu-header strong,.brand strong,[data-ui-inline-handle]",
   ],
   ["headings", "Section / category headings", "h1,h2,h3,legend"],
-  ["buttons", "Button labels", "button"],
+  ["buttons", "Button labels", 'button:not([data-ui-visual-kind="icon"]):not(.function-icon):not([data-ui-native-icon])'],
   ["labels", "Field labels", "label"],
   ["placeholders", "Placeholder text", "input::placeholder,textarea::placeholder"],
   ["contents", "Field contents", "input,textarea,select"],
@@ -453,12 +455,14 @@ part(
 );
 branch("symbols", "all", "Icons / symbols / visual assets");
 part("symbols.ui", "symbols", "UI icons", {
+  selector: UI_INLINE_ICON_SELECTOR,
+  css: "color",
   legacy: "accent",
   animation: {
     kind: "icons",
     source: "buttons",
     glyphsOnly: true,
-    selector: "button img,.ui-frame-handle img,.appearance-icon-mask",
+    selector: `button img,.ui-frame-handle img,.appearance-icon-mask,${UI_INLINE_ICON_SELECTOR}`,
   },
 });
 part("symbols.nodes", "symbols", "Node visuals · defaults", {

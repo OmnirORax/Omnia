@@ -115,7 +115,7 @@ export function FrameChrome({
                 <img src={asset.dataUrl} alt="" style={iconTint.style} />
               )
             ) : (
-              <span style={{ ...iconTint.style, color: iconTint.color }}>
+              <span style={{ ...iconTint.style, color: iconTint.color ?? iconTint.glyphColor }}>
                 {style.character || "○"}
               </span>
             )
@@ -171,7 +171,7 @@ export function FrameChrome({
                   )}
                 </>
               ) : (
-                <span style={{ ...iconTint.style, color: iconTint.color }}>
+                <span style={{ ...iconTint.style, color: iconTint.color ?? iconTint.glyphColor }}>
                   {style.character || "○"}
                 </span>
               )

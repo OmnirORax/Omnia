@@ -53,7 +53,7 @@ function DockTabLabel({ id, title }: { id: string; title: string }) {
   if (style?.mode !== "icon") return title;
   return asset ? tint.color ? <span className="appearance-icon-mask" style={{ ...tint.style, backgroundColor: tint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} />
     : <img src={asset.dataUrl} alt="" style={tint.style} />
-    : <span style={{ ...tint.style, color: tint.color }}>{style.character || "○"}</span>;
+    : <span style={{ ...tint.style, color: tint.color ?? tint.glyphColor }}>{style.character || "○"}</span>;
 }
 function DockFrameHost({ id }: { id: string }) {
   const ui = useUI();

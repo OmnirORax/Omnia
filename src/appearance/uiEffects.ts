@@ -10,6 +10,7 @@ export const effectSelector = (target: RegisteredTarget) =>
   (target.binding!.animation!.selector ?? target.binding!.selector!).replace(/::placeholder/g, "");
 /** The nearest matching text owner avoids painting nested labels twice. */
 function textOwner(start: HTMLElement) {
+  if (start.closest('svg,.function-icon,[data-ui-native-icon],button[data-ui-visual-kind="icon"]')) return;
   let element: HTMLElement | null = start;
   while (element) {
     const target = textTargets.find((t) => {
