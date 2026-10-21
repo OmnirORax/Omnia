@@ -1,5 +1,24 @@
 import { useLayoutEffect, useState } from "react";
 export type ContentBounds = { x: number; y: number; width: number; height: number };
+/** Observe the payload itself, independently of its floating viewport's limits. */
+export function useContentSize() {
+  const [element, ref] = useState<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    if (!element) return;
+    const measure = () => {
+      if (!element.getClientRects().length) return;
+      const rect = element.getBoundingClientRect(), width = Math.ceil(rect.width), height = Math.ceil(rect.height);
+      setSize(previous => previous.width === width && previous.height === height
+        ? previous : { width, height });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, [element]);
+  return { element, ref, size };
+}
 /** Measure occupied content, never the saved wrapping width of a contour frame. */
 export function residentBounds(root: HTMLElement): ContentBounds {
   if (!root.classList.contains("ui-frame-root") || root.parentElement?.classList.contains("ui-structured-frame")) return root.getBoundingClientRect();
