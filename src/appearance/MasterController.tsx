@@ -51,12 +51,16 @@ export function MasterController() {
   );
   const children = useMemo(() => {
     const map = new Map<string, RegisteredTarget[]>();
+    const byId = new Map(targets.map(target => [target.id, target]));
     const individualGroups = new Set(ctx.targets.flatMap(target =>
       target.instance ? [`${target.instance.base}.custom`] : []));
     for (const t of targets) {
+      if (t.hidden) continue;
       if (!showIndividuals && (t.instance || individualGroups.has(t.id))) continue;
       if (rigidity && !rigidityRowVisible(t, ctx.targets, effectiveLayout)) continue;
-      map.set(t.parent ?? "", [...(map.get(t.parent ?? "") ?? []), t]);
+      let parent = t.parent;
+      while (parent && byId.get(parent)?.hidden) parent = byId.get(parent)?.parent;
+      map.set(parent ?? "", [...(map.get(parent ?? "") ?? []), t]);
     }
     return map;
   }, [structureKey, rigidity, showIndividuals, ctx.targets, ui.layout.uiRigidity]);
@@ -86,7 +90,7 @@ export function MasterController() {
     hovered = useRef<string | null>(null);
   const highlight = (id: string) => {
     highlighted.current?.stop();
-    const eligible = (descendants.get(id) ?? []).filter(target => target.properties?.includes(property) &&
+    const eligible = (descendants.get(id) ?? []).filter(target => !target.aggregate && target.properties?.includes(property) &&
       (property !== "effect" || !target.effectKinds || target.effectKinds.includes(String(currentEffect))));
     highlighted.current = eligible.length ? highlightHierarchy(eligible.map(target => ({ target,
       active: rigidity ? !target.instance || !residentPinned(effectiveLayout, target.instance.owner)

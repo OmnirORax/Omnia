@@ -2,6 +2,7 @@ import { EFFECT_KINDS } from "../graph/effects.ts";
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
 import { type Controller, type Target, type Value, normalizeController } from "./model.ts";
 import { migrateEffects } from "./migrateEffects.ts";
+import { migrateFieldBranches } from "./migrateFields.ts";
 import type { AnimationTarget } from "../graph/effects.ts";
 export type Property = {
   id: string;
@@ -185,11 +186,11 @@ export function validateProperty(id: string, value: unknown): Value | undefined 
   return p.options?.some((o) => o.id === value) ? (value as string) : undefined;
 }
 export const loadController = (value: unknown) =>
-  migrateEffects(
+  migrateFieldBranches(migrateEffects(
     normalizeController(value, validateProperty),
     LEGACY_EFFECT_TARGETS,
     EFFECT_PROPERTIES,
-  );
+  ), LEGACY_FIELD_BRANCHES);
 export type Binding = {
   selector?: string;
   css?: string;
@@ -204,7 +205,7 @@ export type Binding = {
     priority?: number;
   };
 };
-export type RegisteredTarget = Target & { binding?: Binding };
+export type RegisteredTarget = Target & { binding?: Binding; hidden?: boolean; aggregate?: boolean };
 /** Inline artwork has its own ink; it never inherits a text target's color. */
 export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
@@ -328,16 +329,29 @@ for (const [id, label, selector] of [
   ["select", "Dropdowns / selectors", "select"],
 ] as const) {
   branch(`ui.fields.${id}`, "ui.fields", label);
-  part(`ui.fields.${id}.background`, `ui.fields.${id}`, "Background", {
+  entries.at(-1)!.hidden = true;
+  part(`ui.fields.${id}.background`, "ui.fields.background", "Background", {
     selector,
     css: "background-color",
     legacy: "fieldBackground",
   });
-  part(`ui.fields.${id}.contour`, `ui.fields.${id}`, "Contour", {
+  entries.at(-1)!.hidden = true;
+  part(`ui.fields.${id}.contour`, "ui.fields.contour", "Contour", {
     selector,
     css: "border-color",
     legacy: "accent",
   });
+  entries.at(-1)!.hidden = true;
+}
+// Shared controls operate on the original bindings, retaining saved type-specific
+// paint and local refinements without duplicating the visible hierarchy or renderer.
+for (const kind of ["background", "contour"] as const) {
+  const template = entries.find(target => target.id === `ui.fields.single.${kind}`)!;
+  entries.push({ ...template, id: `ui.fields.${kind}`, parent: "ui.fields", hidden: false,
+    aggregate: true, binding: { ...template.binding,
+      selector: entries.filter(target => target.parent === `ui.fields.${kind}`)
+        .map(target => target.binding?.selector).filter(Boolean).join(","),
+    } });
 }
 branch("ui.toggles", "ui.fields", "Checkboxes / radio buttons / switches");
 part("ui.toggles.indicator", "ui.toggles", "Selection indicator", {
@@ -509,6 +523,11 @@ part(
   ["color", "brightness"],
 );
 export const TARGETS: readonly RegisteredTarget[] = entries;
+const LEGACY_FIELD_BRANCHES = Object.fromEntries(
+  ["single", "multi", "search", "number", "select"].map(kind => [
+    `ui.fields.${kind}`, [`ui.fields.${kind}.background`, `ui.fields.${kind}.contour`],
+  ]),
+);
 const LEGACY_EFFECT_TARGETS = Object.fromEntries(
   ["windows", "buttons", "fields", "nodes", "binders", "background"].map((source) => [
     `vfx.${source}`,
@@ -528,7 +547,7 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
     const parent = `${base.id}.custom`;
     if (!parents.has(parent)) {
       parents.add(parent);
-      targets.push({ id: parent, parent: base.id, label: "Individually customized" });
+      targets.push({ id: parent, parent: base.id, label: "Individually customized", hidden: base.hidden });
     }
     targets.push({
       id,

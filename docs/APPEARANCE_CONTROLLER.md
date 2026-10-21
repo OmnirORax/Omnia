@@ -17,6 +17,8 @@ Right-click a frame handle or button and open its existing appearance editor for
 
 **Show individuals** is off by default. Enable it in Visual hierarchy to display individually customized entries and their groups, including eligible individual rigidity entries. The setting is saved with the UI layout. Hiding these rows preserves their customizations and keeps category targeting and hover behavior intact.
 
+Fields has one shared Background and one Contour control covering single-line, multiline, search, numeric and dropdown fields. Existing type-specific paint, locks, exclusions and local customizations remain supported internally; they do not generate repeated field-type branches. Shared edits reach the existing bindings, while local editors offer the two shared field parts. Checkboxes, sliders and swatches retain their distinct controls.
+
 ## Data and ownership
 
 `appearance.controller.version = 1` is optional in older saved settings. Normalization adds an empty controller while retaining legacy colors, fonts, animation choices and values as the baseline. Existing detached controls keep their IDs and edit the shared registry. Default controls use the tree instead of the former color/animation category dropdowns.

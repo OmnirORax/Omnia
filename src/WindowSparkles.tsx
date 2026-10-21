@@ -60,7 +60,8 @@ export function WindowSparkles({
       let processed = 0;
       for (const target of uiEffectTargets) {
         const fx = effectsFor(a, target.id),
-          hasLocal = targets.some((t) => t.instance?.base === target.id);
+          hasLocal = targets.some((t) => t.instance?.base === target.id ||
+            (target.hidden && t.instance?.base === target.parent));
         if (!effectVisible(fx) && !hasLocal) continue;
         const selector = effectSelector(target);
         context.shadowBlur = (fx.glow ?? a.glow) * 12;

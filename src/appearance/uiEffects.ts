@@ -1,7 +1,7 @@
 import { TARGETS, type RegisteredTarget } from "./registry";
 import type { GlyphScope } from "../uiLightning";
 export const uiEffectTargets = TARGETS.filter(
-  (t) => t.binding?.animation && (t.binding.animation.selector || t.binding.selector),
+  (t) => !t.aggregate && t.binding?.animation && (t.binding.animation.selector || t.binding.selector),
 );
 const textTargets = uiEffectTargets
   .filter((t) => t.binding?.animation?.kind === "text")

@@ -20,6 +20,7 @@ export function AppearanceStyles() {
         (b.instance?.owner.startsWith("function:") ? 1 : 0),
     )) {
       const binding = target.binding;
+      if (target.aggregate && !target.instance) continue;
       if (!binding?.selector || !binding.css || !target.properties) continue;
       const values = state.values[target.id] ?? {};
       const local = !!target.instance;

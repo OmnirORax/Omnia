@@ -82,7 +82,8 @@ export function rigidityTargets(
   return [
     ...targets.map(target => ({ ...target, properties: categories.has(target.id) ? [UI_RIGIDITY_PROPERTY] : [] })),
     ...[...keys].map(([key, label]) => ({
-      id: prefix + key, parent: rigidityCategory(key, functions),
+      id: prefix + key, parent: TARGETS.find(target => target.id === rigidityCategory(key, functions))?.hidden
+        ? "ui.fields" : rigidityCategory(key, functions),
       label: layout.labels?.[key] ?? label, properties: [UI_RIGIDITY_PROPERTY],
       instance: { base: rigidityCategory(key, functions), owner: key, label, path: residentPath(layout, key, functions) },
     })),
