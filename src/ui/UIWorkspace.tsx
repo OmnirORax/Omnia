@@ -18,7 +18,7 @@ import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
 import { captureUIPointer } from "./drag";
-import { beginLiveDrag, dragSurface } from "./liveDrag";
+import { beginLiveDrag, beginLiveTabDrag, dragSurface } from "./liveDrag";
 import { dockGuideAt } from "./dockGuides";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
@@ -776,7 +776,8 @@ export function UIWorkspace({
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
-        live: root ? beginLiveDrag([dragSurface(root)]) : undefined,
+        live: tabPane && handle ? beginLiveTabDrag(tabPane, handle, key)
+          : root ? beginLiveDrag([dragSurface(root)]) : undefined,
       };
     };
     const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {

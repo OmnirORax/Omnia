@@ -6,21 +6,25 @@ export function dragSurface(root: HTMLElement): HTMLElement {
   return parent?.matches('.floating-window,.function-frame,[data-ui-floating-surface]') ? parent : root;
 }
 
-export function beginLiveDrag(sources: HTMLElement[]) {
+type LiftBounds = { rect: { x: number; y: number; width: number; height: number }; display?: string };
+
+export function beginLiveDrag(sources: HTMLElement[], bounds = new Map<HTMLElement, LiftBounds>()) {
   const roots = [...new Set(sources)].filter(root => !sources.some(parent => parent !== root && parent.contains(root)));
   // Read every source before lifting any of them out of the layout.
   const snapshots = roots.map(element => {
-    const rect = element.getBoundingClientRect(), computed = getComputedStyle(element);
+    const override = bounds.get(element);
+    const rect = override?.rect ?? element.getBoundingClientRect(), computed = getComputedStyle(element);
     const fixed: Record<string, string> = {
       position: 'fixed', right: 'auto', bottom: 'auto', left: `${rect.x}px`, top: `${rect.y}px`,
       width: `${rect.width}px`, height: `${rect.height}px`, 'box-sizing': 'border-box',
       'min-width': '0', 'min-height': '0', 'max-width': 'none', 'max-height': 'none',
       transform: 'none', translate: 'none', rotate: 'none', scale: 'none',
-      transition: 'none', animation: 'none', 'z-index': '30001',
+      transition: 'none', animation: 'none', 'z-index': '30001', 'will-change': 'transform',
     };
     // Suppress popover UA defaults while retaining the payload's appearance.
     for (const name of ['display', 'background-color', 'color', 'overflow-x', 'overflow-y', 'box-shadow'])
       fixed[name] = computed.getPropertyValue(name);
+    if (override?.display) fixed.display = override.display;
     for (const side of ['top', 'right', 'bottom', 'left']) {
       fixed[`margin-${side}`] = '0';
       for (const name of [`padding-${side}`, ...['width', 'style', 'color'].map(part => `border-${side}-${part}`)])
@@ -72,4 +76,20 @@ export function beginLiveDrag(sources: HTMLElement[]) {
     },
     restore,
   };
+}
+
+/** A pane is shared by several tabs. Lift only the chosen tab and its live
+ * body; sibling headers and their contents remain at home for the whole drag. */
+export function beginLiveTabDrag(pane: HTMLElement, handle: HTMLElement, key: string) {
+  const tab = handle.closest<HTMLElement>('[data-ui-dock-tab]');
+  const body = [...pane.children].find((element): element is HTMLElement =>
+    element instanceof HTMLElement && element.dataset.uiDockContent === key);
+  if (!tab || !body) return beginLiveDrag([dragSurface(handle)]);
+  const visibleBody = [...pane.children].find((element): element is HTMLElement =>
+    element instanceof HTMLElement && element.matches('.ui-dock-tab-body:not([hidden])'));
+  // Inactive tabs retain their mounted payload. Borrow only the visible slot's
+  // geometry, without activating a tab or writing an extra history operation.
+  const bounds = new Map<HTMLElement, LiftBounds>();
+  if (body.hidden && visibleBody) bounds.set(body, { rect: visibleBody.getBoundingClientRect(), display: 'block' });
+  return beginLiveDrag([body, tab], bounds);
 }

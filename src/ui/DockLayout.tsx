@@ -24,7 +24,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
     <div className="ui-dock-tabs" role="tablist" aria-label="Docked frames">
       {node.keys.map(key => {
         const title = nameFor(ui, key), state = getContainer(ui.layout, key), style = state?.chrome?.style;
-        return <span key={key} className="ui-dock-tab-with-close"><button type="button" role="tab" aria-selected={key === node.active}
+        return <span key={key} className="ui-dock-tab-with-close" data-ui-dock-tab={key}><button type="button" role="tab" aria-selected={key === node.active}
           className={`ui-dock-tab ${style?.mode === "icon" ? `function-icon shape-${style.geometry}` : ""}`}
           data-ui-drag={key} data-ui-inline-handle data-ui-name={title} data-ui-symbol={nameSymbol(key, title)} data-ui-proxy-for={key}
           aria-label={title} title={ui.layout.hideNames || style?.mode === "icon" ? title : ""}
@@ -40,7 +40,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
     </div>
     <FrameSearch container={node.active} title={nameFor(ui, node.active)} expand={() => {}} />
     </div>
-    {node.keys.map(key => <div className="ui-dock-tab-body" role="tabpanel" hidden={key !== node.active} key={key} aria-label={nameFor(ui, key)}>
+    {node.keys.map(key => <div className="ui-dock-tab-body" role="tabpanel" data-ui-dock-content={key} hidden={key !== node.active} key={key} aria-label={nameFor(ui, key)}>
       {key.startsWith("window:")
         ? <DockHost id={key} width={320} height={400} fill />
         : <DockFrameHost id={key} />}
