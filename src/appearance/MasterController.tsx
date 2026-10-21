@@ -18,7 +18,7 @@ import { stableUIHash } from "../ui/identity";
 import { UIAction } from "../ui/UIAction";
 import { useUI } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
-import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityTargets, toggleRigidity } from "../ui/rigidity";
+import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTargets, toggleRigidity } from "../ui/rigidity";
 import { highlightHierarchy } from "./highlight";
 import { residentPinned } from "../ui/layout";
 
@@ -52,9 +52,12 @@ export function MasterController() {
   );
   const children = useMemo(() => {
     const map = new Map<string, RegisteredTarget[]>();
-    for (const t of targets) map.set(t.parent ?? "", [...(map.get(t.parent ?? "") ?? []), t]);
+    for (const t of targets) {
+      if (rigidity && !rigidityRowVisible(t, ctx.targets, effectiveLayout)) continue;
+      map.set(t.parent ?? "", [...(map.get(t.parent ?? "") ?? []), t]);
+    }
     return map;
-  }, [structureKey]);
+  }, [structureKey, rigidity, ctx.targets, ui.layout.uiRigidity]);
   const currentEffect = active.adjustments?.effect ?? "off";
   const applicable = (t: RegisteredTarget): boolean =>
     (descendants.get(t.id) ?? []).some(

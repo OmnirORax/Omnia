@@ -95,6 +95,13 @@ export function rigidityIncluded(layout: UILayout, targets: Target[], id: string
     if (layout.uiRigidity?.[ancestor] !== undefined) rigid = layout.uiRigidity[ancestor];
   return rigid;
 }
+// Keep the full resident inventory for category policies and hover targeting,
+// but expose individual rows only after a local customization exists.
+export function rigidityRowVisible(target: RegisteredTarget, localTargets: RegisteredTarget[], layout: UILayout): boolean {
+  if (!target.id.startsWith(prefix)) return true;
+  return layout.uiRigidity?.[target.id] !== undefined ||
+    localTargets.some(local => local.instance?.owner === target.instance?.owner);
+}
 export function toggleRigidity(layout: UILayout, targets: Target[], id: string, functions: Functions): UILayout {
   const value = !rigidityIncluded(layout, targets, id, functions), rules = { ...layout.uiRigidity };
   if (id === "all") return { ...layout, uiRigidity: { all: value } };
