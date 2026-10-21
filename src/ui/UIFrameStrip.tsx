@@ -1,6 +1,8 @@
-import { Children, isValidElement, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { Children, isValidElement, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Rnd } from "react-rnd";
+import { flushSync } from "react-dom";
 import { useUI } from "./context";
-import { getContainer, ownerOf, residentKey, updateContainer, type WindowState } from "./layout";
+import { getContainer, ownerOf, residentKey, residentPinned, updateContainer, type WindowState } from "./layout";
 import { DockArea } from "./DockArea";
 import { FloatingWindow } from "./FloatingWindow";
 import { useDockWorkspace } from "./DockWorkspace";
@@ -11,7 +13,8 @@ export function UIFrameStrip({ id, title = "Panels", vertical = false, children 
   const ui = useUI(), container = `window:native:${id}`;
   const contentsId = `native-content:${id}`, contents = `window:${contentsId}`;
   const [name, rename] = useUILabel(contents, title);
-  const root = useRef<HTMLDivElement>(null);
+  const root = useRef<Rnd>(null);
+  const [resizingWidth, setResizingWidth] = useState<number>();
   const workspace = useDockWorkspace();
   const allocation = useSyncExternalStore(ui.placementPreview.subscribe, () => ui.placementPreview.getSnapshot()?.allocation);
   const native = Children.toArray(children).filter(isValidElement<{ id: string }>).filter(child => typeof child.props.id === "string");
@@ -34,9 +37,11 @@ export function UIFrameStrip({ id, title = "Panels", vertical = false, children 
     return () => { if (ui.frameActions.get(contents) === actions) ui.frameActions.delete(contents); };
   });
   const projected = getContainer(allocation?.layout ?? ui.layout, container);
-  const allocatedWidth = vertical && projected?.dockLayout ? Math.min(projected.width ?? 300, workspace.center.width * .75) : undefined;
+  const maxWidth = Math.max(160, workspace.center.width * .75);
+  const requestedWidth = resizingWidth ?? (projected?.dockLayout || ui.layout.windows[`native:${id}`] ? projected?.width : undefined);
+  const allocatedWidth = vertical && requestedWidth !== undefined ? Math.min(requestedWidth, maxWidth) : undefined;
   useLayoutEffect(() => {
-    const parent = root.current?.parentElement;
+    const parent = root.current?.resizableElement.current?.parentElement;
     if (!parent || allocatedWidth === undefined) return;
     const width = parent.style.width, basis = parent.style.flexBasis;
     const extent = allocatedWidth + parent.offsetWidth - parent.clientWidth;
@@ -60,10 +65,23 @@ export function UIFrameStrip({ id, title = "Panels", vertical = false, children 
     {members.filter(m => !nativeKeys.includes(residentKey(m))).map(member => <div key={residentKey(member)} className="ui-native-frame-slot" data-ui-frame-slot={residentKey(member)} style={{ order: keys.indexOf(residentKey(member)) }}>{ui.renderResident(member)}</div>)}
   </div>;
   if (!vertical) return rows;
-  return <div ref={root} className="ui-native-strip-frame" data-ui-resident-root={container}>
+  return <Rnd ref={root} className="ui-native-strip-frame" data-ui-resident-root={container}
+    style={{ position: "relative" }} position={{ x: 0, y: 0 }} size={{ width: allocatedWidth ?? "100%", height: "100%" }} disableDragging
+    minWidth={160} maxWidth={maxWidth} enableResizing={residentPinned(ui.layout, container) ? false : { right: true }}
+    resizeHandleStyles={{ right: { right: 0, width: 8, pointerEvents: "auto", zIndex: 2 } }}
+    resizeHandleComponent={{ right: <span className="ui-native-strip-resize" data-ui-resize aria-label={`Resize ${name}`} /> }}
+    // Freeze percentage sizing in pixels before the resizer captures its origin;
+    // otherwise widening its flex parent feeds back into the held frame's width.
+    onResizeStart={(_, __, element) => flushSync(() => setResizingWidth(element.offsetWidth))}
+    onResize={(_, __, element) => setResizingWidth(element.offsetWidth)}
+    onResizeStop={(_, __, element) => {
+      const width = element.offsetWidth;
+      ui.update(layout => updateContainer({ ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows } }, container, { width }));
+      setResizingWidth(undefined);
+    }}>
     {away ? <>
       <DockArea container={container} contour={false} />
       <FloatingWindow id={contentsId} title={title} role="complementary" openAtCursor={false} className="ui-native-strip-window" residentArea={null}>{rows}</FloatingWindow>
     </> : rows}
-  </div>;
+  </Rnd>;
 }

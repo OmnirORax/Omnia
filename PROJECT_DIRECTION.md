@@ -10,7 +10,7 @@ Omnia is intended to become a shared environment where humans and AI construct, 
 
 For each task, implement the requested capability with the smallest compatible change. Preserve existing functionality and user data. Keep semantic graph data distinct from view state, make costly-to-reverse decisions explicit, and avoid speculative features or abstractions.
 
-Verification preference: the user performs testing. Prioritize implementation; skip routine test suites, browser checks and extra test-writing. Use a small targeted check only when genuinely unsure about a concrete implementation issue. Avoid expensive regression work unless explicitly requested. Build only when needed to produce the requested preview/artifact. Human testing determines usability and design fit.
+Verification preference: the user performs testing. Do not run tests, browser checks or write extra tests unless explicitly requested. Prioritize implementation and build only when needed to produce the requested preview/artifact. Human testing determines usability and design fit.
 
 Publish GitHack previews from `yarn build:preview` → `dist-preview`, whose HTML embeds startup assets. The preview host has returned HTTP 429 for separate CSS/module requests; a rejected lazy import previously unmounted the editor. Keep the canvas error boundary and the single-file preview packaging. Production Pages builds still use normal `yarn build` → `dist`.
 
