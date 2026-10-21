@@ -108,6 +108,7 @@ export function useButtonSelection({
   suppress: () => void;
 }) {
   const [ids, setIds] = useState<Set<string>>(() => new Set()),
+    [locked, setLocked] = useState(false),
     [mode, setMode] = useState(false),
     [alignOpen, setAlignOpen] = useState(false),
     [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -121,8 +122,8 @@ export function useButtonSelection({
   const setMessage = (message: string) => {
     if (message !== visuals.getSnapshot().message) visuals.set({ ...visuals.getSnapshot(), message });
   };
-  const current = useRef({ layout, update, functions, ids, mode, alignOpen });
-  current.current = { layout, update, functions, ids, mode, alignOpen };
+  const current = useRef({ layout, update, functions, ids, locked, mode, alignOpen });
+  current.current = { layout, update, functions, ids, locked, mode, alignOpen };
   const gesture = useRef<Gesture | null>(null);
   const rangeAnchor = useRef<string | null>(null);
   const select = (next: Set<string>) => {
@@ -131,6 +132,10 @@ export function useButtonSelection({
       while (parent) { if (next.has(selectionId(parent))) return false; parent = ownerOf(current.current.layout, parent); }
       return true;
     }));
+    if (!next.size) {
+      current.current.locked = false;
+      setLocked(false);
+    }
     if (next.size === current.current.ids.size && [...next].every((id) => current.current.ids.has(id))) return;
     current.current.ids = next;
     setIds(next);
@@ -146,6 +151,14 @@ export function useButtonSelection({
     setPreviews([]);
     setMenu(null);
     setMessage("");
+  };
+  const toggleLock = () => {
+    if (!current.current.ids.size) return;
+    const next = !current.current.locked;
+    current.current.locked = next;
+    setLocked(next);
+    setMenu(null);
+    setMessage(next ? "Selection locked. Esc or Clear still clears it." : "Selection unlocked.");
   };
   const editable = (el: HTMLElement) =>
     !residentPinned(current.current.layout, selectionResident(idOf(el))) &&
@@ -410,21 +423,20 @@ export function useButtonSelection({
         state = current.current,
         additive = e.ctrlKey || e.metaKey,
         range = e.shiftKey;
-      if (
-        target.closest(
-          'input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,[data-ui-alignment],[data-ui-resident-root="window:ui-alignment"],[data-ui-resize]',
-        )
-        || (!additive && !range && target.closest(".ui-field-edge"))
-      )
-        return;
       const button = target.closest<HTMLElement>(selectable),
-        id = button ? idOf(button) : undefined;
-      if (id && (!(["ui:select", "ui:compact", "ui:align"].includes(id) || id.startsWith("ui:align:")) || additive || range || (state.ids.size > 1 && state.ids.has(id)))) {
-        if (!state.mode && !additive && !range && !(state.ids.size > 1 && state.ids.has(id))) {
-          rangeAnchor.current = null;
-          if (state.ids.size) select(new Set());
-          return;
-        }
+        id = button ? idOf(button) : undefined,
+        selectedPress = !!id && state.ids.has(id),
+        selectionCommand = !!id && (["ui:select", "ui:compact", "ui:align"].includes(id) || id.startsWith("ui:align:")),
+        selectionTools = target.closest('.ui-selection-tools,.ui-background-menu,[data-ui-alignment],[data-ui-resident-root="window:ui-alignment"]'),
+        editing = target.closest('input,textarea,select,[contenteditable=true],[data-ui-resize]');
+      // Dismiss before returning to input/canvas handlers, without consuming the
+      // press. Selection commands and modifier gestures retain their targets.
+      if (!additive && !range && !state.locked && state.ids.size && !selectionTools && !selectionCommand &&
+          (!selectedPress || editing) && (!state.mode || editing)) ops.current.clear();
+      if (selectionTools || editing || (!additive && !range && !selectedPress && target.closest(".ui-field-edge"))) return;
+      if (state.locked && !additive && !range && !selectedPress) return;
+      if (id && (!selectionCommand || additive || range || selectedPress)) {
+        if (!state.mode && !additive && !range && !state.ids.has(id)) return;
         e.preventDefault();
         e.stopImmediatePropagation();
         suppress();
@@ -485,7 +497,7 @@ export function useButtonSelection({
           release: captureUIPointer(e.pointerId, e.pointerType),
         };
       } else if (
-        (state.mode || (additive && target.closest("[data-ui-resident-root],.toolbar"))) &&
+        ((state.mode && !state.locked) || (additive && target.closest("[data-ui-resident-root],.toolbar"))) &&
         !target.closest("button,a,[data-ui-drag],.window-resize-grip")
       ) {
         e.preventDefault();
@@ -569,6 +581,10 @@ export function useButtonSelection({
       g.release?.();
       setRectangle(null);
       setPreviews([]);
+      if (!g.marquee && !g.moved && !current.current.locked) {
+        ops.current.clear();
+        return;
+      }
       if (!g.marquee && g.moved && g.proposal?.boxes.length) {
         const proposal = g.proposal;
         current.current.update((s) =>
@@ -657,6 +673,8 @@ export function useButtonSelection({
   }, [ids, layout, functions]);
   return {
     ids,
+    locked,
+    toggleLock,
     mode,
     alignOpen,
     arrange,
@@ -701,7 +719,7 @@ export function ButtonSelectionOverlay({
       ))}
       {(selection.mode || selection.ids.size > 0) && (
         <div className="ui-selection-tools" role="region" aria-label="UI selection">
-          <span>{selection.ids.size} UI selected</span>
+          <span>{selection.ids.size} UI selected{selection.locked ? " · locked" : ""}</span>
           <button disabled={selection.ids.size < 2} onClick={selection.compact}>
             Compact UI
           </button>
@@ -735,6 +753,9 @@ export function ButtonSelectionOverlay({
           }}
         >
           <button className="ui-popup-close" aria-label="Close selection menu" onClick={selection.closeMenu}>×</button>
+          <button aria-pressed={selection.locked} onClick={selection.toggleLock}>
+            {selection.locked ? "Unlock selection" : "Lock selection"}
+          </button>
           <button disabled={selection.ids.size < 2} onClick={selection.group}>Group into frame</button>
           <button onClick={selection.compact}>Compact selected UI</button>
           <ContextSubmenu label="Align">
