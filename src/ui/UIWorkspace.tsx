@@ -802,19 +802,19 @@ export function UIWorkspace({
         const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
         // A sidebar row's empty space is not a frame target. Its actual handle
         // still is; ordinary buttons continue through the existing group logic.
-        const section = root?.closest<HTMLElement>(".ui-stacked-section");
-        const sectionSurface = root?.matches(".ui-docked-panel:not(.ui-menu-panel),.ui-stacked-frame-root") ||
-          !!section && section.querySelector("[data-ui-resident-root]") === root;
-        const surface = pane ?? (sectionSurface
+        const surface = pane ?? (root?.matches(".ui-docked-panel:not(.ui-menu-panel)")
           ? element.closest<HTMLElement>(".ui-frame-handle") : root);
         if (!target || !surface || source.key === target || !canDock(s, source.key, target)) continue;
         const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
         if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
         const near = { left: x - bounds.left, right: bounds.right - x, top: y - bounds.top, bottom: bounds.bottom - y };
         const header = !!element.closest("[data-ui-chrome],.ui-dock-tab-strip");
+        const stacked = getContainer(s, target)?.layoutMode === "stacked";
         // A title/tab strip groups panels. The outermost edge still allows a split.
-        const side = dockGuideAt(bounds, viewport, x, y) ?? (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
-        const center = Math.abs(x-bounds.x-bounds.width/2) <= 32 && Math.abs(y-bounds.y-bounds.height/2) <= 32;
+        // A stacked body's interior inserts rows; its frame edges still split.
+        // Once shown, the existing retained-guide path enables all five choices.
+        const side = (!stacked || header ? dockGuideAt(bounds, viewport, x, y) : undefined) ?? (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
+        const center = !stacked && Math.abs(x-bounds.x-bounds.width/2) <= 32 && Math.abs(y-bounds.y-bounds.height/2) <= 32;
         if (!side && !header && !center) return;
         const width = Math.min(area.width, Math.max(280, bounds.width)), height = Math.min(area.height, Math.max(220, bounds.height));
         const rect = { x: Math.max(area.x, Math.min(bounds.x, area.x+area.width-width)), y: Math.max(area.y, Math.min(bounds.y, area.y+area.height-height)), width, height };

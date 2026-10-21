@@ -203,6 +203,7 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .ui-dock-guides > .is-active { box-shadow: 0 0 12px var(--omnium-accent, #69b5ff); background: var(--omnium-accent, #386991); }
 .is-drop-target { outline: 1px dashed #69b5ff99; outline-offset: 3px; }
 .ui-placement-preview { box-sizing: border-box; position: fixed; z-index: 30000; border: 2px solid #69b5ff; border-radius: 7px; background: #3a8cdd26; pointer-events: none; }
+.ui-placement-preview.ui-docking-edge { border: 0; border-radius: 0; background: var(--omnium-accent, #69b5ff); box-shadow: 0 0 8px var(--omnium-accent, #69b5ff); }
 .ui-live-drag,.ui-live-drag * { pointer-events: none !important; }
 .ui-live-drag::backdrop { background: transparent; pointer-events: none; }
 .ui-snap-preview { left: 16px; bottom: 16px; max-width: calc(100vw - 32px); }
