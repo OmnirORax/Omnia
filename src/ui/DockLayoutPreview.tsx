@@ -2,11 +2,18 @@ import type { PlacementPreview } from './drag';
 import { dockSplitStyle, type DockNode } from './dockTree';
 import { useUI } from './context';
 import { nameFor } from './FrameSearch';
+import { getContainer } from './layout';
+import { useDockWorkspace } from './DockWorkspace';
 
 /** Presentation only: the tree comes from dockFrame's projected transaction.
  * No duplicate live controls, resident IDs, registration, or saved UI changes. */
 export function DockLayoutPreview({ preview }: { preview: PlacementPreview }) {
-  const frame = preview.frameLayout, rect = preview.rect;
+  const workspace = useDockWorkspace();
+  const frame = preview.frameLayout;
+  const group = preview.allocation && getContainer(preview.allocation.layout, preview.allocation.root);
+  const edge = group && 'dockEdge' in group ? group.dockEdge : undefined;
+  const rect = edge ? workspace.docks[edge] ?? preview.rect
+    : frame?.title && preview.allocation ? workspace.placements[preview.allocation.root] ?? preview.rect : preview.rect;
   if (!frame || !rect) return null;
   const tree = <PreviewBranch node={frame.tree} source={frame.source} />;
   return <div className={`ui-dock-layout-preview ${frame.title ? 'ui-structured-frame' : ''}`} style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}>

@@ -1,5 +1,5 @@
 import type { DragEvent } from "react";
-import type { Cell, UIResident } from "./layout";
+import type { Cell, UILayout, UIResident } from "./layout";
 import { claimUIPress } from "./pointerOwnership.ts";
 import type { FrameDock } from "./docking";
 import type { DockNode } from "./dockTree";
@@ -69,4 +69,5 @@ export type DockPreview = {
   baseline?: UIResident[];
 };
 export type PlacementPreview = { dock?: DockPreview; frameDock?: FrameDock; rect?: Rect; destination?: boolean; text: string;
+  allocation?: { layout: UILayout; source: string; root: string };
   frameLayout?: { tree: DockNode; source: string; title?: string } };

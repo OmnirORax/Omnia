@@ -690,7 +690,7 @@ export function UIWorkspace({
       cancelAnimationFrame(previewFrame); previewFrame = 0; pendingPoint = null;
     };
     let layoutSource: UILayout | undefined, dragLayout: UILayout;
-    let frameProjection: { layout: UILayout; intent: string; feedback: Pick<Preview, 'rect' | 'frameLayout'> } | undefined;
+    let frameProjection: { layout: UILayout; intent: string; feedback: Pick<Preview, 'rect' | 'frameLayout' | 'allocation'> } | undefined;
     const effectiveLayout = () => {
       if (layoutSource !== current.current.layout) {
         layoutSource = current.current.layout;
@@ -700,7 +700,9 @@ export function UIWorkspace({
     };
     const show = (value: Preview | null) => {
       const old = placementPreview.getSnapshot();
-      if (JSON.stringify(old) !== JSON.stringify(value)) placementPreview.set(value);
+      // The cached projected layout is transient and compared by identity;
+      // never serialize the whole UI layout on every pointer movement.
+      if (old?.allocation !== value?.allocation || JSON.stringify(old && { ...old, allocation: undefined }) !== JSON.stringify(value && { ...value, allocation: undefined })) placementPreview.set(value);
     };
     const start = (event: MouseEvent) => {
       cancelFrame(); layoutSource = undefined; frameProjection = undefined;
@@ -821,7 +823,7 @@ export function UIWorkspace({
         return { target, side: side ?? "tab", rect, bounds, host };
       }
     };
-    const frameFeedback = (source: DragState, layout: UILayout, intent: FrameDock): Pick<Preview, 'rect' | 'frameLayout'> => {
+    const frameFeedback = (source: DragState, layout: UILayout, intent: FrameDock): Pick<Preview, 'rect' | 'frameLayout' | 'allocation'> => {
       const signature = JSON.stringify(intent);
       if (frameProjection?.layout === layout && frameProjection.intent === signature) return frameProjection.feedback;
       // Project the actual transaction, never construct a second docking model.
@@ -836,7 +838,8 @@ export function UIWorkspace({
           .find(el => el.closest('[data-ui-resident-root]') === root && el.getClientRects().length);
         if (body) { rect = source.targetBounds.get(body) ?? body.getBoundingClientRect(); title = undefined; }
       }
-      const feedback = { rect, frameLayout: group?.dockLayout ? { tree: group.dockLayout, source: source.key, title } : undefined };
+      const feedback = { rect, allocation: projected === layout ? undefined : { layout: projected, source: source.key, root: groupKey },
+        frameLayout: group?.dockLayout ? { tree: group.dockLayout, source: source.key, title } : undefined };
       frameProjection = { layout, intent: signature, feedback };
       return feedback;
     };
