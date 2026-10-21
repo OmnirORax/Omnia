@@ -805,7 +805,10 @@ export function UIWorkspace({
         const pane = element.closest<HTMLElement>("[data-ui-dock-pane]");
         const root = element.closest<HTMLElement>("[data-ui-resident-root]");
         const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
-        const surface = pane ?? root;
+        // A sidebar row's empty space is not a frame target. Its actual handle
+        // still is; ordinary buttons continue through the existing group logic.
+        const surface = pane ?? (root?.matches(".ui-docked-panel:not(.ui-menu-panel)")
+          ? element.closest<HTMLElement>(".ui-frame-handle") : root);
         if (!target || !surface || source.key === target || !canDock(s, source.key, target)) continue;
         const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
         if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
