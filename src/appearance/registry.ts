@@ -455,14 +455,14 @@ for (const [id, label, selector] of [
   );
 part(
   "text.nodes",
-  "text",
+  "omnium.nodes",
   "Node text · defaults",
   { legacy: "nodeText", animation: { kind: "text", source: "nodes" } },
   text,
 );
 part(
   "text.binders",
-  "text",
+  "omnium.binders",
   "Binder text · defaults",
   { legacy: "binderText", animation: { kind: "text", source: "binders", glyphsOnly: true } },
   text,
