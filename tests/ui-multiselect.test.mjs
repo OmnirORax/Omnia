@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyUILayout, validateUILayout } from "../src/ui/layout.ts";
 import { startHistory, recordHistory, undoHistory, redoHistory } from "../src/ui/history.ts";
-import { buttonBounds, compactButtons, intersects, placeButtons } from "../src/ui/selection.ts";
+import { arrangeButtons, buttonBounds, compactButtons, intersects, placeButtons } from "../src/ui/selection.ts";
 test("five-step UI undo/redo restores exact intermediate ordering and clamps at history ends", () => {
   let h = startHistory(0);
   for (let i = 1; i <= 8; i++) h = recordHistory(h, i);
@@ -137,4 +137,40 @@ test("bulk grouping retains entity-menu scope through the same frame operation",
   const grouped=groupResidents(layout,['function:context:node:focus','function:context:node:expand'],100,100);
   assert.equal(residentContextScope(grouped,`frame:${grouped.frames[0].id}`),menu);
   assert.throws(()=>groupResidents(layout,['function:context:node:focus','function:other'],100,100),/owning menus/);
+});
+
+test("alignment separates colliding mixed-size items while keeping the chosen edge/center and dimensions", () => {
+  const boxes = [
+    { id: "a", x: 300, y: 150, width: 70, height: 30 },
+    { id: "b", x: 300, y: 230, width: 90, height: 55 },
+    { id: "c", x: 305, y: 360, width: 50, height: 40 },
+  ], original = structuredClone(boxes), target = buttonBounds(boxes);
+  const area = { x: 8, y: 8, width: 1000, height: 700 };
+  for (const operation of ["top", "bottom", "left", "right", "centerX", "centerY"]) {
+    const result = arrangeButtons(boxes, target, operation, { area });
+    for (const [i, box] of result.entries()) {
+      assert.equal(box.id, boxes[i].id); assert.equal(box.width, boxes[i].width); assert.equal(box.height, boxes[i].height);
+      assert.ok(!result.slice(i + 1).some(other => intersects(box, other, 6)), operation);
+      const vertical = ["top", "bottom", "centerY"].includes(operation), axis = vertical ? "y" : "x", size = vertical ? "height" : "width";
+      const fraction = operation.startsWith("center") ? .5 : ["bottom", "right"].includes(operation) ? 1 : 0;
+      assert.equal(box[axis] + box[size] * fraction, target[axis] + target[size] * fraction, operation);
+    }
+  }
+  assert.deepEqual(boxes, original);
+});
+test("alignment avoids unselected obstacles, distribution expands cramped spacing, and insufficient room never changes inputs", () => {
+  const boxes = [0, 1, 2].map(i => ({ id: String(i), x: 300, y: 100 + i * 70, width: 60, height: 30 }));
+  const area = { x: 8, y: 8, width: 800, height: 500 }, target = buttonBounds(boxes);
+  const obstacle = { x: 270, y: 230, width: 180, height: 60 };
+  const result = arrangeButtons(boxes, target, "bottom", { area, obstacles: Object.fromEntries(boxes.map(box => [box.id, [obstacle]])) });
+  assert.ok(result.every(box => !intersects(box, obstacle, 6)));
+  const spread = arrangeButtons(boxes, target, "distributeX", { area });
+  assert.ok(spread[1].x - spread[0].x - spread[0].width >= 6);
+  assert.equal(spread[1].x - spread[0].x - spread[0].width, spread[2].x - spread[1].x - spread[1].width);
+  const before = structuredClone(boxes);
+  assert.throws(() => arrangeButtons(boxes, target, "bottom", { area: { ...area, width: 100 } }), /without overlap/);
+  assert.deepEqual(boxes, before);
+  assert.throws(() => arrangeButtons(boxes, target, "bottom", { area, bounds: Object.fromEntries(boxes.map(box => [box.id, { ...area, x: 280, width: 100 }])) }), /without overlap/);
+  const constrained = arrangeButtons(boxes, target, "distributeX", { area, bounds: Object.fromEntries(boxes.map(box => [box.id, { ...area, x: 290, width: 250 }])) });
+  assert.ok(constrained.every(box => box.x >= 290 && box.x + box.width <= 540));
 });

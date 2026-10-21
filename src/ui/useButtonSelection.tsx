@@ -280,10 +280,39 @@ export function useButtonSelection({
   const arrange = (operation: AlignmentOperation, reference: AlignmentReference, targetIds = current.current.ids) => {
     try {
       const state = current.current;
-      const source = buttons().filter(el => targetIds.has(idOf(el))).map(el => ({ id: idOf(el), ...selectionBox(el) }));
+      const entries = buttons().filter(el => !el.closest('.ui-selection-tools,.ui-background-menu,[data-ui-alignment],[data-ui-resident-root="window:ui-alignment"]')).map(element => {
+        const id = idOf(element), key = selectionResident(id), collection = collectionOf(element), parents = new Set<string>();
+        for (let owner: string | undefined = collection; owner && !owner.startsWith("@") && !parents.has(owner); owner = ownerOf(state.layout, owner)) parents.add(owner);
+        for (let root = element.closest<HTMLElement>("[data-ui-resident-root]"); root; root = root.parentElement?.closest<HTMLElement>("[data-ui-resident-root]") ?? null)
+          if (root.dataset.uiResidentRoot !== key) parents.add(root.dataset.uiResidentRoot!);
+        return { id, key, element, collection, parents, box: { id, ...selectionBox(element) } };
+      });
+      const selected = entries.filter(entry => targetIds.has(entry.id));
+      const roots = selected.filter(entry => !selected.some(parent => parent !== entry &&
+        (parent.element.contains(entry.element) || entry.parents.has(parent.key))));
+      const source = roots.map(entry => entry.box);
       if (!source.length) throw new Error("Select visible UI items to align first.");
-      const target = reference === "selection" ? buttonBounds(source) : { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
-      const placed = arrangeButtons(source, target, operation);
+      const area = { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
+      const target = reference === "selection" ? buttonBounds(source) : area;
+      const candidates = entries.filter(entry => !roots.some(parent => parent.key === entry.key ||
+        parent.element.contains(entry.element) || entry.parents.has(parent.key)));
+      const occupied = Object.fromEntries(roots.map(entry => [entry.id, candidates.filter(other =>
+        !other.element.contains(entry.element) && !entry.parents.has(other.key) &&
+        (other.collection === entry.collection || other.collection === "@workspace" || other.collection === "@toolbar"))
+        .map(other => other.box)]));
+      const limits = Object.fromEntries(roots.flatMap(entry => {
+        // Native controls that will float can use the full workspace. Members
+        // remaining inside a fixed window must fit its visible content area.
+        if (!ownerOf(state.layout, entry.key)) return [];
+        const body = entry.element.closest<HTMLElement>(".floating-body");
+        if (!body) return [];
+        const rect = body.getBoundingClientRect(), style = getComputedStyle(body);
+        const left = parseFloat(style.paddingLeft) || 0, right = parseFloat(style.paddingRight) || 0;
+        const top = parseFloat(style.paddingTop) || 0, bottom = parseFloat(style.paddingBottom) || 0;
+        return [[entry.id, { x: rect.x + left, y: rect.y + top,
+          width: body.clientWidth - left - right, height: body.clientHeight - top - bottom }]];
+      }));
+      const placed = arrangeButtons(source, target, operation, { area, obstacles: occupied, bounds: limits });
       const groups = new Map<string | undefined, ButtonBox[]>();
       for (const box of placed) {
         const owner = ownerOf(state.layout, selectionResident(box.id));
