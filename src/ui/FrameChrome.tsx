@@ -14,6 +14,7 @@ export function FrameChrome({
   container,
   title: defaultTitle,
   label,
+  tooltip,
   state,
   onChange,
   onRename: renameOriginal,
@@ -29,6 +30,7 @@ export function FrameChrome({
   container: string;
   title: string;
   label?: string;
+  tooltip?: string;
   state: Pick<WindowState, "collapsed" | "pinned" | "chrome">;
   onChange: (patch: Partial<WindowState>) => void;
   onRename?: (value: string) => void;
@@ -95,7 +97,8 @@ export function FrameChrome({
           aria-label={title}
           data-ui-name={title}
           data-ui-symbol={nameSymbol(container, defaultTitle)}
-          title={ui.layout.hideNames ? title : ""}
+          title={tooltip ?? (ui.layout.hideNames ? title : "")}
+          data-ui-tooltip={tooltip}
           onClick={onToggle ?? (() => onChange({ collapsed: !state.collapsed }))}
           onDragStart={(event) => startResidentDrag(event, container)}
         >
@@ -144,7 +147,8 @@ export function FrameChrome({
           data-ui-drag={fixed ? undefined : container}
           draggable={!fixed && ui.canMove(container)}
           onDragStart={(e) => startResidentDrag(e, container)}
-          title={ui.layout.hideNames ? title : ""}
+          title={tooltip ?? (ui.layout.hideNames ? title : "")}
+          data-ui-tooltip={tooltip}
         >
           <button
             data-ui-name={title}

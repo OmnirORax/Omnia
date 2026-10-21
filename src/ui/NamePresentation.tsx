@@ -89,7 +89,7 @@ export function NamePresentation() {
         ) {
           write(element, "aria-label", ownText);
         }
-        const tooltip = active.layout.hideNames ? name : "";
+        const tooltip = element.dataset.uiTooltip ?? (active.layout.hideNames ? name : "");
         write(element, "title", tooltip);
         const custom =
           element.matches(".function-icon,[data-ui-native-icon]") ||
@@ -156,6 +156,7 @@ export function NamePresentation() {
         "title",
         "aria-label",
         "data-ui-name",
+        "data-ui-tooltip",
         "data-ui-symbol",
         "data-ui-native-icon",
       ],

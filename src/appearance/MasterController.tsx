@@ -228,7 +228,9 @@ export function MasterController() {
       </UISection>
       <NameVisibilityControl />
       <PropertyTree
-        extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity" }]}
+        extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity",
+          tooltip: "Included parts stay fixed outside UI edit mode. Exclude a branch or individual item to let it move freely. Normal clicks and field editing stay available.",
+        }]}
         selected={property}
         onSelect={(id) => {
           ctx.preview(null);
@@ -236,7 +238,6 @@ export function MasterController() {
           setProperty(id);
         }}
         renderEditor={(id) => id === UI_RIGIDITY_PROPERTY ? <>
-          <p>Included parts stay fixed outside UI edit mode. Exclude a branch or individual item to let it move freely. Normal clicks and field editing stay available.</p>
           <UIAction id="ui:rigidity:editMode" label={ui.layout.panels["@devMode"] ? "Exit UI edit mode" : "Enter UI edit mode"}
             category="Interface" onClick={() => ui.update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } }))} />
         </> : <FunctionControl id={`ui:master:${id}`} />}

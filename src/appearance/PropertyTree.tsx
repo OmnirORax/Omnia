@@ -70,6 +70,7 @@ export function PropertyTree({
         key={node.id}
         id={groupId(node.id)}
         title={node.label}
+        tooltip={node.tooltip}
         expanded={expanded}
         selected={selected === node.property}
         className={`property-node ${selected === node.property ? "is-selected" : ""}`}
