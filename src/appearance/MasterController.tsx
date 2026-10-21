@@ -28,10 +28,8 @@ export function MasterController() {
   const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
   const { state } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
-    [savedQuery, setQuery] = useState(""),
     [expanded, setExpanded] = useState<Set<string>>(() => new Set(["all", "ui", "text", "omnium"]));
-  const property = ctx.location?.property ?? selectedProperty,
-    query = ctx.location ? "" : savedQuery;
+  const property = ctx.location?.property ?? selectedProperty;
   const rigidity = property === UI_RIGIDITY_PROPERTY;
   const effectiveLayout = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
   const targets = rigidity ? rigidityTargets(ctx.targets, effectiveLayout, ui.functions, ui.frameActions) : ctx.targets;
@@ -67,10 +65,6 @@ export function MasterController() {
           !child.effectKinds ||
           child.effectKinds.includes(String(currentEffect))),
     );
-  const matches = (t: RegisteredTarget): boolean =>
-    !query ||
-    t.label.toLowerCase().includes(query.toLowerCase()) ||
-    (children.get(t.id) ?? []).some(matches);
   const change = (value: Value, preview = false, origin?: string) => {
     const next = applyValue(
       state,
@@ -131,7 +125,6 @@ export function MasterController() {
   };
 
   const row = (target: RegisteredTarget, depth: number): React.ReactNode => {
-    if (!matches(target)) return null;
     const nested = children.get(target.id) ?? [],
       can = applicable(target),
       lit = rigidity ? rigidityIncluded(effectiveLayout, targets, target.id, ui.functions) : included(active, targets, target.id);
@@ -144,7 +137,6 @@ export function MasterController() {
     const refined = state.refined[target.id]?.includes(property),
       open =
         expanded.has(target.id) ||
-        !!query ||
         (!!ctx.location && ancestry(targets, ctx.location.target).includes(target.id));
     const properties = [
       ...new Set((descendants.get(target.id) ?? []).flatMap((t) => t.properties ?? [])),
@@ -290,17 +282,6 @@ export function MasterController() {
           });
         }}
       >
-        <UIField id="ui:appearance:findBranch" label="Find appearance branch" category="Appearance"><label>Find appearance branch<input
-          type="search"
-          aria-label="Find appearance branch"
-          placeholder="Find a branch…"
-          value={query}
-          onChange={(e) => {
-            ctx.locate(null, true);
-            setQuery(e.target.value);
-          }}
-        /></label></UIField>
-        <small>{rigidity ? "⬤ fixed outside UI edit mode · ○ movable outside UI edit mode · explicit pins still apply" : "⬤ included · ○ excluded · ⏻ apply / bypass saved appearance · ◆ local refinement"}</small>
         <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
           {(children.get("") ?? []).map((t) => row(t, 0))}
         </div>
