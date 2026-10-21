@@ -210,7 +210,8 @@ button.ui-function.function-text { font-size: 12px; padding: 6px 9px; min-height
 .ui-form-control > label { flex: 0 1 auto; }
 .ui-field-grip { display: inline-block; flex-shrink: 0; min-width: 13px; padding: 4px 0; color: #6c859e; cursor: grab; user-select: none; }
 .ui-form-control input, .ui-form-control select, .ui-form-control textarea { max-width: 100%; min-width: 0; }
-.docked-window.floating-window { position: absolute !important; z-index: 1 !important; }
+.docked-window.floating-window { z-index: 1 !important; }
+.docked-window.floating-window:not(.ui-stacked-window) { position: absolute !important; }
 .ui-window-host { position: relative; min-width: 160px; }
 .ui-window-host.collapsed-ui-host { min-width: 0; }
 .floating-body > .ui-dock-area { margin-top: 10px; border-top: 1px dashed #91abc344; }
