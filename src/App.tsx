@@ -1166,7 +1166,7 @@ function Workbench() {
       )}
       <main className="workspace">
         <aside className="sidebar">
-          <UIFrameStrip id="@sidebar" vertical>
+          <UIFrameStrip id="@sidebar" title="Sidebar" vertical>
           <UIPanel id="reuse" title="Reuse identity">
             {field("field:find-existing-identity", "Find existing identity", <label>
               Find an existing entity or subsystem

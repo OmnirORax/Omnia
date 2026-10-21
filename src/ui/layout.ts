@@ -45,6 +45,8 @@ export type WindowState = FrameLayoutState & {
     actionIds?: Record<string, string>;
     handleId?: string;
   };
+  /** An anchored native collection can adopt its live contents into a dock tab. */
+  nativeStrip?: { contents: string; vertical: boolean };
 };
 export type UIResident = {
   kind: "function" | "frame" | "window";
@@ -293,6 +295,10 @@ export function validateUILayout(value: unknown): UILayout {
   }
   const owners = new Map<string, string>();
   for (const [id, window] of Object.entries(layout.windows)) {
+    if (window.nativeStrip !== undefined && (!record(window.nativeStrip) ||
+        typeof window.nativeStrip.contents !== "string" || !window.nativeStrip.contents.startsWith("window:") ||
+        window.nativeStrip.contents.length > 240 || window.nativeStrip.contents === `window:${id}` ||
+        typeof window.nativeStrip.vertical !== "boolean")) throw new Error("Invalid native frame strip.");
     const inline = window.inline;
     if (!inline) continue;
     if (

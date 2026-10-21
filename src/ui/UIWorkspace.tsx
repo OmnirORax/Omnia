@@ -42,6 +42,7 @@ import {
   UIContext,
   UIHomeContext,
   UIPathContext,
+  UIContainerContext,
   DockFillContext,
   useUI,
   type UIFunction,
@@ -341,10 +342,10 @@ export function UIPanel({
         onClick={() => float(true)}
       >↗</button>}
       <div className={`ui-panel-body ${className}`} hidden={state.collapsed} style={menu ? { width: Math.min(state.width, window.innerWidth - 24), left: popup.left, maxHeight: popup.height } : undefined}>
-      <UIHomeContext.Provider value={key}><UIPathContext.Provider value={[key]}>
+      <UIHomeContext.Provider value={key}><UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
         {children}
         <DockArea container={key} contour={false} />
-      </UIPathContext.Provider></UIHomeContext.Provider>
+      </UIContainerContext.Provider></UIPathContext.Provider></UIHomeContext.Provider>
       </div>
     </section>
   );
@@ -787,6 +788,23 @@ export function UIWorkspace({
       const chosen = previous?.bounds && dockGuideAt(previous.bounds, viewport, x, y, previous.side);
       if (chosen && previous?.target && canDock(s, source.key, previous.target)) return { ...previous, side: chosen };
       const area = dockWorkspaceArea();
+      // Native strips have a real outer frame as well as individual sections.
+      // Resolve that narrow border before the nested section under the pointer;
+      // its interior retains ordinary section insertion and handle targeting.
+      for (const surface of document.querySelectorAll<HTMLElement>('.ui-native-strip-frame[data-ui-resident-root]')) {
+        const target = surface.dataset.uiResidentRoot!, state = getContainer(s, target);
+        if (!state || !canDock(s, source.key, target)) continue;
+        const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
+        if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) > 5) continue;
+        const near = { left: Math.abs(x-bounds.x), right: Math.abs(bounds.right-x), top: Math.abs(y-bounds.y), bottom: Math.abs(bounds.bottom-y) };
+        const side = (Object.keys(near) as Exclude<DockSide, 'tab'>[]).sort((a,b) => near[a]-near[b]).find(side => near[side] <= 12);
+        if (!side) continue;
+        const sourceState = getContainer(s, source.key);
+        const horizontal = side === 'left' || side === 'right';
+        const width = !state.dockLayout && horizontal
+          ? Math.min(bounds.width + (sourceState?.width ?? 280) + 6, workspaceDockRects(s, area).center.width * .75) : bounds.width;
+        return { target, side, bounds, rect: { x: bounds.x, y: bounds.y, width, height: bounds.height } };
+      }
       const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
       const edge = (Object.keys(distances) as Exclude<DockSide, "tab">[]).find(side => distances[side] >= -8 && distances[side] <= 14);
       if (edge && source.key.startsWith("frame:") && s.frames.find(frame => `frame:${frame.id}` === source.key)?.dockEdge === edge) return;
@@ -797,8 +815,13 @@ export function UIWorkspace({
       }
       for (const element of elements) {
         if (element.closest("[data-ui-ghost],.ui-drag-source,[data-ui-search],.ui-background-menu")) continue;
-        const pane = element.closest<HTMLElement>("[data-ui-dock-pane]");
+        const enclosingPane = element.closest<HTMLElement>("[data-ui-dock-pane]");
+        const nativeRows = element.closest<HTMLElement>("[data-ui-frame-strip]");
+        // Splitting the sidebar must not turn its ordinary sections into the
+        // enclosing Sidebar tab's full-surface docking target.
+        const pane = nativeRows && enclosingPane?.contains(nativeRows) ? null : enclosingPane;
         const root = element.closest<HTMLElement>("[data-ui-resident-root]");
+        if (root?.matches('.ui-native-strip-frame')) continue;
         const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
         // A sidebar row's empty space is not a frame target. Its actual handle
         // still is; ordinary buttons continue through the existing group logic.
@@ -832,7 +855,7 @@ export function UIWorkspace({
       const groupKey = ownerOf(projected, source.key) ?? source.key;
       const group = getContainer(projected, groupKey);
       let rect = intent.rect;
-      let title: string | undefined = group && 'name' in group ? group.name : 'Dock group';
+      let title: string | undefined = group && 'nativeStrip' in group && group.nativeStrip ? undefined : group && 'name' in group ? group.name : 'Dock group';
       if (getContainer(layout, groupKey)?.dockLayout && !intent.edge) {
         const root = [...document.querySelectorAll<HTMLElement>('[data-ui-resident-root]')].find(el => el.dataset.uiResidentRoot === groupKey);
         const body = root && [...root.querySelectorAll<HTMLElement>('.ui-structured-body,.ui-embedded-dock-layout')]

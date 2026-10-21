@@ -18,6 +18,7 @@ export function FloatingWindow({
   title,
   label = title,
   children,
+  residentArea,
   onClose,
   closeLabel = `Close ${label}`,
   width = 420,
@@ -35,6 +36,8 @@ export function FloatingWindow({
   title: string;
   label?: string;
   children: ReactNode;
+  /** Collections can supply their existing resident renderer, keeping one payload per member. */
+  residentArea?: ReactNode;
   onClose?: () => void;
   closeLabel?: string;
   width?: number;
@@ -70,7 +73,7 @@ export function FloatingWindow({
   const desired = state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state;
   const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !saved.closed && !owner && !openAtCursor, saved.floatingOverflow);
   const dockFill = !!host?.classList.contains("ui-dock-fill");
-  const stacked = !!owner && getContainer(ui.layout, owner)?.layoutMode === "stacked";
+  const stacked = !dockFill && !!owner && getContainer(ui.layout, owner)?.layoutMode === "stacked";
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -222,7 +225,7 @@ export function FloatingWindow({
             <UIHomeContext.Provider value={key}>
               <UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
                 {children}
-                <DockArea container={key} contour={false} />
+                {residentArea === undefined ? <DockArea container={key} contour={false} /> : residentArea}
               </UIContainerContext.Provider></UIPathContext.Provider>
             </UIHomeContext.Provider>
           </div>
