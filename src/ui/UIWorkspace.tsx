@@ -776,7 +776,7 @@ export function UIWorkspace({
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
-        live: tabPane && handle ? beginLiveTabDrag(tabPane, handle, key)
+        live: tabPane && handle ? beginLiveTabDrag(tabPane, handle, key, represented)
           : root ? beginLiveDrag([dragSurface(root)]) : undefined,
       };
     };

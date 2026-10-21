@@ -78,10 +78,25 @@ export function beginLiveDrag(sources: HTMLElement[], bounds = new Map<HTMLEleme
   };
 }
 
-/** A pane is shared by several tabs. Lift only the chosen tab and its live
- * body; sibling headers and their contents remain at home for the whole drag. */
-export function beginLiveTabDrag(pane: HTMLElement, handle: HTMLElement, key: string) {
+/** Carry the actual resident with its floating chrome, not a detached tab/body
+ * approximation. The shared strip and all sibling payloads stay at home. */
+export function beginLiveTabDrag(pane: HTMLElement, handle: HTMLElement, key: string, resident?: HTMLElement) {
   const tab = handle.closest<HTMLElement>('[data-ui-dock-tab]');
+  if (resident && tab) {
+    const surface = dragSurface(resident);
+    const rect = pane.getBoundingClientRect();
+    const visibility = [tab.style.getPropertyValue('visibility'), tab.style.getPropertyPriority('visibility')];
+    const restoreTab = () => {
+      if (visibility[0]) tab.style.setProperty('visibility', visibility[0], visibility[1]);
+      else tab.style.removeProperty('visibility');
+    };
+    tab.style.setProperty('visibility', 'hidden', 'important');
+    try {
+      const live = beginLiveDrag([surface], new Map([[surface, { rect, display: 'block' }]]));
+      return { move: live.move, restore() { try { live.restore(); } finally { restoreTab(); } } };
+    } catch (error) { restoreTab(); throw error; }
+  }
+  // A context-unavailable resident may only have its mounted placeholder.
   const body = [...pane.children].find((element): element is HTMLElement =>
     element instanceof HTMLElement && element.dataset.uiDockContent === key);
   if (!tab || !body) return beginLiveDrag([dragSurface(handle)]);
