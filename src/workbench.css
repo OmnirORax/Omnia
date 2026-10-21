@@ -984,8 +984,6 @@ label:has(> input:is([type="checkbox"],[type="radio"])) > input:is([type="checkb
 .ui-section.spatial-fields > .property-node-contents { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; }
 .ui-section .appearance-sets { border: 0; padding: 0; margin: 0; align-items: flex-end; }
 .ui-section .appearance-sets .ui-form-control label { margin-bottom: 0; }
-.ui-editor-tools, .ui-editor-frame-list { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 5px; }
-.ui-editor-frame-list > button { cursor: grab; }
 html[data-ui-edit-mode] .ui-form-control { outline: 1px dashed color-mix(in srgb, var(--omnium-accent, #386991) 45%, transparent); outline-offset: 1px; }
 html[data-ui-edit-mode] .ui-field-edge:hover { background: color-mix(in srgb, var(--omnium-accent, #386991) 30%, transparent); }
 button[data-ui-caption]:not([data-ui-native-icon]) { font-size: 0 !important; }

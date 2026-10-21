@@ -5,7 +5,6 @@ import { withControlCaption } from "./captions";
 import { UIField } from "./UIField";
 import { UIAction } from "./UIAction";
 import { UISection } from "./UISection";
-import { UIEditor } from "./UIEditor";
 import { CustomControls, CustomControlSettings } from "./CustomControls";
 import { removeCustomControl } from "./authoring";
 import { useOutsideDismiss } from "./useOutsideDismiss";
@@ -577,6 +576,11 @@ export function UIWorkspace({
   const frameActions = useRef<UIContextValue["frameActions"]>(new Map()).current;
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
+  const editingUI = !!layout.panels["@devMode"];
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-ui-edit-mode", editingUI);
+    return () => document.documentElement.removeAttribute("data-ui-edit-mode");
+  }, [editingUI]);
   const drag = useRef<DragState | null>(null);
   const [shortcutField, setShortcutField] = useState<string | null>(null);
   const [shortcutNotice, setShortcutNotice] = useState("");
@@ -1614,7 +1618,6 @@ export function UIWorkspace({
       <AppearanceStyles />
       <NativeActions />
       <CustomControls />
-      <UIEditor />
       <NamePresentation />
       {children}
       {search && <GlobalSearch {...search} />}
@@ -1753,7 +1756,7 @@ export function UIWorkspace({
               )}
             </>
           )}
-          <button onClick={() => { update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); setMenu(null); }}>
+          <button aria-pressed={editingUI} onClick={() => { update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); setMenu(null); }}>
             {layout.panels["@devMode"] ? "Exit UI edit mode" : "UI edit mode"}
           </button>
           <button
