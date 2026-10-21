@@ -14,7 +14,7 @@ export function PlacementPreviewOverlay() {
   const preview = useSyncExternalStore(placementPreview.subscribe, placementPreview.getSnapshot);
   return (
     <>
-      {preview?.rect && (
+      {preview?.rect && (preview.frameDock || preview.dock || preview.destination) && (
         <div
           className="ui-placement-preview"
           style={{

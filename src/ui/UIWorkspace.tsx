@@ -17,6 +17,7 @@ import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
 import { captureUIPointer } from "./drag";
+import { beginLiveDrag, dragSurface } from "./liveDrag";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -85,7 +86,7 @@ import {
   DOCK_DISTANCE,
   rectDistance,
   startResidentDrag,
-  type DockPreview,
+  type PlacementPreview,
   type Rect,
 } from "./drag";
 import type { VisualAsset } from "../graph/assets";
@@ -456,12 +457,8 @@ function FreeFunction({ id, x, y, width, height, children }: { id: string; x: nu
   const visible = useDockResident(`function:${id}`, fitDockRect({ x, y, width: width ?? 100, height: height ?? 82 }, area));
   return <div className="ui-free-function" style={{ left: visible.x, top: visible.y, width: width ? visible.width : undefined, maxWidth: workspace.active ? visible.width : area.width }}>{children}</div>;
 }
-type Preview = {
+type Preview = PlacementPreview & {
   floatingOverflow?: boolean;
-  frameDock?: FrameDock;
-  dock?: DockPreview;
-  rect?: Rect;
-  text: string;
   group?: string;
   control?: { owner: string; control: string; x: number; y: number };
   native?: { id: string; anchor: string; homeId: string; target: string; after: boolean };
@@ -469,6 +466,7 @@ type Preview = {
 };
 type DragState = {
   key: string;
+  start: { x: number; y: number };
   width: number;
   height: number;
   dx: number;
@@ -481,6 +479,7 @@ type DragState = {
   cancelled?: boolean;
   control?: { owner: string; control: string };
   fromDockPane?: boolean;
+  live?: ReturnType<typeof beginLiveDrag>;
 };
 export function UIWorkspace({
   layout,
@@ -745,8 +744,8 @@ export function UIWorkspace({
           })),
         ]),
       );
-      // Resolve against one gesture snapshot; overlay feedback never changes
-      // the live residents, drop hit regions or coordinate origins.
+      // Resolve against one gesture snapshot while the real payload follows
+      // the pointer. Its spacer preserves drop regions and coordinate origins.
       const targetBounds = new Map(
         [...document.querySelectorAll(dropGeometrySelector)].map(el => [el, el.getBoundingClientRect()]),
       );
@@ -757,6 +756,7 @@ export function UIWorkspace({
       );
       drag.current = {
         key,
+        start: { x: event.clientX, y: event.clientY },
         width: r.width,
         height: r.height,
         dx: event.clientX - r.x,
@@ -773,6 +773,7 @@ export function UIWorkspace({
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
+        live: root ? beginLiveDrag([dragSurface(root)]) : undefined,
       };
     };
     const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
@@ -909,6 +910,7 @@ export function UIWorkspace({
         const after = horizontal ? x > r.x + r.width / 2 : y > r.y + r.height / 2;
         return {
           text: `Place ${sourceFn.label} ${after ? "after" : "before"} ${current.current.functions.find((fn) => fn.id === target)?.label ?? "field"}`,
+          destination: true,
           native: {
             id: sourceFn.id,
             anchor: peer.dataset.uiNativeAnchor!,
@@ -950,7 +952,7 @@ export function UIWorkspace({
           const rect = horizontal ? { x: after ? hit.r.right : hit.r.left, y: hit.r.y, width: 4, height: hit.r.height } : { x: hit.r.x, y: after ? hit.r.bottom : hit.r.top, width: hit.r.width, height: 4 };
           const text = `Insert ${frameActions.get(source.key)?.title ?? "frame"} ${after ? "after" : "before"} ${frameActions.get(hit.key)?.title ?? "frame"}`;
           if (hit.strip) return {
-            text, rect,
+            text, rect, destination: true,
             frameStrip: { target: hit.target, orderId: hit.strip.dataset.uiFrameOrder!, nativeKeys: JSON.parse(hit.strip.dataset.uiFrameNative ?? "[]"), peer: hit.key, after, keys: [...hit.strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(getComputedStyle(a).order) - Number(getComputedStyle(b).order)).map(el => el.dataset.uiFrameSlot!) },
           };
           const c = getContainer(s, hit.target)!;
@@ -1135,6 +1137,7 @@ export function UIWorkspace({
       )
         return {
           text: "Group into a collapsed frame",
+          destination: true,
           group: `function:${other.dataset.uiFunction}`,
           rect: boundsOf(other),
         };
@@ -1205,6 +1208,10 @@ export function UIWorkspace({
       e.preventDefault();
       e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      const source = drag.current;
+      // dx/dy retain the exact grab point, independent of docking proposals.
+      // Transform writes stay on the pointer path; expensive hit testing is batched.
+      source.live?.move(e.clientX - source.start.x, e.clientY - source.start.y);
       pendingPoint = { x: e.clientX, y: e.clientY };
       if (!previewFrame) previewFrame = requestAnimationFrame(() => {
         previewFrame = 0;
@@ -1219,6 +1226,7 @@ export function UIWorkspace({
       e.stopPropagation();
       cancelFrame();
       const p = resolve(e.clientX, e.clientY);
+      source.live?.restore();
       show(null);
       drag.current = null;
       if (!p) return;
@@ -1308,6 +1316,7 @@ export function UIWorkspace({
     };
     const end = () => {
       cancelFrame();
+      drag.current?.live?.restore();
       drag.current = null;
       show(null);
     };

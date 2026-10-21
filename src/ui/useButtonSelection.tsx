@@ -33,6 +33,7 @@ import { ContextMenu, contextMenuRoots } from "./ContextMenu";
 import { ContextSubmenu } from "./ContextSubmenu";
 import { AlignmentControls } from "./AlignmentControls";
 import { FloatingWindow } from "./FloatingWindow";
+import { beginLiveDrag, dragSurface } from "./liveDrag";
 
 const selectable = '[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]';
 const idOf = (el: HTMLElement) => el.dataset.uiDrag && /^(window|frame):/.test(el.dataset.uiDrag) ? el.dataset.uiDrag : el.dataset.uiFunction!;
@@ -74,7 +75,6 @@ const baselineOf = (layout: UILayout, target: string, zone: HTMLElement) =>
   );
 type Proposal = {
   boxes: ButtonBox[];
-  preview: ButtonBox[];
   target?: string;
   baseline?: UIResident[];
   message: string;
@@ -92,6 +92,7 @@ type Gesture = {
   clickId?: string;
   pointerId?: number;
   release?: () => void;
+  live?: ReturnType<typeof beginLiveDrag>;
 };
 
 export function useButtonSelection({
@@ -114,11 +115,9 @@ export function useButtonSelection({
     [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [visuals] = useState(() => createTransientStore({
     rectangle: null as PositionedBox | null,
-    previews: [] as ButtonBox[],
     message: "",
   }));
   const setRectangle = (rectangle: PositionedBox | null) => visuals.set({ ...visuals.getSnapshot(), rectangle });
-  const setPreviews = (previews: ButtonBox[]) => visuals.set({ ...visuals.getSnapshot(), previews });
   const setMessage = (message: string) => {
     if (message !== visuals.getSnapshot().message) visuals.set({ ...visuals.getSnapshot(), message });
   };
@@ -144,11 +143,11 @@ export function useButtonSelection({
     rangeAnchor.current = null;
     const active = gesture.current;
     gesture.current = null;
+    active?.live?.restore();
     active?.release?.();
     select(new Set());
     setMode(false);
     setAlignOpen(false);
-    setPreviews([]);
     setMenu(null);
     setMessage("");
   };
@@ -217,7 +216,6 @@ export function useButtonSelection({
   };
   const compact = () => {
     setAlignOpen(false);
-    setPreviews([]);
     try {
       const state = current.current,
         all = selectedBoxes();
@@ -370,13 +368,12 @@ export function useButtonSelection({
     )
       return {
         boxes: [],
-        preview: [],
         message: !zone
           ? "Expand this frame to place multiple buttons."
           : "Unpin the target, or keep these actions in their owning menu.",
       };
     if (!target && g.boxes.some((b) => residentContextScope(state.layout, selectionResident(b.id))))
-      return { boxes: [], preview: [], message: "These actions stay in their context menu." };
+      return { boxes: [], message: "These actions stay in their context menu." };
     let desired = { x: g.bounds.x + x - g.start.x, y: g.bounds.y + y - g.start.y };
     const container = target ? getContainer(state.layout, target) : undefined;
     if (zone) {
@@ -395,7 +392,6 @@ export function useButtonSelection({
       if (g.bounds.width > window.innerWidth - 16 || g.bounds.height > window.innerHeight - 16)
         return {
           boxes: [],
-          preview: [],
           message: "Compact the selection first so it fits in the workspace.",
         };
       desired = {
@@ -408,17 +404,8 @@ export function useButtonSelection({
       x: desired.x + b.x - g.bounds.x,
       y: desired.y + b.y - g.bounds.y,
     }));
-    const r = zone?.getBoundingClientRect(),
-      preview = zone
-        ? placed.map((b) => ({
-            ...b,
-            x: b.x + r!.x - Number(zone.dataset.originX || 0) - zone.scrollLeft,
-            y: b.y + r!.y - Number(zone.dataset.originY || 0) - zone.scrollTop,
-          }))
-        : placed;
     return {
       boxes: placed,
-      preview,
       target,
       baseline: zone ? baselineOf(state.layout, target!, zone) : undefined,
       message: `Move ${placed.length} UI items ${target ? "into this frame" : "together"}`,
@@ -429,7 +416,6 @@ export function useButtonSelection({
   useEffect(() => {
     if (command?.action === "select") {
       setAlignOpen(false);
-      setPreviews([]);
       setMode((v) => !v);
       setMenu(null);
     } else if (command?.action === "compact") ops.current.compact();
@@ -576,12 +562,20 @@ export function useButtonSelection({
         select(next);
       } else if (g.moved) {
         try {
+          if (!g.live) {
+            const sources = buttons().filter(el => g.initial.has(idOf(el))).map(el => {
+              const key = selectionResident(idOf(el));
+              const root = !key.startsWith('function:') && [...document.querySelectorAll<HTMLElement>('[data-ui-resident-root]')]
+                .find(root => root.dataset.uiResidentRoot === key && visible(root));
+              return dragSurface(root || el);
+            });
+            g.live = beginLiveDrag(sources);
+          }
+          g.live.move(e.clientX - g.start.x, e.clientY - g.start.y);
           g.proposal = ops.current.resolve(g, e.clientX, e.clientY);
-          setPreviews(g.proposal.preview);
           setMessage(g.proposal.message);
         } catch (error) {
           g.proposal = undefined;
-          setPreviews([]);
           setMessage(error instanceof Error ? error.message : String(error));
         }
       }
@@ -591,6 +585,7 @@ export function useButtonSelection({
       if (gesture.current && gesture.current.pointerId !== e.pointerId) return;
       if (gesture.current && (e.buttons & 1) === 0) { cancel(); return; }
       if (gesture.current) { e.preventDefault(); e.stopImmediatePropagation(); }
+      gesture.current.live?.move(e.clientX - gesture.current.start.x, e.clientY - gesture.current.start.y);
       pendingMove = e;
       if (!moveFrame) moveFrame = requestAnimationFrame(() => {
         moveFrame = 0;
@@ -607,9 +602,9 @@ export function useButtonSelection({
       e.stopImmediatePropagation();
       suppress();
       gesture.current = null;
+      g.live?.restore();
       g.release?.();
       setRectangle(null);
-      setPreviews([]);
       if (!g.marquee && !g.moved && !current.current.locked) {
         ops.current.clear();
         return;
@@ -627,10 +622,10 @@ export function useButtonSelection({
       if (!gesture.current) return;
       const active = gesture.current;
       gesture.current = null;
+      active.live?.restore();
       active?.release?.();
       setAlignOpen(false);
       setRectangle(null);
-      setPreviews([]);
       suppress();
       setMessage("Move cancelled.");
     };
@@ -684,7 +679,7 @@ export function useButtonSelection({
     window.addEventListener("keydown", key, true);
     return () => {
       cancelMove();
-      const active = gesture.current; gesture.current = null; active?.release?.();
+      const active = gesture.current; gesture.current = null; active?.live?.restore(); active?.release?.();
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
@@ -739,13 +734,6 @@ export function ButtonSelectionOverlay({
           }}
         />
       )}
-      {visual.previews.map((b) => (
-        <div
-          key={b.id}
-          className="ui-placement-preview"
-          style={{ left: b.x, top: b.y, width: b.width, height: b.height }}
-        />
-      ))}
       {(selection.mode || selection.ids.size > 0) && (
         <div className="ui-selection-tools" role="region" aria-label="UI selection">
           <span>{selection.ids.size} UI selected{selection.locked ? " · locked" : ""}</span>

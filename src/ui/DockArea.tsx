@@ -75,8 +75,8 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
   const state = getContainer(ui.layout, container);
   const members = state?.members ?? [];
   const preview = useDockPreview(container);
-  // A proposal must not resize/reflow real residents, hide the source, or alter
-  // frame measurements. Only a committed drop changes the authored arrangement.
+  // Live dragging reserves the source footprint. Destination hints must not
+  // reflow residents; only a committed drop changes the authored arrangement.
   const entries = members;
   const occupied = members;
   const positioned = occupied.length > 0 && occupied.every((m) => m.position && m.size);
