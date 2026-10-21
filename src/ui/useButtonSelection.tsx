@@ -14,6 +14,7 @@ import {
 import type { UICommand, UIFunction } from "./context";
 import {
   buttonBounds,
+  buttonRange,
   arrangeButtons,
   compactButtons,
   intersects,
@@ -123,6 +124,7 @@ export function useButtonSelection({
   const current = useRef({ layout, update, functions, ids, mode, alignOpen });
   current.current = { layout, update, functions, ids, mode, alignOpen };
   const gesture = useRef<Gesture | null>(null);
+  const rangeAnchor = useRef<string | null>(null);
   const select = (next: Set<string>) => {
     next = new Set([...next].filter(id => {
       let parent = ownerOf(current.current.layout, selectionResident(id));
@@ -134,6 +136,7 @@ export function useButtonSelection({
     setIds(next);
   };
   const clear = () => {
+    rangeAnchor.current = null;
     const active = gesture.current;
     gesture.current = null;
     active?.release?.();
@@ -150,6 +153,13 @@ export function useButtonSelection({
       current.current.layout,
       el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? "",
     );
+  const collectionOf = (el: HTMLElement): string => {
+    const key = selectionResident(idOf(el)), owner = ownerOf(current.current.layout, key);
+    if (owner) return owner;
+    let root = el.closest<HTMLElement>("[data-ui-resident-root]");
+    if (root?.dataset.uiResidentRoot === key) root = root.parentElement?.closest<HTMLElement>("[data-ui-resident-root]") ?? null;
+    return root?.dataset.uiResidentRoot ?? (el.closest(".toolbar") ? "@toolbar" : "@workspace");
+  };
   const selectedBoxes = () =>
     buttons()
       .filter((el) => current.current.ids.has(idOf(el)))
@@ -397,18 +407,21 @@ export function useButtonSelection({
         return;
       }
       const target = e.target as Element,
-        state = current.current;
+        state = current.current,
+        additive = e.ctrlKey || e.metaKey,
+        range = e.shiftKey;
       if (
         target.closest(
-          'input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,[data-ui-alignment],[data-ui-resident-root="window:ui-alignment"],.ui-field-edge,[data-ui-resize]',
+          'input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,[data-ui-alignment],[data-ui-resident-root="window:ui-alignment"],[data-ui-resize]',
         )
+        || (!additive && !range && target.closest(".ui-field-edge"))
       )
         return;
       const button = target.closest<HTMLElement>(selectable),
-        id = button ? idOf(button) : undefined,
-        additive = e.ctrlKey || e.metaKey;
-      if (id && (!(["ui:select", "ui:compact", "ui:align"].includes(id) || id.startsWith("ui:align:")) || additive || (state.ids.size > 1 && state.ids.has(id)))) {
-        if (!state.mode && !additive && !(state.ids.size > 1 && state.ids.has(id))) {
+        id = button ? idOf(button) : undefined;
+      if (id && (!(["ui:select", "ui:compact", "ui:align"].includes(id) || id.startsWith("ui:align:")) || additive || range || (state.ids.size > 1 && state.ids.has(id)))) {
+        if (!state.mode && !additive && !range && !(state.ids.size > 1 && state.ids.has(id))) {
+          rangeAnchor.current = null;
           if (state.ids.size) select(new Set());
           return;
         }
@@ -426,6 +439,24 @@ export function useButtonSelection({
           setMessage("Context-menu actions must be selected separately from other UI.");
           return;
         }
+        if (range) {
+          const collection = collectionOf(button!);
+          const peers = buttons().filter(el => editable(el) && collectionOf(el) === collection &&
+            residentContextScope(state.layout, selectionResident(idOf(el))) === scope);
+          const anchor = rangeAnchor.current && peers.some(el => idOf(el) === rangeAnchor.current)
+            ? rangeAnchor.current : undefined;
+          if (!anchor) rangeAnchor.current = id;
+          const span = buttonRange(peers.map(el => ({ id: idOf(el), ...selectionBox(el) })), anchor ?? id, id);
+          const next = new Set(additive ? state.ids : []);
+          for (const member of span) {
+            let parent = ownerOf(state.layout, selectionResident(member));
+            while (parent) { next.delete(selectionId(parent)); parent = ownerOf(state.layout, parent); }
+            next.add(member);
+          }
+          select(next);
+          return;
+        }
+        rangeAnchor.current = id;
         if (additive) {
           const next = new Set(state.ids);
           if (next.has(id)) next.delete(id);
@@ -435,6 +466,7 @@ export function useButtonSelection({
             next.add(id);
           }
           select(next);
+          if (!next.size) rangeAnchor.current = null;
           return;
         }
         const next = state.ids.has(id) ? state.ids : new Set([id]);
@@ -460,6 +492,7 @@ export function useButtonSelection({
         e.stopImmediatePropagation();
         suppress();
         const scope = target.closest<HTMLElement>("[data-ui-drop-zone]")?.dataset.uiDropZone;
+        rangeAnchor.current = null;
         gesture.current = {
           start: { x: e.clientX, y: e.clientY },
           boxes: [],
@@ -677,7 +710,7 @@ export function ButtonSelectionOverlay({
           </button>
           <button onClick={selection.clear}>Done / clear</button>
           <small>
-            Ctrl/Cmd-click to add · drag selected items together
+            Ctrl/Cmd-click to add · Shift-click for a range · drag selected items together
             {selection.mode ? " · drag a box to select" : ""}
           </small>
         </div>

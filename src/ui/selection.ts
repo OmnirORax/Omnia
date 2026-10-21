@@ -16,6 +16,19 @@ export type ButtonBox = PositionedBox & { id: string };
 /** Existing function IDs stay compatible; complete frame/window keys retain their identity. */
 export const selectionResident = (id: string) => /^(frame|window):/.test(id) ? id : `function:${id}`;
 export const selectionId = (key: string) => key.startsWith("function:") ? key.slice(9) : key;
+/** Inclusive visual reading order, tolerating small vertical offsets in a row. */
+export function buttonRange(boxes: ButtonBox[], anchor: string, target: string): string[] {
+  const rows: { y: number; height: number; boxes: ButtonBox[] }[] = [];
+  for (const box of [...boxes].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const row = rows.find(row => Math.abs(box.y - row.y) <= Math.min(12, row.height / 2, box.height / 2));
+    if (row) row.boxes.push(box);
+    else rows.push({ y: box.y, height: box.height, boxes: [box] });
+  }
+  const ordered = rows.flatMap(row => row.boxes.sort((a, b) => a.x - b.x).map(box => box.id));
+  const first = ordered.indexOf(anchor), last = ordered.indexOf(target);
+  if (first < 0 || last < 0) return [];
+  return ordered.slice(Math.min(first, last), Math.max(first, last) + 1);
+}
 export type AlignmentEdge = "left" | "centerX" | "right" | "top" | "centerY" | "bottom";
 export type AlignmentOperation = AlignmentEdge | "distributeX" | "distributeY";
 export type AlignmentReference = "selection" | "window";
