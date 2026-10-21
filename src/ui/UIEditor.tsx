@@ -60,7 +60,7 @@ export function UIEditor() {
   return <FloatingWindow id="ui-editor" title="UI edit mode" width={450} height={670} onClose={close}>
     <p>Drag frame bars or field edges. Ctrl/Cmd-click selects multiple items. Right-click to rename, style or close. Shift+MB4/MB5 undo and redo UI changes.</p>
     <UISection id="edit-tools" title="Arrange & recover">
-      <div className="ui-editor-tools">{["ui:select", "ui:compact", "ui:align", "ui:placementMode", "ui:createFrame", "ui:arrange", "ui:undo", "ui:redo", "ui:saveTemplate", "ui:loadTemplate", "ui:reset"].map(id => <FunctionControl key={id} id={id} />)}</div>
+      <div className="ui-editor-tools">{["ui:select", "ui:compact", "ui:align", "ui:createFrame", "ui:arrange", "ui:undo", "ui:redo", "ui:saveTemplate", "ui:loadTemplate", "ui:reset"].map(id => <FunctionControl key={id} id={id} />)}</div>
     </UISection>
     <UISection id="existing-controls" title="Add existing controls">
       <UIField id="ui:editor:findControl" label="Find a UI control" category="Interface"><label>Find control<input aria-label="Find a UI control" type="search" value={query} onChange={e => setQuery(e.target.value)} /></label></UIField>

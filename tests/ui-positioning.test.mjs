@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { snapPosition } from "../src/ui/positioning.ts";
 import {
   emptyUILayout,
   validateUILayout,
@@ -41,35 +40,7 @@ test("context actions share arrangement but cannot leave their entity-owned menu
   invalid.windows["context:node"].members = [];
   assert.throws(() => validateUILayout(invalid), /owning menu/);
 });
-test("occupied anchor cells never insert between adjacent icons or move their neighbors", () => {
-  const occupied = [
-    { x: 31, y: 47, width: 40, height: 40 },
-    { x: 83, y: 47, width: 40, height: 40 },
-  ];
-  const original = structuredClone(occupied);
-  const result = snapPosition({ x: 57, y: 47 }, { width: 40, height: 40 }, grid, occupied);
-  assert.ok((result.x - 31) % 52 === 0);
-  assert.ok((result.y - 47) % 52 === 0);
-  assert.notDeepEqual(result, { x: 31, y: 47 });
-  assert.notDeepEqual(result, { x: 83, y: 47 });
-  assert.deepEqual(occupied, original);
-  assert.deepEqual(
-    result,
-    snapPosition({ x: 57, y: 47 }, { width: 40, height: 40 }, grid, occupied),
-  );
-});
-test("wide fields reserve multiple cells and grids work on both sides of the anchor", () => {
-  const occupied = [{ x: 31, y: 47, width: 144, height: 40 }];
-  assert.notDeepEqual(snapPosition({ x: 135, y: 47 }, { width: 40, height: 40 }, grid, occupied), {
-    x: 135,
-    y: 47,
-  });
-  assert.deepEqual(snapPosition({ x: -21, y: -5 }, { width: 40, height: 40 }, grid, occupied), {
-    x: -21,
-    y: -5,
-  });
-});
-test("positions, workspace/local grids, body offsets and control icons survive save and undo", () => {
+test("legacy grids remain readable while positions, body offsets and control icons survive save and undo", () => {
   const old = emptyUILayout();
   const next = {
     ...old,

@@ -25,8 +25,6 @@ export type UIContextValue = {
   library: () => void;
   frameMenu: (key: string, x: number, y: number) => void;
   configureControl: (owner: string, control: "collapse" | "pin" | "close") => void;
-  anchorTarget: string | null;
-  chooseMode: (owner: string, mode: "free" | "snap") => void;
   placementPreview: TransientStore<PlacementPreview | null>;
   defaults: Map<string, WindowState>;
   frameActions: Map<

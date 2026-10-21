@@ -16,26 +16,35 @@ export type ButtonBox = PositionedBox & { id: string };
 /** Existing function IDs stay compatible; complete frame/window keys retain their identity. */
 export const selectionResident = (id: string) => /^(frame|window):/.test(id) ? id : `function:${id}`;
 export const selectionId = (key: string) => key.startsWith("function:") ? key.slice(9) : key;
-export type AlignmentEdge = "left" | "right" | "top" | "bottom";
-export function nearestButtonEdge(box: PositionedBox, x: number, y: number): AlignmentEdge {
-  const distances: [AlignmentEdge, number][] = [
-    ["left", Math.abs(x - box.x)],
-    ["right", Math.abs(x - box.x - box.width)],
-    ["top", Math.abs(y - box.y)],
-    ["bottom", Math.abs(y - box.y - box.height)],
-  ];
-  distances.sort((a, b) => a[1] - b[1]);
-  return distances[0][0];
-}
-/** Match the clicked target edge. The other coordinate and all sizes stay authored. */
+export type AlignmentEdge = "left" | "centerX" | "right" | "top" | "centerY" | "bottom";
+export type AlignmentOperation = AlignmentEdge | "distributeX" | "distributeY";
+export type AlignmentReference = "selection" | "window";
+/** Match edges or centers; leave sizes and the other axis untouched. */
 export function alignButtons(boxes: ButtonBox[], target: PositionedBox, edge: AlignmentEdge): ButtonBox[] {
   return boxes.map(b => ({
     ...b,
     ...(edge === "left" ? { x: target.x }
+      : edge === "centerX" ? { x: target.x + (target.width - b.width) / 2 }
       : edge === "right" ? { x: target.x + target.width - b.width }
       : edge === "top" ? { y: target.y }
+      : edge === "centerY" ? { y: target.y + (target.height - b.height) / 2 }
       : { y: target.y + target.height - b.height }),
   }));
+}
+/** Equal clear space, preserving reading order, dimensions and the other axis. */
+export function arrangeButtons(boxes: ButtonBox[], target: PositionedBox, operation: AlignmentOperation): ButtonBox[] {
+  if (operation !== "distributeX" && operation !== "distributeY") return alignButtons(boxes, target, operation);
+  if (boxes.length < 3) throw new Error("Select at least three UI items to distribute.");
+  const axis = operation === "distributeX" ? "x" : "y", size = axis === "x" ? "width" : "height";
+  const ordered = [...boxes].sort((a, b) => a[axis] - b[axis]);
+  const gap = (target[size] - ordered.reduce((sum, box) => sum + box[size], 0)) / (ordered.length - 1);
+  let position = target[axis];
+  const placed = new Map(ordered.map(box => {
+    const next = { ...box, [axis]: position };
+    position += box[size] + gap;
+    return [box.id, next];
+  }));
+  return boxes.map(box => placed.get(box.id)!);
 }
 export const intersects = (a: PositionedBox, b: PositionedBox, gap = 0) =>
   a.x < b.x + b.width + gap - 0.01 &&

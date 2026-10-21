@@ -290,7 +290,7 @@ try {
   assert.deepEqual(errors, []);
   await page.screenshot({ path: "/tmp/omnium-ui-multiselect.png" });
   console.log(
-    "PASS: Ctrl/box UI selection, snapped group moves and previews, compact selection and one-step undo, drag-release suppression, five-step graph/UI histories, cancellation and persistence.",
+    "PASS: Ctrl/box UI selection, free group moves and previews, compact selection and one-step undo, drag-release suppression, five-step graph/UI histories, cancellation and persistence.",
   );
 } finally {
   await browser.close();

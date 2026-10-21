@@ -8,7 +8,10 @@ import { UIEditor } from "./UIEditor";
 import { CustomControls, CustomControlSettings } from "./CustomControls";
 import { removeCustomControl } from "./authoring";
 import { useOutsideDismiss } from "./useOutsideDismiss";
-import { ContextMenu } from "./ContextMenu";
+import { ContextMenu, contextMenuRoots } from "./ContextMenu";
+import { ContextSubmenu } from "./ContextSubmenu";
+import { AlignmentControls } from "./AlignmentControls";
+import { selectionId } from "./selection";
 import { useCursorTracking } from "./cursorPosition";
 import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
@@ -86,7 +89,7 @@ import {
   type Rect,
 } from "./drag";
 import type { VisualAsset } from "../graph/assets";
-import { keepFloatingHandleVisible, snapPosition, snapshotPositions } from "./positioning";
+import { keepFloatingHandleVisible, snapshotPositions } from "./positioning";
 import { insertFrameBeside, type InsertSide } from "./frameInsertion";
 import { DockLayout } from "./DockLayout";
 import { dockFrame, edgeDockRect, fitDockRect, workspaceDockRects, type DockRect, type FrameDock } from "./docking";
@@ -546,11 +549,10 @@ export function UIWorkspace({
   } | null>(null);
   const [appearanceOpening, setAppearanceOpening] = useState(0);
   const reopenAppearance = () => setAppearanceOpening(value => value + 1);
-  const [anchorTarget, setAnchorTarget] = useState<string | null>(null);
   const [placementPreview] = useState(() => createTransientStore<Preview | null>(null));
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
   const menuRoot = useRef<HTMLDivElement>(null);
-  useOutsideDismiss(!!menu, () => [menuRoot.current], () => setMenu(null));
+  useOutsideDismiss(!!menu, () => contextMenuRoots(menuRoot.current), () => setMenu(null));
   useLayoutEffect(() => {
     const node = menuRoot.current;
     if (!node || !menu) return;
@@ -616,21 +618,7 @@ export function UIWorkspace({
   const createFrame = (x: number, y: number) =>
     update((s) => {
       const desired = { x: Math.max(8, x), y: Math.max(8, y) };
-      const position =
-        s.arrangement?.mode === "snap" && s.arrangement.grid
-          ? snapPosition(
-              desired,
-              { width: 280, height: 100 },
-              s.arrangement.grid,
-              [
-                ...document.querySelectorAll<HTMLElement>(
-                  "[data-ui-resident-root],[data-ui-function]:not([data-ui-palette])",
-                ),
-              ]
-                .filter((el) => el.getClientRects().length)
-                .map((el) => el.getBoundingClientRect()),
-            )
-          : desired;
+      const position = desired;
       return {
         ...s,
         frames: [
@@ -663,24 +651,11 @@ export function UIWorkspace({
   const reset = () => {
     buttonSelection.clear();
     configure(null); configureFrame(null); configureControl(null);
-    setAnchorTarget(null); placementPreview.set(null); setMenu(null); setQuery("");
+    placementPreview.set(null); setMenu(null); setQuery("");
     onReset();
   };
   const resetRef = useRef(reset); resetRef.current = reset;
   useEffect(() => { if (command?.action === "reset") resetRef.current(); }, [command?.sequence]);
-  const chooseMode = (owner: string, mode: "free" | "snap") => {
-    setMenu(null);
-    if (mode === "snap") {
-      setAnchorTarget(owner);
-      return;
-    }
-    setAnchorTarget(null);
-    update((s) =>
-      owner === "@workspace"
-        ? { ...s, arrangement: { mode } }
-        : updateContainer(ensure(s), owner, { arrangement: { mode } }),
-    );
-  };
   useEffect(() => {
     // Prevent the browser menu everywhere in the app; custom menus still receive this event.
     const prevent = (e: Event) => e.preventDefault();
@@ -707,92 +682,6 @@ export function UIWorkspace({
       document.removeEventListener("contextmenu", fallback);
     };
   }, []);
-  useEffect(() => {
-    if (!anchorTarget) return;
-    const pick = (e: MouseEvent) => {
-      const target = e.target as Element;
-      const element = target.closest<HTMLElement>("[data-ui-function],.ui-frame-handle");
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (!element) return;
-      const zone = element.closest<HTMLElement>("[data-ui-drop-zone]");
-      if (
-        anchorTarget !== "@workspace" &&
-        zone?.dataset.uiDropZone !== anchorTarget &&
-        element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot !==
-          anchorTarget &&
-        element.closest<HTMLElement>("[data-ui-chrome]")?.dataset.uiChrome !== anchorTarget
-      )
-        return;
-      const r = element.getBoundingClientRect();
-      const key = element.dataset.uiFunction
-        ? `function:${element.dataset.uiFunction}`
-        : element.dataset.uiDrag!;
-      update((previous) => {
-        const s = ensure(previous);
-        if (anchorTarget === "@workspace")
-          return {
-            ...s,
-            arrangement: {
-              mode: "snap",
-              grid: {
-                anchor: key,
-                origin: { x: r.x, y: r.y },
-                pitch: { x: Math.max(16, r.width + 12), y: Math.max(16, r.height + 12) },
-              },
-            },
-          };
-        const body = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
-          (n) => n.dataset.uiDropZone === anchorTarget,
-        );
-        if (!body) return previous;
-        const bounds = body.getBoundingClientRect(),
-          ox = Number(body.dataset.originX || 0),
-          oy = Number(body.dataset.originY || 0);
-        const boxes = new Map(
-          [...body.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")].map((n) => {
-            const b = n.getBoundingClientRect();
-            return [
-              n.dataset.uiSlotKey!,
-              { x: b.x - bounds.x + ox, y: b.y - bounds.y + oy, width: b.width, height: b.height },
-            ] as const;
-          }),
-        );
-        const c = getContainer(s, anchorTarget)!;
-        return updateContainer(s, anchorTarget, {
-          members: snapshotPositions(c.members ?? [], boxes, residentKey),
-          arrangement: {
-            mode: "snap",
-            grid: {
-              anchor: key,
-              origin: { x: r.x - bounds.x + ox, y: r.y - bounds.y + oy },
-              pitch: { x: Math.max(16, r.width + 12), y: Math.max(16, r.height + 12) },
-            },
-          },
-        });
-      });
-      setAnchorTarget(null);
-    };
-    const block = (e: Event) => {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-    };
-    const cancel = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setAnchorTarget(null);
-        e.preventDefault();
-        e.stopImmediatePropagation();
-      }
-    };
-    window.addEventListener("pointerdown", block, true);
-    window.addEventListener("click", pick, true);
-    window.addEventListener("keydown", cancel, true);
-    return () => {
-      window.removeEventListener("pointerdown", block, true);
-      window.removeEventListener("click", pick, true);
-      window.removeEventListener("keydown", cancel, true);
-    };
-  }, [anchorTarget]);
   useEffect(() => {
     let previewFrame = 0;
     let pointer: { down: PointerEvent; started: boolean; release?: () => void } | null = null;
@@ -933,32 +822,6 @@ export function UIWorkspace({
         if (!element) return null;
         const r = boundsOf(element);
         let position = { x: x - source.dx - r.x, y: y - source.dy - r.y };
-        const container = getContainer(s, source.control.owner);
-        const grid =
-          container?.arrangement?.mode === "snap" ? container.arrangement.grid : undefined;
-        if (grid) {
-          const body = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
-            (n) => n.dataset.uiDropZone === source.control!.owner,
-          );
-          const b = body ? boundsOf(body) : undefined;
-          const origin = b
-            ? {
-                x: b.x - r.x - (body ? originOf(body).x : 0) + grid.origin.x,
-                y: b.y - r.y - (body ? originOf(body).y : 0) + grid.origin.y,
-              }
-            : grid.origin;
-          position = snapPosition(
-            position,
-            source,
-            { ...grid, origin },
-            [...element.querySelectorAll<HTMLElement>(".frame-mini-control,.ui-frame-handle")]
-              .filter((n) => n.dataset.uiControl !== source.control!.control)
-              .map((n) => {
-                const q = boundsOf(n);
-                return { x: q.x - r.x, y: q.y - r.y, width: q.width, height: q.height };
-              }),
-          );
-        }
         const px = position.x,
           py = position.y;
         if (Math.abs(px) > 1000 || Math.abs(py) > 1000 || residentPinned(s, source.control.owner))
@@ -1095,7 +958,7 @@ export function UIWorkspace({
           const ox = originOf(hit.zone).x, oy = originOf(hit.zone).y;
           const boxes = new Map((source.slots.get(hit.target) ?? []).map(slot => [slot.key, { x: slot.r.x - bounds.x + ox + hit.zone.scrollLeft, y: slot.r.y - bounds.y + oy + hit.zone.scrollTop, width: slot.r.width, height: slot.r.height }]));
           if (boxes.has(hit.key)) {
-            const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side, c.arrangement);
+            const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side);
             if (insertion.baseline.some(member => { const box = boxes.get(residentKey(member)); return box && residentPinned(s, residentKey(member)) && (member.position?.x !== box.x || member.position?.y !== box.y); })) return { text: "Unpin neighboring frames before shifting them" };
             return { text, rect, dock: { key: source.key, target: hit.target, index: (c.members ?? []).findIndex(m => residentKey(m) === hit.key) + (after ? 1 : 0), breakBefore: false, width: source.width, height: source.height, ...insertion } };
           }
@@ -1207,15 +1070,7 @@ export function UIWorkspace({
                 x: x - source.dx - bounds.x + ox + zone.scrollLeft,
                 y: y - source.dy - bounds.y + oy + zone.scrollTop,
               };
-        const position =
-          c.arrangement?.mode === "snap" && c.arrangement.grid
-            ? snapPosition(
-                desired,
-                source,
-                c.arrangement.grid,
-                [...boxes].filter(([key]) => key !== source.key).map(([, box]) => box),
-              )
-            : desired;
+        const position = desired;
         // Keep a useful reading order without using array insertion to push visual neighbors.
         const nearest = (source.slots.get(target) ?? [])
           .filter((slot) => slot.key !== source.key)
@@ -1229,9 +1084,7 @@ export function UIWorkspace({
           text:
             handleTarget === target
               ? `Add to ${"name" in c ? c.name : "window"}`
-              : c.arrangement?.mode === "snap"
-                ? "Snap to available cell"
-                : "Place freely",
+              : "Place freely",
           dock: {
             key: source.key,
             target,
@@ -1277,7 +1130,6 @@ export function UIWorkspace({
         !sourceFn?.control &&
         !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.control &&
         !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.scope &&
-        s.arrangement?.mode !== "snap" &&
         !ownerOf(s, `function:${other.dataset.uiFunction}`) &&
         !residentPinned(s, `function:${other.dataset.uiFunction}`)
       )
@@ -1298,39 +1150,23 @@ export function UIWorkspace({
         ),
         y: Math.max(8, Math.min(window.innerHeight - 44, y - source.dy)),
       };
-      const occupied = [
-        ...document.querySelectorAll<HTMLElement>(
-          "[data-ui-resident-root],[data-ui-function]:not([data-ui-palette])",
-        ),
-      ]
-        .filter(
-          (el) =>
-            el.getClientRects().length &&
-            (el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`) !== source.key &&
-            !ownerOf(s, el.dataset.uiResidentRoot ?? `function:${el.dataset.uiFunction}`),
-        )
-        .map((el) => boundsOf(el));
-      const snappedPosition =
-        s.arrangement?.mode === "snap" && s.arrangement.grid
-          ? snapPosition(desired, source, s.arrangement.grid, occupied)
-          : desired;
       const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
-      const rectangle = { ...snappedPosition, width: source.width, height: source.height };
+      const rectangle = { ...desired, width: source.width, height: source.height };
       const overflow = movingFrame && (rectangle.x < viewport.x || rectangle.y < viewport.y || rectangle.x+rectangle.width > viewport.x+viewport.width || rectangle.y+rectangle.height > viewport.y+viewport.height);
       if (overflow) return { text: "Place freely", floatingOverflow: true, rect: keepFloatingHandleVisible(rectangle, viewport, getContainer(s, source.key)?.chrome?.handle) };
       const canvas = document.querySelector(".canvas")?.getBoundingClientRect();
       const floatingArea = canvas ? { x: Math.max(freeArea.center.x, canvas.x), y: freeArea.center.y, width: Math.min(freeArea.center.width, canvas.width), height: freeArea.center.height } : freeArea.center;
-      const fitted = fitDockRect({ ...snappedPosition, width: source.width, height: source.height }, floatingArea);
-      const position = freeArea.active ? dockProjection.current?.(source.key, fitted) ?? fitted : { ...snappedPosition, width: source.width, height: source.height };
+      const fitted = fitDockRect({ ...desired, width: source.width, height: source.height }, floatingArea);
+      const position = freeArea.active ? dockProjection.current?.(source.key, fitted) ?? fitted : { ...desired, width: source.width, height: source.height };
       if (
         position.x < 0 ||
         position.y < 0 ||
         position.x > window.innerWidth - 24 ||
         position.y > window.innerHeight - 24
       )
-        return { text: "No visible cell here; choose another position or anchor" };
+        return { text: "Choose a visible position" };
       return {
-        text: s.arrangement?.mode === "snap" ? "Workspace snap" : "Place freely",
+        text: "Place freely",
         rect: position,
       };
     };
@@ -1354,8 +1190,6 @@ export function UIWorkspace({
       let position = dock.position;
       if (!position) {
         position = { x: 12, y: Math.max(12, ...obstacles.map(box => box.y + box.height + 14)) };
-        if (container.arrangement?.mode === "snap" && container.arrangement.grid)
-          position = snapPosition(position, source, container.arrangement.grid, obstacles);
       }
       return { ...proposal, dock: {
         ...dock, baseline, position,
@@ -1670,8 +1504,6 @@ export function UIWorkspace({
           configureFrame(null);
           configureControl({ owner, control });
         },
-        anchorTarget,
-        chooseMode,
         createFrame,
         library: () => setLibraryOpen(true),
         frameMenu,
@@ -1699,15 +1531,6 @@ export function UIWorkspace({
       {shortcutField && <FloatingWindow id="shortcut-field" openingKey={shortcutField} title={functions.find(fn => fn.id === shortcutField)?.label ?? "Setting"} width={350} height={300} onClose={() => setShortcutField(null)}>{functions.find(fn => fn.id === shortcutField && fn.available !== false)?.element ?? <p>Open the relevant context to edit this setting.</p>}</FloatingWindow>}
       {shortcutNotice && <div className="ui-anchor-prompt ui-shortcut-notice" role="status">{shortcutNotice}<button onClick={() => setShortcutNotice("")}>Dismiss</button></div>}
       <ButtonSelectionOverlay selection={buttonSelection} />
-      {anchorTarget && (
-        <div className="ui-anchor-prompt" role="status">
-          Snap: click{" "}
-          {anchorTarget === "@workspace"
-            ? "an icon or frame handle in the workspace"
-            : "an icon in this frame"}{" "}
-          to set the grid. Esc cancels.
-        </div>
-      )}
       <div
         className="ui-workspace-overlay"
         onContextMenu={(e) => {
@@ -1743,13 +1566,13 @@ export function UIWorkspace({
           }}
         >
           <button className="ui-popup-close" aria-label="Close frame menu" onClick={() => setMenu(null)}>×</button>
-          <button onClick={() => chooseMode(menu.owner ?? "@workspace", "free")}>
-            Free-hand mode
-            {(menuContainer?.arrangement ?? layout.arrangement)?.mode !== "snap" ? " ✓" : ""}
-          </button>
-          <button onClick={() => chooseMode(menu.owner ?? "@workspace", "snap")}>
-            Snap mode · choose anchor
-          </button>
+          {(menu.owner || buttonSelection.ids.size > 0) && <ContextSubmenu label="Align">
+            <AlignmentControls count={menu.owner ? 1 : buttonSelection.ids.size}
+              onArrange={(operation, reference) => {
+                buttonSelection.arrange(operation, reference, menu.owner ? new Set([selectionId(menu.owner)]) : undefined);
+                setMenu(null);
+              }} />
+          </ContextSubmenu>}
           {menu.owner && menuContainer && (
             <>
               {frameActions.get(menu.owner)?.onRename && (
@@ -1853,8 +1676,8 @@ export function UIWorkspace({
           onClose={() => setLibraryOpen(false)}
         >
           <p>
-            Drag functions, field edges and frame handles to arrange them. Free-hand preserves your
-            chosen positions. Snap uses a clicked anchor and leaves occupied cells in place.
+            Drag functions, field edges and frame handles to arrange them. Select items and use
+            Align to match edges, centers or spacing relative to the window or selection.
             Right-click a frame for its placement mode. Drag its faded background to move contents
             together. Esc cancels. Shift+MB4/MB5 undo and redo the UI.
           </p>
@@ -2051,31 +1874,6 @@ export function UIArrangeButtons() {
       <FunctionControl id="ui:select" />
       <FunctionControl id="ui:compact" />
       <FunctionControl id="ui:align" />
-      <FunctionControl id="ui:placementMode" />
     </>
-  );
-}
-export function UIPlacementControl() {
-  const ui = useUI();
-  return (
-    <label>
-      UI placement
-      <span className="ui-placement-options">
-        <select
-          aria-label="UI placement mode"
-          value={
-            ui.anchorTarget === "@workspace" ? "anchor" : (ui.layout.arrangement?.mode ?? "free")
-          }
-          onChange={(e) => ui.chooseMode("@workspace", e.target.value === "free" ? "free" : "snap")}
-        >
-          <option value="free">Free-hand</option>
-          <option value="snap">Snap</option>
-          {ui.anchorTarget === "@workspace" && <option value="anchor">Click an anchor…</option>}
-        </select>
-        <button type="button" onClick={() => ui.chooseMode("@workspace", "snap")}>
-          Anchor
-        </button>
-      </span>
-    </label>
   );
 }

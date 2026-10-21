@@ -3,6 +3,8 @@ import type { VisualAsset } from "../graph/assets.ts";
 import { validateAsset } from "../graph/assets.ts";
 import { dockKeys, insertDockKey, removeDockKey, validateDockNode, type DockNode } from "./dockTree.ts";
 import { keepFloatingHandleVisible } from "./positioning.ts";
+import type { AlignmentReference } from "./selection.ts";
+/** Legacy template data only; UI placement no longer uses grid/anchor snapping. */
 export type UIArrangement = {
   mode: "free" | "snap";
   grid?: { anchor: string; origin: Cell; pitch: Cell };
@@ -95,6 +97,7 @@ export type UILayout = {
   labels?: Record<string, string>;
   hideNames?: boolean;
   customControls?: Record<string, CustomUIControl>;
+  alignmentReference?: AlignmentReference;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -129,6 +132,8 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (layout.alignmentReference !== undefined && !["selection", "window"].includes(layout.alignmentReference))
+    throw new Error("Invalid UI alignment reference.");
   if (layout.customControls !== undefined) validateCustomControls(layout.customControls);
   if (layout.hideNames !== undefined && typeof layout.hideNames !== "boolean")
     throw new Error("Invalid UI name visibility.");
@@ -405,7 +410,28 @@ export function validateUILayout(value: unknown): UILayout {
       key = owners.get(key);
     }
   }
-  return layout;
+  return removeRetiredUIControls(layout);
+}
+/** Old templates lose retired controls without resetting authored positions or styles. */
+function removeRetiredUIControls(layout: UILayout): UILayout {
+  const retired = "ui:placementMode";
+  const affected = !!layout.items[retired] || containers(layout).some(([, container]) => container.members?.some(member => member.kind === "function" && member.id === retired));
+  if (!affected) return layout;
+  const items = { ...layout.items }, labels = layout.labels ? { ...layout.labels } : undefined;
+  delete items[retired];
+  if (labels) delete labels[`function:${retired}`];
+  for (const [id, item] of Object.entries(items))
+    if (item.anchorId?.endsWith(`|${retired}`)) items[id] = { ...item, anchorId: undefined, home: false };
+  const members = <T extends { members?: UIResident[] }>(container: T): T => ({
+    ...container, ...(container.members ? { members: container.members.filter(member => member.kind !== "function" || member.id !== retired) } : {}),
+  });
+  return {
+    ...layout, items, ...(labels ? { labels } : {}),
+    windows: Object.fromEntries(Object.entries(layout.windows).map(([id, window]) => [id, members(window)])),
+    frames: layout.frames.map(members),
+    ...(layout.nativeOrders ? { nativeOrders: Object.fromEntries(Object.entries(layout.nativeOrders)
+      .filter(([anchor]) => !anchor.endsWith(`|${retired}`)).map(([anchor, order]) => [anchor, order.filter(id => id !== retired)])) } : {}),
+  };
 }
 function validateArrangement(a: UIArrangement) {
   if (!record(a) || !["free", "snap"].includes(a.mode))

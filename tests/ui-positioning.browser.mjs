@@ -24,6 +24,7 @@ const frame = (id, x, y, collapsed = false) => ({
   y,
   width: 350,
   cellSize: 96,
+  arrangement: { mode: "snap", grid: { anchor: "function:focus", origin: { x: 31, y: 47 }, pitch: { x: 52, y: 52 } } },
   collapsed,
   pinned: false,
   chrome: { style: icon },
@@ -85,33 +86,9 @@ try {
     );
   });
   await root("Tools").locator(".ui-frame-handle").click({ button: "right" });
-  await page.getByRole("button", { name: "Snap mode · choose anchor", exact: true }).click();
-  await fn("focus").click();
-  await page.locator(".ui-anchor-prompt").waitFor({ state: "hidden" });
-  let saved = await read(),
-    tools = saved.frames[0];
-  assert.equal(tools.arrangement.mode, "snap");
-  assert.ok(tools.members.every((m) => m.position));
-  const before = structuredClone(tools.members.find((m) => m.id === "focus"));
-  const anchor = await fn("focus").boundingBox();
-  await drag(fn("fitLocal"), anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
-  tools = (await read()).frames[0];
-  assert.deepEqual(
-    tools.members.find((m) => m.id === "focus"),
-    before,
-  );
-  const moved = tools.members.find((m) => m.id === "fitLocal"),
-    grid = tools.arrangement.grid;
-  assert.ok(
-    Math.abs(
-      (moved.position.x - grid.origin.x) / grid.pitch.x -
-        Math.round((moved.position.x - grid.origin.x) / grid.pitch.x),
-    ) < 1e-6,
-  );
-  assert.notDeepEqual(moved.position, before.position);
-  // Free-hand preserves fractional/non-grid positions instead of inserting/pushing.
-  await root("Tools").locator(".ui-frame-handle").click({ button: "right" });
-  await page.getByRole("button", { name: /^Free-hand mode/ }).click();
+  assert.equal(await page.getByRole("button", { name: "Snap mode · choose anchor", exact: true }).count(), 0);
+  await page.mouse.click(1500, 100);
+  // Dragging remains free even when an old template contains snap metadata.
   const originalPos = (await read()).frames[0].members.find((m) => m.id === "focus").position;
   let b = await fn("fitLocal").boundingBox();
   await drag(fn("fitLocal"), b.x + b.width / 2 + 17, b.y + b.height / 2 + 13);
@@ -151,33 +128,12 @@ try {
   await frameAction(page, root("Tools"), "Pin frame");
   assert.ok((await read()).frames[0].pinned);
   await frameAction(page, root("Tools"), "Unpin frame");
-  // Workspace snap also positions whole frames relative to a clicked anchor.
-  await page.getByLabel("UI placement mode", { exact: true }).selectOption("snap");
-  await root("A").locator(".ui-frame-handle").click();
-  assert.equal((await read()).arrangement.mode, "snap");
-  const a = await root("A").locator(".ui-frame-handle").boundingBox();
-  await drag(root("B").locator(".ui-frame-handle"), a.x + 80, a.y - 90);
-  saved = await read();
-  const wb = saved.frames.find((f) => f.id === "B"),
-    wg = saved.arrangement.grid;
-  assert.ok(
-    Math.abs(
-      ((await root("B").locator("..").boundingBox()).x - wg.origin.x) / wg.pitch.x -
-        Math.round(((await root("B").locator("..").boundingBox()).x - wg.origin.x) / wg.pitch.x),
-    ) < 1e-6,
-  );
-  assert.ok(
-    Math.abs(
-      ((await root("B").locator("..").boundingBox()).y - wg.origin.y) / wg.pitch.y -
-        Math.round(((await root("B").locator("..").boundingBox()).y - wg.origin.y) / wg.pitch.y),
-    ) < 1e-6,
-  );
   await page.locator("canvas").click({ button: "right", position: { x: 650, y: 400 } });
   assert.ok(
     (await page.evaluate(() => window.nativeMenus)).every(Boolean),
     "all contextmenu events must suppress Chrome",
   );
-  assert.ok((await page.evaluate(() => window.nativeMenus)).length >= 4);
+  assert.ok((await page.evaluate(() => window.nativeMenus)).length >= 3);
   assert.deepEqual(
     await page.evaluate(() => JSON.parse(localStorage.getItem("omnium.atlas.v2"))),
     graph,
@@ -189,7 +145,7 @@ try {
   assert.deepEqual(errors, []);
   await page.screenshot({ path: "/tmp/omnium-anchored-ui.png" });
   console.log(
-    "PASS: local/workspace anchored snapping, occupied cells, free-hand placement, fixed-tab bulk drag + undo, field edges, right-click controls, native-menu suppression and persistence.",
+    "PASS: free placement, retired anchor controls, fixed-tab bulk drag + undo, field edges, right-click controls, native-menu suppression and persistence.",
   );
 } catch (e) {
   await page.screenshot({ path: "/tmp/omnium-anchored-ui-failure.png" });

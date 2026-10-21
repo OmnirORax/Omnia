@@ -962,3 +962,9 @@ button[data-ui-caption]:not([data-ui-native-icon]) { font-size: 0 !important; }
 button[data-ui-caption]:not([data-ui-native-icon])::after { content: attr(data-ui-caption) var(--ui-caption-shortcut, ""); font-size: var(--ui-name-size, 12px); }
 html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::after { display: none; }
 .appearance-row > .ui-form-control { flex: 0 1 auto; padding: 0; }
+
+.ui-context-submenu > button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.ui-context-submenu-popup { width: max-content; max-width: min(310px, calc(100vw - 16px)); padding: 10px; gap: 8px; }
+.ui-alignment-commands { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+[data-ui-alignment] { display: flex; flex-direction: column; gap: 8px; }
+[data-ui-alignment] label { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
