@@ -20,6 +20,13 @@ export function dockGuides(bounds: DockRect, viewport: DockRect) {
     hit: { x: x + direction.x * pitch - pitch / 2, y: y + direction.y * pitch - pitch / 2, width: pitch, height: pitch },
   }));
 }
-export function dockGuideAt(bounds: DockRect, viewport: DockRect, x: number, y: number) {
-  return dockGuides(bounds, viewport).find(({ hit }) => x >= hit.x && x < hit.x + hit.width && y >= hit.y && y < hit.y + hit.height)?.side;
+export function dockGuideAt(bounds: DockRect, viewport: DockRect, x: number, y: number, previousSide?: DockSide) {
+  const guides = dockGuides(bounds, viewport);
+  const chosen = guides.find(({ hit }) => x >= hit.x && x < hit.x + hit.width && y >= hit.y && y < hit.y + hit.height)?.side;
+  if (chosen) return chosen;
+  // The full square is a continuous travel area between all five guides.
+  // Retain the current choice in its diagonal gaps, but never delay entry into
+  // another guide or retain a target after leaving the guide area.
+  if (previousSide && x >= Math.min(...guides.map(({ hit }) => hit.x)) && x < Math.max(...guides.map(({ hit }) => hit.x + hit.width)) &&
+      y >= Math.min(...guides.map(({ hit }) => hit.y)) && y < Math.max(...guides.map(({ hit }) => hit.y + hit.height))) return previousSide;
 }

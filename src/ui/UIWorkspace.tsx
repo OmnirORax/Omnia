@@ -785,9 +785,9 @@ export function UIWorkspace({
       if (source.control || source.key.startsWith("function:") || residentContextScope(s, source.key)) return;
       const viewport = { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
       const previous = placementPreview.getSnapshot()?.frameDock;
-      // A compact target's guide can extend beyond its original bounds. Honor
-      // the visible guide first, rather than interpreting it as a new target.
-      const chosen = previous?.bounds && dockGuideAt(previous.bounds, viewport, x, y);
+      // Guide cells and the diagonal travel gaps keep one target active, even
+      // beyond a compact frame's bounds. A new cell still switches immediately.
+      const chosen = previous?.bounds && dockGuideAt(previous.bounds, viewport, x, y, previous.side);
       if (chosen && previous?.target && canDock(s, source.key, previous.target)) return { ...previous, side: chosen };
       const area = dockWorkspaceArea();
       const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
