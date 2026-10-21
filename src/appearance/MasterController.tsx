@@ -110,6 +110,7 @@ export function MasterController() {
     if (on) highlight(target.id);
     if (on && target.instance && applicable(target))
       revealSession.current = transientReveal({
+        highlight: false,
         path: target.instance.path ?? [],
         reveal: (path) => ctx.reveal?.(path),
         locate: () => {
@@ -149,10 +150,6 @@ export function MasterController() {
         <div
           className={`appearance-row ${lit ? "is-included" : "is-excluded"} ${can ? "" : "not-applicable"}`}
           style={{ paddingLeft: depth * 12 }}
-          onMouseEnter={() => reveal(target, true)}
-          onMouseLeave={() => reveal(target, false)}
-          onFocusCapture={() => reveal(target, true)}
-          onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) reveal(target, false); }}
         >
           <button
             className="appearance-expand"
@@ -175,6 +172,10 @@ export function MasterController() {
             title={rigidity ? `${lit ? "Allow moving" : "Fix"} ${target.label} outside UI edit mode` : `${lit ? "Exclude" : "Include"} ${target.label}`}
             aria-pressed={lit}
             disabled={!can}
+            onMouseEnter={() => reveal(target, true)}
+            onMouseLeave={() => reveal(target, false)}
+            onFocus={() => reveal(target, true)}
+            onBlur={() => reveal(target, false)}
             onClick={() => rigidity
               ? ui.update(layout => toggleRigidity({ ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows } }, targets, target.id, ui.functions))
               : ctx.commit(toggleTarget(state, targets, target.id))}

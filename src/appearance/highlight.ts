@@ -2,28 +2,19 @@ import type { RegisteredTarget } from "./registry";
 import { EFFECT_PROPERTIES } from "./registry";
 import { effectScope } from "./uiEffects";
 
-export type HighlightShape = {
-  points: { x: number; y: number }[];
-  active: boolean;
-  closed?: boolean;
-  clip?: { x: number; y: number; width: number; height: number };
-};
 export type HighlightTarget = { target: RegisteredTarget; active: boolean };
-type SceneSource = (targets: ReadonlyMap<string, boolean>) => HighlightShape[];
-const sceneSources = new Set<SceneSource>();
-/** Renderer references are transient; lazy scene modules register without entering UI state. */
-export function registerHierarchyScene(source: SceneSource) {
+export type HierarchyScenePulse = {
+  pulse: (targets: ReadonlyMap<string, boolean>, strength: number) => void;
+  clear: () => void;
+};
+const sceneSources = new Set<HierarchyScenePulse>();
+export function registerHierarchyScene(source: HierarchyScenePulse) {
   sceneSources.add(source);
-  return () => { sceneSources.delete(source); };
+  return () => { source.clear(); sceneSources.delete(source); };
 }
-const svgNS = "http://www.w3.org/2000/svg";
 const owners = (owner: string) => owner.startsWith("function:")
   ? `[data-ui-function="${CSS.escape(owner.slice(9))}"]:not([data-ui-palette])`
   : `:is([data-ui-resident-root="${CSS.escape(owner)}"],[data-ui-proxy-for="${CSS.escape(owner)}"])`;
-const rectangle = (r: { x: number; y: number; width: number; height: number }) => [
-  { x: r.x, y: r.y }, { x: r.x + r.width, y: r.y },
-  { x: r.x + r.width, y: r.y + r.height }, { x: r.x, y: r.y + r.height },
-];
 const visible = (element: Element) => {
   if (!element.isConnected || !element.getClientRects().length || element.closest("[hidden],[data-shortcut-runner]")) return false;
   const style = getComputedStyle(element);
@@ -52,7 +43,7 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
     const map = matches.get(base) ?? new Map<Element, Match>();
     matches.set(base, map);
     const selector = (EFFECT_PROPERTIES.includes(property) || base === "symbols.ui"
-      ? target.binding?.animation?.selector ?? target.binding?.selector
+      ? base === "symbols.ui" ? `${target.binding?.animation?.selector ?? target.binding?.selector},button[data-ui-native-icon]` : target.binding?.animation?.selector ?? target.binding?.selector
       : target.binding?.selector)?.replace(/::placeholder/g, "");
     let elements: Element[];
     if (selector) elements = query(scoped(target, selector));
@@ -60,7 +51,6 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
       .filter(element => element instanceof HTMLElement &&
         (element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1));
     else if (target.instance) elements = query(owners(target.instance.owner));
-    else if (base === "workspace.background") elements = query(".spatial-workspace canvas");
     else continue;
     const locals = targets.filter(item => item.instance?.base === base);
     for (const element of elements) {
@@ -92,123 +82,135 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
   return result;
 }
 
-function clippedRect(rect: DOMRect | DOMRectReadOnly, element: Element) {
-  let left = Math.max(1, rect.left), top = Math.max(1, rect.top),
-    right = Math.min(innerWidth - 1, rect.right), bottom = Math.min(innerHeight - 1, rect.bottom);
-  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
-    const style = getComputedStyle(parent), bounds = parent.getBoundingClientRect();
-    if (/hidden|clip|scroll|auto/.test(style.overflowX)) { left = Math.max(left, bounds.left); right = Math.min(right, bounds.right); }
-    if (/hidden|clip|scroll|auto/.test(style.overflowY)) { top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom); }
-  }
-  return right - left > 1 && bottom - top > 1 ? { x: left, y: top, width: right - left, height: bottom - top } : null;
-}
-function uiShapes(matches: Match[]): HighlightShape[] {
-  const shapes: HighlightShape[] = [];
-  for (const { element, active, scrollbar, ranges } of matches) {
-    if (!visible(element)) continue;
-    const push = (bounds: DOMRect | DOMRectReadOnly) => {
-      const rect = clippedRect(bounds, element);
-      if (rect) shapes.push({ points: rectangle(rect), active, closed: true });
-    };
-    if (scrollbar && element instanceof HTMLElement) {
-      const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
-      const vertical = element.scrollHeight > element.clientHeight + 1 && /auto|scroll/.test(style.overflowY);
-      const horizontal = element.scrollWidth > element.clientWidth + 1 && /auto|scroll/.test(style.overflowX);
-      if (vertical) {
-        const width = Math.max(6, element.offsetWidth - element.clientWidth - (parseFloat(style.borderLeftWidth) || 0) - (parseFloat(style.borderRightWidth) || 0));
-        const height = scrollbar === "track" ? element.clientHeight : Math.max(16, element.clientHeight ** 2 / element.scrollHeight);
-        const y = rect.y + element.clientTop + (scrollbar === "track" ? 0 : element.scrollTop / (element.scrollHeight - element.clientHeight) * (element.clientHeight - height));
-        push(new DOMRect(rect.right - width, y, width, height));
-      }
-      if (horizontal) {
-        const height = Math.max(6, element.offsetHeight - element.clientHeight - (parseFloat(style.borderTopWidth) || 0) - (parseFloat(style.borderBottomWidth) || 0));
-        const width = scrollbar === "track" ? element.clientWidth : Math.max(16, element.clientWidth ** 2 / element.scrollWidth);
-        const x = rect.x + element.clientLeft + (scrollbar === "track" ? 0 : element.scrollLeft / (element.scrollWidth - element.clientWidth) * (element.clientWidth - width));
-        push(new DOMRect(x, rect.bottom - height, width, height));
-      }
-    } else if (ranges) {
-      for (const range of ranges) {
-        const parent = range.startContainer.parentElement;
-        if (!parent || !visible(parent)) continue;
-        for (const rect of range.getClientRects()) {
-          const bounds = clippedRect(rect, parent);
-          if (bounds) shapes.push({ points: rectangle(bounds), active, closed: true });
-        }
-      }
-    } else push(element.getBoundingClientRect());
-  }
-  return shapes;
-}
-
-/** Temporary pointer-transparent top layer; no target styling, layout, history or selection writes. */
+type PaintElement = HTMLElement | SVGElement;
+type PaintValue = { value: string; priority: string; computed: string; written?: string };
+let pulseSequence = 0;
+/** Pulse actual paint only. Inline overrides and custom text highlights are removed exactly on exit. */
 export function highlightHierarchy(entries: HighlightTarget[], targets: RegisteredTarget[], property: string) {
-  const overlay = document.createElement("div");
-  overlay.setAttribute("data-appearance-highlight", "");
-  overlay.setAttribute("aria-hidden", "true");
-  overlay.setAttribute("popover", "manual");
-  overlay.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;pointer-events:none;overflow:hidden;z-index:2147483647;";
-  const svg = document.createElementNS(svgNS, "svg");
-  svg.style.cssText = "display:block;width:100%;height:100%;overflow:hidden;pointer-events:none";
-  overlay.append(svg); document.body.append(overlay);
-  try { overlay.showPopover(); } catch { overlay.removeAttribute("popover"); }
-  const sceneTargets = new Map(entries.filter(entry => !entry.target.instance).map(entry => [entry.target.id, entry.active]));
-  let matches: Match[] = [], dirty = true, frame = 0, previous = 0, signature = "", stopped = false;
-  const observer = new MutationObserver(records => {
-    if (records.some(record => !(record.target instanceof Element) || !record.target.closest("[data-appearance-highlight]"))) dirty = true;
-  });
-  observer.observe(document.body, { subtree: true, childList: true, characterData: true });
-  const node = (name: string, attributes: Record<string, string>) => {
-    const element = document.createElementNS(svgNS, name);
-    for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
-    return element;
+  const saved = new Map<PaintElement, Map<string, PaintValue>>();
+  const attributes = new Map<Element, string | null>();
+  const placeholders = new Map<Element, string>();
+  const value = (element: PaintElement, key: string) => {
+    const map = saved.get(element) ?? new Map<string, PaintValue>(); saved.set(element, map);
+    let old = map.get(key);
+    if (!old) {
+      old = { value: element.style.getPropertyValue(key), priority: element.style.getPropertyPriority(key),
+        computed: getComputedStyle(element).getPropertyValue(key) };
+      map.set(key, old);
+    }
+    return old;
   };
-  const paint = (time: number) => {
+  const write = (element: PaintElement, key: string, paint: string) => {
+    const old = value(element, key);
+    element.style.setProperty(key, paint, "important");
+    old.written = element.style.getPropertyValue(key);
+  };
+  const style = document.createElement("style");
+  style.setAttribute("data-appearance-pulse-style", ""); document.head.append(style);
+  const name = `omnium-appearance-hover-${++pulseSequence}`;
+  const textHighlights = typeof Highlight !== "undefined" && !!CSS.highlights;
+  const tag = (element: Element) => {
+    if (!attributes.has(element)) {
+      attributes.set(element, element.getAttribute("data-appearance-pulse"));
+      element.setAttribute("data-appearance-pulse", `${name}-${attributes.size}`);
+    }
+    return element.getAttribute("data-appearance-pulse")!;
+  };
+  const color = (base: string, strength: number) =>
+    `color-mix(in srgb, ${!base || /^(auto|none|normal)$/.test(base.trim()) ? "currentColor" : base} ${90 - strength * 55}%, white ${10 + strength * 55}%)`;
+  const shadows = (base: string, glow: string) => `${base && base !== "none" ? base + "," : ""}${glow}`;
+  const sceneTargets = new Map(entries.filter(({ target }) => !target.instance && target.binding && !target.binding.selector && !target.id.startsWith("ui."))
+    .map(entry => [entry.target.id, entry.active]));
+  let matches: Match[] = [], dirty = true, frame = 0, previous = 0, stopped = false;
+  const began = performance.now(), reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  const observer = new MutationObserver(() => { dirty = true; });
+  observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+  const pulse = (time: number) => {
     if (stopped) return;
-    frame = requestAnimationFrame(paint);
+    frame = requestAnimationFrame(pulse);
     if (document.hidden || time - previous < 32) return;
     previous = time;
-    if (dirty) { matches = matchesFor(entries, targets, property); dirty = false; }
-    const shapes = uiShapes(matches);
-    for (const source of sceneSources) shapes.push(...source(sceneTargets));
-    // Scene markers stay behind visible floating UI even though the overlay is above it.
-    const occluders = shapes.some(shape => shape.clip) ? [...document.querySelectorAll(".floating-window,.ui-floating-group-viewport,.ui-free-function,.function-frame,.spatial-controls,.camera-guide")]
-      .filter(visible).map(element => element.getBoundingClientRect()) : [];
-    const key = JSON.stringify([innerWidth, innerHeight, shapes, occluders.map(r => [r.x, r.y, r.width, r.height])]);
-    if (key === signature) return;
-    signature = key;
-    const fragment = document.createDocumentFragment(), defs = node("defs", {});
-    const mask = node("mask", { id: "appearance-scene-mask", maskUnits: "userSpaceOnUse", x: "0", y: "0", width: String(innerWidth), height: String(innerHeight) });
-    mask.append(node("rect", { width: String(innerWidth), height: String(innerHeight), fill: "white" }));
-    for (const r of occluders) mask.append(node("rect", { x: String(r.x), y: String(r.y), width: String(r.width), height: String(r.height), fill: "black" }));
-    defs.append(mask); fragment.append(defs);
-    const seen = new Set<string>();
-    for (const shape of shapes.sort((a, b) => Number(a.active) - Number(b.active))) {
-      const points = shape.points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-      const identity = `${points}:${shape.active}:${!!shape.clip}`;
-      if (seen.has(identity) || shape.points.length < 2) continue;
-      seen.add(identity);
-      const group = node("g", shape.clip ? { mask: "url(#appearance-scene-mask)" } : {});
-      if (shape.clip) {
-        const id = `appearance-clip-${seen.size}`;
-        const clip = node("clipPath", { id });
-        clip.append(node("rect", { x: String(shape.clip.x), y: String(shape.clip.y), width: String(shape.clip.width), height: String(shape.clip.height) }));
-        defs.append(clip); group.setAttribute("clip-path", `url(#${id})`);
+    const wave = reduced.matches ? 0.6 : 0.5 - 0.5 * Math.cos((time - began) * Math.PI * 2 / 1200);
+    if (dirty) {
+      matches = matchesFor(entries, targets, property); dirty = false;
+      if (textHighlights) {
+        CSS.highlights.set(name, new Highlight(...matches.filter(match => match.active).flatMap(match => match.ranges ?? [])));
+        CSS.highlights.set(`${name}-muted`, new Highlight(...matches.filter(match => !match.active).flatMap(match => match.ranges ?? [])));
       }
-      const attributes = { points, fill: "none", "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke" };
-      const tag = shape.closed ? "polygon" : "polyline";
-      group.append(node(tag, { ...attributes, stroke: "#07121b", "stroke-width": "4", opacity: shape.active ? "0.9" : "0.5" }));
-      group.append(node(tag, { ...attributes, stroke: shape.active ? "#82f4ff" : "#becbd5", "stroke-width": "2", opacity: shape.active ? "1" : "0.65", "stroke-dasharray": shape.active ? "none" : "4 4" }));
-      fragment.append(group);
     }
-    svg.replaceChildren(fragment);
+    const rules = [
+      `::highlight(${name}){color:${color("currentColor", wave)};text-shadow:0 0 ${2 + wave * 8}px currentColor}`,
+      `::highlight(${name}-muted){color:${color("currentColor", wave * .5)};text-shadow:0 0 ${1 + wave * 4}px currentColor}`,
+    ];
+    for (const { element, target, active, scrollbar, ranges } of matches) {
+      if (!visible(element) || !(element instanceof HTMLElement || element instanceof SVGElement)) continue;
+      const strength = wave * (active ? 1 : .5), base = target.instance?.base ?? target.id;
+      if (ranges) {
+        if (!textHighlights) for (const range of ranges) {
+          const parent = range.startContainer.parentElement;
+          if (!parent || !visible(parent)) continue;
+          write(parent, "color", color(value(parent, "color").computed, strength));
+          write(parent, "text-shadow", shadows(value(parent, "text-shadow").computed, `0 0 ${strength * 8}px currentColor`));
+        }
+        continue;
+      }
+      if (scrollbar) {
+        const id = tag(element), original = value(element, "scrollbar-color").computed;
+        const colors = original.match(/rgba?\([^)]+\)|#[\da-f]+/gi) ?? ["#5a899e", "#07121b"];
+        const thumb = color(colors[0], base.endsWith("thumb") ? strength : 0), track = color(colors[1] ?? "#07121b", base.endsWith("track") ? strength : 0);
+        write(element, "scrollbar-color", `${thumb} ${track}`);
+        rules.push(`:root:root:root [data-appearance-pulse="${id}"]::-webkit-scrollbar-${scrollbar}{background-color:${scrollbar === "thumb" ? thumb : track}!important}`);
+      } else if (base === "text.ui.placeholders") {
+        const id = tag(element), ink = placeholders.get(element) ?? getComputedStyle(element, "::placeholder").color;
+        placeholders.set(element, ink);
+        rules.push(`:root:root:root [data-appearance-pulse="${id}"]::placeholder{color:${color(ink, strength)}!important;text-shadow:0 0 ${strength * 8}px currentColor!important}`);
+      } else if (base === "symbols.ui") {
+        if (element.matches("[data-ui-native-icon]")) {
+          const original = value(element, "--ui-native-filter").computed.trim();
+          write(element, "--ui-native-filter", `${original && original !== "none" ? original : ""} brightness(${1 + strength * .9}) drop-shadow(0 0 ${strength * 5}px white)`);
+        } else if (element.matches("svg,img,.appearance-icon-mask")) {
+          const original = value(element, "filter").computed;
+          write(element, "filter", `${original && original !== "none" ? original : ""} brightness(${1 + strength}) drop-shadow(0 0 ${strength * 5}px white)`);
+        } else {
+          write(element, "color", color(value(element, "color").computed, strength));
+          write(element, "text-shadow", shadows(value(element, "text-shadow").computed, `0 0 ${strength * 8}px currentColor`));
+        }
+      } else if (element.matches(".ui-contour") && target.binding?.css === "background-color") {
+        const fill = element.querySelector<SVGElement>(":scope > rect[mask]");
+        if (fill) write(fill, "fill", color(value(fill, "fill").computed, strength));
+      } else if (target.binding?.css) {
+        const key = target.binding.css;
+        if (key === "border-color") for (const side of ["top", "right", "bottom", "left"]) {
+          const edge = `border-${side}-color`; write(element, edge, color(value(element, edge).computed, strength));
+        } else write(element, key, color(value(element, key).computed, strength));
+        if (target.binding.text) write(element, "text-shadow", shadows(value(element, "text-shadow").computed, `0 0 ${strength * 8}px currentColor`));
+        if (key === "background-color") {
+          const image = value(element, "background-image").computed;
+          if (image && image !== "none") write(element, "background-image", `linear-gradient(rgb(255 255 255 / ${strength * .25}),rgb(255 255 255 / ${strength * .25})),${image}`);
+        }
+      } else if (target.instance) {
+        const original = value(element, "filter").computed;
+        write(element, "filter", `${original && original !== "none" ? original : ""} brightness(${1 + strength * .8})`);
+      }
+    }
+    style.textContent = rules.join("\n");
+    for (const source of sceneSources) source.pulse(sceneTargets, wave);
   };
-  frame = requestAnimationFrame(paint);
   const stop = () => {
     if (stopped) return;
-    stopped = true; cancelAnimationFrame(frame); observer.disconnect(); overlay.remove();
-    window.removeEventListener("blur", stop); document.removeEventListener("visibilitychange", hidden);
+    stopped = true; cancelAnimationFrame(frame); observer.disconnect();
+    for (const source of sceneSources) source.clear();
+    if (textHighlights) { CSS.highlights.delete(name); CSS.highlights.delete(`${name}-muted`); }
+    for (const [element, properties] of saved) for (const [key, old] of properties)
+      if (old.written === element.style.getPropertyValue(key)) {
+        if (old.value) element.style.setProperty(key, old.value, old.priority); else element.style.removeProperty(key);
+      }
+    for (const [element, old] of attributes)
+      if (old === null) element.removeAttribute("data-appearance-pulse"); else element.setAttribute("data-appearance-pulse", old);
+    style.remove(); window.removeEventListener("blur", stop); document.removeEventListener("visibilitychange", hidden);
   };
   const hidden = () => { if (document.hidden) stop(); };
   window.addEventListener("blur", stop); document.addEventListener("visibilitychange", hidden);
+  frame = requestAnimationFrame(pulse);
   return { stop };
 }

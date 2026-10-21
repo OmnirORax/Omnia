@@ -7,12 +7,14 @@ export function transientReveal({
   reveal,
   onReady,
   onMissing,
+  highlight = true,
 }: {
   path: string[];
   locate: () => HTMLElement | undefined;
   reveal: (path: string[] | null) => void;
   onReady?: (element: HTMLElement) => void;
   onMissing?: () => void;
+  highlight?: boolean;
 }): RevealSession {
   cancelAnimationFrame(deferredRestore);
   const scroll = new Map<Element, { left: number; top: number }>(),
@@ -61,7 +63,7 @@ export function transientReveal({
       return;
     }
     found.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
-    found.classList.add("ui-search-pulsing");
+    if (highlight) found.classList.add("ui-search-pulsing");
     onReady?.(found);
   };
   reveal(path);
@@ -71,7 +73,7 @@ export function transientReveal({
       if (stopped) return;
       stopped = true;
       cancelAnimationFrame(frame);
-      found?.classList.remove("ui-search-pulsing");
+      if (highlight) found?.classList.remove("ui-search-pulsing");
       for (const [el, z] of raised) el.style.zIndex = z;
       if (!keep) {
         details.forEach((el) => {

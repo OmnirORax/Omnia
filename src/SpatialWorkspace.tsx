@@ -23,7 +23,7 @@ import { FunctionControl } from "./ui/UIWorkspace";
 import { normalizeFont, isCustomFont } from "./fonts";
 import { loadFont } from "./fontLibrary";
 import { registerHierarchyScene } from "./appearance/highlight";
-import { graphHierarchyShapes } from "./appearance/graphHighlight";
+import { createGraphHierarchyPulse } from "./appearance/graphHighlight";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
@@ -145,8 +145,6 @@ export default function SpatialWorkspace(props: Props) {
     const appearance = createSceneAppearance(renderer, scene, camera);
     appearance.setSources(() => textScene.current);
     appearance.configure(callbacks.current.settings.appearance);
-    const stopHierarchyHighlight = registerHierarchyScene(targets =>
-      graphHierarchyShapes(textScene.current, camera, renderer.domElement, targets));
     let pendingRender = 0, animation = 0;
     const cameraHistory: CameraPose[] = [];
     const changeFocusContext = (ids: readonly string[] | null) => {
@@ -178,6 +176,28 @@ export default function SpatialWorkspace(props: Props) {
       });
     };
     const requestRender = () => scheduleRender(true);
+    const hierarchyPulse = createGraphHierarchyPulse();
+    let pulsingBackground = false;
+    const restorePulseBackground = () => {
+      if (!pulsingBackground) return;
+      const theme = callbacks.current.settings.appearance;
+      scene.background = new THREE.Color(theme.theme === "neon" ? theme.background : 0x101927);
+      pulsingBackground = false;
+    };
+    const stopHierarchyHighlight = registerHierarchyScene({
+      pulse: (targets, strength) => {
+        hierarchyPulse.update(textScene.current, targets, strength);
+        const background = targets.get("workspace.background");
+        if (background !== undefined) {
+          const theme = callbacks.current.settings.appearance;
+          scene.background = new THREE.Color(theme.theme === "neon" ? theme.background : 0x101927)
+            .lerp(new THREE.Color("white"), (0.05 + strength * .35) * (background ? 1 : .5));
+          pulsingBackground = true;
+        } else restorePulseBackground();
+        if (targets.size) scheduleRender(false);
+      },
+      clear: () => { hierarchyPulse.clear(); restorePulseBackground(); scheduleRender(false); },
+    });
     appearance.start(() => scheduleRender(false));
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
     // OrbitControls caches its up-axis basis on construction. Rebind through its
@@ -498,7 +518,7 @@ export default function SpatialWorkspace(props: Props) {
     renderer.domElement.addEventListener("contextmenu", preventMenu);
     setReady(true);
     return () => {
-      stopHierarchyHighlight();
+      stopHierarchyHighlight(); hierarchyPulse.dispose();
       pointerOwner.dispose();
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
       renderer.domElement.removeEventListener("pointerdown", down, true);
