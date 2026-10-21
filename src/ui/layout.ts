@@ -113,6 +113,8 @@ export type UILayout = {
   hideNames?: boolean;
   customControls?: Record<string, CustomUIControl>;
   alignmentReference?: AlignmentReference;
+  /** Inherited visual-hierarchy policy: true fixes UI placement outside edit mode. */
+  uiRigidity?: Record<string, boolean>;
 };
 export const UI_LAYOUT_KEY = "omnium.ui.layout.v1";
 export const emptyUILayout = (): UILayout => ({
@@ -147,6 +149,10 @@ export function validateUILayout(value: unknown): UILayout {
   )
     throw new Error("Invalid UI layout.");
   const layout = value as UILayout;
+  if (layout.uiRigidity !== undefined && (!record(layout.uiRigidity) ||
+    Object.keys(layout.uiRigidity).length > 4000 || Object.entries(layout.uiRigidity).some(
+      ([id, value]) => !id || id.length > 2000 || typeof value !== "boolean",
+    ))) throw new Error("Invalid UI rigidity settings.");
   if (layout.alignmentReference !== undefined && !["selection", "window"].includes(layout.alignmentReference))
     throw new Error("Invalid UI alignment reference.");
   if (layout.customControls !== undefined) validateCustomControls(layout.customControls);

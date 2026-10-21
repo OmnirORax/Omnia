@@ -2,6 +2,7 @@ import { useContext, useLayoutEffect, useState, useSyncExternalStore, type React
 import { useUI, UIPathContext } from "./context";
 import { FunctionControl } from "./UIWorkspace";
 import { withControlCaption } from "./captions";
+import { fieldRigidityTarget } from "./rigidity";
 /** Live fields share the normal registry, edge dragging, library and UI persistence. */
 export function UIField({
   id,
@@ -16,6 +17,7 @@ export function UIField({
 }) {
   const { registerFunction } = useUI(), homePath = useContext(UIPathContext), pathKey = JSON.stringify(homePath);
   const [store] = useState(() => ({ element: children, listeners: new Set<() => void>() }));
+  const rigidityTarget = fieldRigidityTarget(children);
   useLayoutEffect(() => {
     store.element = children;
     store.listeners.forEach((notify) => notify());
@@ -29,8 +31,9 @@ export function UIField({
         homePath,
         element: <LiveField id={id} store={store} />,
         control: true,
+        rigidityTarget,
       }),
-    [registerFunction, id, label, category, store, pathKey],
+    [registerFunction, id, label, category, store, pathKey, rigidityTarget],
   );
   return <FunctionControl id={id} />;
 }

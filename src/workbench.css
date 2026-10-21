@@ -998,3 +998,11 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .ui-alignment-commands { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 [data-ui-alignment] { display: flex; flex-direction: column; gap: 8px; }
 [data-ui-alignment] label { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+
+/* A fixed layout keeps normal control interaction, without promising a drag. */
+[data-ui-drag][draggable="false"],
+.ui-frame-handle[draggable="false"] > button,
+.frame-mini-control[draggable="false"],
+.ui-dock-divider[aria-disabled="true"],
+[data-ui-movable="false"] { cursor: default !important; }
+.ui-field-edge[draggable="false"] { pointer-events: none; }

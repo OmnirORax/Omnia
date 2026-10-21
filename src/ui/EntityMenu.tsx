@@ -89,7 +89,7 @@ export function EntityMenu<T extends string>({
         x: Math.max(4, Math.min(x, viewport.width - bounds.width - 8)),
         y: Math.max(4, Math.min(y, viewport.height - bounds.height - 8)),
       }}
-      enableResizing={{ right: true, bottomRight: true }}
+      enableResizing={ui.canMove(key) ? { right: true, bottomRight: true } : false}
       minWidth={60}
       maxWidth={viewport.width - 16}
       onResizeStop={(_, __, element) =>

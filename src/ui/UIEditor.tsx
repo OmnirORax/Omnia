@@ -58,6 +58,7 @@ export function UIEditor() {
   };
   if (!open) return null;
   return <FloatingWindow id="ui-editor" title="UI edit mode" width={450} height={670} onClose={close}>
+    <p>UI edit mode is on. Close this window to fix the layout again. Theme / aesthetics → UI rigidity lets you choose parts that remain movable outside this mode.</p>
     <p>Drag frame bars or field edges. Ctrl/Cmd-click selects items; Shift-click selects a range. Right-click to rename, style or close. Shift+MB4/MB5 undo and redo UI changes.</p>
     <UISection id="edit-tools" title="Arrange & recover">
       <div className="ui-editor-tools">{["ui:select", "ui:compact", "ui:align", "ui:createFrame", "ui:arrange", "ui:undo", "ui:redo", "ui:saveTemplate", "ui:loadTemplate", "ui:reset"].map(id => <FunctionControl key={id} id={id} />)}</div>

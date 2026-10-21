@@ -89,7 +89,7 @@ export function FrameChrome({
           data-ui-function={legacyHandleId}
           data-ui-inline-handle
           data-ui-drag={container}
-          draggable={!state.pinned}
+          draggable={ui.canMove(container)}
           aria-expanded={!state.collapsed}
           aria-pressed={selected}
           aria-label={title}
@@ -142,7 +142,7 @@ export function FrameChrome({
         <div
           className={`ui-frame-handle ${style.mode === "icon" ? `icon-handle shape-${style.geometry}` : ""}`}
           data-ui-drag={fixed ? undefined : container}
-          draggable={!fixed && !state.pinned}
+          draggable={!fixed && ui.canMove(container)}
           onDragStart={(e) => startResidentDrag(e, container)}
           title={ui.layout.hideNames ? title : ""}
         >

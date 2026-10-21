@@ -5,7 +5,6 @@ import { DockLayout } from "./DockLayout";
 import {
   getContainer,
   residentKey,
-  residentPinned,
   updateContainer,
   type UIResident,
 } from "./layout";
@@ -271,8 +270,9 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
             fill="transparent"
             stroke="transparent"
             strokeWidth="16"
+            data-ui-movable={ui.canMove(container)}
             onPointerDown={(e) => {
-              if (e.button !== 0 || residentPinned(ui.layout, container)) return;
+              if (e.button !== 0 || !ui.canMove(container)) return;
               e.preventDefault();
               e.stopPropagation();
               gesture.current = {

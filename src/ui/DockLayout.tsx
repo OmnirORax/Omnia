@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DockFillContext, useUI } from "./context";
-import { getContainer, residentPinned, updateContainer } from "./layout";
+import { getContainer, updateContainer } from "./layout";
 import { dockSplitStyle, updateDockNode, type DockNode } from "./dockTree";
 import { DockHost } from "./DockHost";
 import { captureUIPointer, startResidentDrag } from "./drag";
@@ -28,7 +28,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
           className={`ui-dock-tab ${style?.mode === "icon" ? `function-icon shape-${style.geometry}` : ""}`}
           data-ui-drag={key} data-ui-inline-handle data-ui-name={title} data-ui-symbol={nameSymbol(key, title)} data-ui-proxy-for={key}
           aria-label={title} title={ui.layout.hideNames || style?.mode === "icon" ? title : ""}
-          draggable={!residentPinned(ui.layout, key)}
+          draggable={ui.canMove(key)}
           onDragStart={event => startResidentDrag(event, key)}
           onContextMenu={event => { event.preventDefault(); event.stopPropagation(); ui.frameMenu(key, event.clientX, event.clientY); }}
           onClick={() => ui.update(layout => {
@@ -100,15 +100,15 @@ function DockSplit({ node, path, container }: { node: Extract<DockNode, { kind: 
     style={dockSplitStyle(node.axis, ratio)}>
     <DockBranch node={node.first} path={[...path, 0]} container={container} />
     <div role="separator" tabIndex={0} aria-label="Resize dock split" aria-orientation={horizontal ? "vertical" : "horizontal"}
-      aria-valuenow={Math.round(ratio * 100)} className="ui-dock-divider" data-ui-resize
+      aria-valuenow={Math.round(ratio * 100)} aria-disabled={!ui.canMove(container)} className="ui-dock-divider" data-ui-resize
       onPointerDown={event => {
-        if (event.button !== 0 || residentPinned(ui.layout, container)) return;
+        if (event.button !== 0 || !ui.canMove(container)) return;
         event.preventDefault(); event.stopPropagation();
         const bounds = root.current!.getBoundingClientRect();
         gesture.current = { pointer: event.pointerId, start: horizontal ? bounds.x : bounds.y, extent: horizontal ? bounds.width : bounds.height, ratio: node.ratio, release: captureUIPointer(event.pointerId, event.pointerType) };
       }}
       onKeyDown={event => {
-        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) || residentPinned(ui.layout, container)) return;
+        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) || !ui.canMove(container)) return;
         event.preventDefault(); event.stopPropagation();
         commit(Math.max(0.1, Math.min(0.9, node.ratio + (["ArrowRight", "ArrowDown"].includes(event.key) ? 0.025 : -0.025))));
       }} />

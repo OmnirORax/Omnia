@@ -1,3 +1,4 @@
+import { residentMovable } from "./rigidity";
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
 import { withControlCaption } from "./captions";
@@ -175,7 +176,7 @@ function FunctionElement({
     "data-ui-native-home": nativeAnchor?.id,
     title: ui.layout.hideNames ? fn.label : "",
     draggable:
-      (!fn.control || palette || style.mode === "icon") && !functionPinned(ui.layout, fn.id),
+      (!fn.control || palette || style.mode === "icon") && ui.canMove(`function:${fn.id}`),
     onDragStart: (e: DragEvent) => {
       if ((e.target as Element).closest("input,select,textarea")) return;
       e.dataTransfer.setData(MIME, fn.id);
@@ -202,7 +203,7 @@ function FunctionElement({
             className={`ui-field-edge edge-${edge}`}
             title={ui.layout.hideNames ? fn.label : ""}
             data-ui-drag={`function:${fn.id}`}
-            draggable={!functionPinned(ui.layout, fn.id)}
+            draggable={ui.canMove(`function:${fn.id}`)}
             onDragStart={(e) => startResidentDrag(e, `function:${fn.id}`)}
           />
         ))}
@@ -337,9 +338,9 @@ export function UIPanel({
         title={`Float ${title}`}
         aria-label={`Undock ${id} panel`}
         data-ui-drag={key}
-        draggable
+        draggable={ui.canMove(key)}
         onDragStart={(e) => startResidentDrag(e, key)}
-        onClick={() => float(true)}
+        onClick={() => ui.canMove(key) && float(true)}
       >↗</button>}
       <div className={`ui-panel-body ${className}`} hidden={state.collapsed} style={menu ? { width: Math.min(state.width, window.innerWidth - 24), left: popup.left, maxHeight: popup.height } : undefined}>
       <UIHomeContext.Provider value={key}><UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
@@ -398,7 +399,7 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
       size={{ width: stackedParent ? "100%" : edgeBounds?.width ?? (!nested ? visible.width : rectangular ? width : bounds.width), height: edgeBounds?.height ?? (!nested ? visible.height : structured && !frame.collapsed ? frame.height ?? 420 : bounds.height) }}
       disableDragging
       enableResizing={
-        !dockFill && !stackedParent && !residentPinned(ui.layout, key) && !frame.collapsed
+        !dockFill && !stackedParent && ui.canMove(key) && !frame.collapsed
           ? frame.dockEdge ? { [frame.dockEdge === "left" ? "right" : frame.dockEdge === "right" ? "left" : frame.dockEdge === "top" ? "bottom" : "top"]: true } : structured ? true : { right: true, bottomRight: true }
           : false
       }
@@ -635,6 +636,7 @@ export function UIWorkspace({
     ...s,
     windows: Object.fromEntries([...new Set([...defaults.keys(), ...Object.keys(s.windows)])].map(id => [id, { ...defaults.get(id), ...s.windows[id] }])),
   });
+  const canMove = (key: string) => residentMovable(ensure(layout), key, functions);
   const buttonSelection = useButtonSelection({
     layout: ensure(layout),
     update,
@@ -712,6 +714,7 @@ export function UIWorkspace({
         handle?.dataset.uiDrag ??
         (fn ? `function:${fn.dataset.uiFunction}` : "");
       if (!key) return;
+      if (!residentMovable(ensure(current.current.layout), key, current.current.functions)) { event.preventDefault(); return; }
       const nativeOwner =
         fn?.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot;
       if (
@@ -874,6 +877,7 @@ export function UIWorkspace({
       const source = drag.current;
       if (!source || source.cancelled) return null;
       const s = effectiveLayout();
+      if (!residentMovable(s, source.key, current.current.functions)) return { text: "Enable UI edit mode to rearrange fixed UI" };
       const boundsOf = (element: Element): DOMRect => source.targetBounds.get(element) ?? element.getBoundingClientRect();
       const originOf = (element: HTMLElement) => source.zoneOrigins.get(element) ?? { x: Number(element.dataset.originX || 0), y: Number(element.dataset.originY || 0) };
       if (source.control) {
@@ -1308,6 +1312,7 @@ export function UIWorkspace({
       if (!p) return;
       current.current.update((previous) => {
         let s = ensure(previous);
+        if (!residentMovable(s, source.key, current.current.functions)) return previous;
         const payload = getContainer(s, source.key);
         if (payload && "inline" in payload && payload.inline) {
           const root = [...document.querySelectorAll<HTMLElement>("[data-ui-inline-group]")].find(
@@ -1568,6 +1573,7 @@ export function UIWorkspace({
     <UIContext.Provider
       value={{
         layout,
+        canMove,
         update,
         functions,
         shortcutBindings: shortcuts?.bindings,
@@ -1673,7 +1679,7 @@ export function UIWorkspace({
               <ContextSubmenu label="Layout">
                 {FRAME_LAYOUTS.map(mode => <div key={mode.id} className={`ui-frame-layout-option ${(menuContainer.layoutMode ?? "freeform") === mode.id ? "is-current" : ""}`}>
                   <UIAction id={`ui:frameLayout:${mode.id}`} label={mode.label} category="Interface"
-                    disabled={residentPinned(ensure(layout), menu.owner!) || (menuContainer.layoutMode ?? "freeform") === mode.id}
+                    disabled={!canMove(menu.owner!) || (menuContainer.layoutMode ?? "freeform") === mode.id}
                     onClick={() => { update(layout => setFrameLayout(ensure(layout), menu.owner!, mode.id)); setMenu(null); }} />
                 </div>)}
               </ContextSubmenu>
@@ -1727,7 +1733,7 @@ export function UIWorkspace({
                 Frame handle appearance
               </button>
               <button
-                disabled={residentPinned(ensure(layout), menu.owner)}
+                disabled={!canMove(menu.owner)}
                 onClick={() => {
                   update((s) => resetContainer(ensure(s), menu.owner!));
                   setMenu(null);
@@ -1736,7 +1742,7 @@ export function UIWorkspace({
                 Reset this frame’s arrangement
               </button>
               {ownerOf(layout, menu.owner) && (
-                <button
+                <button disabled={!canMove(menu.owner)}
                   onClick={() => {
                     update((s) => floatResident(s, menu.owner!, menu.x, menu.y));
                     setMenu(null);
@@ -1956,7 +1962,7 @@ export function UIWorkspace({
                 }
               />
               <UIAction id="ui:editor:returnFunction" label="Return to default location"
-                disabled={functionPinned(layout, selected.id)}
+                disabled={!canMove(`function:${selected.id}`)}
                 onClick={() => update((s) => detachFunction(s, selected.id, 0, 0, true))}
               />
             </EmbeddedGroup>

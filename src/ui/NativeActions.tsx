@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useUI } from "./context";
-import { functionPinned, ownerOf } from "./layout";
+import { ownerOf } from "./layout";
 import { stableUIHash } from "./identity";
 import { useAppearance } from "../appearance/Context";
 import { iconTintFor } from "../appearance/Styles";
@@ -125,7 +125,7 @@ export function NativeActions() {
       element.dataset.uiNameFallback = element.title.split(/\s*·\s*|;\s*/)[0];
     // Unknown expandable buttons are not complete movable groups. Their declared
     // container must provide the payload; never hide/move a header on its own.
-    element.draggable = !element.hasAttribute("aria-expanded") && !functionPinned(layout, id);
+    element.draggable = !element.hasAttribute("aria-expanded") && latest.current.canMove(`function:${id}`);
     const renamed = layout.labels?.[`function:${id}`];
     if (renamed) {
       element.dataset.uiCaption = renamed;

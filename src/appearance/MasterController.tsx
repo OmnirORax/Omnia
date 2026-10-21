@@ -18,17 +18,21 @@ import { stableUIHash } from "../ui/identity";
 import { UIAction } from "../ui/UIAction";
 import { useUI } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
+import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityTargets, toggleRigidity } from "../ui/rigidity";
 
 export function MasterController() {
   const ctx = useAppearance()!;
   const ui = useUI();
   const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
-  const { state, targets } = ctx;
+  const { state } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
     [savedQuery, setQuery] = useState(""),
     [expanded, setExpanded] = useState<Set<string>>(() => new Set(["all", "ui", "text", "omnium"]));
   const property = ctx.location?.property ?? selectedProperty,
     query = ctx.location ? "" : savedQuery;
+  const rigidity = property === UI_RIGIDITY_PROPERTY;
+  const effectiveLayout = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
+  const targets = rigidity ? rigidityTargets(ctx.targets, effectiveLayout, ui.functions, ui.frameActions) : ctx.targets;
   const active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
   const structureKey = JSON.stringify(
     targets.map((t) => [t.id, t.parent, t.label, t.properties, t.instance]),
@@ -100,7 +104,7 @@ export function MasterController() {
     if (!matches(target)) return null;
     const nested = children.get(target.id) ?? [],
       can = applicable(target),
-      lit = included(active, targets, target.id);
+      lit = rigidity ? rigidityIncluded(effectiveLayout, targets, target.id, ui.functions) : included(active, targets, target.id);
     const locks = state.locks[target.id],
       ancestorLock = paths
         .get(target.id)!
@@ -140,11 +144,13 @@ export function MasterController() {
           </button>
           <button
             className="appearance-target"
-            aria-label={`Target ${target.label}`}
-            title={`${lit ? "Exclude" : "Include"} ${target.label}`}
+            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `Target ${target.label}`}
+            title={rigidity ? `${lit ? "Allow moving" : "Fix"} ${target.label} outside UI edit mode` : `${lit ? "Exclude" : "Include"} ${target.label}`}
             aria-pressed={lit}
             disabled={!can}
-            onClick={() => ctx.commit(toggleTarget(state, targets, target.id))}
+            onClick={() => rigidity
+              ? ui.update(layout => toggleRigidity({ ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows } }, targets, target.id, ui.functions))
+              : ctx.commit(toggleTarget(state, targets, target.id))}
           >
             <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
               <circle cx="8" cy="8" r="6" fill={lit ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" />
@@ -155,7 +161,7 @@ export function MasterController() {
             aria-label={`${off ? "Connect" : "Disconnect"} ${target.label}`}
             title="Connect / bypass saved property application; values are retained"
             aria-pressed={!off}
-            disabled={!can}
+            disabled={rigidity || !can}
             onClick={() => ctx.plug(target.id)}
           >
             <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -173,7 +179,7 @@ export function MasterController() {
               </span>
             )}
           </span>
-          {target.properties?.includes(property) && (
+          {!rigidity && target.properties?.includes(property) && (
             <UIField id={`ui:appearance:target:${stableUIHash(target.id)}:${property}`} label={`${target.label} ${property}`} category="Appearance"><PropertyEditor
               property={property}
               effectKinds={target.effectKinds}
@@ -183,13 +189,13 @@ export function MasterController() {
               onCommit={(v) => change(v, false, target.id)}
             /></UIField>
           )}
-          <LockControl
+          {!rigidity && <LockControl
             label={target.label}
             rule={locks}
             properties={properties}
             inherited={ancestorLock}
             onToggle={(p) => ctx.lock(target.id, p)}
-          />
+          />}
         </div>
         {open && nested.map((child) => row(child, depth + 1))}
       </div>
@@ -222,13 +228,18 @@ export function MasterController() {
       </UISection>
       <NameVisibilityControl />
       <PropertyTree
+        extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity" }]}
         selected={property}
         onSelect={(id) => {
           ctx.preview(null);
           ctx.locate(null, true);
           setProperty(id);
         }}
-        renderEditor={(id) => <FunctionControl id={`ui:master:${id}`} />}
+        renderEditor={(id) => id === UI_RIGIDITY_PROPERTY ? <>
+          <p>Included parts stay fixed outside UI edit mode. Exclude a branch or individual item to let it move freely. Normal clicks and field editing stay available.</p>
+          <UIAction id="ui:rigidity:editMode" label={ui.layout.panels["@devMode"] ? "Exit UI edit mode" : "Enter UI edit mode"}
+            category="Interface" onClick={() => ui.update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } }))} />
+        </> : <FunctionControl id={`ui:master:${id}`} />}
       />
       <EmbeddedGroup
         id={APPEARANCE_HIERARCHY_ID}
@@ -256,7 +267,7 @@ export function MasterController() {
             setQuery(e.target.value);
           }}
         /></label></UIField>
-        <small>⬤ included · ○ excluded · ⏻ apply / bypass saved appearance · ◆ local refinement</small>
+        <small>{rigidity ? "⬤ fixed outside UI edit mode · ○ movable outside UI edit mode · explicit pins still apply" : "⬤ included · ○ excluded · ⏻ apply / bypass saved appearance · ◆ local refinement"}</small>
         <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
           {(children.get("") ?? []).map((t) => row(t, 0))}
         </div>

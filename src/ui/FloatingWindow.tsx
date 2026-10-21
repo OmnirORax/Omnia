@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
-import { fitWindow, getContainer, ownerOf, releaseResident, residentPinned, type WindowState } from "./layout";
+import { fitWindow, getContainer, ownerOf, releaseResident, type WindowState } from "./layout";
 import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
@@ -167,7 +167,7 @@ export function FloatingWindow({
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging
-        enableResizing={!dockFill && !stacked && !residentPinned(ui.layout, key) && !state.collapsed}
+        enableResizing={!dockFill && !stacked && ui.canMove(key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
         onMouseDown={(event) => {

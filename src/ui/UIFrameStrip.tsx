@@ -2,7 +2,7 @@ import { Children, isValidElement, useLayoutEffect, useRef, useState, useSyncExt
 import { Rnd } from "react-rnd";
 import { flushSync } from "react-dom";
 import { useUI } from "./context";
-import { getContainer, ownerOf, residentKey, residentPinned, updateContainer, type WindowState } from "./layout";
+import { getContainer, ownerOf, residentKey, updateContainer, type WindowState } from "./layout";
 import { DockArea } from "./DockArea";
 import { FloatingWindow } from "./FloatingWindow";
 import { useDockWorkspace } from "./DockWorkspace";
@@ -67,7 +67,7 @@ export function UIFrameStrip({ id, title = "Panels", vertical = false, children 
   if (!vertical) return rows;
   return <Rnd ref={root} className="ui-native-strip-frame" data-ui-resident-root={container}
     style={{ position: "relative" }} position={{ x: 0, y: 0 }} size={{ width: allocatedWidth ?? "100%", height: "100%" }} disableDragging
-    minWidth={160} maxWidth={maxWidth} enableResizing={residentPinned(ui.layout, container) ? false : { right: true }}
+    minWidth={160} maxWidth={maxWidth} enableResizing={!ui.canMove(container) ? false : { right: true }}
     resizeHandleStyles={{ right: { right: 0, width: 8, pointerEvents: "auto", zIndex: 2 } }}
     resizeHandleComponent={{ right: <span className="ui-native-strip-resize" data-ui-resize aria-label={`Resize ${name}`} /> }}
     // Freeze percentage sizing in pixels before the resizer captures its origin;

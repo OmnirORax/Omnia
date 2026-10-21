@@ -11,10 +11,12 @@ export type UIFunction = {
   available?: boolean;
   scope?: string;
   homePath?: string[];
+  rigidityTarget?: string;
 };
 export type UICommand = { action: "select" | "compact" | "align" | "reset" | "createFrame"; sequence: number };
 export type UIContextValue = {
   layout: UILayout;
+  canMove: (key: string) => boolean;
   update: (change: (layout: UILayout) => UILayout) => void;
   functions: UIFunction[];
   shortcutBindings?: Record<string, string>;
