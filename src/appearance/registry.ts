@@ -467,8 +467,7 @@ part(
   { legacy: "binderText", animation: { kind: "text", source: "binders", glyphsOnly: true } },
   text,
 );
-branch("symbols", "all", "Icons / symbols / visual assets");
-part("symbols.ui", "symbols", "UI icons", {
+part("symbols.ui", "ui", "UI icons", {
   selector: UI_INLINE_ICON_SELECTOR,
   css: "color",
   legacy: "accent",
@@ -479,11 +478,11 @@ part("symbols.ui", "symbols", "UI icons", {
     selector: `button img,.ui-frame-handle img,.appearance-icon-mask,${UI_INLINE_ICON_SELECTOR}`,
   },
 });
-part("symbols.nodes", "symbols", "Node visuals · defaults", {
+part("symbols.nodes", "omnium.nodes", "Node visuals · defaults", {
   legacy: "nodes.color",
   animation: { kind: "icons", source: "nodes" },
 });
-part("symbols.binders", "symbols", "Binder operators · defaults", {
+part("symbols.binders", "omnium.binders", "Binder operators · defaults", {
   legacy: "binders.color",
   animation: { kind: "icons", source: "binders", glyphsOnly: true },
 });
@@ -514,11 +513,10 @@ part("omnium.selection", "omnium", "Selection / focus rings", {
   legacy: "nodes.color",
   animation: { kind: "surface" },
 });
-branch("workspace", "all", "Workspace environment");
 part(
   "workspace.background",
-  "workspace",
-  "Background",
+  "all",
+  "Workspace background",
   { legacy: "background", animation: { kind: "surface", source: "background" } },
   ["color", "brightness"],
 );
