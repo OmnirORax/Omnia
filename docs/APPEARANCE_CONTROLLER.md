@@ -6,8 +6,8 @@ Open **Theme / aesthetics**. Choose a property above the tree; branches that sup
 
 Animation color/brightness/opacity/glow can be adjusted separately on the same branches. The general Color/Brightness/Opacity/Glow adjusters also update their unlocked animation channels. Selecting an effect never rewrites a branch's ordinary color, font or opacity.
 
-- **● → ○ → ◎ → ●** targets a branch, excludes it, isolates it, then restores other target selections. These controls select what the next adjustment affects; they never erase formatting.
-- **⏻** bypasses the branch's stored appearance without deleting its values. Reconnect to restore them. Bypassed properties use their neutral/default presentation, not invisible knowledge.
+- **Left-click the circle** to include or exclude a branch: filled means included, hollow means excluded. This selects what the next adjustment affects without erasing formatting.
+- **Right-click that same circle** to bypass or reconnect stored appearance: bright means connected, dark means bypassed. Filling stays independent of brightness. Bypass preserves saved values and targeting; parent bypasses still apply to descendants. Shift+F10 or the context-menu key offers the same bypass action with the keyboard. UI rigidity keeps its ordinary fixed/movable circle without an appearance bypass.
 - **🔒** protects a branch and its descendants from adjustments originating above it. Click for all properties; hover for individual property locks. Deliberate edits at a locked row remain possible. Lower locks still protect descendants.
 - Named **appearance sets** remember targeting, exclusions, isolation and last adjuster values. Switching sets does not replay their values. Theme templates save the complete controller and its current presentation.
 

@@ -136,7 +136,7 @@ export function NativeActions() {
       if (entry.originalName === null) delete element.dataset.uiName; else element.dataset.uiName = entry.originalName;
       if (entry.originalAria === null) element.removeAttribute("aria-label"); else element.setAttribute("aria-label", entry.originalAria);
     }
-    const title = layout.hideNames ? renamed ?? entry.label : "";
+    const title = element.hasAttribute("data-ui-preserve-title") ? element.title : layout.hideNames ? renamed ?? entry.label : "";
     if (element.title !== title) element.title = title;
     element.dataset.uiNativeTitle = "true";
     element.toggleAttribute(

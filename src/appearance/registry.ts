@@ -358,7 +358,7 @@ part("ui.swatches", "ui.fields", "Color swatch contours", {
 });
 branch("ui.buttons", "ui.contents", "Buttons / action controls");
 part("ui.buttons.background", "ui.buttons", "Background", {
-  selector: "button:not(.appearance-target):not(.appearance-plug):not(.appearance-lock)",
+  selector: "button:not(.appearance-target):not(.appearance-lock)",
   css: "background-color",
   legacy: "controlBackground",
 });

@@ -145,7 +145,7 @@ export function MasterController() {
         .get(target.id)!
         .slice(0, -1)
         .some((id) => ruleHas(state.locks[id], property));
-    const off = paths.get(target.id)!.some((id) => ruleHas(state.disconnected[id], property));
+    const off = !rigidity && paths.get(target.id)!.some((id) => ruleHas(state.disconnected[id], property));
     const refined = state.refined[target.id]?.includes(property),
       open =
         expanded.has(target.id) ||
@@ -175,33 +175,35 @@ export function MasterController() {
             {nested.length ? (open ? "▾" : "▸") : "·"}
           </button>
           <button
-            className="appearance-target"
-            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `Target ${target.label}`}
-            title={rigidity ? `${lit ? "Allow moving" : "Fix"} ${target.label} outside UI edit mode` : `${lit ? "Exclude" : "Include"} ${target.label}`}
+            className={`appearance-target ${off ? "is-disconnected" : ""}`}
+            data-ui-preserve-title
+            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `${target.label}: ${lit ? "included" : "excluded"}, ${off ? "bypassed" : "connected"}`}
+            title={rigidity ? `${lit ? "Allow moving" : "Fix"} ${target.label} outside UI edit mode` : `Left-click: ${lit ? "exclude" : "include"} ${target.label}. Right-click: toggle saved appearance bypass. Filled / hollow = included / excluded; bright / dark = connected / bypassed. Parent bypasses also apply. Shift+F10 toggles bypass with the keyboard.`}
             aria-pressed={lit}
+            aria-keyshortcuts={rigidity ? undefined : "Shift+F10"}
             disabled={!can}
             onMouseEnter={() => reveal(target, true)}
             onMouseLeave={() => reveal(target, false)}
             onFocus={() => reveal(target, true)}
             onBlur={() => reveal(target, false)}
+            onContextMenuCapture={event => {
+              if (rigidity || !can) return;
+              event.preventDefault();
+              event.stopPropagation();
+              ctx.plug(target.id);
+            }}
+            onKeyDown={event => {
+              if (rigidity || !can || !(event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) return;
+              event.preventDefault();
+              event.stopPropagation();
+              ctx.plug(target.id);
+            }}
             onClick={() => rigidity
               ? ui.update(layout => toggleRigidity({ ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows } }, targets, target.id, ui.functions))
               : ctx.commit(toggleTarget(state, targets, target.id))}
           >
             <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
               <circle cx="8" cy="8" r="6" fill={lit ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-          </button>
-          <button
-            className={`appearance-plug ${off ? "is-disconnected" : ""}`}
-            aria-label={`${off ? "Connect" : "Disconnect"} ${target.label}`}
-            title="Connect / bypass saved property application; values are retained"
-            aria-pressed={!off}
-            disabled={rigidity || !can}
-            onClick={() => ctx.plug(target.id)}
-          >
-            <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M8 2v6M4 4.3a5.5 5.5 0 1 0 8 0" />
             </svg>
           </button>
           <span className="appearance-row-name">
