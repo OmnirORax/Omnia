@@ -31,6 +31,7 @@ export function MasterController() {
     [expanded, setExpanded] = useState<Set<string>>(() => new Set(["all", "ui", "text", "omnium"]));
   const property = ctx.location?.property ?? selectedProperty;
   const rigidity = property === UI_RIGIDITY_PROPERTY;
+  const showIndividuals = !!ui.layout.panels["@appearanceShowIndividuals"];
   const effectiveLayout = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
   const targets = rigidity ? rigidityTargets(ctx.targets, effectiveLayout, ui.functions, ui.frameActions) : ctx.targets;
   const active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
@@ -50,12 +51,15 @@ export function MasterController() {
   );
   const children = useMemo(() => {
     const map = new Map<string, RegisteredTarget[]>();
+    const individualGroups = new Set(ctx.targets.flatMap(target =>
+      target.instance ? [`${target.instance.base}.custom`] : []));
     for (const t of targets) {
+      if (!showIndividuals && (t.instance || individualGroups.has(t.id))) continue;
       if (rigidity && !rigidityRowVisible(t, ctx.targets, effectiveLayout)) continue;
       map.set(t.parent ?? "", [...(map.get(t.parent ?? "") ?? []), t]);
     }
     return map;
-  }, [structureKey, rigidity, ctx.targets, ui.layout.uiRigidity]);
+  }, [structureKey, rigidity, showIndividuals, ctx.targets, ui.layout.uiRigidity]);
   const currentEffect = active.adjustments?.effect ?? "off";
   const applicable = (t: RegisteredTarget): boolean =>
     (descendants.get(t.id) ?? []).some(
@@ -98,6 +102,14 @@ export function MasterController() {
       hovered.current = null; highlighted.current?.stop(); revealSession.current?.stop();
     }
   }, [hierarchyOpen]);
+  useEffect(() => {
+    const target = targets.find(target => target.id === hovered.current);
+    if (!showIndividuals && target && (target.instance || target.id.endsWith(".custom"))) {
+      hovered.current = null;
+      highlighted.current?.stop();
+      revealSession.current?.stop();
+    }
+  }, [showIndividuals]);
   const reveal = (target: RegisteredTarget, on: boolean) => {
     if (target.id === "all") on = false;
     revealSession.current?.stop();
@@ -282,6 +294,12 @@ export function MasterController() {
           });
         }}
       >
+        <UIField id="ui:appearance:showIndividuals" label="Show individuals" category="Appearance">
+          <label><input type="checkbox" checked={showIndividuals} onChange={event => {
+            const show = event.target.checked;
+            ui.update(layout => ({ ...layout, panels: { ...layout.panels, "@appearanceShowIndividuals": show } }));
+          }} /> Show individuals</label>
+        </UIField>
         <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
           {(children.get("") ?? []).map((t) => row(t, 0))}
         </div>

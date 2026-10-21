@@ -15,6 +15,8 @@ The shared adjuster applies to included, applicable descendants, respecting lowe
 
 Right-click a frame handle or button and open its existing appearance editor for local refinements. Choose the part and property there. A stable reference to the resident appears under the corresponding category → **Individually customized**, marked **◆** for each locally refined property. An eligible categorical edit replaces that refinement; lock it to protect it. Hover its master entry to reveal and pulse the actual resident, restoring transient expansion and scrolling afterward. Search uses the same reveal mechanism.
 
+**Show individuals** is off by default. Enable it in Visual hierarchy to display individually customized entries and their groups, including eligible individual rigidity entries. The setting is saved with the UI layout. Hiding these rows preserves their customizations and keeps category targeting and hover behavior intact.
+
 ## Data and ownership
 
 `appearance.controller.version = 1` is optional in older saved settings. Normalization adds an empty controller while retaining legacy colors, fonts, animation choices and values as the baseline. Existing detached controls keep their IDs and edit the shared registry. Default controls use the tree instead of the former color/animation category dropdowns.
