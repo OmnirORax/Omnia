@@ -18,6 +18,7 @@ import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
 import { captureUIPointer } from "./drag";
 import { beginLiveDrag, dragSurface } from "./liveDrag";
+import { dockGuideAt } from "./dockGuides";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -101,7 +102,7 @@ import { useFrameBounds, residentBounds } from "./frameBounds";
 import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
-const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
+const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
 export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
@@ -689,6 +690,7 @@ export function UIWorkspace({
       cancelAnimationFrame(previewFrame); previewFrame = 0; pendingPoint = null;
     };
     let layoutSource: UILayout | undefined, dragLayout: UILayout;
+    let frameProjection: { layout: UILayout; intent: string; feedback: Pick<Preview, 'rect' | 'frameLayout'> } | undefined;
     const effectiveLayout = () => {
       if (layoutSource !== current.current.layout) {
         layoutSource = current.current.layout;
@@ -701,7 +703,7 @@ export function UIWorkspace({
       if (JSON.stringify(old) !== JSON.stringify(value)) placementPreview.set(value);
     };
     const start = (event: MouseEvent) => {
-      cancelFrame(); layoutSource = undefined;
+      cancelFrame(); layoutSource = undefined; frameProjection = undefined;
       const target = event.target as Element;
       if (target.closest("input,select,textarea,[data-ui-search]")) return;
       const mini = target.closest<HTMLElement>("[data-ui-control]");
@@ -747,7 +749,10 @@ export function UIWorkspace({
       // Resolve against one gesture snapshot while the real payload follows
       // the pointer. Its spacer preserves drop regions and coordinate origins.
       const targetBounds = new Map(
-        [...document.querySelectorAll(dropGeometrySelector)].map(el => [el, el.getBoundingClientRect()]),
+        [...document.querySelectorAll<HTMLElement>(dropGeometrySelector)].map(el => {
+          const box = el.hasAttribute('data-ui-resident-root') ? residentBounds(el) : el.getBoundingClientRect();
+          return [el, new DOMRect(box.x, box.y, box.width, box.height)] as const;
+        }),
       );
       const zoneOrigins = new Map(
         [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map(el => [el, {
@@ -778,6 +783,12 @@ export function UIWorkspace({
     };
     const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
       if (source.control || source.key.startsWith("function:") || residentContextScope(s, source.key)) return;
+      const viewport = { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
+      const previous = placementPreview.getSnapshot()?.frameDock;
+      // A compact target's guide can extend beyond its original bounds. Honor
+      // the visible guide first, rather than interpreting it as a new target.
+      const chosen = previous?.bounds && dockGuideAt(previous.bounds, viewport, x, y);
+      if (chosen && previous?.target && canDock(s, source.key, previous.target)) return { ...previous, side: chosen };
       const area = dockWorkspaceArea();
       const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
       const edge = (Object.keys(distances) as Exclude<DockSide, "tab">[]).find(side => distances[side] >= -8 && distances[side] <= 14);
@@ -799,7 +810,7 @@ export function UIWorkspace({
         const near = { left: x - bounds.left, right: bounds.right - x, top: y - bounds.top, bottom: bounds.bottom - y };
         const header = !!element.closest("[data-ui-chrome],.ui-dock-tab-strip");
         // A title/tab strip groups panels. The outermost edge still allows a split.
-        const side = (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
+        const side = dockGuideAt(bounds, viewport, x, y) ?? (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
         const center = Math.abs(x-bounds.x-bounds.width/2) <= 32 && Math.abs(y-bounds.y-bounds.height/2) <= 32;
         if (!side && !header && !center) return;
         const width = Math.min(area.width, Math.max(280, bounds.width)), height = Math.min(area.height, Math.max(220, bounds.height));
@@ -809,6 +820,25 @@ export function UIWorkspace({
         const host = strip ? { container: strip.dataset.uiFrameStrip!, order: strip.dataset.uiFrameOrder!, keys: [...strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(a.style.order)-Number(b.style.order)).map(slot => slot.dataset.uiFrameSlot!) } : undefined;
         return { target, side: side ?? "tab", rect, bounds, host };
       }
+    };
+    const frameFeedback = (source: DragState, layout: UILayout, intent: FrameDock): Pick<Preview, 'rect' | 'frameLayout'> => {
+      const signature = JSON.stringify(intent);
+      if (frameProjection?.layout === layout && frameProjection.intent === signature) return frameProjection.feedback;
+      // Project the actual transaction, never construct a second docking model.
+      const projected = dockFrame(layout, source.key, intent);
+      const groupKey = ownerOf(projected, source.key) ?? source.key;
+      const group = getContainer(projected, groupKey);
+      let rect = intent.rect;
+      let title: string | undefined = group && 'name' in group ? group.name : 'Dock group';
+      if (getContainer(layout, groupKey)?.dockLayout && !intent.edge) {
+        const root = [...document.querySelectorAll<HTMLElement>('[data-ui-resident-root]')].find(el => el.dataset.uiResidentRoot === groupKey);
+        const body = root && [...root.querySelectorAll<HTMLElement>('.ui-structured-body,.ui-embedded-dock-layout')]
+          .find(el => el.closest('[data-ui-resident-root]') === root && el.getClientRects().length);
+        if (body) { rect = source.targetBounds.get(body) ?? body.getBoundingClientRect(); title = undefined; }
+      }
+      const feedback = { rect, frameLayout: group?.dockLayout ? { tree: group.dockLayout, source: source.key, title } : undefined };
+      frameProjection = { layout, intent: signature, feedback };
+      return feedback;
     };
     const resolveTarget = (x: number, y: number): Preview | null => {
       const source = drag.current;
@@ -844,15 +874,8 @@ export function UIWorkspace({
       });
       const frameDock = frameDockIntent(source, s, x, y, hitElements);
       if (frameDock) {
-        const parent = frameDock.target && ownerOf(s, frameDock.target);
-        const targetRect = parent && getContainer(s, parent)?.dockLayout ? frameDock.bounds ?? frameDock.rect : frameDock.rect;
         const side = frameDock.side;
-        const rect = side === "tab" || frameDock.edge ? { ...frameDock.rect }
-          : { ...targetRect, x: side === "right" ? targetRect.x + targetRect.width / 2 : targetRect.x,
-              y: side === "bottom" ? targetRect.y + targetRect.height / 2 : targetRect.y,
-              width: side === "left" || side === "right" ? targetRect.width / 2 : targetRect.width,
-              height: side === "top" || side === "bottom" ? targetRect.height / 2 : targetRect.height };
-        return { frameDock, rect, text: frameDock.edge ? `Dock at ${side} workspace edge` : side === "tab" ? "Group as tabs" : `Dock ${side} · resize with the divider` };
+        return { frameDock, ...frameFeedback(source, s, frameDock), text: frameDock.edge ? `Dock at ${side} workspace edge` : side === "tab" ? "Group as tabs" : `Dock ${side} · resize with the divider` };
       }
       if (
         source.key.startsWith("window:") &&
@@ -962,7 +985,7 @@ export function UIWorkspace({
           if (boxes.has(hit.key)) {
             const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side);
             if (insertion.baseline.some(member => { const box = boxes.get(residentKey(member)); return box && residentPinned(s, residentKey(member)) && (member.position?.x !== box.x || member.position?.y !== box.y); })) return { text: "Unpin neighboring frames before shifting them" };
-            return { text, rect, dock: { key: source.key, target: hit.target, index: (c.members ?? []).findIndex(m => residentKey(m) === hit.key) + (after ? 1 : 0), breakBefore: false, width: source.width, height: source.height, ...insertion } };
+            return { text, rect, destination: true, dock: { key: source.key, target: hit.target, index: (c.members ?? []).findIndex(m => residentKey(m) === hit.key) + (after ? 1 : 0), breakBefore: false, width: source.width, height: source.height, ...insertion } };
           }
         }
       }

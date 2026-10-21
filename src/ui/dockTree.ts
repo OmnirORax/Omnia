@@ -4,6 +4,13 @@ export type DockNode =
   | { kind: "tabs"; keys: string[]; active: string }
   | { kind: "split"; axis: "horizontal" | "vertical"; ratio: number; first: DockNode; second: DockNode };
 
+/** The live dock and its destination preview allocate the same divider space. */
+export function dockSplitStyle(axis: 'horizontal' | 'vertical', ratio: number) {
+  const tracks = `minmax(0, ${ratio}fr) 6px minmax(0, ${1-ratio}fr)`;
+  return { gridTemplateColumns: axis === 'horizontal' ? tracks : undefined,
+    gridTemplateRows: axis === 'vertical' ? tracks : undefined };
+}
+
 export const dockKeys = (node?: DockNode): string[] => !node ? [] : node.kind === "tabs"
   ? node.keys : [...dockKeys(node.first), ...dockKeys(node.second)];
 export const dockTabs = (key: string): DockNode => ({ kind: "tabs", keys: [key], active: key });

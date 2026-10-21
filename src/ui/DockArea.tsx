@@ -1,7 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUI } from "./context";
 import { useDockPreview } from "./PlacementPreview";
-import { createPortal } from "react-dom";
 import { DockLayout } from "./DockLayout";
 import {
   getContainer,
@@ -316,16 +315,6 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
           origin={{ x: minX, y: minY }}
         />
       ))}
-      {preview?.screenRect && createPortal(
-        <div
-          className="ui-drop-ghost ui-dock-preview-overlay"
-          data-ui-ghost="true"
-          data-ui-preview-target={container}
-          aria-hidden="true"
-          style={{ left: preview.screenRect.x, top: preview.screenRect.y, width: preview.screenRect.width, height: preview.screenRect.height }}
-        >Drop here{preview.magnetic ? " · magnetic" : ""}</div>,
-        document.body,
-      )}
     </div>
   );
 }
