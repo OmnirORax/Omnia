@@ -169,6 +169,7 @@ export function included(set: AppearanceSet, targets: Target[], id: string): boo
   for (const key of relevant) if (Object.hasOwn(set.selection, key)) on = set.selection[key];
   return on;
 }
+/** Legacy isolate-cycle compatibility. Current editors use toggleTarget. */
 export function cycleTarget(state: Controller, targets: Target[], id: string): Controller {
   const next = structuredClone(state),
     set = next.sets.find((s) => s.id === next.activeSet)!;
@@ -182,6 +183,27 @@ export function cycleTarget(state: Controller, targets: Target[], id: string): C
     for (const key of Object.keys(set.selection))
       if (key !== id && inside(targets, key, id)) delete set.selection[key];
   }
+  return next;
+}
+/** Binary branch selection: a parent sets the baseline, descendants may then
+ * override it. Toggling a branch deliberately resets its existing exceptions. */
+export function toggleTarget(state: Controller, targets: Target[], id: string): Controller {
+  const next = structuredClone(state),
+    set = next.sets.find((s) => s.id === next.activeSet) ?? next.sets[0];
+  if (set.only) {
+    // Preserve the effective mask of older isolate-mode saves using ordinary
+    // inherited on/off rules before making the first binary edit.
+    const only = set.only, selection: Record<string, boolean> = {};
+    for (const target of targets) if (!target.parent) selection[target.id] = false;
+    selection[only] = true;
+    for (const [key, value] of Object.entries(set.selection))
+      if (key !== only && inside(targets, key, only)) selection[key] = value;
+    set.selection = selection;
+    delete set.only;
+  }
+  set.selection[id] = !included(set, targets, id);
+  for (const key of Object.keys(set.selection))
+    if (key !== id && inside(targets, key, id)) delete set.selection[key];
   return next;
 }
 export function toggleRule(

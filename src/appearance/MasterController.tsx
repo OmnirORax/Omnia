@@ -1,7 +1,7 @@
 import { transientReveal, type RevealSession } from "../ui/transientReveal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
-import { ancestry, applyValue, cycleTarget, included, ruleHas, type Value } from "./model";
+import { ancestry, applyValue, toggleTarget, included, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
@@ -100,8 +100,7 @@ export function MasterController() {
     if (!matches(target)) return null;
     const nested = children.get(target.id) ?? [],
       can = applicable(target),
-      lit = can && included(active, targets, target.id),
-      isolated = active.only === target.id;
+      lit = included(active, targets, target.id);
     const locks = state.locks[target.id],
       ancestorLock = paths
         .get(target.id)!
@@ -142,26 +141,26 @@ export function MasterController() {
           <button
             className="appearance-target"
             aria-label={`Target ${target.label}`}
-            title={
-              isolated
-                ? "Only this branch · click to restore other targets"
-                : lit
-                  ? "Branch on · click to exclude"
-                  : "Branch off · click to isolate"
-            }
+            title={`${lit ? "Exclude" : "Include"} ${target.label}`}
+            aria-pressed={lit}
             disabled={!can}
-            onClick={() => ctx.commit(cycleTarget(state, targets, target.id))}
+            onClick={() => ctx.commit(toggleTarget(state, targets, target.id))}
           >
-            {isolated ? "◎" : lit ? "●" : "○"}
+            <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" fill={lit ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" />
+            </svg>
           </button>
           <button
             className={`appearance-plug ${off ? "is-disconnected" : ""}`}
             aria-label={`${off ? "Connect" : "Disconnect"} ${target.label}`}
             title="Connect / bypass saved property application; values are retained"
+            aria-pressed={!off}
             disabled={!can}
             onClick={() => ctx.plug(target.id)}
           >
-            ⏻
+            <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M8 2v6M4 4.3a5.5 5.5 0 1 0 8 0" />
+            </svg>
           </button>
           <span className="appearance-row-name">
             <EditableLabel id={`appearance:target:${target.id}`} fallback={target.label} />
@@ -257,7 +256,7 @@ export function MasterController() {
             setQuery(e.target.value);
           }}
         /></label></UIField>
-        <small>● include · ○ exclude · ◎ only · ⏻ plug · ◆ local refinement</small>
+        <small>⬤ included · ○ excluded · ⏻ apply / bypass saved appearance · ◆ local refinement</small>
         <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
           {(children.get("") ?? []).map((t) => row(t, 0))}
         </div>

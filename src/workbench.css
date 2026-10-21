@@ -862,10 +862,12 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .appearance-row button { min-width: 18px; padding: 2px; border: 0; background: transparent; }
 .appearance-expand { width: 15px; flex: 0 0 15px; }
 .appearance-target,.appearance-plug,.appearance-lock { flex: 0 0 auto; width: 22px; border-radius: 50%; }
-.appearance-row.is-included > .appearance-target { text-shadow: 0 0 8px currentColor; box-shadow: inset 0 0 5px currentColor; }
+.appearance-row > :is(.appearance-target,.appearance-plug) { display: inline-grid; place-items: center; width: 22px; height: 22px; min-width: 22px; padding: 0; aspect-ratio: 1; text-shadow: none; box-shadow: none; }
+.appearance-toggle-icon { display: block; width: 16px; height: 16px; flex: none; }
+.appearance-plug:not(.is-disconnected) { filter: drop-shadow(0 0 3px currentColor); }
 .appearance-row.is-excluded > :is(.appearance-row-name,.appearance-target) { opacity: .4; }
 .appearance-row.not-applicable > .appearance-row-name { opacity: .25; }
-.appearance-plug.is-disconnected { opacity: .35; text-decoration: line-through; }
+.appearance-plug.is-disconnected { opacity: .35; }
 .appearance-lock-area { position: relative; display: inline-flex; }
 .appearance-lock-panel { position: fixed; top: 18px; right: 0; z-index: 2000; width: 190px; padding: 9px; background: var(--omnium-base,#10202f); border: 1px solid currentColor; border-radius: 6px; box-shadow: 0 4px 16px #0008; }
 .appearance-lock-panel > strong { display: block; font-size: 11px; margin-bottom: 6px; }

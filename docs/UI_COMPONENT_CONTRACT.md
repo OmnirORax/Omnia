@@ -1,5 +1,7 @@
 # Shared UI component contract
 
+Visual-hierarchy targeting uses a binary inherited edit mask: parents set the subtree baseline, and later child toggles create exceptions. Toggling a parent in either direction clears prior exceptions in that subtree. Excluding a target does not change its rendered appearance; the existing plug separately bypasses/restores saved styling. Current editors use `toggleTarget`; old isolate selections remain readable and become equivalent inherited masks on the first binary edit. The targeting/power controls use square hit areas and symmetric SVG geometry, with no isolate state in the UI.
+
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
