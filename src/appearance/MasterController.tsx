@@ -102,6 +102,7 @@ export function MasterController() {
     }
   }, [hierarchyOpen]);
   const reveal = (target: RegisteredTarget, on: boolean) => {
+    if (target.id === "all") on = false;
     revealSession.current?.stop();
     revealSession.current = null;
     highlighted.current?.stop();
