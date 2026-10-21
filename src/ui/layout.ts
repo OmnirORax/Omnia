@@ -11,7 +11,20 @@ export type UIArrangement = {
 };
 export type UISize = { width: number; height: number };
 export type Cell = { x: number; y: number };
-export type WindowState = {
+export type FrameLayoutMode = "freeform" | "stacked";
+export type FrameLayoutSnapshot = {
+  order: string[];
+  placements: Record<string, Pick<UIResident, "position" | "size" | "breakBefore">>;
+  bodyOffset?: Cell;
+  width?: number;
+  height?: number;
+  dockLayout?: DockNode;
+};
+type FrameLayoutState = {
+  layoutMode?: FrameLayoutMode;
+  layoutMemory?: Partial<Record<FrameLayoutMode, FrameLayoutSnapshot>>;
+};
+export type WindowState = FrameLayoutState & {
   x: number;
   y: number;
   width: number;
@@ -63,7 +76,7 @@ export type UIItem = {
   anchorId?: string;
   size?: UISize;
 };
-export type UIFrame = {
+export type UIFrame = FrameLayoutState & {
   id: string;
   name: string;
   x: number;
@@ -308,6 +321,25 @@ export function validateUILayout(value: unknown): UILayout {
       owners.set(`window:${id}`, inline.parent);
   }
   for (const [key, container] of containers(layout)) {
+    if (container.layoutMode !== undefined && !["freeform", "stacked"].includes(container.layoutMode)) throw new Error("Invalid frame layout mode.");
+    if (container.layoutMemory !== undefined) {
+      if (!record(container.layoutMemory) || Object.keys(container.layoutMemory).some(mode => !["freeform", "stacked"].includes(mode))) throw new Error("Invalid saved frame arrangements.");
+      for (const memory of Object.values(container.layoutMemory)) {
+        if (!record(memory) || !Array.isArray(memory.order) || memory.order.length > 500 ||
+            memory.order.some(key => typeof key !== "string" || !/^(function|frame|window):/.test(key) || key.length > 240) ||
+            new Set(memory.order).size !== memory.order.length || !record(memory.placements) || Object.keys(memory.placements).length > 500)
+          throw new Error("Invalid saved frame arrangement.");
+        for (const [key, placement] of Object.entries(memory.placements)) {
+          if (!memory.order.includes(key) || !record(placement) ||
+              (placement.position !== undefined && (!record(placement.position) || !numeric(placement.position.x) || !numeric(placement.position.y))) ||
+              (placement.size !== undefined && (!record(placement.size) || !numeric(placement.size.width) || !numeric(placement.size.height) || (placement.size.width as number) < 1 || (placement.size.height as number) < 1)) ||
+              (placement.breakBefore !== undefined && typeof placement.breakBefore !== "boolean")) throw new Error("Invalid saved frame placement.");
+        }
+        if (memory.bodyOffset !== undefined && (!record(memory.bodyOffset) || !numeric(memory.bodyOffset.x) || !numeric(memory.bodyOffset.y))) throw new Error("Invalid saved frame offset.");
+        for (const dimension of [memory.width, memory.height]) if (dimension !== undefined && (!numeric(dimension) || (dimension as number) < 40)) throw new Error("Invalid saved frame size.");
+        if (memory.dockLayout) validateDockNode(memory.dockLayout, new Set(memory.order));
+      }
+    }
     if (container.closed !== undefined && typeof container.closed !== "boolean") throw new Error("Invalid frame visibility.");
     if (container.floatingOverflow !== undefined && typeof container.floatingOverflow !== "boolean") throw new Error("Invalid floating placement.");
     if (container.dockLayout) validateDockNode(container.dockLayout, new Set((container.members ?? []).map(residentKey)));
@@ -734,6 +766,7 @@ export function resetContainer(layout: UILayout, key: string): UILayout {
       })),
       arrangement: undefined,
       bodyOffset: undefined,
+      layoutMemory: undefined,
       dockLayout: undefined,
       dockEdge: undefined,
       ...(key.startsWith("frame:") ? { width: 280 } : { width: 420, height: 560 }),

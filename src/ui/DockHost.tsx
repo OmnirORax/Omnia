@@ -21,6 +21,7 @@ export function DockHost({
   collapsed = false,
   autoSize = false,
   fill = false,
+  stacked = false,
 }: {
   id: string;
   width: number;
@@ -28,6 +29,7 @@ export function DockHost({
   collapsed?: boolean;
   autoSize?: boolean;
   fill?: boolean;
+  stacked?: boolean;
 }) {
   const root = useRef<HTMLDivElement | null>(null),
     [size, setSize] = useState({ width: 64, height: 56 }),
@@ -43,7 +45,7 @@ export function DockHost({
   );
   useLayoutEffect(() => {
     const node = root.current;
-    if (!node || (!fill && !collapsed && !autoSize)) return;
+    if (!node || (!fill && !collapsed && !autoSize && !stacked)) return;
     const measure = () => {
       const child = node.querySelector<HTMLElement>(":scope > :not([data-ui-missing])");
       setMissing(!child);
@@ -69,18 +71,18 @@ export function DockHost({
       resize.disconnect();
       changes.disconnect();
     };
-  }, [collapsed, autoSize, fill]);
+  }, [collapsed, autoSize, fill, stacked]);
   return (
     <div
-      className={`ui-window-host ${collapsed ? "collapsed-ui-host" : ""} ${fill ? "ui-dock-fill" : ""}`}
+      className={`ui-window-host ${collapsed ? "collapsed-ui-host" : ""} ${fill ? "ui-dock-fill" : ""} ${stacked ? "ui-stack-host" : ""}`}
       ref={ref}
       style={{
-        width: fill ? "100%" : autoSize ? "max-content" : collapsed ? size.width : width,
-        height: fill ? "100%" : autoSize ? "auto" : collapsed ? size.height : height,
+        width: fill || stacked ? "100%" : autoSize ? "max-content" : collapsed ? size.width : width,
+        height: fill ? "100%" : autoSize || stacked ? "auto" : collapsed ? size.height : height,
         maxWidth: "100%",
       }}
     >
-      {(autoSize || fill) && missing && (
+      {(autoSize || fill || stacked) && missing && (
         <span data-ui-missing className="ui-missing-group">
           Open the original window to use this group.
         </span>

@@ -12,7 +12,8 @@ import { ContextMenu, contextMenuRoots } from "./ContextMenu";
 import { ContextSubmenu } from "./ContextSubmenu";
 import { AlignmentControls } from "./AlignmentControls";
 import { selectionId } from "./selection";
-import { useCursorTracking } from "./cursorPosition";
+import { cursorPosition, useCursorTracking } from "./cursorPosition";
+import { createUIFrame, FRAME_LAYOUTS, setFrameLayout } from "./frameLayout";
 import { NamePresentation } from "./NamePresentation";
 import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
@@ -57,6 +58,7 @@ import {
   type UILayout,
   type UIFrame,
   type FunctionStyle,
+  type FrameLayoutMode,
 } from "./layout";
 import { VisualControls } from "../VisualControls";
 import { ShortcutHint } from "./ShortcutHint";
@@ -353,7 +355,9 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
   const ui = useUI(),
     dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
-    nested = !!ownerOf(ui.layout, key),
+    parent = ownerOf(ui.layout, key),
+    nested = !!parent,
+    stackedParent = !!parent && getContainer(ui.layout, parent)?.layoutMode === "stacked",
     width = Math.max(64, frame.floatingOverflow ? frame.width ?? 280 : Math.min(frame.width ?? 280, window.innerWidth - 24));
   useEffect(() => {
     if (!element || nested) return;
@@ -365,16 +369,18 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
   const workspace = useDockWorkspace();
   const edgeBounds = frame.dockEdge && !nested ? workspace.docks[frame.dockEdge] : undefined;
   const structured = !!frame.dockLayout;
-  const desired = { x: frame.x + (structured ? 0 : bounds.x), y: frame.y + (structured ? 0 : bounds.y), width: structured ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height };
+  const stacked = frame.layoutMode === "stacked";
+  const rectangular = structured || stacked;
+  const desired = { x: frame.x + (rectangular ? 0 : bounds.x), y: frame.y + (rectangular ? 0 : bounds.y), width: rectangular ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height };
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
   const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !nested && !edgeBounds, frame.floatingOverflow);
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
   const content = (
     <Rnd
-      className={`function-frame contour-frame ${structured ? "ui-structured-frame" : ""} ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
+      className={`function-frame contour-frame ${structured ? "ui-structured-frame" : ""} ${stacked ? "ui-stacked-frame" : ""} ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
       style={
         {
-          pointerEvents: structured ? "auto" : "none",
+          pointerEvents: rectangular ? "auto" : "none",
           position: nested ? "relative" : "fixed",
           zIndex: z,
           "--ui-frame-top": `${Math.max(8, Math.min(frame.y, window.innerHeight - 60))}px`,
@@ -388,10 +394,10 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
               y: visible.y,
             }
       }
-      size={{ width: edgeBounds?.width ?? (!nested ? visible.width : structured ? width : bounds.width), height: edgeBounds?.height ?? (!nested ? visible.height : structured && !frame.collapsed ? frame.height ?? 420 : bounds.height) }}
+      size={{ width: stackedParent ? "100%" : edgeBounds?.width ?? (!nested ? visible.width : rectangular ? width : bounds.width), height: edgeBounds?.height ?? (!nested ? visible.height : structured && !frame.collapsed ? frame.height ?? 420 : bounds.height) }}
       disableDragging
       enableResizing={
-        !dockFill && !residentPinned(ui.layout, key) && !frame.collapsed
+        !dockFill && !stackedParent && !residentPinned(ui.layout, key) && !frame.collapsed
           ? frame.dockEdge ? { [frame.dockEdge === "left" ? "right" : frame.dockEdge === "right" ? "left" : frame.dockEdge === "top" ? "bottom" : "top"]: true } : structured ? true : { right: true, bottomRight: true }
           : false
       }
@@ -405,9 +411,9 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
     >
       <div
         ref={ref}
-        className="ui-frame-root"
+        className={`ui-frame-root ${stacked ? "ui-stacked-frame-root" : ""}`}
         data-ui-resident-root={key}
-        style={{ width: structured ? "100%" : !nested ? Math.min(width, visible.width) : width, height: structured ? "100%" : undefined, maxHeight: !nested && workspace.active ? visible.height : undefined, overflow: !nested && workspace.active ? "auto" : undefined, position: "relative", left: structured ? 0 : -bounds.x, top: structured ? 0 : -bounds.y }}
+        style={{ width: rectangular || stackedParent ? "100%" : !nested ? Math.min(width, visible.width) : width, height: structured ? "100%" : undefined, maxHeight: !nested && workspace.active ? stacked ? Math.max(44, workspace.floating.y + workspace.floating.height - visible.y) : visible.height : undefined, overflow: !nested && workspace.active ? "auto" : undefined, position: "relative", left: rectangular ? 0 : -bounds.x, top: rectangular ? 0 : -bounds.y }}
       >
         <FrameChrome
           container={key}
@@ -551,15 +557,19 @@ export function UIWorkspace({
   const reopenAppearance = () => setAppearanceOpening(value => value + 1);
   const [placementPreview] = useState(() => createTransientStore<Preview | null>(null));
   const [menu, setMenu] = useState<{ x: number; y: number; owner?: string } | null>(null);
+  const [creatingFrame, setCreatingFrame] = useState<{ x: number; y: number } | null>(null);
   const menuRoot = useRef<HTMLDivElement>(null);
+  const creationRoot = useRef<HTMLDivElement>(null);
   useOutsideDismiss(!!menu, () => contextMenuRoots(menuRoot.current), () => setMenu(null));
+  useOutsideDismiss(!!creatingFrame, () => contextMenuRoots(creationRoot.current), () => setCreatingFrame(null));
   useLayoutEffect(() => {
-    const node = menuRoot.current;
-    if (!node || !menu) return;
-    const r = node.getBoundingClientRect();
-    node.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - r.width - 8))}px`;
-    node.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - r.height - 8))}px`;
-  }, [menu, layout]);
+    for (const [node, opening] of [[menuRoot.current, menu], [creationRoot.current, creatingFrame]] as const) {
+      if (!node || !opening) continue;
+      const r = node.getBoundingClientRect();
+      node.style.left = `${Math.max(8, Math.min(opening.x, window.innerWidth - r.width - 8))}px`;
+      node.style.top = `${Math.max(8, Math.min(opening.y, window.innerHeight - r.height - 8))}px`;
+    }
+  }, [menu, creatingFrame, layout]);
   const defaults = useRef(new Map<string, WindowState>()).current;
   const dockProjection = useRef<((key: string, rect: DockRect) => DockRect) | undefined>(undefined);
   const frameActions = useRef<UIContextValue["frameActions"]>(new Map()).current;
@@ -615,28 +625,11 @@ export function UIWorkspace({
   }, [shortcuts, frameActions]);
 
   const frameMenu = (owner: string, x: number, y: number) => setMenu({ owner, x, y });
-  const createFrame = (x: number, y: number) =>
-    update((s) => {
-      const desired = { x: Math.max(8, x), y: Math.max(8, y) };
-      const position = desired;
-      return {
-        ...s,
-        frames: [
-          ...s.frames,
-          {
-            id: crypto.randomUUID(),
-            name: "New frame",
-            x: position.x,
-            y: position.y,
-            cellSize: 96,
-            width: 280,
-            collapsed: false,
-            pinned: false,
-            members: [],
-          },
-        ],
-      };
-    });
+  const createFrame = (x: number, y: number, mode?: FrameLayoutMode) => {
+    if (!mode) { setCreatingFrame({ x, y }); return; }
+    update(layout => createUIFrame(layout, x, y, mode));
+    setCreatingFrame(null);
+  };
   const ensure = (s: UILayout) => ({
     ...s,
     windows: Object.fromEntries([...new Set([...defaults.keys(), ...Object.keys(s.windows)])].map(id => [id, { ...defaults.get(id), ...s.windows[id] }])),
@@ -652,10 +645,12 @@ export function UIWorkspace({
     buttonSelection.clear();
     configure(null); configureFrame(null); configureControl(null);
     placementPreview.set(null); setMenu(null); setQuery("");
+    setCreatingFrame(null);
     onReset();
   };
   const resetRef = useRef(reset); resetRef.current = reset;
   useEffect(() => { if (command?.action === "reset") resetRef.current(); }, [command?.sequence]);
+  useEffect(() => { if (command?.action === "createFrame") setCreatingFrame(cursorPosition()); }, [command?.sequence]);
   useEffect(() => {
     // Prevent the browser menu everywhere in the app; custom menus still receive this event.
     const prevent = (e: Event) => e.preventDefault();
@@ -807,7 +802,10 @@ export function UIWorkspace({
         const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
         // A sidebar row's empty space is not a frame target. Its actual handle
         // still is; ordinary buttons continue through the existing group logic.
-        const surface = pane ?? (root?.matches(".ui-docked-panel:not(.ui-menu-panel)")
+        const section = root?.closest<HTMLElement>(".ui-stacked-section");
+        const sectionSurface = root?.matches(".ui-docked-panel:not(.ui-menu-panel),.ui-stacked-frame-root") ||
+          !!section && section.querySelector("[data-ui-resident-root]") === root;
+        const surface = pane ?? (sectionSurface
           ? element.closest<HTMLElement>(".ui-frame-handle") : root);
         if (!target || !surface || source.key === target || !canDock(s, source.key, target)) continue;
         const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
@@ -904,6 +902,28 @@ export function UIWorkspace({
         );
         if (!area || rectDistance(x, y, boundsOf(area)) > DOCK_DISTANCE)
           return { text: "This control stays in its owning menu" };
+      }
+      // Stacked containers insert a row; they never save arbitrary XY placement.
+      const stackHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle,[data-ui-inline-handle]")?.dataset.uiDrag;
+      const pointedZone = elements[0]?.closest<HTMLElement>("[data-ui-drop-zone]");
+      const stackTarget = stackHandle && getContainer(s, stackHandle)?.layoutMode === "stacked"
+        ? stackHandle : pointedZone?.dataset.uiDropZone;
+      if (stackTarget && getContainer(s, stackTarget)?.layoutMode === "stacked" && stackTarget !== source.key) {
+        if (!canDock(s, source.key, stackTarget)) return { text: "Cannot place items in a pinned frame or inside themselves" };
+        const zone = source.targetZones.get(stackTarget);
+        const bounds = zone && boundsOf(zone);
+        const members = getContainer(s, stackTarget)?.members ?? [];
+        const slots = (source.slots.get(stackTarget) ?? []).filter(slot => slot.key !== source.key);
+        const before = stackHandle === stackTarget ? undefined : slots.find(slot => y < slot.r.y + slot.r.height / 2);
+        const last = slots.at(-1)?.r;
+        return {
+          text: `Insert into ${frameActions.get(stackTarget)?.title ?? "stacked frame"}`,
+          destination: true,
+          rect: bounds ? { x: bounds.x, y: before?.r.y ?? (last ? last.y + last.height : bounds.y + 12), width: bounds.width, height: 4 } : undefined,
+          dock: { key: source.key, target: stackTarget,
+            index: before ? members.findIndex(member => residentKey(member) === before.key) : members.length,
+            breakBefore: false, width: source.width, height: source.height },
+        };
       }
       const hitOwner = elements[0]?.closest<HTMLElement>("[data-ui-resident-root],.toolbar");
       const peer =
@@ -1206,6 +1226,7 @@ export function UIWorkspace({
       const proposal = resolveTarget(x, y), source = drag.current;
       if (!proposal?.dock || !source) return proposal;
       const dock = proposal.dock, zone = source.targetZones.get(dock.target);
+      if (getContainer(effectiveLayout(), dock.target)?.layoutMode === "stacked") return proposal;
       const bounds = zone && source.targetBounds.get(zone);
       // Closed contents have no measurable layout; retain their existing append
       // behavior rather than turning zero-sized DOM boxes into saved positions.
@@ -1431,15 +1452,16 @@ export function UIWorkspace({
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || shortcuts?.capturing) return;
-      if (!(menu || configured || configuredFrame || configuredControl || shortcutField || shortcutNotice)) return;
+      if (!(menu || creatingFrame || configured || configuredFrame || configuredControl || shortcutField || shortcutNotice)) return;
       // Closing a UI editor must not also clear the graph selection it edits.
       e.preventDefault(); e.stopPropagation();
       setMenu(null); configure(null); configureFrame(null); configureControl(null);
       setShortcutField(null); setShortcutNotice("");
+      setCreatingFrame(null);
     };
     window.addEventListener("keydown", close, true);
     return () => window.removeEventListener("keydown", close, true);
-  }, [menu, configured, configuredFrame, configuredControl, shortcutField, shortcutNotice, shortcuts?.capturing]);
+  }, [menu, creatingFrame, configured, configuredFrame, configuredControl, shortcutField, shortcutNotice, shortcuts?.capturing]);
   const selected = functions.find((f) => f.id === configured),
     item = configured ? layout.items[configured] : undefined;
   const selectedOwner = configuredControl?.owner ?? configuredFrame;
@@ -1504,6 +1526,7 @@ export function UIWorkspace({
           height={w?.collapsed ? 44 : (w?.height ?? 400)}
           collapsed={w?.collapsed}
           autoSize={!!w?.inline}
+          stacked={getContainer(layout, ownerOf(layout, `window:${member.id}`) ?? "")?.layoutMode === "stacked"}
         />
       );
     }
@@ -1593,6 +1616,14 @@ export function UIWorkspace({
           ))}
       </div>
       <PlacementPreviewOverlay />
+      {creatingFrame && <ContextMenu ref={creationRoot} opening={creatingFrame} aria-label="Create frame"
+        style={{ left: creatingFrame.x, top: creatingFrame.y }}>
+        <div className="ui-frame-layout-choices">{FRAME_LAYOUTS.map(mode => <div key={mode.id}>
+          <UIAction id={`ui:createFrame:${mode.id}`} label={mode.label} category="Interface"
+            onClick={() => createFrame(creatingFrame.x, creatingFrame.y, mode.id)} />
+          <p>{mode.description}</p>
+        </div>)}</div>
+      </ContextMenu>}
       {menu && (
         <ContextMenu
           opening={menu}
@@ -1613,6 +1644,13 @@ export function UIWorkspace({
           </ContextSubmenu>}
           {menu.owner && menuContainer && (
             <>
+              <ContextSubmenu label="Layout">
+                {FRAME_LAYOUTS.map(mode => <div key={mode.id} className={`ui-frame-layout-option ${(menuContainer.layoutMode ?? "freeform") === mode.id ? "is-current" : ""}`}>
+                  <UIAction id={`ui:frameLayout:${mode.id}`} label={mode.label} category="Interface"
+                    disabled={residentPinned(ensure(layout), menu.owner!) || (menuContainer.layoutMode ?? "freeform") === mode.id}
+                    onClick={() => { update(layout => setFrameLayout(ensure(layout), menu.owner!, mode.id)); setMenu(null); }} />
+                </div>)}
+              </ContextSubmenu>
               {frameActions.get(menu.owner)?.onRename && (
                 <label className="frame-name-editor">
                   Frame name

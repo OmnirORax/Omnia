@@ -1,4 +1,5 @@
 import { ALIGNMENT_ACTIONS } from "./alignmentActions";
+import { FRAME_LAYOUTS } from "./frameLayout";
 
 /** Default UI notation, not Omnic grammar. Explicit feature/custom icons take priority. */
 const properties: Record<string, string> = {
@@ -88,6 +89,8 @@ export function nameSymbol(id: string, name: string): string {
   const actionId = id.replace(/^function:/, "");
   const alignment = ALIGNMENT_ACTIONS.find(action => actionId === `ui:align:${action.id}`);
   if (alignment) return alignment.symbol;
+  const frameLayout = FRAME_LAYOUTS.find(mode => actionId === `ui:createFrame:${mode.id}` || actionId === `ui:frameLayout:${mode.id}`);
+  if (frameLayout) return frameLayout.symbol;
   // Known property IDs retain their meaning after the user renames their headings.
   const property = id.match(/^window:property:[^:]+:(.+)$/)?.[1];
   if (property && properties[property]) return properties[property];

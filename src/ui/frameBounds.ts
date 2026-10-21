@@ -21,7 +21,7 @@ export function useContentSize() {
 }
 /** Measure occupied content, never the saved wrapping width of a contour frame. */
 export function residentBounds(root: HTMLElement): ContentBounds {
-  if (!root.classList.contains("ui-frame-root") || root.parentElement?.classList.contains("ui-structured-frame")) return root.getBoundingClientRect();
+  if (!root.classList.contains("ui-frame-root") || root.classList.contains("ui-stacked-frame-root") || root.parentElement?.classList.contains("ui-structured-frame")) return root.getBoundingClientRect();
   const parts = [
     ...root.querySelectorAll<HTMLElement>(".ui-frame-tools,.ui-frame-close,.ui-resident-slot,.empty-ui-slot"),
   ].filter(

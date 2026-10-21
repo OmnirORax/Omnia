@@ -56,6 +56,8 @@ The Theme editor now uses a shared hierarchical property controller, replacing t
 
 UI additions must follow [the shared UI component contract](docs/UI_COMPONENT_CONTRACT.md): actions, fields and complete expandable groups use the same ownership, drop validation, customization, undo and persistence paths. Do not add draggable headers that leave their live contents behind.
 
+Create UI frame offers Stacked sections or Freeform; right-click Layout switches between them and remembers each arrangement. Stacked sections reuse the existing residents and natural-height window hosts, with full-width vertical rows and automatic reflow on child collapse/expansion. Floating/docked placement is independent of this layout choice. Older frames remain Freeform, and switching preserves current membership, authored appearance and UI history/templates.
+
 ## Editable UI contract
 
 Use `UISection` for categories/headings with contents, `UIField` for a label and its live input, and `UIAction` or the action registry for buttons. Give each a stable ID independent of its editable name. These components inherit moving, nesting, selection, styling, closing, search, history and template persistence; do not create fixed markup equivalents beside them. Reuse a neighboring component in the same category before adding an adapter.

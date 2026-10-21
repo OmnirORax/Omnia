@@ -240,7 +240,10 @@ try {
   assert.equal((await knowledge()).entities.length, 8);
   assert.deepEqual(await layout(), uiBeforeGraph, "graph history does not change the UI");
   const baseFrames = (await layout()).frames.length;
-  for (let i = 0; i < 6; i++) await fn("ui:createFrame").click();
+  for (let i = 0; i < 6; i++) {
+    await fn("ui:createFrame").click();
+    await fn("ui:createFrame:freeform").click();
+  }
   await mouseHistory(3, true, true);
   assert.equal(
     (await layout()).frames.length,

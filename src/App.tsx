@@ -898,7 +898,7 @@ function Workbench() {
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
-      case "ui:createFrame": updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: 120, y: 180, cellSize: 96, collapsed: false, pinned: false }] })); break;
+      case "ui:createFrame": setUICommand(old => ({ action: "createFrame", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
       case "deleteSelected": deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
