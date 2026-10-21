@@ -80,15 +80,11 @@ try {
   assert.ok(allocation.sidebar.x >= allocation.left.right-1);
   assert.ok(allocation.canvas.right <= allocation.right.x+1);
   assert.ok(allocation.canvas.width > 100);
-  // Native sidebar sections retain their ordinary placement instead of offering splits/tabs.
-  const beforeSidebarHover = await state();
   const reuse = await page.locator('[data-ui-resident-root="window:panel:reuse"]').boundingBox();
   await drag('[role="tab"][data-ui-drag="window:settings"]', reuse.x+reuse.width-8, reuse.y+reuse.height/2);
-  assert.equal(await page.locator('.ui-dock-guides').count(), 0);
-  assert.doesNotMatch(await page.locator('.ui-snap-preview').innerText(), /^Dock |^Group as tabs/);
-  await page.keyboard.press('Escape');
   await page.mouse.up();
-  assert.deepEqual(await state(), beforeSidebarHover);
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('omnium.ui.layout.v1')).windows['native:@sidebar']?.members?.some(member => member.kind === 'frame'));
+  assert.ok(await page.locator('.sidebar .ui-structured-frame').isVisible(), 'split stays in the sidebar flow');
   assert.deepEqual(errors, []);
-  console.log('Docking: splits/tabs, undo, drag-out/reload, shared edge allocation and sidebar placement passed.');
+  console.log('Docking: splits/tabs, undo, drag-out/reload, shared edge allocation and adaptive native sidebar passed.');
 } finally { await browser.close(); }
