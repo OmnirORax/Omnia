@@ -821,7 +821,7 @@ export function UIWorkspace({
         // enclosing Sidebar tab's full-surface docking target.
         const pane = nativeRows && enclosingPane?.contains(nativeRows) ? null : enclosingPane;
         const root = element.closest<HTMLElement>("[data-ui-resident-root]");
-        if (root?.matches('.ui-native-strip-frame')) continue;
+        if (!pane && root?.matches('.ui-native-strip-frame')) continue;
         const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
         // A sidebar row's empty space is not a frame target. Its actual handle
         // still is; ordinary buttons continue through the existing group logic.
@@ -832,11 +832,12 @@ export function UIWorkspace({
         if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
         const near = { left: x - bounds.left, right: bounds.right - x, top: y - bounds.top, bottom: bounds.bottom - y };
         const header = !!element.closest("[data-ui-chrome],.ui-dock-tab-strip");
+        const tabStrip = pane && element.closest(".ui-dock-tab-strip");
         const stacked = getContainer(s, target)?.layoutMode === "stacked";
         // A title/tab strip groups panels. The outermost edge still allows a split.
         // A stacked body's interior inserts rows; its frame edges still split.
         // Once shown, the existing retained-guide path enables all five choices.
-        const side = (!stacked || header ? dockGuideAt(bounds, viewport, x, y) : undefined) ?? (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
+        const side = tabStrip ? "tab" : (!stacked || header ? dockGuideAt(bounds, viewport, x, y) : undefined) ?? (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
         const center = !stacked && Math.abs(x-bounds.x-bounds.width/2) <= 32 && Math.abs(y-bounds.y-bounds.height/2) <= 32;
         if (!side && !header && !center) return;
         const width = Math.min(area.width, Math.max(280, bounds.width)), height = Math.min(area.height, Math.max(220, bounds.height));
@@ -844,7 +845,7 @@ export function UIWorkspace({
         const slot = root?.closest<HTMLElement>("[data-ui-frame-slot]");
         const strip = slot?.dataset.uiFrameSlot === target ? slot.closest<HTMLElement>("[data-ui-frame-strip]") : null;
         const host = strip ? { container: strip.dataset.uiFrameStrip!, order: strip.dataset.uiFrameOrder!, keys: [...strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(a.style.order)-Number(b.style.order)).map(slot => slot.dataset.uiFrameSlot!) } : undefined;
-        return { target, side: side ?? "tab", rect, bounds, host };
+        return { target, side: side ?? "tab", rect, bounds, host, tabOwner: tabStrip ? pane?.dataset.uiDockOwner : undefined };
       }
     };
     const frameFeedback = (source: DragState, layout: UILayout, intent: FrameDock): Pick<Preview, 'rect' | 'frameLayout' | 'allocation'> => {

@@ -3,6 +3,7 @@ import { dockKeys, dockTabs, insertDockKey, type DockSide, type DockNode } from 
 
 export type DockRect = { x: number; y: number; width: number; height: number };
 export type FrameDock = { target?: string; side: DockSide; rect: DockRect; bounds?: DockRect; edge?: Exclude<DockSide, "tab">;
+  tabOwner?: string;
   host?: { container: string; order: string; keys: string[] } };
 /** One allocation for every edge and the remaining workspace, independent of rendering. */
 export function workspaceDockRects(layout: UILayout, area: DockRect) {
@@ -74,8 +75,10 @@ export function dockFrame(layout: UILayout, key: string, intent: FrameDock): UIL
   if (target && !canDock(layout, key, target)) return layout;
   const parent = target && (ownerOf(layout, target) ?? intent.host?.container);
   if (parent && !canDock(layout, key, parent)) return layout;
-  const root = target && getContainer(layout, target)?.dockLayout ? target
-    : parent && getContainer(layout, parent)?.dockLayout ? parent : undefined;
+  // A tab-bar drop joins that bar, even when its active tab is itself a split group.
+  const tabOwner = intent.side === "tab" && intent.tabOwner === parent && parent && getContainer(layout, parent)?.dockLayout ? parent : undefined;
+  const root = tabOwner || (target && getContainer(layout, target)?.dockLayout ? target
+    : parent && getContainer(layout, parent)?.dockLayout ? parent : undefined);
   if (root && !dockKeys(getContainer(layout, root)?.dockLayout).some(member => member !== key)) return layout;
   let next = releaseResident(layout, key);
   next = updateContainer(next, key, { collapsed: false, dockEdge: undefined });
