@@ -80,7 +80,7 @@ export function beginLiveDrag(sources: HTMLElement[], bounds = new Map<HTMLEleme
 
 /** Carry the actual resident with its floating chrome, not a detached tab/body
  * approximation. The shared strip and all sibling payloads stay at home. */
-export function beginLiveTabDrag(pane: HTMLElement, handle: HTMLElement, key: string, resident?: HTMLElement) {
+export function beginLiveTabDrag(pane: HTMLElement, handle: HTMLElement, key: string, resident?: HTMLElement | null) {
   const tab = handle.closest<HTMLElement>('[data-ui-dock-tab]');
   if (resident && tab) {
     const surface = dragSurface(resident);
