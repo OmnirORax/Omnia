@@ -757,17 +757,19 @@ export function UIWorkspace({
           x: Number(el.dataset.originX || 0), y: Number(el.dataset.originY || 0),
         }]),
       );
+      const originOffset = { x: (root?.getBoundingClientRect().x ?? r.x) - r.x,
+        y: (root?.getBoundingClientRect().y ?? r.y) - r.y };
+      const tabLive = tabPane && handle ? beginLiveTabDrag(tabPane, handle, key, represented) : undefined;
+      const live = tabLive ?? (root ? beginLiveDrag([dragSurface(root)]) : undefined);
+      const origin = tabLive?.origin;
       drag.current = {
         key,
         start: { x: event.clientX, y: event.clientY },
         width: r.width,
         height: r.height,
-        dx: event.clientX - r.x,
-        dy: event.clientY - r.y,
-        originOffset: {
-          x: (root?.getBoundingClientRect().x ?? r.x) - r.x,
-          y: (root?.getBoundingClientRect().y ?? r.y) - r.y,
-        },
+        dx: event.clientX - (origin?.x ?? r.x),
+        dy: event.clientY - (origin?.y ?? r.y),
+        originOffset: origin ? { x: 0, y: 0 } : originOffset,
         slots,
         targetZones,
         fromDockPane: !!tabPane,
@@ -776,8 +778,7 @@ export function UIWorkspace({
         control: mini
           ? { owner: mini.dataset.uiControlOwner!, control: mini.dataset.uiControl! }
           : undefined,
-        live: tabPane && handle ? beginLiveTabDrag(tabPane, handle, key, represented)
-          : root ? beginLiveDrag([dragSurface(root)]) : undefined,
+        live,
       };
     };
     const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
