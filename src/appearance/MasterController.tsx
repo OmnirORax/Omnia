@@ -1,7 +1,7 @@
 import { transientReveal, type RevealSession } from "../ui/transientReveal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
-import { ancestry, applyValue, toggleTarget, included, ruleHas, type Value } from "./model";
+import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
@@ -19,6 +19,8 @@ import { UIAction } from "../ui/UIAction";
 import { useUI } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityTargets, toggleRigidity } from "../ui/rigidity";
+import { highlightHierarchy } from "./highlight";
+import { residentPinned } from "../ui/layout";
 
 export function MasterController() {
   const ctx = useAppearance()!;
@@ -79,11 +81,34 @@ export function MasterController() {
     else ctx.commit(next);
   };
   const revealSession = useRef<RevealSession | null>(null);
-  useEffect(() => () => revealSession.current?.stop(), []);
+  const highlighted = useRef<ReturnType<typeof highlightHierarchy> | null>(null),
+    hovered = useRef<string | null>(null);
+  const highlight = (id: string) => {
+    highlighted.current?.stop();
+    const eligible = (descendants.get(id) ?? []).filter(target => target.properties?.includes(property) &&
+      (property !== "effect" || !target.effectKinds || target.effectKinds.includes(String(currentEffect))));
+    highlighted.current = eligible.length ? highlightHierarchy(eligible.map(target => ({ target,
+      active: rigidity ? !target.instance || !residentPinned(effectiveLayout, target.instance.owner)
+        : !ctx.safe && included(active, targets, target.id) && !blocked(state, targets, target.id, property, active.only ?? "all") && connected(state, targets, target.id, property),
+    })), targets, property) : null;
+  };
+  useEffect(() => {
+    if (hovered.current) highlight(hovered.current);
+  }, [property, currentEffect, state, structureKey, ctx.safe, ui.layout.uiRigidity]);
+  useEffect(() => () => { revealSession.current?.stop(); highlighted.current?.stop(); }, []);
+  useEffect(() => {
+    if (!hierarchyOpen) {
+      hovered.current = null; highlighted.current?.stop(); revealSession.current?.stop();
+    }
+  }, [hierarchyOpen]);
   const reveal = (target: RegisteredTarget, on: boolean) => {
     revealSession.current?.stop();
     revealSession.current = null;
-    if (on && target.instance)
+    highlighted.current?.stop();
+    highlighted.current = null;
+    hovered.current = on ? target.id : null;
+    if (on) highlight(target.id);
+    if (on && target.instance && applicable(target))
       revealSession.current = transientReveal({
         path: target.instance.path ?? [],
         reveal: (path) => ctx.reveal?.(path),
@@ -124,8 +149,10 @@ export function MasterController() {
         <div
           className={`appearance-row ${lit ? "is-included" : "is-excluded"} ${can ? "" : "not-applicable"}`}
           style={{ paddingLeft: depth * 12 }}
-          onMouseEnter={() => target.instance && reveal(target, true)}
-          onMouseLeave={() => target.instance && reveal(target, false)}
+          onMouseEnter={() => reveal(target, true)}
+          onMouseLeave={() => reveal(target, false)}
+          onFocusCapture={() => reveal(target, true)}
+          onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) reveal(target, false); }}
         >
           <button
             className="appearance-expand"

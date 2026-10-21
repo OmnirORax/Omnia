@@ -22,6 +22,8 @@ import { EntityMenu } from "./ui/EntityMenu";
 import { FunctionControl } from "./ui/UIWorkspace";
 import { normalizeFont, isCustomFont } from "./fonts";
 import { loadFont } from "./fontLibrary";
+import { registerHierarchyScene } from "./appearance/highlight";
+import { graphHierarchyShapes } from "./appearance/graphHighlight";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
@@ -143,6 +145,8 @@ export default function SpatialWorkspace(props: Props) {
     const appearance = createSceneAppearance(renderer, scene, camera);
     appearance.setSources(() => textScene.current);
     appearance.configure(callbacks.current.settings.appearance);
+    const stopHierarchyHighlight = registerHierarchyScene(targets =>
+      graphHierarchyShapes(textScene.current, camera, renderer.domElement, targets));
     let pendingRender = 0, animation = 0;
     const cameraHistory: CameraPose[] = [];
     const changeFocusContext = (ids: readonly string[] | null) => {
@@ -494,6 +498,7 @@ export default function SpatialWorkspace(props: Props) {
     renderer.domElement.addEventListener("contextmenu", preventMenu);
     setReady(true);
     return () => {
+      stopHierarchyHighlight();
       pointerOwner.dispose();
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
       renderer.domElement.removeEventListener("pointerdown", down, true);

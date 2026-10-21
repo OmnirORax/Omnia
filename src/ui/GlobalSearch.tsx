@@ -101,7 +101,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
       }
     });
   };
-  return createPortal(<div ref={popup} className={`ui-frame-search-popup ui-global-search ${dragging ? "is-moving" : ""}`} style={{ left: position.x, top: position.y }} data-ui-search role="dialog" aria-label="Global UI search" onPointerDown={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={event => {
+  return createPortal(<div ref={popup} className={`ui-frame-search-popup ui-global-search ${dragging ? "is-moving" : ""}`} style={{ left: position.x, top: position.y }} data-ui-resident-root="window:global-ui-search" data-ui-search role="dialog" aria-label="Global UI search" onPointerDown={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={event => {
     event.stopPropagation();
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault(); const position = (active + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % Math.max(1, visible.length);
