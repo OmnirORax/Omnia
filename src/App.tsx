@@ -45,6 +45,7 @@ import type { BinderPresentation } from "./graph/structural";
 import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
 import { UIFrameStrip } from "./ui/UIFrameStrip";
+import { WorkspaceBoundary } from "./WorkspaceBoundary";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { loadUILayout, ownerOf, updateContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
@@ -1993,7 +1994,7 @@ function Workbench() {
           </UIFrameStrip>
         </aside>
         <div className="canvas" aria-label="Atlas canvas">
-          <Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
+          <WorkspaceBoundary><Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
             <SpatialWorkspace
               atlas={atlas}
               document={document}
@@ -2026,7 +2027,7 @@ function Workbench() {
               onNest={nest}
               onContextAction={contextAction}
             />
-          </Suspense>
+          </Suspense></WorkspaceBoundary>
           {!atlas.nodes.length && (
             <div className="empty-state">
               <h1>Build your atlas</h1>
