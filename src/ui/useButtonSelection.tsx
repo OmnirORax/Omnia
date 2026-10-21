@@ -14,20 +14,26 @@ import {
 import type { UICommand, UIFunction } from "./context";
 import {
   buttonBounds,
-  alignButtons,
+  buttonRange,
+  arrangeButtons,
   compactButtons,
   intersects,
-  nearestButtonEdge,
   placeButtons,
   selectionId,
   selectionResident,
-  type AlignmentEdge,
+  type AlignmentOperation,
+  type AlignmentReference,
   type ButtonBox,
 } from "./selection";
-import { snapPosition, snapshotPositions, type PositionedBox } from "./positioning";
+import { snapshotPositions, type PositionedBox } from "./positioning";
 import { captureUIPointer, rectDistance } from "./drag";
 import { residentBounds } from "./frameBounds";
 import { useOutsideDismiss } from "./useOutsideDismiss";
+import { ContextMenu, contextMenuRoots } from "./ContextMenu";
+import { ContextSubmenu } from "./ContextSubmenu";
+import { AlignmentControls } from "./AlignmentControls";
+import { FloatingWindow } from "./FloatingWindow";
+import { beginLiveDrag, dragSurface } from "./liveDrag";
 
 const selectable = '[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]';
 const idOf = (el: HTMLElement) => el.dataset.uiDrag && /^(window|frame):/.test(el.dataset.uiDrag) ? el.dataset.uiDrag : el.dataset.uiFunction!;
@@ -69,7 +75,6 @@ const baselineOf = (layout: UILayout, target: string, zone: HTMLElement) =>
   );
 type Proposal = {
   boxes: ButtonBox[];
-  preview: ButtonBox[];
   target?: string;
   baseline?: UIResident[];
   message: string;
@@ -85,16 +90,9 @@ type Gesture = {
   scope?: string;
   initial: Set<string>;
   clickId?: string;
-  align?: boolean;
   pointerId?: number;
   release?: () => void;
-};
-type AlignmentPreview = {
-  target: ButtonBox;
-  edge: AlignmentEdge;
-  boxes: ButtonBox[];
-  next?: UILayout;
-  message: string;
+  live?: ReturnType<typeof beginLiveDrag>;
 };
 
 export function useButtonSelection({
@@ -111,46 +109,55 @@ export function useButtonSelection({
   suppress: () => void;
 }) {
   const [ids, setIds] = useState<Set<string>>(() => new Set()),
+    [locked, setLocked] = useState(false),
     [mode, setMode] = useState(false),
-    [aligning, setAligning] = useState(false),
+    [alignOpen, setAlignOpen] = useState(false),
     [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [visuals] = useState(() => createTransientStore({
-    alignment: null as AlignmentPreview | null,
     rectangle: null as PositionedBox | null,
-    previews: [] as ButtonBox[],
     message: "",
   }));
-  const setAlignment = (alignment: AlignmentPreview | null) => visuals.set({ ...visuals.getSnapshot(), alignment });
   const setRectangle = (rectangle: PositionedBox | null) => visuals.set({ ...visuals.getSnapshot(), rectangle });
-  const setPreviews = (previews: ButtonBox[]) => visuals.set({ ...visuals.getSnapshot(), previews });
   const setMessage = (message: string) => {
     if (message !== visuals.getSnapshot().message) visuals.set({ ...visuals.getSnapshot(), message });
   };
-  const current = useRef({ layout, update, functions, ids, mode, aligning });
-  current.current = { layout, update, functions, ids, mode, aligning };
+  const current = useRef({ layout, update, functions, ids, locked, mode, alignOpen });
+  current.current = { layout, update, functions, ids, locked, mode, alignOpen };
   const gesture = useRef<Gesture | null>(null);
+  const rangeAnchor = useRef<string | null>(null);
   const select = (next: Set<string>) => {
     next = new Set([...next].filter(id => {
       let parent = ownerOf(current.current.layout, selectionResident(id));
       while (parent) { if (next.has(selectionId(parent))) return false; parent = ownerOf(current.current.layout, parent); }
       return true;
     }));
+    if (!next.size) {
+      current.current.locked = false;
+      setLocked(false);
+    }
     if (next.size === current.current.ids.size && [...next].every((id) => current.current.ids.has(id))) return;
     current.current.ids = next;
     setIds(next);
   };
   const clear = () => {
+    rangeAnchor.current = null;
     const active = gesture.current;
     gesture.current = null;
+    active?.live?.restore();
     active?.release?.();
     select(new Set());
     setMode(false);
-    current.current.aligning = false;
-    setAligning(false);
-    setAlignment(null);
-    setPreviews([]);
+    setAlignOpen(false);
     setMenu(null);
     setMessage("");
+  };
+  const toggleLock = () => {
+    if (!current.current.ids.size) return;
+    const next = !current.current.locked;
+    current.current.locked = next;
+    setLocked(next);
+    setMenu(null);
+    setMessage(next ? "Selection locked. Esc or Clear still clears it." : "Selection unlocked.");
   };
   const editable = (el: HTMLElement) =>
     !residentPinned(current.current.layout, selectionResident(idOf(el))) &&
@@ -158,6 +165,13 @@ export function useButtonSelection({
       current.current.layout,
       el.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? "",
     );
+  const collectionOf = (el: HTMLElement): string => {
+    const key = selectionResident(idOf(el)), owner = ownerOf(current.current.layout, key);
+    if (owner) return owner;
+    let root = el.closest<HTMLElement>("[data-ui-resident-root]");
+    if (root?.dataset.uiResidentRoot === key) root = root.parentElement?.closest<HTMLElement>("[data-ui-resident-root]") ?? null;
+    return root?.dataset.uiResidentRoot ?? (el.closest(".toolbar") ? "@toolbar" : "@workspace");
+  };
   const selectedBoxes = () =>
     buttons()
       .filter((el) => current.current.ids.has(idOf(el)))
@@ -201,10 +215,7 @@ export function useButtonSelection({
       .map((el) => (el.dataset.uiResidentRoot ? residentBounds(el) : boxOf(el)));
   };
   const compact = () => {
-    current.current.aligning = false;
-    setAligning(false);
-    setAlignment(null);
-    setPreviews([]);
+    setAlignOpen(false);
     try {
       const state = current.current,
         all = selectedBoxes();
@@ -261,63 +272,66 @@ export function useButtonSelection({
       setMessage("Select the UI items to align first.");
       return;
     }
-    const active = !current.current.aligning;
-    current.current.aligning = active;
-    setAligning(active);
-    setAlignment(null);
-    setPreviews([]);
+    setAlignOpen(true);
     setMenu(null);
-    setMessage(active ? "Click another button’s left, right, top or bottom boundary to align. Esc cancels." : "Alignment cancelled.");
   };
-  const alignmentFor = (element: Element, x: number, y: number): AlignmentPreview | null => {
-    const el = element.closest<HTMLElement>(selectable);
-    if (!el || !visible(el) || current.current.ids.has(idOf(el))) return null;
-    const target = { id: idOf(el), ...selectionBox(el) };
-    const edge = nearestButtonEdge(target, x, y);
-    const all = alignButtons(selectedBoxes(), target, edge);
-    const result: AlignmentPreview = {
-      target, edge, boxes: all,
-      message: `Align ${all.length} UI item${all.length === 1 ? "" : "s"} to this ${edge} edge.`,
-    };
+  const arrange = (operation: AlignmentOperation, reference: AlignmentReference, targetIds = current.current.ids) => {
     try {
-      if (!all.length) throw new Error("Select the UI items to align first.");
-      for (let i = 0; i < all.length; i++) {
-        if (all.slice(i + 1).some(b => intersects(all[i], b)))
-          throw new Error("These buttons would overlap. Spread them along the other axis first.");
-        if (intersects(all[i], target))
-          throw new Error("This alignment would overlap the target button. Choose another edge or move the selection first.");
-      }
       const state = current.current;
-      const excluded = new Set(all.map(b => b.id));
+      const entries = buttons().filter(el => !el.closest('.ui-selection-tools,.ui-background-menu,[data-ui-alignment],[data-ui-resident-root="window:ui-alignment"]')).map(element => {
+        const id = idOf(element), key = selectionResident(id), collection = collectionOf(element), parents = new Set<string>();
+        for (let owner: string | undefined = collection; owner && !owner.startsWith("@") && !parents.has(owner); owner = ownerOf(state.layout, owner)) parents.add(owner);
+        for (let root = element.closest<HTMLElement>("[data-ui-resident-root]"); root; root = root.parentElement?.closest<HTMLElement>("[data-ui-resident-root]") ?? null)
+          if (root.dataset.uiResidentRoot !== key) parents.add(root.dataset.uiResidentRoot!);
+        return { id, key, element, collection, parents, box: { id, ...selectionBox(element) } };
+      });
+      const selected = entries.filter(entry => targetIds.has(entry.id));
+      const roots = selected.filter(entry => !selected.some(parent => parent !== entry &&
+        (parent.element.contains(entry.element) || entry.parents.has(parent.key))));
+      const source = roots.map(entry => entry.box);
+      if (!source.length) throw new Error("Select visible UI items to align first.");
+      const area = { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
+      const target = reference === "selection" ? buttonBounds(source) : area;
+      const candidates = entries.filter(entry => !roots.some(parent => parent.key === entry.key ||
+        parent.element.contains(entry.element) || entry.parents.has(parent.key)));
+      const occupied = Object.fromEntries(roots.map(entry => [entry.id, candidates.filter(other =>
+        !other.element.contains(entry.element) && !entry.parents.has(other.key) &&
+        (other.collection === entry.collection || other.collection === "@workspace" || other.collection === "@toolbar"))
+        .map(other => other.box)]));
+      const limits = Object.fromEntries(roots.flatMap(entry => {
+        // Native controls that will float can use the full workspace. Members
+        // remaining inside a fixed window must fit its visible content area.
+        if (!ownerOf(state.layout, entry.key)) return [];
+        const body = entry.element.closest<HTMLElement>(".floating-body");
+        if (!body) return [];
+        const rect = body.getBoundingClientRect(), style = getComputedStyle(body);
+        const left = parseFloat(style.paddingLeft) || 0, right = parseFloat(style.paddingRight) || 0;
+        const top = parseFloat(style.paddingTop) || 0, bottom = parseFloat(style.paddingBottom) || 0;
+        return [[entry.id, { x: rect.x + left, y: rect.y + top,
+          width: body.clientWidth - left - right, height: body.clientHeight - top - bottom }]];
+      }));
+      const placed = arrangeButtons(source, target, operation, { area, obstacles: occupied, bounds: limits });
       const groups = new Map<string | undefined, ButtonBox[]>();
-      for (const b of all) {
-        const owner = ownerOf(state.layout, selectionResident(b.id));
-        groups.set(owner, [...(groups.get(owner) ?? []), b]);
+      for (const box of placed) {
+        const owner = ownerOf(state.layout, selectionResident(box.id));
+        if (owner && getContainer(state.layout, owner)?.dockLayout)
+          throw new Error("Drag these items out of their dock before aligning them. Docked panes follow their split or tab layout.");
+        groups.set(owner, [...groups.get(owner) ?? [], box]);
       }
       let next = state.layout;
       for (const [owner, group] of groups) {
         const zone = owner ? zoneFor(owner) : undefined;
         if (owner && !zone) throw new Error("Expand the selected items’ frame before aligning.");
-        const occupied = obstacles(excluded, owner);
-        if (group.some(b => occupied.some(other => intersects(b, other))))
-          throw new Error("This alignment would overlap another UI control. Choose another edge or move the selection first.");
-        const local = zone ? group.map(b => ({ ...b, ...toLocal(b, zone) })) : group;
-        if (!zone && local.some(b => b.x < 0 || b.y < 0 || b.x + b.width > window.innerWidth || b.y + b.height > window.innerHeight))
-          throw new Error("This alignment would move a button outside the workspace.");
-        next = placeButtons(next, local, owner, zone ? baselineOf(next, owner!, zone) : undefined);
+        const local = zone ? group.map(box => ({ ...box, ...toLocal(box, zone) })) : group.map(box => {
+          const key = selectionResident(box.id), saved = getContainer(state.layout, key), original = source.find(item => item.id === box.id)!;
+          return saved ? { ...box, x: saved.x + box.x - original.x, y: saved.y + box.y - original.y } : box;
+        });
+        next = placeButtons(next, local, owner, zone ? baselineOf(state.layout, owner!, zone) : undefined);
       }
-      result.next = next;
-    } catch (error) {
-      result.message = error instanceof Error ? error.message : String(error);
-    }
-    return result;
-  };
-  const previewAlignment = (element: Element, x: number, y: number) => {
-    const result = alignmentFor(element, x, y);
-    setAlignment(result);
-    setPreviews(result?.boxes ?? []);
-    setMessage(result?.message ?? "Click an unselected button’s boundary. Esc cancels alignment.");
-    return result;
+      state.update(() => next);
+      setMenu(null);
+      setMessage(`UI ${operation.startsWith("distribute") ? "distributed" : "aligned"}. Shift+MB4 undoes it.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   };
   const resolve = (g: Gesture, x: number, y: number): Proposal => {
     const state = current.current,
@@ -354,17 +368,14 @@ export function useButtonSelection({
     )
       return {
         boxes: [],
-        preview: [],
         message: !zone
           ? "Expand this frame to place multiple buttons."
           : "Unpin the target, or keep these actions in their owning menu.",
       };
     if (!target && g.boxes.some((b) => residentContextScope(state.layout, selectionResident(b.id))))
-      return { boxes: [], preview: [], message: "These actions stay in their context menu." };
+      return { boxes: [], message: "These actions stay in their context menu." };
     let desired = { x: g.bounds.x + x - g.start.x, y: g.bounds.y + y - g.start.y };
-    const occupied = obstacles(excluded, target),
-      container = target ? getContainer(state.layout, target) : undefined;
-    const arrangement = container?.arrangement ?? (!target ? state.layout.arrangement : undefined);
+    const container = target ? getContainer(state.layout, target) : undefined;
     if (zone) {
       desired = toLocal({ ...desired, width: 0, height: 0 }, zone);
       if (handleKey === target) {
@@ -377,102 +388,70 @@ export function useButtonSelection({
           ),
         };
       }
-      if (arrangement?.mode === "snap" && arrangement.grid)
-        desired = snapPosition(
-          desired,
-          g.bounds,
-          arrangement.grid,
-          occupied.map((b) => toLocal(b, zone!)),
-        );
     } else {
       if (g.bounds.width > window.innerWidth - 16 || g.bounds.height > window.innerHeight - 16)
         return {
           boxes: [],
-          preview: [],
           message: "Compact the selection first so it fits in the workspace.",
         };
       desired = {
         x: Math.max(8, Math.min(desired.x, window.innerWidth - g.bounds.width - 8)),
         y: Math.max(8, Math.min(desired.y, window.innerHeight - g.bounds.height - 8)),
       };
-      if (arrangement?.mode === "snap" && arrangement.grid)
-        desired = snapPosition(desired, g.bounds, arrangement.grid, occupied);
     }
     const placed = g.boxes.map((b) => ({
       ...b,
       x: desired.x + b.x - g.bounds.x,
       y: desired.y + b.y - g.bounds.y,
     }));
-    const r = zone?.getBoundingClientRect(),
-      preview = zone
-        ? placed.map((b) => ({
-            ...b,
-            x: b.x + r!.x - Number(zone.dataset.originX || 0) - zone.scrollLeft,
-            y: b.y + r!.y - Number(zone.dataset.originY || 0) - zone.scrollTop,
-          }))
-        : placed;
     return {
       boxes: placed,
-      preview,
       target,
       baseline: zone ? baselineOf(state.layout, target!, zone) : undefined,
-      message: `Move ${placed.length} UI items ${target ? "into this frame" : "together"}${arrangement?.mode === "snap" ? " · snap" : ""}`,
+      message: `Move ${placed.length} UI items ${target ? "into this frame" : "together"}`,
     };
   };
-  const ops = useRef({ compact, align, clear, group, resolve, previewAlignment });
-  ops.current = { compact, align, clear, group, resolve, previewAlignment };
+  const ops = useRef({ compact, align, clear, group, resolve });
+  ops.current = { compact, align, clear, group, resolve };
   useEffect(() => {
     if (command?.action === "select") {
-      current.current.aligning = false;
-      setAligning(false);
-      setAlignment(null);
-      setPreviews([]);
+      setAlignOpen(false);
       setMode((v) => !v);
       setMenu(null);
     } else if (command?.action === "compact") ops.current.compact();
     else if (command?.action === "align") ops.current.align();
   }, [command?.sequence]);
   useEffect(() => {
-    document.body.classList.toggle("ui-select-mode", mode || aligning);
+    document.body.classList.toggle("ui-select-mode", mode);
     return () => document.body.classList.remove("ui-select-mode");
-  }, [mode, aligning]);
+  }, [mode]);
   useEffect(() => {
     let moveFrame = 0;
     let pendingMove: PointerEvent | null = null;
     const cancelMove = () => { cancelAnimationFrame(moveFrame); moveFrame = 0; pendingMove = null; };
     const down = (e: PointerEvent) => {
       if (e.button !== 0) {
-        if ((gesture.current || current.current.aligning) && (e.button === 3 || e.button === 4)) cancel();
+        if (gesture.current && (e.button === 3 || e.button === 4)) cancel();
         return;
       }
       const target = e.target as Element,
-        state = current.current;
-      if (
-        target.closest(
-          "input,textarea,select,[contenteditable=true],.ui-selection-tools,.ui-background-menu,.ui-field-edge,[data-ui-resize]",
-        )
-      )
-        return;
-      if (state.aligning) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        suppress();
-        ops.current.previewAlignment(target, e.clientX, e.clientY);
-        gesture.current = {
-          start: { x: e.clientX, y: e.clientY }, boxes: [],
-          bounds: { x: 0, y: 0, width: 0, height: 0 },
-          moved: false, initial: new Set(state.ids), align: true, pointerId: e.pointerId,
-        };
-        return;
-      }
+        state = current.current,
+        additive = e.ctrlKey || e.metaKey,
+        range = e.shiftKey;
       const button = target.closest<HTMLElement>(selectable),
         id = button ? idOf(button) : undefined,
-        additive = e.ctrlKey || e.metaKey;
-      if (id && (!["ui:select", "ui:compact", "ui:align"].includes(id) || additive || (state.ids.size > 1 && state.ids.has(id)))) {
-        if (!state.mode && !additive && !(state.ids.size > 1 && state.ids.has(id))) {
-          if (state.ids.size) select(new Set());
-          return;
-        }
+        selectedPress = !!id && state.ids.has(id),
+        selectionCommand = !!id && (["ui:select", "ui:compact", "ui:align"].includes(id) || id.startsWith("ui:align:")),
+        selectionTools = target.closest('.ui-selection-tools,.ui-background-menu,[data-ui-alignment],[data-ui-resident-root="window:ui-alignment"]'),
+        editing = target.closest('input,textarea,select,[contenteditable=true],[data-ui-resize]');
+      // Dismiss before returning to input/canvas handlers, without consuming the
+      // press. Selection commands and modifier gestures retain their targets.
+      if (!additive && !range && !state.locked && state.ids.size && !selectionTools && !selectionCommand &&
+          (!selectedPress || editing) && (!state.mode || editing)) ops.current.clear();
+      if (selectionTools || editing || (!additive && !range && !selectedPress && target.closest(".ui-field-edge"))) return;
+      if (state.locked && !additive && !range && !selectedPress) return;
+      if (id && (!selectionCommand || additive || range || selectedPress)) {
+        if (!state.mode && !additive && !range && !state.ids.has(id)) return;
         e.preventDefault();
         e.stopImmediatePropagation();
         suppress();
@@ -487,6 +466,24 @@ export function useButtonSelection({
           setMessage("Context-menu actions must be selected separately from other UI.");
           return;
         }
+        if (range) {
+          const collection = collectionOf(button!);
+          const peers = buttons().filter(el => editable(el) && collectionOf(el) === collection &&
+            residentContextScope(state.layout, selectionResident(idOf(el))) === scope);
+          const anchor = rangeAnchor.current && peers.some(el => idOf(el) === rangeAnchor.current)
+            ? rangeAnchor.current : undefined;
+          if (!anchor) rangeAnchor.current = id;
+          const span = buttonRange(peers.map(el => ({ id: idOf(el), ...selectionBox(el) })), anchor ?? id, id);
+          const next = new Set(additive ? state.ids : []);
+          for (const member of span) {
+            let parent = ownerOf(state.layout, selectionResident(member));
+            while (parent) { next.delete(selectionId(parent)); parent = ownerOf(state.layout, parent); }
+            next.add(member);
+          }
+          select(next);
+          return;
+        }
+        rangeAnchor.current = id;
         if (additive) {
           const next = new Set(state.ids);
           if (next.has(id)) next.delete(id);
@@ -496,6 +493,7 @@ export function useButtonSelection({
             next.add(id);
           }
           select(next);
+          if (!next.size) rangeAnchor.current = null;
           return;
         }
         const next = state.ids.has(id) ? state.ids : new Set([id]);
@@ -514,13 +512,14 @@ export function useButtonSelection({
           release: captureUIPointer(e.pointerId, e.pointerType),
         };
       } else if (
-        (state.mode || (additive && target.closest("[data-ui-resident-root],.toolbar"))) &&
+        ((state.mode && !state.locked) || (additive && target.closest("[data-ui-resident-root],.toolbar"))) &&
         !target.closest("button,a,[data-ui-drag],.window-resize-grip")
       ) {
         e.preventDefault();
         e.stopImmediatePropagation();
         suppress();
         const scope = target.closest<HTMLElement>("[data-ui-drop-zone]")?.dataset.uiDropZone;
+        rangeAnchor.current = null;
         gesture.current = {
           start: { x: e.clientX, y: e.clientY },
           boxes: [],
@@ -540,15 +539,6 @@ export function useButtonSelection({
     const moveNow = (e: PointerEvent) => {
       const g = gesture.current;
       if (g && g.pointerId !== e.pointerId) return;
-      if (current.current.aligning) {
-        ops.current.previewAlignment(document.elementFromPoint(e.clientX, e.clientY) ?? e.target as Element, e.clientX, e.clientY);
-        if (g) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          g.moved ||= Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) > 5;
-        }
-        return;
-      }
       if (!g) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -572,21 +562,30 @@ export function useButtonSelection({
         select(next);
       } else if (g.moved) {
         try {
+          if (!g.live) {
+            const sources = buttons().filter(el => g.initial.has(idOf(el))).map(el => {
+              const key = selectionResident(idOf(el));
+              const root = !key.startsWith('function:') && [...document.querySelectorAll<HTMLElement>('[data-ui-resident-root]')]
+                .find(root => root.dataset.uiResidentRoot === key && visible(root));
+              return dragSurface(root || el);
+            });
+            g.live = beginLiveDrag(sources);
+          }
+          g.live.move(e.clientX - g.start.x, e.clientY - g.start.y);
           g.proposal = ops.current.resolve(g, e.clientX, e.clientY);
-          setPreviews(g.proposal.preview);
           setMessage(g.proposal.message);
         } catch (error) {
           g.proposal = undefined;
-          setPreviews([]);
           setMessage(error instanceof Error ? error.message : String(error));
         }
       }
     };
     const move = (e: PointerEvent) => {
-      if (!gesture.current && !current.current.aligning) return;
+      if (!gesture.current) return;
       if (gesture.current && gesture.current.pointerId !== e.pointerId) return;
       if (gesture.current && (e.buttons & 1) === 0) { cancel(); return; }
       if (gesture.current) { e.preventDefault(); e.stopImmediatePropagation(); }
+      gesture.current.live?.move(e.clientX - gesture.current.start.x, e.clientY - gesture.current.start.y);
       pendingMove = e;
       if (!moveFrame) moveFrame = requestAnimationFrame(() => {
         moveFrame = 0;
@@ -603,20 +602,11 @@ export function useButtonSelection({
       e.stopImmediatePropagation();
       suppress();
       gesture.current = null;
+      g.live?.restore();
       g.release?.();
       setRectangle(null);
-      setPreviews([]);
-      if (g.align) {
-        if (g.moved) return;
-        const result = ops.current.previewAlignment(document.elementFromPoint(e.clientX, e.clientY) ?? e.target as Element, e.clientX, e.clientY);
-        if (result?.next) {
-          current.current.update(() => result.next!);
-          current.current.aligning = false;
-          setAligning(false);
-          setAlignment(null);
-          setPreviews([]);
-          setMessage(`UI aligned to ${result.edge} edge. Shift+MB4 undoes it.`);
-        }
+      if (!g.marquee && !g.moved && !current.current.locked) {
+        ops.current.clear();
         return;
       }
       if (!g.marquee && g.moved && g.proposal?.boxes.length) {
@@ -629,20 +619,18 @@ export function useButtonSelection({
     };
     const cancel = () => {
       cancelMove();
-      if (!gesture.current && !current.current.aligning) return;
+      if (!gesture.current) return;
       const active = gesture.current;
       gesture.current = null;
+      active.live?.restore();
       active?.release?.();
-      current.current.aligning = false;
-      setAligning(false);
-      setAlignment(null);
+      setAlignOpen(false);
       setRectangle(null);
-      setPreviews([]);
       suppress();
       setMessage("Move cancelled.");
     };
     const key = (e: KeyboardEvent) => {
-      const active = gesture.current || current.current.ids.size || current.current.mode || current.current.aligning;
+      const active = gesture.current || current.current.ids.size || current.current.mode || current.current.alignOpen;
       if (
         active &&
         ["Delete", "Backspace"].includes(e.key) &&
@@ -661,7 +649,8 @@ export function useButtonSelection({
       if (e.key === "Escape" && active) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        if (gesture.current || current.current.aligning) cancel();
+        if (gesture.current) cancel();
+        else if (current.current.alignOpen) setAlignOpen(false);
         else ops.current.clear();
       }
     };
@@ -690,7 +679,7 @@ export function useButtonSelection({
     window.addEventListener("keydown", key, true);
     return () => {
       cancelMove();
-      const active = gesture.current; gesture.current = null; active?.release?.();
+      const active = gesture.current; gesture.current = null; active?.live?.restore(); active?.release?.();
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
@@ -708,8 +697,12 @@ export function useButtonSelection({
   }, [ids, layout, functions]);
   return {
     ids,
+    locked,
+    toggleLock,
     mode,
-    aligning,
+    alignOpen,
+    arrange,
+    closeAlignment: () => setAlignOpen(false),
     visuals,
     menu,
     group,
@@ -727,7 +720,7 @@ export function ButtonSelectionOverlay({
 }) {
   const visual = useSyncExternalStore(selection.visuals.subscribe, selection.visuals.getSnapshot);
   const menuRoot = useRef<HTMLDivElement>(null);
-  useOutsideDismiss(!!selection.menu, () => [menuRoot.current], selection.closeMenu);
+  useOutsideDismiss(!!selection.menu, () => contextMenuRoots(menuRoot.current), selection.closeMenu);
   return (
     <>
       {visual.rectangle && (
@@ -741,37 +734,19 @@ export function ButtonSelectionOverlay({
           }}
         />
       )}
-      {visual.previews.map((b) => (
-        <div
-          key={b.id}
-          className="ui-placement-preview"
-          style={{ left: b.x, top: b.y, width: b.width, height: b.height }}
-        />
-      ))}
-      {visual.alignment && (
-        <div
-          className={`ui-alignment-edge${visual.alignment.next ? "" : " invalid"}`}
-          style={{
-            left: visual.alignment.target.x + (visual.alignment.edge === "right" ? visual.alignment.target.width : 0),
-            top: visual.alignment.target.y + (visual.alignment.edge === "bottom" ? visual.alignment.target.height : 0),
-            width: visual.alignment.edge === "left" || visual.alignment.edge === "right" ? 0 : visual.alignment.target.width,
-            height: visual.alignment.edge === "top" || visual.alignment.edge === "bottom" ? 0 : visual.alignment.target.height,
-          }}
-        />
-      )}
       {(selection.mode || selection.ids.size > 0) && (
         <div className="ui-selection-tools" role="region" aria-label="UI selection">
-          <span>{selection.ids.size} UI selected</span>
+          <span>{selection.ids.size} UI selected{selection.locked ? " · locked" : ""}</span>
           <button disabled={selection.ids.size < 2} onClick={selection.compact}>
             Compact UI
           </button>
-          <button disabled={!selection.ids.size} aria-pressed={selection.aligning} onClick={selection.align}>
-            {selection.aligning ? "Cancel alignment" : "Align UI"}
+          <button disabled={!selection.ids.size} aria-pressed={selection.alignOpen} onClick={selection.align}>
+            Align UI
           </button>
           <button onClick={selection.clear}>Done / clear</button>
           <small>
-            {selection.aligning ? "Click another button’s boundary · Esc cancels" : "Ctrl/Cmd-click to add · drag selected items together"}
-            {selection.mode && !selection.aligning ? " · drag a box to select" : ""}
+            Ctrl/Cmd-click to add · Shift-click for a range · drag selected items together
+            {selection.mode ? " · drag a box to select" : ""}
           </small>
         </div>
       )}
@@ -780,11 +755,14 @@ export function ButtonSelectionOverlay({
           {visual.message}
         </div>
       )}
+      {selection.alignOpen && <FloatingWindow id="ui-alignment" title="Align UI" width={280} height={460} onClose={selection.closeAlignment}>
+        <AlignmentControls count={selection.ids.size} onArrange={selection.arrange} />
+      </FloatingWindow>}
       {selection.menu && (
-        <div
+        <ContextMenu
+          opening={selection.menu}
           ref={menuRoot}
-          className="ui-background-menu ui-selection-tools"
-          role="menu"
+          className="ui-selection-tools"
           aria-label="Selected UI actions"
           style={{
             left: Math.max(8, Math.min(selection.menu.x, window.innerWidth - 240)),
@@ -792,11 +770,16 @@ export function ButtonSelectionOverlay({
           }}
         >
           <button className="ui-popup-close" aria-label="Close selection menu" onClick={selection.closeMenu}>×</button>
+          <button aria-pressed={selection.locked} onClick={selection.toggleLock}>
+            {selection.locked ? "Unlock selection" : "Lock selection"}
+          </button>
           <button disabled={selection.ids.size < 2} onClick={selection.group}>Group into frame</button>
           <button onClick={selection.compact}>Compact selected UI</button>
-          <button onClick={selection.align}>Align UI to a button boundary</button>
+          <ContextSubmenu label="Align">
+            <AlignmentControls count={selection.ids.size} onArrange={selection.arrange} />
+          </ContextSubmenu>
           <button onClick={selection.clear}>Clear UI selection</button>
-        </div>
+        </ContextMenu>
       )}
     </>
   );

@@ -50,7 +50,6 @@
           { "kind": "function", "id": "ui:select" },
           { "kind": "function", "id": "ui:compact" },
           { "kind": "function", "id": "ui:align" },
-          { "kind": "function", "id": "ui:placementMode" },
           { "kind": "function", "id": "ui:undo" },
           { "kind": "function", "id": "ui:redo" },
           { "kind": "function", "id": "ui:reset" }

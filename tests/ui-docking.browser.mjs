@@ -80,7 +80,7 @@ try {
   assert.ok(allocation.sidebar.x >= allocation.left.right-1);
   assert.ok(allocation.canvas.right <= allocation.right.x+1);
   assert.ok(allocation.canvas.width > 100);
-  const reuse = await page.locator('[data-ui-resident-root="window:panel:reuse"]').boundingBox();
+  const reuse = await page.locator('[data-ui-resident-root="window:panel:reuse"] .ui-frame-handle').boundingBox();
   await drag('[role="tab"][data-ui-drag="window:settings"]', reuse.x+reuse.width-8, reuse.y+reuse.height/2);
   await page.mouse.up();
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('omnium.ui.layout.v1')).windows['native:@sidebar']?.members?.some(member => member.kind === 'frame'));

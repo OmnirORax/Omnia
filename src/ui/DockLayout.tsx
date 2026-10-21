@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DockFillContext, useUI } from "./context";
 import { getContainer, residentPinned, updateContainer } from "./layout";
-import { updateDockNode, type DockNode } from "./dockTree";
+import { dockSplitStyle, updateDockNode, type DockNode } from "./dockTree";
 import { DockHost } from "./DockHost";
 import { captureUIPointer, startResidentDrag } from "./drag";
 import { FrameSearch, nameFor } from "./FrameSearch";
@@ -97,8 +97,7 @@ function DockSplit({ node, path, container }: { node: Extract<DockNode, { kind: 
   }, []);
   const ratio = draft ?? node.ratio, horizontal = node.axis === "horizontal";
   return <div ref={root} className={`ui-dock-split ${horizontal ? "is-horizontal" : "is-vertical"}`}
-    style={{ gridTemplateColumns: horizontal ? `minmax(0, ${ratio}fr) 6px minmax(0, ${1-ratio}fr)` : undefined,
-      gridTemplateRows: horizontal ? undefined : `minmax(0, ${ratio}fr) 6px minmax(0, ${1-ratio}fr)` }}>
+    style={dockSplitStyle(node.axis, ratio)}>
     <DockBranch node={node.first} path={[...path, 0]} container={container} />
     <div role="separator" tabIndex={0} aria-label="Resize dock split" aria-orientation={horizontal ? "vertical" : "horizontal"}
       aria-valuenow={Math.round(ratio * 100)} className="ui-dock-divider" data-ui-resize

@@ -1,7 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUI } from "./context";
 import { useDockPreview } from "./PlacementPreview";
-import { createPortal } from "react-dom";
 import { DockLayout } from "./DockLayout";
 import {
   getContainer,
@@ -75,8 +74,8 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
   const state = getContainer(ui.layout, container);
   const members = state?.members ?? [];
   const preview = useDockPreview(container);
-  // A proposal must not resize/reflow real residents, hide the source, or alter
-  // frame measurements. Only a committed drop changes the authored arrangement.
+  // Live dragging reserves the source footprint. Destination hints must not
+  // reflow residents; only a committed drop changes the authored arrangement.
   const entries = members;
   const occupied = members;
   const positioned = occupied.length > 0 && occupied.every((m) => m.position && m.size);
@@ -316,16 +315,6 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
           origin={{ x: minX, y: minY }}
         />
       ))}
-      {preview?.screenRect && createPortal(
-        <div
-          className="ui-drop-ghost ui-dock-preview-overlay"
-          data-ui-ghost="true"
-          data-ui-preview-target={container}
-          aria-hidden="true"
-          style={{ left: preview.screenRect.x, top: preview.screenRect.y, width: preview.screenRect.width, height: preview.screenRect.height }}
-        >Drop here{preview.magnetic ? " · magnetic" : ""}</div>,
-        document.body,
-      )}
     </div>
   );
 }

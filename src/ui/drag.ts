@@ -1,7 +1,8 @@
 import type { DragEvent } from "react";
-import type { Cell, UIResident } from "./layout";
+import type { Cell, UILayout, UIResident } from "./layout";
 import { claimUIPress } from "./pointerOwnership.ts";
 import type { FrameDock } from "./docking";
+import type { DockNode } from "./dockTree";
 export const RESIDENT_MIME = "application/x-omnium-ui-resident";
 export const CONTROL_MIME = "application/x-omnium-frame-control";
 export const FUNCTION_MIME = "application/x-omnium-function";
@@ -67,4 +68,6 @@ export type DockPreview = {
   position?: Cell;
   baseline?: UIResident[];
 };
-export type PlacementPreview = { dock?: DockPreview; frameDock?: FrameDock; rect?: Rect; text: string };
+export type PlacementPreview = { dock?: DockPreview; frameDock?: FrameDock; rect?: Rect; destination?: boolean; text: string;
+  allocation?: { layout: UILayout; source: string; root: string };
+  frameLayout?: { tree: DockNode; source: string; title?: string } };
