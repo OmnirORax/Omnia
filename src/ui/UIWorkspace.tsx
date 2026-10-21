@@ -323,6 +323,7 @@ export function UIPanel({
       ref={root}
       className={`ui-docked-panel ${menu ? "ui-menu-panel" : ""}`}
       data-ui-resident-root={key}
+      data-ui-docking={!menu && !state.dockLayout ? "free" : undefined}
       style={{ order: menu ? undefined : ui.layout.nativeOrders?.["@sidebar"]?.indexOf(id) }}
       onClick={event => {
         if (menu && !event.defaultPrevented && !event.ctrlKey && !event.metaKey && !ui.selectingUI && !ui.selectedFunctions.size && (event.target as Element).closest("button[data-ui-function]")) patch({ collapsed: true });
@@ -407,6 +408,7 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
         ref={ref}
         className="ui-frame-root"
         data-ui-resident-root={key}
+        data-ui-docking={structured ? "split" : undefined}
         style={{ width: structured ? "100%" : !nested ? Math.min(width, visible.width) : width, height: structured ? "100%" : undefined, maxHeight: !nested && workspace.active ? visible.height : undefined, overflow: !nested && workspace.active ? "auto" : undefined, position: "relative", left: structured ? 0 : -bounds.x, top: structured ? 0 : -bounds.y }}
       >
         <FrameChrome
@@ -785,6 +787,12 @@ export function UIWorkspace({
     };
     const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
       if (source.control || source.key.startsWith("function:") || residentContextScope(s, source.key)) return;
+      // Native sidebar sections keep free-form containment and sibling ordering.
+      // Check the foreground before retained guides or workspace edges can steal
+      // the drop. Actual dock groups/panes inside a section opt back into splits.
+      const foreground = elements.find(element => !element.closest("[data-ui-ghost],.ui-drag-source,[data-ui-search],.ui-background-menu"));
+      const surface = foreground?.closest<HTMLElement>("[data-ui-docking],[data-ui-dock-pane]");
+      if (surface?.dataset.uiDocking === "free") return;
       const viewport = { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
       const previous = placementPreview.getSnapshot()?.frameDock;
       // Guide cells and the diagonal travel gaps keep one target active, even
