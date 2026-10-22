@@ -7,10 +7,11 @@ import { SelectorCursor } from "./SelectorCursor";
 import { SelectionController } from "./SelectionController";
 import { describeSelectedPart } from "./selectedParts";
 import { selectedPartTarget } from "./selectionCoupling";
+import { boxFromPoints, nextPatternMode, relativePoint, type Point, type PatternMode } from "./selectionGeometry";
 import {
-  boundaryCandidates, boundaryElement, boundaryFor, collectVisualParts, matchingVisualParts,
-  partAt, resolveVisualSelection, selectorChrome,
-  type SelectionBoundary, type SelectionRule, type VisualPart,
+  boundaryCandidates, boundaryElement, boundaryFor, boundaryRect, collectVisualParts, matchingVisualParts,
+  partAt, partPaint, pointInBoundary, resolveVisualSelection, selectionLineGuide, selectorChrome,
+  type SelectionBoundary, type SelectionRule, type VisualPart, type VisualRole,
 } from "./visualSelection";
 
 type SelectionState = { boundary: SelectionBoundary | null; rules: SelectionRule[] };
@@ -21,8 +22,12 @@ const Context = createContext<VisualSelection | null>(null);
 export const useVisualSelection = () => useContext(Context);
 const emptySelection = (): SelectionState => ({ boundary: null, rules: [] });
 const noParts: VisualPart[] = [];
-const ruleKey = (rule: SelectionRule | null) => rule ? `${rule.include}:${rule.boundary.key}:${rule.region ?? "inside"}:${rule.role ?? ""}:${rule.part ?? ""}` : "neutral";
+const ruleKey = (rule: SelectionRule | null) => rule ? `${rule.include}:${rule.boundary.key}:${rule.region ?? "inside"}:${rule.role ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.line ?? null)}` : "neutral";
 const pickKey = (pick: Pick | null) => pick ? `${pick.setBoundary}:${pick.boundary.key}:${ruleKey(pick.rule)}` : "";
+type Gesture = { id: number; start: Point; element: Element;
+  mode: "boundary" | Exclude<PatternMode, "item" | "pattern">; sample?: VisualPart };
+const roleNames: Record<VisualRole, string> = { text: "Text", background: "Backgrounds", contour: "Contours", icon: "Icons", indicator: "Indicators" };
+const roleSymbols: Record<VisualRole, string> = { text: "T", background: "□", contour: "○", icon: "◆", indicator: "◉" };
 
 /** Transient target selection; appearance editing stays in the existing master controller. */
 export function VisualSelectionProvider({ children }: { children: ReactNode }) {
@@ -30,13 +35,15 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const selection = timeline.states[timeline.index];
   const [phase, setPhase] = useState<Phase>("off");
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [configuration, setConfiguration] = useState<SelectorConfiguration>({ boundaryPicking: true, pattern: false, operation: null, region: null });
+  const [configuration, setConfiguration] = useState<SelectorConfiguration>({ boundaryPicking: true, pattern: "pattern", patternRole: null,
+    bounded: false, stopAtPaint: false, operation: null, region: null });
   const [catalog, setCatalog] = useState<VisualPart[]>([]);
   const [candidate, setCandidate] = useState<Pick | null>(null);
   const [geometry, setGeometry] = useState(0);
   const point = useRef<{ x: number; y: number; element: Element } | null>(null);
   const depth = useRef(0), candidateRef = useRef<Pick | null>(null);
   const selectedRef = useRef<VisualPart[]>([]);
+  const gesture = useRef<Gesture | null>(null);
   const latest = useRef({ phase, configuration, catalog, selection });
   latest.current = { phase, configuration, catalog, selection };
   const hasSelection = () => !!latest.current.selection.boundary || selectedRef.current.length > 0;
@@ -56,7 +63,24 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const previewAt = (element: Element, x: number, y: number) => {
     const current = latest.current, config = current.configuration;
     point.current = { element, x, y };
-    if (element.closest(selectorChrome)) return;
+    const drag = gesture.current;
+    if (drag?.mode === "boundary" && Math.hypot(x - drag.start.x, y - drag.start.y) >= 4) {
+      // Find an owner containing the whole marquee; retain its stable anchor.
+      const options = boundaryCandidates(drag.element);
+      const owner = options.find(option => {
+        const rect = boundaryRect(option);
+        return rect && drag.start.x >= rect.left && drag.start.x <= rect.right && drag.start.y >= rect.top && drag.start.y <= rect.bottom &&
+          x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      }) ?? boundaryFor(document.body);
+      const rect = boundaryRect(owner)!;
+      const area = boxFromPoints(relativePoint(drag.start, rect), relativePoint({ x, y }, rect));
+      const boundary = { ...owner, area, key: `${owner.key}:area:${JSON.stringify(area)}` };
+      setPreview({ boundary, setBoundary: true, rule: config.operation ? {
+        boundary, include: config.operation === "include", region: config.region ?? "inside",
+      } : null });
+      return;
+    }
+    if (!drag && element.closest(selectorChrome)) { setPreview(null); return; }
     if (config.boundaryPicking) {
       const options = boundaryCandidates(element);
       const boundary = options[Math.min(depth.current, options.length - 1)];
@@ -68,16 +92,33 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     if (!config.operation) { setPreview(null); return; }
     const boundary = current.selection.boundary ?? boundaryFor(document.body);
     const root = boundaryElement(boundary), region = config.region ?? "inside";
-    if (!root || (region === "outside" ? root.contains(element) : !root.contains(element))) { setPreview(null); return; }
+    if (!root || (!drag && (region === "outside" ? pointInBoundary(boundary, element, { x, y }) : !pointInBoundary(boundary, element, { x, y })))) { setPreview(null); return; }
+    if (config.pattern === "axis" || config.pattern === "direction" || config.pattern === "position") {
+      const box = boundaryRect(boundary)!;
+      const start = drag?.start ?? { x, y };
+      // A click supplies a vertical axis/upward ray or a precise 2px position.
+      const end = drag && Math.hypot(x - start.x, y - start.y) >= 4 ? { x, y } :
+        { x: start.x, y: start.y - (config.pattern === "position" ? 2 : 24) };
+      const sample = config.patternRole ? partAt(current.catalog.filter(part => part.role === config.patternRole), drag?.element ?? element, start.x, start.y) :
+        drag?.sample ?? partAt(current.catalog, element, start.x, start.y);
+      if (config.stopAtPaint && !sample) { setPreview(null); return; }
+      const paint = config.stopAtPaint && sample ? partPaint(sample) : undefined;
+      setPreview({ boundary, setBoundary: false, rule: { include: config.operation === "include", boundary, region,
+        ...(config.patternRole || paint !== undefined ? { role: config.patternRole ?? sample!.role } : {}),
+        line: { mode: config.pattern, start: relativePoint(start, box), end: relativePoint(end, box), bounded: config.bounded,
+          ...(paint !== undefined ? { stopAtPaint: paint } : {}) },
+      } });
+      return;
+    }
     const part = partAt(current.catalog, element, x, y);
     setPreview(part ? { boundary, setBoundary: false, rule: { include: config.operation === "include", boundary, region,
-      ...(config.pattern ? { role: part.role } : { part: part.key }) } } : null);
+      ...(config.pattern === "pattern" ? { role: config.patternRole ?? part.role } : { part: part.key }) } } : null);
   };
-  const clear = () => { record(current => current.boundary || current.rules.length ? emptySelection() : current); setPreview(null); };
-  const close = () => { setPhase("off"); setPreview(null); };
+  const clear = () => { gesture.current = null; record(current => current.boundary || current.rules.length ? emptySelection() : current); setPreview(null); };
+  const close = () => { gesture.current = null; setPhase("off"); setPreview(null); };
   const disable = () => { close(); clear(); };
-  const undo = () => { setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); setPreview(null); };
-  const redo = () => { setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); setPreview(null); };
+  const undo = () => { gesture.current = null; setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); setPreview(null); };
+  const redo = () => { gesture.current = null; setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); setPreview(null); };
   const aim = () => { setPreview(null); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;
@@ -121,9 +162,13 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const rule = regionRule(side);
     setPreview(rule ? { boundary: rule.boundary, rule, setBoundary: false } : null);
   };
-  const actions = useRef({ previewAt, close, disable, undo, redo, accept, aim, edit });
-  actions.current = { previewAt, close, disable, undo, redo, accept, aim, edit };
-  const matches = useMemo(() => resolveVisualSelection(catalog, selection.boundary, selection.rules), [catalog, selection]);
+  const cyclePattern = () => {
+    gesture.current = null; setPreview(null);
+    setConfiguration(config => ({ ...config, boundaryPicking: false, pattern: nextPatternMode(config.pattern) }));
+  };
+  const actions = useRef({ previewAt, close, disable, undo, redo, accept, aim, edit, cyclePattern });
+  actions.current = { previewAt, close, disable, undo, redo, accept, aim, edit, cyclePattern };
+  const matches = useMemo(() => resolveVisualSelection(catalog, selection.boundary, selection.rules), [catalog, selection, geometry]);
   selectedRef.current = matches.included;
   const editableParts = useMemo(() => matches.included.flatMap(part => {
     const description = describeSelectedPart(part); return description ? [description] : [];
@@ -133,7 +178,20 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const existing = new Set((candidate.rule.include ? matches.included : matches.excluded).map(part => part.key));
     const changed = matchingVisualParts(catalog, candidate.rule).filter(part => !existing.has(part.key));
     return changed.length ? changed : noParts;
-  }, [catalog, candidate, matches]);
+  }, [catalog, candidate, matches, geometry]);
+  const guide = useMemo(() => candidate?.rule?.line ? selectionLineGuide(catalog, candidate.rule) : null, [catalog, candidate, geometry]);
+  const guides = useMemo(() => selection.rules.flatMap((rule, index) => {
+    const points = rule.line && selectionLineGuide(catalog, rule);
+    return points ? [{ key: `${index}:${ruleKey(rule)}`, points, include: rule.include, direction: rule.line?.mode === "direction" }] : [];
+  }), [catalog, selection.rules, geometry]);
+  const patternGroups = useMemo(() => {
+    const boundary = selection.boundary ?? boundaryFor(document.body);
+    const parts = matchingVisualParts(catalog, { boundary, region: configuration.region ?? "inside", include: true });
+    return (Object.keys(roleNames) as VisualRole[]).flatMap(role => {
+      const peers = parts.filter(part => part.role === role);
+      return peers.length ? [{ role, parts: peers }] : [];
+    });
+  }, [catalog, selection.boundary, configuration.region, geometry]);
   const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
 
   useEffect(() => {
@@ -142,6 +200,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const down = (event: PointerEvent) => {
       if (!(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
       if (event.button === 1) {
+        gesture.current = null;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation();
         setCatalog(collectVisualParts());
@@ -153,6 +212,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (event.button === 2 && outsideChrome(event) && hasSelection()) {
+        gesture.current = null;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation();
         consumedUntil = 0;
@@ -172,8 +232,20 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       event.preventDefault(); event.stopImmediatePropagation();
       consumedUntil = performance.now() + 1000;
       if (latest.current.phase === "configure") actions.current.aim();
+      const config = latest.current.configuration;
+      const boundary = latest.current.selection.boundary;
+      if (!config.boundaryPicking && boundary && ((config.region ?? "inside") === "inside" ?
+        !pointInBoundary(boundary, event.target, { x: event.clientX, y: event.clientY }) :
+        pointInBoundary(boundary, event.target, { x: event.clientX, y: event.clientY }))) {
+        candidateRef.current = null; setCandidate(null); return;
+      }
+      if (config.boundaryPicking || config.pattern === "axis" || config.pattern === "direction" || config.pattern === "position") {
+        gesture.current = { id: event.pointerId, start: { x: event.clientX, y: event.clientY }, element: event.target,
+          mode: config.boundaryPicking ? "boundary" : config.pattern as Gesture["mode"],
+          sample: partAt(latest.current.catalog, event.target, event.clientX, event.clientY) };
+      }
       actions.current.previewAt(event.target, event.clientX, event.clientY);
-      actions.current.accept();
+      if (!gesture.current) actions.current.accept();
     };
     const preventClick = (event: MouseEvent) => {
       if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
@@ -182,6 +254,18 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       }
     };
     const up = (event: PointerEvent) => {
+      if (gesture.current?.id === event.pointerId) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        cancelAnimationFrame(frame); frame = 0;
+        const hit = document.elementFromPoint(event.clientX, event.clientY);
+        if (hit) {
+          actions.current.previewAt(hit, event.clientX, event.clientY);
+          actions.current.accept();
+        }
+        gesture.current = null;
+        consumedUntil = performance.now() + 1000;
+        return;
+      }
       if (event.button === 0 && performance.now() < consumedUntil && outsideChrome(event)) {
         event.preventDefault(); event.stopImmediatePropagation();
       }
@@ -193,7 +277,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
         if (!frame) frame = requestAnimationFrame(() => { frame = 0; setGeometry(value => value + 1); });
         return;
       }
-      if (latest.current.phase !== "aim" || !outsideChrome(event)) return;
+      if (latest.current.phase !== "aim" || (!gesture.current && !outsideChrome(event))) return;
       if (!frame) frame = requestAnimationFrame(() => {
         frame = 0;
         const p = point.current;
@@ -211,6 +295,9 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape" && (latest.current.phase !== "off" || latest.current.selection.boundary)) {
         event.preventDefault(); event.stopPropagation(); actions.current.disable();
+      } else if ((latest.current.phase === "aim" || latest.current.phase === "configure") && event.key.toLowerCase() === "e" &&
+        !event.ctrlKey && !event.metaKey && !event.altKey && !(event.target instanceof Element && event.target.closest("input,textarea,select,[contenteditable=true]"))) {
+        event.preventDefault(); event.stopImmediatePropagation(); actions.current.cyclePattern();
       } else if (latest.current.phase !== "off" && latest.current.phase !== "edit" && (event.ctrlKey || event.metaKey)) {
         const key = event.key.toLowerCase();
         if (key === "z" || key === "y") {
@@ -238,8 +325,10 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     // the normal preview/commit lifecycle can finish.
     const blur = () => { if (latest.current.phase !== "edit") actions.current.close(); };
     const hidden = () => { if (document.hidden) blur(); };
+    const cancel = () => { gesture.current = null; candidateRef.current = null; setCandidate(null); };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", cancel, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("mousedown", preventClick, true);
     window.addEventListener("click", preventClick, true);
@@ -253,6 +342,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       cancelAnimationFrame(frame);
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", cancel, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("mousedown", preventClick, true);
       window.removeEventListener("click", preventClick, true);
@@ -299,7 +389,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   return <Context.Provider value={{ ...selection, parts: matches.included, properties, clear }}>
     {children}
     {active && phase !== "edit" && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
-      candidate={preview.length || candidate?.setBoundary ? candidate?.rule ?? null : null}
+      candidate={preview.length || candidate?.setBoundary || guide ? candidate?.rule ?? null : null} guide={guide} guides={guides}
       hoverBoundary={candidate?.setBoundary ? candidate.boundary : null} boundary={selection.boundary} />, document.body)}
     {phase === "aim" && createPortal(<SelectorCursor configuration={configuration} initial={point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position}
@@ -311,9 +401,18 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
         boundary: () => { depth.current = 0; setPreview(null); setConfiguration(config => ({ ...config,
           boundaryPicking: !config.boundaryPicking, ...(!config.boundaryPicking ? { region: null } : {}),
         })); },
-        pattern: () => { setPreview(null); setConfiguration(config => ({ ...config, pattern: !config.pattern })); },
+        pattern: cyclePattern,
         operation: chooseOperation, region: chooseRegion, previewRegion,
       }} />
+      {(configuration.pattern === "axis" || configuration.pattern === "direction" || configuration.pattern === "position") &&
+        <div className="visual-selector-conditions">
+          <button type="button" aria-label="Finite drag bounds" aria-pressed={configuration.bounded || configuration.pattern === "position"}
+            disabled={configuration.pattern === "position"} title="Limit matching to the dragged segment. Axis and direction are unbounded by default; position is always finite."
+            onClick={() => { setPreview(null); setConfiguration(config => ({ ...config, bounded: !config.bounded })); }}>↦↤</button>
+          <button type="button" aria-label="Stop at color change" aria-pressed={configuration.stopAtPaint}
+            title="Sample the starting part's color and role; stop independently in each direction at the first differently colored peer. Empty gaps do not stop it. Start on a painted part."
+            onClick={() => { setPreview(null); setConfiguration(config => ({ ...config, stopAtPaint: !config.stopAtPaint })); }}>◐</button>
+        </div>}
       <div className="visual-selector-actions">
         <button type="button" aria-label="Undo selection operation" title="Undo selection (Ctrl+Z)" disabled={timeline.index === 0} onClick={undo}>↶</button>
         <button type="button" aria-label="Redo selection operation" title="Redo selection (Ctrl+Shift+Z / Ctrl+Y)" disabled={timeline.index === timeline.states.length - 1} onClick={redo}>↷</button>
@@ -326,6 +425,25 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
           onClick={() => edit(position.x, position.y)}>☷</button>
         <button type="button" aria-label="Start aiming" title="Aim, or move outside the controller. MB3 configures again; Escape disables and clears." onClick={aim}>✓</button>
       </div>
+      {configuration.pattern !== "item" && <details className="visual-selector-patterns">
+        <summary title="Patterns in the working region. Choose a name to filter line matching; +/− includes/excludes the whole pattern.">⠒</summary>
+        {patternGroups.map(group => <div key={group.role}>
+          <button type="button" aria-pressed={configuration.patternRole === group.role}
+            title={`${group.parts.length} parts. ${[...new Set(group.parts.map(part => part.target.label))].join(", ")}. Click to filter; click again for all patterns.`}
+            onClick={() => { setPreview(null); setConfiguration(config => ({ ...config, patternRole: config.patternRole === group.role ? null : group.role })); }}>
+            {roleSymbols[group.role]} {roleNames[group.role]} <small>{group.parts.length}</small>
+          </button>
+          {([true, false] as const).map(include => <button key={String(include)} type="button"
+            aria-label={`${include ? "Include" : "Exclude"} ${roleNames[group.role]}`} title={`${include ? "Include" : "Exclude"} this pattern in the working region`}
+            className={include ? "selector-pattern-include" : "selector-pattern-exclude"}
+            onPointerEnter={() => setPreview({ boundary: selection.boundary ?? boundaryFor(document.body), setBoundary: false,
+              rule: { boundary: selection.boundary ?? boundaryFor(document.body), region: configuration.region ?? "inside", role: group.role, include } })}
+            onPointerLeave={() => setPreview(null)}
+            onClick={() => { append({ boundary: selection.boundary ?? boundaryFor(document.body), region: configuration.region ?? "inside", role: group.role, include }); setPreview(null); }}>
+            {include ? "+" : "−"}
+          </button>)}
+        </div>)}
+      </details>}
     </div>, document.body)}
   </Context.Provider>;
 }

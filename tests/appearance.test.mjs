@@ -14,6 +14,78 @@ import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
+import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode } from "../src/appearance/selectionGeometry.ts";
+import { matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
+
+test("axis, ray and position geometry includes touched endpoints without selecting a rectangle", () => {
+  const start = { x: 10, y: 10 }, end = { x: 20, y: 10 };
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom });
+  assert.deepEqual(lineBoxInterval(start, end, box(0, 5, 5, 15), lineDomain({ mode: "axis", bounded: false })), [-1, -.5]);
+  assert.equal(lineBoxInterval(start, end, box(0, 5, 5, 15), lineDomain({ mode: "direction", bounded: false })), null);
+  assert.deepEqual(lineBoxInterval(start, end, box(20, 10, 30, 20), lineDomain({ mode: "position", bounded: false })), [1, 1]);
+  assert.equal(lineBoxInterval(start, end, box(25, 5, 30, 15), lineDomain({ mode: "axis", bounded: true })), null);
+  assert.equal(lineBoxInterval(start, { x: 20, y: 20 }, box(10, 18, 12, 20), [0, 1]), null);
+  assert.equal(lineBoxInterval(start, start, box(0, 0, 30, 30), [-Infinity, Infinity]), null);
+  const local = relativePoint({ x: 50, y: 35 }, box(10, 10, 110, 60));
+  assert.deepEqual(absolutePoint(local, box(110, 110, 310, 210)), { x: 190, y: 160 });
+  assert.equal(nextPatternMode("pattern"), "axis");
+  assert.equal(nextPatternMode("axis"), "direction");
+  assert.equal(nextPatternMode("direction"), "position");
+});
+
+test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {
+  assert.deepEqual(paintStopDomain([
+    { interval: [4, 5], paint: "white" }, { interval: [-3, -2], paint: "white" },
+    { interval: [8, 9], paint: "black" }, { interval: [6, 7], paint: "red" },
+    { interval: [-5, -4], paint: "red" }, { interval: [-.1, .1], paint: "black" },
+  ], "white", [-Infinity, Infinity]), [-4, 6]);
+});
+
+test("geometric selection uses all touched roles, exact text lines, live boundary coordinates and later exceptions", t => {
+  const previous = Object.fromEntries(["document", "innerWidth", "innerHeight", "getComputedStyle"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  t.after(() => { for (const [key, descriptor] of Object.entries(previous)) {
+    if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
+  } });
+  let offset = 0;
+  const box = (left, top, right, bottom) => ({ left: left + offset, top, right: right + offset, bottom });
+  const root = { isConnected: true, closest: () => null, getClientRects: () => [box(0, 0, 200, 200)], getBoundingClientRect: () => box(0, 0, 200, 200),
+    contains: element => element === root || element.parent === root };
+  const app = { ...root, getBoundingClientRect: () => box(0, 0, 400, 400), contains: () => true };
+  Object.assign(globalThis, { document: { body: app }, innerWidth: 400, innerHeight: 400,
+    getComputedStyle: element => ({ visibility: "visible", color: element.paint ?? "white", backgroundColor: element.paint ?? "white",
+      borderTopColor: element.paint ?? "white", borderTopWidth: "1", borderRightWidth: "1", borderBottomWidth: "1", borderLeftWidth: "1",
+      getPropertyValue: () => "" }) });
+  const part = (key, role, bounds, paint = "white", parent = root) => ({ key, role, target: { id: key },
+    element: { parent, paint, hasAttribute: () => false, getClientRects: () => [box(...bounds)] } });
+  const a = part("label", "text", [20, 30, 40, 40]);
+  a.range = { getClientRects: () => [box(20, 30, 40, 40), box(20, 50, 40, 60)] };
+  const b = part("icon", "icon", [60, 30, 70, 40]);
+  const c = part("button", "background", [80, 30, 95, 40]);
+  const gap = part("gap", "text", [20, 43, 40, 47]);
+  const outside = part("outside", "icon", [220, 30, 230, 40], "white", app);
+  const parts = [a, b, c, gap, outside], boundary = { element: root, key: "root" };
+  const line = { mode: "position", bounded: false, start: { x: .1, y: .2 }, end: { x: .4, y: .2 } };
+  const rule = { boundary, include: true, line };
+  assert.deepEqual(matchingVisualParts(parts, rule).map(p => p.key), ["label", "icon", "button"], "all roles, including the touched endpoint");
+  const withinGap = { ...rule, role: "text", line: { ...line, start: { x: .1, y: .225 }, end: { x: .2, y: .225 } } };
+  assert.deepEqual(matchingVisualParts(parts, withinGap).map(p => p.key), ["gap"], "text's blank inter-line box is not its ink");
+  assert.deepEqual(resolveVisualSelection(parts, boundary, [rule, { boundary, include: false, part: "icon" }]).included.map(p => p.key), ["label", "button"]);
+  assert.deepEqual(resolveVisualSelection(parts, boundary, [rule, { boundary, include: false, role: "text" }, { boundary, include: true, part: "label" }]).included.map(p => p.key), ["label", "icon", "button"]);
+  assert.deepEqual(matchingVisualParts(parts, { ...rule, line: { ...line, mode: "axis" } }).map(p => p.key), ["label", "icon", "button"]);
+  assert.deepEqual(matchingVisualParts(parts, { ...rule, region: "outside", line: { ...line, mode: "axis" } }).map(p => p.key), ["outside"]);
+  offset = 100;
+  assert.deepEqual(matchingVisualParts(parts, rule).map(p => p.key), ["label", "icon", "button"], "line follows the moved owner");
+  assert.deepEqual(selectionLineGuide(parts, rule), [{ x: 120, y: 40 }, { x: 180, y: 40 }]);
+  offset = 0;
+  const custom = { ...boundary, area: { left: .25, top: .1, right: .5, bottom: .25 } };
+  assert.deepEqual(matchingVisualParts(parts, { boundary: custom, include: true }).map(p => p.key), ["icon", "button"]);
+  const contour = part("frame edge", "contour", [0, 0, 100, 100]);
+  assert.deepEqual(matchingVisualParts([contour], rule), [], "position inside frame never touches its outer contour");
+  const red = part("red", "text", [110, 30, 120, 40], "red"), beyond = part("beyond", "text", [130, 30, 140, 40]);
+  const stopped = { ...rule, role: "text", line: { ...line, mode: "direction", stopAtPaint: "white" } };
+  assert.deepEqual(matchingVisualParts([a, red, beyond], stopped).map(p => p.key), ["label"], "color stop excludes its terminating peer and later matches");
+  assert.deepEqual(selectionLineGuide([a, red, beyond], stopped), [{ x: 20, y: 40 }, { x: 110, y: 40 }]);
+});
 const fixture = () => {
   const state = emptyController();
   return { state, targets: controllerTargets(state) };

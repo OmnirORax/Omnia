@@ -1,4 +1,4 @@
-import { TARGETS, type RegisteredTarget } from "./registry";
+import { TARGETS, type RegisteredTarget } from "./registry.ts";
 import type { GlyphScope } from "../uiLightning";
 export const uiEffectTargets = TARGETS.filter(
   (t) => !t.aggregate && t.binding?.animation && (t.binding.animation.selector || t.binding.selector),

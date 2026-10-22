@@ -37,15 +37,43 @@ The symbol has independent choices:
   apply another operation or remove the already accepted selection.
   Outside means other registered UI parts throughout the app, not another frame.
   Choosing a region on an established boundary also finishes boundary picking.
-- **Paired dots:** toggle pattern sampling within the fixed boundary's chosen
-  region. With dots off, clicks affect individual parts.
-  With dots on, a clicked role matches across the selected inside/outside region.
+- **Paired dots:** cycle pattern ⠒ → axis ↕ → direction ↑ → position | →
+  individual · → pattern. E cycles the same modes while the selector is active.
+  The precision dot in the aiming symbol remains the exact pointer hotspot;
+  stationary dots control the mode. Choosing a mode finishes boundary picking.
+  In pattern mode, clicking a part matches its registered role across the working
+  region. Individual mode affects only the clicked part.
+- **↕ / ↑ / |:** drag to place an infinite axis, a forward ray, or a finite
+  position segment. Every registered pattern touched by the line participates by
+  default, including an exact endpoint touch; this is not a rectangular marquee.
+  A click without dragging places a vertical axis/upward ray or a precise 2px
+  position segment. Axis/ray are unbounded until constrained by a boundary or the
+  finite-bounds control (↦↤). Position is always finite. The guide and matcher
+  share geometry; accepted lines remain faintly visible. A drag previews while
+  held and records one selection operation on release. Cancellation/blur does
+  not accept its preview.
+- **◐:** stop when the starting part's computed paint changes. Start on a painted
+  part; its role and source color are sampled. The first differently colored peer
+  terminates that direction, excluding the terminator and later peers. An axis
+  stops independently on both sides. Empty gaps do not terminate it. This uses
+  registered part paint, not a pixel magic wand or visual image recognition.
+  Feedback ink is excluded from sampling.
+- **⠒ below the actions:** reveal the patterns in the working region, with counts
+  and source target labels in tooltips. Click a pattern name to filter line
+  matching, again to restore all patterns. Its +/− controls preview and apply
+  include/exclude to that role throughout the region. These reuse the same rules,
+  local undo, bindings and master property controller.
 
 A neutral boundary pick establishes an anchor without adding included/excluded
 paint. Picking a new boundary starts a fresh selection; an armed operation applies
 inside that boundary by default, or outside when that region is configured. An
 existing boundary remains the same when its center/surrounding controls are used.
-Parts outside are unselected by default until an explicit outside operation.
+With the ring armed, dragging instead of clicking makes a custom rectangular
+boundary. Its owner is the nearest containing registered component/frame, falling
+back to the app. Bounds and line coordinates are stored relative to that owner so
+moving/resizing it follows the same area. Custom boundaries select whole visual
+parts they touch; they do not crop an editable property's renderer into arbitrary
+pixels. Parts outside are unselected by default until an explicit outside operation.
 After placement, hover previews stay inside the fixed boundary unless Outside is
 explicitly chosen. Moving beyond it produces no replacement-boundary preview.
 Hover paint shows only parts whose include/exclude state would change: already
@@ -56,7 +84,9 @@ only while explicitly choosing a boundary, not for ordinary item/pattern hovers.
 
 Pattern matching starts with registered text, backgrounds, contours, icons and
 selection indicators. It does not infer semantic structure from pixels or select
-individual letters/words. Text previews follow actual text ranges. Later operations
+individual letters/words. Text previews and line intersection follow actual text
+ranges, including separate wrapped lines; their intervening blank box is not text
+ink. Contour intersections use border strips rather than the whole surface. Later operations
 override earlier matches: a pattern exclusion can have individually included
 exceptions. Explicit inclusions remain green and exclusions remain red in both
 preview and accepted feedback. Unselected parts are not painted as exclusions.
@@ -66,12 +96,15 @@ history. While the tool is active, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z or Ctrl/C
 redoes; the stationary controller exposes both actions. A new operation after undo
 replaces the redo branch. Clear is an undoable reset of selection. Escape disables the tool and
 clears selection in one action; window blur/tab hiding stops picking. Choices stay
-configured until changed. No phone controls, axis conditions or custom drag regions
-are implemented in this step.
+configured until changed. Phone controls remain outside this implementation.
 
 The first adapter covers rendered UI parts through the existing appearance
 bindings. Canvas/3D visual picking will need a renderer adapter to the same
-selection model; it is not inferred from the canvas pixels. Selector chrome is
+selection model; it is not inferred from the canvas pixels. Existing registered
+background surfaces remain selectable, including from their empty interiors.
+Empty space as an independent pattern (layout gaps/negative areas), and the 3D
+world's background as a locally editable UI part, still need renderer adapters;
+this increment does not label every blank pixel as a registered background. Selector chrome is
 excluded from discovery. Closed/hidden parts are not current matches. Boundary
 and pattern operations reevaluate on relevant DOM changes, so new matching UI
 parts inside the boundary participate. Stable resident/function anchors follow

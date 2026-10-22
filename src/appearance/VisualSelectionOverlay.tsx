@@ -3,7 +3,8 @@ import { useAppearance } from "./Context";
 import { registerPaintVariable } from "./paintVariables";
 import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint, valueFor } from "./resolve";
-import { boundaryElement, type SelectionBoundary, type SelectionRule, type VisualPart } from "./visualSelection";
+import { boundaryRect, type SelectionBoundary, type SelectionRule, type VisualPart } from "./visualSelection";
+import type { Point } from "./selectionGeometry";
 
 type Mark = { key: string; x: number; y: number; width: number; height: number; rx: number; ry: number; surface: boolean };
 const rectAttributes = (mark: Mark) => ({ x: mark.x, y: mark.y, width: mark.width, height: mark.height, rx: mark.rx, ry: mark.ry });
@@ -57,9 +58,11 @@ const glyphFeedback = (name: string, paint: FeedbackPaint) =>
   `::highlight(${name}){color:${glyphColor("currentColor", paint)};background-color:transparent;text-shadow:0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)}}`;
 
 /** Native paint variables and SVG seams animate feedback; no per-frame DOM discovery or writes. */
-export function VisualSelectionOverlay({ selected, excluded, preview, candidate, boundary, hoverBoundary }: {
+export function VisualSelectionOverlay({ selected, excluded, preview, candidate, boundary, hoverBoundary, guide, guides }: {
   selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
   boundary: SelectionBoundary | null; hoverBoundary: SelectionBoundary | null;
+  guide: [Point, Point] | null;
+  guides: { key: string; points: [Point, Point]; include: boolean; direction: boolean }[];
 }) {
   const appearance = useAppearance();
   const paints = useMemo(() => Object.fromEntries(Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
@@ -94,8 +97,9 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       const filter = computed.filter === "none" ? "" : computed.filter;
       const shadow = computed.textShadow === "none" ? "" : computed.textShadow + ",";
       const ink = feedbackInk(feedback), blur = feedbackGlow(feedback);
-      const declaration = kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important` :
-        `color:${glyphColor(computed.color, feedback)}!important;text-shadow:${shadow}0 0 ${blur} ${ink}!important`;
+      const source = (element.hasAttribute(attribute) ? computed.getPropertyValue("--omnium-selector-source-color").trim() : "") || computed.color;
+      const declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important` :
+        `color:${glyphColor(source, feedback)}!important;text-shadow:${shadow}0 0 ${blur} ${ink}!important`);
       return { element, pseudo, marker: `selection-${index}`, previous: element.getAttribute(attribute), declaration };
     });
     const style = document.createElement("style");
@@ -141,15 +145,18 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   };
   const marks = marksFor(selected), omissions = marksFor(excluded), candidates = marksFor(preview);
   const rectFor = (anchor: SelectionBoundary | null, key: string): Mark | undefined => {
-    const root = anchor && boundaryElement(anchor);
-    const rect = root === document.body ? { x: 3, y: 3, width: innerWidth - 6, height: innerHeight - 6 } : root?.getBoundingClientRect();
-    return rect ? { key, ...{ x: rect.x, y: rect.y, width: Math.max(0, rect.width), height: Math.max(0, rect.height) }, rx: 4, ry: 4, surface: false } : undefined;
+    const rect = anchor && boundaryRect(anchor);
+    return rect ? { key, x: Math.max(1, rect.left), y: Math.max(1, rect.top), width: Math.max(0, rect.right - rect.left - 2),
+      height: Math.max(0, rect.bottom - rect.top - 2), rx: 4, ry: 4, surface: false } : undefined;
   };
   const edge = rectFor(boundary, "boundary"), hover = rectFor(hoverBoundary, "preview-boundary");
   return <div data-visual-selector className="visual-selection-overlay">
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
       glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : paints.included)}</style>
     <svg aria-hidden="true" width="100%" height="100%">
+      <defs><marker id="selector-line-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse">
+        <path d="M0 0L7 3.5L0 7" fill="none" stroke="context-stroke" />
+      </marker></defs>
       {marks.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="included" paint={paints.included} />)}
       {omissions.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="excluded" paint={paints.excluded} />)}
       {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"}
@@ -158,6 +165,14 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       {hover && <SelectionTrace mark={hover}
         tone={!candidate ? "boundary" : candidate.include ? "included" : "excluded"}
         paint={!candidate ? paints.boundary : candidate.include ? paints.included : paints.excluded} preview />}
+      {guides.map(({ key, points: [a, b], include, direction }) => <line key={key} className="visual-selection-line is-accepted"
+        x1={a.x} y1={a.y} x2={b.x} y2={b.y} markerEnd={direction ? "url(#selector-line-arrow)" : undefined}
+        style={{ color: feedbackInk(include ? paints.included : paints.excluded) }} />)}
+      {guide && <g style={{ color: feedbackInk(candidate?.include === false ? paints.excluded : paints.included) }}>
+        <line className="visual-selection-line" x1={guide[0].x} y1={guide[0].y} x2={guide[1].x} y2={guide[1].y}
+          markerEnd={candidate?.line?.mode === "direction" ? "url(#selector-line-arrow)" : undefined} />
+        {guide.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="3" />)}
+      </g>}
     </svg>
   </div>;
 }

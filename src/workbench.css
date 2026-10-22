@@ -862,7 +862,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .appearance-target,.appearance-lock { flex: 0 0 auto; width: 22px; border-radius: 50%; }
 .appearance-row > .appearance-target { display: inline-grid; place-items: center; width: 22px; height: 22px; min-width: 22px; padding: 0; aspect-ratio: 1; text-shadow: none; box-shadow: none; }
 .appearance-toggle-icon { display: block; width: 16px; height: 16px; flex: none; }
-.visual-selector { position: fixed; z-index: 90001; width: 208px; padding: 8px; box-sizing: border-box; color: var(--omnium-accent,#60ddec); background: color-mix(in srgb,var(--omnium-base,#07131c) 94%,transparent); border: 1px solid currentColor; border-radius: 12px; box-shadow: 0 8px 24px #0007; user-select: none; }
+.visual-selector { position: fixed; z-index: 90001; width: 208px; max-height: calc(100dvh - 16px); overflow: auto; padding: 8px; box-sizing: border-box; color: var(--omnium-accent,#60ddec); background: color-mix(in srgb,var(--omnium-base,#07131c) 94%,transparent); border: 1px solid currentColor; border-radius: 12px; box-shadow: 0 8px 24px #0007; user-select: none; }
 .visual-selector-symbol { display: block; width: 100%; overflow: visible; --selector-operation-ink: var(--omnium-accent,#60ddec); }
 .visual-selector-symbol.operation-include { --selector-operation-ink: #66efab; }
 .visual-selector-symbol.operation-exclude { --selector-operation-ink: #ff6c73; }
@@ -871,6 +871,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-symbol circle.selector-hit[fill="none"] { fill: none; pointer-events: stroke; }
 .visual-selector-symbol .selector-ring,.visual-selector-symbol .selector-bar { stroke: currentColor; pointer-events: none; }
 .visual-selector-symbol .selector-dot { fill: currentColor; pointer-events: none; }
+.visual-selector-symbol .selector-mode-symbol { fill: currentColor; font: 58px/1 system-ui,sans-serif; pointer-events: none; }
 .visual-selector-symbol .selector-include { color: #66efab; }
 .visual-selector-symbol .selector-exclude { color: #ff6c73; }
 .visual-selector-symbol :is([aria-pressed="false"],[data-active="false"]) :is(.selector-ring,.selector-bar,.selector-dot) { opacity: .3; }
@@ -886,6 +887,17 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-actions button { width: 24px; height: 24px; min-width: 24px; padding: 0; border: 0; border-radius: 50%; color: inherit; background: transparent; }
 .visual-selector-actions output { flex: 1; min-width: 0; text-align: center; color: #66efab; font: 11px/1.2 system-ui; }
 .visual-selector-actions small { font: inherit; color: #ff6c73; }
+.visual-selector-conditions { display: flex; justify-content: center; gap: 8px; margin: -8px 0 8px; }
+.visual-selector-conditions button { color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 5px; padding: 2px 8px; opacity: .5; }
+.visual-selector :is(.visual-selector-conditions,.visual-selector-patterns) button[aria-pressed="true"] { opacity: 1; background: color-mix(in srgb,currentColor 18%,transparent); }
+.visual-selector-patterns { margin-top: 7px; max-height: 180px; overflow: auto; font: 11px/1.3 system-ui,sans-serif; }
+.visual-selector-patterns summary { cursor: pointer; text-align: center; font-size: 18px; }
+.visual-selector-patterns > div { display: flex; gap: 3px; margin-top: 4px; }
+.visual-selector-patterns button { color: inherit; background: transparent; border: 0; border-radius: 4px; padding: 4px; min-width: 20px; }
+.visual-selector-patterns button:first-child { flex: 1; text-align: left; }
+.visual-selector-patterns small { opacity: .6; }
+.visual-selector-patterns .selector-pattern-include { color: #66efab; }
+.visual-selector-patterns .selector-pattern-exclude { color: #ff6c73; }
 .visual-selector-cursor { position: fixed; left: 0; top: 0; z-index: 90002; width: 64px; height: 60px; pointer-events: none; color: var(--omnium-accent,#60ddec); will-change: transform; }
 .visual-selector-symbol .selector-precision-dot { fill: #fff; stroke: #07121b; stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
 /* SVG hit-area rules can override inherited pointer transparency. The aiming
@@ -904,6 +916,9 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selection-controller footer { margin-top: 12px; flex-wrap: wrap; }
 .visual-selection-overlay { position: fixed; inset: 0; z-index: 89999; pointer-events: none; color: var(--omnium-accent,#60ddec); overflow: hidden; }
 .visual-selection-overlay > svg { display: block; overflow: hidden; }
+.visual-selection-line { stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 6 4; opacity: var(--omnium-selector-strength,.82); vector-effect: non-scaling-stroke; }
+.visual-selection-line.is-accepted { stroke-width: 1; opacity: .35; }
+.visual-selection-line-end { fill: currentColor; stroke: #07121b; stroke-width: 1; }
 .visual-selection-trace { --visual-selection-ink: #66efab; color: var(--visual-selection-ink); opacity: calc(var(--omnium-selector-strength,.82) * var(--visual-selection-opacity,1)); }
 .visual-selection-trace.is-excluded { --visual-selection-ink: #ff6c73; }
 .visual-selection-trace.is-boundary { --visual-selection-ink: var(--omnium-accent,#60ddec); }

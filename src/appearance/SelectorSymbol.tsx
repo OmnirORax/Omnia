@@ -1,4 +1,6 @@
 import type { KeyboardEvent } from "react";
+import { PATTERN_SYMBOLS, type PatternMode } from "./selectionGeometry";
+import type { VisualRole } from "./visualSelection";
 /** Hotspot in the supplied SVG's coordinate system. */
 export const SELECTOR_VIEW = { width: 320, height: 300, x: 140, y: 136 } as const;
 
@@ -6,7 +8,10 @@ export type SelectorOperation = "include" | "exclude" | null;
 export type SelectorRegion = "inside" | "outside" | null;
 export type SelectorConfiguration = {
   boundaryPicking: boolean;
-  pattern: boolean;
+  pattern: PatternMode;
+  patternRole: VisualRole | null;
+  bounded: boolean;
+  stopAtPaint: boolean;
   operation: SelectorOperation;
   region: SelectorRegion;
 };
@@ -60,11 +65,13 @@ export function SelectorSymbol({ configuration, actions, precision = false }: { 
       {actions && <rect className="selector-hit" x="233" y="114" width="71" height="44" />}
       <path className="selector-bar" d="M233 136H300" strokeWidth="24" />
     </g>
-    <g {...button("Pattern", pattern, () => actions?.pattern())}>
-      {actions && <title>Dots: toggle pattern matching within the chosen inside/outside region.</title>}
+    <g {...button(`Pattern mode: ${pattern}`, pattern !== "item", () => actions?.pattern())}>
+      {actions && <title>Cycle: individual · pattern ⠒ · axis ↕ · direction ↑ · position |. E also cycles. Drag to place a line; every touched pattern is selected unless a pattern filter is chosen.</title>}
       {actions && <rect className="selector-hit" x="97" y="228" width="88" height="46" />}
-      <circle className="selector-dot" cx="123" cy="250" r="15" />
-      <circle className="selector-dot" cx="159" cy="250" r="15" />
+      {pattern === "item" ? <circle className="selector-dot" cx="140" cy="250" r="15" /> : pattern === "pattern" ? <>
+        <circle className="selector-dot" cx="123" cy="250" r="15" />
+        <circle className="selector-dot" cx="159" cy="250" r="15" />
+      </> : <text className="selector-mode-symbol" x="140" y="266" textAnchor="middle">{PATTERN_SYMBOLS[pattern]}</text>}
     </g>
     {precision && <circle className="selector-precision-dot" cx={SELECTOR_VIEW.x} cy={SELECTOR_VIEW.y} r="5" />}
   </svg>;

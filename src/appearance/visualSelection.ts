@@ -1,5 +1,7 @@
-import { TARGETS, type RegisteredTarget } from "./registry";
-import { effectScope } from "./uiEffects";
+import { TARGETS, type RegisteredTarget } from "./registry.ts";
+import { effectScope } from "./uiEffects.ts";
+import { absolutePoint, boxFromPoints, boxesTouch, conditionPoints, intersectBoxes, lineBoxInterval, lineDomain, paintStopDomain,
+  type Box, type LineCondition, type Point } from "./selectionGeometry.ts";
 
 export type VisualRole = "text" | "background" | "contour" | "icon" | "indicator";
 export type VisualPart = {
@@ -11,6 +13,8 @@ export type VisualPart = {
 };
 export type SelectionBoundary = {
   element: Element;
+  /** Optional custom rectangle, normalized to the stable owner's rectangle. */
+  area?: Box;
   attribute?: "data-ui-function" | "data-ui-resident-root";
   value?: string;
   key: string;
@@ -21,6 +25,7 @@ export type SelectionRule = {
   region?: "inside" | "outside";
   role?: VisualRole;
   part?: string;
+  line?: LineCondition;
 };
 export const selectorChrome = "[data-visual-selector]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
@@ -107,6 +112,29 @@ export function boundaryElement(boundary: SelectionBoundary): Element | undefine
   if (boundary.attribute && boundary.value)
     return [...document.querySelectorAll(`[${boundary.attribute}="${CSS.escape(boundary.value)}"]`)].find(visible);
 }
+export function boundaryRect(boundary: SelectionBoundary): Box | undefined {
+  const root = boundaryElement(boundary);
+  if (!root) return;
+  const rect: Box = root === document.body ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight } : root.getBoundingClientRect();
+  return boundary.area ? boxFromPoints(absolutePoint({ x: boundary.area.left, y: boundary.area.top }, rect),
+    absolutePoint({ x: boundary.area.right, y: boundary.area.bottom }, rect)) : rect;
+}
+export function partRects(part: VisualPart): Box[] {
+  const rects = [...(part.range ? part.range.getClientRects() : part.element.getClientRects())];
+  if (part.role !== "contour") return rects;
+  const style = getComputedStyle(part.element);
+  // A line contained wholly in a frame's interior does not touch its contour.
+  return rects.flatMap(rect => [
+    { left: rect.left, top: rect.top, right: rect.right, bottom: rect.top + parseFloat(style.borderTopWidth || "0") },
+    { left: rect.right - parseFloat(style.borderRightWidth || "0"), top: rect.top, right: rect.right, bottom: rect.bottom },
+    { left: rect.left, top: rect.bottom - parseFloat(style.borderBottomWidth || "0"), right: rect.right, bottom: rect.bottom },
+    { left: rect.left, top: rect.top, right: rect.left + parseFloat(style.borderLeftWidth || "0"), bottom: rect.bottom },
+  ].filter(strip => strip.right > strip.left && strip.bottom > strip.top));
+}
+export function pointInBoundary(boundary: SelectionBoundary, element: Element, point: Point): boolean {
+  const root = boundaryElement(boundary), rect = boundaryRect(boundary);
+  return !!root?.contains(element) && !!rect && point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
+}
 export function boundaryCandidates(element: Element): SelectionBoundary[] {
   const candidates: SelectionBoundary[] = [];
   for (let node: Element | null = element; node && node !== document.body; node = node.parentElement) {
@@ -143,21 +171,66 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
       part.element.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),textarea,select')) ??
     candidates.find(part => part.role === "background");
 }
+function partMeasurements() {
+  const rects = new Map<VisualPart, Box[]>(), paint = new Map<VisualPart, string>();
+  return {
+    rects: (part: VisualPart) => {
+      let value = rects.get(part); if (!value) { value = partRects(part); rects.set(part, value); } return value;
+    },
+    paint: (part: VisualPart) => {
+      let value = paint.get(part);
+      if (value === undefined) { value = partPaint(part); paint.set(part, value); }
+      return value;
+    },
+  };
+}
+export function partPaint(part: VisualPart): string {
+  const style = getComputedStyle(part.element);
+  // Feedback ink is temporary. Its adapter preserves the actual source for sampling.
+  const source = part.element.hasAttribute("data-visual-selection-ink") ? style.getPropertyValue("--omnium-selector-source-color").trim() : "";
+  return part.role === "background" ? style.backgroundColor : part.role === "contour" ? style.borderTopColor :
+    part.role === "indicator" ? style.accentColor : source || style.color;
+}
+function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: ReturnType<typeof partMeasurements>) {
+  const root = boundaryElement(rule.boundary), box = boundaryRect(rule.boundary);
+  const peers = root && box ? parts.filter(part => {
+    const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
+    return (rule.region === "outside" ? !inside : inside) && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
+  }) : [];
+  if (!rule.line || !box) return { peers };
+  const line = rule.line, [start, end] = conditionPoints(line, box), domain = lineDomain(line);
+  const hits = peers.flatMap(part => measure.rects(part).flatMap(rect => {
+    const local = rule.region === "outside" ? rect : intersectBoxes(rect, box);
+    const interval = local && lineBoxInterval(start, end, local, domain, 0);
+    return interval ? [{ part, interval, paint: line.stopAtPaint === undefined ? "" : measure.paint(part) }] : [];
+  }));
+  const stopped = line.stopAtPaint === undefined ? domain : paintStopDomain(hits, line.stopAtPaint, domain);
+  return { peers: [...new Set(hits.filter(({ interval: [a, b] }) => a <= stopped[1] && b >= stopped[0] &&
+    !(stopped[1] < domain[1] && a >= stopped[1]) && !(stopped[0] > domain[0] && b <= stopped[0])).map(hit => hit.part))],
+    start, end, domain: stopped, box };
+}
 export function matchingVisualParts(parts: VisualPart[], rule: SelectionRule): VisualPart[] {
-  const root = boundaryElement(rule.boundary);
-  return root ? parts.filter(part => (rule.region === "outside" ? !root.contains(part.element) : root.contains(part.element)) &&
-    (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key)) : [];
+  return ruleGeometry(parts, rule, partMeasurements()).peers;
+}
+/** The guide uses the same geometry/paint stop as actual matching. */
+export function selectionLineGuide(parts: VisualPart[], rule: SelectionRule): [Point, Point] | null {
+  if (!rule.line) return null;
+  const geometry = ruleGeometry(parts, rule, partMeasurements());
+  if (!geometry.box || !geometry.start || !geometry.end || !geometry.domain) return null;
+  const viewport = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+  const region = rule.region === "outside" ? viewport : intersectBoxes(viewport, geometry.box);
+  const clip = region && lineBoxInterval(geometry.start, geometry.end, region, geometry.domain);
+  if (!clip) return null;
+  return clip.map(t => ({ x: geometry.start!.x + (geometry.end!.x - geometry.start!.x) * t,
+    y: geometry.start!.y + (geometry.end!.y - geometry.start!.y) * t })) as [Point, Point];
 }
 export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionBoundary | null, rules: SelectionRule[]): { included: VisualPart[]; excluded: VisualPart[] } {
   const result = { included: [] as VisualPart[], excluded: [] as VisualPart[] };
   if (!boundary || !boundaryElement(boundary)) return result;
-  const compiled = rules.map(rule => ({ rule, root: boundaryElement(rule.boundary) }));
+  const measure = partMeasurements(), states = new Map<VisualPart, boolean>();
+  for (const rule of rules) for (const part of ruleGeometry(parts, rule, measure).peers) states.set(part, rule.include);
   for (const part of parts) {
-    let included: boolean | undefined;
-    for (const { rule, root } of compiled)
-      if (root && (rule.region === "outside" ? !root.contains(part.element) : root.contains(part.element)) &&
-        (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key))
-        included = rule.include;
+    const included = states.get(part);
     if (included === true) result.included.push(part);
     else if (included === false) result.excluded.push(part);
   }
