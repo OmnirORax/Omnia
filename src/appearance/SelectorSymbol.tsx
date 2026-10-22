@@ -1,11 +1,11 @@
 import type { KeyboardEvent } from "react";
-import { PATTERN_SYMBOLS, type PatternMode } from "./selectionGeometry";
+import { PATTERN_SYMBOLS, type PatternMode, type SelectionRegion, type SelectionSide } from "./selectionGeometry";
 import type { VisualRole } from "./visualSelection";
 /** Hotspot in the supplied SVG's coordinate system. */
 export const SELECTOR_VIEW = { width: 320, height: 300, x: 140, y: 136 } as const;
 
 export type SelectorOperation = "include" | "exclude" | null;
-export type SelectorRegion = "inside" | "outside" | null;
+export type SelectorRegion = SelectionRegion | null;
 export type SelectorConfiguration = {
   boundaryPicking: boolean;
   pattern: PatternMode;
@@ -19,8 +19,8 @@ type Actions = {
   boundary: () => void;
   pattern: () => void;
   operation: (operation: Exclude<SelectorOperation, null>) => void;
-  region: (region: Exclude<SelectorRegion, null>) => void;
-  previewRegion: (region: Exclude<SelectorRegion, null> | null) => void;
+  region: (region: SelectionSide) => void;
+  previewRegion: (region: SelectionSide | null) => void;
 };
 
 /** One geometric symbol supplies stationary controls and the noninteractive cursor. */
@@ -39,14 +39,14 @@ export function SelectorSymbol({ configuration, actions, precision = false }: { 
   } : {};
   return <svg className={`visual-selector-symbol operation-${operation ?? "neutral"}`} viewBox="0 0 320 300"
     aria-label={actions ? "Boundary, inside, outside, include, exclude and pattern" : undefined} aria-hidden={actions ? undefined : true}>
-    <g className="selector-outside" {...button("Outside boundary", region === "outside", () => actions?.region("outside"))} {...preview("outside")}>
-      {actions && <title>Outside: apply the include/exclude operation outside the boundary. Press again to clear the region choice.</title>}
+    <g className="selector-outside" {...button("Outside boundary", region === "outside" || region === "both", () => actions?.region("outside"))} {...preview("outside")}>
+      {actions && <title>Toggle Outside independently of Inside. Both can stay selected. Turning Outside on applies the include/exclude operation there; press again to turn only Outside off.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="119" fill="none" strokeWidth="34" />}
       <circle className="selector-region-mark" cx="140" cy="136" r="119" fill="none" strokeWidth="30" />
       <circle className="selector-outside-edge" cx="140" cy="136" r="133" fill="none" strokeWidth="1.5" />
     </g>
-    <g className="selector-inside" {...button("Inside boundary", region === "inside", () => actions?.region("inside"))} {...preview("inside")}>
-      {actions && <title>Inside: apply the include/exclude operation inside the boundary. Press again to clear the region choice.</title>}
+    <g className="selector-inside" {...button("Inside boundary", region === "inside" || region === "both", () => actions?.region("inside"))} {...preview("inside")}>
+      {actions && <title>Toggle Inside independently of Outside. Both can stay selected. Turning Inside on applies the include/exclude operation there; press again to turn only Inside off.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="68" />}
       <circle className="selector-region-mark" cx="140" cy="136" r="65" />
     </g>

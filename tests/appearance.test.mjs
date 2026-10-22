@@ -14,8 +14,21 @@ import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
-import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode } from "../src/appearance/selectionGeometry.ts";
+import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows } from "../src/appearance/selectionGeometry.ts";
 import { boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
+
+test("inside and outside toggle independently through all four combinations", () => {
+  for (const [current, side, expected] of [
+    [null, "inside", "inside"], [null, "outside", "outside"],
+    ["inside", "outside", "both"], ["outside", "inside", "both"],
+    ["both", "inside", "outside"], ["both", "outside", "inside"],
+    ["inside", "inside", null], ["outside", "outside", null],
+  ]) assert.equal(toggleSelectionRegion(current, side), expected);
+  assert.equal(regionAllows("both", true), true);
+  assert.equal(regionAllows("both", false), true);
+  assert.equal(regionAllows("inside", false), false);
+  assert.equal(regionAllows("outside", true), false);
+});
 
 test("axis, ray and position geometry includes touched endpoints without selecting a rectangle", () => {
   const start = { x: 10, y: 10 }, end = { x: 20, y: 10 };
@@ -80,6 +93,10 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   assert.equal(boundaryInRegion(boundary, boundary, "outside"), false);
   assert.deepEqual(matchingVisualParts(parts, { boundary: appBoundary, include: true, scope: { boundary, region: "inside" } }).map(p => p.key), ["label", "icon", "button", "gap"]);
   assert.deepEqual(matchingVisualParts(parts, { boundary: appBoundary, include: true, scope: { boundary, region: "outside" } }).map(p => p.key), ["outside"]);
+  assert.equal(boundaryInRegion(appBoundary, boundary, "both"), true);
+  assert.deepEqual(matchingVisualParts(parts, { boundary, include: true, region: "both" }).map(p => p.key), parts.map(p => p.key));
+  assert.deepEqual(matchingVisualParts(parts, { boundary: appBoundary, include: true, scope: { boundary, region: "both" } }).map(p => p.key), parts.map(p => p.key));
+  assert.deepEqual(matchingVisualParts(parts, { ...rule, region: "both", line: { ...line, mode: "axis" } }).map(p => p.key), ["label", "icon", "button", "outside"]);
   offset = 100;
   assert.deepEqual(matchingVisualParts(parts, rule).map(p => p.key), ["label", "icon", "button"], "line follows the moved owner");
   assert.deepEqual(selectionLineGuide(parts, rule), [{ x: 120, y: 40 }, { x: 180, y: 40 }]);

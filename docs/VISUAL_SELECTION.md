@@ -31,18 +31,19 @@ The symbol has independent choices:
 - **Inner / outer bar:** arm include (green) / exclude (red). Press an already
   active bar again to return to neutral. Merely arming an operation does not apply
   it to the existing selection.
-- **Empty center / surrounding annulus:** choose inside / outside the established
-  boundary. With an operation armed, clicking either region applies it to all
-  registered UI parts in that region. These actions never move the boundary.
-  Press the active region again to clear the inside/outside choice; this does not
-  apply another operation or remove the already accepted selection.
+- **Empty center / surrounding annulus:** independently toggle inside / outside
+  the established boundary. Both can be active together, or either/both off.
+  With an operation armed, turning a region on applies it only to that region's
+  registered UI parts. Turning one off leaves the other toggle unchanged and
+  does not apply another operation or remove the already accepted selection.
   Outside means other registered UI parts throughout the app, not another frame.
   Choosing a region preserves the ring's on/off state.
-  The choice also fixes preview/picking bounds to that boundary: Inside allows
-  only its interior and Outside only its exterior, even while O stays armed.
+  The toggles also fix preview/picking bounds to that boundary: Inside alone
+  allows only its interior, Outside alone only its exterior, and both allow both
+  regions, even while O stays armed.
   Boundary candidates and their applied parts obey the same limit; scrolling to
   an ancestor cannot escape it. Subsequent picks do not move this region anchor.
-  Clear the region choice to resume unrestricted boundary picking.
+  Turn both off to clear the region anchor and resume unrestricted boundary picking.
 - **Paired dots:** cycle pattern ⠒ → axis ↕ → direction ↑ → position | →
   individual · → pattern. E cycles the same modes while the selector is active.
   The precision dot in the aiming symbol remains the exact pointer hotspot;

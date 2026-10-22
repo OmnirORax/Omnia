@@ -1,5 +1,13 @@
 /** Screen-space geometry shared by pattern matching and its visible guide. */
 export type Point = { x: number; y: number };
+export type SelectionSide = "inside" | "outside";
+export type SelectionRegion = SelectionSide | "both";
+export function toggleSelectionRegion(region: SelectionRegion | null, side: SelectionSide): SelectionRegion | null {
+  const inside = side === "inside" ? !(region === "inside" || region === "both") : region === "inside" || region === "both";
+  const outside = side === "outside" ? !(region === "outside" || region === "both") : region === "outside" || region === "both";
+  return inside && outside ? "both" : inside ? "inside" : outside ? "outside" : null;
+}
+export const regionAllows = (region: SelectionRegion, inside: boolean) => region === "both" || (region === "inside" ? inside : !inside);
 export type Box = { left: number; top: number; right: number; bottom: number };
 export type PatternMode = "item" | "pattern" | "axis" | "direction" | "position";
 export type LineCondition = {

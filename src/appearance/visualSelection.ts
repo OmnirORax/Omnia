@@ -1,7 +1,7 @@
 import { TARGETS, type RegisteredTarget } from "./registry.ts";
 import { effectScope } from "./uiEffects.ts";
 import { absolutePoint, boxFromPoints, boxesTouch, conditionPoints, intersectBoxes, lineBoxInterval, lineDomain, paintStopDomain,
-  type Box, type LineCondition, type Point } from "./selectionGeometry.ts";
+  regionAllows, type Box, type LineCondition, type Point, type SelectionRegion } from "./selectionGeometry.ts";
 
 export type VisualRole = "text" | "background" | "contour" | "icon" | "indicator";
 export type VisualPart = {
@@ -22,11 +22,11 @@ export type SelectionBoundary = {
 export type SelectionRule = {
   include: boolean;
   boundary: SelectionBoundary;
-  region?: "inside" | "outside";
+  region?: SelectionRegion;
   role?: VisualRole;
   part?: string;
   line?: LineCondition;
-  scope?: { boundary: SelectionBoundary; region: "inside" | "outside" };
+  scope?: { boundary: SelectionBoundary; region: SelectionRegion };
 };
 export const selectorChrome = "[data-visual-selector]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
@@ -138,10 +138,11 @@ export function pointInBoundary(boundary: SelectionBoundary, element: Element, p
 }
 /** Boundary candidates must fit wholly in the chosen working region. In
  * particular, climbing to an ancestor must not flash the rest of the app. */
-export function boundaryInRegion(candidate: SelectionBoundary, boundary: SelectionBoundary, region: "inside" | "outside"): boolean {
+export function boundaryInRegion(candidate: SelectionBoundary, boundary: SelectionBoundary, region: SelectionRegion): boolean {
   const candidateRoot = boundaryElement(candidate), root = boundaryElement(boundary);
   const rect = boundaryRect(candidate), bounds = boundaryRect(boundary);
   if (!candidateRoot || !root || !rect || !bounds) return false;
+  if (region === "both") return true;
   if (region === "inside") return (!!candidate.area || root.contains(candidateRoot)) && rect.left >= bounds.left && rect.right <= bounds.right &&
     rect.top >= bounds.top && rect.bottom <= bounds.bottom;
   return (!!candidate.area || (!root.contains(candidateRoot) && !candidateRoot.contains(root))) &&
@@ -210,13 +211,13 @@ function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: ReturnT
     const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
     const scopedInside = !!scopeRoot?.contains(part.element) && !!scopeBox &&
       (!rule.scope?.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, scopeBox)));
-    return (!rule.scope || (!!scopeRoot && (rule.scope.region === "inside" ? scopedInside : !scopedInside))) &&
-      (rule.region === "outside" ? !inside : inside) && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
+    return (!rule.scope || (!!scopeRoot && regionAllows(rule.scope.region, scopedInside))) &&
+      regionAllows(rule.region ?? "inside", inside) && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
   }) : [];
   if (!rule.line || !box) return { peers };
   const line = rule.line, [start, end] = conditionPoints(line, box), domain = lineDomain(line);
   const hits = peers.flatMap(part => measure.rects(part).flatMap(rect => {
-    const local = rule.region === "outside" ? rect : intersectBoxes(rect, box);
+    const local = rule.region === "outside" || rule.region === "both" ? rect : intersectBoxes(rect, box);
     const interval = local && lineBoxInterval(start, end, local, domain, 0);
     return interval ? [{ part, interval, paint: line.stopAtPaint === undefined ? "" : measure.paint(part) }] : [];
   }));
@@ -234,7 +235,7 @@ export function selectionLineGuide(parts: VisualPart[], rule: SelectionRule): [P
   const geometry = ruleGeometry(parts, rule, partMeasurements());
   if (!geometry.box || !geometry.start || !geometry.end || !geometry.domain) return null;
   const viewport = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
-  const region = rule.region === "outside" ? viewport : intersectBoxes(viewport, geometry.box);
+  const region = rule.region === "outside" || rule.region === "both" ? viewport : intersectBoxes(viewport, geometry.box);
   const clip = region && lineBoxInterval(geometry.start, geometry.end, region, geometry.domain);
   if (!clip) return null;
   return clip.map(t => ({ x: geometry.start!.x + (geometry.end!.x - geometry.start!.x) * t,
