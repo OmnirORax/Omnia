@@ -166,16 +166,26 @@ export function boundaryCandidates(element: Element): SelectionBoundary[] {
 }
 const containsPoint = (rect: DOMRect, x: number, y: number) =>
   x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+// Catalog identity is the invalidation boundary: discovery after structure/layout
+// changes replaces it. Cache relationships only; current geometry and scene hits
+// are still read at the pointer so movement never uses stale rectangles.
+const hitIndexes = new WeakMap<VisualPart[], WeakMap<Element, { ancestors: VisualPart[]; text: VisualPart[] }>>();
 export function partAt(parts: VisualPart[], element: Element, x: number, y: number): VisualPart | undefined {
-  const candidates = parts.filter(part => (part.element === element || part.element.contains(element)) &&
-    (!part.target.binding?.selection || scenePartAt(part.target.id, part.element, x, y)));
+  let index = hitIndexes.get(parts);
+  if (!index) { index = new WeakMap(); hitIndexes.set(parts, index); }
+  let hit = index.get(element);
+  if (!hit) {
+    hit = { ancestors: parts.filter(part => part.element === element || part.element.contains(element)),
+      text: parts.filter(part => part.role === "text" && part.range &&
+        (part.element === element || part.element.contains(element) || element.contains(part.element))) };
+    index.set(element, hit);
+  }
+  const candidates = hit.ancestors.filter(part => !part.target.binding?.selection || scenePartAt(part.target.id, part.element, x, y));
   // Artwork, actual text ink, then border proximity distinguish overlapping paint
   // on the same component. Background is the final fallback, not the text's box.
   const icon = candidates.find(part => part.role === "icon" && containsPoint(part.element.getBoundingClientRect(), x, y));
   if (icon) return icon;
-  const text = parts.find(part => part.role === "text" && part.range &&
-    (part.element === element || part.element.contains(element) || element.contains(part.element)) &&
-    [...part.range.getClientRects()].some(rect => containsPoint(rect, x, y)));
+  const text = hit.text.find(part => [...part.range!.getClientRects()].some(rect => containsPoint(rect, x, y)));
   if (text) return text;
   const depth = (part: VisualPart) => {
     let node: Element | null = element, depth = 0;

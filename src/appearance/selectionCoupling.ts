@@ -1,5 +1,5 @@
 import { stableUIHash } from "../ui/identity.ts";
-import { blocked, connected, propertyChannels, ruleHas, type Controller, type Instance, type Value } from "./model.ts";
+import { blocked, connected, createTargetIndex, propertyChannels, ruleHas, type Controller, type Instance, type Value } from "./model.ts";
 import { GLYPH_PROPERTIES, scopeContains } from "./partScope.ts";
 import { controllerTargets, instanceId, TARGETS, validateProperty, type RegisteredTarget } from "./registry.ts";
 
@@ -13,21 +13,25 @@ export function selectedPartTarget(part: SelectedPart): RegisteredTarget {
     properties: part.part.text !== undefined ? base.properties?.filter(p => GLYPH_PROPERTIES.includes(p)) : base.properties };
 }
 export function selectedPartPolicy(state: Controller) {
-  const targets = controllerTargets(state), basePolicy = new Map<string, boolean>();
+  const targets = controllerTargets(state), index = createTargetIndex(targets), basePolicy = new Map<string, boolean>();
   const owners = new Map<string, [string, Instance][]>();
   for (const entry of Object.entries(state.instances)) {
+    // Unprotected locals cannot veto an edit. Keeping them here made selecting
+    // many parts of the same window check every sibling for every color sample.
+    if (!state.locks[entry[0]] && !state.disconnected[entry[0]]) continue;
     const key = `${entry[1].base}\0${entry[1].owner}`;
-    owners.set(key, [...(owners.get(key) ?? []), entry]);
+    const group = owners.get(key);
+    if (group) group.push(entry); else owners.set(key, [entry]);
   }
-  const protectedAt = (id: string, property: string) => ruleHas(state.locks[id], property) || ruleHas(state.disconnected[id], property) ||
-    GLYPH_PROPERTIES.some(family => propertyChannels(family).includes(property) &&
-      (ruleHas(state.locks[id], family) || ruleHas(state.disconnected[id], family)));
+  const protectedAt = (id: string, property: string) => !!(state.locks[id] || state.disconnected[id]) &&
+    (ruleHas(state.locks[id], property) || ruleHas(state.disconnected[id], property) || GLYPH_PROPERTIES.some(family => propertyChannels(family).includes(property) &&
+      (ruleHas(state.locks[id], family) || ruleHas(state.disconnected[id], family))));
   return (part: SelectedPart, property: string): boolean => {
     if (!selectedPartTarget(part).properties?.includes(property)) return false;
     const key = `${part.base}\0${property}`;
     let allowed = basePolicy.get(key);
     if (allowed === undefined) {
-      allowed = !blocked(state, targets, part.base, property, "all") && connected(state, targets, part.base, property) &&
+      allowed = !blocked(state, targets, part.base, property, "all", index) && connected(state, targets, part.base, property, index) &&
         !protectedAt(`${part.base}.custom`, property);
       basePolicy.set(key, allowed);
     }
@@ -41,7 +45,7 @@ export const partEditable = (state: Controller, part: SelectedPart, property: st
 export function applySelectedValue(state: Controller, parts: SelectedPart[], property: string, input: Value): Controller {
   const value = validateProperty(property, input);
   if (value === undefined) return state;
-  const next = structuredClone(state);
+  const next = { ...state, values: { ...state.values }, refined: { ...state.refined } };
   const editable = selectedPartPolicy(state);
   const runs = new Map<string, [string, Instance][]>();
   const hostKey = (instance: Instance) => JSON.stringify([instance.base, instance.owner, instance.part?.steps]);
@@ -58,7 +62,10 @@ export function applySelectedValue(state: Controller, parts: SelectedPart[], pro
     for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
       if (!editable(part, channel)) continue;
       if (next.values[id]?.[channel] === value) continue;
-      if (!directTarget(part)) next.instances[id] = part;
+      if (!directTarget(part) && next.instances[id] !== part) {
+        if (next.instances === state.instances) next.instances = { ...state.instances };
+        next.instances[id] = part;
+      }
       next.values[id] = { ...next.values[id], [channel]: value };
       next.refined[id] = directTarget(part) ? (next.refined[id] ?? []).filter(property => property !== channel)
         : [...new Set([...(next.refined[id] ?? []), channel])];

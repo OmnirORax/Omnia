@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppearance } from "../appearance/Context";
 import { applyValue, blocked, connected, type Value } from "../appearance/model";
-import { createValueResolver } from "../appearance/resolve";
 import { PropertyEditor } from "../appearance/Controls";
 import { PropertyTree } from "../appearance/PropertyTree";
 import { propertyPath } from "../appearance/propertyTree";
@@ -13,7 +12,7 @@ export function ConsumerProperties({ consumers }: { consumers: string[] }) {
   const available = [...new Set(targets.flatMap(target => target.properties ?? []))];
   const [property, setProperty] = useState(available.includes("effect") ? "effect" : available[0]);
   const chosen = available.includes(property) ? property : available[0];
-  const read = useMemo(() => createValueResolver(ctx.base, ctx.state, ctx.targets), [ctx.base, ctx.state, ctx.targets]);
+  const read = ctx.read;
   const preview = useRef(ctx.preview); preview.current = ctx.preview;
   useEffect(() => () => preview.current(null), []);
   if (!chosen) return null;

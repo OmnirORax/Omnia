@@ -205,7 +205,8 @@ feedback changes only the background and shares the existing scene registration.
 Accepted selection, hover preview and property edits remain separate. Editing
 uses the controller's edit action, native keyboard context gesture or Master
 controller. Focusing its selected-properties controls pauses picking and holds the
-last feedback context while its pulse and live property values keep updating. Complete text hosts support typography; partial text
+last feedback context. Selection / Preview hides marks during ordinary editing
+without deselecting; editing feedback itself retains its live effect. Complete text hosts support typography; partial text
 runs keep exact-node paint/effect scope and do not advertise unsupported fonts.
 Effect plans cache local ownership/styles and skip inactive paint-only edits.
 Current limitations include arbitrary negative-space patterns, general
@@ -303,3 +304,9 @@ Selector feedback now retains its last real target/hover context while Master
 controller or moved shared property editors are used. Picking pauses; paint values
 and time stay live. This is transient and excludes physical mouse/trail input and
 native browser hover. Resume/clear/dismissal releases it; see VISUAL_SELECTION.md.
+
+Performance integration: mounted appearance consumers share context `read` /
+`renderRead`; do not build value resolvers per row/icon. Paint-only setters retain
+instance/policy structure so exact text ranges and overlay bounds survive picker
+samples. Target metadata tracks actual captions/ownership, not changing React
+elements. See APPEARANCE_CONTROLLER.md for the shared invalidation contract.

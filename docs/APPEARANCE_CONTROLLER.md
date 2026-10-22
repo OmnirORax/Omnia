@@ -199,3 +199,27 @@ and membership. It appears in the main and contextual inspectors and stationary
 selector. Ordinary editing automatically exposes actual paint; adapters tagged
 `binding.feedback: "selection"` retain their effect when editing it. Explicit view
 choices last until clear/dismiss/resume. See VISUAL_SELECTION.md.
+
+
+## Preview performance contract
+
+AppearanceProvider creates one indexed `read` per appearance/target snapshot for
+all controls, contextual editors, icons and selector feedback. `renderRead` uses
+the renderer-only activity projection; edits always read the original state.
+`valueFor` remains a standalone convenience, not a per-row/per-icon loop API.
+Pure multi-target adjustments share `createTargetIndex` for ancestry/policy checks.
+
+Paint setters copy only changed value/refinement records and the active adjuster
+metadata. They preserve unchanged instances, locks and selection sets. Target
+metadata depends on instance structure, UI ownership and actual captions, not
+changing function React elements or every color value. Exact-text bindings and
+CSS Highlight ranges rebuild on structure/ownership changes; color samples only
+update the existing paint stylesheet. Protection checks examine explicitly
+locked/bypassed instances, rather than all unprotected siblings.
+
+Selection hit tests cache catalog relationships, never stale screen coordinates.
+Matching the same category against unchanged selection/catalog reuses its candidate.
+Layout/DOM refreshes replace the catalog; resuming picking rediscovers it after
+editing. Feedback geometry and native animations survive unrelated property edits;
+its actual paint changes remain live. Do not fix lag by disabling live previews or
+reducing picker updates to commits only.

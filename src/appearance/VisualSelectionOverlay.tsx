@@ -3,7 +3,7 @@ import { useAppearance } from "./Context";
 import { paintSceneSelection, scenePartAt, type SceneSelectionPaint } from "./sceneFeedback";
 import { registerPaintVariable } from "./paintVariables";
 import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
-import { brightHex, tint, valueFor } from "./resolve";
+import { brightHex, tint } from "./resolve";
 import { type SelectionRule, type VisualPart } from "./visualSelection";
 import { laserSparkles, SELECTOR_PULSE_MS, SELECTOR_SPARKLE_BUDGET, type LaserSparkle } from "./selectorLaser";
 import { pathEdges, type Point } from "./selectionGeometry";
@@ -81,13 +81,17 @@ const glyphFeedback = (name: string, paint: FeedbackPaint) =>
 
 function useFeedbackPaints() {
   const appearance = useAppearance();
-  return useMemo(() => Object.fromEntries(Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
+  const entries = Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
     const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
     const get = (property: string) => appearance && !appearance.safe
-      ? valueFor(appearance.base, appearance.state, target, property) : target.defaults![property];
+      ? appearance.read(target, property) : target.defaults![property];
     return [tone, { ink: brightHex(String(get("color") ?? defaults.color), Number(get("brightness"))),
       hot: brightHex("#ffffff", Number(get("brightness"))), opacity: Number(get("opacity")), glow: Number(get("glow")) }];
-  })) as Record<Tone, FeedbackPaint>, [appearance?.base, appearance?.state, appearance?.safe]);
+  });
+  // Unrelated object paint changes must not tear down/re-measure every feedback
+  // host or restart its native animation while a color picker is dragged.
+  const key = JSON.stringify(entries);
+  return useMemo(() => Object.fromEntries(entries) as Record<Tone, FeedbackPaint>, [key]);
 }
 
 /** A logical feedback target needs a live sample when no scene/UI part is
@@ -224,31 +228,33 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
 
   // Background and contour matches on the same element share one trace. Cache
   // bounds/style reads across accepted/excluded/preview layers for this render.
-  const geometry = new Map<Element, Omit<Mark, "key" | "surface"> | null>();
-  const marksFor = (parts: VisualPart[]) => {
-    const marks = new Map<Element, Mark>();
-    for (const part of parts) {
-      if (part.range || part.role === "icon" || part.role === "text" || part.target.binding?.selection?.renderer === "scene") continue;
-      let bounds = geometry.get(part.element);
-      if (bounds === undefined) {
-        const rect = part.element.getBoundingClientRect();
-        if (!rect.width || !rect.height || rect.bottom < 0 || rect.right < 0 || rect.top > innerHeight || rect.left > innerWidth) bounds = null;
-        else {
-          const radii = getComputedStyle(part.element).borderTopLeftRadius.split(" ");
-          const radius = (value: string, size: number) => Math.min(size / 2, (parseFloat(value) || 0) * (value.endsWith("%") ? size / 100 : 1));
-          bounds = { x: rect.x, y: rect.y, width: rect.width, height: rect.height,
-            rx: radius(radii[0], rect.width), ry: radius(radii[1] ?? radii[0], rect.height) };
+  const { marks, omissions, candidates } = useMemo(() => {
+    const geometry = new Map<Element, Omit<Mark, "key" | "surface"> | null>();
+    const marksFor = (parts: VisualPart[]) => {
+      const marks = new Map<Element, Mark>();
+      for (const part of parts) {
+        if (part.range || part.role === "icon" || part.role === "text" || part.target.binding?.selection?.renderer === "scene") continue;
+        let bounds = geometry.get(part.element);
+        if (bounds === undefined) {
+          const rect = part.element.getBoundingClientRect();
+          if (!rect.width || !rect.height || rect.bottom < 0 || rect.right < 0 || rect.top > innerHeight || rect.left > innerWidth) bounds = null;
+          else {
+            const radii = getComputedStyle(part.element).borderTopLeftRadius.split(" ");
+            const radius = (value: string, size: number) => Math.min(size / 2, (parseFloat(value) || 0) * (value.endsWith("%") ? size / 100 : 1));
+            bounds = { x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+              rx: radius(radii[0], rect.width), ry: radius(radii[1] ?? radii[0], rect.height) };
+          }
+          geometry.set(part.element, bounds);
         }
-        geometry.set(part.element, bounds);
+        if (!bounds) continue;
+        const existing = marks.get(part.element);
+        if (existing) existing.surface ||= part.role === "background" && !(part.element instanceof HTMLElement);
+        else marks.set(part.element, { ...bounds, key: part.key, surface: part.role === "background" && !(part.element instanceof HTMLElement) });
       }
-      if (!bounds) continue;
-      const existing = marks.get(part.element);
-      if (existing) existing.surface ||= part.role === "background" && !(part.element instanceof HTMLElement);
-      else marks.set(part.element, { ...bounds, key: part.key, surface: part.role === "background" && !(part.element instanceof HTMLElement) });
-    }
-    return [...marks.values()];
-  };
-  const marks = marksFor(selected), omissions = marksFor(excluded), candidates = marksFor(preview);
+      return [...marks.values()];
+    };
+    return { marks: marksFor(selected), omissions: marksFor(excluded), candidates: marksFor(preview) };
+  }, [selected, excluded, preview]);
   // Canvas surfaces have no DOM contour to trace. Give their background a sparse
   // sparkle field, rejecting foreground/UI hits once, never in the animation loop.
   const sceneSparks = useMemo(() => {

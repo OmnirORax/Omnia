@@ -63,8 +63,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const depth = useRef(0), candidateRef = useRef<Pick | null>(null), geometrySequence = useRef(0);
   const selectedRef = useRef<VisualPart[]>([]), gesture = useRef<Gesture | null>(null);
   const polygon = useRef<Gesture | null>(null);
-  const latest = useRef({ phase, configuration, catalog, selection });
-  latest.current = { phase, configuration, catalog, selection };
+  const toggleCandidate = useRef<{ catalog: VisualPart[]; selection: SelectionState; key: string; pick: Pick } | null>(null);
+  const latest = useRef({ phase, configuration, catalog, selection, editingFeedback });
+  latest.current = { phase, configuration, catalog, selection, editingFeedback };
   const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0;
   const previewEnabled = previewModifier || !selection.boundary && !selection.objects.length;
   const logicalFeedback = selection.objects.some(id => resolvePropertyTarget(PROPERTY_REGISTRY, id).consumers.some(consumer => TARGETS.find(target => target.id === consumer)?.binding?.feedback === "selection"));
@@ -89,8 +90,16 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (!matchingVisualParts(parts, rule).length) return current;
     return { ...current, boundary: current.boundary ?? rule.boundary, rules: [...current.rules, rule], objects: [] };
   });
-  const togglePreview = (constraint: SelectionConstraint) => setPreview({ definesScope: false,
-    rule: selectionToggleRule(latest.current.catalog, selectedRef.current, constraint) });
+  const togglePreview = (constraint: SelectionConstraint) => {
+    const { catalog, selection } = latest.current, key = constraintKey(constraint), cached = toggleCandidate.current;
+    // Moving within the same category does not change its membership. Matching
+    // all text/windows again on each pixel only repeats the same geometry work.
+    if (cached?.catalog === catalog && cached.selection === selection && cached.key === key) {
+      setPreview(cached.pick); return;
+    }
+    const pick = { definesScope: false, rule: selectionToggleRule(catalog, selectedRef.current, constraint) };
+    toggleCandidate.current = { catalog, selection, key, pick }; setPreview(pick);
+  };
   const previewAt = (element: Element, x: number, y: number) => {
     const current = latest.current, config = current.configuration;
     if (element.closest(APPEARANCE_EDITOR)) {
@@ -181,7 +190,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const disable = () => { close(); clear(); };
   const undo = () => { feedbackHold.release(); cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); };
   const redo = () => { feedbackHold.release(); cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); };
-  const aim = () => { setView("auto"); setEditingFeedback(false); feedbackHold.release(); setPreview(null); setInventoryOpen(false); setPhase("aim"); };
+  const aim = () => { toggleCandidate.current = null; setCatalog(collectVisualParts()); setView("auto"); setEditingFeedback(false); feedbackHold.release(); setPreview(null); setInventoryOpen(false); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;
     feedbackHold.hold(); setView("auto"); setEditingFeedback(false);
@@ -346,7 +355,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const focusEditor = (event: Event) => {
       if (latest.current.phase === "off" && !hasSelection() && !feedbackHold.context) return;
       if (event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) {
-        setEditingFeedback(!!event.target.closest('[data-selection-feedback="true"]'));
+        const feedback = !!event.target.closest('[data-selection-feedback="true"]');
+        // Pointer movement over controls must not dispatch a React update per pixel.
+        if (latest.current.editingFeedback !== feedback) setEditingFeedback(feedback);
       }
       if (latest.current.phase !== "edit" && latest.current.phase !== "inspect" && event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) {
         feedbackHold.hold();

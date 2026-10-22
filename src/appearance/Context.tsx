@@ -16,7 +16,7 @@ import {
   loadController,
   type RegisteredTarget,
 } from "./registry";
-import { type Appearance, valueFor } from "./resolve";
+import { type Appearance, createValueResolver } from "./resolve";
 import { activityPreview, type ActivityPreview } from "./activityPreview";
 import { MouseTrail } from "./MouseTrail";
 import { VisualSelectionProvider } from "./VisualSelector";
@@ -38,6 +38,9 @@ type ContextValue = AppearanceBridge & {
   renderBase: Appearance;
   activatePreview: (request: ActivityPreview) => () => void;
   targets: RegisteredTarget[];
+  /** One indexed reader per appearance snapshot, shared by every editor/icon. */
+  read: ReturnType<typeof createValueResolver>;
+  renderRead: ReturnType<typeof createValueResolver>;
   location: AppearanceLocation | null;
   locate: (location: AppearanceLocation | null, keep?: boolean) => void;
   customize: (
@@ -87,6 +90,10 @@ export function AppearanceProvider({
   const inspectionKey = visualInspection || inspectedFunctions ? `${visualInspection}::${inspectedFunctions}` : "";
   useEffect(() => { inspect.current?.(inspectionKey); }, [inspectionKey]);
   const state = activeBridge.base.controller ?? loadController(undefined);
+  // Function React elements change on every preview. Only identities/captions
+  // affect target metadata; using the elements here rebuilds every local binding.
+  const functionLabels = ui.functions.map(fn => `${fn.id}\0${fn.label}`).join("\n");
+  const frameLabels = [...ui.frameActions].map(([id, frame]) => `${id}\0${frame.title}`).join("\n");
   const targets = useMemo(
     () =>
       controllerTargets(state).map((target) => {
@@ -110,8 +117,11 @@ export function AppearanceProvider({
             ui.layout.frames.find((f) => `frame:${f.id}` === owner)?.name);
         return { ...target, label: customLabel ?? (target.instance.part ? target.label : label) ?? target.label, instance: { ...target.instance, path } };
       }),
-    [state, ui.layout, ui.functions],
+    [state.instances, ui.layout, functionLabels, frameLabels],
   );
+  const read = useMemo(() => createValueResolver(activeBridge.base, state, targets), [activeBridge.base, state, targets]);
+  const renderRead = useMemo(() => renderBase === activeBridge.base ? read
+    : createValueResolver(renderBase, renderBase.controller ?? state), [renderBase, activeBridge.base, read, state]);
   const freeze = (next: Controller, id: string, property?: string) => {
     for (const target of targets) {
       if (!ancestry(targets, target.id).includes(id)) continue;
@@ -119,7 +129,7 @@ export function AppearanceProvider({
         if (property && !propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel).includes(p)) continue;
         next.values[target.id] = {
           ...next.values[target.id],
-          [p]: valueFor(activeBridge.base, state, target, p),
+          [p]: read(target, p),
         };
       }
     }
@@ -182,6 +192,8 @@ export function AppearanceProvider({
     renderBase,
     activatePreview,
     targets,
+    read,
+    renderRead,
     location: hoverLocation ?? location,
     locate: (next, keep = false) => {
       if (keep) {

@@ -129,3 +129,9 @@ retain their effect. Showing marks again uses current live values.
 Moved property controls carry the same marker. Never freeze the physical pointer,
 create fake native events, persist hover state or reuse held context after clear/
 cancel/resume/dismissal. See VISUAL_SELECTION.md for the transient hold lifecycle.
+
+
+Mounted appearance consumers use the shared context `read`/`renderRead` instead of
+building a resolver per icon/control. Value-only previews preserve target structure
+and policy identity; new controls must not trigger glyph discovery or selector
+geometry rebuilds on every input sample. See APPEARANCE_CONTROLLER.md.

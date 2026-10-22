@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useAppearance, basesForOwner } from "./Context";
 import { instanceId } from "./registry";
 import { toggleRule } from "./model";
-import { valueFor } from "./resolve";
 import { LockControl } from "./LockControl";
 import { PropertyTree } from "./PropertyTree";
 import { PropertyEditor } from "./Controls";
@@ -57,7 +56,7 @@ export function ContextualAppearance({
       next.instances[id] = { base: base.id, owner, label, path };
     }
     for (const key of props)
-      next.values[id] = { ...next.values[id], [key]: valueFor(ctx.base, ctx.state, base, key) };
+      next.values[id] = { ...next.values[id], [key]: ctx.read(base, key) };
     return next;
   };
   const lock = () => {
@@ -96,7 +95,7 @@ export function ContextualAppearance({
             previewTargets={[instance ?? { ...base, id: instanceId(base.id, owner), instance: { base: base.id, owner, label } }]}
             effectKinds={target.effectKinds}
             label={`${label} local ${id}`}
-            value={valueFor(ctx.base, ctx.state, target, id)}
+            value={ctx.read(target, id)}
             onPreview={(v) => ctx.customize(base.id, owner, label, id, v, true)}
             onCommit={(v) => ctx.customize(base.id, owner, label, id, v)}
           /></UIField>

@@ -4,7 +4,6 @@ import { propertyFor, type RegisteredTarget } from "./registry";
 import type { Value } from "./model";
 import { applyValue, included, blocked, connected } from "./model";
 import { useAppearance } from "./Context";
-import { valueFor } from "./resolve";
 /** One editor implementation is shared by the controller, rows and contextual UI. */
 export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { previewTargets?: RegisteredTarget[] }) {
   const ctx = useAppearance();
@@ -220,7 +219,7 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
   );
   const current =
     (!target ? active.adjustments?.[property] : undefined) ??
-    (chosen ? valueFor(ctx.base, state, chosen, property) : propertyFor(property)!.initial);
+    (chosen ? ctx.read(chosen, property) : propertyFor(property)!.initial);
   const change = (v: Value, preview = false) => {
     const next = applyValue(state, targets, property, v, target);
     if (preview) ctx.preview(next);

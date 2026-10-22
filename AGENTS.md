@@ -54,6 +54,13 @@ component presentation or their editors.
   registry. Target identity, selection boundary, visual role and property are
   separate concepts. HTML, SVG, canvas and 3D may need distinct adapters, but must
   share property IDs, applicability and editing rules.
+- Mounted appearance editors/renderers share `useAppearance().read` (or `renderRead`
+  for renderer-only activity projections). Never rebuild `createValueResolver` or
+  call standalone `valueFor` once per row/icon/property in a render loop. Pure batch
+  transactions share a `createTargetIndex`; paint-only setters preserve unchanged
+  instance/policy references. Text binding discovery and feedback geometry must not
+  rebuild for every color sample. See the performance contract in
+  `docs/APPEARANCE_CONTROLLER.md`.
 - The existing master controller and `PropertyEditor`/`PropertyTree` supply property
   editing. Local actions should target/reveal the shared editor rather than copy
   its controls. Registered capabilities determine which properties are applicable.

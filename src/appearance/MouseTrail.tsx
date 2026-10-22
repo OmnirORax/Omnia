@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useAppearance } from "./Context";
-import { effectsFromValues, valueFor } from "./resolve";
+import { effectsFromValues } from "./resolve";
 import mouseTrail from "./mouseTrail.function";
 
 /** Global pointer effect adapter. Settings and serialization use the master controller. */
 export function MouseTrail() {
   const ctx = useAppearance()!;
   const target = ctx.targets.find(target => target.id === mouseTrail.consumer.id)!;
-  const values = mouseTrail.readInputs(property => valueFor(ctx.renderBase, ctx.renderBase.controller ?? ctx.state, target, property));
+  const values = mouseTrail.readInputs(property => ctx.renderRead(target, property));
   const fx = effectsFromValues(property => values[property]);
   const enabled = !ctx.safe && fx.effect !== "off";
   const trail = useRef<SVGGElement>(null), dust = useRef<SVGGElement>(null);

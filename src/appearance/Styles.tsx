@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { fontFamily } from "../fonts";
 import { connected } from "./model";
 import { useAppearance } from "./Context";
-import { tint, createValueResolver } from "./resolve";
+import { tint } from "./resolve";
 import { brightHex } from "./resolve";
 import { ScopedTextAppearance } from "./ScopedTextAppearance";
 import { partSelector, scopeDepth } from "./partScope";
@@ -15,7 +15,7 @@ export function AppearanceStyles() {
     if (!context || context.safe) return "";
     const { base, state, targets } = context,
       rules: string[] = ["body *{--omnium-custom-shadow:0 0 0 transparent}"];
-    const read = createValueResolver(base, state, targets);
+    const read = context.read;
     for (const target of [...targets].sort(
       (a, b) => (a.instance ? scopeDepth(a.instance) : -1) - (b.instance ? scopeDepth(b.instance) : -1),
     )) {
@@ -127,7 +127,7 @@ export function AppearanceStyles() {
       rules.push(`:root[data-omnium-theme] *{scrollbar-color:${ink(thumb)} ${ink(track)}}`);
     }
     return rules.join("\n");
-  }, [context]);
+  }, [context?.base, context?.state, context?.targets, context?.safe]);
   return <><style data-appearance-registry>{css}</style><ScopedTextAppearance /></>;
 }
 export function useIconTint(owner: string, fallbackOwner?: string) {
@@ -146,7 +146,7 @@ export function iconTintFor(ctx: ReturnType<typeof useAppearance>, owner: string
     : undefined;
   const target = instance ?? fallback ?? ctx.targets.find((t) => t.id === "symbols.ui");
   if (!target) return {};
-  const read = createValueResolver(ctx.base, ctx.state, ctx.targets);
+  const read = ctx.read;
   const get = (p: string) => read(target, p);
   const custom = ctx.state.values[target.id] ?? {},
     brightness = Number(get("brightness")),

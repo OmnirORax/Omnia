@@ -371,3 +371,16 @@ shortcut discovery. View changes are transient tool state and do not enter
 selection undo, appearance drafts or saved settings. Hidden feedback unmounts the
 actual overlay, restoring glyph/surface/scene paint through its existing cleanup;
 showing it again uses the same retained targets and current appearance.
+
+
+## Picking and paint invalidation
+
+Hit candidates cache DOM relationships per catalog/pointed element; current rects
+and scene hit tests remain live. A repeated category in unchanged selection and
+catalog reuses its toggle candidate, avoiding full matching for every pointer pixel.
+DOM/layout discovery replaces the catalog and resuming picking refreshes it after
+editing. Feedback bounds and palette references stay stable across unrelated paint
+edits, so controls cannot restart all native pulses on every color sample.
+Exact text appearance likewise retains its bound Ranges while changing paint.
+Use the shared context reader and preserve unchanged instance/policy identity in
+setters; see APPEARANCE_CONTROLLER.md for the renderer/editor performance contract.

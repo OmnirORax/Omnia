@@ -9,7 +9,6 @@ import { useAppearance } from "./Context";
 import { nativeContextMenuKey } from "../featureActions";
 import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
-import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
 import { SelectedProperties } from "./SelectionController";
 import { SelectorFeedbackSample } from "./VisualSelectionOverlay";
@@ -273,7 +272,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
               previewTargets={[target]}
               effectKinds={target.effectKinds}
               label={`${target.label} ${property}`}
-              value={valueFor(ctx.base, state, target, property)}
+              value={ctx.read(target, property)}
               onPreview={(v) => change(v, true, target.id)}
               onCommit={(v) => change(v, false, target.id)}
             /></UIField>

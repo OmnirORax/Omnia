@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
 import { PropertyEditor } from "./Controls";
 import { PropertyTree } from "./PropertyTree";
-import { createValueResolver } from "./resolve";
 import { applySelectedValue, selectedPartPolicy, resetSelectedParts, selectedPartTarget, type SelectedPart } from "./selectionCoupling";
 import type { Value } from "./model";
 
@@ -14,7 +13,7 @@ export function SelectedProperties({ parts, scope = "selection" }: { parts: Sele
   useEffect(() => () => preview.current(null), []);
   const [property, setProperty] = useState("color");
   const editablePart = useMemo(() => selectedPartPolicy(ctx.state), [ctx.state]);
-  const read = useMemo(() => createValueResolver(ctx.base, ctx.state, ctx.targets), [ctx.base, ctx.state, ctx.targets]);
+  const read = ctx.read;
   const targets = parts.map(selectedPartTarget);
   const available = [...new Set(targets.flatMap(target => target.properties ?? []))];
   const chosenProperty = available.includes(property) ? property : available[0];
