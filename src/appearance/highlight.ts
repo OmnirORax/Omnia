@@ -1,6 +1,7 @@
 import type { RegisteredTarget } from "./registry";
 import { EFFECT_PROPERTIES } from "./registry";
 import { effectScope } from "./uiEffects";
+import { registerPaintVariable } from "./paintVariables";
 
 export type HighlightTarget = { target: RegisteredTarget; active: boolean };
 export type HierarchyScenePulse = {
@@ -85,15 +86,6 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
 type PaintElement = HTMLElement | SVGElement;
 type PaintValue = { value: string; priority: string; computed: string; written?: string };
 type VariablePulse = { element: PaintElement; variable: string; from: string; to: string; syntax: string; inherited: boolean };
-const registeredVariables = new Set<string>();
-function registerPulseVariable(name: string, syntax: string, inherits: boolean) {
-  if (registeredVariables.has(name)) return true;
-  if (!CSS.registerProperty) return false;
-  const initialValue = syntax === "<color>" ? "transparent" : syntax === "<length>" ? "0px" : syntax === "<percentage>" ? "0%" : "0";
-  try { CSS.registerProperty({ name, syntax, inherits, initialValue }); }
-  catch (error) { if (!(error instanceof DOMException) || error.name !== "InvalidModificationError") return false; }
-  registeredVariables.add(name); return true;
-}
 let pulseSequence = 0;
 /** Discover/read once, then let the browser animate actual paint. No per-frame UI style scans/writes. */
 export function highlightHierarchy(entries: HighlightTarget[], targets: RegisteredTarget[], property: string) {
@@ -262,7 +254,7 @@ export function highlightHierarchy(entries: HighlightTarget[], targets: Register
     for (const [element, group] of variables) {
       const from: Record<string, string> = {}, to: Record<string, string> = {};
       for (const pulse of group.values()) {
-        const native = registerPulseVariable(pulse.variable, pulse.syntax, pulse.inherited);
+        const native = registerPaintVariable(pulse.variable, pulse.syntax, pulse.inherited);
         write(element, pulse.variable, reduced.matches ? mix(pulse, .6) : pulse.from, "");
         if (reduced.matches) continue;
         if (native && typeof element.animate === "function") { from[pulse.variable] = pulse.from; to[pulse.variable] = pulse.to; }

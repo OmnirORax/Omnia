@@ -66,6 +66,24 @@ The shared selection context exposes boundary, operations, matches and applicabl
 property IDs for subsequent master-controller coupling. This stage does not add a
 second appearance editor or remove existing editors before they are replaced.
 
+## Selection feedback
+
+Included/excluded parts use green/red neon traces; the boundary stays cyan. A soft
+rim, continuous rail and moving dashed seam show each surface or contour. The seam
+travels around the edge without rotating/resizing the selected object. Background
+tints remain translucent. Background and contour matches on one element share a
+trace and geometry/style reads are cached across feedback layers.
+
+Text feedback pulses the actual glyph ink through CSS custom highlights, instead
+of filling rectangular text boxes. Input contents and placeholders use scoped
+temporary ink rules; icons keep their source palette with a pulsing glow. Feedback
+uses one shared native paint-variable animation and CSS seam motion, with no
+per-frame JavaScript scanning, style rewriting or React renders. The hierarchy and
+selector reuse `paintVariables.ts` for native variable registration. Large surfaces
+use broad strokes rather than full-window blur filters. Reduced motion keeps a
+steady neon cue and stationary seam; tab hiding pauses the native pulse. Cleanup
+removes the temporary paint layer, markers and animation without changing values.
+
 ## Follow-up integration contract
 
 The next editing stage must route the accepted selection into the existing master
