@@ -440,8 +440,12 @@ for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
     // The feedback adapter paints SVG edges, glyph ranges and icons together.
     binding: { selector: `.visual-selection-trace.is-${tone}` },
   });
-part("ui.guides.selector.trail", "ui.guides.selector", "Cursor trail", {
-  selector: ".visual-selector-trail", css: "color", legacy: "accent",
+branch("ui.mouse", "ui", "Mouse");
+entries.push({ id: "ui.mouse.trail", parent: "ui.mouse", label: "Mouse trail",
+  properties: [...EFFECT_PROPERTIES], effectKinds: ["off", "lightning", "stars"],
+  defaults: { effect: "off", speed: .25, intensity: .5, density: 1, size: 1, length: .35,
+    effectColor: "#60ddec", effectBrightness: 1, effectOpacity: 1, effectGlow: .5 },
+  binding: { selector: ".mouse-trail" },
 });
 branch("text", "all", "Text");
 branch("text.ui", "text", "UI text");

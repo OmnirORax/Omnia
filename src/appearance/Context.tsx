@@ -17,6 +17,7 @@ import {
   type RegisteredTarget,
 } from "./registry";
 import { type Appearance, valueFor } from "./resolve";
+import { MouseTrail } from "./MouseTrail";
 import { VisualSelectionProvider } from "./VisualSelector";
 export type AppearanceLocation = { target: string; property: string };
 export type AppearanceBridge = {
@@ -168,7 +169,7 @@ export function AppearanceProvider({
     plug: (id, property) => activeBridge.commit(toggleRule(state, "disconnected", id, property)),
   };
   return <Context.Provider value={bridge ? value : null}>{bridge
-    ? <VisualSelectionProvider>{children}</VisualSelectionProvider> : children}</Context.Provider>;
+    ? <VisualSelectionProvider>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
 }
 export function basesForOwner(owner: string, control = false): RegisteredTarget[] {
   const prefix = owner.startsWith("function:") ? (control ? "ui.fields." : "ui.buttons.") : "ui.";

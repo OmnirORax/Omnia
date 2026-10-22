@@ -269,6 +269,17 @@ export function MasterController() {
             })} />
         </div>
       </UISection>
+      <UISection id="appearance-mouse-trail" title="Mouse trail">
+        <p>Lightning outlines = Light · Stars = Stardust</p>
+        <UIField id="ui:appearance:mouseTrail:effect" label="Mouse trail animation" category="Appearance">
+          <PropertyEditor property="effect" label="Mouse trail animation" effectKinds={["off", "lightning", "stars"]}
+            value={valueFor(ctx.base, state, targets.find(target => target.id === "ui.mouse.trail")!, "effect")}
+            onPreview={value => ctx.preview(applyValue(state, targets, "effect", value, "ui.mouse.trail"))}
+            onCommit={value => ctx.commit(applyValue(state, targets, "effect", value, "ui.mouse.trail"))} />
+        </UIField>
+        <UIAction id="ui:appearance:mouseTrail:configure" label="Configure mouse trail" category="Appearance"
+          onClick={() => ctx.locate({ target: "ui.mouse.trail", property: "effect" })} />
+      </UISection>
       <NameVisibilityControl />
       <PropertyTree
         extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity",

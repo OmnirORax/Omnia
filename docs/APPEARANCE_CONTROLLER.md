@@ -89,3 +89,7 @@ Expandable property groups use the shared `EmbeddedGroup` window component rathe
 Old customized headers retain their icons and local appearance compatibility identities. Former button-only placements are recovered as complete group placements. The metadata is UI layout only; graph identities, knowledge, coordinates and appearance property values are unaffected. Current ownership drives subtree expansion and search revelation. New feature code must follow [the shared UI component contract](UI_COMPONENT_CONTRACT.md); adding a draggable header without a complete payload is not a supported group implementation.
 
 `tests/ui-group-drag.browser.mjs` is a focused Vite-dev-server regression (`ATLAS_URL`): actual Opacity/Blur payloads, collapse/reopen, cycle rejection, UI undo/redo, reload and a fixture-only newly introduced group using the same component path.
+
+## Mouse trail
+
+Theme / aesthetics → Mouse trail reuses the Animation property pool: Off, Lightning outlines (Light) and Stars (Stardust), with shared speed, intensity, density, size, length and animation color/brightness/opacity/glow controls. These values use the appearance draft, locks, inheritance, bypass, Apply/discard, serialization and theme import/export. The global mouse adapter is independent of selector activity, pointer-transparent and bounded; reduced motion suppresses it.

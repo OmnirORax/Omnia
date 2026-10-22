@@ -887,7 +887,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-symbol .selector-outside-edge { stroke: currentColor; opacity: .24; pointer-events: none; }
 .visual-selector-symbol [role="button"]:focus-visible { color: #fff; }
 .visual-selector-symbol [role="button"]:focus-visible .selector-region-mark { opacity: .7; }
-.visual-selector-trail-mode { position: absolute; right: -8px; top: 108px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; color: inherit; background: var(--omnium-base,#07131c); }
+
 .visual-selector-actions { position: absolute; inset: 0; pointer-events: none; }
 .visual-selector-actions > * { position: absolute; pointer-events: auto; }
 .visual-selector-actions button:nth-of-type(1) { left: -8px; top: 40px; }
@@ -910,9 +910,9 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-patterns small { opacity: .6; }
 .visual-selector-patterns .selector-pattern-include { color: #66efab; }
 .visual-selector-patterns .selector-pattern-exclude { color: #ff6c73; }
-.visual-selector-trail { position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 90001; pointer-events: none; color: var(--omnium-accent,#60ddec); overflow: hidden; }
-.visual-selector-trail circle { fill: currentColor; pointer-events: none; }
-.visual-selector-trail line { stroke: currentColor; stroke-linecap: round; pointer-events: none; }
+.mouse-trail { position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 90001; pointer-events: none; color: var(--omnium-accent,#60ddec); overflow: hidden; }
+.mouse-trail circle { fill: currentColor; pointer-events: none; }
+.mouse-trail line { stroke: currentColor; stroke-linecap: round; pointer-events: none; }
 .visual-selector-cursor { position: fixed; left: 0; top: 0; z-index: 90002; width: 64px; height: 60px; pointer-events: none; color: var(--omnium-accent,#60ddec); will-change: transform; }
 .visual-selector-symbol .selector-precision-dot { fill: #fff; stroke: #07121b; stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
 /* SVG hit-area rules can override inherited pointer transparency. The aiming
