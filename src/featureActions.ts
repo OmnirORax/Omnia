@@ -2,6 +2,7 @@
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
   { id: "selector.open", owner: "visualSelector", scope: "global", category: "Visual selector", label: "⦲ Toggle visual selector controller", defaultKey: "MB3", description: "Open configuration at the pointer; press again to resume selection. Preserves selection and configuration." },
+  { id: "selector.trail", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Switch cursor trail: Light / Stardust", defaultKey: "", description: "Toggle the two default cursor trail presets while configuring or aiming." },
   { id: "selector.pattern", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Cycle selection pattern / axis / direction / position", defaultKey: "E", description: "While configuring or aiming the visual selector. Takes priority over node expansion." },
   { id: "selector.edit", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Edit selected appearance", defaultKey: "MB2", description: "Requires an accepted visual selection or boundary. Opens the shared appearance controller." },
   { id: "selector.cancel", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Disable selector and clear selection", defaultKey: "Esc", description: "While the selector or its accepted boundary is active.", allowTyping: true },

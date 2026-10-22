@@ -188,6 +188,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       gesture.current = null; setCatalog(collectVisualParts()); setPosition(p); setPhase("configure"); setPreview(null);
       depth.current = 0; point.current = { ...p, element };
     } },
+    "selector.trail": { enabled: canConfigure, run: () => setConfiguration(config => ({ ...config, trail: config.trail === "stardust" ? "light" : "stardust" })) },
     "selector.pattern": { enabled: canConfigure, run: cyclePattern },
     "selector.edit": { enabled: hasSelection(), run: input => { const p = inputPosition(input); gesture.current = null; edit(p.x, p.y); } },
     "selector.cancel": { enabled: phase !== "off" || hasSelection(), run: disable },
@@ -433,6 +434,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
             title="Sample the starting part's color and role; stop independently in each direction at the first differently colored peer. Empty gaps do not stop it. Start on a painted part."
             onClick={() => shortcuts.invoke("selector.colorStop")}>◐</button>
         </div>}
+      <button type="button" className="visual-selector-trail-mode" aria-label={`Cursor trail: ${configuration.trail ?? "light"}`} title="Switch cursor trail: Light / Stardust" onClick={() => shortcuts.invoke("selector.trail")}>{configuration.trail === "stardust" ? "✦" : "∿"}</button>
       <div className="visual-selector-actions">
         <button type="button" aria-label="Undo selection operation" title={`Undo selection (${shortcuts.binding("selector.undo") || "Unassigned"})`} disabled={timeline.index === 0} onClick={() => shortcuts.invoke("selector.undo")}>↶</button>
         <button type="button" aria-label="Redo selection operation" title={`Redo selection (${[shortcuts.binding("selector.redo"), shortcuts.binding("selector.redoAlternate")].filter(Boolean).join(" / ") || "Unassigned"})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>

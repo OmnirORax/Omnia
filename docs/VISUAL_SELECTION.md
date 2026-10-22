@@ -13,6 +13,7 @@ resume selection with the same configuration and accepted parts. Moving outside
 the controller leaves it open for interaction. The same SVG becomes a compact
 cursor while aiming. MB3 returns to stationary configuration at the pointer. The cursor layer is pointer-transparent
 and updates its position without rerendering the application.
+While aiming, a bounded 240ms cursor trail (Light streak or Stardust particles, switched with the ∿/✦ controller button) fades out after motion stops. It is pointer-transparent, updates without React renders, clears on blur/hiding, and respects reduced motion. Its appearance is shared under Selector feedback → Cursor trail.
 Only the stationary symbol renders hit areas. The aiming cursor and every SVG
 descendant explicitly reject pointer events, so a settled cursor cannot intercept
 the left-click intended for the underlying part.

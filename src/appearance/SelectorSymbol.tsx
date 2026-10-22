@@ -7,6 +7,7 @@ export const SELECTOR_VIEW = { width: 320, height: 300, x: 140, y: 136 } as cons
 export type SelectorOperation = "include" | "exclude" | null;
 export type SelectorRegion = SelectionRegion | null;
 export type SelectorConfiguration = {
+  trail?: "light" | "stardust";
   boundaryPicking: boolean;
   pattern: PatternMode;
   patternRole: VisualRole | null;

@@ -440,6 +440,9 @@ for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
     // The feedback adapter paints SVG edges, glyph ranges and icons together.
     binding: { selector: `.visual-selection-trace.is-${tone}` },
   });
+part("ui.guides.selector.trail", "ui.guides.selector", "Cursor trail", {
+  selector: ".visual-selector-trail", css: "color", legacy: "accent",
+});
 branch("text", "all", "Text");
 branch("text.ui", "text", "UI text");
 for (const [id, label, selector] of [
