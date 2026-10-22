@@ -178,3 +178,16 @@ pointer position are held while ordinary UI input and the animation clock remain
 live. Clear/resume/dismissal and focus-loss cleanup release transient context. See
 VISUAL_SELECTION.md; native browser hover and arbitrary event sources are outside
 this registered-feedback hold.
+
+
+## Green text lightning recipe
+
+Visuals → Apply green text lightning applies an optional recipe for the existing
+`electric-text` renderer. It sets only UI lettering's animation channels: green
+`#08ff48`, brightness 1.15, opacity .94, intensity .85, density .38, length .62 and
+speed .8. Its actual ink texture supplies the white cores. Typography, ordinary
+text paint, graph text, surfaces and other effects retain their values. The recipe
+uses shared properties/setters, locks and bypass, in one appearance
+draft commit. Existing Apply/discard/undo and theme export remain authoritative.
+Its command is in the shared action catalog and shortcut search, unbound by default.
+There is no new shader, copied effect renderer or parallel configuration store.

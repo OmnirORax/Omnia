@@ -1,6 +1,7 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "appearance.greenElectricText", owner: "masterController", scope: "global", category: "Master controller", label: "Apply green text lightning", defaultKey: "", description: "Apply a green electric-text recipe to UI lettering through the shared appearance draft. Keeps typography and non-text appearance; respects locks and bypass." },
   { id: "selector.open", owner: "visualSelector", scope: "global", category: "Visual selector", label: "⦲ Toggle visual selector controller", defaultKey: "MB3", description: "Open configuration at the pointer; press again to resume selection. Preserves selection and configuration." },
   { id: "selector.selfInventory", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Toggle Self inventory", defaultKey: "", description: "Select logical meta targets such as Mouse or Selector feedback; their existing coupled properties appear in Master controller." },
   { id: "selector.selectMouse", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Toggle Mouse selection", defaultKey: "", description: "Select or deselect the logical mouse target; Master controller shows its coupled properties, including Mouse trail, while selected." },

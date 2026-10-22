@@ -1,3 +1,4 @@
+import { applyTextLightningPreset, TEXT_LIGHTNING_PRESET } from "../src/appearance/textLightningPreset.ts";
 import { laserSparkles, SELECTOR_SPARKLE_BUDGET } from "../src/appearance/selectorLaser.ts";
 import { createInteractionHold } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
@@ -839,4 +840,28 @@ test("laser feedback sparkle geometry is stable across paint edits, bounded and 
   });
   assert.equal(laserSparkles(box, 1).length, 1);
   assert.equal(laserSparkles(box, 4, true).length, 4, "scene surfaces share the same bounded generator");
+});
+
+
+test("green text lightning is one shared-property recipe scoped to unlocked connected UI lettering", () => {
+  const before = emptyController();
+  before.values["text.ui.buttons"] = { font: "serif", textSize: 17, color: "#abcdef" };
+  before.locks["text.ui.labels"] = { all: true };
+  before.disconnected["text.ui.contents"] = { all: true };
+  const saved = JSON.stringify(before), after = applyTextLightningPreset(before);
+  assert.equal(JSON.stringify(before), saved);
+  for (const [property, value] of Object.entries(TEXT_LIGHTNING_PRESET)) assert.equal(after.values["text.ui.buttons"][property], value);
+  assert.equal(after.values["text.ui.buttons"].font, "serif");
+  assert.equal(after.values["text.ui.buttons"].textSize, 17);
+  assert.equal(after.values["text.ui.buttons"].color, "#abcdef");
+  assert.equal(after.values["text.ui.labels"], undefined);
+  assert.equal(after.values["text.ui.contents"], undefined);
+  assert.ok(Object.keys(after.values).every(id => id.startsWith("text.ui.")));
+  assert.deepEqual(after.sets, before.sets); assert.deepEqual(after.instances, before.instances);
+  const restored = loadController(JSON.parse(JSON.stringify(after)));
+  assert.deepEqual(restored.values, after.values);
+  assert.equal(restored.locks["text.ui.labels"].all, true);
+  assert.equal(restored.disconnected["text.ui.contents"].all, true);
+  const lockedCategory = { ...before, locks: { ...before.locks, "text.ui": { all: true } } };
+  assert.deepEqual(applyTextLightningPreset(lockedCategory).values, before.values);
 });

@@ -17,37 +17,32 @@ const feedbackStyle = (paint: FeedbackPaint): CSSProperties => ({
   "--visual-selection-hot": paint.hot, "--visual-selection-opacity": paint.opacity,
   "--visual-selection-glow": paint.glow, "--visual-selection-period": `${SELECTOR_PULSE_MS}ms`,
 } as CSSProperties);
-function LaserSparkles({ sparks }: { sparks: LaserSparkle[] }) {
-  return <g className="visual-selection-sparkles">{sparks.map((spark, index) =>
-    <g key={index} transform={`translate(${spark.x},${spark.y}) scale(${spark.scale})`}>
-      <g className="visual-selection-sparkle-energy" style={{ animationDelay: `${spark.delay}s` }}>
-        <path className="visual-selection-sparkle-aura" d="M-3.8 0H3.8M0-3.8V3.8" />
-        <path className="visual-selection-sparkle-core" d="M-3.2 0H3.2M0-3.2V3.2" />
-        <circle className="visual-selection-sparkle-point" r="1" />
-      </g>
-    </g>)}</g>;
+/** Tiny HTML layers composite independently of the full-screen SVG. */
+function LaserSparkles({ sparks, paint, frame }: { sparks: LaserSparkle[]; paint: FeedbackPaint; frame?: { width: number; height: number } }) {
+  return <div className="visual-selection-sparkles" aria-hidden="true" style={feedbackStyle(paint)}>{sparks.map((spark, index) =>
+    <span key={index} className="visual-selection-sparkle" style={{
+      left: frame ? `${spark.x / frame.width * 100}%` : spark.x,
+      top: frame ? `${spark.y / frame.height * 100}%` : spark.y,
+      width: 10 * spark.scale, height: 10 * spark.scale,
+    }}><span className="visual-selection-sparkle-energy" style={{ animationDelay: `${spark.delay}s` }} /></span>
+  )}</div>;
 }
-function SelectionTrace({ mark, tone, paint, preview = false, sparkleLimit = 6 }: { mark: Mark; tone: Tone; paint: FeedbackPaint; preview?: boolean; sparkleLimit?: number }) {
+function SelectionTrace({ mark, tone, paint, preview = false }: { mark: Mark; tone: Tone; paint: FeedbackPaint; preview?: boolean }) {
   const attributes = rectAttributes(mark);
   const style = feedbackStyle(paint);
-  const sparks = laserSparkles(mark, sparkleLimit);
   return <g style={style} className={`visual-selection-trace is-${tone} ${preview ? "is-preview" : ""}`}>
     {mark.surface && <rect {...attributes} className="visual-selection-surface" />}
     <rect {...attributes} className="visual-selection-halo" />
     <rect {...attributes} className="visual-selection-bloom" />
     <rect {...attributes} className="visual-selection-rail" />
     <rect {...attributes} className="visual-selection-seam" />
-    <LaserSparkles sparks={sparks} />
   </g>;
 }
-const signal = {
-  mix: "--omnium-selector-glyph-mix",
-  glow: "--omnium-selector-glow",
-};
+const signal = { mix: "--omnium-selector-glyph-mix" };
 function startSelectionPulse(elements: Element[]) {
   if (!elements.length) return () => {};
   const supported = [
-    [signal.mix, "<percentage>", "65%"], [signal.glow, "<length>", "3px"],
+    [signal.mix, "<percentage>", "65%"],
   ].every(([name, syntax, initial]) => registerPaintVariable(name, syntax, false, initial));
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   let animations: Animation[] = [];
@@ -57,9 +52,9 @@ function startSelectionPulse(elements: Element[]) {
     // Non-inherited variables animate only the actual paint hosts. Never put
     // inherited animated paint on :root: it invalidates the entire application.
     animations = elements.filter(element => typeof element.animate === "function").map(element => element.animate([
-      { [signal.mix]: "92%", [signal.glow]: "6px", easing: "ease-in-out" },
-      { [signal.mix]: "38%", [signal.glow]: "2px", easing: "ease-in-out" },
-      { [signal.mix]: "92%", [signal.glow]: "6px" },
+      { [signal.mix]: "86%", easing: "ease-in-out" },
+      { [signal.mix]: "48%", easing: "ease-in-out" },
+      { [signal.mix]: "86%" },
     ], { duration: SELECTOR_PULSE_MS, iterations: Infinity }));
     // New preview targets join the existing clock instead of restarting it.
     if (document.timeline.currentTime !== null) animations.forEach(animation => { animation.startTime = 0; });
@@ -69,19 +64,18 @@ function startSelectionPulse(elements: Element[]) {
   document.addEventListener("visibilitychange", start);
   return () => { animations.forEach(animation => animation.cancel()); reduced.removeEventListener("change", start); document.removeEventListener("visibilitychange", start); };
 }
-const glow = "var(--omnium-selector-glow,3px)";
 const mix = "var(--omnium-selector-glyph-mix,65%)";
 const feedbackCore = (paint: FeedbackPaint, whiteness = .8) => {
   const white = Math.min(1, Math.max(0, paint.glow)) * whiteness * 100;
   return `color-mix(in srgb,${paint.ink} ${100 - white}%,${paint.hot} ${white}%)`;
 };
 const feedbackInk = (paint: FeedbackPaint) => tint(paint.ink, 1, paint.opacity);
-const feedbackGlow = (paint: FeedbackPaint) => `calc(${glow} * ${paint.glow})`;
+const feedbackGlow = (paint: FeedbackPaint) => `${2 * paint.glow}px`;
 const glyphColor = (base: string, paint: FeedbackPaint) => {
   const weight = `calc(${mix} * ${paint.opacity})`;
   return `color-mix(in srgb,${base} calc(100% - ${weight}),${feedbackCore(paint, .18)} ${weight})`;
 };
-const laserShadow = (paint: FeedbackPaint) => `0 0 1px ${feedbackCore(paint, .55)},0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)},0 0 calc(${feedbackGlow(paint)} * 1.7) ${tint(paint.ink, 1, paint.opacity * .4)}`;
+const laserShadow = (paint: FeedbackPaint) => `0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)}`;
 const glyphFeedback = (name: string, paint: FeedbackPaint) =>
   `::highlight(${name}){color:${glyphColor("currentColor", paint)};background-color:transparent;text-shadow:${laserShadow(paint)}}`;
 
@@ -105,12 +99,17 @@ export function SelectorFeedbackSample({ targets }: { targets: string[] }) {
     return !target.hidden && targets.includes(target.id);
   });
   if (!tones.length) return null;
-  return <svg className="selector-feedback-sample" viewBox={`0 0 ${tones.length * 128} 52`} role="img" aria-label="Live selector feedback preview">
-    {tones.map((tone, index) => <g key={tone} transform={`translate(${index * 128 + 4},4)`}>
-      <SelectionTrace tone={tone} paint={paints[tone]} mark={{ key: tone, x: 0, y: 0, width: 116, height: 26, rx: 6, ry: 6, surface: true }} />
-      <text x="58" y="43" textAnchor="middle" fill="currentColor" fontSize="11">{SELECTOR_FEEDBACK[tone].label}</text>
-    </g>)}
-  </svg>;
+  const width = tones.length * 128;
+  return <div data-visual-selector className="selector-feedback-sample" style={{ "--visual-selection-period": `${SELECTOR_PULSE_MS}ms` } as CSSProperties}>
+    <svg viewBox={`0 0 ${width} 52`} role="img" aria-label="Live selector feedback preview">
+      {tones.map((tone, index) => <g key={tone} transform={`translate(${index * 128 + 4},4)`}>
+        <SelectionTrace tone={tone} paint={paints[tone]} mark={{ key: tone, x: 0, y: 0, width: 116, height: 26, rx: 6, ry: 6, surface: true }} />
+        <text x="58" y="43" textAnchor="middle" fill="currentColor" fontSize="11">{SELECTOR_FEEDBACK[tone].label}</text>
+      </g>)}
+    </svg>
+    {tones.map((tone, index) => <LaserSparkles key={tone} paint={paints[tone]} frame={{ width, height: 52 }}
+      sparks={laserSparkles({ key: tone, x: index * 128 + 4, y: 4, width: 116, height: 26, rx: 6, ry: 6 }, 3)} />)}
+  </div>;
 }
 
 /** Native paint variables and SVG seams animate feedback; no per-frame DOM discovery or writes. */
@@ -187,7 +186,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         const color = glyphColor(source, feedback), textShadow = `${shadow}${laserShadow(feedback)}`;
         // Resolve variables on the host before inheriting paint into ::placeholder.
         hostDeclaration = pseudo ? `--omnium-selector-placeholder-color:${color};--omnium-selector-placeholder-shadow:${textShadow};` : "";
-        declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 1px ${feedbackCore(feedback, .4)}) drop-shadow(0 0 ${blur} ${ink})!important;` :
+        declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important;` :
           `color:${pseudo ? "var(--omnium-selector-placeholder-color)" : color}!important;text-shadow:${pseudo ? "var(--omnium-selector-placeholder-shadow)" : textShadow}!important;`);
       }
       if (surface) {
@@ -250,17 +249,11 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     return [...marks.values()];
   };
   const marks = marksFor(selected), omissions = marksFor(excluded), candidates = marksFor(preview);
-  let sparkleBudget = SELECTOR_SPARKLE_BUDGET;
-  const trace = (mark: Mark, tone: Tone, paint: FeedbackPaint, preview = false) => {
-    const count = Math.min(sparkleBudget, Math.max(2, Math.min(8, Math.ceil((mark.width + mark.height) / 170))));
-    sparkleBudget -= count;
-    return <SelectionTrace key={mark.key} mark={mark} tone={tone} paint={paint} preview={preview} sparkleLimit={count} />;
-  };
   // Canvas surfaces have no DOM contour to trace. Give their background a sparse
   // sparkle field, rejecting foreground/UI hits once, never in the animation loop.
   const sceneSparks = useMemo(() => {
     const parts = [...new Map([...selected, ...preview].filter(part => part.target.binding?.selection?.renderer === "scene").map(part => [part.target.id, part])).values()];
-    let budget = Math.min(12, SELECTOR_SPARKLE_BUDGET);
+    let budget = Math.min(6, SELECTOR_SPARKLE_BUDGET);
     return parts.flatMap(part => {
       const rect = part.element.getBoundingClientRect();
       const count = budget; budget -= count;
@@ -268,7 +261,23 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         .filter(spark => document.elementFromPoint(spark.x, spark.y) === part.element && scenePartAt(part.target.id, part.element, spark.x, spark.y));
     });
   }, [selected, preview]);
-  sparkleBudget -= sceneSparks.length;
+  const inkSparks = useMemo(() => {
+    const sparks: LaserSparkle[] = [], seen = new Set<Element>();
+    let remaining = SELECTOR_SPARKLE_BUDGET - sceneSparks.length;
+    for (const part of [...selected, ...preview]) {
+      if (!remaining || seen.has(part.element) || part.target.binding?.selection?.renderer === "scene") continue;
+      seen.add(part.element);
+      const rects = part.range ? [...part.range.getClientRects()] : [part.element.getBoundingClientRect()];
+      for (const rect of rects.slice(0, 2)) {
+        const left = Math.max(0, rect.left), top = Math.max(0, rect.top);
+        const right = Math.min(innerWidth, rect.right), bottom = Math.min(innerHeight, rect.bottom);
+        const box = { key: part.key, x: left, y: top, width: right - left, height: bottom - top };
+        const points = laserSparkles(box, Math.min(2, remaining), part.role !== "contour");
+        sparks.push(...points); remaining -= points.length;
+      }
+    }
+    return sparks;
+  }, [selected, preview, sceneSparks]);
   return <div data-visual-selector className="visual-selection-overlay" style={{ "--visual-selection-period": `${SELECTOR_PULSE_MS}ms` } as CSSProperties}>
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
       glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : paints.included)}</style>
@@ -276,10 +285,10 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       <defs><marker id="selector-line-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse">
         <path d="M0 0L7 3.5L0 7" fill="none" stroke="context-stroke" />
       </marker></defs>
-      {marks.map(mark => trace(mark, "included", paints.included))}
-      {omissions.map(mark => trace(mark, "excluded", paints.excluded))}
-      {candidates.map(mark => trace(mark, candidate?.include === false ? "excluded" : "included", candidate?.include === false ? paints.excluded : paints.included, true))}
-      {sceneSparks.length > 0 && <g className="visual-selection-scene-sparkles" style={feedbackStyle(paints.included)}><LaserSparkles sparks={sceneSparks} /></g>}
+      {marks.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="included" paint={paints.included} />)}
+      {omissions.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="excluded" paint={paints.excluded} />)}
+      {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"}
+        paint={candidate?.include === false ? paints.excluded : paints.included} preview />)}
       {paths.map(path => {
         const edges = pathEdges(path.points, path.closed);
         const stroke = (disabled: boolean) => edges.flatMap(([a, b], index) => path.disabledEdges.includes(index) === disabled
@@ -301,5 +310,6 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         {guide.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="3" />)}
       </g>}
     </svg>
+    <LaserSparkles sparks={[...sceneSparks, ...inkSparks]} paint={paints.included} />
   </div>;
 }

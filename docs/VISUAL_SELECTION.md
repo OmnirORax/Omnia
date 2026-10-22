@@ -331,16 +331,21 @@ its circle into controller controls, and releases on leaving/defocusing the edit
 
 Included feedback defaults to saturated laser green; authored Color/Brightness/
 Opacity/Glow overrides remain independent and are preserved. Shared traces layer a
-wide translucent green halo, a narrow saturated rail and a thin mint-white moving
-core, with deterministic, staggered white sparkles. Glyphs use their actual ink and
+restrained green halo, a narrow saturated rail and a thin mint-white core,
+with deterministic, staggered white pinpoints. Glyphs use their actual ink and
 layered color/glow without rectangular markers; broad backgrounds keep their
 existing native inset tint. A 2.6-second bright/dim/bright envelope retains a visible
 base instead of blinking off. The real overlay and Self inventory sample use the
 same trace and timing source (`selectorLaser.ts`).
 
-Sparkles are capped at 64 per overlay, with at most 12 reserved for the world
-background. Scene sparkle placement rejects UI/foreground hits at setup and is
-cached across paint-only edits. All sparkle/pulse motion uses native animations;
+White pinpoints are capped at 20 per overlay, with at most six reserved for the
+world background. Visible glyph/icon parts receive pinpoints too; they do not
+acquire rectangular traces. Offscreen rectangles are clipped before placement.
+Pinpoints use tiny independently composited HTML layers, so their twinkle does
+not repaint the viewport SVG. Borders have no marching-dash animation; the SVG
+breathes as one composited opacity layer. Native glyph glow is one tight, static
+shadow rather than multiple animated blur radii. Scene sparkle placement rejects
+UI/foreground hits at setup and is cached across paint-only edits. All sparkle/pulse motion uses native animations;
 there are no per-frame DOM scans or full-surface blur filters. Reduced motion uses
 steady feedback. The existing scene background tint remains capped at 30 fps.
 Color and brightness drive the colored halo and hot core together; Opacity fades

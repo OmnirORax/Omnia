@@ -1,7 +1,7 @@
 /** One timing/geometry source for actual selector feedback and its live sample.
  * Spark placement is deterministic and bounded; animation uses native paint only. */
 export const SELECTOR_PULSE_MS = 2600;
-export const SELECTOR_SPARKLE_BUDGET = 64;
+export const SELECTOR_SPARKLE_BUDGET = 20;
 export type SparkleBox = { key: string; x: number; y: number; width: number; height: number; rx?: number; ry?: number };
 export type LaserSparkle = { x: number; y: number; scale: number; delay: number };
 export function laserSparkles(box: SparkleBox, limit: number, surface = false): LaserSparkle[] {
