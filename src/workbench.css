@@ -887,6 +887,9 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-actions output { flex: 1; min-width: 0; text-align: center; color: #66efab; font: 11px/1.2 system-ui; }
 .visual-selector-actions small { font: inherit; color: #ff6c73; }
 .visual-selector-cursor { position: fixed; left: 0; top: 0; z-index: 90002; width: 40px; height: 37.5px; pointer-events: none; color: var(--omnium-accent,#60ddec); will-change: transform; }
+/* SVG hit-area rules can override inherited pointer transparency. The aiming
+   symbol is decoration; only the stationary controller accepts input. */
+.visual-selector-cursor,.visual-selector-cursor * { pointer-events: none !important; }
 .visual-selector-cursor .selector-outside-edge { opacity: .55; }
 .visual-selection-controller { position: fixed; z-index: 90003; width: 420px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto; box-sizing: border-box; padding: 12px; border: 1px solid var(--omnium-accent,#60ddec); border-radius: 8px; color: var(--omnium-ink,#d7f3f7); background: var(--omnium-base,#07121b); box-shadow: 0 8px 32px #0008; }
 .visual-selection-controller header,.visual-selection-controller footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

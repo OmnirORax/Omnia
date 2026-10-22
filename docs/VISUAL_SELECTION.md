@@ -12,6 +12,9 @@ pointer (clamped near viewport edges). The same SVG becomes a compact cursor whi
 aiming. Move outside the controller, or press its check mark, to aim. MB3 returns
 to stationary configuration at the pointer. The cursor layer is pointer-transparent
 and updates its position without rerendering the application.
+Only the stationary symbol renders hit areas. The aiming cursor and every SVG
+descendant explicitly reject pointer events, so a settled cursor cannot intercept
+the left-click intended for the underlying part.
 
 The symbol has independent choices:
 
