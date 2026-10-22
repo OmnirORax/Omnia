@@ -14,6 +14,7 @@ export function PropertyEditor({
   disabled = false,
   label,
   effectKinds,
+  choices,
 }: {
   property: string;
   value: Value;
@@ -22,6 +23,7 @@ export function PropertyEditor({
   disabled?: boolean;
   label?: string;
   effectKinds?: readonly string[];
+  choices?: readonly string[];
 }) {
   const ctx = useAppearance();
   const p = propertyFor(property)!;
@@ -81,7 +83,7 @@ export function PropertyEditor({
   if (p.kind === "select") {
     const options = [
       ...(p.options ?? []).filter(
-        (o) => p.id !== "effect" || !effectKinds || effectKinds.includes(o.id),
+        (o) => (!choices || choices.includes(o.id)) && (p.id !== "effect" || !effectKinds || effectKinds.includes(o.id)),
       ),
       ...(p.id === "font" ? (ctx?.fonts ?? []).map((f) => ({ id: f.id, label: f.name })) : []),
     ];

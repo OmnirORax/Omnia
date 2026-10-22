@@ -19,6 +19,7 @@ export type Target = {
   id: string;
   parent?: string;
   label: string;
+  couplings?: Record<string, string>;
   properties?: string[];
   effectKinds?: readonly string[];
   instance?: Instance;
@@ -158,15 +159,18 @@ export function blocked(
   const path = ancestry(targets, id),
     from = origin ? path.indexOf(origin) : -1;
   // A deliberate edit at a locked row is allowed. Propagation stops at lower locks.
-  const family = Object.keys(companions).find((key) => companions[key] === property);
+  const family = Object.keys(companions).find((key) => companions[key] === property) ??
+    Object.entries(targets.find(target => target.id === id)?.couplings ?? {}).find(([source, channel]) => source !== channel && channel === property)?.[0];
   return path.some(
     (key, index) =>
       index > from &&
       (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))),
   );
 }
-export const connected = (state: Controller, targets: Target[], id: string, property: string) =>
-  !ancestry(targets, id).some((key) => ruleHas(state.disconnected[key], property));
+export const connected = (state: Controller, targets: Target[], id: string, property: string) => {
+  const channel = targets.find(target => target.id === id)?.couplings?.[property] ?? property;
+  return !ancestry(targets, id).some(key => ruleHas(state.disconnected[key], property) || ruleHas(state.disconnected[key], channel));
+};
 export function included(set: AppearanceSet, targets: Target[], id: string): boolean {
   if (set.only && !inside(targets, id, set.only)) return false;
   let on = true;
@@ -252,7 +256,7 @@ export function applyValue(
     if (origin ? !inside(targets, target.id, origin) : !included(set, targets, target.id)) continue;
     // Global adjustment originates at the nearest included category; direct row edits bypass its own lock.
     const root = origin ?? set.only ?? "all";
-    for (const channel of propertyChannels(property)) {
+    for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
       if (!target.properties.includes(channel) || blocked(state, targets, target.id, channel, root))
         continue;
       next.values[target.id] = { ...next.values[target.id], [channel]: value };

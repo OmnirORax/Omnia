@@ -1,10 +1,12 @@
 # Universal properties, coupling and generated controllers
 
-Status: **agreed product direction; general implementation pending**. Recorded
-2026-10-22. The existing appearance registry implements part of the model for
-visual targets. A universal registry and automatic coupling/category mechanism
-have not been implemented. This document preserves the user's decisions for the
-worker implementing that system; it does not claim new runtime behavior.
+Status: **shared core implemented; migration is incremental**. Updated 2026-10-22.
+The general registry now drives canonical property lookup, compatible consumer
+coupling, category discovery and generated controller/target projections. Existing
+visual targets join the pool; mouse trail and placement settings are the first
+consumers using the new declaration/adapter path. Other existing feature-specific
+settings are not automatically migrated. This is not inference from arbitrary
+JavaScript variables, function names or pixels.
 
 ## Purpose
 
@@ -51,8 +53,9 @@ identity should appear consistently in discovery, editing and serialization.
 
 ## Implementation constraints
 
-The following clarify the contract; the exact detection algorithm, schemas and
-category creation UI still need design:
+The following remain the integration contract. The first implementation uses
+explicit property declarations and canonical IDs; a user-facing category/coupling
+authoring UI and broader inference remain future work:
 
 - Names alone are insufficient for matching. Meaning, value type, units and
   supported ranges/operations matter. Playback rate and particle emission rate
@@ -76,22 +79,70 @@ category creation UI still need design:
 - Preserve working old routes until their supported behavior is covered, then
   remove redundant definitions/editors rather than leave two active systems.
 
-## Existing foundation and known gap
+## Current implementation
 
-Appearance currently has PROPERTIES, registered target capabilities, shared
-PropertyEditor/PropertyTree, contextual editing, value resolution and draft/history
-support. Actions/shortcuts have their own shared catalog. These are useful existing
-integration paths, not one already-unified function/property registry.
+- `src/properties/registry.ts` is renderer/state-owner independent. A property
+  definition supplies stable identity, kind, units, bounds/options, defaults and
+  category. `define` reuses a compatible existing ID and rejects conflicting
+  contracts. `couple` accepts shared IDs or new definitions, discovers new
+  categories and publishes a consumer only after validation succeeds.
+- `src/properties/consumers.ts` declares new consumer channels once. Referencing a
+  property by ID couples to that exact shared meaning. Supplying a definition for
+  an existing ID performs compatibility checking before reuse; it does not create
+  a duplicate. Labels alone are never used to guess equivalence.
+- The existing visual definitions seed the same `PROPERTY_REGISTRY`; `PROPERTIES`
+  is a compatibility view, not a second pool. Existing renderer target declarations
+  also join the coupling graph automatically. Their IDs and fallback resolution
+  remain intact.
+- `channelOf` declares a specialized channel of a shared property. A consumer
+  supporting only animation color gains the canonical Color capability coupled to
+  that channel. If it explicitly supports both ordinary and animation color,
+  those channels remain separately addressable. No values are synchronized
+  between consumers.
+- Appearance target paths/capabilities for new consumers are generated after
+  coupling, including the mouse trail's Mouse branch. Unknown properties are
+  appended to their declared property category automatically; established property
+  tree IDs and paths stay stable.
+- `CoupledProperties.tsx` generates nonappearance property categories, shared
+  editors and consumer inclusion controls from couplings. The existing visual
+  controller is grouped under Visual. Spatial is supplied by the real placement
+  settings; Physical will appear when an actual property declares that category.
+- `preparePropertyChanges` validates one adjustment and prepares writes only for
+  selected compatible consumers. State adapters apply them to the existing owner.
+  `settingsAdapter.ts` retains `settings.spatial`, normal UI history and settings
+  serialization. Mouse trail keeps the appearance draft/Apply/discard path. No
+  third value store is introduced. Existing placement control IDs now use the
+  shared setter/editor rather than copied limits and validation.
+- A build-time property contract check covers one controller node per definition,
+  appearance hierarchy/coupling coverage and the settings adapter channel map.
+  Registration rejects duplicate consumers, incompatible definitions, unknown
+  properties, invalid defaults and unsupported select choices. New state owners
+  must extend adapter coverage rather than bypass it.
 
-Mouse trail illustrates why inclusion and working coupling must be treated as one
-integration: registering animation fields and a Theme section did not give it the
-ordinary Color/Opacity/Glow capabilities expected by the user. Its current target
-has a hierarchy declaration but only animation properties. Do not call this fixed
-without verifying discovery, applicability, shared edits and actual behavior.
+The original mouse-trail gap is addressed by generated Color/Brightness/Opacity/
+Glow couplings and a reader that resolves the same channel map used by editing.
+The separate hardcoded Mouse trail editor section was removed. Find Mouse trail
+under Visual hierarchy → Windows / frames / controls → Mouse, choose a supported
+property, and edit it through the shared visual controls.
 
-The last attempted response proposed a visual-feature-only registration check.
-The user explicitly corrected that scope: this system is broader than appearance.
-No such narrow system was implemented after that correction.
+## Adding a consumer
+
+For an existing property, add a consumer declaration using its canonical ID and
+supply its real input/state adapter. For a new property, supply its definition in
+the declaration, including meaningful units/category and a valid default. Another
+consumer can subsequently reference that ID. Do not add a parallel hierarchy row,
+property editor, persistence key or independent definition for the same meaning.
+
+For example, a future function can declare a new numeric `physics.gravity`
+property in category `{ id: "physical", label: "Physical" }` with acceleration
+units and valid bounds. That creates the pool entry/category. A second compatible
+function references `physics.gravity`; each adapter reads/writes its own value.
+This example does not add a physics simulator or gravity setting to the product.
+
+The declaration is the detection boundary. Every future feature must use it;
+undeclared fields in arbitrary code cannot be discovered by this mechanism.
+Adapter validation establishes declared coverage, not a proof that every renderer
+is visually correct. User interaction checks still determine behavior and fit.
 
 ## Acceptance examples for future implementation
 

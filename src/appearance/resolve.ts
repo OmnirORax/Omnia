@@ -156,10 +156,15 @@ export function createValueResolver(base: Appearance, state: Controller, targets
   const isConnected = (target: RegisteredTarget, property: string) =>
     !pathFor(target).some(id => ruleHas(state.disconnected[id], property));
   const resolve = (target: RegisteredTarget, property: string): Value => {
+    const channel = target.couplings?.[property];
+    if (channel && channel !== property) {
+      if (!isConnected(target, property)) return propertyFor(property)?.neutral ?? legacyValue(base, target, property);
+      return resolve(target, channel);
+    }
     const fallback = target.instance
       ? (bases.get(target.instance.base) ?? target)
       : target;
-    if (!isConnected(target, property))
+    if (!isConnected(target, property) || Object.entries(target.couplings ?? {}).some(([source, channel]) => channel === property && !isConnected(target, source)))
       return propertyFor(property)?.neutral ?? legacyValue(base, fallback, property);
     if (target.instance?.part && state.values[target.id]?.[property] === undefined) {
       const instance = target.instance;

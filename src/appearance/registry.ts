@@ -5,19 +5,11 @@ import { migrateEffects } from "./migrateEffects.ts";
 import { migrateFieldBranches } from "./migrateFields.ts";
 import type { AnimationTarget } from "../graph/effects.ts";
 import { GLYPH_PROPERTIES, partSelector } from "./partScope.ts";
-export type Property = {
-  id: string;
-  label: string;
-  kind: "color" | "number" | "select" | "toggle";
-  min?: number;
-  max?: number;
-  step?: number;
-  initial: Value;
-  neutral?: Value;
-  options?: readonly { id: string; label: string }[];
-};
+import { createPropertyRegistry, validateValue, type PropertyDefinition } from "../properties/registry.ts";
+import { PROPERTY_CONSUMERS } from "../properties/consumers.ts";
+export type Property = PropertyDefinition;
 /** Add properties once here. Editors, applicability, fine locks and validation consume this registry. */
-export const PROPERTIES: Property[] = [
+const builtins: Property[] = [
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },
   {
     id: "brightness",
@@ -127,7 +119,7 @@ const numeric = (
   step: number,
   initial: number,
 ): Property => ({ id, label, kind: "number", min, max, step, initial, neutral: initial });
-PROPERTIES.push(
+builtins.push(
   numeric("contourWidth", "Contour thickness", 0, 12, 0.5, 1),
   {
     id: "contourStyle",
@@ -169,22 +161,20 @@ for (const [id, label, source] of [
   ["effectOpacity", "Animation opacity", "opacity"],
   ["effectGlow", "Animation glow", "glow"],
 ] as const) {
-  const original = PROPERTIES.find((p) => p.id === source)!;
-  PROPERTIES.push({ ...original, id, label });
+  const original = builtins.find((p) => p.id === source)!;
+  builtins.push({ ...original, id, label, channelOf: source });
 }
-export const propertyFor = (id: string) => PROPERTIES.find((p) => p.id === id);
+export const PROPERTY_REGISTRY = createPropertyRegistry();
+builtins.forEach(property => PROPERTY_REGISTRY.define({ ...property, category: { id: "visual", label: "Visual" } }));
+PROPERTY_CONSUMERS.forEach(PROPERTY_REGISTRY.couple);
+/** Compatibility view of the single shared pool; no separate appearance definitions. */
+export const PROPERTIES = PROPERTY_REGISTRY.definitions;
+export const propertyFor = PROPERTY_REGISTRY.property;
 export function validateProperty(id: string, value: unknown): Value | undefined {
-  const p = propertyFor(id);
-  if (!p) return;
-  if (p.kind === "toggle") return typeof value === "boolean" ? value : undefined;
-  if (p.kind === "color")
-    return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
-  if (p.kind === "number")
-    return typeof value === "number" && Number.isFinite(value)
-      ? Math.max(p.min!, Math.min(p.max!, value))
-      : undefined;
+  const property = propertyFor(id);
+  if (!property) return;
   if (id === "font") return typeof value === "string" ? normalizeFont(value) : undefined;
-  return p.options?.some((o) => o.id === value) ? (value as string) : undefined;
+  return validateValue(property, value);
 }
 export const loadController = (value: unknown) =>
   migrateFieldBranches(migrateEffects(
@@ -440,13 +430,6 @@ for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
     // The feedback adapter paints SVG edges, glyph ranges and icons together.
     binding: { selector: `.visual-selection-trace.is-${tone}` },
   });
-branch("ui.mouse", "ui", "Mouse");
-entries.push({ id: "ui.mouse.trail", parent: "ui.mouse", label: "Mouse trail",
-  properties: [...EFFECT_PROPERTIES], effectKinds: ["off", "lightning", "stars"],
-  defaults: { effect: "off", speed: .25, intensity: .5, density: 1, size: 1, length: .35,
-    effectColor: "#60ddec", effectBrightness: 1, effectOpacity: 1, effectGlow: .5 },
-  binding: { selector: ".mouse-trail" },
-});
 branch("text", "all", "Text");
 branch("text.ui", "text", "UI text");
 for (const [id, label, selector] of [
@@ -541,6 +524,41 @@ part(
   { legacy: "background", animation: { kind: "surface", source: "background" } },
   ["color", "brightness"],
 );
+// Existing renderer declarations also join the same pool. This preserves their
+// IDs/default resolution while making shared capabilities discoverable centrally.
+for (const target of entries.filter(target => target.properties?.length)) {
+  if (PROPERTY_REGISTRY.consumer(target.id)) throw new Error(`Consumer registered twice: ${target.id}`);
+  const group: { id: string; label: string }[] = [];
+  let parent = entries.find(entry => entry.id === target.parent);
+  while (parent && parent.id !== "all") { group.unshift({ id: parent.id, label: parent.label }); parent = entries.find(entry => entry.id === parent!.parent); }
+  const consumer = PROPERTY_REGISTRY.couple({ id: target.id, label: target.label, owner: "appearance", group,
+    locator: target.binding?.selector,
+    properties: target.properties!.map(property => ({ property,
+      ...(property === "effect" && target.effectKinds ? {
+        initial: target.effectKinds.includes(String(target.defaults?.effect ?? propertyFor("effect")!.initial))
+          ? target.defaults?.effect ?? propertyFor("effect")!.initial : "off",
+        choices: target.effectKinds,
+      } : {}),
+    })),
+  });
+  target.couplings = consumer.channels;
+  target.properties = consumer.properties;
+}
+// A coupled appearance consumer gets its hierarchy path and capabilities here.
+// No feature-specific target row or copied property editor is required.
+for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner === "appearance")) {
+  if (entries.some(entry => entry.id === consumer.id)) continue;
+  let parent = "all";
+  for (const group of consumer.group) {
+    const existing = entries.find(entry => entry.id === group.id);
+    if (existing && existing.parent !== parent) throw new Error(`Conflicting consumer group: ${group.id}`);
+    if (!existing) branch(group.id, parent, group.label);
+    parent = group.id;
+  }
+  entries.push({ id: consumer.id, label: consumer.label, parent,
+    properties: consumer.properties, couplings: consumer.channels, defaults: consumer.defaults,
+    effectKinds: consumer.choices.effect, binding: consumer.locator ? { selector: consumer.locator } : undefined });
+}
 export const TARGETS: readonly RegisteredTarget[] = entries;
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
   ["single", "multi", "search", "number", "select"].map(kind => [
@@ -575,6 +593,7 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
       properties: instance.part?.text !== undefined
         ? base.properties?.filter(property => GLYPH_PROPERTIES.includes(property)) : base.properties,
       effectKinds: base.effectKinds,
+      couplings: base.couplings,
       instance,
       binding: instance.part && base.binding ? { ...base.binding,
         selector: partSelector(instance) + (base.id === "text.ui.placeholders" ? "::placeholder" : ""),

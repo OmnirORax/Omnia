@@ -1,5 +1,6 @@
+import { CoupledProperties, type PropertyBindings } from "../properties/CoupledProperties";
 import { transientReveal, type RevealSession } from "../ui/transientReveal";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
 import { nativeContextMenuKey } from "../featureActions";
 import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
@@ -17,15 +18,16 @@ import { UISection } from "../ui/UISection";
 import { UIField } from "../ui/UIField";
 import { stableUIHash } from "../ui/identity";
 import { UIAction } from "../ui/UIAction";
-import { useUI } from "../ui/context";
+import { useUI, UIContainerContext, UIHomeContext } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTargets, toggleRigidity } from "../ui/rigidity";
 import { highlightHierarchy } from "./highlight";
 import { residentPinned } from "../ui/layout";
 
-export function MasterController() {
+export function MasterController({ bindings }: { bindings?: PropertyBindings }) {
   const ctx = useAppearance()!;
   const ui = useUI();
+  const originalParent = useContext(UIContainerContext), originalHome = useContext(UIHomeContext);
   const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
   const { state } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
@@ -150,7 +152,7 @@ export function MasterController() {
         .get(target.id)!
         .slice(0, -1)
         .some((id) => ruleHas(state.locks[id], property));
-    const off = !rigidity && paths.get(target.id)!.some((id) => ruleHas(state.disconnected[id], property));
+    const off = !rigidity && !connected(state, targets, target.id, property);
     const refined = state.refined[target.id]?.includes(property),
       open =
         expanded.has(target.id) ||
@@ -246,7 +248,10 @@ export function MasterController() {
   };
   return (
     <section className="appearance-controller" aria-label="Master appearance controller">
-      <UISection id="appearance-targeting-sets" title="Appearance targeting sets">
+      {bindings && <CoupledProperties bindings={bindings} />}
+      <UISection id="master-category:visual" title="Visual">
+      {bindings && <CoupledProperties bindings={bindings} category="visual" />}
+      <EmbeddedGroup id={`section:${stableUIHash(originalParent ?? originalHome)}:appearance-targeting-sets`} title="Appearance targeting sets" className="ui-section" nativeTag="transparent">
         <div className="appearance-sets">
           <UIField id="ui:appearance:activeSet" label="Active targeting set" category="Appearance">
             <label>Targeting set<select aria-label="Appearance set" value={active.id}
@@ -268,20 +273,10 @@ export function MasterController() {
               sets: state.sets.filter(set => set.id !== active.id), activeSet: state.sets.find(set => set.id !== active.id)!.id,
             })} />
         </div>
-      </UISection>
-      <UISection id="appearance-mouse-trail" title="Mouse trail">
-        <p>Lightning outlines = Light · Stars = Stardust</p>
-        <UIField id="ui:appearance:mouseTrail:effect" label="Mouse trail animation" category="Appearance">
-          <PropertyEditor property="effect" label="Mouse trail animation" effectKinds={["off", "lightning", "stars"]}
-            value={valueFor(ctx.base, state, targets.find(target => target.id === "ui.mouse.trail")!, "effect")}
-            onPreview={value => ctx.preview(applyValue(state, targets, "effect", value, "ui.mouse.trail"))}
-            onCommit={value => ctx.commit(applyValue(state, targets, "effect", value, "ui.mouse.trail"))} />
-        </UIField>
-        <UIAction id="ui:appearance:mouseTrail:configure" label="Configure mouse trail" category="Appearance"
-          onClick={() => ctx.locate({ target: "ui.mouse.trail", property: "effect" })} />
-      </UISection>
+      </EmbeddedGroup>
       <NameVisibilityControl />
       <PropertyTree
+        available={[...new Set(targets.flatMap(target => target.properties ?? [])), UI_RIGIDITY_PROPERTY]}
         extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity",
           tooltip: "Included parts stay fixed outside UI edit mode. Exclude a branch or individual item to let it move freely. Normal clicks and field editing stay available.",
         }]}
@@ -322,6 +317,7 @@ export function MasterController() {
           {(children.get("") ?? []).map((t) => row(t, 0))}
         </div>
       </EmbeddedGroup>
+      </UISection>
     </section>
   );
 }

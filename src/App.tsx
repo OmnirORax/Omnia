@@ -1,3 +1,5 @@
+import { settingsPropertyBindings } from "./properties/settingsAdapter";
+import { CoupledField } from "./properties/CoupledProperties";
 import { UISection } from "./ui/UISection";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
@@ -97,6 +99,7 @@ function Workbench() {
   const previewAppearance = appearancePreview ?? ui.settings.appearance;
   const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
   const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
+  const propertyBindings = settingsPropertyBindings(settings, setSettings);
   const renderedAppearance = useMemo(() => resolveControllerAppearance(settings.appearance), [settings.appearance]);
   const renderSettings = useMemo(() => ({ ...settings, appearance: renderedAppearance }), [settings, renderedAppearance]);
   useEffect(() => setAppearancePreview(null), [ui.settings.appearance]);
@@ -1049,7 +1052,7 @@ function Workbench() {
   // Old resident IDs keep their placement and appearance, while editing the same
   // registry as the master controller. Unused legacy controls leave the library.
   const savedThemeControls = new Set([...Object.keys(uiLayout.items), ...[...Object.values(uiLayout.windows), ...uiLayout.frames].flatMap(frame => (frame.members ?? []).filter(m => m.kind === "function").map(m => m.id))]);
-  for(const property of PROPERTIES)replaceFunction(`ui:master:${property.id}`, property.label, <AppearanceAdjustment property={property.id}/>, true);
+  for(const property of PROPERTIES.filter(property => property.category?.id === "visual"))replaceFunction(`ui:master:${property.id}`, property.label, <AppearanceAdjustment property={property.id}/>, true);
   for(const [id,control] of Object.entries(LEGACY_CONTROLS))if(savedThemeControls.has(id))replaceFunction(id,control.label,<label>{control.label}<AppearanceAdjustment property={control.property} target={control.target}/></label>,true);
   for(const id of ["ui:animation:scope","ui:animation:inherit","ui:animation:targets","ui:appearance:scope","ui:appearance:inherit","ui:atmosphere"])if(savedThemeControls.has(id))replaceFunction(id,"Master appearance controller",<button onClick={()=>setThemeOpen(true)}>Open appearance tree</button>);
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => setSettings(old=>({...old,appearance:{...old.appearance,theme:event.target.value as WorkspaceSettings["appearance"]["theme"]}}))}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>,true);
@@ -1089,8 +1092,8 @@ function Workbench() {
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:sphereDiameter", "Node sphere diameter", <label>Node sphere diameter<input aria-label="Node sphere diameter" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.sphereDiameter} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, sphereDiameter: Math.max(0.1, Math.min(5, Number(event.target.value) || 0.2)) } }))} /><small>World units · unnamed spheres; individually sized visuals keep their size.</small></label>, true);
-  replaceFunction("ui:radius", "Minimum placement clearance radius", <label>Minimum placement clearance radius<input type="number" min="0.1" max="3" step="0.05" value={settings.spatial.radius} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, radius: Math.max(0.1, Math.min(3, Number(event.target.value) || 0.1)) } }))} /></label>, true);
-  replaceFunction("ui:clearance", "Collision clearance", <label>Collision clearance<input type="number" min="0" max="2" step="0.05" value={settings.spatial.clearance} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, clearance: Math.max(0, Math.min(2, Number(event.target.value) || 0)) } }))} /></label>, true);
+  replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
+  replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
   replaceFunction("ui:startInvestigation", "Start frame", <button onClick={createFrame}>Start frame</button>);
   replaceFunction("ui:defineType", "Define relationship type", <button onClick={createType}>+ Define type</button>);
@@ -2071,7 +2074,7 @@ function Workbench() {
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" openAtCursor={false} title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
         <p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>
-        <MasterController />
+        <MasterController bindings={propertyBindings} />
         <UISection id="theme-utilities" title="Theme utilities">
           {["ui:appearance:apply", "ui:appearance:discard", "ui:appearance:recovery", "ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>

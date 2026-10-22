@@ -92,8 +92,8 @@ export function AppearanceProvider({
   const freeze = (next: Controller, id: string, property?: string) => {
     for (const target of targets) {
       if (!ancestry(targets, target.id).includes(id)) continue;
-      for (const p of target.properties ?? []) {
-        if (property && !propertyChannels(property).includes(p)) continue;
+      for (const p of new Set((target.properties ?? []).map(property => target.couplings?.[property] ?? property))) {
+        if (property && !propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel).includes(p)) continue;
         next.values[target.id] = {
           ...next.values[target.id],
           [p]: valueFor(activeBridge.base, state, target, p),

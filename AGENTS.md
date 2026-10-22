@@ -16,10 +16,14 @@ Essential invariants for every worker:
   paths. Selection/hover/pointer previews do not persist edits.
 - Property coupling means shared definitions/setters with independent consumer
   values. It never means changing one automatically changes other consumers.
-- The universal function/property coupling and generated category/hierarchy system
-  is agreed design, **not implemented**. Read [docs/SHARED_PROPERTIES.md](docs/SHARED_PROPERTIES.md)
-  before working on it. Do not mistake native button discovery or the appearance
-  target registry for that general system, or create a visual-only substitute.
+- The general function/property registry and generated category/hierarchy paths
+  are implemented, with incremental migration of existing features. Read [docs/SHARED_PROPERTIES.md](docs/SHARED_PROPERTIES.md)
+  before adding adjustable function inputs. Use `src/properties/consumers.ts` and
+  the shared registry: reference existing property IDs, or define a genuinely new
+  property once with its category/type/units. Supply a real adapter to its existing
+  state owner. Coupling generates discovery; do not add a parallel hierarchy row
+  or value store. Native button discovery is not property detection. The property
+  contract check runs in normal builds; extend coverage for new state owners.
 
 # Shared visual editing architecture
 
@@ -38,7 +42,8 @@ Read `docs/VISUAL_SELECTION.md`, `docs/APPEARANCE_CONTROLLER.md` and
 `docs/UI_COMPONENT_CONTRACT.md` before changing appearance, inspection, selection,
 component presentation or their editors.
 
-- Define visual properties once in `src/appearance/registry.ts` (`PROPERTIES`).
+- Define properties once in the shared property pool (`PROPERTY_REGISTRY`); the
+  existing visual definitions seed it in `src/appearance/registry.ts`.
   Reuse the existing property when its meaning matches. A new feature must not
   introduce another Color/Opacity/etc. definition, value store or bespoke editor.
 - Components expose visual parts and renderer adapters through the shared target

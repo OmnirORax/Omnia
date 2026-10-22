@@ -6,9 +6,8 @@ A local, interactive 3D atlas for charting systems. React, TypeScript, Three.js 
 
 Start with [the worker onboarding guide](docs/WORKER_ONBOARDING.md) and
 [AGENTS.md](AGENTS.md). The guide explains the product, shared systems and state
-boundaries without requiring a source-code tour. The proposed universal property
-and coupling system is documented separately in
-[Shared properties](docs/SHARED_PROPERTIES.md), explicitly marked as pending.
+boundaries without requiring a source-code tour. The shared property/coupling core and its incremental consumer migration are
+documented in [Shared properties](docs/SHARED_PROPERTIES.md).
 
 ## Run and verify
 

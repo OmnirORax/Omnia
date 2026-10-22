@@ -52,11 +52,12 @@ target hierarchy or current selection. They answer different questions.
 | Shared actions, contextual shortcuts, discovery, rebinding and shortcut search | Implemented; architecture check covers common private hotkeys | [Shortcuts](SHORTCUTS.md) |
 | Shared appearance properties, editors, target capabilities, draft/recovery and local refinements | Implemented for registered visual targets | [Appearance controller](APPEARANCE_CONTROLLER.md) |
 | Symbolic visual selector and accepted-part appearance editing | Implemented for registered UI parts; not arbitrary pixel understanding | [Visual selection](VISUAL_SELECTION.md) |
-| Universal function/property registry, compatible automatic coupling, generated categories and target inclusion after coupling | **Agreed direction; not implemented as a general system** | [Shared properties and coupling](SHARED_PROPERTIES.md) |
+| Universal function/property registry, compatible automatic coupling, generated categories and target inclusion after coupling | Implemented shared core; migration underway (visual targets, mouse trail and placement settings) | [Shared properties and coupling](SHARED_PROPERTIES.md) |
 
 Automatic native-button discovery is not automatic property detection. An action
 being searchable or movable does not establish its property capabilities. The
-appearance registry is an existing foundation, not the completed universal system.
+shared property registry now connects initial appearance and nonvisual consumers;
+other legacy functions/settings still need migration.
 
 ## Knowledge, presentation and state ownership
 
@@ -147,8 +148,9 @@ Local edits use stable, normalized part addresses and shared values/drafts. Inva
 addresses must not silently broaden the operation to the entire owner.
 
 The universal extension of these principles is [SHARED_PROPERTIES.md](SHARED_PROPERTIES.md).
-It includes physical and other nonvisual properties and preserves independent
-values. Do not report that extension as completed by adding an appearance row.
+It supports categories for physical and other nonvisual properties while
+preserving independent values. Register capabilities and connect the real state
+adapter; adding a UI row alone is not a working integration.
 
 ## Visual selector and feedback
 
@@ -167,11 +169,12 @@ include arbitrary empty-space patterns, general 3D selection adapters, fine
 letter/word selection and saved automatic matching of future targets. Consult the
 subsystem document before promising those capabilities. Phone controls are deferred.
 
-The general mouse trail is independent of the selector and lives under Theme /
-aesthetics. Its current adapter uses existing animation IDs and fields. The user's
-reported discoverability/coupling gap prompted the general design; that gap has
-not been resolved merely by documenting it. In particular the current mouse target
-exposes animation channels, not the ordinary Color/Opacity/Glow capabilities.
+The general mouse trail is independent of the selector. It is now a declared
+consumer whose hierarchy inclusion and ordinary Color/Brightness/Opacity/Glow
+couplings derive from its animation channels. Placement settings demonstrate a
+nonvisual consumer using the same pool while retaining UI settings/history.
+See SHARED_PROPERTIES.md for the current registration/adapter path and remaining
+migration work.
 
 ## Performance, recovery and delivery
 
@@ -204,7 +207,7 @@ entry points, not a replacement specification; follow dependencies only as neede
 | UI containers / arrangement | [layout.ts](../src/ui/layout.ts), [UIWorkspace.tsx](../src/ui/UIWorkspace.tsx), [docking.ts](../src/ui/docking.ts): ownership, live residents, pinning and committed layout. |
 | Drag / resize / camera interference | [pointerOwnership.ts](../src/ui/pointerOwnership.ts), [liveDrag.ts](../src/ui/liveDrag.ts), [transientStore.ts](../src/ui/transientStore.ts): physical gesture ownership vs temporary preview. |
 | Actions / shortcuts / discovery | [workspaceActions.ts](../src/workspaceActions.ts), [featureActions.ts](../src/featureActions.ts), [useFeatureActions.tsx](../src/ui/useFeatureActions.tsx): declarations vs runtime dispatch, saved bindings and live search metadata. |
-| Visual properties / coupling | [registry.ts](../src/appearance/registry.ts), [model.ts](../src/appearance/model.ts), [resolve.ts](../src/appearance/resolve.ts): definition/capability, targeted write, independent values, read/application path. Read SHARED_PROPERTIES.md before generalizing these. |
+| Shared properties / coupling | [properties/registry.ts](../src/properties/registry.ts), [consumers.ts](../src/properties/consumers.ts), [appearance registry](../src/appearance/registry.ts), [model.ts](../src/appearance/model.ts), [resolve.ts](../src/appearance/resolve.ts): definition/capability, targeted write, independent values, read/application path. Read SHARED_PROPERTIES.md before generalizing these. |
 | Appearance controls / persistence | [propertyTree.ts](../src/appearance/propertyTree.ts), [Controls.tsx](../src/appearance/Controls.tsx), [session.ts](../src/appearance/session.ts), [themeTemplates.ts](../src/themeTemplates.ts): shared editors, draft lifecycle and portable values. |
 | Selector behavior | [VisualSelector.tsx](../src/appearance/VisualSelector.tsx), [visualSelection.ts](../src/appearance/visualSelection.ts), [selectionGeometry.ts](../src/appearance/selectionGeometry.ts): accepted state, candidate feedback, matching and boundaries. |
 | Undo / settings | [ui/history.ts](../src/ui/history.ts), [appearance/session.ts](../src/appearance/session.ts), [App.tsx](../src/App.tsx): verify the actual commit path and which history owns the requested change. |

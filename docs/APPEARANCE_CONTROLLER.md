@@ -90,6 +90,24 @@ Old customized headers retain their icons and local appearance compatibility ide
 
 `tests/ui-group-drag.browser.mjs` is a focused Vite-dev-server regression (`ATLAS_URL`): actual Opacity/Blur payloads, collapse/reopen, cycle rejection, UI undo/redo, reload and a fixture-only newly introduced group using the same component path.
 
+## Shared function/property integration
+
+The master panel now groups existing appearance controls under Visual and
+nonvisual coupled properties under generated categories (currently Spatial).
+The shared `PROPERTY_REGISTRY` contains the canonical definitions; appearance
+`PROPERTIES` is a compatibility view. Registered visual targets join the coupling
+graph while preserving their IDs and existing persistence. New consumers declare
+inputs through `src/properties/consumers.ts`; compatible property lookup,
+category/target projection and adapter coverage follow that declaration. See
+[Shared properties](SHARED_PROPERTIES.md) before adding another setter/editor.
+
 ## Mouse trail
 
-Theme / aesthetics → Mouse trail reuses the Animation property pool: Off, Lightning outlines (Light) and Stars (Stardust), with shared speed, intensity, density, size, length and animation color/brightness/opacity/glow controls. These values use the appearance draft, locks, inheritance, bypass, Apply/discard, serialization and theme import/export. The global mouse adapter is independent of selector activity, pointer-transparent and bounded; reduced motion suppresses it.
+Mouse trail is a general pointer effect independent of selector activity. Find it
+in Visual hierarchy → Windows / frames / controls → Mouse. It reuses Animation:
+Off, Lightning outlines (Light) and Stars (Stardust), with shared speed, intensity,
+density, size, length and animation channels. Ordinary Color/Brightness/Opacity/
+Glow automatically couple to its animation channels; its renderer reads that same
+mapping. The separate feature-specific editor section is removed. Values retain
+the appearance draft, locks, bypass, Apply/discard and theme serialization. The
+pointer-transparent renderer is bounded and respects reduced motion.
