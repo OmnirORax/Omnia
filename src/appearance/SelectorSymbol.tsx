@@ -51,7 +51,7 @@ export function SelectorSymbol({ configuration, actions, precision = false }: { 
       <circle className="selector-region-mark" cx="140" cy="136" r="65" />
     </g>
     <g {...button("Set boundary", boundaryPicking, () => actions?.boundary())}>
-      {actions && <title>Ring: choose or replace the boundary. Placement fixes it and finishes boundary picking. Scroll while aiming to change boundary depth.</title>}
+      {actions && <title>Ring: choose or replace the boundary. Stays active after clicking or dragging a selection; press the ring again to turn it off. Scroll while aiming to change boundary depth.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="88" fill="none" strokeWidth="32" />}
       <circle className="selector-ring" cx="140" cy="136" r="88" fill="none" strokeWidth="20" />
     </g>

@@ -134,8 +134,6 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
           ruleKey(current.rules[0] ?? null) === ruleKey(pick.rule)) return current;
         return { boundary: pick.boundary, rules };
       });
-      // Placement fixes the anchor. Re-arm the ring to replace it deliberately.
-      setConfiguration(config => ({ ...config, boundaryPicking: false }));
     } else if (pick.rule) append(pick.rule);
     setPreview(null);
   };
@@ -145,10 +143,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   };
   const chooseRegion = (side: Exclude<SelectorRegion, null>) => {
     const next = latest.current.configuration.region === side ? null : side;
-    const hasBoundary = !!latest.current.selection.boundary;
-    setConfiguration(config => ({ ...config, region: next,
-      ...(hasBoundary ? { boundaryPicking: false } : {}),
-    }));
+    setConfiguration(config => ({ ...config, region: next }));
     const rule = regionRule(next);
     if (rule) append(rule);
     setPreview(null);

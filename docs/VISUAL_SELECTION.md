@@ -22,9 +22,10 @@ pointer motion updates only the cached transform before painting.
 
 The symbol has independent choices:
 
-- **Ring:** choose or replace the boundary. Placement fixes the anchor and turns
-  boundary picking off, so normal hover cannot move it. Re-arm the ring to choose
-  another boundary; this returns the working region to its inside default. Scroll
+- **Ring:** choose or replace the boundary. The ring stays active after clicking
+  or dragging a selection; press the ring again to turn boundary picking off.
+  Hover previews the next boundary but only a click replaces the accepted one.
+  Arming the ring returns the working region to its inside default. Scroll
   while picking to climb through containing components/frames to the entire app,
   or downward to narrow the candidate boundary.
 - **Inner / outer bar:** arm include (green) / exclude (red). Press an already
@@ -36,7 +37,7 @@ The symbol has independent choices:
   Press the active region again to clear the inside/outside choice; this does not
   apply another operation or remove the already accepted selection.
   Outside means other registered UI parts throughout the app, not another frame.
-  Choosing a region on an established boundary also finishes boundary picking.
+  Choosing a region preserves the ring's on/off state.
 - **Paired dots:** cycle pattern ⠒ → axis ↕ → direction ↑ → position | →
   individual · → pattern. E cycles the same modes while the selector is active.
   The precision dot in the aiming symbol remains the exact pointer hotspot;
@@ -75,8 +76,9 @@ back to the app. Bounds and line coordinates are stored relative to that owner s
 moving/resizing it follows the same area. Custom boundaries select whole visual
 parts they touch; they do not crop an editable property's renderer into arbitrary
 pixels. Parts outside are unselected by default until an explicit outside operation.
-After placement, hover previews stay inside the fixed boundary unless Outside is
-explicitly chosen. Moving beyond it produces no replacement-boundary preview.
+With the ring off, hover previews stay inside the fixed boundary unless Outside
+is explicitly chosen. Moving beyond it produces no replacement-boundary preview.
+With the ring on, boundary picking remains armed for repeated placements.
 Hover paint shows only parts whose include/exclude state would change: already
 included parts do not preview another inclusion, and explicitly excluded parts do
 not preview another exclusion. These filters affect feedback only, preserving
