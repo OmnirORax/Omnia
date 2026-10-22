@@ -114,7 +114,7 @@ travels around the edge without rotating/resizing the selected object. Backgroun
 tints remain translucent. Background and contour matches on one element share a
 trace and geometry/style reads are cached across feedback layers.
 
-Accepted and hover feedback both follow a 3.6-second bright/dim/bright cycle.
+Accepted and hover feedback both follow a one-second bright/dim/bright cycle.
 Preview emphasis changes seam thickness, not pulse opacity. The low point keeps a
 faint cue while the high point restores full ink and glow. Preview changes do not
 restart the shared pulse clock.

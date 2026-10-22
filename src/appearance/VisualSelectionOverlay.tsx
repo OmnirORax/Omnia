@@ -38,7 +38,7 @@ function startSelectionPulse() {
       { [signal.strength]: "1", [signal.mix]: "95%", [signal.glow]: "9px", easing: "ease-in-out" },
       { [signal.strength]: "0.18", [signal.mix]: "8%", [signal.glow]: "0.5px", easing: "ease-in-out" },
       { [signal.strength]: "1", [signal.mix]: "95%", [signal.glow]: "9px" },
-    ], { duration: 3600, iterations: Infinity });
+    ], { duration: 1000, iterations: Infinity });
   };
   start();
   reduced.addEventListener("change", start);
