@@ -9,7 +9,7 @@ import { describeSelectedPart } from "./selectedParts";
 import { selectedPartTarget } from "./selectionCoupling";
 import { boxFromPoints, nextPatternMode, relativePoint, type Point, type PatternMode } from "./selectionGeometry";
 import {
-  boundaryCandidates, boundaryElement, boundaryFor, boundaryRect, collectVisualParts, matchingVisualParts,
+  boundaryCandidates, boundaryElement, boundaryFor, boundaryInRegion, boundaryRect, collectVisualParts, matchingVisualParts,
   partAt, partPaint, pointInBoundary, resolveVisualSelection, selectionLineGuide, selectorChrome,
   type SelectionBoundary, type SelectionRule, type VisualPart, type VisualRole,
 } from "./visualSelection";
@@ -22,7 +22,7 @@ const Context = createContext<VisualSelection | null>(null);
 export const useVisualSelection = () => useContext(Context);
 const emptySelection = (): SelectionState => ({ boundary: null, rules: [] });
 const noParts: VisualPart[] = [];
-const ruleKey = (rule: SelectionRule | null) => rule ? `${rule.include}:${rule.boundary.key}:${rule.region ?? "inside"}:${rule.role ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.line ?? null)}` : "neutral";
+const ruleKey = (rule: SelectionRule | null) => rule ? `${rule.include}:${rule.boundary.key}:${rule.region ?? "inside"}:${rule.role ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.line ?? null)}:${rule.scope?.boundary.key ?? ""}:${rule.scope?.region ?? ""}` : "neutral";
 const pickKey = (pick: Pick | null) => pick ? `${pick.setBoundary}:${pick.boundary.key}:${ruleKey(pick.rule)}` : "";
 type Gesture = { id: number; start: Point; element: Element;
   mode: "boundary" | Exclude<PatternMode, "item" | "pattern">; sample?: VisualPart };
@@ -44,6 +44,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const depth = useRef(0), candidateRef = useRef<Pick | null>(null);
   const selectedRef = useRef<VisualPart[]>([]);
   const gesture = useRef<Gesture | null>(null);
+  const regionBoundary = useRef<SelectionBoundary | null>(null);
   const latest = useRef({ phase, configuration, catalog, selection });
   latest.current = { phase, configuration, catalog, selection };
   const hasSelection = () => !!latest.current.selection.boundary || selectedRef.current.length > 0;
@@ -64,6 +65,11 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const current = latest.current, config = current.configuration;
     point.current = { element, x, y };
     const drag = gesture.current;
+    const regionRoot = regionBoundary.current ?? current.selection.boundary;
+    const scope = regionRoot && config.region ? { boundary: regionRoot, region: config.region } : undefined;
+    if (scope && (scope.region === "inside" ? !pointInBoundary(scope.boundary, element, { x, y }) : pointInBoundary(scope.boundary, element, { x, y }))) {
+      setPreview(null); return;
+    }
     if (drag?.mode === "boundary" && Math.hypot(x - drag.start.x, y - drag.start.y) >= 4) {
       // Find an owner containing the whole marquee; retain its stable anchor.
       const options = boundaryCandidates(drag.element);
@@ -75,22 +81,24 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       const rect = boundaryRect(owner)!;
       const area = boxFromPoints(relativePoint(drag.start, rect), relativePoint({ x, y }, rect));
       const boundary = { ...owner, area, key: `${owner.key}:area:${JSON.stringify(area)}` };
+      if (scope && !boundaryInRegion(boundary, scope.boundary, scope.region)) { setPreview(null); return; }
       setPreview({ boundary, setBoundary: true, rule: config.operation ? {
-        boundary, include: config.operation === "include", region: config.region ?? "inside",
+        boundary, include: config.operation === "include", region: scope ? "inside" : config.region ?? "inside", scope,
       } : null });
       return;
     }
     if (!drag && element.closest(selectorChrome)) { setPreview(null); return; }
     if (config.boundaryPicking) {
-      const options = boundaryCandidates(element);
+      const options = boundaryCandidates(element).filter(option => !scope || boundaryInRegion(option, scope.boundary, scope.region));
+      if (!options.length && scope?.region === "inside") options.push(scope.boundary);
       const boundary = options[Math.min(depth.current, options.length - 1)];
       setPreview(boundary ? { boundary, setBoundary: true, rule: config.operation ? {
-        boundary, include: config.operation === "include", region: config.region ?? "inside",
+        boundary, include: config.operation === "include", region: scope ? "inside" : config.region ?? "inside", scope,
       } : null } : null);
       return;
     }
     if (!config.operation) { setPreview(null); return; }
-    const boundary = current.selection.boundary ?? boundaryFor(document.body);
+    const boundary = (config.region ? regionBoundary.current : null) ?? current.selection.boundary ?? boundaryFor(document.body);
     const root = boundaryElement(boundary), region = config.region ?? "inside";
     if (!root || (!drag && (region === "outside" ? pointInBoundary(boundary, element, { x, y }) : !pointInBoundary(boundary, element, { x, y })))) { setPreview(null); return; }
     if (config.pattern === "axis" || config.pattern === "direction" || config.pattern === "position") {
@@ -114,7 +122,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     setPreview(part ? { boundary, setBoundary: false, rule: { include: config.operation === "include", boundary, region,
       ...(config.pattern === "pattern" ? { role: config.patternRole ?? part.role } : { part: part.key }) } } : null);
   };
-  const clear = () => { gesture.current = null; record(current => current.boundary || current.rules.length ? emptySelection() : current); setPreview(null); };
+  const clear = () => { gesture.current = null; regionBoundary.current = null; record(current => current.boundary || current.rules.length ? emptySelection() : current); setPreview(null); };
   const close = () => { gesture.current = null; setPhase("off"); setPreview(null); };
   const disable = () => { close(); clear(); };
   const undo = () => { gesture.current = null; setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); setPreview(null); };
@@ -128,6 +136,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const pick = candidateRef.current;
     if (!pick) return;
     if (pick.setBoundary) {
+      if (latest.current.configuration.region && !regionBoundary.current) regionBoundary.current = pick.boundary;
       record(current => {
         const rules = pick.rule ? [pick.rule] : [];
         if (current.boundary?.key === pick.boundary.key && current.rules.length === rules.length &&
@@ -138,11 +147,12 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     setPreview(null);
   };
   const regionRule = (side: SelectorRegion, operation = latest.current.configuration.operation): SelectionRule | null => {
-    const boundary = latest.current.selection.boundary;
+    const boundary = regionBoundary.current ?? latest.current.selection.boundary;
     return boundary && side && operation ? { boundary, region: side, include: operation === "include" } : null;
   };
   const chooseRegion = (side: Exclude<SelectorRegion, null>) => {
     const next = latest.current.configuration.region === side ? null : side;
+    regionBoundary.current = next ? regionBoundary.current ?? latest.current.selection.boundary : null;
     setConfiguration(config => ({ ...config, region: next }));
     const rule = regionRule(next);
     if (rule) append(rule);
@@ -179,14 +189,15 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const points = rule.line && selectionLineGuide(catalog, rule);
     return points ? [{ key: `${index}:${ruleKey(rule)}`, points, include: rule.include, direction: rule.line?.mode === "direction" }] : [];
   }), [catalog, selection.rules, geometry]);
+  const workingBoundary = (configuration.region ? regionBoundary.current : null) ?? selection.boundary;
   const patternGroups = useMemo(() => {
-    const boundary = selection.boundary ?? boundaryFor(document.body);
+    const boundary = workingBoundary ?? boundaryFor(document.body);
     const parts = matchingVisualParts(catalog, { boundary, region: configuration.region ?? "inside", include: true });
     return (Object.keys(roleNames) as VisualRole[]).flatMap(role => {
       const peers = parts.filter(part => part.role === role);
       return peers.length ? [{ role, parts: peers }] : [];
     });
-  }, [catalog, selection.boundary, configuration.region, geometry]);
+  }, [catalog, workingBoundary, configuration.region, geometry]);
   const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
 
   useEffect(() => {
@@ -228,8 +239,8 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       consumedUntil = performance.now() + 1000;
       if (latest.current.phase === "configure") actions.current.aim();
       const config = latest.current.configuration;
-      const boundary = latest.current.selection.boundary;
-      if (!config.boundaryPicking && boundary && ((config.region ?? "inside") === "inside" ?
+      const boundary = (config.region ? regionBoundary.current : null) ?? latest.current.selection.boundary;
+      if ((!config.boundaryPicking || config.region) && boundary && ((config.region ?? "inside") === "inside" ?
         !pointInBoundary(boundary, event.target, { x: event.clientX, y: event.clientY }) :
         pointInBoundary(boundary, event.target, { x: event.clientX, y: event.clientY }))) {
         candidateRef.current = null; setCandidate(null); return;
@@ -385,7 +396,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     {children}
     {active && phase !== "edit" && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
       candidate={preview.length || candidate?.setBoundary || guide ? candidate?.rule ?? null : null} guide={guide} guides={guides}
-      hoverBoundary={candidate?.setBoundary ? candidate.boundary : null} boundary={selection.boundary} />, document.body)}
+      hoverBoundary={candidate?.setBoundary ? candidate.boundary : null} boundary={workingBoundary} />, document.body)}
     {phase === "aim" && createPortal(<SelectorCursor configuration={configuration} initial={point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position}
       onClose={close} onResume={aim} />, document.body)}
@@ -394,7 +405,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       onPointerLeave={event => { if (event.relatedTarget instanceof Element && !event.relatedTarget.closest(selectorChrome)) aim(); }}>
       <SelectorSymbol configuration={configuration} actions={{
         boundary: () => { depth.current = 0; setPreview(null); setConfiguration(config => ({ ...config,
-          boundaryPicking: !config.boundaryPicking, ...(!config.boundaryPicking ? { region: null } : {}),
+          boundaryPicking: !config.boundaryPicking,
         })); },
         pattern: cyclePattern,
         operation: chooseOperation, region: chooseRegion, previewRegion,
@@ -431,10 +442,10 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
           {([true, false] as const).map(include => <button key={String(include)} type="button"
             aria-label={`${include ? "Include" : "Exclude"} ${roleNames[group.role]}`} title={`${include ? "Include" : "Exclude"} this pattern in the working region`}
             className={include ? "selector-pattern-include" : "selector-pattern-exclude"}
-            onPointerEnter={() => setPreview({ boundary: selection.boundary ?? boundaryFor(document.body), setBoundary: false,
-              rule: { boundary: selection.boundary ?? boundaryFor(document.body), region: configuration.region ?? "inside", role: group.role, include } })}
+            onPointerEnter={() => setPreview({ boundary: workingBoundary ?? boundaryFor(document.body), setBoundary: false,
+              rule: { boundary: workingBoundary ?? boundaryFor(document.body), region: configuration.region ?? "inside", role: group.role, include } })}
             onPointerLeave={() => setPreview(null)}
-            onClick={() => { append({ boundary: selection.boundary ?? boundaryFor(document.body), region: configuration.region ?? "inside", role: group.role, include }); setPreview(null); }}>
+            onClick={() => { append({ boundary: workingBoundary ?? boundaryFor(document.body), region: configuration.region ?? "inside", role: group.role, include }); setPreview(null); }}>
             {include ? "+" : "−"}
           </button>)}
         </div>)}

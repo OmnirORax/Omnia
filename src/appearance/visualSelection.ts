@@ -26,6 +26,7 @@ export type SelectionRule = {
   role?: VisualRole;
   part?: string;
   line?: LineCondition;
+  scope?: { boundary: SelectionBoundary; region: "inside" | "outside" };
 };
 export const selectorChrome = "[data-visual-selector]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
@@ -135,6 +136,17 @@ export function pointInBoundary(boundary: SelectionBoundary, element: Element, p
   const root = boundaryElement(boundary), rect = boundaryRect(boundary);
   return !!root?.contains(element) && !!rect && point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
 }
+/** Boundary candidates must fit wholly in the chosen working region. In
+ * particular, climbing to an ancestor must not flash the rest of the app. */
+export function boundaryInRegion(candidate: SelectionBoundary, boundary: SelectionBoundary, region: "inside" | "outside"): boolean {
+  const candidateRoot = boundaryElement(candidate), root = boundaryElement(boundary);
+  const rect = boundaryRect(candidate), bounds = boundaryRect(boundary);
+  if (!candidateRoot || !root || !rect || !bounds) return false;
+  if (region === "inside") return (!!candidate.area || root.contains(candidateRoot)) && rect.left >= bounds.left && rect.right <= bounds.right &&
+    rect.top >= bounds.top && rect.bottom <= bounds.bottom;
+  return (!!candidate.area || (!root.contains(candidateRoot) && !candidateRoot.contains(root))) &&
+    (rect.right <= bounds.left || rect.left >= bounds.right || rect.bottom <= bounds.top || rect.top >= bounds.bottom);
+}
 export function boundaryCandidates(element: Element): SelectionBoundary[] {
   const candidates: SelectionBoundary[] = [];
   for (let node: Element | null = element; node && node !== document.body; node = node.parentElement) {
@@ -193,9 +205,13 @@ export function partPaint(part: VisualPart): string {
 }
 function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: ReturnType<typeof partMeasurements>) {
   const root = boundaryElement(rule.boundary), box = boundaryRect(rule.boundary);
+  const scopeRoot = rule.scope && boundaryElement(rule.scope.boundary), scopeBox = rule.scope && boundaryRect(rule.scope.boundary);
   const peers = root && box ? parts.filter(part => {
     const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
-    return (rule.region === "outside" ? !inside : inside) && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
+    const scopedInside = !!scopeRoot?.contains(part.element) && !!scopeBox &&
+      (!rule.scope?.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, scopeBox)));
+    return (!rule.scope || (!!scopeRoot && (rule.scope.region === "inside" ? scopedInside : !scopedInside))) &&
+      (rule.region === "outside" ? !inside : inside) && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
   }) : [];
   if (!rule.line || !box) return { peers };
   const line = rule.line, [start, end] = conditionPoints(line, box), domain = lineDomain(line);
