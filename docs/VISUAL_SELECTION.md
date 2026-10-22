@@ -1,172 +1,135 @@
 # Visual selector and shared controller
 
-Appearance has one property pool (`PROPERTIES`) and one master editing system.
-Features register visual parts and renderer adapters rather than introduce a
-separate property definition, editor or value store. Target, boundary, visual role
-and property remain separate. See `AGENTS.md` for integration rules.
+Appearance has one property pool and one master editing system. Selection reuses
+registered visual parts, capabilities and renderer adapters. Geometry, matching,
+include/exclude and property editing are separate; selection never creates
+appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
-## Selection and editing
+## One circle, independent geometry
 
-Middle-click (MB3) toggles a compact, circular stationary controller with the ring centered on the
-pointer (clamped near viewport edges). Press MB3 again, or its check mark, to
-resume selection with the same configuration and accepted parts. Moving outside
-the controller leaves it open for interaction. The same SVG becomes a compact
-cursor while aiming. MB3 returns to stationary configuration at the pointer. The cursor layer is pointer-transparent
-and updates its position without rerendering the application.
-Only the stationary symbol renders hit areas. The aiming cursor and every SVG
-descendant explicitly reject pointer events, so a settled cursor cannot intercept
-the left-click intended for the underlying part.
-The larger aiming symbol has a high-contrast precision dot at its SVG hotspot.
-Its measured size determines the pointer offset, including fractional sizes; the
-dot stays exactly at the mouse position. Measurement runs at mount/resize, while
-pointer motion updates only the cached transform before painting.
+MB3 toggles the stationary controller at the pointer and the compact aiming
+cursor. The circle is centered on the pointer and clamped near viewport edges.
+The aiming symbol and all its SVG descendants are pointer-transparent. Its white
+precision dot is the exact hotspot; movement updates only a cached transform.
+Escape disables the tool and clears selection. Blur/tab hiding cancels an
+unfinished gesture; native color-picker blur keeps the property editor mounted.
 
-These are default bindings, all declared in the shared action catalog. Shortcuts
-& functions and Workspace settings → Shortcuts & gestures automatically include
-the selector commands, their activation context and its native gestures. Rebind
-or clear keyboard/mouse commands there; selector behavior and button hints read
-the saved bindings. Recording a binding pauses picking and cannot invoke the
-recorded command through the trailing click/contextmenu. See `SHORTCUTS.md` for
-the required integration path and CI architecture check for future features.
+The ○ has three independent settings:
 
-Accepted selections also reveal Selected properties in Master controller. This
-reuses the same selected-part editor as the right-click dialog and filters by real
-capabilities. Hover-only candidates do not change that inspector's targets.
+- Ring: the contour/path intersections.
+- Center: inside a closed shape.
+- Surrounding annulus: outside a closed shape.
 
-The symbol has independent choices:
+Inside and Outside can both be on, either on or both off; pressing again clears
+only that setting. Open paths need no interior: their working set is the patterns
+intersecting the path. Inside/Outside settings are retained for closed shapes and
+do not turn an open path into a filled rectangle. Turning off the ring removes
+intersection matching. Settings apply to the current geometry and carry into the
+next geometry. Geometry settings and edge masks join transient selection history.
+The ring never arms another pointer tool or overrides E.
 
-- **Mouse button:** select the logical Mouse object. Master controller resolves
-  the coupled consumers of the existing Mouse group (currently Mouse trail),
-  showing supported properties through the shared editors. The moving native
-  cursor and trail remain pointer-transparent. This pick replaces the current
-  accepted selection and shares its undo/redo/clear history. The generic
-  selectObject API toggles any already-selected logical target off; pressed state
-  and the selected-properties inspector derive from that same selection and clear
-  on deselection. Selecting and deselecting are undoable selection operations,
-  never appearance writes. Invoking Edit reopens inspection without another
-  selection history step. Target capabilities come from discovered function inputs.
+RMB includes and LMB excludes by default. Their commands are in the shared
+`FEATURE_ACTIONS` catalog, so they are listed, rebindable and capture-aware. The
+last operation supplies hover color; pressing the opposite button recomputes
+that operation at the press position, without relying on a stale hover preview.
+The old inner/outer include/exclude bars are removed. The exact old default
+binding bundle (RMB inspection, include/exclude unassigned) migrates once to the
+new defaults. Customized bindings and deliberately cleared bindings in later
+saves remain intact. Editing is available from the controller's edit button, the
+platform context-menu keyboard gesture, Master controller, or a rebound edit
+command; ordinary RMB now includes instead of opening an editor.
 
+## Geometry and pattern modes
 
-- **Ring:** choose or replace the boundary. The ring stays active after clicking
-  or dragging a selection; press the ring again to turn boundary picking off.
-  Hover previews the next boundary but only a click replaces the accepted one.
-  Toggling the ring preserves the chosen inside/outside region. Scroll
-  while picking to climb through containing components/frames to the entire app,
-  or downward to narrow the candidate boundary.
-- **Inner / outer bar:** arm include (green) / exclude (red). Press an already
-  active bar again to return to neutral. Merely arming an operation does not apply
-  it to the existing selection.
-- **Empty center / surrounding annulus:** independently toggle inside / outside
-  the established boundary. Both can be active together, or either/both off.
-  With an operation armed, turning a region on applies it only to that region's
-  registered UI parts. Turning one off leaves the other toggle unchanged and
-  does not apply another operation or remove the already accepted selection.
-  Outside means other registered UI parts throughout the app, not another frame.
-  Choosing a region preserves the ring's on/off state.
-  The toggles also fix preview/picking bounds to that boundary: Inside alone
-  allows only its interior, Outside alone only its exterior, and both allow both
-  regions, even while O stays armed.
-  Boundary candidates and their applied parts obey the same limit; scrolling to
-  an ancestor cannot escape it. Subsequent picks do not move this region anchor.
-  Turn both off to clear the region anchor and resume unrestricted boundary picking.
-- **Paired dots:** cycle pattern ⠒ → axis ↕ → direction ↑ → position | →
-  individual · → pattern. E cycles the same modes while the selector is active.
-  The precision dot in the aiming symbol remains the exact pointer hotspot;
-  stationary dots control the mode. Changing modes preserves the ring's current
-  on/off state, whether done through the dots or E.
-  In pattern mode, clicking a part matches its registered role across the working
-  region. Individual mode affects only the clicked part.
-- **↕ / ↑ / |:** drag to place an infinite axis, a forward ray, or a finite
-  position segment. Every registered pattern touched by the line participates by
-  default, including an exact endpoint touch; this is not a rectangular marquee.
-  A click without dragging places a vertical axis/upward ray or a precise 2px
-  position segment. Axis/ray are unbounded until constrained by a boundary or the
-  finite-bounds control (↦↤). Position is always finite. The guide and matcher
-  share geometry; accepted lines remain faintly visible. A drag previews while
-  held and records one selection operation on release. Cancellation/blur does
-  not accept its preview.
-- **◐:** stop when the starting part's computed paint changes. Start on a painted
-  part; its role and source color are sampled. The first differently colored peer
-  terminates that direction, excluding the terminator and later peers. An axis
-  stops independently on both sides. Empty gaps do not terminate it. This uses
-  registered part paint, not a pixel magic wand or visual image recognition.
-  Feedback ink is excluded from sampling.
-- **⠒ below the actions:** reveal the patterns in the working region, with counts
-  and source target labels in tooltips. Click a pattern name to filter line
-  matching, again to restore all patterns. Its +/− controls preview and apply
-  include/exclude to that role throughout the region. These reuse the same rules,
-  local undo, bindings and master property controller.
+E and the symbol below the circle cycle modes. The ⠒ disclosure also offers direct
+mode buttons, pattern filters/counts and edge toggles. Modes are:
 
-A neutral boundary pick establishes an anchor without adding included/excluded
-paint. Picking a new boundary starts a fresh selection; an armed operation applies
-inside that boundary by default, or outside when that region is configured. An
-existing boundary remains the same when its center/surrounding controls are used.
-With the ring armed, dragging instead of clicking makes a custom rectangular
-boundary. Its owner is the nearest containing registered component/frame, falling
-back to the app. Bounds and line coordinates are stored relative to that owner so
-moving/resizing it follows the same area. Custom boundaries select whole visual
-parts they touch; they do not crop an editable property's renderer into arbitrary
-pixels. Parts outside are unselected by default until an explicit outside operation.
-With the ring off, hover previews stay inside the fixed boundary unless Outside
-is explicitly chosen. Moving beyond it produces no replacement-boundary preview.
-With the ring on, boundary picking remains armed for repeated placements within
-the explicit Inside/Outside region, or unrestricted when neither is chosen.
-Hover paint shows only parts whose include/exclude state would change: already
-included parts do not preview another inclusion, and explicitly excluded parts do
-not preview another exclusion. These filters affect feedback only, preserving
-live pattern rules and their future matches. A green/red boundary preview appears
-only while explicitly choosing a boundary, not for ordinary item/pattern hovers.
+- **Pattern ⠒ (default):** hover an actual part to preview its registered category
+  throughout the current working set. Without geometry, the scope is the app.
+  Hovering text previews all registered UI text; clicking commits the operation.
+  Icon artwork, input contents, backgrounds, contours and indicators retain their
+  distinct categories. Pointer-event-transparent nested text is recognized from
+  its text-range geometry even when its parent receives the pointer event.
+- **Individual ·:** affect only the pointed registered part, within the same scope.
+- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Wheel
+  changes containing-owner depth. The adapter uses the element rectangle and
+  selectable sides; Inside/Outside apply to its contents/exterior. Its stable
+  resident/function anchor follows docking/reparenting and size changes.
+- **Axis ↕ / direction ↑ / segment |:** drag an infinite line, forward ray or
+  finite segment. Exact endpoint touches count. A click supplies a vertical axis,
+  upward ray or short vertical segment. Axis/ray are unbounded unless finite
+  bounds are enabled. Optional sampled-color termination stops independently at
+  the nearest differently painted peer; empty gaps do not terminate it.
+- **Rectangle ▭ / ellipse ◯:** drag the shape. They use the same contour and
+  inside/outside settings, rather than a separate marquee selection mechanism.
+- **Polygon ⬡:** click vertices, then press the registered Finish geometry command
+  (Enter by default), the controller's check mark, or the first vertex to finish.
+  At least three vertices are needed. The final press chooses include/exclude;
+  Enter uses the last chosen operation. Self-intersections use even-odd filling.
+- **Freehand 〰:** drag a path; release commits. It is open by default. The Close
+  path setting closes the stroke and enables inside/outside. Samples are bounded
+  and progressively decimated during long strokes; the same retained path drives
+  matching and feedback.
 
-Pattern matching starts with registered text, backgrounds, contours, icons and
-selection indicators. It does not infer semantic structure from pixels or select
-individual letters/words. Text previews and line intersection follow actual text
-ranges, including separate wrapped lines; their intervening blank box is not text
-ink. Contour intersections use border strips rather than the whole surface. Later operations
-override earlier matches: a pattern exclusion can have individually included
-exceptions. Explicit inclusions remain green and exclusions remain red in both
-preview and accepted feedback. Unselected parts are not painted as exclusions.
+Defining geometry commits its operation and leaves that geometry as the working
+set. The pointer returns to Pattern mode so it can refine the set immediately.
+New geometry intersects the existing working set; Release working geometry keeps
+accepted rules and returns subsequent picks to app-wide matching. This permits
+choosing a window first, then drawing an axis within it. Custom drawing coordinates
+are relative to the viewport owner; pointed geometry uses its actual UI owner.
 
-Undo/redo records selection operations and boundary changes in a transient local
-history. While the tool is active, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y
-redoes; the stationary controller exposes both actions. A new operation after undo
-replaces the redo branch. Clear is an undoable reset of selection. Escape disables the tool and
-clears selection in one action; window blur/tab hiding stops picking. Choices stay
-configured until changed. Phone controls remain outside this implementation.
+For example: choose Axis, LMB-drag through several controls to exclude everything
+it intersects. The axis stays established. RMB a text label to include matching
+text along that axis, or choose Individual to include only that label. Pointer
+hits and category-list actions cannot escape that working set. Hover only
+previews changes; it never replaces the accepted selection or changes properties.
 
-The first adapter covers rendered UI parts through the existing appearance
-bindings. Canvas/3D visual picking will need a renderer adapter to the same
-selection model; it is not inferred from the canvas pixels. Existing registered
-background surfaces remain selectable, including from their empty interiors.
-Empty space as an independent pattern (layout gaps/negative areas), and the 3D
-world's background as a locally editable UI part, still need renderer adapters;
-this increment does not label every blank pixel as a registered background. Selector chrome is
-excluded from discovery. Closed/hidden parts are not current matches. Boundary
-and pattern operations reevaluate on relevant DOM changes, so new matching UI
-parts inside the boundary participate. Stable resident/function anchors follow
-moved UI where available.
+Closed polygon/rectangle geometry exposes numbered side toggles in ⠒. The same
+numbers appear on its guide. Disabled sides stop contributing intersections;
+the complete closed outline still defines inside/outside. Freehand segment masks
+use the same mechanism. Ellipse matching uses a 64-segment contour and does not
+expose per-segment side buttons. Overlay paths use a single combined SVG path per
+active/disabled layer, avoiding one animation per sampled freehand segment.
 
-Picking and inspection are transient. They do not create appearance instances,
-apply values, persist settings, change camera/graph selection or create ordinary
-undo entries. The shared selection context exposes boundary, operations, matches
-and applicable property IDs.
+The ⠒ list shows categories present in the working set. Click a category name to
+filter subsequent picks/drawings; click again to clear the filter. Its +/− actions
+preview and apply that category only within the geometry. Later matching rules
+override earlier ones. An excluded set can therefore have individually included
+exceptions, and an included set can have excluded exceptions. Earlier independent
+geometry selections remain accepted when another geometry is added.
 
-With a boundary or accepted parts selected, right-click anywhere outside selector controls, or
-press the controller's edit button, to open **Selected appearance** at the pointer.
-Gaps, outlines and unselected areas are valid invocation positions: the editor
-uses the accepted selection, not a new pointer hit. Context-menu events also open
-the editor without requiring pointerdown, including keyboard/platform gestures.
-Picking stops while the panel is open. Escape clears the selection and restores
-ordinary application context menus.
-If the boundary has no included editable parts, the panel explains that parts
-must be included; it does not silently consume right-click or create any values.
-The existing PropertyTree and PropertyEditor show supported properties, mixed
-values and the count of applicable/locked/bypassed parts. Inapplicable parts are
-skipped; category and local protections still apply. The panel's expansion state
-is transient. Opening it or choosing a property does not initialize refinements.
-Selection feedback pauses while editing so its ink cannot obscure actual values.
-Close returns to normal UI interaction; Continue selecting restores the aiming
-cursor. MB3 reconfigures; Escape still disables and clears selection. Native color
-picker blur does not destroy the editor.
+Selection undo/redo records geometry placement, rule changes, side masks, region
+changes, releases, logical-object picks and clear in one transient timeline. It
+never writes graph/UI/appearance history or browser storage. Ctrl/Cmd+Z,
+Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y are the defaults while configuring/aiming. New
+operations after undo replace its redo branch. Unfinished drawing is not accepted
+on blur/cancel. Hover previews show only matches whose include/exclude state would
+change; explicit exclusions remain red and inclusions green.
+
+The mouse-shaped button selects the logical Mouse group through the generic
+`selectObject` API. Selecting an already selected logical target toggles it off;
+pressed state and the selected-properties inspector derive from that same state.
+Discovered consumers provide capabilities (currently Mouse trail). The native
+cursor and trail remain pointer-transparent. This replaces geometric selection
+and uses the same undo/redo/clear history. Inspection alone never edits values.
+
+## Supported parts and editing
+
+Detection uses the existing appearance bindings and registered causes, not regex
+on labels or image/pixel recognition. Text geometry follows separate actual text
+ranges, including wrapped lines; intervening gaps are not text ink. Contours use
+border strips, rather than their entire surface. Existing registered background
+surfaces are selectable, including from empty interiors. Independent negative
+space, arbitrary image shapes, fine letter/word selection and general canvas/3D
+picking require further renderer adapters. Hidden/closed parts and selector chrome
+are not current matches. Live rules reevaluate on relevant DOM/geometry changes.
+
+Accepted parts reveal applicable properties in Master controller through the
+shared selected-part editor. Hover candidates do not change that inspector. The
+stationary edit button or platform keyboard context menu opens Selected appearance
+at the pointer. This uses accepted parts even when invoked over a gap. Picking
+stops while editing; Continue selecting resumes aiming. Logical targets reveal
+Master controller directly. Unsupported capabilities remain unavailable.
 
 A property change creates/updates local part references in the existing
 controller's instances/values/refined maps, in one transaction for the selection.

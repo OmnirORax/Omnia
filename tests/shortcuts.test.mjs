@@ -28,6 +28,21 @@ test("feature commands automatically join the catalog, defaults and saved settin
   assert.equal(normalizeSettings({ bindings: { "selector.open": "", "selector.pattern": "Ctrl+Alt+P" } }).bindings["selector.open"], "");
 });
 
+test("selector operation defaults migrate the old untouched bundle once while preserving custom and cleared bindings", () => {
+  const old = { bindings: { "selector.edit": "MB2", "selector.include": "", "selector.exclude": "" } };
+  const migrated = normalizeSettings(old);
+  assert.equal(migrated.bindings["selector.include"], "MB2");
+  assert.equal(migrated.bindings["selector.exclude"], "MB1");
+  assert.equal(migrated.bindings["selector.edit"], "");
+  assert.equal(old.bindings["selector.edit"], "MB2", "loading does not mutate saved input");
+  const custom = normalizeSettings({ bindings: { ...old.bindings, "selector.edit": "Q" } });
+  assert.equal(custom.bindings["selector.edit"], "Q");
+  assert.equal(custom.bindings["selector.include"], "");
+  const cleared = normalizeSettings({ ...migrated, bindings: { ...migrated.bindings, "selector.include": "", "selector.exclude": "", "selector.edit": "MB2" } });
+  assert.equal(cleared.bindings["selector.include"], "", "new saved clears are not remigrated");
+  assert.equal(cleared.bindings["selector.edit"], "MB2");
+});
+
 test("keyboard and pointer matching honor rebinding and cleared bindings", () => {
   const modifiers = { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false };
   assert.equal(normalizePointer({ ...modifiers, button: 1 }), "MB3");

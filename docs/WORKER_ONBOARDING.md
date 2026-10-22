@@ -174,18 +174,21 @@ adapter; adding a UI row alone is not a working integration.
 
 The stationary meta-selector configures the tool; the compact aiming symbol is
 pointer-transparent. MB3 is the current default toggle between these states.
-Ring O controls boundary picking and stays active until deliberately toggled.
-Inside and Outside toggle independently: both, either or neither can be selected.
-An established region anchors preview and picking bounds. Include/exclude arming
-is separate from accepting an operation. Pattern matching uses registered parts
-and geometric intersections, not regex over labels or arbitrary pixel recognition.
+The circle controls contour/intersections, Inside and Outside independently;
+it never blocks the geometry mode. RMB includes and LMB excludes. E cycles
+pattern, individual, pointed-owner, axis/ray/segment, rectangle, ellipse, polygon
+and freehand modes. Geometry establishes a working set; later pattern/individual
+rules refine that set. New geometry intersects the current set; release returns
+subsequent picks to app-wide matching. Side masks, region choices and geometry
+share the existing transient selection history. Pattern recognition uses
+registered parts and mathematical intersections, not regex or arbitrary pixels.
 
-Default E cycles pattern, axis, direction, segment and individual modes. Accepted
-selection, transient preview and actual edits remain separate. Right-clicking an
-accepted selection opens the same appearance machinery. Current limitations
-include arbitrary empty-space patterns, general 3D selection adapters, fine
-letter/word selection and saved automatic matching of future targets. Consult the
-subsystem document before promising those capabilities. Phone controls are deferred.
+Accepted selection, hover preview and property edits remain separate. Editing
+uses the controller's edit action, native keyboard context gesture or Master
+controller. Current limitations include arbitrary negative-space patterns, general
+3D selection adapters, fine letter/word selection and saved automatic matching of
+future targets. Consult `VISUAL_SELECTION.md` for the actual modes and contracts.
+Phone controls remain deferred.
 
 The general mouse trail is independent of the selector. It is now a declared
 consumer whose hierarchy inclusion and ordinary Color/Brightness/Opacity/Glow

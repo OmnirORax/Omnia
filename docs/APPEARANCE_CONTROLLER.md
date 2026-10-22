@@ -14,7 +14,8 @@ Animation color/brightness/opacity/glow can be adjusted separately on the same b
 The shared adjuster applies to included, applicable descendants, respecting lower locks. Leaf swatches/sliders directly edit that target. A category can be isolated to adjust its subtree. Changing color leaves brightness, glow, animation, and other properties alone.
 
 The MB3 visual selector is another entry to this controller. With accepted parts
-selected, right-click outside selector controls to open **Selected appearance**, which reuses PropertyTree/PropertyEditor
+selected, use the controller's edit button or platform keyboard context-menu
+gesture to open **Selected appearance**, which reuses PropertyTree/PropertyEditor
 and edits only those parts. Inspection is read-only; an actual edit creates scoped
 local references in the same controller state. Previews, the recoverable draft,
 Apply/discard, locks, bypass, inherited values and theme export remain shared.

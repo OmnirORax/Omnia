@@ -1,7 +1,7 @@
 import { TARGETS, type RegisteredTarget } from "./registry.ts";
 import { effectScope } from "./uiEffects.ts";
 import { absolutePoint, boxFromPoints, boxesTouch, conditionPoints, intersectBoxes, lineBoxInterval, lineDomain, paintStopDomain,
-  regionAllows, type Box, type LineCondition, type Point, type SelectionRegion } from "./selectionGeometry.ts";
+  regionAllows, pathTouchesBox, pathVertices, type PathCondition, type Box, type LineCondition, type Point, type SelectionRegion } from "./selectionGeometry.ts";
 
 export type VisualRole = "text" | "background" | "contour" | "icon" | "indicator";
 export type VisualPart = {
@@ -19,15 +19,18 @@ export type SelectionBoundary = {
   value?: string;
   key: string;
 };
-export type SelectionRule = {
-  include: boolean;
+export type SelectionConstraint = {
   boundary: SelectionBoundary;
   region?: SelectionRegion;
   role?: VisualRole;
   part?: string;
   line?: LineCondition;
-  scope?: { boundary: SelectionBoundary; region: SelectionRegion };
+  path?: PathCondition;
+  contour?: boolean;
+  geometryId?: string;
+  scope?: SelectionConstraint;
 };
+export type SelectionRule = SelectionConstraint & { include: boolean };
 export const selectorChrome = "[data-visual-selector]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
 const ids = new WeakMap<Node, number>();
@@ -165,7 +168,8 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
   // on the same component. Background is the final fallback, not the text's box.
   const icon = candidates.find(part => part.role === "icon" && containsPoint(part.element.getBoundingClientRect(), x, y));
   if (icon) return icon;
-  const text = candidates.find(part => part.role === "text" && part.range &&
+  const text = parts.find(part => part.role === "text" && part.range &&
+    (part.element === element || part.element.contains(element) || element.contains(part.element)) &&
     [...part.range.getClientRects()].some(rect => containsPoint(rect, x, y)));
   if (text) return text;
   const depth = (part: VisualPart) => {
@@ -204,19 +208,21 @@ export function partPaint(part: VisualPart): string {
   return part.role === "background" ? style.backgroundColor : part.role === "contour" ? style.borderTopColor :
     part.role === "indicator" ? style.accentColor : source || style.color;
 }
-function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: ReturnType<typeof partMeasurements>) {
+function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, measure: ReturnType<typeof partMeasurements>):
+  { peers: VisualPart[]; start?: Point; end?: Point; domain?: [number, number]; box?: Box } {
+  const source = rule.scope ? constraintGeometry(parts, rule.scope, measure).peers : parts;
   const root = boundaryElement(rule.boundary), box = boundaryRect(rule.boundary);
-  const scopeRoot = rule.scope && boundaryElement(rule.scope.boundary), scopeBox = rule.scope && boundaryRect(rule.scope.boundary);
-  const peers = root && box ? parts.filter(part => {
+  const vertices = rule.path && box ? pathVertices(rule.path, box) : undefined;
+  const peers = root && box ? source.filter(part => {
     const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
-    const scopedInside = !!scopeRoot?.contains(part.element) && !!scopeBox &&
-      (!rule.scope?.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, scopeBox)));
-    return (!rule.scope || (!!scopeRoot && regionAllows(rule.scope.region, scopedInside))) &&
-      regionAllows(rule.region ?? "inside", inside) && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
+    // Paths define their own inside/outside. The owner merely anchors coordinates.
+    const inRegion = rule.path ? (rule.region === "outside" || rule.region === "both" || root.contains(part.element)) && measure.rects(part).some(rect => pathTouchesBox(rule.path!, box, rect, rule.contour !== false, rule.region, vertices)) :
+      regionAllows(rule.region ?? "inside", inside);
+    return inRegion && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
   }) : [];
   if (!rule.line || !box) return { peers };
   const line = rule.line, [start, end] = conditionPoints(line, box), domain = lineDomain(line);
-  const hits = peers.flatMap(part => measure.rects(part).flatMap(rect => {
+  const hits = (rule.contour === false ? [] : peers).flatMap(part => measure.rects(part).flatMap(rect => {
     const local = rule.region === "outside" || rule.region === "both" ? rect : intersectBoxes(rect, box);
     const interval = local && lineBoxInterval(start, end, local, domain, 0);
     return interval ? [{ part, interval, paint: line.stopAtPaint === undefined ? "" : measure.paint(part) }] : [];
@@ -225,6 +231,9 @@ function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: ReturnT
   return { peers: [...new Set(hits.filter(({ interval: [a, b] }) => a <= stopped[1] && b >= stopped[0] &&
     !(stopped[1] < domain[1] && a >= stopped[1]) && !(stopped[0] > domain[0] && b <= stopped[0])).map(hit => hit.part))],
     start, end, domain: stopped, box };
+}
+function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: ReturnType<typeof partMeasurements>) {
+  return constraintGeometry(parts, rule, measure);
 }
 export function matchingVisualParts(parts: VisualPart[], rule: SelectionRule): VisualPart[] {
   return ruleGeometry(parts, rule, partMeasurements()).peers;

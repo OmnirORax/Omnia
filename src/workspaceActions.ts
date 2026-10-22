@@ -109,6 +109,16 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   defaults.appearance.controller = loadController(undefined);
   try {
     const value = input as Partial<WorkspaceSettings>;
+    const savedBindings = { ...value.bindings };
+    // The old default bundle used RMB for inspection and left both operations
+    // unassigned. Migrate that exact bundle once; new metadata marks later saves.
+    // Customized/cleared bindings and all unrelated shortcuts remain untouched.
+    if (!Object.hasOwn(savedBindings, "selector.finishGeometry") &&
+        savedBindings["selector.edit"] === "MB2" && savedBindings["selector.include"] === "" && savedBindings["selector.exclude"] === "") {
+      savedBindings["selector.edit"] = "";
+      savedBindings["selector.include"] = "MB2";
+      savedBindings["selector.exclude"] = "MB1";
+    }
     defaults.appearance.controller = loadController(value.appearance?.controller);
     defaults.appearance.font = normalizeFont(value.appearance?.font);
     if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;
@@ -143,8 +153,8 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.subtreeModifier ?? "")) defaults.mouse.subtreeModifier = value.mouse!.subtreeModifier;
     for (const field of ["selectionModifier", "nestModifier"] as const) if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.[field] ?? "")) defaults.mouse[field] = value.mouse![field];
     for (const field of ["backButton", "forwardButton", "shiftBackButton", "shiftForwardButton"] as const) if (ACTIONS.some((a) => a.id === value.mouse?.[field])) defaults.mouse[field] = value.mouse![field];
-    for (const action of ACTIONS) if (typeof value.bindings?.[action.id] === "string" && value.bindings[action.id].length <= 32) defaults.bindings[action.id] = value.bindings[action.id];
-    for (const [id, key] of Object.entries(value.bindings ?? {})) {
+    for (const action of ACTIONS) if (typeof savedBindings?.[action.id] === "string" && savedBindings[action.id].length <= 32) defaults.bindings[action.id] = savedBindings[action.id];
+    for (const [id, key] of Object.entries(savedBindings ?? {})) {
       if (!id.startsWith("button:") || id.length > 300 || typeof key !== "string" || key.length > 32) continue;
       defaults.bindings[id] = key;
       const label = value.buttonLabels?.[id];
@@ -153,7 +163,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     // New defaults must not take keys already assigned in an existing saved configuration.
     for (const action of ACTIONS) {
       const key = defaults.bindings[action.id];
-      if (key && value.bindings && !Object.hasOwn(value.bindings, action.id) && Object.entries(value.bindings).some(([id, binding]) =>
+      if (key && savedBindings && !Object.hasOwn(savedBindings, action.id) && Object.entries(savedBindings).some(([id, binding]) =>
         id !== action.id && binding === key && defaults.bindings[id] === key && actionScope(id) === actionScope(action.id))) defaults.bindings[action.id] = "";
     }
     return defaults;

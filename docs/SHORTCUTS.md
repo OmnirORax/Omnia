@@ -63,19 +63,20 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 
 ## Visual selector integration
 
-The complete command group includes toggling configuration / selection (MB3), cycling patterns
-(E), editing accepted appearance (MB2), disable/clear (Esc), selection undo/redo
-(Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y) and unassigned commands for the ring, inside/outside,
-include/exclude, clear, aiming, finite bounds, color termination and Select Mouse
-for logical-object inspection. Their buttons
-and input paths invoke the same handlers. A selected appearance editor retains
-normal property editing and its own input-preview lifecycle.
+The selector command group includes configuration/aiming (MB3), geometry modes
+(E), include (RMB/MB2), exclude (LMB/MB1), polygon finish (Enter), disable/clear
+(Esc), selection undo/redo and unassigned commands for editing, contour,
+inside/outside, releasing geometry, closing paths, finite bounds, color stops and
+logical Mouse selection. The exact old untouched RMB-inspection/empty-operation
+bundle migrates to the new pointer defaults once. Customized bindings and later
+cleared bindings remain intact. Buttons and input paths invoke the same handlers.
 
-Left-click/drag picking, wheel boundary depth and platform context menus are
-listed alongside the selector commands. Native focused-label F2 rename and
-focused-control context actions also derive their descriptions/keys from the
-gesture metadata. No independent feature settings store or copied shortcut
-editor is introduced.
+Click/drag geometry, polygon closure, wheel pointed-owner depth and platform
+keyboard context menus are listed alongside commands. RMB is an include operation
+while selecting; editing is available from the controller's edit command or native
+keyboard context gesture. Native focused-label F2 rename and focused-control
+context actions derive their descriptions from the same gesture metadata. No
+separate shortcut inventory or editor is introduced.
 
 Frame search, global UI search and library filtering resolve each function or
 `shortcut:` row through `functionShortcutBinding`. Current bindings are searchable

@@ -14,8 +14,8 @@ import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
-import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows } from "../src/appearance/selectionGeometry.ts";
-import { boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
+import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices } from "../src/appearance/selectionGeometry.ts";
+import { partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
   for (const [current, side, expected] of [
@@ -44,6 +44,41 @@ test("axis, ray and position geometry includes touched endpoints without selecti
   assert.equal(nextPatternMode("pattern"), "axis");
   assert.equal(nextPatternMode("axis"), "direction");
   assert.equal(nextPatternMode("direction"), "position");
+});
+
+test("closed geometry separates its contour, interior and exterior; disabled sides only remove edge intersections", () => {
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom });
+  const owner = box(0, 0, 100, 100);
+  const rectangle = { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true };
+  assert.equal(pathTouchesBox(rectangle, owner, box(40, 40, 60, 60), true), false, "an outline does not include its interior");
+  assert.equal(pathTouchesBox(rectangle, owner, box(40, 40, 60, 60), false, "inside"), true);
+  assert.equal(pathTouchesBox(rectangle, owner, box(120, 40, 130, 60), false, "outside"), true);
+  assert.equal(pathTouchesBox(rectangle, owner, box(40, 40, 60, 60), false, "outside"), false);
+  assert.equal(pathTouchesBox(rectangle, owner, box(40, -2, 60, 2), true), true);
+  const withoutTop = { ...rectangle, disabledEdges: [0] };
+  assert.equal(pathTouchesBox(withoutTop, owner, box(40, -2, 60, 2), true), false);
+  assert.equal(pathTouchesBox(withoutTop, owner, box(40, 98, 60, 102), true), true);
+  assert.equal(pathTouchesBox(withoutTop, owner, box(40, 40, 60, 60), false, "inside"), true, "edge masks do not tear the fill");
+  assert.deepEqual(pathVertices(rectangle, box(10, 20, 210, 120))[2], { x: 210, y: 120 }, "geometry follows its owner");
+  const ellipse = { ...rectangle, kind: "ellipse" };
+  assert.equal(pathTouchesBox(ellipse, owner, box(0, 0, 5, 5), true, "inside"), false, "ellipse excludes its bounding-box corners");
+  assert.equal(pathTouchesBox(ellipse, owner, box(45, 45, 55, 55), false, "inside"), true);
+  const triangle = { kind: "polygon", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: .5, y: 1 }], closed: true };
+  assert.equal(pathTouchesBox(triangle, owner, box(48, 48, 52, 52), false, "inside"), true);
+  assert.equal(pathTouchesBox(triangle, owner, box(0, 80, 5, 85), false, "inside"), false);
+  const open = { kind: "freehand", points: [{ x: 0, y: .5 }, { x: 1, y: .5 }], closed: false };
+  assert.equal(pathTouchesBox(open, owner, box(40, 49, 60, 51), true), true);
+  assert.equal(pathTouchesBox(open, owner, box(40, 49, 60, 51), false, "inside"), false, "open paths have no implicit interior");
+  assert.equal(pathTouchesBox(open, owner, box(40, 80, 60, 90), false, "outside"), false, "open paths have no implicit exterior");
+});
+
+test("text hit detection recognizes a nested text host when pointer events target its parent", () => {
+  const host = { contains: () => false };
+  const button = { contains: node => node === host };
+  const text = { key: "nested-text", role: "text", element: host,
+    range: { getClientRects: () => [{ left: 10, right: 40, top: 10, bottom: 20 }] } };
+  assert.equal(partAt([text], button, 15, 15), text);
+  assert.equal(partAt([text], button, 15, 30), undefined, "the surrounding button is not text ink");
 });
 
 test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {
@@ -80,6 +115,14 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   const line = { mode: "position", bounded: false, start: { x: .1, y: .2 }, end: { x: .4, y: .2 } };
   const rule = { boundary, include: true, line };
   assert.deepEqual(matchingVisualParts(parts, rule).map(p => p.key), ["label", "icon", "button"], "all roles, including the touched endpoint");
+  const axisScope = { ...rule, geometryId: "axis-work-set" };
+  const narrow = { boundary: { element: app, key: "app" }, include: true, scope: axisScope, part: "label" };
+  assert.deepEqual(resolveVisualSelection(parts, boundary, [{ ...rule, include: false }, narrow]).included.map(p => p.key), ["label"], "start with the axis excluded, then include one touched pattern");
+  assert.deepEqual(resolveVisualSelection(parts, boundary, [{ ...rule, include: false }, { ...narrow, part: "outside" }]).included, [], "refinements cannot escape the axis");
+  assert.deepEqual(matchingVisualParts(parts, { ...rule, contour: false }).map(p => p.key), [], "turning the contour off also disables line intersections");
+  const leftShape = { boundary, path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: .25, y: 1 }], closed: true }, contour: false, region: "inside" };
+  const nested = { ...narrow, scope: { ...axisScope, scope: leftShape } };
+  assert.deepEqual(matchingVisualParts(parts, { ...nested, part: undefined }).map(p => p.key), ["label"], "line refinements obey an enclosing shape as well as the line");
   const withinGap = { ...rule, role: "text", line: { ...line, start: { x: .1, y: .225 }, end: { x: .2, y: .225 } } };
   assert.deepEqual(matchingVisualParts(parts, withinGap).map(p => p.key), ["gap"], "text's blank inter-line box is not its ink");
   assert.deepEqual(resolveVisualSelection(parts, boundary, [rule, { boundary, include: false, part: "icon" }]).included.map(p => p.key), ["label", "button"]);

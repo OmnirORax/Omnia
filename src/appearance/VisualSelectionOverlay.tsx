@@ -3,8 +3,8 @@ import { useAppearance } from "./Context";
 import { registerPaintVariable } from "./paintVariables";
 import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint, valueFor } from "./resolve";
-import { boundaryRect, type SelectionBoundary, type SelectionRule, type VisualPart } from "./visualSelection";
-import type { Point } from "./selectionGeometry";
+import { type SelectionRule, type VisualPart } from "./visualSelection";
+import { pathEdges, type Point } from "./selectionGeometry";
 
 type Mark = { key: string; x: number; y: number; width: number; height: number; rx: number; ry: number; surface: boolean };
 const rectAttributes = (mark: Mark) => ({ x: mark.x, y: mark.y, width: mark.width, height: mark.height, rx: mark.rx, ry: mark.ry });
@@ -62,11 +62,11 @@ const glyphFeedback = (name: string, paint: FeedbackPaint) =>
   `::highlight(${name}){color:${glyphColor("currentColor", paint)};background-color:transparent;text-shadow:0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)}}`;
 
 /** Native paint variables and SVG seams animate feedback; no per-frame DOM discovery or writes. */
-export function VisualSelectionOverlay({ selected, excluded, preview, candidate, boundary, hoverBoundary, guide, guides }: {
+export function VisualSelectionOverlay({ selected, excluded, preview, candidate, guide, guides, paths = [] }: {
   selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
-  boundary: SelectionBoundary | null; hoverBoundary: SelectionBoundary | null;
   guide: [Point, Point] | null;
   guides: { key: string; points: [Point, Point]; include: boolean; direction: boolean }[];
+  paths?: { key: string; points: Point[]; closed: boolean; disabledEdges: number[]; preview: boolean; include?: boolean }[];
 }) {
   const appearance = useAppearance();
   const paints = useMemo(() => Object.fromEntries(Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
@@ -157,12 +157,6 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     return [...marks.values()];
   };
   const marks = marksFor(selected), omissions = marksFor(excluded), candidates = marksFor(preview);
-  const rectFor = (anchor: SelectionBoundary | null, key: string): Mark | undefined => {
-    const rect = anchor && boundaryRect(anchor);
-    return rect ? { key, x: Math.max(1, rect.left), y: Math.max(1, rect.top), width: Math.max(0, rect.right - rect.left - 2),
-      height: Math.max(0, rect.bottom - rect.top - 2), rx: 4, ry: 4, surface: false } : undefined;
-  };
-  const edge = rectFor(boundary, "boundary"), hover = rectFor(hoverBoundary, "preview-boundary");
   return <div data-visual-selector className="visual-selection-overlay">
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
       glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : paints.included)}</style>
@@ -174,10 +168,18 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       {omissions.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="excluded" paint={paints.excluded} />)}
       {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"}
         paint={candidate?.include === false ? paints.excluded : paints.included} preview />)}
-      {edge && <SelectionTrace mark={edge} tone="boundary" paint={paints.boundary} />}
-      {hover && <SelectionTrace mark={hover}
-        tone={!candidate ? "boundary" : candidate.include ? "included" : "excluded"}
-        paint={!candidate ? paints.boundary : candidate.include ? paints.included : paints.excluded} preview />}
+      {paths.map(path => {
+        const edges = pathEdges(path.points, path.closed);
+        const stroke = (disabled: boolean) => edges.flatMap(([a, b], index) => path.disabledEdges.includes(index) === disabled
+          ? [`M${a.x} ${a.y}L${b.x} ${b.y}`] : []).join(" ");
+        return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(path.preview ? path.include ? paints.included : paints.excluded : paints.boundary) }}>
+          <path className="visual-selection-line" d={stroke(false)} fill="none" />
+          <path className="visual-selection-line is-disabled" d={stroke(true)} fill="none" />
+          {path.closed && path.points.length > 2 && path.points.length < 24 && path.points.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="2.5" />)}
+          {!path.preview && path.closed && edges.length < 24 && edges.map(([a, b], index) => <text key={index} className="visual-selection-edge-label"
+            x={(a.x + b.x) / 2 + 4} y={(a.y + b.y) / 2 - 4}>{index + 1}</text>)}
+        </g>;
+      })}
       {guides.map(({ key, points: [a, b], include, direction }) => <line key={key} className="visual-selection-line is-accepted"
         x1={a.x} y1={a.y} x2={b.x} y2={b.y} markerEnd={direction ? "url(#selector-line-arrow)" : undefined}
         style={{ color: feedbackInk(include ? paints.included : paints.excluded) }} />)}

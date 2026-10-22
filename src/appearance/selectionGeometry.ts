@@ -9,7 +9,7 @@ export function toggleSelectionRegion(region: SelectionRegion | null, side: Sele
 }
 export const regionAllows = (region: SelectionRegion, inside: boolean) => region === "both" || (region === "inside" ? inside : !inside);
 export type Box = { left: number; top: number; right: number; bottom: number };
-export type PatternMode = "item" | "pattern" | "axis" | "direction" | "position";
+export type PatternMode = "item" | "pattern" | "axis" | "direction" | "position" | "boundary" | "rectangle" | "ellipse" | "polygon" | "freehand";
 export type LineCondition = {
   mode: "axis" | "direction" | "position";
   /** Relative to the boundary rectangle, so moving/resizing its owner follows it. */
@@ -18,8 +18,8 @@ export type LineCondition = {
   bounded: boolean;
   stopAtPaint?: string;
 };
-export const PATTERN_MODES: PatternMode[] = ["item", "pattern", "axis", "direction", "position"];
-export const PATTERN_SYMBOLS: Record<PatternMode, string> = { item: "·", pattern: "⠒", axis: "↕", direction: "↑", position: "|" };
+export const PATTERN_MODES: PatternMode[] = ["item", "boundary", "pattern", "axis", "direction", "position", "rectangle", "ellipse", "polygon", "freehand"];
+export const PATTERN_SYMBOLS: Record<PatternMode, string> = { item: "·", boundary: "○", pattern: "⠒", axis: "↕", direction: "↑", position: "|", rectangle: "▭", ellipse: "◯", polygon: "⬡", freehand: "〰" };
 export const nextPatternMode = (mode: PatternMode) => PATTERN_MODES[(PATTERN_MODES.indexOf(mode) + 1) % PATTERN_MODES.length];
 export const boxFromPoints = (a: Point, b: Point): Box => ({ left: Math.min(a.x, b.x), right: Math.max(a.x, b.x), top: Math.min(a.y, b.y), bottom: Math.max(a.y, b.y) });
 export const boxesTouch = (a: Box, b: Box) => a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
@@ -63,4 +63,52 @@ export function paintStopDomain(samples: { interval: [number, number]; paint: st
     if (b < 0) low = Math.max(low, b);
   }
   return [low, high];
+}
+
+/** A path is relative to its owner, just like the existing line conditions. */
+export type PathCondition = {
+  kind: "rectangle" | "ellipse" | "polygon" | "freehand";
+  points: Point[];
+  closed: boolean;
+  disabledEdges?: number[];
+};
+export function pathVertices(path: PathCondition, owner: Box): Point[] {
+  const points = path.points.map(point => absolutePoint(point, owner));
+  if (path.kind !== "rectangle" && path.kind !== "ellipse") return points;
+  if (points.length < 2) return points;
+  const box = boxFromPoints(points[0], points.at(-1)!);
+  if (path.kind === "rectangle") return [
+    { x: box.left, y: box.top }, { x: box.right, y: box.top },
+    { x: box.right, y: box.bottom }, { x: box.left, y: box.bottom },
+  ];
+  const cx = (box.left + box.right) / 2, cy = (box.top + box.bottom) / 2;
+  return Array.from({ length: 64 }, (_, index) => {
+    const angle = index * Math.PI / 32;
+    return { x: cx + Math.cos(angle) * (box.right - box.left) / 2, y: cy + Math.sin(angle) * (box.bottom - box.top) / 2 };
+  });
+}
+export function pathEdges(points: Point[], closed: boolean): [Point, Point][] {
+  return points.length < 2 ? [] : points.slice(0, closed ? points.length : -1).map((point, index) => [point, points[(index + 1) % points.length]]);
+}
+export function polygonContains(points: Point[], point: Point): boolean {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const a = points[i], b = points[j];
+    if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+/** Boundary intersections use enabled edges; filling uses the complete closed
+ * shape (even-odd for self intersections). Open paths have no inside/outside. */
+export function pathTouchesBox(path: PathCondition, owner: Box, box: Box, contour: boolean, region?: SelectionRegion, points = pathVertices(path, owner)): boolean {
+  const edges = pathEdges(points, path.closed);
+  const crossed = edges.map(([a, b]) => !!lineBoxInterval(a, b, box, [0, 1], .5));
+  if (contour && crossed.some((hit, index) => hit && !path.disabledEdges?.includes(index))) return true;
+  if (!path.closed || points.length < 3 || !region) return false;
+  if (region === "both") return true;
+  const corners = [{ x: box.left, y: box.top }, { x: box.right, y: box.top }, { x: box.right, y: box.bottom }, { x: box.left, y: box.bottom }];
+  const contained = corners.map(point => polygonContains(points, point));
+  const crossing = crossed.some(Boolean);
+  const enclosesShape = points.some(point => point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom);
+  return region === "inside" ? crossing || contained.some(Boolean) || enclosesShape : crossing || !contained.every(Boolean);
 }
