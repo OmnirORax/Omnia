@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { claimUIPress } from "../ui/pointerOwnership";
 import { cursorPosition } from "../ui/cursorPosition";
@@ -54,16 +54,16 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const latest = useRef({ phase, configuration, catalog, selection });
   latest.current = { phase, configuration, catalog, selection };
   const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0;
-  const setPreview = (next: Pick | null) => {
+  const setPreview = useCallback((next: Pick | null) => {
     if (pickKey(next) === pickKey(candidateRef.current)) return;
     candidateRef.current = next; setCandidate(next);
-  };
-  const record = (change: (current: SelectionState) => SelectionState) => setTimeline(previous => {
+  }, []);
+  const record = useCallback((change: (current: SelectionState) => SelectionState) => setTimeline(previous => {
     const current = previous.states[previous.index], next = change(current);
     if (next === current) return previous;
     const states = [...previous.states.slice(0, previous.index + 1), next];
     return { states, index: states.length - 1 };
-  });
+  }), []);
   const append = (rule: SelectionRule) => record(current => ruleKey(current.rules.at(-1) ?? null) === ruleKey(rule) ? current : {
     boundary: current.boundary ?? rule.boundary, rules: [...current.rules, rule], objects: [],
   });
@@ -128,8 +128,8 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     setPreview(part ? { boundary, setBoundary: false, rule: { include: config.operation === "include", boundary, region,
       ...(config.pattern === "pattern" ? { role: config.patternRole ?? part.role } : { part: part.key }) } } : null);
   };
-  const clear = () => { gesture.current = null; regionBoundary.current = null; record(current => current.boundary || current.rules.length || current.objects.length ? emptySelection() : current); setPreview(null); };
-  const selectObject = (id: string) => {
+  const clear = useCallback(() => { gesture.current = null; regionBoundary.current = null; record(current => current.boundary || current.rules.length || current.objects.length ? emptySelection() : current); setPreview(null); }, [record, setPreview]);
+  const selectObject = useCallback((id: string) => {
     resolvePropertyTarget(PROPERTY_REGISTRY, id);
     gesture.current = null; regionBoundary.current = null; setPreview(null);
     record(current => current.objects.includes(id)
@@ -137,7 +137,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       : { ...emptySelection(), objects: [id] });
     requestInspection(value => value + 1);
     setPhase("configure");
-  };
+  }, [record, setPreview]);
   const close = () => { gesture.current = null; setPhase("off"); setPreview(null); };
   const disable = () => { close(); clear(); };
   const undo = () => { gesture.current = null; setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); setPreview(null); };
@@ -393,6 +393,10 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const inspectionKey = useMemo(() => selection.boundary || selection.rules.length || selection.objects.length
     ? `${inspectionRequest}:${timeline.index}:${selection.objects.join("|")}:${selection.boundary?.key ?? ""}:${selection.rules.map(ruleKey).join("|")}` : "", [selection, timeline.index, inspectionRequest]);
   useEffect(() => { onInspect?.(inspectionKey); }, [inspectionKey, onInspect]);
+  // Hover/cursor previews must not broadcast accepted-selection updates to the
+  // Master controller and its property editors.
+  const contextValue = useMemo(() => ({ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey }),
+    [selection, matches.included, properties, clear, selectObject, inspectionKey]);
   const active = phase !== "off" || !!selection.boundary;
   useEffect(() => {
     if (!active) return;
@@ -425,7 +429,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   // Ring center, rather than the asymmetric SVG box, is centered on the MB3 point.
   const left = Math.max(8, Math.min(position.x - 88, innerWidth - 184));
   const top = Math.max(8, Math.min(position.y - 84, innerHeight - 184));
-  return <Context.Provider value={{ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey }}>
+  return <Context.Provider value={contextValue}>
     {children}
     {active && phase !== "edit" && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
       candidate={preview.length || candidate?.setBoundary || guide ? candidate?.rule ?? null : null} guide={guide} guides={guides}

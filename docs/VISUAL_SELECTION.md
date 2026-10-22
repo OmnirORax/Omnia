@@ -222,8 +222,14 @@ properties are not offered on these targets.
 Text feedback pulses the actual glyph ink through CSS custom highlights, instead
 of filling rectangular text boxes. Input contents and placeholders use scoped
 temporary ink rules; icons keep their source palette with a pulsing glow. Feedback
-uses one shared native paint-variable animation and CSS seam motion, with no
-per-frame JavaScript scanning, style rewriting or React renders. The hierarchy and
+uses synchronized native paint-variable animations on actual glyph hosts and
+local CSS opacity/seam animations on overlay traces, with no per-frame JavaScript
+scanning, style rewriting or React renders. Glyph variables are non-inherited;
+never animate inherited selector variables on the document root, which causes
+application-wide style invalidation even with an empty selection. An idle selector
+runs no glyph-paint animation. Accepted-selection context is memoized separately
+from hover/cursor preview state so aiming does not rerender the Master controller
+and its property editors. The hierarchy and
 selector reuse `paintVariables.ts` for native variable registration. Large surfaces
 use broad strokes rather than full-window blur filters. Reduced motion keeps a
 steady neon cue and stationary seam; tab hiding pauses the native pulse. Cleanup

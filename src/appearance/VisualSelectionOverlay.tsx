@@ -22,29 +22,33 @@ function SelectionTrace({ mark, tone, paint, preview = false }: { mark: Mark; to
   </g>;
 }
 const signal = {
-  strength: "--omnium-selector-strength",
   mix: "--omnium-selector-glyph-mix",
   glow: "--omnium-selector-glow",
 };
-function startSelectionPulse() {
+function startSelectionPulse(elements: Element[]) {
+  if (!elements.length) return () => {};
   const supported = [
-    [signal.strength, "<number>", "0.82"], [signal.mix, "<percentage>", "65%"], [signal.glow, "<length>", "3px"],
-  ].every(([name, syntax, initial]) => registerPaintVariable(name, syntax, true, initial));
-  const root = document.documentElement, reduced = matchMedia("(prefers-reduced-motion: reduce)");
-  let animation: Animation | undefined;
+    [signal.mix, "<percentage>", "65%"], [signal.glow, "<length>", "3px"],
+  ].every(([name, syntax, initial]) => registerPaintVariable(name, syntax, false, initial));
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  let animations: Animation[] = [];
   const start = () => {
-    animation?.cancel(); animation = undefined;
-    if (!supported || reduced.matches || document.hidden || typeof root.animate !== "function") return;
-    animation = root.animate([
-      { [signal.strength]: "1", [signal.mix]: "95%", [signal.glow]: "9px", easing: "ease-in-out" },
-      { [signal.strength]: "0.18", [signal.mix]: "8%", [signal.glow]: "0.5px", easing: "ease-in-out" },
-      { [signal.strength]: "1", [signal.mix]: "95%", [signal.glow]: "9px" },
-    ], { duration: 1000, iterations: Infinity });
+    animations.forEach(animation => animation.cancel()); animations = [];
+    if (!supported || reduced.matches || document.hidden) return;
+    // Non-inherited variables animate only the actual glyph hosts. Never put
+    // inherited animated paint on :root: it invalidates the entire application.
+    animations = elements.filter(element => typeof element.animate === "function").map(element => element.animate([
+      { [signal.mix]: "95%", [signal.glow]: "9px", easing: "ease-in-out" },
+      { [signal.mix]: "8%", [signal.glow]: "0.5px", easing: "ease-in-out" },
+      { [signal.mix]: "95%", [signal.glow]: "9px" },
+    ], { duration: 1000, iterations: Infinity }));
+    // New preview targets join the existing clock instead of restarting it.
+    if (document.timeline.currentTime !== null) animations.forEach(animation => { animation.startTime = 0; });
   };
   start();
   reduced.addEventListener("change", start);
   document.addEventListener("visibilitychange", start);
-  return () => { animation?.cancel(); reduced.removeEventListener("change", start); document.removeEventListener("visibilitychange", start); };
+  return () => { animations.forEach(animation => animation.cancel()); reduced.removeEventListener("change", start); document.removeEventListener("visibilitychange", start); };
 }
 const glow = "var(--omnium-selector-glow,3px)";
 const mix = "var(--omnium-selector-glyph-mix,65%)";
@@ -72,7 +76,6 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     return [tone, { ink: brightHex(String(get("color") ?? defaults.color), Number(get("brightness"))),
       opacity: Number(get("opacity")), glow: Number(get("glow")) }];
   })) as Record<Tone, FeedbackPaint>, [appearance?.base, appearance?.state, appearance?.safe]);
-  useEffect(startSelectionPulse, []);
   useEffect(() => {
     const names = ["omnium-selector-selected", "omnium-selector-excluded", "omnium-selector-preview"];
     const highlights = typeof Highlight !== "undefined" && !!CSS.highlights;
@@ -98,16 +101,26 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       const shadow = computed.textShadow === "none" ? "" : computed.textShadow + ",";
       const ink = feedbackInk(feedback), blur = feedbackGlow(feedback);
       const source = (element.hasAttribute(attribute) ? computed.getPropertyValue("--omnium-selector-source-color").trim() : "") || computed.color;
+      const color = glyphColor(source, feedback), textShadow = `${shadow}0 0 ${blur} ${ink}`;
+      // Resolve animated variables on the host before inheriting the computed
+      // paint into ::placeholder; the animation variables themselves do not inherit.
+      const hostDeclaration = pseudo ? `--omnium-selector-placeholder-color:${color};--omnium-selector-placeholder-shadow:${textShadow};` : "";
       const declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important` :
-        `color:${glyphColor(source, feedback)}!important;text-shadow:${shadow}0 0 ${blur} ${ink}!important`);
-      return { element, pseudo, marker: `selection-${index}`, previous: element.getAttribute(attribute), declaration };
+        `color:${pseudo ? "var(--omnium-selector-placeholder-color)" : color}!important;text-shadow:${pseudo ? "var(--omnium-selector-placeholder-shadow)" : textShadow}!important`);
+      return { element, pseudo, marker: `selection-${index}`, previous: element.getAttribute(attribute), declaration, hostDeclaration };
     });
     const style = document.createElement("style");
     style.setAttribute("data-visual-selector", "");
-    style.textContent = plans.map(plan => `:root:root:root [${attribute}="${plan.marker}"]${plan.pseudo}{${plan.declaration}}`).join("\n");
+    style.textContent = plans.map(plan => {
+      const selector = `:root:root:root [${attribute}="${plan.marker}"]`;
+      return `${plan.hostDeclaration ? `${selector}{${plan.hostDeclaration}}` : ""}${selector}${plan.pseudo}{${plan.declaration}}`;
+    }).join("\n");
     document.head.append(style);
     for (const plan of plans) plan.element.setAttribute(attribute, plan.marker);
+    const stopPulse = startSelectionPulse([...new Set([...selected, ...excluded, ...preview]
+      .filter(part => part.role === "text" || part.role === "icon").map(part => part.element))]);
     return () => {
+      stopPulse();
       for (const name of names) CSS.highlights?.delete(name);
       style.remove();
       for (const { element, marker, previous } of plans) {
