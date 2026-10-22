@@ -862,6 +862,32 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .appearance-target,.appearance-lock { flex: 0 0 auto; width: 22px; border-radius: 50%; }
 .appearance-row > .appearance-target { display: inline-grid; place-items: center; width: 22px; height: 22px; min-width: 22px; padding: 0; aspect-ratio: 1; text-shadow: none; box-shadow: none; }
 .appearance-toggle-icon { display: block; width: 16px; height: 16px; flex: none; }
+.visual-selector { position: fixed; z-index: 90000; width: 160px; padding: 7px; color: var(--omnium-accent,#60ddec); background: color-mix(in srgb,var(--omnium-base,#07131c) 94%,transparent); border: 1px solid currentColor; border-radius: 12px; box-shadow: 0 8px 24px #0007; user-select: none; }
+.visual-selector-symbol { display: block; width: 100%; overflow: visible; }
+.visual-selector-symbol [role="button"] { cursor: pointer; outline: none; }
+.visual-selector-symbol .selector-hit { fill: transparent; stroke: transparent; pointer-events: all; }
+.visual-selector-symbol circle.selector-hit { fill: none; pointer-events: stroke; }
+.visual-selector-symbol .selector-ring,.visual-selector-symbol .selector-bar { stroke: currentColor; pointer-events: none; }
+.visual-selector-symbol .selector-dot { fill: currentColor; pointer-events: none; }
+.visual-selector-symbol [aria-pressed="false"] :is(.selector-ring,.selector-bar,.selector-dot) { opacity: .4; }
+.visual-selector-symbol [aria-pressed="true"] :is(.selector-ring,.selector-bar,.selector-dot) { filter: drop-shadow(0 0 3px currentColor); }
+.visual-selector-symbol [role="button"]:focus-visible { color: #fff; }
+.visual-selector-actions { display: flex; gap: 6px; align-items: center; justify-content: center; }
+.visual-selector-actions button { width: 24px; height: 24px; min-width: 24px; padding: 0; border: 0; border-radius: 50%; color: inherit; background: transparent; }
+.visual-selector-actions output { flex: 1; min-width: 0; text-align: center; font: 11px/1.2 system-ui; }
+.visual-selector-actions small { font: inherit; opacity: .7; }
+.visual-selection-overlay { position: fixed; inset: 0; z-index: 89999; pointer-events: none; color: var(--omnium-accent,#60ddec); overflow: hidden; }
+.visual-selection-overlay > svg { display: block; overflow: hidden; }
+.visual-selected-part { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: .55; vector-effect: non-scaling-stroke; }
+.visual-selected-part.role-background { fill: currentColor; fill-opacity: .025; stroke: none; }
+.visual-preview-part { fill: #a1f3c4; fill-opacity: .06; stroke: #a1f3c4; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.visual-preview-part.role-background { fill-opacity: .08; stroke: none; }
+.visual-selection-overlay.is-excluding .visual-preview-part { fill: #ff927e; stroke: #ff927e; }
+.visual-selected-boundary { fill: none; stroke: currentColor; stroke-width: 2; stroke-opacity: .8; vector-effect: non-scaling-stroke; }
+.visual-preview-boundary { fill: none; stroke: #a1f3c4; stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.visual-selection-overlay.is-excluding .visual-preview-boundary { stroke: #ff927e; }
+html[data-visual-selecting],html[data-visual-selecting] * { cursor: crosshair !important; }
+html[data-visual-selecting] [data-visual-selector] [role="button"],html[data-visual-selecting] [data-visual-selector] button { cursor: pointer !important; }
 .appearance-target:not(.is-disconnected):not(:disabled) { opacity: 1; filter: drop-shadow(0 0 3px currentColor); }
 .appearance-row.is-excluded > .appearance-row-name { opacity: .4; }
 .appearance-row.not-applicable > .appearance-row-name { opacity: .25; }
