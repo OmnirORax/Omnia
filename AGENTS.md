@@ -1,3 +1,26 @@
+# Worker entry rules
+
+Read [docs/WORKER_ONBOARDING.md](docs/WORKER_ONBOARDING.md) once when starting work
+or resuming with a fresh context. It supplies the project mental model, system
+boundaries, status map and links to task-specific contracts. Do not reconstruct
+the project from source or chat history for every task; inspect the affected code
+after loading the shared model. Keep this brief and the relevant subsystem docs
+current when changing a cross-cutting contract or its implementation status.
+
+Essential invariants for every worker:
+
+- Knowledge identity/relationships, visual placements and UI organization are
+  separate. Appearance or containment in the UI never asserts canonical facts.
+- Stable IDs survive renaming/rearrangement; preserve user values and migrations.
+- Reuse shared actions, UI residents, property editors, ownership and state/history
+  paths. Selection/hover/pointer previews do not persist edits.
+- Property coupling means shared definitions/setters with independent consumer
+  values. It never means changing one automatically changes other consumers.
+- The universal function/property coupling and generated category/hierarchy system
+  is agreed design, **not implemented**. Read [docs/SHARED_PROPERTIES.md](docs/SHARED_PROPERTIES.md)
+  before working on it. Do not mistake native button discovery or the appearance
+  target registry for that general system, or create a visual-only substitute.
+
 # Shared visual editing architecture
 
 Shortcut commands must use the shared `ACTIONS` catalog. For a component-owned

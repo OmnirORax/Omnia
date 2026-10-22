@@ -1,5 +1,10 @@
 # Omnia direction
 
+Workers start with [the system onboarding map](docs/WORKER_ONBOARDING.md). The
+universal function/property coupling model is agreed future direction in
+[Shared properties](docs/SHARED_PROPERTIES.md); it is broader than appearance and
+is not yet implemented. Coupled consumers retain independent values.
+
 Omnia is intended to become a shared environment where humans and AI construct, explore, understand and manipulate knowledge through structured nodegraphs.
 
 - **Omnium:** a genuinely three-dimensional, spatial, hierarchical nodegraph. Three-dimensional space is essential.

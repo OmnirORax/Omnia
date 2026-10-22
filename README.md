@@ -2,6 +2,14 @@
 
 A local, interactive 3D atlas for charting systems. React, TypeScript, Three.js and Vite Plus power the current workbench. Its version-2 JSON document is independent of the renderer and provisional English labels. [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md) records the long-term constraints.
 
+## For new workers
+
+Start with [the worker onboarding guide](docs/WORKER_ONBOARDING.md) and
+[AGENTS.md](AGENTS.md). The guide explains the product, shared systems and state
+boundaries without requiring a source-code tour. The proposed universal property
+and coupling system is documented separately in
+[Shared properties](docs/SHARED_PROPERTIES.md), explicitly marked as pending.
+
 ## Run and verify
 
 Use Node 24 and Yarn 4.18.1, then run `yarn install --immutable` and `yarn dev`. In the prepared Codex cloud environment, Yarn is at `/workspace/.tools/yarn/node_modules/.bin/yarn`; existing dependencies are installed. Verify with `yarn test`, `yarn typecheck`, `yarn build`, `yarn test:browser`, and `yarn test:3d`. Browser checks require the dev server and Chromium (default `/usr/bin/chromium`; override with `CHROMIUM_PATH`).
@@ -26,7 +34,7 @@ Use **Theme / aesthetics → Appearance → All text font** to change graph labe
 
 **Import your own font:** choose **Import font** beside All text font, then select a WOFF2, WOFF, TTF or OTF file (maximum 10 MB). A successfully decoded font is selected immediately and remains available in the selector after reload. Files are stored once in this browser's IndexedDB font library, independently of graph knowledge, settings and undo history. Reimporting the same bytes reuses the existing font. Theme and UI JSON exports embed only the selected custom font; importing them restores it into the receiving browser's library before applying the settings. Local theme presets retain references to that library rather than copying font files into every preset. Clearing browser site data removes the local library, so export a theme or UI template to back it up.
 
-In **Animations**, choose a category (windows/frames, buttons, fields, nodes, binders or background), enable it and uncheck **Use shared settings** to customize it. Choose **Shared settings** to edit the common defaults. Effects include Stars, Falling stars / snow, Dust, Sparks, Lightning text / icons, Lightning outlines and Off, with independent VFX color, intensity, density and speed. Theme templates save these settings locally or export them as portable JSON.
+In **Theme / aesthetics**, the shared property tree includes **Animation**. Choose targets through the visual hierarchy and adjust supported effects using the shared controls. Color, intensity, density and speed use the same target capabilities, protections and appearance draft. See [Appearance controller](docs/APPEARANCE_CONTROLLER.md) for the current workflow; the older separate category/shared-settings editor has been superseded.
 
 **All text color**, directly beneath All text font, applies one displayed color to UI lettering, node names, binder text and character-based symbols. It preserves authored graph colors and leaves node shapes, image/3D assets and binder lines unchanged. **Original colors** removes the override. Text glow follows the displayed text color; separately configured VFX colors still control their animation layer. Both appearance modes and template formats retain this setting.
 
