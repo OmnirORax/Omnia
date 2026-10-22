@@ -183,6 +183,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const inputPosition = (input?: KeyboardEvent | MouseEvent) => input instanceof MouseEvent ? { x: input.clientX, y: input.clientY } : cursorPosition();
   const shortcuts = useFeatureActions("visualSelector", {
     "selector.open": { enabled: true, run: input => {
+      if (phase === "configure") { aim(); return; }
       const p = inputPosition(input), element = document.elementFromPoint(p.x, p.y) ?? document.body;
       gesture.current = null; setCatalog(collectVisualParts()); setPosition(p); setPhase("configure"); setPreview(null);
       depth.current = 0; point.current = { ...p, element };
@@ -405,8 +406,8 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     return () => document.documentElement.removeAttribute("data-visual-selecting");
   }, [phase]);
   // Ring center, rather than the asymmetric SVG box, is centered on the MB3 point.
-  const left = Math.max(8, Math.min(position.x - 92.125, innerWidth - 216));
-  const top = Math.max(8, Math.min(position.y - 89.75, innerHeight - 220));
+  const left = Math.max(8, Math.min(position.x - 88, innerWidth - 184));
+  const top = Math.max(8, Math.min(position.y - 84, innerHeight - 184));
   return <Context.Provider value={{ ...selection, parts: matches.included, properties, clear }}>
     {children}
     {active && phase !== "edit" && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
@@ -416,8 +417,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position}
       onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
-      style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}
-      onPointerLeave={event => { if (event.relatedTarget instanceof Element && !event.relatedTarget.closest(selectorChrome)) aim(); }}>
+      style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}>
       <SelectorSymbol configuration={configuration} patternBinding={shortcuts.binding("selector.pattern")} actions={{
         boundary: () => shortcuts.invoke("selector.boundary"),
         pattern: () => shortcuts.invoke("selector.pattern"),
@@ -443,7 +443,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
         <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={() => shortcuts.invoke("selector.clear")}>×</button>
         <button type="button" aria-label="Edit selected appearance" title="Edit selected appearance" disabled={!selection.boundary && !editableParts.length}
           onClick={() => shortcuts.invoke("selector.edit")}>☷</button>
-        <button type="button" aria-label="Start aiming" title={`Aim, or move outside the controller. Configure: ${shortcuts.binding("selector.open") || "Unassigned"}; disable and clear: ${shortcuts.binding("selector.cancel") || "Unassigned"}.`} onClick={() => shortcuts.invoke("selector.aim")}>✓</button>
+        <button type="button" aria-label="Start aiming" title={`Resume selection. Toggle controller: ${shortcuts.binding("selector.open") || "Unassigned"}; disable and clear: ${shortcuts.binding("selector.cancel") || "Unassigned"}.`} onClick={() => shortcuts.invoke("selector.aim")}>✓</button>
       </div>
       {configuration.pattern !== "item" && <details className="visual-selector-patterns">
         <summary title="Patterns in the working region. Choose a name to filter line matching; +/− includes/excludes the whole pattern.">⠒</summary>

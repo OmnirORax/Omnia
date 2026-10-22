@@ -7,10 +7,11 @@ and property remain separate. See `AGENTS.md` for integration rules.
 
 ## Selection and editing
 
-Middle-click (MB3) opens stationary configuration with the ring centered on the
-pointer (clamped near viewport edges). The same SVG becomes a compact cursor while
-aiming. Move outside the controller, or press its check mark, to aim. MB3 returns
-to stationary configuration at the pointer. The cursor layer is pointer-transparent
+Middle-click (MB3) toggles a compact, circular stationary controller with the ring centered on the
+pointer (clamped near viewport edges). Press MB3 again, or its check mark, to
+resume selection with the same configuration and accepted parts. Moving outside
+the controller leaves it open for interaction. The same SVG becomes a compact
+cursor while aiming. MB3 returns to stationary configuration at the pointer. The cursor layer is pointer-transparent
 and updates its position without rerendering the application.
 Only the stationary symbol renders hit areas. The aiming cursor and every SVG
 descendant explicitly reject pointer events, so a settled cursor cannot intercept

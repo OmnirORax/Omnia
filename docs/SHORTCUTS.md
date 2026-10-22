@@ -63,7 +63,7 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 
 ## Visual selector integration
 
-The complete command group includes opening/configuring (MB3), cycling patterns
+The complete command group includes toggling configuration / selection (MB3), cycling patterns
 (E), editing accepted appearance (MB2), disable/clear (Esc), selection undo/redo
 (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y) and unassigned commands for the ring, inside/outside,
 include/exclude, clear, aiming, finite bounds and color termination. Their buttons
