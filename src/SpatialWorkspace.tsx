@@ -22,7 +22,7 @@ import { EntityMenu } from "./ui/EntityMenu";
 import { FunctionControl } from "./ui/UIWorkspace";
 import { normalizeFont, isCustomFont } from "./fonts";
 import { loadFont } from "./fontLibrary";
-import { registerHierarchyScene } from "./appearance/highlight";
+import { registerHierarchyScene, type SceneSelectionPaint } from "./appearance/sceneFeedback";
 import { createGraphHierarchyPulse } from "./appearance/graphHighlight";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
@@ -172,31 +172,43 @@ export default function SpatialWorkspace(props: Props) {
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
         const selected = worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
+        if (selectedBackground || hierarchyBackground !== null) applyBackgroundFeedback();
         appearance.render();
       });
     };
     const requestRender = () => scheduleRender(true);
     const hierarchyPulse = createGraphHierarchyPulse();
-    let pulsingBackground = false;
-    const restorePulseBackground = () => {
-      if (!pulsingBackground) return;
+    let hierarchyBackground: number | null = null;
+    let selectedBackground: { paint: SceneSelectionPaint; strength: number } | undefined;
+    const applyBackgroundFeedback = () => {
       const theme = callbacks.current.settings.appearance;
-      scene.background = new THREE.Color(theme.theme === "neon" ? theme.background : 0x101927);
-      pulsingBackground = false;
+      const color = new THREE.Color(theme.theme === "neon" ? theme.background : 0x101927);
+      if (selectedBackground) {
+        const { paint, strength } = selectedBackground;
+        color.lerp(new THREE.Color(paint.color), Math.max(0, Math.min(1, paint.opacity * .3 * (.08 + .87 * strength))));
+      } else if (hierarchyBackground !== null) color.lerp(new THREE.Color("white"), hierarchyBackground);
+      scene.background = color;
     };
     const stopHierarchyHighlight = registerHierarchyScene({
       pulse: (targets, strength) => {
         hierarchyPulse.update(textScene.current, targets, strength);
         const background = targets.get("workspace.background");
-        if (background !== undefined) {
-          const theme = callbacks.current.settings.appearance;
-          scene.background = new THREE.Color(theme.theme === "neon" ? theme.background : 0x101927)
-            .lerp(new THREE.Color("white"), (0.05 + strength * .35) * (background ? 1 : .5));
-          pulsingBackground = true;
-        } else restorePulseBackground();
+        hierarchyBackground = background === undefined ? null : (0.05 + strength * .35) * (background ? 1 : .5);
+        applyBackgroundFeedback();
         if (targets.size) scheduleRender(false);
       },
-      clear: () => { hierarchyPulse.clear(); restorePulseBackground(); scheduleRender(false); },
+      clear: () => { hierarchyPulse.clear(); hierarchyBackground = null; applyBackgroundFeedback(); scheduleRender(false); },
+      // Canvas bounds locate the surface; raycasting rejects actual scene objects.
+      pick: (target, element, x, y) => target === "workspace.background" && element === renderer.domElement &&
+        !hits({ clientX: x, clientY: y }).length &&
+        !raycaster.intersectObjects(textScene.current?.binderHits.filter(object => object.visible) ?? [], false).length,
+      paint: (target, element) => target === "workspace.background" && element === renderer.domElement
+        ? new THREE.Color(callbacks.current.settings.appearance.theme === "neon" ? callbacks.current.settings.appearance.background : 0x101927).getStyle() : undefined,
+      selection: (targets, strength) => {
+        const paint = targets.get("workspace.background");
+        selectedBackground = paint ? { paint, strength } : undefined;
+        applyBackgroundFeedback(); scheduleRender(false);
+      },
     });
     appearance.start(() => scheduleRender(false));
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
@@ -315,12 +327,12 @@ export default function SpatialWorkspace(props: Props) {
     controls.addEventListener("change", requestRender);
     controls.addEventListener("start", stopAnimation);
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
-    const aim = (event: PointerEvent) => {
+    const aim = (event: Pick<PointerEvent, "clientX" | "clientY">) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
       raycaster.setFromCamera(pointer, camera);
     };
-    const hits = (event: PointerEvent, except?: string) => {
+    const hits = (event: Pick<PointerEvent, "clientX" | "clientY">, except?: string) => {
       aim(event);
       return raycaster.intersectObjects(meshes.current.filter((mesh) => mesh.visible), false).filter((hit) => hit.object.userData.nodeId !== except);
     };

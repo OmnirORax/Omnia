@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
 import { ownerOf } from "../ui/layout";
 import {
@@ -17,18 +17,26 @@ import {
   type RegisteredTarget,
 } from "./registry";
 import { type Appearance, valueFor } from "./resolve";
+import { activityPreview, type ActivityPreview } from "./activityPreview";
+import { MouseTrail } from "./MouseTrail";
+import { VisualSelectionProvider } from "./VisualSelector";
 export type AppearanceLocation = { target: string; property: string };
 export type AppearanceBridge = {
   safe?: boolean;
+  masterOpen?: boolean;
+  activityPreview?: (requests: ActivityPreview[]) => void;
   subtreeModifier?: "shift" | "alt" | "ctrl" | "none";
   base: Appearance;
   commit: (state: Controller) => void;
   preview: (state: Controller | null) => void;
+  inspect?: (key: string) => void;
   reveal?: (path: string[] | null) => void;
   fonts?: { id: string; name: string }[];
 };
 type ContextValue = AppearanceBridge & {
   state: Controller;
+  renderBase: Appearance;
+  activatePreview: (request: ActivityPreview) => () => void;
   targets: RegisteredTarget[];
   location: AppearanceLocation | null;
   locate: (location: AppearanceLocation | null, keep?: boolean) => void;
@@ -61,6 +69,23 @@ export function AppearanceProvider({
     preview: () => {},
   };
   const activeBridge = bridge ?? bridgeFallback;
+  const [activities, setActivities] = useState<Map<symbol, ActivityPreview>>(() => new Map());
+  const activityCallback = useRef(activeBridge.activityPreview); activityCallback.current = activeBridge.activityPreview;
+  const activatePreview = useCallback((request: ActivityPreview) => {
+    const token = Symbol();
+    setActivities(old => new Map(old).set(token, request));
+    return () => setActivities(old => { const next = new Map(old); next.delete(token); return next; });
+  }, []);
+  useEffect(() => {
+    activityCallback.current?.(activeBridge.safe ? [] : [...activities.values()]);
+  }, [activities, activeBridge.safe]);
+  useEffect(() => () => activityCallback.current?.([]), []);
+  const renderBase = useMemo(() => activeBridge.safe ? activeBridge.base : activityPreview(activeBridge.base, [...activities.values()]), [activeBridge.base, activeBridge.safe, activities]);
+  const [visualInspection, setVisualInspection] = useState("");
+  const inspect = useRef(activeBridge.inspect); inspect.current = activeBridge.inspect;
+  const inspectedFunctions = [...ui.selectedFunctions].sort().join("|");
+  const inspectionKey = visualInspection || inspectedFunctions ? `${visualInspection}::${inspectedFunctions}` : "";
+  useEffect(() => { inspect.current?.(inspectionKey); }, [inspectionKey]);
   const state = activeBridge.base.controller ?? loadController(undefined);
   const targets = useMemo(
     () =>
@@ -83,15 +108,15 @@ export function AppearanceProvider({
           ? ui.functions.find((f) => f.id === owner.slice(9))?.label
           : (ui.frameActions.get(owner)?.title ??
             ui.layout.frames.find((f) => `frame:${f.id}` === owner)?.name);
-        return { ...target, label: customLabel ?? label ?? target.label, instance: { ...target.instance, path } };
+        return { ...target, label: customLabel ?? (target.instance.part ? target.label : label) ?? target.label, instance: { ...target.instance, path } };
       }),
     [state, ui.layout, ui.functions],
   );
   const freeze = (next: Controller, id: string, property?: string) => {
     for (const target of targets) {
       if (!ancestry(targets, target.id).includes(id)) continue;
-      for (const p of target.properties ?? []) {
-        if (property && !propertyChannels(property).includes(p)) continue;
+      for (const p of new Set((target.properties ?? []).map(property => target.couplings?.[property] ?? property))) {
+        if (property && !propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel).includes(p)) continue;
         next.values[target.id] = {
           ...next.values[target.id],
           [p]: valueFor(activeBridge.base, state, target, p),
@@ -154,6 +179,8 @@ export function AppearanceProvider({
   const value: ContextValue = {
     ...activeBridge,
     state,
+    renderBase,
+    activatePreview,
     targets,
     location: hoverLocation ?? location,
     locate: (next, keep = false) => {
@@ -166,7 +193,8 @@ export function AppearanceProvider({
     lock,
     plug: (id, property) => activeBridge.commit(toggleRule(state, "disconnected", id, property)),
   };
-  return <Context.Provider value={bridge ? value : null}>{children}</Context.Provider>;
+  return <Context.Provider value={bridge ? value : null}>{bridge
+    ? <VisualSelectionProvider masterOpen={bridge.masterOpen} onInspect={setVisualInspection}>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
 }
 export function basesForOwner(owner: string, control = false): RegisteredTarget[] {
   const prefix = owner.startsWith("function:") ? (control ? "ui.fields." : "ui.buttons.") : "ui.";

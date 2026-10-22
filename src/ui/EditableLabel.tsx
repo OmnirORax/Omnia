@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useUI } from "./context";
 import { nameSymbol } from "./nameSymbols";
+import { FEATURE_GESTURES } from "../featureActions";
 
 /** Display names are UI preferences. IDs, ownership and property semantics never change. */
 export function useUILabel(id: string, fallback: string) {
@@ -86,7 +87,7 @@ export function EditableLabel({ id, fallback }: { id: string; fallback: string }
         setEditing(true);
       }}
       onKeyDown={(event) => {
-        if (event.key === "F2") {
+        if (event.key === FEATURE_GESTURES.find(gesture => gesture.id === "ui.rename")!.binding) {
           event.preventDefault();
           event.stopPropagation();
           setEditing(true);

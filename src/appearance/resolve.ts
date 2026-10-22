@@ -4,7 +4,8 @@ import {
   type AnimationTarget,
   type SparkleStyle,
 } from "../graph/effects.ts";
-import { connected, type Controller, type Value } from "./model.ts";
+import { connected, ruleHas, type Controller, type Value } from "./model.ts";
+import { scopeContains } from "./partScope.ts";
 import {
   controllerTargets,
   propertyFor,
@@ -32,10 +33,11 @@ function legacyEffects(base: Appearance, target: RegisteredTarget): SparkleStyle
 export function effectsFor(theme: Appearance, id: string | RegisteredTarget): SparkleStyle {
   const target = typeof id === "string" ? TARGETS.find((t) => t.id === id)! : id;
   const values = !target.instance ? theme.renderDefaults?.[target.id] : undefined;
+  let resolve: ReturnType<typeof createValueResolver> | undefined;
   const get = (p: string) =>
     values?.[p] ??
     (theme.controller
-      ? valueFor(theme, theme.controller, target, p)
+      ? (resolve ??= createValueResolver(theme, theme.controller))(target, p)
       : legacyValue(theme, target, p));
   return effectsFromValues(get);
 }
@@ -55,6 +57,7 @@ export function effectsFromValues(get: (property: string) => Value): SparkleStyl
   };
 }
 export function legacyValue(base: Appearance, target: RegisteredTarget, property: string): Value {
+  if (target.defaults?.[property] !== undefined) return target.defaults[property];
   const key = target.binding?.legacy ?? "accent",
     node = key.startsWith("nodes") ? base.nodes : base.binders;
   if (EFFECT_PROPERTIES.includes(property)) {
@@ -126,17 +129,69 @@ export function valueFor(
   target: RegisteredTarget,
   property: string,
 ): Value {
-  const targets = controllerTargets(state),
-    fallback = target.instance
-      ? (TARGETS.find((t) => t.id === target.instance!.base) ?? target)
+  return createValueResolver(base, state)(target, property);
+}
+/** Reuse registry, ancestry and scope lookups for a render/transaction. Values stay live. */
+export function createValueResolver(base: Appearance, state: Controller, targets = controllerTargets(state)) {
+  const byId = new Map(targets.map(target => [target.id, target]));
+  const bases = new Map(TARGETS.map(target => [target.id, target]));
+  const paths = new Map<string, string[]>(), parents = new Map<string, RegisteredTarget[]>();
+  const locals = new Map<string, RegisteredTarget[]>();
+  for (const target of targets) if (target.instance)
+    locals.set(target.instance.base, [...(locals.get(target.instance.base) ?? []), target]);
+  const pathFor = (target: RegisteredTarget) => {
+    let path = paths.get(target.id);
+    if (path) return path;
+    path = [];
+    const seen = new Set<string>();
+    let current: RegisteredTarget | undefined = target;
+    if (target.instance && !byId.has(target.id)) {
+      path.push(target.id); current = bases.get(target.instance.base);
+    }
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id); path.unshift(current.id); current = current.parent ? byId.get(current.parent) : undefined;
+    }
+    paths.set(target.id, path); return path;
+  };
+  const isConnected = (target: RegisteredTarget, property: string) =>
+    !pathFor(target).some(id => ruleHas(state.disconnected[id], property));
+  const resolve = (target: RegisteredTarget, property: string): Value => {
+    const channel = target.couplings?.[property];
+    if (channel && channel !== property) {
+      if (!isConnected(target, property)) return propertyFor(property)?.neutral ?? legacyValue(base, target, property);
+      return resolve(target, channel);
+    }
+    const fallback = target.instance
+      ? (bases.get(target.instance.base) ?? target)
       : target;
-  if (!connected(state, targets, target.id, property))
-    return propertyFor(property)?.neutral ?? legacyValue(base, fallback, property);
-  return (
-    state.values[target.id]?.[property] ??
-    (target.instance ? state.values[target.instance.base]?.[property] : undefined) ??
-    legacyValue(base, fallback, property)
-  );
+    if (!isConnected(target, property) || Object.entries(target.couplings ?? {}).some(([source, channel]) => channel === property && !isConnected(target, source)))
+      return propertyFor(property)?.neutral ?? legacyValue(base, fallback, property);
+    if (target.instance?.part && state.values[target.id]?.[property] === undefined) {
+      const instance = target.instance;
+      const rank = (candidate: RegisteredTarget) => candidate.instance!.owner === instance.owner
+        ? 1000 + (candidate.instance!.part?.steps.length ?? -1) + Number(candidate.instance!.part?.text !== undefined) / 2
+        : (instance.path?.indexOf(candidate.instance!.owner) ?? -1);
+      let broader = parents.get(target.id);
+      if (!broader) {
+        broader = (locals.get(instance.base) ?? []).filter(candidate => {
+          const parent = candidate.instance;
+          return parent && parent.base === instance.base && candidate.id !== target.id && scopeContains(parent, instance) &&
+            (!parent.part || parent.part.steps.length < instance.part!.steps.length ||
+              (parent.part.text === undefined && instance.part!.text !== undefined));
+        }).sort((a, b) => rank(b) - rank(a));
+        parents.set(target.id, broader);
+      }
+      for (const ancestor of broader)
+        if (state.values[ancestor.id]?.[property] !== undefined || !isConnected(ancestor, property))
+          return resolve(ancestor, property);
+    }
+    return (
+      state.values[target.id]?.[property] ??
+      (target.instance ? state.values[target.instance.base]?.[property] : undefined) ??
+      legacyValue(base, fallback, property)
+    );
+  };
+  return resolve;
 }
 export function tint(color: string, brightness: number, opacity = 1): string {
   const n = parseInt(color.slice(1), 16);
@@ -169,10 +224,11 @@ export function resolveControllerAppearance(base: Appearance): Appearance {
     surfaceEffects: { ...base.surfaceEffects },
     renderDefaults: {} as Record<string, Record<string, Value>>,
   };
+  const resolve = createValueResolver(base, state);
   for (const target of TARGETS.filter((t) => t.properties)) {
     const values: Record<string, Value> = {};
     for (const property of target.properties!)
-      values[property] = valueFor(base, state, target, property);
+      values[property] = resolve(target, property);
     out.renderDefaults[target.id] = values;
     const custom = state.values[target.id] || !connected(state, [...TARGETS], target.id, "color");
     if (target.id === "workspace.background" && custom)

@@ -8,7 +8,7 @@ export type FrameDock = { target?: string; side: DockSide; rect: DockRect; bound
 /** One allocation for every edge and the remaining workspace, independent of rendering. */
 export function workspaceDockRects(layout: UILayout, area: DockRect) {
   const edges = ["left", "right", "top", "bottom"] as const;
-  const groups = Object.fromEntries(edges.map(edge => [edge, layout.frames.find(frame => frame.dockEdge === edge && !ownerOf(layout, `frame:${frame.id}`))]));
+  const groups = Object.fromEntries(edges.map(edge => [edge, layout.frames.find(frame => frame.dockEdge === edge && !frame.closed && !ownerOf(layout, `frame:${frame.id}`))]));
   const sizes = { left: 0, right: 0, top: 0, bottom: 0 };
   for (const edge of edges) {
     const group = groups[edge]; if (!group) continue;
@@ -29,7 +29,7 @@ export function workspaceDockRects(layout: UILayout, area: DockRect) {
 }
 export function edgeDockRect(layout: UILayout, edge: Exclude<DockSide, "tab">, area: DockRect): DockRect {
   // Also allocate the proposed edge before it exists, using the same constraints as commit.
-  const proposed = layout.frames.some(frame => frame.dockEdge === edge) ? layout : { ...layout, frames: [...layout.frames, {
+  const proposed = layout.frames.some(frame => frame.dockEdge === edge && !frame.closed) ? layout : { ...layout, frames: [...layout.frames, {
     id: "@dock-preview", name: "", x: 0, y: 0, cellSize: 96, collapsed: false, pinned: false, dockEdge: edge,
   }] };
   return workspaceDockRects(proposed, area).docks[edge]!;
@@ -70,7 +70,7 @@ const splitRoot = (tree: DockNode, key: string, side: DockSide): DockNode => {
 export function dockFrame(layout: UILayout, key: string, intent: FrameDock): UILayout {
   if (!/^(frame|window):/.test(key) || !getContainer(layout, key) || residentPinned(layout, key) || residentContextScope(layout, key)) return layout;
   let target = intent.target;
-  if (intent.edge) target = layout.frames.find(frame => frame.dockEdge === intent.edge && `frame:${frame.id}` !== key)?.id;
+  if (intent.edge) target = layout.frames.find(frame => frame.dockEdge === intent.edge && !frame.closed && `frame:${frame.id}` !== key)?.id;
   if (intent.edge && target) target = `frame:${target}`;
   if (target && !canDock(layout, key, target)) return layout;
   const parent = target && (ownerOf(layout, target) ?? intent.host?.container);

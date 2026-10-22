@@ -1,0 +1,47 @@
+import { useLayoutEffect, useRef } from "react";
+import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
+import { isTypingTarget, matchesShortcut, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
+import { useUI } from "./context";
+
+type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void }>;
+/** A feature cannot install a binding absent from the shared catalog. Its command
+ * buttons, runtime input and shortcut rows all use these same registered IDs. */
+export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, handlers: Handlers<Owner>) {
+  const ui = useUI(), latest = useRef({ ui, handlers }); latest.current = { ui, handlers };
+  const definitions = FEATURE_ACTIONS.filter(action => action.owner === owner).sort((a, b) => Number(a.scope === "global") - Number(b.scope === "global"));
+  const availability = JSON.stringify(definitions.map(action => handlers[action.id as FeatureActionFor<Owner>].enabled));
+  useLayoutEffect(() => {
+    const cleanups = definitions.flatMap(action => {
+      const id = action.id as FeatureActionFor<Owner>;
+      return [featureActionRuntime.register(id, { enabled: () => latest.current.handlers[id].enabled, run: input => latest.current.handlers[id].run(input) }),
+        ui.registerFunction({ id, label: action.label, category: action.category, available: handlers[id].enabled,
+          element: <button type="button" disabled={!handlers[id].enabled} title={action.description}
+            onClick={() => featureActionRuntime.invoke(id)}>{action.label}</button> })];
+    });
+    return () => { for (const cleanup of cleanups.reverse()) cleanup(); };
+  }, [owner, ui.registerFunction, availability]);
+  const api = useRef({
+    blocked: () => !!latest.current.ui.shortcutCapturing || !!latest.current.ui.shortcutsBlocked,
+    binding: (id: FeatureActionFor<Owner>) => shortcutBinding(id, latest.current.ui.shortcutBindings ?? {}),
+    matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent, gestureModifiers = true) => {
+      const current = latest.current;
+      if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked || event.defaultPrevented || !current.handlers[id].enabled) return false;
+      if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
+      const definition = FEATURE_ACTIONS.find(action => action.id === id)!;
+      if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
+      return event instanceof KeyboardEvent
+        ? matchesShortcut(id, current.ui.shortcutBindings ?? {}, normalizeKey(event))
+        : matchesPointerShortcut(id, current.ui.shortcutBindings ?? {}, event, gestureModifiers);
+    },
+    invoke: (id: FeatureActionFor<Owner>, input?: ActionInput) => featureActionRuntime.invoke(id, input),
+    handle: (event: KeyboardEvent | MouseEvent, accepts: (id: FeatureActionFor<Owner>) => boolean = () => true) => {
+      // Explicit modified commands take priority over gesture-transparent matches.
+      for (const gestureModifiers of [false, true]) for (const definition of definitions) {
+        const id = definition.id as FeatureActionFor<Owner>;
+        if (accepts(id) && api.current.matches(id, event, gestureModifiers)) return api.current.invoke(id, event);
+      }
+      return false;
+    },
+  });
+  return api.current;
+}

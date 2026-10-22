@@ -1,3 +1,4 @@
+import { ValueFieldBehavior } from "./ValueFieldBehavior";
 import { residentMovable } from "./rigidity";
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
@@ -77,6 +78,8 @@ import {
   updateContainer,
   releaseResident,
   closeContainer,
+  reopenContainer,
+  containers,
   residentKey,
   residentPinned,
   resetContainer,
@@ -102,7 +105,8 @@ import { DockWorkspace, dockWorkspaceArea, useDockResident, useDockWorkspace } f
 import type { DockSide } from "./dockTree";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
-import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
+import { buttonShortcutId, functionShortcutBinding, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
+import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
@@ -314,7 +318,7 @@ export function UIPanel({
         width={400}
         height={560}
         onClose={() =>
-          ui.update((s) => ({ ...closeContainer(s, key), panels: { ...s.panels, [id]: false } }))
+          ui.update(s => closeContainer(s, key))
         }
         closeLabel={`Close ${title}`}
       >
@@ -374,8 +378,9 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
   const rectangular = structured || stacked;
   const desired = { x: frame.x + (rectangular ? 0 : bounds.x), y: frame.y + (rectangular ? 0 : bounds.y), width: rectangular ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height };
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
-  const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !nested && !edgeBounds, frame.floatingOverflow);
+  const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !frame.closed && !nested && !edgeBounds, frame.floatingOverflow);
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
+  if (frame.closed) return null;
   const content = (
     <Rnd
       className={`function-frame contour-frame ${structured ? "ui-structured-frame" : ""} ${stacked ? "ui-stacked-frame" : ""} ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
@@ -424,34 +429,8 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
           className="ui-frame-header"
           onChange={patch}
           onRename={(name) => patch({ name })}
-          closeLabel={`Remove UI frame ${frame.name}`}
-          onClose={() => {
-            if (residentPinned(ui.layout, key)) return;
-            if (
-              (frame.members?.length ?? 0) &&
-              !window.confirm(
-                "Remove this frame? Its functions return to their default locations; nested frames and windows remain available. Your graph will not change.",
-              )
-            )
-              return;
-            ui.update((s) => {
-              let next = releaseResident(s, key);
-              for (const member of frame.members ?? []) {
-                const memberKey = residentKey(member);
-                next = releaseResident(next, memberKey);
-                if (member.kind === "function") {
-                  const items = { ...next.items };
-                  if (next.customControls?.[member.id]) items[member.id] = {
-                    ...items[member.id], home: false, x: frame.x + 24, y: frame.y + 64,
-                  };
-                  else delete items[member.id];
-                  next = { ...next, items };
-                } else
-                  next = updateContainer(next, memberKey, { x: frame.x + 24, y: frame.y + 64 });
-              }
-              return { ...next, frames: next.frames.filter((f) => f.id !== frame.id) };
-            });
-          }}
+          closeLabel={`Hide ${frame.name}`}
+          onClose={() => ui.update(layout => closeContainer(layout, key))}
         />
         {structured ? <div className="ui-structured-body" hidden={frame.collapsed}><DockLayout container={key} /></div> : <DockArea container={key} hidden={frame.collapsed} />}
       </div>
@@ -585,6 +564,7 @@ export function UIWorkspace({
   const [shortcutField, setShortcutField] = useState<string | null>(null);
   const [shortcutNotice, setShortcutNotice] = useState("");
   const shortcutRunners = useRef<HTMLDivElement>(null);
+  const shortcutPress = useRef<number | null>(null);
   useEffect(() => {
     const invoke = (id: string) => {
       if (!id.startsWith("button:") || shortcuts?.capturing || shortcuts?.blocked) return;
@@ -617,17 +597,33 @@ export function UIWorkspace({
       const runner = Array.from(shortcutRunners.current?.children ?? []).find(el => el.getAttribute("data-shortcut-runner") === target);
       runner?.querySelector<HTMLButtonElement>("button")?.click();
     };
-    const keydown = (event: KeyboardEvent) => {
-      if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || event.repeat || isTypingTarget(event.target)) return;
-      const key = normalizeKey(event);
+    const input = (event: KeyboardEvent | PointerEvent) => {
+      const keyboard = event instanceof KeyboardEvent;
+      if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || keyboard && (event.repeat || isTypingTarget(event.target))) return;
+      const key = keyboard ? normalizeKey(event) : normalizePointer(event);
       const id = Object.entries(shortcuts?.bindings ?? {}).find(([id, binding]) => id.startsWith("button:") && binding && binding === key)?.[0];
       if (!id) return;
-      event.preventDefault(); event.stopPropagation(); invoke(id);
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (!keyboard) { shortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); }
+      invoke(id);
+    };
+    const consumeClick = (event: MouseEvent) => {
+      // Programmatic runner clicks are the action itself, not the physical
+      // press's trailing click (notably when a button is bound to MB1).
+      if (!event.isTrusted || event.button !== shortcutPress.current) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (event.type === "click" || event.type === "auxclick") shortcutPress.current = null;
     };
     const run = (event: Event) => invoke((event as CustomEvent<string>).detail);
-    window.addEventListener("keydown", keydown, true);
+    window.addEventListener("keydown", input, true);
+    window.addEventListener("pointerdown", input, true);
+    window.addEventListener("mousedown", consumeClick, true);
+    window.addEventListener("click", consumeClick, true);
+    window.addEventListener("auxclick", consumeClick, true);
     window.addEventListener("omnium:invoke-button", run);
-    return () => { window.removeEventListener("keydown", keydown, true); window.removeEventListener("omnium:invoke-button", run); };
+    return () => { window.removeEventListener("keydown", input, true); window.removeEventListener("pointerdown", input, true);
+      window.removeEventListener("mousedown", consumeClick, true); window.removeEventListener("click", consumeClick, true); window.removeEventListener("auxclick", consumeClick, true);
+      window.removeEventListener("omnium:invoke-button", run); };
   }, [shortcuts, frameActions]);
 
   const frameMenu = (owner: string, x: number, y: number) => setMenu({ owner, x, y });
@@ -1581,6 +1577,8 @@ export function UIWorkspace({
         update,
         functions,
         shortcutBindings: shortcuts?.bindings,
+        shortcutCapturing: shortcuts?.capturing,
+        shortcutsBlocked: shortcuts?.blocked,
         registerFunction,
         configure: (id) => {
           if (id) reopenAppearance();
@@ -1617,6 +1615,7 @@ export function UIWorkspace({
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
       <NativeActions />
+      <ValueFieldBehavior />
       <CustomControls />
       <NamePresentation />
       {children}
@@ -1767,6 +1766,9 @@ export function UIWorkspace({
           >
             Create UI frame
           </button>
+          {containers(layout).some(([, state]) => state.closed) && <button data-ui-id="restore-hidden-ui" onClick={() => {
+            setQuery(""); setLibraryOpen(true); setMenu(null);
+          }}>Restore hidden UI</button>}
           <button
             onClick={() => {
               setLibraryOpen(true);
@@ -1800,22 +1802,21 @@ export function UIWorkspace({
             onChange={(e) => setQuery(e.target.value)}
           /></label></UIField>
           <div className="function-library categorized-library">
-            {Object.entries(layout.windows).some(([, state]) => state.closed) && (
-              <UISection id="closed-frames" title="Closed frames">
-                {Object.entries(layout.windows).filter(([, state]) => state.closed).map(([id]) => {
-                  const key = `window:${id}`;
-                  const title = layout.labels?.[key] ?? frameActions.get(key)?.title ?? id.replace(/^panel:/, "");
-                  return <button key={id} onClick={() => update(layout => updateContainer(layout, key, { closed: false, collapsed: false }))}>Open {title}</button>;
-                })}
-              </UISection>
-            )}
+            {containers(layout).some(([, state]) => state.closed) && <section aria-label="Hidden UI" className="hidden-ui-library">
+              <h3>Hidden UI</h3>
+              {containers(layout).filter(([, state]) => state.closed).map(([key, state]) => {
+                const title = layout.labels?.[key] ?? ("name" in state ? state.name : frameActions.get(key)?.title ?? key.replace(/^window:(panel:)?/, ""));
+                if (query && !`${title} ${key}`.toLowerCase().includes(query.toLowerCase())) return null;
+                return <button key={key} data-ui-id={`restore:${key}`} onClick={() => update(layout => reopenContainer(layout, key))}>Restore {title}</button>;
+              })}
+            </section>}
             {LIBRARY_CATEGORIES.map((category) => {
               const entries = functions
                 .filter(
                   (fn) =>
                     !fn.scope &&
                     libraryCategory(fn) === category &&
-                    `${fn.label} ${fn.id} ${category}`.toLowerCase().includes(query.toLowerCase()),
+                    `${fn.label} ${fn.id} ${category} ${functionShortcutBinding(fn.id, shortcuts?.bindings)}`.toLowerCase().includes(query.toLowerCase()),
                 )
                 .sort((a, b) => a.label.localeCompare(b.label));
               return (
@@ -1835,7 +1836,7 @@ export function UIWorkspace({
               );
             })}
             {!functions.some((fn) =>
-              `${fn.label} ${fn.id} ${libraryCategory(fn)}`
+              `${fn.label} ${fn.id} ${libraryCategory(fn)} ${functionShortcutBinding(fn.id, shortcuts?.bindings)}`
                 .toLowerCase()
                 .includes(query.toLowerCase()),
             ) && <p>No matching controls.</p>}

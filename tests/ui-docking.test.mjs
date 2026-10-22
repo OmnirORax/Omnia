@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { activateDockMember, emptyUILayout, floatResident, ownerOf, validateUILayout } from "../src/ui/layout.ts";
+import { activateDockMember, closeContainer, reopenContainer, emptyUILayout, floatResident, ownerOf, validateUILayout } from "../src/ui/layout.ts";
 import { dockFrame, edgeDockRect, fitDockRect, fitDockResidents, workspaceDockRects } from "../src/ui/docking.ts";
 import { dockKeys, updateDockNode } from "../src/ui/dockTree.ts";
 const rect = { x: 100, y: 100, width: 600, height: 450 };
@@ -115,4 +115,26 @@ test("explicit floating overflow preserves size and movement while retaining a r
   assert.equal(fitWindow(saved, 800, 600).width, wide.width);
   const layout = fixture(); layout.windows.a = saved;
   assert.deepEqual(validateUILayout(JSON.parse(JSON.stringify(layout))).windows.a, saved);
+});
+
+
+test("closing a custom dock frame retains its contents and customization through reload and restoration", () => {
+  const area = { x: 8, y: 50, width: 1200, height: 800 };
+  const docked = dockFrame(fixture(), "window:a", { side: "left", edge: "left", rect });
+  const frame = docked.frames[0], key = `frame:${frame.id}`;
+  const before = JSON.stringify(docked), closed = closeContainer(docked, key);
+  assert.deepEqual(closed.frames[0], { ...frame, closed: true });
+  assert.equal(ownerOf(closed, "window:a"), key);
+  assert.equal(workspaceDockRects(closed, area).active, false);
+  const saved = validateUILayout(JSON.parse(JSON.stringify(closed)));
+  const restored = reopenContainer(saved, key);
+  assert.deepEqual(restored.frames[0], { ...frame, closed: false, collapsed: false });
+  assert.deepEqual(restored.windows, JSON.parse(JSON.stringify(docked.windows)));
+  assert.ok(workspaceDockRects(restored, area).docks.left);
+  assert.equal(JSON.stringify(docked), before);
+  const empty = closeContainer({ ...fixture(), frames: [{ ...frame, members: [], dockLayout: undefined }] }, key);
+  assert.equal(empty.frames.length, 1, "a hidden empty group is still recoverable");
+  const next = dockFrame(closed, "window:b", { side: "left", edge: "left", rect });
+  assert.notEqual(next.frames.find(f => !f.closed).id, frame.id, "new docking does not enter hidden UI");
+  assert.equal(reopenContainer(next, key).frames.find(f => f.id === frame.id).dockEdge, undefined, "restore floats when its old edge is occupied");
 });

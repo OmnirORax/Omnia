@@ -1,4 +1,5 @@
-/** Presentation controls, not Omnium knowledge or an Omnic grammar. */
+import { PROPERTIES } from "./registry.ts";
+/** Shared controls, independent of canonical knowledge and Omnic grammar. */
 export const APPEARANCE_HIERARCHY_ID = "appearance:hierarchy";
 export type PropertyNode = {
   id: string;
@@ -73,6 +74,17 @@ export const PROPERTY_TREE: PropertyNode[] = [
     ],
   },
 ];
+// Preserve established node IDs/ownership. New properties/categories are discovered
+// from the shared pool instead of requiring a second hand-written tree entry.
+const represented = (nodes: PropertyNode[]): string[] => nodes.flatMap(node => [...(node.property ? [node.property] : []), ...represented(node.children ?? [])]);
+const known = new Set(represented(PROPERTY_TREE));
+for (const property of PROPERTIES.filter(property => !known.has(property.id))) {
+  const category = property.category!;
+  const id = `category:${category.id}`;
+  let node = PROPERTY_TREE.find(node => node.id === id);
+  if (!node) { node = { id, label: category.label, children: [] }; PROPERTY_TREE.push(node); }
+  node.children!.push(leaf(property.id, property.label));
+}
 export function propertyPath(id: string, nodes = PROPERTY_TREE): string[] {
   for (const node of nodes) {
     if (node.property === id) return [node.id];

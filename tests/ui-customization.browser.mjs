@@ -10,8 +10,9 @@ try {
   const errors = [];
   p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(process.env.ATLAS_URL || "http://127.0.0.1:5173/");
-  const master = p.getByRole("region", { name: "Master appearance controller" });
+  const master = p.getByRole("region", { name: "Master controller" });
   await master.waitFor();
+  if (await p.getByRole("button", { name: "Visuals", exact: true }).getAttribute("aria-expanded") === "false") await p.getByRole("button", { name: "Visuals", exact: true }).click();
   const animation = master.locator(
     '[data-property-node="effect"] > .property-node-heading .property-node-name',
   );

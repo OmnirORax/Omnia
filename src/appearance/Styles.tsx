@@ -2,8 +2,11 @@ import { useMemo } from "react";
 import { fontFamily } from "../fonts";
 import { connected } from "./model";
 import { useAppearance } from "./Context";
-import { tint, valueFor } from "./resolve";
+import { tint, createValueResolver } from "./resolve";
 import { brightHex } from "./resolve";
+import { ScopedTextAppearance } from "./ScopedTextAppearance";
+import { partSelector, scopeDepth } from "./partScope";
+import { TARGETS } from "./registry";
 
 /** Renderer adapter: styling bindings are declared alongside registered targets. */
 export function AppearanceStyles() {
@@ -12,18 +15,15 @@ export function AppearanceStyles() {
     if (!context || context.safe) return "";
     const { base, state, targets } = context,
       rules: string[] = ["body *{--omnium-custom-shadow:0 0 0 transparent}"];
+    const read = createValueResolver(base, state, targets);
     for (const target of [...targets].sort(
-      (a, b) =>
-        (a.instance?.path?.length ?? -1) +
-        (a.instance?.owner.startsWith("function:") ? 1 : 0) -
-        (b.instance?.path?.length ?? -1) -
-        (b.instance?.owner.startsWith("function:") ? 1 : 0),
+      (a, b) => (a.instance ? scopeDepth(a.instance) : -1) - (b.instance ? scopeDepth(b.instance) : -1),
     )) {
       const binding = target.binding;
+      if (target.instance?.part?.text !== undefined) continue;
       if (target.aggregate && !target.instance) continue;
       if (!binding?.selector || !binding.css || !target.properties) continue;
       const values = state.values[target.id] ?? {};
-      const local = !!target.instance;
       const icon = binding.animation?.kind === "icons" && binding.css === "color";
       const active = target.properties
         .filter(
@@ -36,39 +36,46 @@ export function AppearanceStyles() {
       // Always establish an icon's own ink, even before it has an override.
       // Otherwise currentColor falls through to a styled text container.
       if (!active && !legacyText && !icon) continue;
-      const color = valueFor(base, state, target, "color") as string,
-        brightness = valueFor(base, state, target, "brightness") as number,
-        opacity = valueFor(base, state, target, "opacity") as number,
-        glow = valueFor(base, state, target, "glow") as number;
+      const color = read(target, "color") as string,
+        brightness = read(target, "brightness") as number,
+        opacity = read(target, "opacity") as number,
+        glow = read(target, "glow") as number;
       const owner = target.instance?.owner;
       const scope = owner
         ? owner.startsWith("function:")
           ? `[data-ui-function="${CSS.escape(owner.slice(9))}"]`
           : `:is([data-ui-resident-root="${CSS.escape(owner)}"],[data-ui-proxy-for="${CSS.escape(owner)}"])`
         : undefined;
-      const selector = scope
+      // Keep the source binding's specificity while restricting its match to
+      // the exact address, so a broad local rule cannot override a narrower edit.
+      const baseSelector = target.instance?.part ? TARGETS.find(base => base.id === target.instance!.base)?.binding?.selector?.replace(/::placeholder/g, "") : undefined;
+      const selector = target.instance?.part
+        ? `${partSelector(target.instance)}:is(:where(*),${baseSelector ?? "*"})${target.instance.base === "text.ui.placeholders" ? "::placeholder" : ""}` : scope
         ? `:is(${scope}:is(${binding.selector}),${scope} :is(${binding.selector}))`
         : `:is(${binding.selector})`;
-      const rawSelector = binding.selector.includes("::")
+      const rawSelector = target.instance?.part ? selector : binding.selector.includes("::")
         ? binding.selector
             .split(",")
             .map((part) => (scope ? `${scope} ${part}` : part))
             .join(",")
         : selector;
-      const declarations = [`${binding.css}:${tint(color, brightness, opacity)} !important`];
-      const get = (p: string) => valueFor(base, state, target, p);
+      const rootSelector = target.instance?.part && target.instance.owner === "app"
+        ? ":root[data-omnium-theme]" : ":root[data-omnium-theme] body";
+      const declarations: string[] = [];
+      const get = (p: string) => read(target, p);
       const custom = (p: string) =>
         values[p] !== undefined || !connected(state, targets, target.id, p);
+      if (!binding.text || ["color", "brightness", "opacity"].some(custom) || legacyText)
+        declarations.push(`${binding.css}:${tint(color, brightness, opacity)} !important`);
       if (icon) {
         declarations.push("text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${color})` : ""} !important`);
       } else if (binding.text) {
-        declarations.push(
-          `text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${color}` : "none"} !important`,
-        );
-        if (values.font !== undefined || local)
+        if (["glow", "color", "brightness", "opacity"].some(custom) || legacyText)
+          declarations.push(`text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${color}` : "none"} !important`);
+        if (custom("font"))
           declarations.push(
-            `font-family:${fontFamily(valueFor(base, state, target, "font"))} !important`,
+            `font-family:${fontFamily(read(target, "font"))} !important`,
           );
         for (const [p, css, suffix] of [
           ["textSize", "font-size", "px"],
@@ -87,7 +94,7 @@ export function AppearanceStyles() {
         if (binding.css === "background-color") {
           if (custom("rounding"))
             rules.push(
-              `:root[data-omnium-theme] body ${rawSelector}:not(.shape-circle,.shape-triangle,input[type="color"],.shape-circle button,.shape-triangle button){border-radius:${get("rounding")}px !important}`,
+              `${rootSelector} ${rawSelector}:not(.shape-circle,.shape-triangle,input[type="color"],.shape-circle button,.shape-triangle button){border-radius:${get("rounding")}px !important}`,
             );
           if (["gradient", "gradientColor", "gradientAngle"].some(custom))
             declarations.push(
@@ -103,25 +110,25 @@ export function AppearanceStyles() {
         );
         if (target.properties.includes("blur"))
           declarations.push(
-            `backdrop-filter:blur(${Number(valueFor(base, state, target, "blur"))}px) !important`,
+            `backdrop-filter:blur(${Number(read(target, "blur"))}px) !important`,
           );
       }
-      rules.push(`:root[data-omnium-theme] body ${rawSelector}{${declarations.join(";")}}`);
+      rules.push(`${rootSelector} ${rawSelector}{${declarations.join(";")}}`);
     }
     const thumb = targets.find((t) => t.id === "ui.scrollbars.thumb")!,
       track = targets.find((t) => t.id === "ui.scrollbars.track")!;
     if (state.values[thumb.id] || state.values[track.id]) {
       const ink = (t: typeof thumb) =>
         tint(
-          valueFor(base, state, t, "color") as string,
-          Number(valueFor(base, state, t, "brightness")),
-          Number(valueFor(base, state, t, "opacity")),
+          read(t, "color") as string,
+          Number(read(t, "brightness")),
+          Number(read(t, "opacity")),
         );
       rules.push(`:root[data-omnium-theme] *{scrollbar-color:${ink(thumb)} ${ink(track)}}`);
     }
     return rules.join("\n");
   }, [context]);
-  return <style data-appearance-registry>{css}</style>;
+  return <><style data-appearance-registry>{css}</style><ScopedTextAppearance /></>;
 }
 export function useIconTint(owner: string, fallbackOwner?: string) {
   return iconTintFor(useAppearance(), owner, fallbackOwner);
@@ -130,16 +137,17 @@ export function useIconTint(owner: string, fallbackOwner?: string) {
 export function iconTintFor(ctx: ReturnType<typeof useAppearance>, owner: string, fallbackOwner?: string) {
   if (!ctx || ctx.safe) return {};
   const instance = ctx.targets.find(
-    (t) => t.instance?.base === "symbols.ui" && t.instance.owner === owner,
+    (t) => t.instance?.base === "symbols.ui" && t.instance.owner === owner && !t.instance.part,
   );
   const fallback = fallbackOwner
     ? ctx.targets.find(
-        (t) => t.instance?.base === "symbols.ui" && t.instance.owner === fallbackOwner,
+        (t) => t.instance?.base === "symbols.ui" && t.instance.owner === fallbackOwner && !t.instance.part,
       )
     : undefined;
   const target = instance ?? fallback ?? ctx.targets.find((t) => t.id === "symbols.ui");
   if (!target) return {};
-  const get = (p: string) => valueFor(ctx.base, ctx.state, target, p);
+  const read = createValueResolver(ctx.base, ctx.state, ctx.targets);
+  const get = (p: string) => read(target, p);
   const custom = ctx.state.values[target.id] ?? {},
     brightness = Number(get("brightness")),
     glow = Number(get("glow"));

@@ -675,10 +675,26 @@ export function closeContainer(layout: UILayout, key: string): UILayout {
   const released = state?.inline && !state.inline.detached ? layout : releaseResident(layout, key);
   return pruneEmptyDockGroups(updateContainer(released, key, { closed: true }));
 }
+/** Restore the saved object and reveal its enclosing UI without resetting it. */
+export function reopenContainer(layout: UILayout, key: string): UILayout {
+  if (!getContainer(layout, key)) return layout;
+  let next = layout, current: string | undefined = key;
+  const state = getContainer(layout, key);
+  if (state && "dockEdge" in state && state.dockEdge && layout.frames.some(frame =>
+    `frame:${frame.id}` !== key && !frame.closed && !ownerOf(layout, `frame:${frame.id}`) && frame.dockEdge === state.dockEdge))
+    next = updateContainer(next, key, { dockEdge: undefined });
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    next = updateContainer(next, current, { closed: false, collapsed: false });
+    current = ownerOf(next, current);
+  }
+  return activateDockMember(next, key);
+}
 export function pruneEmptyDockGroups(layout: UILayout): UILayout {
   let next = layout;
   for (let i = 0; i < layout.frames.length; i++) {
-    const empty = next.frames.find(frame => frame.dockGroup && !frame.members?.length);
+    const empty = next.frames.find(frame => frame.dockGroup && !frame.closed && !frame.members?.length);
     if (!empty) break;
     next = releaseResident({ ...next, frames: next.frames.filter(frame => frame.id !== empty.id) }, `frame:${empty.id}`);
   }

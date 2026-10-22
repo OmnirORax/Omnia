@@ -4,6 +4,7 @@ import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from
 import { ANIMATION_TARGETS, EFFECT_KINDS, MAX_STAR_DENSITY, MAX_STAR_SIZE, normalizeSparkleOverrides, type AnimationTarget, type SurfaceTarget, type SparkleStyle, type EffectKind } from "./graph/effects.ts";
 import type { StyleDefaults } from "./graph/appearance.ts";
 import { normalizeFont, type FontId } from "./fonts.ts";
+import { FEATURE_ACTIONS } from "./featureActions.ts";
 
 export const ACTIONS = [
   { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "S" },
@@ -49,7 +50,8 @@ export const ACTIONS = [
   { id: "cancel", category: "Workspace", label: "Cancel or close menu", defaultKey: "Esc" },
   { id: "settings", category: "Workspace", label: "Workspace settings", defaultKey: "" },
   { id: "theme", category: "Workspace", label: "Toggle neon appearance", defaultKey: "" },
-  { id: "appearance", category: "Workspace", label: "Theme / aesthetics", defaultKey: "" },
+  { id: "appearance", category: "Workspace", label: "Master controller", defaultKey: "" },
+  ...FEATURE_ACTIONS,
 ] as const;
 export const NUDGE_ACTIONS = ["nudgeLeft", "nudgeRight", "nudgeUp", "nudgeDown"] as const;
 export type NudgeActionId = (typeof NUDGE_ACTIONS)[number];
@@ -74,12 +76,34 @@ export function normalizeKey(event: KeyboardEvent): string {
   const key = event.key === "Escape" ? "Esc" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
   return [event.ctrlKey || event.metaKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : "", key].filter(Boolean).join("+");
 }
+export function normalizePointer(event: Pick<MouseEvent, "button" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">): string {
+  // Browser button ordering is left, middle, right; UI button names are MB1/2/3.
+  const button = ["MB1", "MB3", "MB2", "MB4", "MB5"][event.button];
+  return button ? [event.ctrlKey || event.metaKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : "", button].filter(Boolean).join("+") : "";
+}
+export function actionScope(id: string): string {
+  const action = ACTIONS.find(action => action.id === id);
+  return action && "scope" in action ? action.scope : "global";
+}
+export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
+export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
+export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;
+/** Native pointer gesture modifiers may accompany a saved command. Exact
+ * bindings are dispatched first; fallback never revives cleared/rebound inputs. */
+export function matchesPointerShortcut(id: string, bindings: Record<string, string>, event: Pick<MouseEvent, "button" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">, gestureModifiers = true): boolean {
+  const key = normalizePointer(event);
+  if (matchesShortcut(id, bindings, key)) return true;
+  const action = FEATURE_ACTIONS.find(action => action.id === id);
+  if (!gestureModifiers || !action || !("pointerGestureModifiers" in action) || !event.ctrlKey || event.metaKey) return false;
+  const modifiers: readonly string[] = action.pointerGestureModifiers;
+  return matchesShortcut(id, bindings, key.split("+").filter(part => !modifiers.includes(part)).join("+"));
+}
 export function actionForKey(bindings: WorkspaceSettings["bindings"], key: string): ActionId | null {
-  return ACTIONS.find((action) => bindings[action.id] === key)?.id ?? null;
+  return ACTIONS.find((action) => !isFeatureAction(action.id) && bindings[action.id] === key)?.id ?? null;
 }
 export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: string, key: string): string | null {
   if (!key) return null;
-  return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key)?.[0] ?? null;
+  return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key && actionScope(id) === actionScope(actionId))?.[0] ?? null;
 }
 export function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'));
@@ -95,6 +119,17 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   defaults.appearance.controller = loadController(undefined);
   try {
     const value = input as Partial<WorkspaceSettings>;
+    const savedBindings = { ...value.bindings };
+    // Removed operations identify the old bundles. Preserve custom assignments;
+    // later saves omit the obsolete ID, so explicitly cleared toggles stay clear.
+    const legacyExclude = savedBindings["selector.exclude"];
+    if (savedBindings["selector.include"] === "MB2" && legacyExclude === "MB1" && savedBindings["selector.edit"] === "") {
+      savedBindings["selector.include"] = "MB1";
+      savedBindings["selector.edit"] = "MB2";
+    } else if (savedBindings["selector.include"] === "" && legacyExclude === "" && savedBindings["selector.edit"] === "MB2") {
+      savedBindings["selector.include"] = "MB1";
+    }
+    delete savedBindings["selector.exclude"];
     defaults.appearance.controller = loadController(value.appearance?.controller);
     defaults.appearance.font = normalizeFont(value.appearance?.font);
     if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;
@@ -129,17 +164,18 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.subtreeModifier ?? "")) defaults.mouse.subtreeModifier = value.mouse!.subtreeModifier;
     for (const field of ["selectionModifier", "nestModifier"] as const) if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.[field] ?? "")) defaults.mouse[field] = value.mouse![field];
     for (const field of ["backButton", "forwardButton", "shiftBackButton", "shiftForwardButton"] as const) if (ACTIONS.some((a) => a.id === value.mouse?.[field])) defaults.mouse[field] = value.mouse![field];
-    for (const action of ACTIONS) if (typeof value.bindings?.[action.id] === "string" && value.bindings[action.id].length <= 32) defaults.bindings[action.id] = value.bindings[action.id];
-    for (const [id, key] of Object.entries(value.bindings ?? {})) {
+    for (const action of ACTIONS) if (typeof savedBindings?.[action.id] === "string" && savedBindings[action.id].length <= 32) defaults.bindings[action.id] = savedBindings[action.id];
+    for (const [id, key] of Object.entries(savedBindings ?? {})) {
       if (!id.startsWith("button:") || id.length > 300 || typeof key !== "string" || key.length > 32) continue;
       defaults.bindings[id] = key;
       const label = value.buttonLabels?.[id];
       defaults.buttonLabels[id] = typeof label === "string" ? label.slice(0, 200) : id.slice(7);
     }
     // New defaults must not take keys already assigned in an existing saved configuration.
-    for (const action of [...NUDGE_ACTIONS, "searchUI"] as const) {
-      const key = defaults.bindings[action];
-      if (value.bindings && !Object.hasOwn(value.bindings, action) && Object.entries(value.bindings).some(([id, binding]) => id !== action && binding === key && defaults.bindings[id] === key)) defaults.bindings[action] = "";
+    for (const action of ACTIONS) {
+      const key = defaults.bindings[action.id];
+      if (key && savedBindings && !Object.hasOwn(savedBindings, action.id) && Object.entries(savedBindings).some(([id, binding]) =>
+        id !== action.id && binding === key && defaults.bindings[id] === key && actionScope(id) === actionScope(action.id))) defaults.bindings[action.id] = "";
     }
     return defaults;
   } catch { return defaults; }
@@ -147,6 +183,13 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
 
 /** Shared IDs keep ordinary actions and their customized buttons on one binding. */
 export const buttonShortcutId = (id: string) => ACTIONS.some(action => action.id === id) ? id : `button:${id}`;
+/** Search rows, moved functions and ordinary command buttons share one binding
+ * identity. Resolve live settings rather than indexing rendered hint text. */
+export function functionShortcutBinding(functionId: string | undefined, bindings: Record<string, string> = {}): string {
+  if (!functionId) return "";
+  const id = functionId.startsWith("shortcut:") ? functionId.slice("shortcut:".length) : functionId;
+  return shortcutBinding(id.startsWith("button:") ? id : buttonShortcutId(id), bindings);
+}
 export type ButtonShortcuts = {
   bindings: Record<string, string>;
   capturing: string | null;

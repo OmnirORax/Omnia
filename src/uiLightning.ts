@@ -5,6 +5,7 @@ export type GlyphScope = {
   key: string;
   shape?: "surface" | "contour" | "glyphs";
   text?: (parent: HTMLElement) => boolean;
+  node?: (node: Node) => boolean;
   input?: (input: HTMLElement) => boolean;
   icons?: boolean;
 };
@@ -131,6 +132,7 @@ function snapshot(
   ) {
     if (
       (scope?.text && !scope.text(node.parentElement!)) ||
+      (scope?.node && !scope.node(node)) ||
       !node.textContent?.trim() ||
       !node.parentElement ||
       !visible(node.parentElement) ||

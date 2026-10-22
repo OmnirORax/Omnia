@@ -10,9 +10,10 @@ try {
   await page.addInitScript(layout => { if (!sessionStorage.getItem('ui-authoring-seeded')) { localStorage.setItem('omnium.ui.layout.v1', JSON.stringify(layout)); sessionStorage.setItem('ui-authoring-seeded','1'); } }, layout);
   await page.goto(process.env.ATLAS_URL || 'http://127.0.0.1:5181/');
   const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('omnium.ui.layout.v1')));
-  const theme = page.getByRole('dialog', { name: 'Theme / aesthetics', exact: true });
+  const theme = page.getByRole('dialog', { name: 'Master controller', exact: true });
   const editor = page.getByRole('dialog', { name: 'UI edit mode', exact: true });
   await editor.waitFor();
+  if (await theme.getByRole("button", { name: "Visuals", exact: true }).getAttribute("aria-expanded") === "false") await theme.getByRole("button", { name: "Visuals", exact: true }).click();
   const sets = theme.getByRole('button', { name: 'Appearance targeting sets', exact: true });
   await sets.waitFor();
   const key = await sets.getAttribute('data-ui-drag');

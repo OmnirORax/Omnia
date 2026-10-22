@@ -5,6 +5,8 @@ import { useUI } from "./context";
 import { normalizeSearch } from "./FrameSearch";
 import { globalControls, locateSearchResult, type GlobalResult, type SearchReveal } from "./search";
 import { useAppearance } from '../appearance/Context';
+import { functionShortcutBinding } from "../workspaceActions";
+import { ShortcutHint } from "./ShortcutHint";
 
 export type GlobalSearchProps = {
   open: boolean;
@@ -46,7 +48,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
   }, []);
   const revealSession = useRef<RevealSession | null>(null);
   const tokens = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
-  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.heading} ${result.label}`).includes(token)));
+  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.heading} ${result.label} ${functionShortcutBinding(result.functionId, ui.shortcutBindings)}`).includes(token)));
   const visible = matches.slice(0, 100);
   const groups = useMemo(() => {
     const grouped = new Map<string, { result: GlobalResult; position: number }[]>();
@@ -123,7 +125,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
     }} onPointerCancel={() => { drag.current = null; setDragging(false); }} onLostPointerCapture={() => { drag.current = null; setDragging(false); }}><strong>Search UI</strong><button aria-label="Close global UI search" onClick={close}>×</button></header>
     <input ref={input} type="search" aria-label="Search all UI controls" placeholder="Find a function or setting…" value={query} onChange={event => { stopPreview(); setQuery(event.target.value); setActive(-1); setNotice(""); }} role="combobox" aria-expanded="true" aria-controls={id} aria-activedescendant={active >= 0 && visible[active] ? `${id}-${active}` : undefined} />
     <div id={id} className="ui-frame-search-results" role="listbox" aria-label="Global UI results" onMouseLeave={stopPreview}>
-      {groups.map(([heading, entries]) => <section key={heading} role="group" aria-label={heading}><h3>{heading}</h3>{entries.map(({ result, position }) => <button key={result.key} id={`${id}-${position}`} role="option" aria-selected={position === active} aria-disabled={!result.available || undefined} title="Hover to reveal · click to use · right-click to go there" onMouseEnter={() => preview(result, position)} onMouseLeave={stopPreview} onPointerDown={event => event.preventDefault()} onClick={() => choose(result, position, false)} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); choose(result, position, true); }}><span>{result.label}</span>{!result.available && <small>Needs a selected node or relationship</small>}</button>)}</section>)}
+      {groups.map(([heading, entries]) => <section key={heading} role="group" aria-label={heading}><h3>{heading}</h3>{entries.map(({ result, position }) => <button key={result.key} id={`${id}-${position}`} role="option" aria-selected={position === active} aria-disabled={!result.available || undefined} title="Hover to reveal · click to use · right-click to go there" onMouseEnter={() => preview(result, position)} onMouseLeave={stopPreview} onPointerDown={event => event.preventDefault()} onClick={() => choose(result, position, false)} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); choose(result, position, true); }}><span>{result.label}<ShortcutHint binding={functionShortcutBinding(result.functionId, ui.shortcutBindings)} /></span>{!result.available && <small>Needs a selected node or relationship</small>}</button>)}</section>)}
     </div>
     <small role="status">{notice || (matches.length ? `${matches.length} results${matches.length > 100 ? " · first 100 shown" : ""}` : "No matching UI controls.")}</small>
     <small>Hover: reveal · Left-click: use · Right-click: go there</small>

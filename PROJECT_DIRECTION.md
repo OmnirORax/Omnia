@@ -1,5 +1,10 @@
 # Omnia direction
 
+Workers start with [the system onboarding map](docs/WORKER_ONBOARDING.md). The
+general function/property coupling core is documented in
+[Shared properties](docs/SHARED_PROPERTIES.md); initial visual and nonvisual
+consumers are integrated, with further migration pending. Coupled consumers retain independent values.
+
 Omnia is intended to become a shared environment where humans and AI construct, explore, understand and manipulate knowledge through structured nodegraphs.
 
 - **Omnium:** a genuinely three-dimensional, spatial, hierarchical nodegraph. Three-dimensional space is essential.
@@ -48,7 +53,7 @@ Delete on a selection removes its canonical concepts and subnodes globally, incl
 
 Shift-click (configurable) expands every charted structural level beneath a node, or collapses a fully expanded subtree, in one undoable operation. This reveals references without inventing facts; it is distinct from Shift-drag nesting and from variant expansion.
 
-Appearance reuses CSS and existing Three.js addons: default Neon, switchable Classic, editable accent/background, bloom, panel opacity/blur and optional Stars/Dust/Sparks. The dedicated Theme / aesthetics window is part of the default UI. Appearance belongs to local UI settings/templates, never knowledge; authored colors take precedence. Subtle optional motion is capped at 30 fps, pauses in hidden tabs, respects reduced motion and does not rebuild graph geometry per frame. With motion off, rendering is on demand. Zero glow bypasses post-processing; unavailable effects fall back to ordinary rendering.
+Appearance reuses CSS and existing Three.js addons: default Neon, switchable Classic, editable accent/background, bloom, panel opacity/blur and optional Stars/Dust/Sparks. The dedicated Master controller window is part of the default UI. Appearance belongs to local UI settings/templates, never knowledge; authored colors take precedence. Subtle optional motion is capped at 30 fps, pauses in hidden tabs, respects reduced motion and does not rebuild graph geometry per frame. With motion off, rendering is on demand. Zero glow bypasses post-processing; unavailable effects fall back to ordinary rendering.
 
 An unnamed node/variant without an asset is a sphere, default diameter 1 (radius 0.5). Nonempty visible text replaces it with a label box; an asset replaces it with that asset and optional text. Empty text never renders an Untitled box. Stable IDs and existing authored names survive representation changes. Shared visual footprints drive placement, compaction and framing; sphere connectors meet their surfaces. Picking volumes never become visible on hover/selection. Use restrained outlines and protect icon details from bloom. Binders use Three.js screen-width antialiased lines. Keep the movable camera compass, without world-origin axes in the scene.
 

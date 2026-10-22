@@ -93,6 +93,7 @@ export function ContextualAppearance({
         renderEditor={(id) => (
           <UIField id={`ui:appearance:local:${stableUIHash(owner)}:${id}`} label={`${label} local ${id}`} category="Appearance"><PropertyEditor
             property={id}
+            previewTargets={[instance ?? { ...base, id: instanceId(base.id, owner), instance: { base: base.id, owner, label } }]}
             effectKinds={target.effectKinds}
             label={`${label} local ${id}`}
             value={valueFor(ctx.base, ctx.state, target, id)}

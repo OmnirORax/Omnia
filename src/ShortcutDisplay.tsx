@@ -7,6 +7,11 @@ import {
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { UISection } from "./ui/UISection";
 import { FunctionControl } from "./ui/UIWorkspace";
+import { FEATURE_GESTURES } from "./featureActions";
+export function ShortcutGestures({ category }: { category: string }) {
+  return FEATURE_GESTURES.filter(gesture => gesture.category === category).map(gesture =>
+    <p key={gesture.id} title={gesture.description}><kbd>{gesture.binding}</kbd> · {gesture.label}</p>);
+}
 export function ShortcutDisplay({
   settings,
   onChange,
@@ -36,12 +41,13 @@ export function ShortcutDisplay({
       closeLabel="Close shortcut display"
       onInteract={onInteract}
     >
-      <p>Click a function to run it. Click its key to rebind; Esc cancels.</p>
+      <p>Click a function to run it. Click its binding, then press a key or mouse button to rebind; Esc cancels. Hover a row for its context.</p>
       {Array.from(new Set(ACTIONS.map((a) => a.category))).map((category) => (
         <UISection legacyTag="SECTION" key={category} id={`shortcuts-${category}`} title={category}>
           {ACTIONS.filter((a) => a.category === category).map((a) => (
             <FunctionControl key={a.id} id={`shortcut:${a.id}`} />
           ))}
+          <ShortcutGestures category={category} />
         </UISection>
       ))}
       {Object.keys(settings.bindings).some(id => id.startsWith("button:")) && <UISection legacyTag="SECTION" id="button-shortcuts" title="Button shortcuts">

@@ -1,190 +1,15 @@
 import { EFFECT_KINDS } from "../graph/effects.ts";
-import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
-import { type Controller, type Target, type Value, normalizeController } from "./model.ts";
+import { normalizeFont } from "../fonts.ts";
+import { type Controller, type Target, type Values, normalizeController } from "./model.ts";
 import { migrateEffects } from "./migrateEffects.ts";
 import { migrateFieldBranches } from "./migrateFields.ts";
 import type { AnimationTarget } from "../graph/effects.ts";
-export type Property = {
-  id: string;
-  label: string;
-  kind: "color" | "number" | "select" | "toggle";
-  min?: number;
-  max?: number;
-  step?: number;
-  initial: Value;
-  neutral?: Value;
-  options?: readonly { id: string; label: string }[];
-};
-/** Add properties once here. Editors, applicability, fine locks and validation consume this registry. */
-export const PROPERTIES: Property[] = [
-  { id: "color", label: "Color", kind: "color", initial: "#60ddec" },
-  {
-    id: "brightness",
-    label: "Brightness",
-    kind: "number",
-    min: 0,
-    max: 3,
-    step: 0.05,
-    initial: 1,
-    neutral: 1,
-  },
-  {
-    id: "opacity",
-    label: "Opacity",
-    kind: "number",
-    min: 0,
-    max: 1,
-    step: 0.05,
-    initial: 1,
-    neutral: 1,
-  },
-  { id: "glow", label: "Glow", kind: "number", min: 0, max: 2, step: 0.05, initial: 0, neutral: 0 },
-  { id: "blur", label: "Blur", kind: "number", min: 0, max: 20, step: 1, initial: 10, neutral: 0 },
-  {
-    id: "effect",
-    label: "Animation",
-    kind: "select",
-    initial: "stars",
-    neutral: "off",
-    options: EFFECT_KINDS.map((id) => ({
-      id,
-      label:
-        id === "starfield"
-          ? "🌌✧"
-          : id === "electric-text"
-            ? "Lightning text / icons"
-            : id === "falling-stars"
-              ? "Falling stars / snow"
-              : id === "lightning"
-                ? "Lightning outlines"
-                : id[0].toUpperCase() + id.slice(1),
-    })),
-  },
-  {
-    id: "speed",
-    label: "Animation speed",
-    kind: "number",
-    min: 0,
-    max: 1,
-    step: 0.05,
-    initial: 0.25,
-    neutral: 0,
-  },
-  {
-    id: "intensity",
-    label: "Effect intensity",
-    kind: "number",
-    min: 0,
-    max: 1,
-    step: 0.05,
-    initial: 0.35,
-    neutral: 0,
-  },
-  {
-    id: "density",
-    label: "Density",
-    kind: "number",
-    min: 0,
-    max: 4,
-    step: 0.05,
-    initial: 0.5,
-    neutral: 0,
-  },
-  {
-    id: "size",
-    label: "Star size",
-    kind: "number",
-    min: 0.1,
-    max: 3,
-    step: 0.05,
-    initial: 1,
-    neutral: 1,
-  },
-  {
-    id: "length",
-    label: "Lightning length",
-    kind: "number",
-    min: 0.05,
-    max: 1,
-    step: 0.05,
-    initial: 0.35,
-  },
-  {
-    id: "font",
-    label: "Font",
-    kind: "select",
-    initial: "system",
-    neutral: "system",
-    options: FONT_OPTIONS,
-  },
-];
-const numeric = (
-  id: string,
-  label: string,
-  min: number,
-  max: number,
-  step: number,
-  initial: number,
-): Property => ({ id, label, kind: "number", min, max, step, initial, neutral: initial });
-PROPERTIES.push(
-  numeric("contourWidth", "Contour thickness", 0, 12, 0.5, 1),
-  {
-    id: "contourStyle",
-    label: "Contour style",
-    kind: "select",
-    initial: "solid",
-    neutral: "solid",
-    options: ["solid", "dashed", "dotted"].map((id) => ({ id, label: id })),
-  },
-  numeric("rounding", "Corner rounding", 0, 48, 1, 6),
-  numeric("textSize", "UI text size", 8, 48, 1, 12),
-  numeric("textWeight", "UI text weight", 100, 900, 100, 400),
-  numeric("textSpacing", "UI text spacing", -1, 6, 0.1, 0),
-  { id: "gradient", label: "Gradient fill", kind: "toggle", initial: false, neutral: false },
-  { id: "gradientColor", label: "Gradient second color", kind: "color", initial: "#7546cf" },
-  numeric("gradientAngle", "Gradient direction", 0, 360, 1, 135),
-  numeric("shadowStrength", "Shadow strength", 0, 1, 0.05, 0),
-  numeric("shadowSpread", "Shadow spread", 0, 32, 1, 0),
-  numeric("shadowX", "Shadow horizontal offset", -32, 32, 1, 0),
-  numeric("shadowY", "Shadow vertical offset", -32, 32, 1, 4),
-  numeric("saturation", "UI icon saturation", 0, 2, 0.05, 1),
-);
-// Effect controls describe a target's presentation, never another target branch.
-export const EFFECT_PROPERTIES = [
-  "effect",
-  "speed",
-  "intensity",
-  "density",
-  "size",
-  "length",
-  "effectColor",
-  "effectBrightness",
-  "effectOpacity",
-  "effectGlow",
-];
-for (const [id, label, source] of [
-  ["effectColor", "Animation color", "color"],
-  ["effectBrightness", "Animation brightness", "brightness"],
-  ["effectOpacity", "Animation opacity", "opacity"],
-  ["effectGlow", "Animation glow", "glow"],
-] as const) {
-  const original = PROPERTIES.find((p) => p.id === source)!;
-  PROPERTIES.push({ ...original, id, label });
-}
-export const propertyFor = (id: string) => PROPERTIES.find((p) => p.id === id);
-export function validateProperty(id: string, value: unknown): Value | undefined {
-  const p = propertyFor(id);
-  if (!p) return;
-  if (p.kind === "toggle") return typeof value === "boolean" ? value : undefined;
-  if (p.kind === "color")
-    return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
-  if (p.kind === "number")
-    return typeof value === "number" && Number.isFinite(value)
-      ? Math.max(p.min!, Math.min(p.max!, value))
-      : undefined;
-  if (id === "font") return typeof value === "string" ? normalizeFont(value) : undefined;
-  return p.options?.some((o) => o.id === value) ? (value as string) : undefined;
-}
+import { GLYPH_PROPERTIES, partSelector } from "./partScope.ts";
+import { PROPERTY_REGISTRY, propertyFor, validateProperty, EFFECT_PROPERTIES } from "../properties/catalog.ts";
+import type { ConsumerGroup } from "../properties/registry.ts";
+import "../properties/functions.generated.ts";
+export { PROPERTY_REGISTRY, PROPERTIES, propertyFor, validateProperty, EFFECT_PROPERTIES } from "../properties/catalog.ts";
+export type { Property } from "../properties/catalog.ts";
 export const loadController = (value: unknown) =>
   migrateFieldBranches(migrateEffects(
     normalizeController(value, validateProperty),
@@ -192,6 +17,9 @@ export const loadController = (value: unknown) =>
     EFFECT_PROPERTIES,
   ), LEGACY_FIELD_BRANCHES);
 export type Binding = {
+  /** Non-DOM paint exposes its screen hit surface separately from CSS styling.
+   * Target addressing edits the existing renderer consumer, not a DOM instance. */
+  selection?: { selector: string; role: "background"; renderer: "scene"; address: "target" };
   selector?: string;
   css?: string;
   legacy?: string;
@@ -205,14 +33,19 @@ export type Binding = {
     priority?: number;
   };
 };
-export type RegisteredTarget = Target & { binding?: Binding; hidden?: boolean; aggregate?: boolean };
+export type RegisteredTarget = Target & { self?: boolean; binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
+export const SELECTOR_FEEDBACK = {
+  included: { label: "Included", color: "#28ff62" },
+  excluded: { label: "Excluded", color: "#ff6c73" },
+  boundary: { label: "Boundary", color: "#60ddec" },
+} as const;
 /** Inline artwork has its own ink; it never inherits a text target's color. */
 export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];
-const branch = (id: string, parent: string | undefined, label: string) =>
-  entries.push({ id, parent, label });
+const branch = (id: string, parent: string | undefined, label: string, self = false) =>
+  entries.push({ id, parent, label, ...(self ? { self } : {}) });
 const part = (
   id: string,
   parent: string,
@@ -426,6 +259,14 @@ part("ui.guides.contour", "ui.guides", "Selection / snapping contours", {
   css: "border-color",
   legacy: "accent",
 });
+branch("ui.guides.selector", "ui.guides", "Selector feedback", true);
+for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
+  entries.push({
+    id: `ui.guides.selector.${tone}`, parent: "ui.guides.selector", label: defaults.label,
+    properties: [...surface], hidden: tone === "excluded", defaults: { color: defaults.color, brightness: 1, opacity: 1, glow: 1 },
+    // The feedback adapter paints SVG edges, glyph ranges and icons together.
+    binding: { selector: `.visual-selection-trace.is-${tone}` },
+  });
 branch("text", "all", "Text");
 branch("text.ui", "text", "UI text");
 for (const [id, label, selector] of [
@@ -517,9 +358,45 @@ part(
   "workspace.background",
   "all",
   "Workspace background",
-  { legacy: "background", animation: { kind: "surface", source: "background" } },
+  { legacy: "background", animation: { kind: "surface", source: "background" },
+    selection: { selector: ".spatial-workspace > canvas", role: "background", renderer: "scene", address: "target" } },
   ["color", "brightness"],
 );
+// Existing renderer declarations also join the same pool. This preserves their
+// IDs/default resolution while making shared capabilities discoverable centrally.
+for (const target of entries.filter(target => target.properties?.length)) {
+  if (PROPERTY_REGISTRY.consumer(target.id)) throw new Error(`Consumer registered twice: ${target.id}`);
+  const group: ConsumerGroup[] = [];
+  let parent = entries.find(entry => entry.id === target.parent);
+  while (parent && parent.id !== "all") { group.unshift({ id: parent.id, label: parent.label, ...(parent.self ? { self: true } : {}) }); parent = entries.find(entry => entry.id === parent!.parent); }
+  const consumer = PROPERTY_REGISTRY.couple({ id: target.id, label: target.label, owner: "appearance", group,
+    locator: target.binding?.selector,
+    properties: target.properties!.map(property => ({ property,
+      ...(property === "effect" && target.effectKinds ? {
+        initial: target.effectKinds.includes(String(target.defaults?.effect ?? propertyFor("effect")!.initial))
+          ? target.defaults?.effect ?? propertyFor("effect")!.initial : "off",
+        choices: target.effectKinds,
+      } : {}),
+    })),
+  });
+  target.couplings = consumer.channels;
+  target.properties = consumer.properties;
+}
+// A coupled appearance consumer gets its hierarchy path and capabilities here.
+// No feature-specific target row or copied property editor is required.
+for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner === "appearance")) {
+  if (entries.some(entry => entry.id === consumer.id)) continue;
+  let parent = "all";
+  for (const group of consumer.group) {
+    const existing = entries.find(entry => entry.id === group.id);
+    if (existing && existing.parent !== parent) throw new Error(`Conflicting consumer group: ${group.id}`);
+    if (!existing) branch(group.id, parent, group.label, group.self);
+    parent = group.id;
+  }
+  entries.push({ id: consumer.id, label: consumer.label, parent,
+    properties: consumer.properties, couplings: consumer.channels, defaults: consumer.defaults,
+    effectKinds: consumer.choices.effect, binding: consumer.locator ? { selector: consumer.locator } : undefined });
+}
 export const TARGETS: readonly RegisteredTarget[] = entries;
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
   ["single", "multi", "search", "number", "select"].map(kind => [
@@ -551,10 +428,15 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
       id,
       parent,
       label: instance.label,
-      properties: base.properties,
+      properties: instance.part?.text !== undefined
+        ? base.properties?.filter(property => GLYPH_PROPERTIES.includes(property)) : base.properties,
       effectKinds: base.effectKinds,
+      couplings: base.couplings,
       instance,
-      binding: base.binding,
+      binding: instance.part && base.binding ? { ...base.binding,
+        selector: partSelector(instance) + (base.id === "text.ui.placeholders" ? "::placeholder" : ""),
+        ...(base.binding.animation ? { animation: { ...base.binding.animation, selector: partSelector(instance) } } : {}),
+      } : base.binding,
     });
   }
   return targets;

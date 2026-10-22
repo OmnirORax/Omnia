@@ -1,4 +1,4 @@
-import { TARGETS, type RegisteredTarget } from "./registry";
+import { TARGETS, type RegisteredTarget } from "./registry.ts";
 import type { GlyphScope } from "../uiLightning";
 export const uiEffectTargets = TARGETS.filter(
   (t) => !t.aggregate && t.binding?.animation && (t.binding.animation.selector || t.binding.selector),
@@ -9,7 +9,7 @@ const textTargets = uiEffectTargets
 export const effectSelector = (target: RegisteredTarget) =>
   (target.binding!.animation!.selector ?? target.binding!.selector!).replace(/::placeholder/g, "");
 /** The nearest matching text owner avoids painting nested labels twice. */
-function textOwner(start: HTMLElement) {
+export function textOwner(start: HTMLElement) {
   if (start.closest('svg,.function-icon,[data-ui-native-icon],button[data-ui-visual-kind="icon"]')) return;
   let element: HTMLElement | null = start;
   while (element) {
