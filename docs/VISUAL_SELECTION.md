@@ -40,7 +40,8 @@ The symbol has independent choices:
 - **Paired dots:** cycle pattern ⠒ → axis ↕ → direction ↑ → position | →
   individual · → pattern. E cycles the same modes while the selector is active.
   The precision dot in the aiming symbol remains the exact pointer hotspot;
-  stationary dots control the mode. Choosing a mode finishes boundary picking.
+  stationary dots control the mode. Changing modes preserves the ring's current
+  on/off state, whether done through the dots or E.
   In pattern mode, clicking a part matches its registered role across the working
   region. Individual mode affects only the clicked part.
 - **↕ / ↑ / |:** drag to place an infinite axis, a forward ray, or a finite

@@ -164,7 +164,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   };
   const cyclePattern = () => {
     gesture.current = null; setPreview(null);
-    setConfiguration(config => ({ ...config, boundaryPicking: false, pattern: nextPatternMode(config.pattern) }));
+    setConfiguration(config => ({ ...config, pattern: nextPatternMode(config.pattern) }));
   };
   const actions = useRef({ previewAt, close, disable, undo, redo, accept, aim, edit, cyclePattern });
   actions.current = { previewAt, close, disable, undo, redo, accept, aim, edit, cyclePattern };
