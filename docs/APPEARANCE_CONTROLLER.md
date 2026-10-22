@@ -106,7 +106,13 @@ available visual controls, and explicit function-to-consumer declarations add
 coupled nonvisual controls (currently the placement radius/clearance functions).
 Edits retain selected-part scope, protections, shared drafts and state-owner
 transactions. Merely inspecting does not create local instances. Inspector controls
-are tool chrome and preserve the active UI selection while being used. General
+are tool chrome and preserve the active UI selection while being used. Focusing
+them pauses selector picking and green paint, so the actual edited ink is visible.
+Complete selected text hosts use scoped CSS typography; partial runs support exact
+paint and text-node effects, while unsupported partial typography stays unavailable.
+Color edits do not reset fonts, and typography-only edits preserve unrelated paint.
+The effect renderer builds local resolver/ownership caches per appearance state;
+paint-only edits with no visible animation do not activate effect scans. General
 3D/graph selection and unmigrated function fields still need their own capability
 and state-adapter integration; they are not inferred from a screenshot or label.
 

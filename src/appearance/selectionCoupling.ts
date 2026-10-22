@@ -41,16 +41,26 @@ export function applySelectedValue(state: Controller, parts: SelectedPart[], pro
   if (value === undefined) return state;
   const next = structuredClone(state);
   const editable = selectedPartPolicy(state);
+  const runs = new Map<string, [string, Instance][]>();
+  const hostKey = (instance: Instance) => JSON.stringify([instance.base, instance.owner, instance.part?.steps]);
+  for (const entry of Object.entries(state.instances)) if (entry[1].part?.text !== undefined) {
+    const key = hostKey(entry[1]); runs.set(key, [...(runs.get(key) ?? []), entry]);
+  }
   let changed = false;
   for (const part of parts) {
     const target = selectedPartTarget(part), id = target.id;
     if (!editable(part, property) || (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value)))) continue;
+    // Whole-text hosts supersede older exact-run paint at the same address.
+    // Update eligible channels together so an old Highlight cannot mask the edit.
+    const equivalentRuns = part.part.text === undefined ? runs.get(hostKey(part)) ?? [] : [];
     for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
       if (!editable(part, channel)) continue;
       if (next.values[id]?.[channel] === value) continue;
       next.instances[id] = part;
       next.values[id] = { ...next.values[id], [channel]: value };
       next.refined[id] = [...new Set([...(next.refined[id] ?? []), channel])];
+      for (const [oldId, instance] of equivalentRuns) if (state.values[oldId]?.[channel] !== undefined && editable(instance as SelectedPart, channel))
+        next.values[oldId] = { ...next.values[oldId], [channel]: value };
       changed = true;
     }
   }

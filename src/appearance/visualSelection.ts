@@ -28,6 +28,8 @@ export type SelectionConstraint = {
   path?: PathCondition;
   contour?: boolean;
   geometryId?: string;
+  ownerFrame?: boolean;
+  framePart?: string;
   scope?: SelectionConstraint;
 };
 export type SelectionRule = SelectionConstraint & { include: boolean; implicit?: boolean };
@@ -216,7 +218,9 @@ function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, meas
   const peers = root && box ? source.filter(part => {
     const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
     // Paths define their own inside/outside. The owner merely anchors coordinates.
-    const inRegion = rule.path ? (rule.region === "outside" || rule.region === "both" || root.contains(part.element)) && measure.rects(part).some(rect => pathTouchesBox(rule.path!, box, rect, rule.contour !== false, rule.region, vertices)) :
+    const frameItself = part.key === rule.framePart || rule.ownerFrame && part.element === root && !part.range && (part.role === "background" || part.role === "contour");
+    const inRegion = frameItself ? rule.contour !== false : rule.path ?
+      (rule.region === "outside" || rule.region === "both" || root.contains(part.element)) && measure.rects(part).some(rect => pathTouchesBox(rule.path!, box, rect, rule.contour !== false, rule.region, vertices)) :
       regionAllows(rule.region ?? "inside", inside);
     return inRegion && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
   }) : [];
@@ -261,4 +265,15 @@ export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionB
     else if (state && !state.implicit) result.excluded.push(part);
   }
   return result;
+}
+
+/** Prevent a large background/ancestor part from previewing a local selection
+ * when the pointer itself is outside the enabled closed-shape regions. */
+export function pointerInSelectionScope(scope: SelectionConstraint, element: Element, point: Point): boolean {
+  if (scope.scope && !pointerInSelectionScope(scope.scope, element, point)) return false;
+  if (!scope.path) return true; // Open line scope is tested against the hit part.
+  const owner = boundaryRect(scope.boundary), root = boundaryElement(scope.boundary);
+  if (!owner || !root) return false;
+  if (scope.region !== "outside" && scope.region !== "both" && !root.contains(element)) return false;
+  return pathTouchesBox(scope.path, owner, { left: point.x, right: point.x, top: point.y, bottom: point.y }, scope.contour !== false, scope.region);
 }

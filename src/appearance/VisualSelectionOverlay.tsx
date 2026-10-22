@@ -172,7 +172,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         const edges = pathEdges(path.points, path.closed);
         const stroke = (disabled: boolean) => edges.flatMap(([a, b], index) => path.disabledEdges.includes(index) === disabled
           ? [`M${a.x} ${a.y}L${b.x} ${b.y}`] : []).join(" ");
-        return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(path.preview ? path.include ? paints.included : paints.excluded : paints.boundary) }}>
+        return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(path.preview && path.include !== undefined ? paints.included : paints.boundary) }}>
           <path className="visual-selection-line" d={stroke(false)} fill="none" />
           <path className="visual-selection-line is-disabled" d={stroke(true)} fill="none" />
           {path.closed && path.points.length > 2 && path.points.length < 24 && path.points.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="2.5" />)}
@@ -180,9 +180,9 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
             x={(a.x + b.x) / 2 + 4} y={(a.y + b.y) / 2 - 4}>{index + 1}</text>)}
         </g>;
       })}
-      {guides.map(({ key, points: [a, b], include, direction }) => <line key={key} className="visual-selection-line is-accepted"
+      {guides.map(({ key, points: [a, b], direction }) => <line key={key} className="visual-selection-line is-accepted"
         x1={a.x} y1={a.y} x2={b.x} y2={b.y} markerEnd={direction ? "url(#selector-line-arrow)" : undefined}
-        style={{ color: feedbackInk(include ? paints.included : paints.excluded) }} />)}
+        style={{ color: feedbackInk(paints.boundary) }} />)}
       {guide && <g style={{ color: feedbackInk(candidate?.include === false ? paints.excluded : paints.included) }}>
         <line className="visual-selection-line" x1={guide[0].x} y1={guide[0].y} x2={guide[1].x} y2={guide[1].y}
           markerEnd={candidate?.line?.mode === "direction" ? "url(#selector-line-arrow)" : undefined} />

@@ -32,19 +32,19 @@ export function SelectorSymbol({ configuration, actions, precision = false, patt
   } : {};
   return <svg className={`visual-selector-symbol operation-${include ? "include" : "exclude"}`} viewBox="0 0 320 300"
     aria-label={actions ? "Contour, inside, outside and selection geometry" : undefined} aria-hidden={actions ? undefined : true}>
-    <g className="selector-outside" {...button("Outside geometry", region === "outside" || region === "both", () => actions?.region("outside"))} {...preview("outside")}>
-      {actions && <title>Toggle outside independently. Closed shapes have an exterior; open paths use intersections.</title>}
+    <g className="selector-outside" {...button("⏺ Outside frame", region === "outside" || region === "both", () => actions?.region("outside"))} {...preview("outside")}>
+      {actions && <title>Outside frame: include everything outside the boundary. Independent of In-frame and Frame.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="119" fill="none" strokeWidth="34" />}
       <circle className="selector-region-mark" cx="140" cy="136" r="119" fill="none" strokeWidth="30" />
       <circle className="selector-outside-edge" cx="140" cy="136" r="133" fill="none" strokeWidth="1.5" />
     </g>
-    <g className="selector-inside" {...button("Inside geometry", region === "inside" || region === "both", () => actions?.region("inside"))} {...preview("inside")}>
-      {actions && <title>Toggle inside independently. Closed shapes have an interior; open paths use intersections.</title>}
+    <g className="selector-inside" {...button("◉ In-frame", region === "inside" || region === "both", () => actions?.region("inside"))} {...preview("inside")}>
+      {actions && <title>In-frame: include everything inside the boundary, excluding the frame itself.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="68" />}
       <circle className="selector-region-mark" cx="140" cy="136" r="65" />
     </g>
-    <g {...button("Contour / intersections", contour, () => actions?.contour())}>
-      {actions && <title>Toggle the contour or path intersections. This never blocks E or another geometry mode.</title>}
+    <g {...button("🞅 Frame", contour, () => actions?.contour())}>
+      {actions && <title>Frame: include the frame itself or open-path intersections. With all three off, click to define a neutral frame; detection then follows the pointer inside or outside.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="88" fill="none" strokeWidth="32" />}
       <circle className="selector-ring" cx="140" cy="136" r="88" fill="none" strokeWidth="9" />
     </g>

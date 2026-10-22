@@ -1,8 +1,7 @@
-import { controllerTargets } from "./appearance/registry";
 import { effectsFor } from "./appearance/resolve";
-import { uiEffectTargets, effectSelector, effectScope } from "./appearance/uiEffects";
-import { elementEffects } from "./appearance/localEffects";
-import { useEffect, useRef } from "react";
+import { uiEffectTargets, effectSelector, effectScope, textOwner } from "./appearance/uiEffects";
+import { createElementEffectsResolver } from "./appearance/localEffects";
+import { useEffect, useMemo, useRef } from "react";
 import type { WorkspaceSettings } from "./workspaceActions";
 import { clearUILightningContours, drawUILightning, drawUIElectricText } from "./uiLightning";
 import { effectSeed, effectVisible, fallingStar, perimeterPoint } from "./graph/effects";
@@ -18,8 +17,8 @@ export function WindowSparkles({
   const canvas = useRef<HTMLCanvasElement>(null),
     current = useRef(appearance);
   current.current = appearance;
-  const raw = useRef(source);
-  raw.current = source;
+  const effectPlan = useMemo(() => createElementEffectsResolver(source, appearance), [source, appearance]);
+  const plan = useRef(effectPlan); plan.current = effectPlan;
   const redraw = useRef<() => void>(() => {});
   useEffect(() => {
     const surface = canvas.current!,
@@ -56,12 +55,11 @@ export function WindowSparkles({
       let moving = false,
         lightningBudget = 1800,
         electricBudget = 1_200_000;
-      const targets = raw.current.controller ? controllerTargets(raw.current.controller) : [];
+      const resolver = plan.current;
       let processed = 0;
       for (const target of uiEffectTargets) {
         const fx = effectsFor(a, target.id),
-          hasLocal = targets.some((t) => t.instance?.base === target.id ||
-            (target.hidden && t.instance?.base === target.parent));
+          hasLocal = resolver.activeLocalBases.has(target.id) || !!(target.hidden && target.parent && resolver.activeLocalBases.has(target.parent));
         if (!effectVisible(fx) && !hasLocal) continue;
         const selector = effectSelector(target);
         context.shadowBlur = (fx.glow ?? a.glow) * 12;
@@ -69,12 +67,16 @@ export function WindowSparkles({
           context.fillStyle =
           context.shadowColor =
             fx.color ?? (fx.effect === "electric-text" ? a.textColor : undefined) ?? a.accent;
-        const candidates = [...document.querySelectorAll<HTMLElement>(selector)];
-        for (let index = 0; index < Math.min(100, candidates.length) && processed < 350; index++) {
-          const element = candidates[index];
+        const localParts = resolver.forTarget(target).filter(local => local.instance?.part && effectVisible(resolver.localStyle(local)));
+        const localJobs = localParts.flatMap(local => [...document.querySelectorAll<HTMLElement>(local.binding?.animation?.selector ?? local.binding?.selector ?? selector)].map(element => ({ element, local })));
+        const replacedSurfaces = new Set(target.binding?.text ? [] : localJobs.map(job => job.element));
+        const candidates: { element: HTMLElement; local?: typeof target }[] = [...localJobs,
+          ...[...document.querySelectorAll<HTMLElement>(selector)].filter(element => !replacedSurfaces.has(element)).map(element => ({ element }))];
+        for (let index = 0; index < Math.min(350, candidates.length) && processed < 350; index++) {
+          const { element, local: exact } = candidates[index];
           if (
             !element.getClientRects().length ||
-            element.closest("[hidden],.ui-drag-source") ||
+            element.closest("[hidden],.ui-drag-source,[data-visual-selector]") ||
             getComputedStyle(element).visibility === "hidden"
           )
             continue;
@@ -88,12 +90,18 @@ export function WindowSparkles({
             r.left > width
           )
             continue;
-          const localFx = elementEffects(raw.current, a, target, element, targets);
+          const localFx = exact ? resolver.localStyle(exact) : resolver.resolve(target, element);
           if (!effectVisible(localFx)) continue;
           context.strokeStyle = context.fillStyle = context.shadowColor = localFx.color ?? a.accent;
           context.shadowBlur = (localFx.glow ?? a.glow) * 12;
-          const localTime = phase * localFx.motion,
-            scope = effectScope(target, element);
+          const localTime = phase * localFx.motion;
+          const baseScope = effectScope(target, element);
+          const scope = exact && target.binding?.text
+            ? { key: exact.id, shape: "glyphs" as const, text: (parent: HTMLElement) => textOwner(parent)?.target.id === target.id,
+              node: (node: Node) => resolver.nodeOwner(target, node)?.id === exact.id,
+              input: (input: HTMLElement) => input === element && resolver.textHostOwner(target, input)?.id === exact.id, icons: false }
+            : { ...baseScope, node: (node: Node) => !resolver.nodeOwner(target, node),
+              input: (input: HTMLElement) => (!baseScope.input || baseScope.input(input)) && !resolver.textHostOwner(target, input) };
           processed++;
           moving ||= localFx.motion > 0;
           const seed = effectSeed(
@@ -188,18 +196,11 @@ export function WindowSparkles({
       clearUILightningContours();
       request();
     };
-    const observer = new MutationObserver(() => {
-      if (
-        current.current.theme === "neon" &&
-        uiEffectTargets.some(
-          (target) =>
-            effectVisible(effectsFor(current.current, target.id)) ||
-            Object.values(raw.current.controller?.instances ?? {}).some(
-              (instance) => instance.base === target.id,
-            ),
-        )
-      )
-        request();
+    const observer = new MutationObserver(records => {
+      const relevant = records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest("[data-visual-selector],style,script,canvas"));
+      if (!relevant) return;
+      plan.current.invalidate();
+      if (uiEffectTargets.some(target => effectVisible(effectsFor(current.current, target.id))) || plan.current.activeLocalBases.size) request();
     });
     observer.observe(document.body, {
       childList: true,

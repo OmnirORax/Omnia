@@ -11,7 +11,7 @@ import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
 import { SelectedProperties } from "./SelectionController";
 import { useVisualSelection } from "./VisualSelector";
-import { describeSelectedPart } from "./selectedParts";
+import { describeSelectedParts } from "./selectedParts";
 import { collectVisualParts } from "./visualSelection";
 import { selectedPartId } from "./selectionCoupling";
 import { PROPERTY_REGISTRY } from "./registry";
@@ -45,9 +45,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
       const functionId = part.element.closest("[data-ui-function]")?.getAttribute("data-ui-function");
       return !!functionId && ui.selectedFunctions.has(functionId);
     }));
-    return [...new Map(picked.flatMap(part => {
-      const selected = describeSelectedPart(part); return selected ? [[selectedPartId(selected), selected] as const] : [];
-    })).values()];
+    return describeSelectedParts(picked);
   }, [visualSelection?.parts, selectedFunctionKey, selectingObject]);
   const selectedFunctions = new Set([...(selectingObject ? [] : ui.selectedFunctions),
     ...selectedParts.flatMap(part => part.owner.startsWith("function:") ? [part.owner.slice(9)] : [])]);
@@ -279,7 +277,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   };
   return (
     <section className="appearance-controller" aria-label="Master controller">
-      {inspecting && <div data-visual-selector className="ui-selection-tools"><UISection id="master-selection" title={selectingObject ? logicalTargets.map(target => target.label).join(" · ") : "Selected properties"} expanded>
+      {inspecting && <div data-visual-selector data-selection-editor className="ui-selection-tools"><UISection id="master-selection" title={selectingObject ? logicalTargets.map(target => target.label).join(" · ") : "Selected properties"} expanded>
         <div>
           <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />
           {selectedParts.length > 0 && <SelectedProperties parts={selectedParts} scope="master-selection" />}

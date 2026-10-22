@@ -1,8 +1,9 @@
+import { EFFECT_PROPERTIES } from "../properties/catalog.ts";
 /** Serializable visual-part addresses, separate from property definitions and values. */
 export const PART_KEYS = ["id", "data-ui-id", "data-property-node", "data-appearance-target"] as const;
 export type PartStep = { tag: string; index: number; key?: typeof PART_KEYS[number]; value?: string };
 export type PartScope = { steps: PartStep[]; text?: number };
-export const GLYPH_PROPERTIES = ["color", "brightness", "opacity", "glow"];
+export const GLYPH_PROPERTIES = ["color", "brightness", "opacity", "glow", ...EFFECT_PROPERTIES];
 export function normalizePartScope(input: unknown): PartScope | undefined {
   if (!input || typeof input !== "object") return;
   const part = input as PartScope;

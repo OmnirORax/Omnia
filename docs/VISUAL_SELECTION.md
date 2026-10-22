@@ -16,9 +16,9 @@ unfinished gesture; native color-picker blur keeps the property editor mounted.
 
 The ○ has three independent settings:
 
-- Ring: the contour/path intersections.
-- Center: inside a closed shape.
-- Surrounding annulus: outside a closed shape.
+- **🞅 Frame:** include the pointed frame itself or contour/path intersections.
+- **◉ In-frame:** include everything inside a closed shape, excluding the frame itself.
+- **⏺ Outside frame:** include everything outside a closed shape.
 
 Inside and Outside can both be on, either on or both off; pressing again clears
 only that setting. Open paths need no interior: their working set is the patterns
@@ -32,19 +32,26 @@ There is one selection action: LMB toggles a pattern/individual, or places geome
 A fully included target becomes unselected; an unselected target becomes included.
 A mixed category becomes fully included. Clicking the same category/individual
 again reverses it. Preview and commit use the shared `selectionToggleRule`; commit
-rechecks current state rather than replaying a stale hover decision. A settled
-pointer does not immediately preview the inverse action after committing; moving
-or a new press resumes preview. Green/red feedback indicates adding/removing,
-not separate operation modes. There is no exclude command or +/− pair.
+rechecks current state rather than replaying a stale hover decision. Hover previews appear only while holding Ctrl while aiming. Additions preview in
+green; hovering included patterns previews removal by temporarily hiding their
+green. Releasing Ctrl or leaving restores accepted feedback. A settled pointer
+does not immediately preview the inverse action after committing; moving, pressing
+Ctrl again or a new press resumes preview. Everything not green is unselected. There is no exclude command or +/− pair.
 
 Geometry starts with an implicit off baseline and includes only its checked ○
-regions. With Inside unchecked, contents stay off yet remain available for
-selective inclusion. Checking Inside includes all contents; subsequent clicks
-make exceptions by toggling selected patterns off. The geometric working domain
-is separate from the inclusion mask. Closed shapes keep their interiors available
-for picking regardless of the Inside checkbox; enabling Outside additionally
-allows exterior picks. Open paths retain their intersections even when their
-contour baseline is off. Implicitly off regions are not flooded with red feedback.
+regions. The checked regions also constrain picking. Checking In-frame includes
+all contents; subsequent clicks toggle matching patterns off or on. Frame includes
+the actual pointed object, independently of its interior/exterior. Outside frame
+includes the exterior without the frame itself or its contents.
+
+With all three regions off, clicking a pattern first establishes a neutral frame
+and includes nothing. Detection then follows the pointer automatically: inside the
+frame detects interior patterns; outside detects exterior patterns. This side
+change never includes anything by itself. Each accepted pattern toggle captures
+its detected side, so moving outside does not change earlier interior selections.
+The category list follows the last pointer side before entering tool chrome.
+Turning In-frame on after this neutral setup includes the whole interior.
+Neutral open paths remain available for selectively including their intersections.
 
 Changing a circle checkbox resets only its region to the new baseline, restoring
 any overlaps with other checked regions. Exceptions in unrelated regions remain.
@@ -71,8 +78,7 @@ mode buttons, pattern filters/counts and edge toggles. Modes are:
   distinct categories. Pointer-event-transparent nested text is recognized from
   its text-range geometry even when its parent receives the pointer event.
 - **Individual ·:** toggle only the pointed registered part, within the same scope.
-- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Wheel
-  changes containing-owner depth. The adapter uses the element rectangle and
+- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Before placement, Wheel changes containing-owner depth. The adapter uses the element rectangle and
   selectable sides; Inside/Outside apply to its contents/exterior. Its stable
   resident/function anchor follows docking/reparenting and size changes.
 - **Axis ↕ / direction ↑ / segment |:** drag an infinite line, forward ray or
@@ -96,6 +102,8 @@ New geometry intersects the existing working set; Release working geometry keeps
 accepted rules and returns subsequent picks to app-wide matching. This permits
 choosing a window first, then drawing an axis within it. Custom drawing coordinates
 are relative to the viewport owner; pointed geometry uses its actual UI owner.
+Wheel rotates the selected geometry in fine screen-space increments about its
+center, including in non-square owners. Rotation joins selection undo/redo.
 
 For example: turn the contour baseline off, choose Axis and drag through several
 controls. Its intersections remain the working set while all start off. Click a
@@ -123,8 +131,9 @@ changes, releases, logical-object picks and clear in one transient timeline. It
 never writes graph/UI/appearance history or browser storage. Ctrl/Cmd+Z,
 Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y are the defaults while configuring/aiming. New
 operations after undo replace its redo branch. Unfinished drawing is not accepted
-on blur/cancel. Hover previews show only matches whose include/exclude state would
-change; explicit removals remain red and inclusions green; implicit off baselines are unpainted.
+on blur/cancel. Ctrl-hover previews show only matches whose inclusion state would change.
+Additions are green; removals temporarily hide green. Implicit off baselines and
+accepted exclusions have no red paint.
 
 The mouse-shaped button selects the logical Mouse group through the generic
 `selectObject` API. Selecting an already selected logical target toggles it off;
@@ -147,8 +156,9 @@ are not current matches. Live rules reevaluate on relevant DOM/geometry changes.
 Accepted parts reveal applicable properties in Master controller through the
 shared selected-part editor. Hover candidates do not change that inspector. The
 stationary edit button or platform keyboard context menu opens Selected appearance
-at the pointer. This uses accepted parts even when invoked over a gap. Picking
-stops while editing; Continue selecting resumes aiming. Logical targets reveal
+at the pointer. This uses accepted parts even when invoked over a gap. Picking and selection paint stop while editing so the actual edited property is
+visible; Continue selecting or the selector toggle resumes the tool. Focusing the
+selected-properties inspector in Master controller also pauses picking and paint. Logical targets reveal
 Master controller directly. Unsupported capabilities remain unavailable.
 
 A property change creates/updates local part references in the existing
@@ -167,14 +177,21 @@ authors should supply stable data-ui-id keys for reorderable children. Invalid
 imported addresses are rejected, never widened to an owner-wide edit.
 
 Surface/input/icon instances use the existing CSS/effect adapters with their exact
-scope. Ranged text uses a shared-controller CSS Custom Highlight adapter, painting
-only the selected glyphs. It currently supports Color, Brightness, Opacity and
-Glow; typography and effects are not advertised until an exact glyph adapter can
-support them. Browsers without Custom Highlights cannot edit ranged text in this
-pass. Missing property values inherit broader refinements without freezing them.
+scope. Completely selected text hosts use scoped CSS for font, size, weight and
+spacing. A text host is promoted only when all its nonempty descendant text is
+selected; partial runs never widen to their owner. Partial runs use CSS Custom
+Highlights for Color, Brightness, Opacity and Glow, plus the shared effect adapter
+with exact text-node ownership. Partial-run typography remains unavailable until
+a renderer can support it precisely. Browsers without Custom Highlights cannot
+edit ranged text in this pass. Missing values inherit broader refinements without
+freezing them. Paint-only text changes do not reset fonts or unrelated paint.
+
 Controller policy and value resolution share indexed lookups within a transaction
-or render, rather than rebuilding the registry for every selected part/property.
-The resolver caches metadata only, never the current property values.
+or render. Animation resolution caches ownership and local styles, invalidating on
+real DOM/appearance changes rather than selector movement. Paint-only refinements
+do not start effect scans when their resolved animation is off. Exact local text
+effects own their nodes once; broader effects omit those nodes. Temporary selector
+chrome/style mutations cannot trigger persistent glyph-paint/effect rescans.
 
 This increment edits currently accepted parts. Boundary/pattern rules remain live
 while selecting, but are not saved as automatic rules for future matching parts.
@@ -183,7 +200,8 @@ remain follow-up work. No competing appearance editor or property store is added
 
 ## Selection feedback
 
-Included/excluded parts use green/red neon traces; the boundary stays cyan. A soft
+Included parts use green neon traces; the boundary stays cyan. Unselected parts
+are unpainted, including accepted exclusions. A soft
 rim, continuous rail and moving dashed seam show each surface or contour. The seam
 travels around the edge without rotating/resizing the selected object. Background
 tints remain translucent. Background and contour matches on one element share a
@@ -195,7 +213,8 @@ faint cue while the high point restores full ink and glow. Preview changes do no
 restart the shared pulse clock.
 
 Visual hierarchy → Windows / frames / controls → UI arrangement indicators →
-Selector feedback exposes Included, Excluded and Boundary. The shared Color,
+Selector feedback exposes Included, Excluded and Boundary. The Excluded ID is
+retained for saved-theme compatibility; the single-toggle tool does not paint red. The shared Color,
 Brightness, Opacity and Glow properties style the feedback adapter's edges, text
 and icons together; there is no separate selector value store or editor. These
 targets declare their semantic color defaults in the registry. Lightning/effect

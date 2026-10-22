@@ -1,4 +1,4 @@
-import { PART_KEYS, normalizePartScope, type PartStep } from "./partScope";
+import { PART_KEYS, normalizePartScope, type PartStep } from "./partScope.ts";
 import type { SelectedPart } from "./selectionCoupling";
 import type { VisualPart } from "./visualSelection";
 
@@ -25,4 +25,27 @@ export function describeSelectedPart(part: VisualPart): SelectedPart | undefined
   const caption = (root.getAttribute("aria-label") ?? root.querySelector("[data-ui-inline-handle],.ui-frame-handle")?.textContent ?? "").trim().slice(0, 100);
   return { base: part.target.id, owner, part: scope, path,
     label: `${caption || part.target.label} · ${part.role}${text !== undefined ? ` ${text + 1}` : ""}` };
+}
+
+/** A complete text host can use the existing CSS/font and glyph-effect adapter.
+ * Partial text runs keep their exact range adapter instead of widening scope. */
+export function describeSelectedParts(parts: VisualPart[]): SelectedPart[] {
+  const selectedNodes = new Set(parts.flatMap(part => part.range ? [part.range.startContainer] : []));
+  const result = parts.flatMap(part => {
+    const selected = describeSelectedPart(part);
+    if (!selected) return [];
+    if (part.range) {
+      const walker = document.createTreeWalker(part.element, NodeFilter.SHOW_TEXT);
+      let complete = true;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.textContent?.trim() && !selectedNodes.has(node)) { complete = false; break; }
+      }
+      if (complete) {
+        const { text: _text, ...host } = selected.part;
+        return [{ ...selected, part: host }];
+      }
+    }
+    return [selected];
+  });
+  return [...new Map(result.map(part => [JSON.stringify([part.base, part.owner, part.part]), part])).values()];
 }

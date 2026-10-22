@@ -16,6 +16,7 @@ export type LineCondition = {
   start: Point;
   end: Point;
   bounded: boolean;
+  rotation?: number;
   stopAtPaint?: string;
 };
 export const PATTERN_MODES: PatternMode[] = ["item", "boundary", "pattern", "axis", "direction", "position", "rectangle", "ellipse", "polygon", "freehand"];
@@ -30,7 +31,7 @@ export function intersectBoxes(a: Box, b: Box): Box | null {
 export const relativePoint = (point: Point, box: Box): Point => ({ x: (point.x - box.left) / Math.max(1, box.right - box.left), y: (point.y - box.top) / Math.max(1, box.bottom - box.top) });
 export const absolutePoint = (point: Point, box: Box): Point => ({ x: box.left + point.x * (box.right - box.left), y: box.top + point.y * (box.bottom - box.top) });
 export function conditionPoints(line: LineCondition, box: Box): [Point, Point] {
-  return [absolutePoint(line.start, box), absolutePoint(line.end, box)];
+  return rotatePoints([absolutePoint(line.start, box), absolutePoint(line.end, box)], line.rotation ?? 0) as [Point, Point];
 }
 export function lineDomain(line: Pick<LineCondition, "mode" | "bounded">): [number, number] {
   return line.bounded || line.mode === "position" ? [0, 1] : line.mode === "direction" ? [0, Infinity] : [-Infinity, Infinity];
@@ -71,8 +72,9 @@ export type PathCondition = {
   points: Point[];
   closed: boolean;
   disabledEdges?: number[];
+  rotation?: number;
 };
-export function pathVertices(path: PathCondition, owner: Box): Point[] {
+function unrotatedPathVertices(path: PathCondition, owner: Box): Point[] {
   const points = path.points.map(point => absolutePoint(point, owner));
   if (path.kind !== "rectangle" && path.kind !== "ellipse") return points;
   if (points.length < 2) return points;
@@ -112,3 +114,13 @@ export function pathTouchesBox(path: PathCondition, owner: Box, box: Box, contou
   const enclosesShape = points.some(point => point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom);
   return region === "inside" ? crossing || contained.some(Boolean) || enclosesShape : crossing || !contained.every(Boolean);
 }
+
+/** Rotation is in screen space, so non-square owners do not distort angles. */
+export function rotatePoints(points: Point[], degrees: number): Point[] {
+  if (!points.length || !degrees) return points;
+  const cx = (Math.min(...points.map(p => p.x)) + Math.max(...points.map(p => p.x))) / 2;
+  const cy = (Math.min(...points.map(p => p.y)) + Math.max(...points.map(p => p.y))) / 2;
+  const angle = degrees * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
+  return points.map(p => ({ x: cx + (p.x - cx) * cos - (p.y - cy) * sin, y: cy + (p.x - cx) * sin + (p.y - cy) * cos }));
+}
+export const pathVertices = (path: PathCondition, owner: Box) => rotatePoints(unrotatedPathVertices(path, owner), path.rotation ?? 0);

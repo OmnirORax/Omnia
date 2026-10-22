@@ -174,20 +174,26 @@ adapter; adding a UI row alone is not a working integration.
 
 The stationary meta-selector configures the tool; the compact aiming symbol is
 pointer-transparent. MB3 is the current default toggle between these states.
-The circle controls contour/intersections, Inside and Outside independently;
-it never blocks the geometry mode. One LMB action toggles membership; RMB opens editing. Unchecked ○ regions start
-off but remain geometrically pickable for selective inclusion. E cycles
-pattern, individual, pointed-owner, axis/ray/segment, rectangle, ellipse, polygon
-and freehand modes. Geometry establishes a working set; later pattern/individual
-toggles refine that set. Working geometry and its inclusion baseline are separate;
-Inside sets an all-on/all-off baseline without making unchecked contents unpickable. New geometry intersects the current set; release returns
-subsequent picks to app-wide matching. Side masks, region choices and geometry
-share the existing transient selection history. Pattern recognition uses
-registered parts and mathematical intersections, not regex or arbitrary pixels.
+The circle controls 🞅 Frame, ◉ In-frame and ⏺ Outside frame independently;
+it never blocks the geometry mode. Each includes its region; In-frame leaves the
+frame itself out. One LMB action toggles membership; RMB opens editing. With all
+three off, a click establishes a neutral frame, then pattern detection follows
+the pointer inside or outside it without changing inclusion. Hold Ctrl for hover
+previews: additions green, removal preview hides green; no red exclusion paint.
+E cycles pattern, individual, pointed-owner, axis/ray/segment, rectangle, ellipse,
+polygon and freehand modes. Wheel finely rotates selected geometry, otherwise
+changes pointed-owner depth before placement. New geometry intersects the current
+set; release returns subsequent picks to app-wide matching. Geometry, region
+baselines and exceptions share transient selection history. Pattern recognition
+uses registered parts and mathematical intersections, not regex or arbitrary pixels.
 
 Accepted selection, hover preview and property edits remain separate. Editing
 uses the controller's edit action, native keyboard context gesture or Master
-controller. Current limitations include arbitrary negative-space patterns, general
+controller. Focusing its selected-properties controls pauses selection paint so
+actual edits remain visible. Complete text hosts support typography; partial text
+runs keep exact-node paint/effect scope and do not advertise unsupported fonts.
+Effect plans cache local ownership/styles and skip inactive paint-only edits.
+Current limitations include arbitrary negative-space patterns, general
 3D selection adapters, fine letter/word selection and saved automatic matching of
 future targets. Consult `VISUAL_SELECTION.md` for the actual modes and contracts.
 Phone controls remain deferred.

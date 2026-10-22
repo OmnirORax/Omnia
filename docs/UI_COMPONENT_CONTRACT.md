@@ -67,9 +67,16 @@ UI placement is fixed outside UI edit mode by default, including older saved tem
 
 Hover preview belongs only to the visual-hierarchy include/exclude on/off button; the row, label, expander and editors do not activate it. Each appearance row has one circle: left-click toggles targeting (filled/hollow), right-click or Shift+F10 toggles stored-appearance bypass (bright/dark). Both states remain independent; inherited bypass darkens descendants. The separate power button is removed. The rigidity circle retains its movement policy without an appearance bypass. Keyboard focus on that same button also previews. Everything (`all`) is excluded from hover/focus preview; its include/exclude action remains available. The selected property's applicable bindings identify the actual paint to light-pulse: text glyphs, icon artwork, existing backgrounds, borders, fields and scrollbar parts. UI text uses the CSS Custom Highlight API with a glyph-color/shadow fallback; temporary inline paint overrides and pseudo-element rules preserve their exact previous values on exit. No bounding boxes, outline markers or added borders are used. UI rigidity uses its concrete resident inventory. Excluded, locked or bypassed matches receive a weaker pulse. Renderer parts register through `registerHierarchyScene`; the 3D adapter uses existing `graphEffectItems` references and shader masks to pulse lettering separately from its shared label background and contour. Sphere/icon/path materials pulse their own pixels, while environment background preview changes only the scene background. Shader extensions compose their cache keys with existing electric text. Individual-instance revelation retains its temporary expansion/scroll behavior with the search outline explicitly disabled. UI hover resolves targets and reads original styles in a single setup pass, then animates registered paint variables through the browser animation engine. It does not scan/read/write every window each frame. Rebuild only when relevant DOM content/visibility changes, and cancel/restore animations on exit. Large surfaces use a restrained color/alpha-preserving pulse; small controls use stronger accent color and existing-shape glow. Gradient stops retain their alpha. UI glyph highlights use shared animated tint/glow variables, without replacing the stylesheet every frame. A precomputed-variable fallback supports browsers without registered-property animations. The independent 3D pulse stays capped at 30 fps; reduced motion uses a steady cue. Leaving the button, blur, page hiding, hierarchy collapse and unmount clear all temporary paint. Hover never commits appearance/layout values, camera, graph selection or history.
 
-The visual selector's ○ is a contour/inside/outside mask, independent of geometry
-mode. Its single selection command toggles membership with LMB; RMB edits by default.
-Geometry establishes the working set independently of ○ inclusion baselines;
-unchecked contents remain available for individual/pattern toggles within it. Pointed boundaries, lines, polygons and freehand paths share matching,
-transient selection history and the existing selected-part property editor. Do
-not restore the obsolete boundary-picking flag or bars that intercepted E modes.
+The visual selector's ○ has independent 🞅 Frame, ◉ In-frame and ⏺ Outside frame
+inclusion settings, separate from geometry mode. LMB toggles membership; RMB edits.
+In-frame includes all interior parts but not the frame itself. All three off
+creates a neutral boundary: detection follows the pointer inside/outside without
+including anything. Each accepted refinement captures that side. Ctrl alone enables
+hover previews, showing additions in green and removals by hiding green; exclusions
+are unpainted. Wheel finely rotates working geometry in screen space. Pointed
+boundaries, lines, polygons and freehand share matching, transient selection history
+and the existing selected-part editor. Complete text hosts support CSS typography;
+partial runs retain exact-node paint/effects without widening. Editing pauses
+selection paint. Reuse indexed/cached effect plans; paint-only edits must not start
+inactive animation scans. Do not restore obsolete boundary-picking flags or bars
+that intercept E modes.

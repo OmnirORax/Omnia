@@ -46,7 +46,7 @@ export function ScopedTextAppearance() {
     };
     const refresh = () => { if (!frame) frame = requestAnimationFrame(paint); };
     const observer = new MutationObserver(records => {
-      if (records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest("[data-visual-selector]"))) refresh();
+      if (records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest("[data-visual-selector],style,script,canvas"))) refresh();
     });
     observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true,
       attributeFilter: ["class", "hidden", "open", "data-ui-native-hidden", "data-ui-function", "data-ui-resident-root"] });

@@ -1,3 +1,5 @@
+import { createElementEffectsResolver } from "../src/appearance/localEffects.ts";
+import { describeSelectedParts } from "../src/appearance/selectedParts.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -14,9 +16,9 @@ import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
-import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices } from "../src/appearance/selectionGeometry.ts";
-import { workingGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule } from "../src/appearance/selectionToggle.ts";
-import { partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
+import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints } from "../src/appearance/selectionGeometry.ts";
+import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule } from "../src/appearance/selectionToggle.ts";
+import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
   for (const [current, side, expected] of [
@@ -82,6 +84,16 @@ test("text hit detection recognizes a nested text host when pointer events targe
   assert.equal(partAt([text], button, 15, 30), undefined, "the surrounding button is not text ink");
 });
 
+test("line and closed-shape rotation uses screen-space angles in non-square owners", () => {
+  const owner = { left: 0, top: 0, right: 200, bottom: 100 };
+  const line = { mode: "position", start: { x: 0, y: .5 }, end: { x: 1, y: .5 }, bounded: true, rotation: 90 };
+  const points = conditionPoints(line, owner);
+  assert.ok(Math.abs(points[0].x - 100) < 1e-8 && Math.abs(points[0].y + 50) < 1e-8);
+  assert.ok(Math.abs(points[1].x - 100) < 1e-8 && Math.abs(points[1].y - 150) < 1e-8);
+  const rectangle = { kind: "rectangle", closed: true, points: [{ x: .25, y: .25 }, { x: .75, y: .75 }], rotation: 90 };
+  assert.equal(pathTouchesBox(rectangle, owner, { left: 99, right: 101, top: -1, bottom: 1 }, true), true);
+});
+
 test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {
   assert.deepEqual(paintStopDomain([
     { interval: [4, 5], paint: "white" }, { interval: [-3, -2], paint: "white" },
@@ -133,11 +145,12 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   const appBoundary = { element: app, key: "app" };
   const outline = { boundary, path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true } };
   const defaultMask = { contour: true, region: null };
-  const work = workingGeometry(outline, defaultMask);
+  let work = workingGeometry(outline, defaultMask);
   const baseline = geometryBaseline(work, defaultMask);
   const evaluate = rules => resolveVisualSelection(parts, boundary, rules);
   assert.deepEqual(evaluate(baseline), { included: [], excluded: [] }, "unchecked interiors start implicitly off without red paint everywhere");
-  assert.deepEqual(matchingVisualParts(parts, { ...work, include: true }).map(p => p.key), ["label", "icon", "button", "gap"], "unchecked contents remain available to pick");
+  assert.deepEqual(matchingVisualParts(parts, { ...work, include: true }).map(p => p.key), [], "frame-only mode does not permit interior picks");
+  work = workingGeometry(outline, { contour: false, region: "inside" });
   const individual = { boundary: appBoundary, scope: work, part: "label" };
   const on = selectionToggleRule(parts, evaluate(baseline).included, individual);
   assert.equal(on.include, true);
@@ -161,12 +174,34 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   const mixedText = selectionToggleRule(parts, evaluate(selected).included, { boundary: appBoundary, scope: work, role: "text" });
   assert.equal(mixedText.include, true, "a partially selected category fills rather than clearing its existing members");
   assert.deepEqual(evaluate([...all, ...geometryMaskChange(work, defaultMask, "inside")]).included, [], "turning Inside off restores its off baseline");
+  const frame = { key: "frame", role: "background", target: { id: "frame" }, element: root };
+  const framed = [frame, ...parts], pointed = { ...outline, ownerFrame: true };
+  assert.deepEqual(matchingVisualParts(framed, { ...workingGeometry(pointed, { contour: false, region: "inside" }), include: true }).map(p => p.key), ["label", "icon", "button", "gap"], "inside-only excludes the frame itself");
+  assert.deepEqual(matchingVisualParts(framed, { ...workingGeometry(pointed, { contour: true, region: null }), include: true }).map(p => p.key), ["frame"], "ring-only selects the frame itself");
+  assert.deepEqual(matchingVisualParts(framed, { ...workingGeometry(pointed, { contour: false, region: "outside" }), include: true }).map(p => p.key), ["outside"], "outside-only excludes the frame and its interior");
+  assert.equal(pointerInSelectionScope(work, a.element, { x: 30, y: 35 }), true);
+  assert.equal(pointerInSelectionScope(work, a.element, { x: 225, y: 35 }), false, "a large hit part cannot leak preview beyond the actual geometry");
+  const neutralMask = { contour: false, region: null };
+  const neutralFrame = workingGeometry(pointed, neutralMask);
+  const neutralRules = geometryBaseline(neutralFrame, neutralMask);
+  assert.deepEqual(evaluate(neutralRules).included, [], "all-off defines a neutral frame, not an inclusion");
+  const innerDetection = detectionGeometry(neutralFrame, neutralMask, a.element, { x: 30, y: 35 });
+  const outerDetection = detectionGeometry(neutralFrame, neutralMask, outside.element, { x: 225, y: 35 });
+  assert.deepEqual(matchingVisualParts(framed, { ...innerDetection, include: true }).map(p => p.key), ["label", "icon", "button", "gap"], "neutral detection follows the pointer inside");
+  assert.deepEqual(matchingVisualParts(framed, { ...outerDetection, include: true }).map(p => p.key), ["outside"], "neutral detection follows the pointer outside");
+  assert.deepEqual(evaluate(neutralRules).included, [], "switching detection sides does not select anything");
+  const innerText = selectionToggleRule(parts, [], { boundary: appBoundary, scope: innerDetection, role: "text" });
+  assert.deepEqual(evaluate([...neutralRules, innerText]).included.map(p => p.key), ["label", "gap"], "an accepted toggle retains its chosen side");
+  assert.deepEqual(evaluate([...neutralRules, ...geometryMaskChange(neutralFrame, { contour: false, region: "inside" }, "inside")]).included.map(p => p.key), ["label", "icon", "button", "gap"], "pressing In-frame after neutral includes all interior parts");
+  const neutralLine = workingGeometry(rule, neutralMask);
+  assert.deepEqual(evaluate(geometryBaseline(neutralLine, neutralMask)).included, []);
+  assert.deepEqual(matchingVisualParts(parts, { ...neutralLine, include: true }).map(p => p.key), ["label", "icon", "button"], "a neutral open line still detects its intersecting patterns");
   const independentOutside = { boundary: appBoundary, part: "outside", include: true };
   assert.deepEqual(evaluate([...all, independentOutside, ...geometryMaskChange(work, defaultMask, "inside")]).included.map(p => p.key), ["outside"], "changing one region preserves unrelated selections");
-  const axisWork = workingGeometry(rule, { contour: false, region: null });
-  const axisOff = geometryBaseline(axisWork, { contour: false, region: null });
+  const axisWork = workingGeometry(rule, { contour: true, region: null });
+  const axisOff = [...geometryBaseline(axisWork, { contour: true, region: null }), { ...axisWork, include: false, implicit: true }];
   assert.deepEqual(evaluate(axisOff).included, []);
-  assert.deepEqual(matchingVisualParts(parts, { ...axisWork, include: true }).map(p => p.key), ["label", "icon", "button"], "unchecked line intersections remain pickable");
+  assert.deepEqual(matchingVisualParts(parts, { ...axisWork, include: true }).map(p => p.key), ["label", "icon", "button"], "deselected intersections within the active line region remain pickable");
   const axisIcon = selectionToggleRule(parts, [], { boundary: appBoundary, scope: axisWork, role: "icon" });
   assert.deepEqual(evaluate([...axisOff, axisIcon]).included.map(p => p.key), ["icon"]);
 
@@ -199,6 +234,53 @@ const fixture = () => {
 };
 const selectedLabel = (owner, text = 0) => ({ base: "text.ui.buttons", owner: `function:${owner}`, label: `${owner} label`,
   path: ["window:panel:inspector"], part: { steps: [], text } });
+test("complete selected text hosts expose fonts/effects while partial runs retain narrow capabilities", t => {
+  const previous = Object.fromEntries(["document", "Node", "NodeFilter", "Highlight", "CSS"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  t.after(() => { for (const [key, descriptor] of Object.entries(previous)) {
+    if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
+  } });
+  const root = { childNodes: [], getAttribute: key => key === "data-ui-function" ? "label" : null,
+    closest: selector => selector === "[data-ui-resident-root]" ? null : root, querySelector: () => null };
+  const a = { nodeType: 3, textContent: "Hello", parentElement: root }, b = { nodeType: 3, textContent: "World", parentElement: root };
+  root.childNodes = [a, b];
+  Object.assign(globalThis, { Highlight: function() {}, CSS: { highlights: {} }, Node: { TEXT_NODE: 3 }, NodeFilter: { SHOW_TEXT: 4 },
+    document: { createTreeWalker: () => { let index = 0; return { nextNode: () => root.childNodes[index++] ?? null }; } } });
+  const part = node => ({ key: node.textContent, role: "text", target: { id: "text.ui.buttons" }, element: root, range: { startContainer: node } });
+  const partial = describeSelectedParts([part(a)])[0];
+  assert.equal(partial.part.text, 0);
+  assert.equal(selectedPartTarget(partial).properties.includes("font"), false);
+  const [complete] = describeSelectedParts([part(a), part(b)]);
+  assert.equal(complete.part.text, undefined);
+  assert.equal(selectedPartTarget(complete).properties.includes("font"), true);
+  assert.equal(selectedPartTarget(complete).properties.includes("effect"), true);
+  const state = applySelectedValue(emptyController(), [complete], "font", "serif");
+  assert.equal(state.values[selectedPartId(complete)].font, "serif");
+});
+
+test("paint-only local edits do not activate effect scans; local animation resolution is cached", t => {
+  const old = Object.getOwnPropertyDescriptor(globalThis, "CSS");
+  t.after(() => { if (old) Object.defineProperty(globalThis, "CSS", old); else delete globalThis.CSS; });
+  globalThis.CSS = { escape: value => value };
+  const raw = defaultSettings().appearance, glyph = selectedLabel("a");
+  const color = { ...raw, controller: applySelectedValue(raw.controller, [glyph], "color", "#ff0000") };
+  const target = controllerTargets(color.controller).find(target => target.id === "text.ui.buttons");
+  const paint = createElementEffectsResolver(color, resolveControllerAppearance(color));
+  assert.equal(paint.activeLocalBases.has(target.id), false);
+  assert.ok(paint.forTarget(target).every(local => paint.localStyle(local).effect === "off"), "paint companions cannot start animations");
+  const host = { ...glyph, part: { steps: [] } };
+  const animated = { ...raw, controller: applySelectedValue(raw.controller, [host], "effect", "electric-text") };
+  const plan = createElementEffectsResolver(animated, resolveControllerAppearance(animated));
+  assert.equal(plan.activeLocalBases.has(target.id), true);
+  const element = { closest: () => ({}), matches: () => true };
+  const local = plan.forTarget(target)[0];
+  assert.equal(plan.localStyle(local).effect, "electric-text");
+  const first = plan.resolve(target, element);
+  assert.equal(first.effect, "off", "exact text effects must not spill onto unselected nodes in the same host");
+  assert.equal(plan.resolve(target, element), first, "steady frames reuse the resolved style");
+  plan.invalidate();
+  assert.notEqual(plan.resolve(target, element), first, "real DOM changes can invalidate ownership caches");
+});
+
 test("selection edits write only accepted parts in one controller transaction and preserve targeting", () => {
   const state = emptyController(), a = selectedLabel("a"), b = selectedLabel("b"), excluded = selectedLabel("excluded");
   const before = structuredClone(state);
@@ -206,10 +288,10 @@ test("selection edits write only accepted parts in one controller transaction an
   assert.deepEqual(state, before);
   assert.deepEqual(next.sets, state.sets);
   assert.deepEqual(Object.keys(next.instances).sort(), [selectedPartId(a), selectedPartId(b)].sort());
-  assert.deepEqual(next.values[selectedPartId(a)], { color: "#e01234" });
+  assert.deepEqual(next.values[selectedPartId(a)], { color: "#e01234", effectColor: "#e01234" });
   assert.equal(next.values[selectedPartId(excluded)], undefined);
   assert.equal(next.values["text.ui.buttons"], undefined);
-  assert.deepEqual(next.refined[selectedPartId(a)], ["color"]);
+  assert.deepEqual(next.refined[selectedPartId(a)], ["color", "effectColor"]);
   assert.equal(applySelectedValue(next, [a, b], "color", "#e01234"), next);
 });
 test("narrow parts inherit broader values independently and never inherit sibling text", () => {
@@ -218,7 +300,7 @@ test("narrow parts inherit broader values independently and never inherit siblin
   state.instances[parent] = { base: a.base, owner: a.owner, label: "whole button", path: a.path };
   state.values[parent] = { color: "#123456", opacity: .65 };
   let next = applySelectedValue(state, [a], "glow", 1.5);
-  assert.deepEqual(next.values[selectedPartId(a)], { glow: 1.5 });
+  assert.deepEqual(next.values[selectedPartId(a)], { glow: 1.5, effectGlow: 1.5 });
   let target = controllerTargets(next).find(t => t.id === selectedPartId(a));
   const read = createValueResolver(defaultSettings().appearance, next);
   assert.equal(read(target, "color"), "#123456");
@@ -247,7 +329,9 @@ test("selection respects categorical and existing owner locks and bypass without
 });
 test("part capabilities limit glyph editing while surface adapters retain their supported properties", () => {
   const glyph = selectedLabel("a"), state = emptyController();
-  assert.deepEqual(selectedPartTarget(glyph).properties, ["color", "brightness", "opacity", "glow"]);
+  const properties = selectedPartTarget(glyph).properties;
+  for (const property of ["color", "brightness", "opacity", "glow", "effect", "speed", "effectColor"]) assert.ok(properties.includes(property));
+  for (const property of ["font", "textSize", "textWeight", "textSpacing"]) assert.equal(properties.includes(property), false);
   assert.equal(applySelectedValue(state, [glyph], "font", "serif"), state);
   const surface = { ...glyph, base: "ui.buttons.contour", part: { steps: [] } };
   const next = applySelectedValue(state, [surface], "contourWidth", 20);

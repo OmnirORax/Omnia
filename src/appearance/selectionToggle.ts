@@ -1,15 +1,16 @@
-import type { SelectionRegion } from "./selectionGeometry";
-import { matchingVisualParts, type SelectionConstraint, type SelectionRule, type VisualPart } from "./visualSelection.ts";
+import type { Point, SelectionRegion } from "./selectionGeometry";
+import { matchingVisualParts, pointerInSelectionScope, type SelectionConstraint, type SelectionRule, type VisualPart } from "./visualSelection.ts";
 
 export type SelectionMask = { contour: boolean; region: SelectionRegion | null };
 export type MaskPart = "contour" | "inside" | "outside";
 export const DEFAULT_SELECTION_MASK: SelectionMask = { contour: true, region: null };
 
-/** Picking remains possible in an unchecked interior. The mask sets inclusion,
- * while the working geometry determines where later exceptions can be picked. */
+/** Active regions constrain detection; a neutral frame follows the pointer side. */
 export function workingGeometry(geometry: SelectionConstraint, mask: SelectionMask): SelectionConstraint {
-  return { ...geometry, contour: true,
-    region: geometry.path?.closed ? mask.region === "outside" || mask.region === "both" ? "both" : "inside" : undefined };
+  if (!mask.contour && !mask.region) return geometry.path?.closed
+    ? { ...geometry, contour: false, region: "both" }
+    : { ...geometry, contour: true, region: undefined };
+  return maskedGeometry(geometry, mask);
 }
 export function maskedGeometry(geometry: SelectionConstraint, mask: SelectionMask): SelectionConstraint {
   return { ...geometry, contour: mask.contour, region: geometry.path?.closed ? mask.region ?? undefined : undefined };
@@ -31,4 +32,11 @@ export function selectionToggleRule(parts: VisualPart[], included: readonly Visu
   const keys = new Set(included.map(part => part.key));
   const peers = matchingVisualParts(parts, { ...constraint, include: true });
   return { ...constraint, include: !peers.length || peers.some(part => !keys.has(part.key)) };
+}
+
+/** A neutral closed frame follows the pointer side without changing inclusion. */
+export function detectionGeometry(geometry: SelectionConstraint, mask: SelectionMask, element: Element, point: Point): SelectionConstraint {
+  if (mask.contour || mask.region || !geometry.path?.closed) return geometry;
+  const inside = pointerInSelectionScope({ ...geometry, contour: false, region: "inside" }, element, point);
+  return { ...geometry, contour: false, region: inside ? "inside" : "outside" };
 }

@@ -24,7 +24,6 @@ export function AppearanceStyles() {
       if (target.aggregate && !target.instance) continue;
       if (!binding?.selector || !binding.css || !target.properties) continue;
       const values = state.values[target.id] ?? {};
-      const local = !!target.instance;
       const icon = binding.animation?.kind === "icons" && binding.css === "color";
       const active = target.properties
         .filter(
@@ -62,18 +61,19 @@ export function AppearanceStyles() {
         : selector;
       const rootSelector = target.instance?.part && target.instance.owner === "app"
         ? ":root[data-omnium-theme]" : ":root[data-omnium-theme] body";
-      const declarations = [`${binding.css}:${tint(color, brightness, opacity)} !important`];
+      const declarations: string[] = [];
       const get = (p: string) => read(target, p);
       const custom = (p: string) =>
         values[p] !== undefined || !connected(state, targets, target.id, p);
+      if (!binding.text || ["color", "brightness", "opacity"].some(custom) || legacyText)
+        declarations.push(`${binding.css}:${tint(color, brightness, opacity)} !important`);
       if (icon) {
         declarations.push("text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${color})` : ""} !important`);
       } else if (binding.text) {
-        declarations.push(
-          `text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${color}` : "none"} !important`,
-        );
-        if (values.font !== undefined || local)
+        if (["glow", "color", "brightness", "opacity"].some(custom) || legacyText)
+          declarations.push(`text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${color}` : "none"} !important`);
+        if (custom("font"))
           declarations.push(
             `font-family:${fontFamily(read(target, "font"))} !important`,
           );
