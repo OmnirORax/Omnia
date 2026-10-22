@@ -1,3 +1,4 @@
+import { createInteractionHold } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { registerHierarchyScene, scenePartAt, paintSceneSelection } from "../src/appearance/sceneFeedback.ts";
@@ -788,4 +789,26 @@ test("shared property dependencies preview inactive gradients and restore them w
   assert.equal(valueFor(preview, preview.controller, target, "gradientColor"), "#ff0000");
   assert.equal(base.controller.values[target.id].gradient, false);
   assert.equal(activityPreview(base, [{ property: "gradient", targets: [target] }]), base);
+});
+
+
+test("editing holds the last visual target context without freezing live properties or recording selection", () => {
+  const hold = createInteractionHold();
+  const source = { selected: ["background"], preview: ["text"], point: { x: 120, y: 80 } };
+  assert.equal(hold.hold(), null);
+  assert.equal(hold.held, false);
+  hold.remember(source);
+  assert.equal(hold.hold(), source);
+  hold.remember({ selected: [], preview: ["controller-input"], point: { x: 400, y: 90 } });
+  assert.equal(hold.context, source, "controller movement and Ctrl release cannot replace the held context");
+  const appearance = defaultSettings().appearance;
+  const target = controllerTargets(appearance.controller).find(target => target.id === "ui.guides.selector.included");
+  const changed = applyValue(appearance.controller, controllerTargets(appearance.controller), "color", "#ff00ff", target.id);
+  assert.equal(valueFor(appearance, changed, target, "color"), "#ff00ff");
+  assert.equal(hold.context, source, "paint comes from the live controller, not a saved animation frame");
+  assert.equal(hold.hold(), source, "switching between editor controls preserves the same context");
+  hold.release();
+  assert.equal(hold.held, false); assert.equal(hold.context, null);
+  const next = { selected: [], preview: ["next target"], point: { x: 50, y: 40 } };
+  hold.remember(next); assert.equal(hold.context, next, "resuming selection starts from fresh input");
 });

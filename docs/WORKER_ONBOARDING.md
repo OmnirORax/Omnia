@@ -204,8 +204,8 @@ feedback changes only the background and shares the existing scene registration.
 
 Accepted selection, hover preview and property edits remain separate. Editing
 uses the controller's edit action, native keyboard context gesture or Master
-controller. Focusing its selected-properties controls pauses selection paint so
-actual edits remain visible. Complete text hosts support typography; partial text
+controller. Focusing its selected-properties controls pauses picking and holds the
+last feedback context while its pulse and live property values keep updating. Complete text hosts support typography; partial text
 runs keep exact-node paint/effect scope and do not advertise unsupported fonts.
 Effect plans cache local ownership/styles and skip inactive paint-only edits.
 Current limitations include arbitrary negative-space patterns, general
@@ -298,3 +298,8 @@ for inactive effect/gradient parameters and declared inactive consumers. Never
 send the activity-projected controller to a commit/editor path. Frame × now hides
 custom frames intact; recover saved frames/panels through UI library → Hidden UI.
 See the shared property and UI component contracts for these paths.
+
+Selector feedback now retains its last real target/hover context while Master
+controller or moved shared property editors are used. Picking pauses; paint values
+and time stay live. This is transient and excludes physical mouse/trail input and
+native browser hover. Resume/clear/dismissal releases it; see VISUAL_SELECTION.md.

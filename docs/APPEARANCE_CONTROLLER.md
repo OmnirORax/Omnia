@@ -110,7 +110,8 @@ coupled nonvisual controls (currently the placement radius/clearance functions).
 Edits retain selected-part scope, protections, shared drafts and state-owner
 transactions. Merely inspecting does not create local instances. Inspector controls
 are tool chrome and preserve the active UI selection while being used. Focusing
-them pauses selector picking and green paint, so the actual edited ink is visible.
+them pauses selector picking and holds the last feedback context while its pulse
+and live paint values continue updating.
 Complete selected text hosts use scoped CSS typography; partial runs support exact
 paint and text-node effects, while unsupported partial typography stays unavailable.
 Color edits do not reset fonts, and typography-only edits preserve unrelated paint.
@@ -168,3 +169,12 @@ its existing coupling. The projection is renderer-only and restores authored Off
 on exit without saving it or entering the appearance draft/history. Explicit Off,
 active effect choices, bypass and narrow selected-part scope remain authoritative.
 See SHARED_PROPERTIES.md for extending this contract.
+
+
+Master controller editing now retains the preceding selector hover/feedback context
+instead of canceling its pulse. The shared editor marker covers the main controller,
+selected appearance and moved property controls. Visual target membership and logical
+pointer position are held while ordinary UI input and the animation clock remain
+live. Clear/resume/dismissal and focus-loss cleanup release transient context. See
+VISUAL_SELECTION.md; native browser hover and arbitrary event sources are outside
+this registered-feedback hold.

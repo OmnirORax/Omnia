@@ -86,7 +86,7 @@ export function PropertyTree({
         if (node.property) onSelect(node.property);
         toggle(node, subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift"));
       }}>{node.label}</button>
-      {p && node.property && expanded && <div className="property-node-editor">{renderEditor(node.property)}</div>}
+      {p && node.property && expanded && <div data-appearance-editor className="property-node-editor">{renderEditor(node.property)}</div>}
       {expanded && children.length > 0 && <div className="property-node-children">{children.map(row)}</div>}
     </div>;
     return (
@@ -111,7 +111,7 @@ export function PropertyTree({
       >
         {(p || extraProperties.some(extra => extra.property === node.property)) && node.property && (
           <div
-            className="property-node-editor"
+            data-appearance-editor className="property-node-editor"
             onFocusCapture={() => {
               if (node.property && node.property !== selected) onSelect(node.property);
             }}
@@ -127,7 +127,7 @@ export function PropertyTree({
     );
   };
   return (
-    <div className="property-roots" role="group" aria-label="Appearance properties">
+    <div data-appearance-editor className="property-roots" role="group" aria-label="Appearance properties">
       <small>Click a property to expand/collapse · subtree modifier for all levels</small>
       <div className="property-root-row">{[...PROPERTY_TREE, ...extraProperties].map(row)}</div>
     </div>

@@ -23,6 +23,7 @@ import { VisualSelectionProvider } from "./VisualSelector";
 export type AppearanceLocation = { target: string; property: string };
 export type AppearanceBridge = {
   safe?: boolean;
+  masterOpen?: boolean;
   activityPreview?: (requests: ActivityPreview[]) => void;
   subtreeModifier?: "shift" | "alt" | "ctrl" | "none";
   base: Appearance;
@@ -193,7 +194,7 @@ export function AppearanceProvider({
     plug: (id, property) => activeBridge.commit(toggleRule(state, "disconnected", id, property)),
   };
   return <Context.Provider value={bridge ? value : null}>{bridge
-    ? <VisualSelectionProvider onInspect={setVisualInspection}>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
+    ? <VisualSelectionProvider masterOpen={bridge.masterOpen} onInspect={setVisualInspection}>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
 }
 export function basesForOwner(owner: string, control = false): RegisteredTarget[] {
   const prefix = owner.startsWith("function:") ? (control ? "ui.fields." : "ui.buttons.") : "ui.";

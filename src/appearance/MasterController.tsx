@@ -30,6 +30,7 @@ import { UIAction } from "../ui/UIAction";
 import { useUI, UIContainerContext, UIHomeContext } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTargets, toggleRigidity } from "../ui/rigidity";
+import { APPEARANCE_EDITOR } from "./interactionHold";
 import { highlightHierarchy } from "./highlight";
 import { residentPinned } from "../ui/layout";
 
@@ -220,9 +221,13 @@ export function MasterController({ bindings, visualStatus, children: visualTools
             aria-keyshortcuts={rigidity ? undefined : "Shift+F10"}
             disabled={!can}
             onMouseEnter={() => reveal(target, true)}
-            onMouseLeave={() => reveal(target, false)}
+            onMouseLeave={event => {
+              if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR))) reveal(target, false);
+            }}
             onFocus={() => reveal(target, true)}
-            onBlur={() => reveal(target, false)}
+            onBlur={event => {
+              if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR))) reveal(target, false);
+            }}
             onContextMenuCapture={event => {
               if (rigidity || !can) return;
               event.preventDefault();
@@ -278,7 +283,18 @@ export function MasterController({ bindings, visualStatus, children: visualTools
     );
   };
   return (
-    <section className="appearance-controller" aria-label="Master controller">
+    <section data-appearance-editor className="appearance-controller" aria-label="Master controller"
+      onPointerLeave={event => {
+        if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR)) && !event.currentTarget.contains(document.activeElement) && hovered.current) {
+          const target = targets.find(target => target.id === hovered.current);
+          if (target) reveal(target, false);
+        }
+      }} onBlurCapture={event => {
+        if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR)) && !event.currentTarget.matches(":hover") && hovered.current) {
+          const target = targets.find(target => target.id === hovered.current);
+          if (target) reveal(target, false);
+        }
+      }}>
       {inspecting && <div data-visual-selector data-selection-editor className="ui-selection-tools"><UISection id="master-selection" title={selectingObject ? logicalTargets.map(target => target.label).join(" · ") : "Selected properties"} expanded>
         <div>
           <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />

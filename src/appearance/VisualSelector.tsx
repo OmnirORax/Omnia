@@ -1,9 +1,10 @@
-import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { claimUIPress } from "../ui/pointerOwnership";
 import { cursorPosition } from "../ui/cursorPosition";
 import { useFeatureActions } from "../ui/useFeatureActions";
 import { clearRecordedShortcutPress, recordedShortcutTail } from "../featureActions";
+import { createInteractionHold, APPEARANCE_EDITOR } from "./interactionHold";
 import { VisualSelectionOverlay } from "./VisualSelectionOverlay";
 import { SelectorSymbol, type SelectorConfiguration } from "./SelectorSymbol";
 import { SelectorCursor } from "./SelectorCursor";
@@ -38,7 +39,8 @@ const isLine = (mode: PatternMode) => mode === "axis" || mode === "direction" ||
 const isPath = (mode: PatternMode) => mode === "rectangle" || mode === "ellipse" || mode === "polygon" || mode === "freehand";
 
 /** Geometry defines a working set; later include/exclude rules refine it. */
-export function VisualSelectionProvider({ children, onInspect }: { children: ReactNode; onInspect?: (key: string) => void }) {
+export function VisualSelectionProvider({ children, onInspect, masterOpen }: { children: ReactNode; onInspect?: (key: string) => void; masterOpen?: boolean }) {
+  const [feedbackHold] = useState(() => createInteractionHold<ComponentProps<typeof VisualSelectionOverlay>>());
   const [timeline, setTimeline] = useState(() => ({ states: [emptySelection()], index: 0 }));
   const selection = timeline.states[timeline.index];
   const [phase, setPhase] = useState<Phase>("off");
@@ -87,6 +89,11 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     rule: selectionToggleRule(latest.current.catalog, selectedRef.current, constraint) });
   const previewAt = (element: Element, x: number, y: number) => {
     const current = latest.current, config = current.configuration;
+    if (element.closest(APPEARANCE_EDITOR)) {
+      feedbackHold.hold();
+      if (current.phase === "aim") setPhase("inspect");
+      return;
+    }
     point.current = { element, x, y };
     const drag = gesture.current ?? polygon.current;
     if (!drag && settledPoint.current && Math.hypot(x - settledPoint.current.x, y - settledPoint.current.y) < 3) { setPreview(null); return; }
@@ -151,22 +158,28 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     setPreview(null);
   };
   const clear = useCallback(() => {
+    feedbackHold.release();
     gesture.current = null; polygon.current = null; setDrawing(false);
     record(current => current.boundary || current.rules.length || current.objects.length ? emptySelection() : current); setPreview(null);
   }, [record, setPreview]);
   const selectObject = useCallback((id: string) => {
     resolvePropertyTarget(PROPERTY_REGISTRY, id);
+    // Opening meta properties preserves the last real scene feedback. Deselecting
+    // the logical target still clears it through the normal selection lifecycle.
+    if (latest.current.selection.objects.includes(id)) feedbackHold.release();
+    else feedbackHold.hold();
     gesture.current = null; polygon.current = null; setDrawing(false); setPreview(null);
     record(current => current.objects.includes(id) ? { ...current, objects: current.objects.filter(selected => selected !== id) } : { ...emptySelection(), objects: [id] });
     requestInspection(value => value + 1); setPhase("configure");
   }, [record, setPreview]);
-  const close = () => { cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
+  const close = () => { feedbackHold.release(); cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
   const disable = () => { close(); clear(); };
-  const undo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); };
-  const redo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); };
-  const aim = () => { setPreview(null); setInventoryOpen(false); setPhase("aim"); };
+  const undo = () => { feedbackHold.release(); cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); };
+  const redo = () => { feedbackHold.release(); cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); };
+  const aim = () => { feedbackHold.release(); setPreview(null); setInventoryOpen(false); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;
+    feedbackHold.hold();
     if (latest.current.selection.objects.length) { requestInspection(value => value + 1); return; }
     cancelDrawing(); setPosition({ x, y }); setPhase("edit");
   };
@@ -323,9 +336,11 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   useEffect(() => {
     let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0;
     const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
-    const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(selectorChrome);
+    const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(`${selectorChrome},${APPEARANCE_EDITOR}`);
     const focusEditor = (event: Event) => {
-      if (latest.current.phase !== "edit" && event.target instanceof Element && event.target.closest("[data-selection-editor]")) {
+      if (latest.current.phase === "off" && !hasSelection() && !feedbackHold.context) return;
+      if (latest.current.phase !== "edit" && latest.current.phase !== "inspect" && event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) {
+        feedbackHold.hold();
         gesture.current = null; polygon.current = null; setDrawing(false); setPreview(null); setPhase("inspect");
       }
     };
@@ -375,6 +390,10 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       if (!event.ctrlKey && hasSelection() && !gesture.current && !polygon.current) setPreview(null);
     };
     const move = (event: PointerEvent) => {
+      focusEditor(event);
+      // Controller motion must not replace the app pointer/hover context. The
+      // physical pointer remains free for ordinary controls and the mouse trail.
+      if (latest.current.phase === "edit" || latest.current.phase === "inspect" || feedbackHold.held || event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) return;
       updateModifier(event);
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element)) return;
       point.current = { element: event.target, x: event.clientX, y: event.clientY };
@@ -399,7 +418,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       }
       if (!frame) frame = requestAnimationFrame(() => {
         frame = 0; const p = point.current;
-        if (p && latest.current.phase === "aim") actions.current.previewAt(p.element, p.x, p.y);
+        if (p && latest.current.phase === "aim" && !feedbackHold.held) actions.current.previewAt(p.element, p.x, p.y);
       });
     };
     const preventClick = (event: MouseEvent) => {
@@ -443,7 +462,10 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       }
     };
     const cancel = () => { gesture.current = null; polygon.current = null; setDrawing(false); setPreview(null); };
-    const blur = () => { previewHeld.current = false; setPreviewModifier(false); if (latest.current.phase !== "edit") { cancel(); actions.current.close(); } };
+    const blur = () => {
+      if (!document.hidden && document.activeElement instanceof HTMLInputElement && document.activeElement.type === "color") return;
+      previewHeld.current = false; setPreviewModifier(false); feedbackHold.release(); cancel(); actions.current.close();
+    };
     const hidden = () => { if (document.hidden) blur(); };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("focusin", focusEditor, true);
@@ -485,6 +507,11 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const contextValue = useMemo(() => ({ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey }),
     [selection, matches.included, properties, clear, selectObject, inspectionKey]);
   const active = phase !== "off" || !!selection.boundary;
+  const wasMasterOpen = useRef(masterOpen);
+  useEffect(() => {
+    if (wasMasterOpen.current && !masterOpen) close();
+    wasMasterOpen.current = masterOpen;
+  }, [masterOpen]);
   useEffect(() => {
     if (!active) return;
     let frame = 0;
@@ -493,7 +520,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       frame = requestAnimationFrame(() => { frame = 0; setCatalog(collectVisualParts()); setGeometry(value => value + 1); });
     };
     const observer = new MutationObserver(records => {
-      if (records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest(selectorChrome))) refresh();
+      if (records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest(`${selectorChrome},${APPEARANCE_EDITOR}`))) refresh();
     });
     observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true,
       attributeFilter: ["class", "hidden", "open", "data-ui-native-hidden", "data-ui-native-icon", "data-ui-resident-root"] });
@@ -502,7 +529,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", refresh); window.removeEventListener("scroll", refresh, true); };
   }, [active]);
   useEffect(() => {
-    if (phase !== "aim") return;
+    if (phase !== "aim" || feedbackHold.held) return;
     if (!canPreview() && !gesture.current && !polygon.current) { setPreview(null); return; }
     const p = point.current;
     if (p) {
@@ -542,10 +569,27 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   </li>;
   const activePath = workingScope?.path, activeBox = workingScope && boundaryRect(workingScope.boundary);
   const edges = activePath && activeBox ? pathEdges(pathVertices(activePath, activeBox), activePath.closed) : [];
+  const liveFeedback: ComponentProps<typeof VisualSelectionOverlay> = {
+    selected: feedbackSelected, excluded: noParts, preview: feedbackPreview,
+    candidate: previewEnabled && candidate?.rule.include ? candidate.rule : null,
+    guide: previewEnabled || drawing ? guide : null, guides, paths,
+  };
+  // Remember the last displayed context, not colors/animation samples. Entering
+  // controller chrome can clear a candidate, but must not destroy that context.
+  if (active && phase !== "configure" && phase !== "edit" && phase !== "inspect") feedbackHold.remember(liveFeedback);
+  const visibleFeedback = useMemo(() => {
+    const held = feedbackHold.held && feedbackHold.context;
+    if (!held) return liveFeedback;
+    const byKey = new Map(catalog.map(part => [part.key, part]));
+    const refresh = (parts: VisualPart[]) => parts.flatMap(part => {
+      const current = byKey.get(part.key);
+      return current ? [current] : part.element.isConnected ? [part] : [];
+    });
+    return { ...held, selected: refresh(held.selected), excluded: refresh(held.excluded), preview: refresh(held.preview) };
+  }, [feedbackHold.held, feedbackHold.context, catalog, feedbackSelected, feedbackPreview, paths, guides]);
   return <Context.Provider value={contextValue}>
     {children}
-    {active && phase !== "edit" && phase !== "inspect" && createPortal(<VisualSelectionOverlay selected={feedbackSelected} excluded={noParts} preview={feedbackPreview}
-      candidate={previewEnabled && candidate?.rule.include ? candidate.rule : null} guide={previewEnabled || drawing ? guide : null} guides={guides} paths={paths} />, document.body)}
+    {active && (phase !== "edit" && phase !== "inspect" || feedbackHold.held) && createPortal(<VisualSelectionOverlay {...visibleFeedback} />, document.body)}
     {phase === "aim" && createPortal(<SelectorCursor configuration={configuration} include={true} initial={point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position} onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"

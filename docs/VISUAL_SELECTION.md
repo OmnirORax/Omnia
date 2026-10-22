@@ -194,9 +194,11 @@ manufacturing a DOM-local value or a spatially cropped patch.
 Accepted parts reveal applicable properties in Master controller through the
 shared selected-part editor. Hover candidates do not change that inspector. The
 stationary edit button or platform keyboard context menu opens Selected appearance
-at the pointer. This uses accepted parts even when invoked over a gap. Picking and selection paint stop while editing so the actual edited property is
-visible; Continue selecting or the selector toggle resumes the tool. Focusing the
-selected-properties inspector in Master controller also pauses picking and paint. Logical targets reveal
+at the pointer. This uses accepted parts even when invoked over a gap. Picking pauses while editing. The last displayed feedback target/hover context
+is held while the controller is used, and its real pulse keeps reading live paint
+values. Continue selecting or the selector toggle releases that context and resumes
+the tool. Entering Master controller or moved shared property controls also holds
+the context without updating the app-side pointer position. Logical targets reveal
 Master controller directly. Unsupported capabilities remain unavailable.
 
 A property change creates/updates local part references in the existing
@@ -301,3 +303,25 @@ registry plus adapters for supported renderers. Coupling existing parts to share
 values is distinct from implementing a renderer capability. Once the shared path
 covers an old editor's behavior, remove its duplicate controls and routes while
 preserving saved values, IDs, locks, bypass and default restoration.
+
+
+## Holding feedback while editing
+
+`interactionHold.ts` retains the last displayed selector target context; it does
+not copy paint values, freeze animation time or write selection/appearance history.
+Opening selected-part editing or entering shared `data-appearance-editor` controls
+captures that context before candidates can be cleared by tool chrome. Selecting a
+logical Self inventory target retains the preceding real scene feedback while its
+properties are inspected; toggling that logical selection off releases it normally.
+Ctrl release and pointer movement over controls cannot replace held membership.
+The existing feedback renderer continues its real one-second pulse and reads the
+current controller values, including native color-picker previews. Surviving target
+references refresh through the existing catalog when scene content changes.
+
+Continue selecting, explicit clear/cancel, selection undo/redo, controller dismissal,
+window blur (except native color-picking), page hiding and unmount release the hold.
+Ordinary controller controls retain pointer/click ownership; the physical cursor and
+Mouse trail remain live. This holds registered selector/hierarchy feedback, not native
+browser `:hover` or arbitrary application events. It does not simulate movement or
+freeze a trail's time. Hierarchy circle feedback can remain active when moving from
+its circle into controller controls, and releases on leaving/defocusing the editor.
