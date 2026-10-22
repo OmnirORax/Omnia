@@ -10,17 +10,19 @@ const geometry = (part: VisualPart): Mark | undefined => {
     radius: getComputedStyle(part.element).borderTopLeftRadius, role: part.role };
 };
 /** Selection paint is separate from appearance values and never changes layout. */
-export function VisualSelectionOverlay({ selected, preview, candidate, boundary }: {
-  selected: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null; boundary: SelectionBoundary | null;
+export function VisualSelectionOverlay({ selected, excluded, preview, candidate, boundary, hoverBoundary }: {
+  selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
+  boundary: SelectionBoundary | null; hoverBoundary: SelectionBoundary | null;
 }) {
   useEffect(() => {
-    const names = ["omnium-selector-selected", "omnium-selector-preview"];
+    const names = ["omnium-selector-selected", "omnium-selector-excluded", "omnium-selector-preview"];
     if (typeof Highlight !== "undefined" && CSS.highlights) {
       CSS.highlights.set(names[0], new Highlight(...selected.flatMap(part => part.range ? [part.range] : [])));
-      CSS.highlights.set(names[1], new Highlight(...preview.flatMap(part => part.range ? [part.range] : [])));
+      CSS.highlights.set(names[1], new Highlight(...excluded.flatMap(part => part.range ? [part.range] : [])));
+      CSS.highlights.set(names[2], new Highlight(...preview.flatMap(part => part.range ? [part.range] : [])));
     }
     const paint = new Map<HTMLElement | SVGElement, { key: string; ink: string }>();
-    for (const [parts, ink] of [[selected, "var(--omnium-accent,#60ddec)"], [preview, candidate?.include === false ? "#ff927e" : "#a1f3c4"]] as const) {
+    for (const [parts, ink] of [[selected, "#66efab"], [excluded, "#ff6c73"], [preview, candidate?.include === false ? "#ff6c73" : "#66efab"]] as const) {
       for (const part of parts) {
         if (part.range || !(part.role === "icon" || part.role === "text")) continue;
         const element = part.element, key = part.role === "icon" ? "filter" : "color";
@@ -48,23 +50,26 @@ export function VisualSelectionOverlay({ selected, preview, candidate, boundary 
         if (previous === null) element.removeAttribute(attribute); else element.setAttribute(attribute, previous);
       }
     };
-  }, [selected, preview, candidate?.include]);
+  }, [selected, excluded, preview, candidate?.include]);
   const marks = selected.map(geometry).filter((mark): mark is Mark => !!mark);
+  const omissions = excluded.map(geometry).filter((mark): mark is Mark => !!mark);
   const candidates = preview.map(geometry).filter((mark): mark is Mark => !!mark);
   const rectFor = (anchor: SelectionBoundary | null) => {
     const root = anchor && boundaryElement(anchor);
     return root === document.body ? { x: 3, y: 3, width: innerWidth - 6, height: innerHeight - 6 } : root?.getBoundingClientRect();
   };
-  const edge = rectFor(boundary), hover = rectFor(candidate?.boundary ?? null);
+  const edge = rectFor(boundary), hover = rectFor(hoverBoundary ?? candidate?.boundary ?? null);
   return <div data-visual-selector className={`visual-selection-overlay ${candidate?.include === false ? "is-excluding" : ""}`}>
-    <style>{`::highlight(omnium-selector-selected){background-color:#60ddec35}::highlight(omnium-selector-preview){background-color:${candidate?.include === false ? "#ff927e77" : "#a1f3c477"}}`}</style>
+    <style>{`::highlight(omnium-selector-selected){background-color:#66efab45}::highlight(omnium-selector-excluded){background-color:#ff6c7345}::highlight(omnium-selector-preview){background-color:${candidate?.include === false ? "#ff6c7377" : "#66efab77"}}`}</style>
     <svg aria-hidden="true" width="100%" height="100%">
       {marks.map(mark => <rect key={mark.key} {...{ x: mark.x, y: mark.y, width: mark.width, height: mark.height }}
         rx={mark.radius} className={`visual-selected-part role-${mark.role}`} />)}
+      {omissions.map(mark => <rect key={mark.key} {...{ x: mark.x, y: mark.y, width: mark.width, height: mark.height }}
+        rx={mark.radius} className={`visual-excluded-part role-${mark.role}`} />)}
       {candidates.map(mark => <rect key={mark.key} {...{ x: mark.x, y: mark.y, width: mark.width, height: mark.height }}
         rx={mark.radius} className={`visual-preview-part role-${mark.role}`} />)}
       {edge && <rect {...{ x: edge.x, y: edge.y, width: Math.max(0, edge.width), height: Math.max(0, edge.height) }} rx="4" className="visual-selected-boundary" />}
-      {hover && candidate && !candidate.part && <rect {...{ x: hover.x, y: hover.y, width: Math.max(0, hover.width), height: Math.max(0, hover.height) }} rx="4" className="visual-preview-boundary" />}
+      {hover && (hoverBoundary || (candidate && !candidate.part)) && <rect {...{ x: hover.x, y: hover.y, width: Math.max(0, hover.width), height: Math.max(0, hover.height) }} rx="4" className={`visual-preview-boundary ${!candidate ? "is-neutral" : ""}`} />}
     </svg>
   </div>;
 }

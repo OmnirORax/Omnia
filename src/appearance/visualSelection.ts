@@ -18,10 +18,10 @@ export type SelectionBoundary = {
 export type SelectionRule = {
   include: boolean;
   boundary: SelectionBoundary;
+  region?: "inside" | "outside";
   role?: VisualRole;
   part?: string;
 };
-export type SelectorMode = "boundary" | "item" | "pattern";
 export const selectorChrome = "[data-visual-selector]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
 const ids = new WeakMap<Node, number>();
@@ -145,20 +145,21 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
 }
 export function matchingVisualParts(parts: VisualPart[], rule: SelectionRule): VisualPart[] {
   const root = boundaryElement(rule.boundary);
-  return root ? parts.filter(part => root.contains(part.element) &&
+  return root ? parts.filter(part => (rule.region === "outside" ? !root.contains(part.element) : root.contains(part.element)) &&
     (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key)) : [];
 }
-export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionBoundary | null, rules: SelectionRule[]): VisualPart[] {
-  if (!boundary) return [];
-  const root = boundaryElement(boundary);
-  if (!root) return [];
+export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionBoundary | null, rules: SelectionRule[]): { included: VisualPart[]; excluded: VisualPart[] } {
+  const result = { included: [] as VisualPart[], excluded: [] as VisualPart[] };
+  if (!boundary || !boundaryElement(boundary)) return result;
   const compiled = rules.map(rule => ({ rule, root: boundaryElement(rule.boundary) }));
-  return parts.filter(part => {
-    if (!root.contains(part.element)) return false;
-    let included = false;
+  for (const part of parts) {
+    let included: boolean | undefined;
     for (const { rule, root } of compiled)
-      if (root?.contains(part.element) && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key))
+      if (root && (rule.region === "outside" ? !root.contains(part.element) : root.contains(part.element)) &&
+        (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key))
         included = rule.include;
-    return included;
-  });
+    if (included === true) result.included.push(part);
+    else if (included === false) result.excluded.push(part);
+  }
+  return result;
 }

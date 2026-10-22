@@ -18,7 +18,8 @@ component presentation or their editors.
   the registered bindings to find parts; do not maintain a competing inventory of
   components or infer arbitrary properties from their pixels.
 - Selection and hover previews are transient. They must not write appearance,
-  layout, graph data, storage or undo history. New parts become instances only
+  layout, graph data, storage or interface/graph undo history. Selection operations
+  have their own transient undo/redo timeline. New parts become instances only
   after an actual local customization, and individuals remain opt-in in the tree.
 - Replace obsolete editors and routes when the shared path covers their behavior.
   Until then, keep the working path available. Preserve stable IDs, stored values,

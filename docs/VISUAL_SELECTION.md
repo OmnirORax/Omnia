@@ -7,27 +7,48 @@ and property remain separate. See `AGENTS.md` for integration rules.
 
 ## Current first stage
 
-Middle-click (MB3) opens the symbol controller near the pointer. Its SVG recreates
-the supplied ring, crossing bar and paired dots. The ring chooses boundary mode;
-the inner bar includes; the outer bar excludes; the dots choose pattern mode.
-Include/exclude combine with boundary, individual part, or pattern picking.
+Middle-click (MB3) opens stationary configuration with the ring centered on the
+pointer (clamped near viewport edges). The same SVG becomes a compact cursor while
+aiming. Move outside the controller, or press its check mark, to aim. MB3 returns
+to stationary configuration at the pointer. The cursor layer is pointer-transparent
+and updates its position without rerendering the application.
 
-- Start with ring + inner bar and click a component/frame edge to include its
-  registered visual parts. While aiming a boundary, scroll upward to climb through
-  containing components/frames to the entire app; scroll downward to narrow it.
-- The accepted boundary stays visible. After choosing it, the tool switches to
-  individual picking. Click the outer bar to exclude individual parts, or combine
-  it with the dots to exclude a sampled visual role throughout the boundary.
-- Pattern matching starts with registered text, backgrounds, contours, icons and
-  selection indicators. It does not infer semantic structure from pixels or select
-  individual letters/words. Text previews follow actual text ranges.
-- Later operations override earlier matching operations. Include an individual
-  exception after excluding a pattern to add it back. Ring + exclude excludes a
-  contained area. Ring + include chooses a fresh boundary.
-- Hover previews the candidate operation without accepting it. Undo removes the
-  last selection operation; clear removes selection. Finish closes the controller
-  and leaves the selection highlighted. MB3 reopens it. Escape closes picking;
-  Escape again clears the remaining selection. Window blur stops picking.
+The symbol has independent choices:
+
+- **Ring:** toggle boundary picking. It remains latched after a pick and only the
+  ring turns it off. Scroll while aiming to climb through containing components
+  and frames to the entire app, or downward to narrow the candidate boundary.
+- **Inner / outer bar:** arm include (green) / exclude (red). Press an already
+  active bar again to return to neutral. Merely arming an operation does not apply
+  it to the existing selection.
+- **Empty center / surrounding annulus:** choose inside / outside the established
+  boundary. With an operation armed, clicking either region applies it to all
+  registered UI parts in that region. These actions never move the boundary.
+  Outside means other registered UI parts throughout the app, not another frame.
+- **Paired dots:** toggle pattern sampling. Turn the ring off to sample parts or
+  patterns in the chosen region. With dots off, clicks affect individual parts.
+  With dots on, a clicked role matches across the selected inside/outside region.
+
+A neutral boundary pick establishes an anchor without adding included/excluded
+paint. Picking a new boundary starts a fresh selection; an armed operation applies
+inside that boundary by default, or outside when that region is configured. An
+existing boundary remains the same when its center/surrounding controls are used.
+Parts outside are unselected by default until an explicit outside operation.
+
+Pattern matching starts with registered text, backgrounds, contours, icons and
+selection indicators. It does not infer semantic structure from pixels or select
+individual letters/words. Text previews follow actual text ranges. Later operations
+override earlier matches: a pattern exclusion can have individually included
+exceptions. Explicit inclusions remain green and exclusions remain red in both
+preview and accepted feedback. Unselected parts are not painted as exclusions.
+
+Undo/redo records selection operations and boundary changes in a transient local
+history. While the tool is active, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y
+redoes; the stationary controller exposes both actions. A new operation after undo
+replaces the redo branch. Clear is an undoable reset of selection. Escape disables the tool and
+clears selection in one action; window blur/tab hiding stops picking. Choices stay
+configured until changed. No phone controls, axis conditions or custom drag regions
+are implemented in this step.
 
 The first adapter covers rendered UI parts through the existing appearance
 bindings. Canvas/3D visual picking will need a renderer adapter to the same
@@ -38,7 +59,7 @@ parts inside the boundary participate. Stable resident/function anchors follow
 moved UI where available.
 
 Selection is transient. It does not create appearance instances, apply property
-values, persist settings, change camera/graph selection, or create undo entries.
+values, persist settings, change camera/graph selection, or create interface/graph undo entries.
 The shared selection context exposes boundary, operations, matches and applicable
 property IDs for subsequent master-controller coupling. This stage does not add a
 second appearance editor or remove existing editors before they are replaced.
