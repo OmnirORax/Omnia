@@ -5,7 +5,7 @@ Features register visual parts and renderer adapters rather than introduce a
 separate property definition, editor or value store. Target, boundary, visual role
 and property remain separate. See `AGENTS.md` for integration rules.
 
-## Current first stage
+## Selection and editing
 
 Middle-click (MB3) opens stationary configuration with the ring centered on the
 pointer (clamped near viewport edges). The same SVG becomes a compact cursor while
@@ -60,11 +60,51 @@ and pattern operations reevaluate on relevant DOM changes, so new matching UI
 parts inside the boundary participate. Stable resident/function anchors follow
 moved UI where available.
 
-Selection is transient. It does not create appearance instances, apply property
-values, persist settings, change camera/graph selection, or create interface/graph undo entries.
-The shared selection context exposes boundary, operations, matches and applicable
-property IDs for subsequent master-controller coupling. This stage does not add a
-second appearance editor or remove existing editors before they are replaced.
+Picking and inspection are transient. They do not create appearance instances,
+apply values, persist settings, change camera/graph selection or create ordinary
+undo entries. The shared selection context exposes boundary, operations, matches
+and applicable property IDs.
+
+Right-click an accepted part, or press the controller's edit button, to open
+**Selected appearance** at the pointer. Picking stops while the panel is open.
+The existing PropertyTree and PropertyEditor show supported properties, mixed
+values and the count of applicable/locked/bypassed parts. Inapplicable parts are
+skipped; category and local protections still apply. The panel's expansion state
+is transient. Opening it or choosing a property does not initialize refinements.
+Selection feedback pauses while editing so its ink cannot obscure actual values.
+Close returns to normal UI interaction; Continue selecting restores the aiming
+cursor. MB3 reconfigures; Escape still disables and clears selection. Native color
+picker blur does not destroy the editor.
+
+A property change creates/updates local part references in the existing
+controller's instances/values/refined maps, in one transaction for the selection.
+Previews use the existing appearance preview bridge; accepting an input joins the
+recoverable appearance draft. Apply/discard, theme export and ordinary appearance
+undo keep their existing behavior. Closing cancels any uncommitted input preview.
+Use inherited appearance removes only the selected, unprotected part refinements;
+broader/category customizations remain. Individuals stay hidden until opted in.
+
+Part references use the nearest stable function/resident owner plus normalized
+keyed or structural steps. Text references also identify the direct text node,
+without including its editable wording in the identity. They follow stable owners
+through docking and survive theme reload. Unkeyed markup uses structural position;
+authors should supply stable data-ui-id keys for reorderable children. Invalid
+imported addresses are rejected, never widened to an owner-wide edit.
+
+Surface/input/icon instances use the existing CSS/effect adapters with their exact
+scope. Ranged text uses a shared-controller CSS Custom Highlight adapter, painting
+only the selected glyphs. It currently supports Color, Brightness, Opacity and
+Glow; typography and effects are not advertised until an exact glyph adapter can
+support them. Browsers without Custom Highlights cannot edit ranged text in this
+pass. Missing property values inherit broader refinements without freezing them.
+Controller policy and value resolution share indexed lookups within a transaction
+or render, rather than rebuilding the registry for every selected part/property.
+The resolver caches metadata only, never the current property values.
+
+This increment edits currently accepted parts. Boundary/pattern rules remain live
+while selecting, but are not saved as automatic rules for future matching parts.
+Reusable persistent pattern couplings, finer word/letter selection and 3D adapters
+remain follow-up work. No competing appearance editor or property store is added.
 
 ## Selection feedback
 
@@ -97,11 +137,11 @@ use broad strokes rather than full-window blur filters. Reduced motion keeps a
 steady neon cue and stationary seam; tab hiding pauses the native pulse. Cleanup
 removes the temporary paint layer, markers and animation without changing values.
 
-## Follow-up integration contract
+## Further integration contract
 
-The next editing stage must route the accepted selection into the existing master
-controller, resolving live boundary/pattern rules and local exceptions. Inspecting
-alone must not alter values. A new property requires one implementation in the
+Further adapters must use the same accepted selection and master controller,
+respecting boundary/pattern rules and local exceptions. Inspecting alone must not
+alter values. A new property requires one implementation in the
 registry plus adapters for supported renderers. Coupling existing parts to shared
 values is distinct from implementing a renderer capability. Once the shared path
 covers an old editor's behavior, remove its duplicate controls and routes while

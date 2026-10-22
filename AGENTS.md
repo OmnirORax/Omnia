@@ -21,6 +21,11 @@ component presentation or their editors.
   layout, graph data, storage or interface/graph undo history. Selection operations
   have their own transient undo/redo timeline. New parts become instances only
   after an actual local customization, and individuals remain opt-in in the tree.
+- Accepted-part editing reuses controller instances/values and the appearance
+  draft. Persist normalized part addresses, not DOM nodes or raw selector source.
+  Preserve their narrow scope across reload; reject invalid addresses rather than
+  falling back to owner-wide styling. Glyph capabilities must reflect the exact
+  renderer adapter, not all properties advertised by the broader text category.
 - Replace obsolete editors and routes when the shared path covers their behavior.
   Until then, keep the working path available. Preserve stable IDs, stored values,
   locks, bypass, inheritance and migrations; do not leave two independent active

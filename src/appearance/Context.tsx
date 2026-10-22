@@ -84,7 +84,7 @@ export function AppearanceProvider({
           ? ui.functions.find((f) => f.id === owner.slice(9))?.label
           : (ui.frameActions.get(owner)?.title ??
             ui.layout.frames.find((f) => `frame:${f.id}` === owner)?.name);
-        return { ...target, label: customLabel ?? label ?? target.label, instance: { ...target.instance, path } };
+        return { ...target, label: customLabel ?? (target.instance.part ? target.label : label) ?? target.label, instance: { ...target.instance, path } };
       }),
     [state, ui.layout, ui.functions],
   );

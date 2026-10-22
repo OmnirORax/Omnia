@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { collapseResidentBranch, ownerOf } from "../ui/layout";
 import { EmbeddedGroup } from "../ui/EmbeddedGroup";
 import { useUI } from "../ui/context";
@@ -14,6 +14,7 @@ export function PropertyTree({
   renderEditor,
   scope = "master",
   extraProperties = [],
+  transient = false,
 }: {
   selected: string;
   onSelect: (id: string) => void;
@@ -21,10 +22,12 @@ export function PropertyTree({
   renderEditor: (id: string) => ReactNode;
   scope?: string;
   extraProperties?: PropertyNode[];
+  transient?: boolean;
 }) {
   const ui = useUI(),
     ctx = useAppearance();
   const prefix = `@appearance-properties:${scope}:`;
+  const [localOpen, setLocalOpen] = useState(() => new Set(["color"]));
 
   const supported = (node: PropertyNode): boolean =>
     !available ||
@@ -45,12 +48,22 @@ export function PropertyTree({
     }
   }
   const open = (node: PropertyNode) =>
+    transient ? localOpen.has(node.id) :
     reveal.has(`window:${groupId(node.id)}`) ||
     !(
       ui.layout.windows[groupId(node.id)]?.collapsed ??
       !(ui.layout.panels[prefix + node.id] ?? node.id === "color")
     );
-  const toggle = (node: PropertyNode, all = false) =>
+  const toggle = (node: PropertyNode, all = false) => {
+    if (transient) {
+      const expanded = !open(node);
+      setLocalOpen(previous => {
+        const next = new Set(previous);
+        const visit = (item: PropertyNode) => { if (expanded) next.add(item.id); else next.delete(item.id); if (all) item.children?.forEach(visit); };
+        visit(node); return next;
+      });
+      return;
+    }
     ui.update((layout) => {
       const expanded = !open(node),
         windows = { ...Object.fromEntries(ui.defaults), ...layout.windows };
@@ -60,11 +73,20 @@ export function PropertyTree({
         next.windows[groupId(node.id)] = { ...windows[groupId(node.id)], collapsed: !expanded };
       return next;
     });
+  };
   const row = (node: PropertyNode): ReactNode => {
     if (!supported(node)) return null;
     const expanded = open(node),
       children = (node.children ?? []).filter(supported),
       p = node.property && propertyFor(node.property);
+    if (transient) return <div key={node.id} className={`property-node ${selected === node.property ? "is-selected" : ""}`}>
+      <button type="button" aria-expanded={expanded} aria-pressed={selected === node.property} onClick={event => {
+        if (node.property) onSelect(node.property);
+        toggle(node, subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift"));
+      }}>{node.label}</button>
+      {p && node.property && expanded && <div className="property-node-editor">{renderEditor(node.property)}</div>}
+      {expanded && children.length > 0 && <div className="property-node-children">{children.map(row)}</div>}
+    </div>;
     return (
       <EmbeddedGroup
         key={node.id}

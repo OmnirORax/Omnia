@@ -13,6 +13,15 @@ Animation color/brightness/opacity/glow can be adjusted separately on the same b
 
 The shared adjuster applies to included, applicable descendants, respecting lower locks. Leaf swatches/sliders directly edit that target. A category can be isolated to adjust its subtree. Changing color leaves brightness, glow, animation, and other properties alone.
 
+The MB3 visual selector is another entry to this controller. Right-click accepted
+parts to open **Selected appearance**, which reuses PropertyTree/PropertyEditor
+and edits only those parts. Inspection is read-only; an actual edit creates scoped
+local references in the same controller state. Previews, the recoverable draft,
+Apply/discard, locks, bypass, inherited values and theme export remain shared.
+Ranged text currently offers Color, Brightness, Opacity and Glow; surfaces, input
+text and icons expose the properties supported by their existing adapters. See
+`VISUAL_SELECTION.md` for the exact scope and current limits.
+
 Right-click a frame handle or button and open its existing appearance editor for local refinements. Choose the part and property there. A stable reference to the resident appears under the corresponding category → **Individually customized**, marked **◆** for each locally refined property. An eligible categorical edit replaces that refinement; lock it to protect it. Hover its master entry to reveal and pulse the actual resident, restoring transient expansion and scrolling afterward. Search uses the same reveal mechanism.
 
 **Show individuals** is off by default. Enable it in Visual hierarchy to display individually customized entries and their groups, including eligible individual rigidity entries. The setting is saved with the UI layout. Hiding these rows preserves their customizations and keeps category targeting and hover behavior intact.

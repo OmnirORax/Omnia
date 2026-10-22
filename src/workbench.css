@@ -888,6 +888,16 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-actions small { font: inherit; color: #ff6c73; }
 .visual-selector-cursor { position: fixed; left: 0; top: 0; z-index: 90002; width: 40px; height: 37.5px; pointer-events: none; color: var(--omnium-accent,#60ddec); will-change: transform; }
 .visual-selector-cursor .selector-outside-edge { opacity: .55; }
+.visual-selection-controller { position: fixed; z-index: 90003; width: 420px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto; box-sizing: border-box; padding: 12px; border: 1px solid var(--omnium-accent,#60ddec); border-radius: 8px; color: var(--omnium-ink,#d7f3f7); background: var(--omnium-base,#07121b); box-shadow: 0 8px 32px #0008; }
+.visual-selection-controller header,.visual-selection-controller footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.visual-selection-controller header button { margin-left: auto; }
+.visual-selection-controller .property-root-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.visual-selection-controller .property-node { min-width: 0; }
+.visual-selection-controller .property-node-children { margin: 8px 0 0 8px; display: grid; gap: 8px; }
+.visual-selection-controller .property-node-editor { padding: 8px 0; }
+.visual-selection-controller .property-node.is-selected > button { border-color: var(--omnium-accent,#60ddec); }
+.visual-selection-controller .selection-property-editor { display: grid; gap: 4px; }
+.visual-selection-controller footer { margin-top: 12px; flex-wrap: wrap; }
 .visual-selection-overlay { position: fixed; inset: 0; z-index: 89999; pointer-events: none; color: var(--omnium-accent,#60ddec); overflow: hidden; }
 .visual-selection-overlay > svg { display: block; overflow: hidden; }
 .visual-selection-trace { --visual-selection-ink: #66efab; color: var(--visual-selection-ink); opacity: calc(var(--omnium-selector-strength,.82) * var(--visual-selection-opacity,1)); }

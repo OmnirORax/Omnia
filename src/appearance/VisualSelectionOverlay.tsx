@@ -77,6 +77,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       CSS.highlights.set(names[0], new Highlight(...selected.flatMap(part => part.range ? [part.range] : [])));
       CSS.highlights.set(names[1], new Highlight(...excluded.flatMap(part => part.range ? [part.range] : [])));
       CSS.highlights.set(names[2], new Highlight(...preview.flatMap(part => part.range ? [part.range] : [])));
+      for (const name of names) CSS.highlights.get(name)!.priority = 10;
     }
     const paint = new Map<HTMLElement | SVGElement, { kind: "icon" | "text"; feedback: FeedbackPaint; pseudo: string }>();
     for (const [parts, feedback] of [[selected, paints.included], [excluded, paints.excluded], [preview, candidate?.include === false ? paints.excluded : paints.included]] as const) {

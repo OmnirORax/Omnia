@@ -4,6 +4,7 @@ import { type Controller, type Target, type Value, type Values, normalizeControl
 import { migrateEffects } from "./migrateEffects.ts";
 import { migrateFieldBranches } from "./migrateFields.ts";
 import type { AnimationTarget } from "../graph/effects.ts";
+import { GLYPH_PROPERTIES, partSelector } from "./partScope.ts";
 export type Property = {
   id: string;
   label: string;
@@ -564,10 +565,14 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
       id,
       parent,
       label: instance.label,
-      properties: base.properties,
+      properties: instance.part?.text !== undefined
+        ? base.properties?.filter(property => GLYPH_PROPERTIES.includes(property)) : base.properties,
       effectKinds: base.effectKinds,
       instance,
-      binding: base.binding,
+      binding: instance.part && base.binding ? { ...base.binding,
+        selector: partSelector(instance) + (base.id === "text.ui.placeholders" ? "::placeholder" : ""),
+        ...(base.binding.animation ? { animation: { ...base.binding.animation, selector: partSelector(instance) } } : {}),
+      } : base.binding,
     });
   }
   return targets;

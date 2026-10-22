@@ -1,3 +1,4 @@
+import { normalizePartScope, type PartScope } from "./partScope.ts";
 /** Stable appearance references belong to presentation settings, never graph identity. */
 export type Value = string | number | boolean;
 export type Values = Record<string, Value>;
@@ -13,7 +14,7 @@ export const propertyChannels = (property: string) => [
   ...(companions[property] ? [companions[property]] : []),
 ];
 export type Rule = { all?: boolean; properties?: string[] };
-export type Instance = { base: string; owner: string; label: string; path?: string[] };
+export type Instance = { base: string; owner: string; label: string; path?: string[]; part?: PartScope };
 export type Target = {
   id: string;
   parent?: string;
@@ -85,13 +86,18 @@ export function normalizeController(
         idOK(value.base) &&
         idOK(value.owner) &&
         typeof value.label === "string"
-      )
+      ) {
+        const part = value.part === undefined ? undefined : normalizePartScope(value.part);
+        // A malformed narrow address must never become an owner-wide edit.
+        if (value.part !== undefined && !part) continue;
         result.instances[id] = {
           base: value.base,
           owner: value.owner,
           label: value.label.slice(0, 240),
           path: Array.isArray(value.path) ? value.path.filter(idOK).slice(0, 50) : undefined,
+          ...(part ? { part } : {}),
         };
+      }
     }
   }
   if (Array.isArray(input.sets)) {

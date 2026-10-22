@@ -9,13 +9,96 @@ import {
   connected,
 } from "../src/appearance/model.ts";
 import { controllerTargets, loadController } from "../src/appearance/registry.ts";
-import { valueFor, resolveControllerAppearance, effectsFor } from "../src/appearance/resolve.ts";
+import { valueFor, createValueResolver, resolveControllerAppearance, effectsFor } from "../src/appearance/resolve.ts";
 import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
+import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
+import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
 const fixture = () => {
   const state = emptyController();
   return { state, targets: controllerTargets(state) };
 };
+const selectedLabel = (owner, text = 0) => ({ base: "text.ui.buttons", owner: `function:${owner}`, label: `${owner} label`,
+  path: ["window:panel:inspector"], part: { steps: [], text } });
+test("selection edits write only accepted parts in one controller transaction and preserve targeting", () => {
+  const state = emptyController(), a = selectedLabel("a"), b = selectedLabel("b"), excluded = selectedLabel("excluded");
+  const before = structuredClone(state);
+  const next = applySelectedValue(state, [a, b], "color", "#e01234");
+  assert.deepEqual(state, before);
+  assert.deepEqual(next.sets, state.sets);
+  assert.deepEqual(Object.keys(next.instances).sort(), [selectedPartId(a), selectedPartId(b)].sort());
+  assert.deepEqual(next.values[selectedPartId(a)], { color: "#e01234" });
+  assert.equal(next.values[selectedPartId(excluded)], undefined);
+  assert.equal(next.values["text.ui.buttons"], undefined);
+  assert.deepEqual(next.refined[selectedPartId(a)], ["color"]);
+  assert.equal(applySelectedValue(next, [a, b], "color", "#e01234"), next);
+});
+test("narrow parts inherit broader values independently and never inherit sibling text", () => {
+  const state = emptyController(), a = selectedLabel("a"), sibling = selectedLabel("a", 1);
+  const parent = "text.ui.buttons@@function%3Aa";
+  state.instances[parent] = { base: a.base, owner: a.owner, label: "whole button", path: a.path };
+  state.values[parent] = { color: "#123456", opacity: .65 };
+  let next = applySelectedValue(state, [a], "glow", 1.5);
+  assert.deepEqual(next.values[selectedPartId(a)], { glow: 1.5 });
+  let target = controllerTargets(next).find(t => t.id === selectedPartId(a));
+  const read = createValueResolver(defaultSettings().appearance, next);
+  assert.equal(read(target, "color"), "#123456");
+  next.values[parent].color = "#654321";
+  assert.equal(read(target, "color"), "#654321");
+  next = applySelectedValue(next, [sibling], "color", "#abcdef");
+  target = controllerTargets(next).find(t => t.id === selectedPartId(a));
+  assert.equal(valueFor(defaultSettings().appearance, next, target, "color"), "#654321");
+  assert.equal(scopeContains(a, sibling), false);
+});
+test("selection respects categorical and existing owner locks and bypass without creating empty instances", () => {
+  const a = selectedLabel("a"), b = selectedLabel("b");
+  let state = emptyController();
+  state.locks.text = { properties: ["color"] };
+  assert.equal(applySelectedValue(state, [a, b], "color", "#123456"), state);
+  delete state.locks.text;
+  const parent = "parent";
+  state.instances[parent] = { base: a.base, owner: a.owner, label: "parent" };
+  state.locks[parent] = { all: true };
+  const next = applySelectedValue(state, [a, b], "color", "#123456");
+  assert.equal(next.instances[selectedPartId(a)], undefined);
+  assert.equal(next.values[selectedPartId(b)].color, "#123456");
+  state = emptyController(); state.disconnected["text.ui"] = { all: true };
+  assert.equal(partEditable(state, a, "color"), false);
+  assert.equal(applySelectedValue(state, [a], "color", "#123456"), state);
+});
+test("part capabilities limit glyph editing while surface adapters retain their supported properties", () => {
+  const glyph = selectedLabel("a"), state = emptyController();
+  assert.deepEqual(selectedPartTarget(glyph).properties, ["color", "brightness", "opacity", "glow"]);
+  assert.equal(applySelectedValue(state, [glyph], "font", "serif"), state);
+  const surface = { ...glyph, base: "ui.buttons.contour", part: { steps: [] } };
+  const next = applySelectedValue(state, [surface], "contourWidth", 20);
+  assert.equal(next.values[selectedPartId(surface)].contourWidth, 12);
+  assert.equal(next.values["ui.buttons.contour"], undefined);
+});
+test("part addresses survive theme export/reload and malformed narrow scopes never broaden", () => {
+  const a = selectedLabel("a"), state = applySelectedValue(emptyController(), [a], "color", "#abcdef");
+  const appearance = { ...defaultSettings().appearance, controller: state };
+  const restored = parseThemeTemplate(JSON.parse(JSON.stringify(themeTemplate("Selected", appearance)))).appearance.controller;
+  assert.deepEqual(restored.instances[selectedPartId(a)].part, a.part);
+  const target = controllerTargets(restored).find(t => t.id === selectedPartId(a));
+  assert.equal(target.binding.selector, '[data-ui-function="a"]:not([data-ui-native-hidden])');
+  assert.equal(valueFor(defaultSettings().appearance, restored, target, "color"), "#abcdef");
+  const corrupt = structuredClone(state); corrupt.instances[selectedPartId(a)].part.steps = [{ tag: 'div,body', index: 1 }];
+  assert.equal(loadController(corrupt).instances[selectedPartId(a)], undefined);
+  assert.equal(normalizePartScope({ steps: [], text: -1 }), undefined);
+  const keyed = index => normalizePartScope({ steps: [{ tag: "button", index, key: "data-ui-id", value: 'x"]{color:red}/*' }] });
+  assert.deepEqual(keyed(1), keyed(8));
+  assert.match(partSelector({ owner: 'function:a"b', part: keyed(1) }), /\\22 /);
+});
+test("resetting selected refinements preserves other parts and protects locked ones", () => {
+  const a = selectedLabel("a"), b = selectedLabel("b");
+  let state = applySelectedValue(emptyController(), [a, b], "color", "#abcdef");
+  const reset = resetSelectedParts(state, [a]);
+  assert.equal(reset.instances[selectedPartId(a)], undefined);
+  assert.deepEqual(reset.values[selectedPartId(b)], state.values[selectedPartId(b)]);
+  state.locks[selectedPartId(a)] = { properties: ["color"] };
+  assert.equal(resetSelectedParts(state, [a]), state);
+});
 test("target off/only/on changes only the editing mask and restores other targets", () => {
   let { state, targets } = fixture();
   state = applyValue(state, targets, "color", "#8844cc", "text");

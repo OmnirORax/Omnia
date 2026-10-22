@@ -35,6 +35,7 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
     return result;
   };
   const scoped = (target: RegisteredTarget, selector: string) => {
+    if (target.instance?.part) return selector;
     const scope = target.instance && owners(target.instance.owner);
     return scope ? `:is(${scope}:is(${selector}),${scope} :is(${selector}))` : selector;
   };
@@ -73,6 +74,11 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
     if (!target.binding?.text || !(element instanceof HTMLElement) || element.matches("input,textarea,select")) continue;
     const scope = effectScope({ ...target, id: target.instance?.base ?? target.id }, element);
     match.ranges = [];
+    if (target.instance?.part?.text !== undefined) {
+      const node = [...element.childNodes].filter(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())[target.instance.part.text];
+      if (node) { const range = document.createRange(); range.selectNodeContents(node); match.ranges.push(range); }
+      continue;
+    }
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     for (let text = walker.nextNode(); text; text = walker.nextNode()) {
       const parent = text.parentElement;

@@ -4,6 +4,9 @@ import { claimUIPress } from "../ui/pointerOwnership";
 import { VisualSelectionOverlay } from "./VisualSelectionOverlay";
 import { SelectorSymbol, type SelectorConfiguration, type SelectorOperation, type SelectorRegion } from "./SelectorSymbol";
 import { SelectorCursor } from "./SelectorCursor";
+import { SelectionController } from "./SelectionController";
+import { describeSelectedPart } from "./selectedParts";
+import { selectedPartTarget } from "./selectionCoupling";
 import {
   boundaryCandidates, boundaryElement, boundaryFor, collectVisualParts, matchingVisualParts,
   partAt, resolveVisualSelection, selectorChrome,
@@ -13,7 +16,7 @@ import {
 type SelectionState = { boundary: SelectionBoundary | null; rules: SelectionRule[] };
 type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void };
 type Pick = { boundary: SelectionBoundary; rule: SelectionRule | null; setBoundary: boolean };
-type Phase = "off" | "configure" | "aim";
+type Phase = "off" | "configure" | "aim" | "edit";
 const Context = createContext<VisualSelection | null>(null);
 export const useVisualSelection = () => useContext(Context);
 const emptySelection = (): SelectionState => ({ boundary: null, rules: [] });
@@ -32,6 +35,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const [geometry, setGeometry] = useState(0);
   const point = useRef<{ x: number; y: number; element: Element } | null>(null);
   const depth = useRef(0), candidateRef = useRef<Pick | null>(null);
+  const selectedRef = useRef<VisualPart[]>([]);
   const latest = useRef({ phase, configuration, catalog, selection });
   latest.current = { phase, configuration, catalog, selection };
   const setPreview = (next: Pick | null) => {
@@ -73,6 +77,10 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const undo = () => { setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); setPreview(null); };
   const redo = () => { setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); setPreview(null); };
   const aim = () => { setPreview(null); setPhase("aim"); };
+  const edit = (x: number, y: number) => {
+    if (!selectedRef.current.length) return;
+    setPreview(null); setPosition({ x, y }); setPhase("edit");
+  };
   const accept = () => {
     const pick = candidateRef.current;
     if (!pick) return;
@@ -107,15 +115,25 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const rule = regionRule(side);
     setPreview(rule ? { boundary: rule.boundary, rule, setBoundary: false } : null);
   };
-  const actions = useRef({ previewAt, close, disable, undo, redo, accept, aim });
-  actions.current = { previewAt, close, disable, undo, redo, accept, aim };
+  const actions = useRef({ previewAt, close, disable, undo, redo, accept, aim, edit });
+  actions.current = { previewAt, close, disable, undo, redo, accept, aim, edit };
   const matches = useMemo(() => resolveVisualSelection(catalog, selection.boundary, selection.rules), [catalog, selection]);
+  selectedRef.current = matches.included;
+  const editableParts = useMemo(() => matches.included.flatMap(part => {
+    const description = describeSelectedPart(part); return description ? [description] : [];
+  }), [matches]);
   const preview = useMemo(() => candidate?.rule ? matchingVisualParts(catalog, candidate.rule) : [], [catalog, candidate]);
-  const properties = useMemo(() => [...new Set(matches.included.flatMap(part => part.target.properties ?? []))], [matches]);
+  const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
 
   useEffect(() => {
     let frame = 0, consumedUntil = 0;
     const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(selectorChrome);
+    const overSelection = (event: MouseEvent) => event.target instanceof Element && selectedRef.current.some(part => {
+      if (!part.element.contains(event.target as Element)) return false;
+      if (!part.range) return true;
+      return [...part.range.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right &&
+        event.clientY >= rect.top && event.clientY <= rect.bottom);
+    });
     const down = (event: PointerEvent) => {
       if (!(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
       if (event.button === 1) {
@@ -127,6 +145,18 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
         candidateRef.current = null; setCandidate(null);
         depth.current = 0;
         point.current = { element: event.target, x: event.clientX, y: event.clientY };
+        return;
+      }
+      if (event.button === 2 && outsideChrome(event) && overSelection(event)) {
+        claimUIPress(event.pointerId, event.pointerType, event.buttons);
+        event.preventDefault(); event.stopImmediatePropagation();
+        consumedUntil = 0;
+        actions.current.edit(event.clientX, event.clientY);
+        return;
+      }
+      if (latest.current.phase === "edit") {
+        if (!outsideChrome(event)) claimUIPress(event.pointerId, event.pointerType, event.buttons);
+        if (outsideChrome(event) && event.button === 0) { consumedUntil = 0; actions.current.close(); }
         return;
       }
       if (latest.current.phase === "off") { consumedUntil = 0; return; }
@@ -176,7 +206,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape" && (latest.current.phase !== "off" || latest.current.selection.boundary)) {
         event.preventDefault(); event.stopPropagation(); actions.current.disable();
-      } else if (latest.current.phase !== "off" && (event.ctrlKey || event.metaKey)) {
+      } else if (latest.current.phase !== "off" && latest.current.phase !== "edit" && (event.ctrlKey || event.metaKey)) {
         const key = event.key.toLowerCase();
         if (key === "z" || key === "y") {
           event.preventDefault(); event.stopImmediatePropagation();
@@ -187,7 +217,9 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     const context = (event: MouseEvent) => {
       if (latest.current.phase !== "off" && outsideChrome(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
-    const blur = () => actions.current.close();
+    // Native color pickers can blur the browser. Keep their editor mounted so
+    // the normal preview/commit lifecycle can finish.
+    const blur = () => { if (latest.current.phase !== "edit") actions.current.close(); };
     const hidden = () => { if (document.hidden) blur(); };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointerup", up, true);
@@ -249,9 +281,11 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const top = Math.max(8, Math.min(position.y - 89.75, innerHeight - 220));
   return <Context.Provider value={{ ...selection, parts: matches.included, properties, clear }}>
     {children}
-    {active && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
+    {active && phase !== "edit" && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
       candidate={candidate?.rule ?? null} hoverBoundary={candidate?.setBoundary ? candidate.boundary : null} boundary={selection.boundary} />, document.body)}
     {phase === "aim" && createPortal(<SelectorCursor configuration={configuration} initial={point.current ?? position} />, document.body)}
+    {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position}
+      onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
       style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}
       onPointerLeave={event => { if (event.relatedTarget instanceof Element && !event.relatedTarget.closest(selectorChrome)) aim(); }}>
@@ -268,6 +302,8 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
           {matches.included.length}<small> / {matches.excluded.length}</small>
         </output>
         <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={clear}>×</button>
+        <button type="button" aria-label="Edit selected appearance" title="Edit selected appearance" disabled={!editableParts.length}
+          onClick={() => edit(position.x, position.y)}>☷</button>
         <button type="button" aria-label="Start aiming" title="Aim, or move outside the controller. MB3 configures again; Escape disables and clears." onClick={aim}>✓</button>
       </div>
     </div>, document.body)}
