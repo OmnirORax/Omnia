@@ -185,7 +185,7 @@ function partMeasurements() {
   };
 }
 export function partPaint(part: VisualPart): string {
-  const style = getComputedStyle(part.element);
+  const style = getComputedStyle(part.element, part.target.id === "text.ui.placeholders" ? "::placeholder" : null);
   // Feedback ink is temporary. Its adapter preserves the actual source for sampling.
   const source = part.element.hasAttribute("data-visual-selection-ink") ? style.getPropertyValue("--omnium-selector-source-color").trim() : "";
   return part.role === "background" ? style.backgroundColor : part.role === "contour" ? style.borderTopColor :
