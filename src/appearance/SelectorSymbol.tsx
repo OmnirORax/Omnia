@@ -33,13 +33,13 @@ export function SelectorSymbol({ configuration, actions }: { configuration: Sele
   return <svg className={`visual-selector-symbol operation-${operation ?? "neutral"}`} viewBox="0 0 320 300"
     aria-label={actions ? "Boundary, inside, outside, include, exclude and pattern" : undefined} aria-hidden={actions ? undefined : true}>
     <g className="selector-outside" {...button("Outside boundary", region === "outside", () => actions?.region("outside"))} {...preview("outside")}>
-      {actions && <title>Outside: apply the include/exclude operation to UI parts outside the current boundary.</title>}
+      {actions && <title>Outside: apply the include/exclude operation outside the boundary. Press again to clear the region choice.</title>}
       <circle className="selector-hit" cx="140" cy="136" r="119" fill="none" strokeWidth="34" />
       <circle className="selector-region-mark" cx="140" cy="136" r="119" fill="none" strokeWidth="30" />
       <circle className="selector-outside-edge" cx="140" cy="136" r="133" fill="none" strokeWidth="1.5" />
     </g>
     <g className="selector-inside" {...button("Inside boundary", region === "inside", () => actions?.region("inside"))} {...preview("inside")}>
-      {actions && <title>Inside: apply the include/exclude operation to all UI parts inside the current boundary.</title>}
+      {actions && <title>Inside: apply the include/exclude operation inside the boundary. Press again to clear the region choice.</title>}
       <circle className="selector-hit" cx="140" cy="136" r="68" />
       <circle className="selector-region-mark" cx="140" cy="136" r="65" />
     </g>

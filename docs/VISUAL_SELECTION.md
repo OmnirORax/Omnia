@@ -24,6 +24,8 @@ The symbol has independent choices:
 - **Empty center / surrounding annulus:** choose inside / outside the established
   boundary. With an operation armed, clicking either region applies it to all
   registered UI parts in that region. These actions never move the boundary.
+  Press the active region again to clear the inside/outside choice; this does not
+  apply another operation or remove the already accepted selection.
   Outside means other registered UI parts throughout the app, not another frame.
 - **Paired dots:** toggle pattern sampling. Turn the ring off to sample parts or
   patterns in the chosen region. With dots off, clicks affect individual parts.

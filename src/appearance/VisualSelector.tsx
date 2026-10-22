@@ -92,8 +92,9 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     return boundary && side && operation ? { boundary, region: side, include: operation === "include" } : null;
   };
   const chooseRegion = (side: Exclude<SelectorRegion, null>) => {
-    setConfiguration(config => ({ ...config, region: side }));
-    const rule = regionRule(side);
+    const next = latest.current.configuration.region === side ? null : side;
+    setConfiguration(config => ({ ...config, region: next }));
+    const rule = regionRule(next);
     if (rule) append(rule);
     setPreview(null);
   };
