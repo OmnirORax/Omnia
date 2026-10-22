@@ -175,10 +175,12 @@ adapter; adding a UI row alone is not a working integration.
 The stationary meta-selector configures the tool; the compact aiming symbol is
 pointer-transparent. MB3 is the current default toggle between these states.
 The circle controls contour/intersections, Inside and Outside independently;
-it never blocks the geometry mode. RMB includes and LMB excludes. E cycles
+it never blocks the geometry mode. One LMB action toggles membership; RMB opens editing. Unchecked ○ regions start
+off but remain geometrically pickable for selective inclusion. E cycles
 pattern, individual, pointed-owner, axis/ray/segment, rectangle, ellipse, polygon
 and freehand modes. Geometry establishes a working set; later pattern/individual
-rules refine that set. New geometry intersects the current set; release returns
+toggles refine that set. Working geometry and its inclusion baseline are separate;
+Inside sets an all-on/all-off baseline without making unchecked contents unpickable. New geometry intersects the current set; release returns
 subsequent picks to app-wide matching. Side masks, region choices and geometry
 share the existing transient selection history. Pattern recognition uses
 registered parts and mathematical intersections, not regex or arbitrary pixels.

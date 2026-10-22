@@ -1,8 +1,8 @@
 # Visual selector and shared controller
 
 Appearance has one property pool and one master editing system. Selection reuses
-registered visual parts, capabilities and renderer adapters. Geometry, matching,
-include/exclude and property editing are separate; selection never creates
+registered visual parts, capabilities and renderer adapters. Geometry, inclusion baselines,
+toggling and property editing are separate; selection never creates
 appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
 ## One circle, independent geometry
@@ -28,29 +28,49 @@ intersection matching. Settings apply to the current geometry and carry into the
 next geometry. Geometry settings and edge masks join transient selection history.
 The ring never arms another pointer tool or overrides E.
 
-RMB includes and LMB excludes by default. Their commands are in the shared
-`FEATURE_ACTIONS` catalog, so they are listed, rebindable and capture-aware. The
-last operation supplies hover color; pressing the opposite button recomputes
-that operation at the press position, without relying on a stale hover preview.
-The old inner/outer include/exclude bars are removed. The exact old default
-binding bundle (RMB inspection, include/exclude unassigned) migrates once to the
-new defaults. Customized bindings and deliberately cleared bindings in later
-saves remain intact. Editing is available from the controller's edit button, the
-platform context-menu keyboard gesture, Master controller, or a rebound edit
-command; ordinary RMB now includes instead of opening an editor.
+There is one selection action: LMB toggles a pattern/individual, or places geometry.
+A fully included target becomes unselected; an unselected target becomes included.
+A mixed category becomes fully included. Clicking the same category/individual
+again reverses it. Preview and commit use the shared `selectionToggleRule`; commit
+rechecks current state rather than replaying a stale hover decision. A settled
+pointer does not immediately preview the inverse action after committing; moving
+or a new press resumes preview. Green/red feedback indicates adding/removing,
+not separate operation modes. There is no exclude command or +/− pair.
+
+Geometry starts with an implicit off baseline and includes only its checked ○
+regions. With Inside unchecked, contents stay off yet remain available for
+selective inclusion. Checking Inside includes all contents; subsequent clicks
+make exceptions by toggling selected patterns off. The geometric working domain
+is separate from the inclusion mask. Closed shapes keep their interiors available
+for picking regardless of the Inside checkbox; enabling Outside additionally
+allows exterior picks. Open paths retain their intersections even when their
+contour baseline is off. Implicitly off regions are not flooded with red feedback.
+
+Changing a circle checkbox resets only its region to the new baseline, restoring
+any overlaps with other checked regions. Exceptions in unrelated regions remain.
+The circle baseline is stored in transient selection history, so undo/redo restores
+both membership and the displayed checkbox state. Geometry edits still update
+physical paths across associated rules without overwriting their inclusion masks.
+
+The shared command keeps ID `selector.include` for compatibility and is labeled
+Toggle pointed pattern / define geometry. The retired `selector.exclude` command
+is removed. Exact older default bundles migrate to LMB toggle and RMB edit; custom
+assignments and later explicit clears remain intact. RMB, the controller's edit
+button, the platform keyboard context-menu gesture and Master controller provide
+editing. Shortcut metadata and handlers remain shared and rebindable.
 
 ## Geometry and pattern modes
 
 E and the symbol below the circle cycle modes. The ⠒ disclosure also offers direct
 mode buttons, pattern filters/counts and edge toggles. Modes are:
 
-- **Pattern ⠒ (default):** hover an actual part to preview its registered category
+- **Pattern ⠒ (default):** hover an actual part to preview toggling its registered category
   throughout the current working set. Without geometry, the scope is the app.
-  Hovering text previews all registered UI text; clicking commits the operation.
+  Hovering text previews all registered UI text; clicking toggles that category.
   Icon artwork, input contents, backgrounds, contours and indicators retain their
   distinct categories. Pointer-event-transparent nested text is recognized from
   its text-range geometry even when its parent receives the pointer event.
-- **Individual ·:** affect only the pointed registered part, within the same scope.
+- **Individual ·:** toggle only the pointed registered part, within the same scope.
 - **Pointed geometry ○:** use a pointed component/frame contour as geometry. Wheel
   changes containing-owner depth. The adapter uses the element rectangle and
   selectable sides; Inside/Outside apply to its contents/exterior. Its stable
@@ -64,25 +84,25 @@ mode buttons, pattern filters/counts and edge toggles. Modes are:
   inside/outside settings, rather than a separate marquee selection mechanism.
 - **Polygon ⬡:** click vertices, then press the registered Finish geometry command
   (Enter by default), the controller's check mark, or the first vertex to finish.
-  At least three vertices are needed. The final press chooses include/exclude;
-  Enter uses the last chosen operation. Self-intersections use even-odd filling.
+  At least three vertices are needed. Placement uses the current circle baseline. Self-intersections use even-odd filling.
 - **Freehand 〰:** drag a path; release commits. It is open by default. The Close
   path setting closes the stroke and enables inside/outside. Samples are bounded
   and progressively decimated during long strokes; the same retained path drives
   matching and feedback.
 
-Defining geometry commits its operation and leaves that geometry as the working
+Defining geometry establishes its circle baseline and leaves that geometry as the working
 set. The pointer returns to Pattern mode so it can refine the set immediately.
 New geometry intersects the existing working set; Release working geometry keeps
 accepted rules and returns subsequent picks to app-wide matching. This permits
 choosing a window first, then drawing an axis within it. Custom drawing coordinates
 are relative to the viewport owner; pointed geometry uses its actual UI owner.
 
-For example: choose Axis, LMB-drag through several controls to exclude everything
-it intersects. The axis stays established. RMB a text label to include matching
-text along that axis, or choose Individual to include only that label. Pointer
-hits and category-list actions cannot escape that working set. Hover only
-previews changes; it never replaces the accepted selection or changes properties.
+For example: turn the contour baseline off, choose Axis and drag through several
+controls. Its intersections remain the working set while all start off. Click a
+text label to include matching text along the axis, or choose Individual to toggle
+just that label. Turn the contour on to include all intersections, then toggle
+specific patterns off. Pointer hits and category-list actions stay in that domain.
+Hover never replaces accepted selection or changes properties.
 
 Closed polygon/rectangle geometry exposes numbered side toggles in ⠒. The same
 numbers appear on its guide. Disabled sides stop contributing intersections;
@@ -91,12 +111,12 @@ use the same mechanism. Ellipse matching uses a 64-segment contour and does not
 expose per-segment side buttons. Overlay paths use a single combined SVG path per
 active/disabled layer, avoiding one animation per sampled freehand segment.
 
-The ⠒ list shows categories present in the working set. Click a category name to
-filter subsequent picks/drawings; click again to clear the filter. Its +/− actions
-preview and apply that category only within the geometry. Later matching rules
-override earlier ones. An excluded set can therefore have individually included
-exceptions, and an included set can have excluded exceptions. Earlier independent
-geometry selections remain accepted when another geometry is added.
+The ⠒ list shows categories present in the geometric working set, including those
+currently off. A category name filters subsequent picks/drawings; click again to
+clear the filter. Its single circle toggles that category within the geometry.
+Later rules override earlier matches internally, allowing both off baselines with
+included exceptions and on baselines with unselected exceptions. Earlier
+independent geometry selections remain accepted when another geometry is added.
 
 Selection undo/redo records geometry placement, rule changes, side masks, region
 changes, releases, logical-object picks and clear in one transient timeline. It
@@ -104,7 +124,7 @@ never writes graph/UI/appearance history or browser storage. Ctrl/Cmd+Z,
 Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y are the defaults while configuring/aiming. New
 operations after undo replace its redo branch. Unfinished drawing is not accepted
 on blur/cancel. Hover previews show only matches whose include/exclude state would
-change; explicit exclusions remain red and inclusions green.
+change; explicit removals remain red and inclusions green; implicit off baselines are unpainted.
 
 The mouse-shaped button selects the logical Mouse group through the generic
 `selectObject` API. Selecting an already selected logical target toggles it off;

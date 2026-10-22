@@ -30,7 +30,7 @@ export type SelectionConstraint = {
   geometryId?: string;
   scope?: SelectionConstraint;
 };
-export type SelectionRule = SelectionConstraint & { include: boolean };
+export type SelectionRule = SelectionConstraint & { include: boolean; implicit?: boolean };
 export const selectorChrome = "[data-visual-selector]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
 const ids = new WeakMap<Node, number>();
@@ -253,12 +253,12 @@ export function selectionLineGuide(parts: VisualPart[], rule: SelectionRule): [P
 export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionBoundary | null, rules: SelectionRule[]): { included: VisualPart[]; excluded: VisualPart[] } {
   const result = { included: [] as VisualPart[], excluded: [] as VisualPart[] };
   if (!boundary || !boundaryElement(boundary)) return result;
-  const measure = partMeasurements(), states = new Map<VisualPart, boolean>();
-  for (const rule of rules) for (const part of ruleGeometry(parts, rule, measure).peers) states.set(part, rule.include);
+  const measure = partMeasurements(), states = new Map<VisualPart, SelectionRule>();
+  for (const rule of rules) for (const part of ruleGeometry(parts, rule, measure).peers) states.set(part, rule);
   for (const part of parts) {
-    const included = states.get(part);
-    if (included === true) result.included.push(part);
-    else if (included === false) result.excluded.push(part);
+    const state = states.get(part);
+    if (state?.include) result.included.push(part);
+    else if (state && !state.implicit) result.excluded.push(part);
   }
   return result;
 }

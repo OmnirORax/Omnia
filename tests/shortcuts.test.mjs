@@ -28,18 +28,21 @@ test("feature commands automatically join the catalog, defaults and saved settin
   assert.equal(normalizeSettings({ bindings: { "selector.open": "", "selector.pattern": "Ctrl+Alt+P" } }).bindings["selector.open"], "");
 });
 
-test("selector operation defaults migrate the old untouched bundle once while preserving custom and cleared bindings", () => {
-  const old = { bindings: { "selector.edit": "MB2", "selector.include": "", "selector.exclude": "" } };
-  const migrated = normalizeSettings(old);
-  assert.equal(migrated.bindings["selector.include"], "MB2");
-  assert.equal(migrated.bindings["selector.exclude"], "MB1");
-  assert.equal(migrated.bindings["selector.edit"], "");
-  assert.equal(old.bindings["selector.edit"], "MB2", "loading does not mutate saved input");
-  const custom = normalizeSettings({ bindings: { ...old.bindings, "selector.edit": "Q" } });
-  assert.equal(custom.bindings["selector.edit"], "Q");
-  assert.equal(custom.bindings["selector.include"], "");
-  const cleared = normalizeSettings({ ...migrated, bindings: { ...migrated.bindings, "selector.include": "", "selector.exclude": "", "selector.edit": "MB2" } });
-  assert.equal(cleared.bindings["selector.include"], "", "new saved clears are not remigrated");
+test("selector single-toggle defaults migrate retired operation bundles without reviving later clears", () => {
+  const dual = { bindings: { "selector.edit": "", "selector.include": "MB2", "selector.exclude": "MB1", "selector.finishGeometry": "Enter" } };
+  const migrated = normalizeSettings(dual);
+  assert.equal(migrated.bindings["selector.include"], "MB1");
+  assert.equal(migrated.bindings["selector.edit"], "MB2");
+  assert.equal(Object.hasOwn(migrated.bindings, "selector.exclude"), false);
+  assert.equal(FEATURE_ACTIONS.some(action => action.id === "selector.exclude"), false);
+  assert.equal(dual.bindings["selector.edit"], "", "loading does not mutate saved input");
+  const original = normalizeSettings({ bindings: { "selector.edit": "MB2", "selector.include": "", "selector.exclude": "" } });
+  assert.equal(original.bindings["selector.include"], "MB1");
+  const custom = normalizeSettings({ bindings: { ...dual.bindings, "selector.include": "Q" } });
+  assert.equal(custom.bindings["selector.include"], "Q");
+  assert.equal(custom.bindings["selector.edit"], "");
+  const cleared = normalizeSettings({ ...migrated, bindings: { ...migrated.bindings, "selector.include": "", "selector.edit": "MB2" } });
+  assert.equal(cleared.bindings["selector.include"], "", "cleared toggles do not migrate again");
   assert.equal(cleared.bindings["selector.edit"], "MB2");
 });
 

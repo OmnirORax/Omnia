@@ -15,6 +15,7 @@ import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
 import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices } from "../src/appearance/selectionGeometry.ts";
+import { workingGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule } from "../src/appearance/selectionToggle.ts";
 import { partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
@@ -130,6 +131,45 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   assert.deepEqual(matchingVisualParts(parts, { ...rule, line: { ...line, mode: "axis" } }).map(p => p.key), ["label", "icon", "button"]);
   assert.deepEqual(matchingVisualParts(parts, { ...rule, region: "outside", line: { ...line, mode: "axis" } }).map(p => p.key), ["outside"]);
   const appBoundary = { element: app, key: "app" };
+  const outline = { boundary, path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true } };
+  const defaultMask = { contour: true, region: null };
+  const work = workingGeometry(outline, defaultMask);
+  const baseline = geometryBaseline(work, defaultMask);
+  const evaluate = rules => resolveVisualSelection(parts, boundary, rules);
+  assert.deepEqual(evaluate(baseline), { included: [], excluded: [] }, "unchecked interiors start implicitly off without red paint everywhere");
+  assert.deepEqual(matchingVisualParts(parts, { ...work, include: true }).map(p => p.key), ["label", "icon", "button", "gap"], "unchecked contents remain available to pick");
+  const individual = { boundary: appBoundary, scope: work, part: "label" };
+  const on = selectionToggleRule(parts, evaluate(baseline).included, individual);
+  assert.equal(on.include, true);
+  const selected = [...baseline, on];
+  assert.deepEqual(evaluate(selected).included.map(p => p.key), ["label"]);
+  const off = selectionToggleRule(parts, evaluate(selected).included, individual);
+  assert.equal(off.include, false);
+  assert.deepEqual(evaluate([...selected, off]).included, [], "clicking the same target twice deselects it");
+  const allMask = { contour: true, region: "inside" };
+  const all = [...baseline, ...geometryMaskChange(work, allMask, "inside")];
+  assert.deepEqual(evaluate(all).included.map(p => p.key), ["label", "icon", "button", "gap"], "Inside includes all contents");
+  for (const role of ["text", "icon", "background"]) {
+    const constraint = { boundary: appBoundary, scope: work, role };
+    const remove = selectionToggleRule(parts, evaluate(all).included, constraint);
+    assert.equal(remove.include, false, `included ${role} toggles off with the same action`);
+    const after = [...all, remove];
+    const restore = selectionToggleRule(parts, evaluate(after).included, constraint);
+    assert.equal(restore.include, true);
+    assert.deepEqual(evaluate([...after, restore]).included.map(p => p.key), evaluate(all).included.map(p => p.key));
+  }
+  const mixedText = selectionToggleRule(parts, evaluate(selected).included, { boundary: appBoundary, scope: work, role: "text" });
+  assert.equal(mixedText.include, true, "a partially selected category fills rather than clearing its existing members");
+  assert.deepEqual(evaluate([...all, ...geometryMaskChange(work, defaultMask, "inside")]).included, [], "turning Inside off restores its off baseline");
+  const independentOutside = { boundary: appBoundary, part: "outside", include: true };
+  assert.deepEqual(evaluate([...all, independentOutside, ...geometryMaskChange(work, defaultMask, "inside")]).included.map(p => p.key), ["outside"], "changing one region preserves unrelated selections");
+  const axisWork = workingGeometry(rule, { contour: false, region: null });
+  const axisOff = geometryBaseline(axisWork, { contour: false, region: null });
+  assert.deepEqual(evaluate(axisOff).included, []);
+  assert.deepEqual(matchingVisualParts(parts, { ...axisWork, include: true }).map(p => p.key), ["label", "icon", "button"], "unchecked line intersections remain pickable");
+  const axisIcon = selectionToggleRule(parts, [], { boundary: appBoundary, scope: axisWork, role: "icon" });
+  assert.deepEqual(evaluate([...axisOff, axisIcon]).included.map(p => p.key), ["icon"]);
+
   assert.equal(boundaryInRegion(appBoundary, boundary, "inside"), false, "scrolling to app ancestor must not escape Inside");
   assert.equal(boundaryInRegion(appBoundary, boundary, "outside"), false, "ancestor must not flash Inside while working Outside");
   assert.equal(boundaryInRegion(boundary, boundary, "inside"), true);

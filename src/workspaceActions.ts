@@ -110,15 +110,16 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   try {
     const value = input as Partial<WorkspaceSettings>;
     const savedBindings = { ...value.bindings };
-    // The old default bundle used RMB for inspection and left both operations
-    // unassigned. Migrate that exact bundle once; new metadata marks later saves.
-    // Customized/cleared bindings and all unrelated shortcuts remain untouched.
-    if (!Object.hasOwn(savedBindings, "selector.finishGeometry") &&
-        savedBindings["selector.edit"] === "MB2" && savedBindings["selector.include"] === "" && savedBindings["selector.exclude"] === "") {
-      savedBindings["selector.edit"] = "";
-      savedBindings["selector.include"] = "MB2";
-      savedBindings["selector.exclude"] = "MB1";
+    // Removed operations identify the old bundles. Preserve custom assignments;
+    // later saves omit the obsolete ID, so explicitly cleared toggles stay clear.
+    const legacyExclude = savedBindings["selector.exclude"];
+    if (savedBindings["selector.include"] === "MB2" && legacyExclude === "MB1" && savedBindings["selector.edit"] === "") {
+      savedBindings["selector.include"] = "MB1";
+      savedBindings["selector.edit"] = "MB2";
+    } else if (savedBindings["selector.include"] === "" && legacyExclude === "" && savedBindings["selector.edit"] === "MB2") {
+      savedBindings["selector.include"] = "MB1";
     }
+    delete savedBindings["selector.exclude"];
     defaults.appearance.controller = loadController(value.appearance?.controller);
     defaults.appearance.font = normalizeFont(value.appearance?.font);
     if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;

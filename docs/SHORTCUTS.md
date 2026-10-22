@@ -64,19 +64,18 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 ## Visual selector integration
 
 The selector command group includes configuration/aiming (MB3), geometry modes
-(E), include (RMB/MB2), exclude (LMB/MB1), polygon finish (Enter), disable/clear
-(Esc), selection undo/redo and unassigned commands for editing, contour,
-inside/outside, releasing geometry, closing paths, finite bounds, color stops and
-logical Mouse selection. The exact old untouched RMB-inspection/empty-operation
-bundle migrates to the new pointer defaults once. Customized bindings and later
-cleared bindings remain intact. Buttons and input paths invoke the same handlers.
+(E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), edit
+(RMB/MB2), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
+unassigned commands for contour, inside/outside, releasing geometry, closing paths,
+finite bounds, color stops and logical Mouse selection. The separate exclude
+command is retired. Exact untouched older pointer bundles migrate to these
+single-toggle defaults; custom bindings and later clears remain intact.
 
 Click/drag geometry, polygon closure, wheel pointed-owner depth and platform
-keyboard context menus are listed alongside commands. RMB is an include operation
-while selecting; editing is available from the controller's edit command or native
-keyboard context gesture. Native focused-label F2 rename and focused-control
-context actions derive their descriptions from the same gesture metadata. No
-separate shortcut inventory or editor is introduced.
+keyboard context menus remain listed alongside commands. A click toggles current
+membership; circle checkboxes supply the region baseline. Buttons and pointer/key
+input use the same registered handlers. F2 focused-label rename and focused-control
+context actions derive their descriptions from gesture metadata.
 
 Frame search, global UI search and library filtering resolve each function or
 `shortcut:` row through `functionShortcutBinding`. Current bindings are searchable
