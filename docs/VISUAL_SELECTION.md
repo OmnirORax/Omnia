@@ -20,6 +20,14 @@ Its measured size determines the pointer offset, including fractional sizes; the
 dot stays exactly at the mouse position. Measurement runs at mount/resize, while
 pointer motion updates only the cached transform before painting.
 
+These are default bindings, all declared in the shared action catalog. Shortcuts
+& functions and Workspace settings → Shortcuts & gestures automatically include
+the selector commands, their activation context and its native gestures. Rebind
+or clear keyboard/mouse commands there; selector behavior and button hints read
+the saved bindings. Recording a binding pauses picking and cannot invoke the
+recorded command through the trailing click/contextmenu. See `SHORTCUTS.md` for
+the required integration path and CI architecture check for future features.
+
 The symbol has independent choices:
 
 - **Ring:** choose or replace the boundary. The ring stays active after clicking

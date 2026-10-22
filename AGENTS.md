@@ -1,5 +1,16 @@
 # Shared visual editing architecture
 
+Shortcut commands must use the shared `ACTIONS` catalog. For a component-owned
+feature, declare its commands in `src/featureActions.ts` and install behavior with
+`useFeatureActions`; do not add private key/button literals or a separate shortcut
+list. The catalog supplies both shortcut screens, defaults, saved bindings and
+conflict scopes. New feature handlers must respect capture mode, blocked dialogs,
+typing, availability and UI pointer ownership. Native gesture descriptions belong
+in `FEATURE_GESTURES`; ordinary widget Enter/Escape/arrow behavior stays native.
+Read `docs/SHORTCUTS.md` before adding input controls. The shortcut architecture
+check runs in the normal model suite and rejects common private hotkey literals;
+do not weaken or expand its legacy protocol exceptions to ship a feature.
+
 Read `docs/VISUAL_SELECTION.md`, `docs/APPEARANCE_CONTROLLER.md` and
 `docs/UI_COMPONENT_CONTRACT.md` before changing appearance, inspection, selection,
 component presentation or their editors.

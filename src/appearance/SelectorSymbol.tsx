@@ -24,7 +24,7 @@ type Actions = {
 };
 
 /** One geometric symbol supplies stationary controls and the noninteractive cursor. */
-export function SelectorSymbol({ configuration, actions, precision = false }: { configuration: SelectorConfiguration; actions?: Actions; precision?: boolean }) {
+export function SelectorSymbol({ configuration, actions, precision = false, patternBinding }: { configuration: SelectorConfiguration; actions?: Actions; precision?: boolean; patternBinding?: string }) {
   const { boundaryPicking, pattern, operation, region } = configuration;
   const button = (label: string, pressed: boolean, action: () => void) => actions ? {
     role: "button", tabIndex: 0, "aria-label": label, "aria-pressed": pressed,
@@ -66,7 +66,7 @@ export function SelectorSymbol({ configuration, actions, precision = false }: { 
       <path className="selector-bar" d="M233 136H300" strokeWidth="24" />
     </g>
     <g {...button(`Pattern mode: ${pattern}`, pattern !== "item", () => actions?.pattern())}>
-      {actions && <title>Cycle: individual · pattern ⠒ · axis ↕ · direction ↑ · position |. E also cycles. Drag to place a line; every touched pattern is selected unless a pattern filter is chosen.</title>}
+      {actions && <title>Cycle: individual · pattern ⠒ · axis ↕ · direction ↑ · position |.{patternBinding ? ` ${patternBinding} also cycles.` : ""} Drag to place a line; every touched pattern is selected unless a pattern filter is chosen.</title>}
       {actions && <rect className="selector-hit" x="97" y="228" width="88" height="46" />}
       {pattern === "item" ? <circle className="selector-dot" cx="140" cy="250" r="15" /> : pattern === "pattern" ? <>
         <circle className="selector-dot" cx="123" cy="250" r="15" />

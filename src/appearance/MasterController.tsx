@@ -1,6 +1,7 @@
 import { transientReveal, type RevealSession } from "../ui/transientReveal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
+import { nativeContextMenuKey } from "../featureActions";
 import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
@@ -197,7 +198,7 @@ export function MasterController() {
               ctx.plug(target.id);
             }}
             onKeyDown={event => {
-              if (rigidity || !can || !(event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) return;
+              if (rigidity || !can || !nativeContextMenuKey(event)) return;
               event.preventDefault();
               event.stopPropagation();
               ctx.plug(target.id);

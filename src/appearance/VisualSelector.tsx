@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { claimUIPress } from "../ui/pointerOwnership";
+import { cursorPosition } from "../ui/cursorPosition";
+import { useFeatureActions } from "../ui/useFeatureActions";
+import { clearRecordedShortcutPress, recordedShortcutTail } from "../featureActions";
 import { VisualSelectionOverlay } from "./VisualSelectionOverlay";
 import { SelectorSymbol, type SelectorConfiguration, type SelectorOperation } from "./SelectorSymbol";
 import { SelectorCursor } from "./SelectorCursor";
@@ -174,8 +177,34 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     gesture.current = null; setPreview(null);
     setConfiguration(config => ({ ...config, pattern: nextPatternMode(config.pattern) }));
   };
-  const actions = useRef({ previewAt, close, disable, undo, redo, accept, aim, edit, cyclePattern });
-  actions.current = { previewAt, close, disable, undo, redo, accept, aim, edit, cyclePattern };
+  const toggleBoundary = () => { depth.current = 0; setPreview(null); setConfiguration(config => ({ ...config, boundaryPicking: !config.boundaryPicking })); };
+  const canConfigure = phase === "configure" || phase === "aim";
+  const lineMode = configuration.pattern === "axis" || configuration.pattern === "direction" || configuration.pattern === "position";
+  const inputPosition = (input?: KeyboardEvent | MouseEvent) => input instanceof MouseEvent ? { x: input.clientX, y: input.clientY } : cursorPosition();
+  const shortcuts = useFeatureActions("visualSelector", {
+    "selector.open": { enabled: true, run: input => {
+      const p = inputPosition(input), element = document.elementFromPoint(p.x, p.y) ?? document.body;
+      gesture.current = null; setCatalog(collectVisualParts()); setPosition(p); setPhase("configure"); setPreview(null);
+      depth.current = 0; point.current = { ...p, element };
+    } },
+    "selector.pattern": { enabled: canConfigure, run: cyclePattern },
+    "selector.edit": { enabled: hasSelection(), run: input => { const p = inputPosition(input); gesture.current = null; edit(p.x, p.y); } },
+    "selector.cancel": { enabled: phase !== "off" || hasSelection(), run: disable },
+    "selector.undo": { enabled: canConfigure, run: undo },
+    "selector.redo": { enabled: canConfigure, run: redo },
+    "selector.redoAlternate": { enabled: canConfigure, run: redo },
+    "selector.clear": { enabled: hasSelection(), run: clear },
+    "selector.aim": { enabled: phase !== "off" || hasSelection(), run: aim },
+    "selector.boundary": { enabled: canConfigure, run: toggleBoundary },
+    "selector.inside": { enabled: canConfigure, run: () => chooseRegion("inside") },
+    "selector.outside": { enabled: canConfigure, run: () => chooseRegion("outside") },
+    "selector.include": { enabled: canConfigure, run: () => chooseOperation("include") },
+    "selector.exclude": { enabled: canConfigure, run: () => chooseOperation("exclude") },
+    "selector.bounds": { enabled: canConfigure && lineMode && configuration.pattern !== "position", run: () => { setPreview(null); setConfiguration(config => ({ ...config, bounded: !config.bounded })); } },
+    "selector.colorStop": { enabled: canConfigure && lineMode, run: () => { setPreview(null); setConfiguration(config => ({ ...config, stopAtPaint: !config.stopAtPaint })); } },
+  });
+  const actions = useRef({ previewAt, close, accept, aim, edit });
+  actions.current = { previewAt, close, accept, aim, edit };
   const matches = useMemo(() => resolveVisualSelection(catalog, selection.boundary, selection.rules), [catalog, selection, geometry]);
   selectedRef.current = matches.included;
   const editableParts = useMemo(() => matches.included.flatMap(part => {
@@ -204,28 +233,18 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
 
   useEffect(() => {
-    let frame = 0, consumedUntil = 0;
+    let frame = 0, consumedUntil = 0, commandButton = -1;
+    const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
     const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(selectorChrome);
     const down = (event: PointerEvent) => {
-      if (!(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
-      if (event.button === 1) {
-        gesture.current = null;
-        claimUIPress(event.pointerId, event.pointerType, event.buttons);
-        event.preventDefault(); event.stopImmediatePropagation();
-        setCatalog(collectVisualParts());
-        setPosition({ x: event.clientX, y: event.clientY });
-        setPhase("configure");
-        candidateRef.current = null; setCandidate(null);
-        depth.current = 0;
-        point.current = { element: event.target, x: event.clientX, y: event.clientY };
-        return;
-      }
-      if (event.button === 2 && outsideChrome(event) && hasSelection()) {
-        gesture.current = null;
+      clearRecordedShortcutPress();
+      commandButton = -1;
+      if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
+      if (shortcuts.handle(event, id => id === "selector.open" || outsideChrome(event))) {
+        commandButton = event.button;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation();
         consumedUntil = 0;
-        actions.current.edit(event.clientX, event.clientY);
         return;
       }
       if (latest.current.phase === "edit") {
@@ -256,9 +275,10 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       if (!gesture.current) actions.current.accept();
     };
     const preventClick = (event: MouseEvent) => {
-      if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
-      if (event.button === 1 || (performance.now() < consumedUntil && outsideChrome(event))) {
+      if (!event.isTrusted || shortcuts.blocked() || shortcutUI(event.target) || event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
+      if (event.button === commandButton || (performance.now() < consumedUntil && outsideChrome(event))) {
         event.preventDefault(); event.stopImmediatePropagation();
+        if (event.type === "click" || event.type === "auxclick") commandButton = -1;
       }
     };
     const up = (event: PointerEvent) => {
@@ -279,6 +299,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       }
     };
     const move = (event: PointerEvent) => {
+      if (shortcuts.blocked() || shortcutUI(event.target)) return;
       if (!(event.target instanceof Element)) return;
       point.current = { element: event.target, x: event.clientX, y: event.clientY };
       if (latest.current.phase === "off" && latest.current.selection.boundary && event.buttons) {
@@ -293,6 +314,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       });
     };
     const wheel = (event: WheelEvent) => {
+      if (shortcuts.blocked() || shortcutUI(event.target)) return;
       if (latest.current.phase !== "aim" || !latest.current.configuration.boundaryPicking || !outsideChrome(event)) return;
       event.preventDefault(); event.stopImmediatePropagation();
       const p = point.current;
@@ -301,29 +323,20 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       actions.current.previewAt(p.element, p.x, p.y);
     };
     const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && (latest.current.phase !== "off" || latest.current.selection.boundary)) {
-        event.preventDefault(); event.stopPropagation(); actions.current.disable();
-      } else if ((latest.current.phase === "aim" || latest.current.phase === "configure") && event.key.toLowerCase() === "e" &&
-        !event.ctrlKey && !event.metaKey && !event.altKey && !(event.target instanceof Element && event.target.closest("input,textarea,select,[contenteditable=true]"))) {
-        event.preventDefault(); event.stopImmediatePropagation(); actions.current.cyclePattern();
-      } else if (latest.current.phase !== "off" && latest.current.phase !== "edit" && (event.ctrlKey || event.metaKey)) {
-        const key = event.key.toLowerCase();
-        if (key === "z" || key === "y") {
-          event.preventDefault(); event.stopImmediatePropagation();
-          if (key === "y" || event.shiftKey) actions.current.redo(); else actions.current.undo();
-        }
-      }
+      if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
+      if (shortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
     const context = (event: MouseEvent) => {
-      if (!(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery") || !outsideChrome(event)) return;
-      if (hasSelection()) {
+      if (recordedShortcutTail(event)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery") || !outsideChrome(event)) return;
+      const keyboard = event.button !== 2 && event.clientX === 0 && event.clientY === 0;
+      if (hasSelection() && (keyboard || shortcuts.matches("selector.edit", event) || latest.current.phase === "edit")) {
         event.preventDefault(); event.stopImmediatePropagation();
         consumedUntil = 0;
         if (latest.current.phase !== "edit") {
           // Also support context-menu invocations without pointerdown (keyboard
           // and platform gestures). Never require hitting a selected glyph.
           const rect = event.target.getBoundingClientRect();
-          const keyboard = event.button !== 2 && event.clientX === 0 && event.clientY === 0;
           actions.current.edit(keyboard ? rect.left + rect.width / 2 : event.clientX,
             keyboard ? rect.top + rect.height / 2 : event.clientY);
         }
@@ -405,33 +418,32 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
       style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}
       onPointerLeave={event => { if (event.relatedTarget instanceof Element && !event.relatedTarget.closest(selectorChrome)) aim(); }}>
-      <SelectorSymbol configuration={configuration} actions={{
-        boundary: () => { depth.current = 0; setPreview(null); setConfiguration(config => ({ ...config,
-          boundaryPicking: !config.boundaryPicking,
-        })); },
-        pattern: cyclePattern,
-        operation: chooseOperation, region: chooseRegion, previewRegion,
+      <SelectorSymbol configuration={configuration} patternBinding={shortcuts.binding("selector.pattern")} actions={{
+        boundary: () => shortcuts.invoke("selector.boundary"),
+        pattern: () => shortcuts.invoke("selector.pattern"),
+        operation: operation => shortcuts.invoke(operation === "include" ? "selector.include" : "selector.exclude"),
+        region: side => shortcuts.invoke(side === "inside" ? "selector.inside" : "selector.outside"), previewRegion,
       }} />
       {(configuration.pattern === "axis" || configuration.pattern === "direction" || configuration.pattern === "position") &&
         <div className="visual-selector-conditions">
           <button type="button" aria-label="Finite drag bounds" aria-pressed={configuration.bounded || configuration.pattern === "position"}
             disabled={configuration.pattern === "position"} title="Limit matching to the dragged segment. Axis and direction are unbounded by default; position is always finite."
-            onClick={() => { setPreview(null); setConfiguration(config => ({ ...config, bounded: !config.bounded })); }}>↦↤</button>
+            onClick={() => shortcuts.invoke("selector.bounds")}>↦↤</button>
           <button type="button" aria-label="Stop at color change" aria-pressed={configuration.stopAtPaint}
             title="Sample the starting part's color and role; stop independently in each direction at the first differently colored peer. Empty gaps do not stop it. Start on a painted part."
-            onClick={() => { setPreview(null); setConfiguration(config => ({ ...config, stopAtPaint: !config.stopAtPaint })); }}>◐</button>
+            onClick={() => shortcuts.invoke("selector.colorStop")}>◐</button>
         </div>}
       <div className="visual-selector-actions">
-        <button type="button" aria-label="Undo selection operation" title="Undo selection (Ctrl+Z)" disabled={timeline.index === 0} onClick={undo}>↶</button>
-        <button type="button" aria-label="Redo selection operation" title="Redo selection (Ctrl+Shift+Z / Ctrl+Y)" disabled={timeline.index === timeline.states.length - 1} onClick={redo}>↷</button>
+        <button type="button" aria-label="Undo selection operation" title={`Undo selection (${shortcuts.binding("selector.undo") || "Unassigned"})`} disabled={timeline.index === 0} onClick={() => shortcuts.invoke("selector.undo")}>↶</button>
+        <button type="button" aria-label="Redo selection operation" title={`Redo selection (${[shortcuts.binding("selector.redo"), shortcuts.binding("selector.redoAlternate")].filter(Boolean).join(" / ") || "Unassigned"})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>
         <output aria-label={`${matches.included.length} included, ${matches.excluded.length} excluded visual parts${candidate?.rule ? `; ${preview.length} preview matches` : ""}`}
           title={`${matches.included.length} included · ${matches.excluded.length} excluded${candidate?.rule ? ` · ${candidate.rule.include ? "include" : "exclude"} ${preview.length} preview matches` : ""}`}>
           {matches.included.length}<small> / {matches.excluded.length}</small>
         </output>
-        <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={clear}>×</button>
+        <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={() => shortcuts.invoke("selector.clear")}>×</button>
         <button type="button" aria-label="Edit selected appearance" title="Edit selected appearance" disabled={!selection.boundary && !editableParts.length}
-          onClick={() => edit(position.x, position.y)}>☷</button>
-        <button type="button" aria-label="Start aiming" title="Aim, or move outside the controller. MB3 configures again; Escape disables and clears." onClick={aim}>✓</button>
+          onClick={() => shortcuts.invoke("selector.edit")}>☷</button>
+        <button type="button" aria-label="Start aiming" title={`Aim, or move outside the controller. Configure: ${shortcuts.binding("selector.open") || "Unassigned"}; disable and clear: ${shortcuts.binding("selector.cancel") || "Unassigned"}.`} onClick={() => shortcuts.invoke("selector.aim")}>✓</button>
       </div>
       {configuration.pattern !== "item" && <details className="visual-selector-patterns">
         <summary title="Patterns in the working region. Choose a name to filter line matching; +/− includes/excludes the whole pattern.">⠒</summary>

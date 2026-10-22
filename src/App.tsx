@@ -27,7 +27,9 @@ import {
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
+import { claimUIPress } from "./ui/pointerOwnership";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
 import { AppearanceControls, BinderControls } from "./AppearanceControls";
 import { resolveAppearance } from "./graph/appearance";
@@ -37,7 +39,7 @@ import { fontFamily, MAX_FONT_TEMPLATE_BYTES, type CustomFont } from "./fonts";
 import { embeddedFont, importCustomFonts, importFontFile, listCustomFonts, loadFont } from "./fontLibrary";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
-import { ShortcutDisplay } from "./ShortcutDisplay";
+import { ShortcutDisplay, ShortcutGestures } from "./ShortcutDisplay";
 import { VisualControls } from "./VisualControls";
 import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
 import type { Visual, VisualAsset } from "./graph/assets";
@@ -183,6 +185,7 @@ function Workbench() {
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
   const captureLabel = useRef("");
   const [capturing, setCapturing] = useState<string | null>(null);
+  const consumedShortcutPress = useRef<number | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
   const [focusContextIds, setFocusContextIds] = useState<readonly string[] | null>(null);
@@ -889,6 +892,7 @@ function Workbench() {
     }
   }
   function runAction(action: ActionId, steps = 1) {
+    if (isFeatureAction(action)) { featureActionRuntime.invoke(action); return; }
     switch (action) {
       case "searchUI": setSearchOpen(true); break;
       case "ui:undo": setAppearancePreview(null); ui.undo(steps); break;
@@ -932,16 +936,20 @@ function Workbench() {
     }
   }
   useEffect(() => {
+    const assignBinding = (key: string) => {
+      if (!capturing) return;
+      const conflict = keyConflict(settings.bindings, capturing, key);
+      if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label ?? settings.buttonLabels[conflict] ?? conflict}.`); return; }
+      setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key }, buttonLabels: capturing.startsWith("button:") ? { ...old.buttonLabels, [capturing]: captureLabel.current || old.buttonLabels[capturing] || capturing.slice(7) } : old.buttonLabels }));
+      setCapturing(null); setError("");
+    };
     const keydown = (event: KeyboardEvent) => {
       if (capturing) {
         event.preventDefault();
         const key = normalizeKey(event);
         if (key === "Esc") { setCapturing(null); return; }
         if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
-        const conflict = keyConflict(settings.bindings, capturing, key);
-        if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label ?? settings.buttonLabels[conflict] ?? conflict}.`); return; }
-        setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key }, buttonLabels: capturing.startsWith("button:") ? { ...old.buttonLabels, [capturing]: captureLabel.current || old.buttonLabels[capturing] || capturing.slice(7) } : old.buttonLabels }));
-        setCapturing(null); setError(""); return;
+        assignBinding(key); return;
       }
       if (event.defaultPrevented || isTypingTarget(event.target)) return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
@@ -956,16 +964,33 @@ function Workbench() {
       if (action === "axisX" || action === "axisY" || action === "axisZ") setConstraintAxis(null);
     };
     const mouseHistory = (event: PointerEvent) => {
+      clearRecordedShortcutPress();
+      if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
+      if (event.defaultPrevented) return;
+      const action = actionForKey(settings.bindings, normalizePointer(event));
+      if (action && (!(settingsOpen || insertContext) || action === "cancel" || action === "searchUI")) {
+        consumedShortcutPress.current = event.button;
+        claimUIPress(event.pointerId, event.pointerType, event.buttons);
+        event.preventDefault(); event.stopImmediatePropagation(); runAction(action); return;
+      }
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault(); event.stopImmediatePropagation();
       runAction(event.shiftKey ? event.button === 3 ? settings.mouse.shiftBackButton : settings.mouse.shiftForwardButton : event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton, event.altKey ? 5 : 1);
     };
-    const preventMouseNavigation = (event: MouseEvent) => { if (event.button === 3 || event.button === 4) event.preventDefault(); };
+    const preventMouseNavigation = (event: MouseEvent) => {
+      if (event.isTrusted && event.button === consumedShortcutPress.current) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.type === "click" || event.type === "auxclick") consumedShortcutPress.current = null;
+      } else if (event.button === 3 || event.button === 4) event.preventDefault();
+    };
+    const preventRecordedMenu = (event: MouseEvent) => { if (recordedShortcutTail(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
     window.addEventListener("pointerdown", mouseHistory, true);
     window.addEventListener("mousedown", preventMouseNavigation, true);
     window.addEventListener("auxclick", preventMouseNavigation, true);
+    window.addEventListener("click", preventMouseNavigation, true);
+    window.addEventListener("contextmenu", preventRecordedMenu, true);
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
-    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); };
+    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); window.removeEventListener("click", preventMouseNavigation, true); window.removeEventListener("contextmenu", preventRecordedMenu, true); };
   });
   function outline(parentId: string | null, variantsOnly = false): React.ReactNode {
     return (
@@ -1005,7 +1030,7 @@ function Workbench() {
   for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
-  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row"><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a new shortcut" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key…':settings.bindings[action.id]||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
+  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row" title={FEATURE_ACTIONS.find(feature => feature.id === action.id)?.description}><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a key or mouse button" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key or mouse button…':settings.bindings[action.id]||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
   for (const [id, key] of Object.entries(settings.bindings).filter(([id]) => id.startsWith("button:"))) {
     const label = settings.buttonLabels[id] ?? id.slice(7);
     replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></div>, true);
@@ -2066,10 +2091,11 @@ function Workbench() {
           {["selectionModifier", "nestModifier", "subtreeModifier"].map(key => <FunctionControl key={key} id={`ui:gesture:${key}`} />)}
           {["backButton", "forwardButton", "shiftBackButton", "shiftForwardButton"].map(key => <FunctionControl key={key} id={`ui:mouse:${key}`} />)}
         </UISection>
-        <UISection id="keyboard-actions" title="Keyboard actions">
+        <UISection id="keyboard-actions" title="Shortcuts & gestures">
           {ACTIONS.some(action => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
           {Array.from(new Set(ACTIONS.map(action => action.category))).map(category => <UISection key={category} id={`shortcuts-${category}`} title={category} className="settings-category">
             {ACTIONS.filter(action => action.category === category).map(action => <FunctionControl key={action.id} id={`shortcut:${action.id}`} />)}
+            <ShortcutGestures category={category} />
           </UISection>)}
         </UISection>
         <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>

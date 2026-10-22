@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Checkpoint } from "./checkpoints";
+import { RECOVERY_GESTURE } from "../featureActions";
 
 const CSS = `
 :host { all: initial !important; position: fixed !important; inset: 0 !important; display: block !important; pointer-events: none !important; z-index: 2147483647 !important; opacity: 1 !important; visibility: visible !important; filter: none !important; transform: none !important; }
@@ -52,13 +53,13 @@ export function AppearanceRecovery(props: Props) {
       held = false;
     };
     const down = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !held) {
+      if (event.key === RECOVERY_GESTURE.key && !held) {
         held = true;
-        timer = setTimeout(() => latest.current.onOpen(true), 2000);
+        timer = setTimeout(() => latest.current.onOpen(true), RECOVERY_GESTURE.holdMs);
       }
       if (latest.current.open) {
         event.stopImmediatePropagation();
-        if (event.key === "Escape") event.preventDefault();
+        if (event.key === RECOVERY_GESTURE.key) event.preventDefault();
         if (event.key === "Tab") {
           const controls = [
             ...(panel.current?.querySelectorAll<HTMLElement>(
@@ -82,7 +83,7 @@ export function AppearanceRecovery(props: Props) {
       }
     };
     const up = (event: KeyboardEvent) => {
-      if (event.key === "Escape") clear();
+      if (event.key === RECOVERY_GESTURE.key) clear();
     };
     const visibility = () => {
       if (document.hidden) clear();

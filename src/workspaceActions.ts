@@ -4,6 +4,7 @@ import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from
 import { ANIMATION_TARGETS, EFFECT_KINDS, MAX_STAR_DENSITY, MAX_STAR_SIZE, normalizeSparkleOverrides, type AnimationTarget, type SurfaceTarget, type SparkleStyle, type EffectKind } from "./graph/effects.ts";
 import type { StyleDefaults } from "./graph/appearance.ts";
 import { normalizeFont, type FontId } from "./fonts.ts";
+import { FEATURE_ACTIONS } from "./featureActions.ts";
 
 export const ACTIONS = [
   { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "S" },
@@ -50,6 +51,7 @@ export const ACTIONS = [
   { id: "settings", category: "Workspace", label: "Workspace settings", defaultKey: "" },
   { id: "theme", category: "Workspace", label: "Toggle neon appearance", defaultKey: "" },
   { id: "appearance", category: "Workspace", label: "Theme / aesthetics", defaultKey: "" },
+  ...FEATURE_ACTIONS,
 ] as const;
 export const NUDGE_ACTIONS = ["nudgeLeft", "nudgeRight", "nudgeUp", "nudgeDown"] as const;
 export type NudgeActionId = (typeof NUDGE_ACTIONS)[number];
@@ -74,12 +76,24 @@ export function normalizeKey(event: KeyboardEvent): string {
   const key = event.key === "Escape" ? "Esc" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
   return [event.ctrlKey || event.metaKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : "", key].filter(Boolean).join("+");
 }
+export function normalizePointer(event: Pick<MouseEvent, "button" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">): string {
+  // Browser button ordering is left, middle, right; UI button names are MB1/2/3.
+  const button = ["MB1", "MB3", "MB2", "MB4", "MB5"][event.button];
+  return button ? [event.ctrlKey || event.metaKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : "", button].filter(Boolean).join("+") : "";
+}
+export function actionScope(id: string): string {
+  const action = ACTIONS.find(action => action.id === id);
+  return action && "scope" in action ? action.scope : "global";
+}
+export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
+export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
+export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;
 export function actionForKey(bindings: WorkspaceSettings["bindings"], key: string): ActionId | null {
-  return ACTIONS.find((action) => bindings[action.id] === key)?.id ?? null;
+  return ACTIONS.find((action) => !isFeatureAction(action.id) && bindings[action.id] === key)?.id ?? null;
 }
 export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: string, key: string): string | null {
   if (!key) return null;
-  return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key)?.[0] ?? null;
+  return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key && actionScope(id) === actionScope(actionId))?.[0] ?? null;
 }
 export function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'));
@@ -137,9 +151,10 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
       defaults.buttonLabels[id] = typeof label === "string" ? label.slice(0, 200) : id.slice(7);
     }
     // New defaults must not take keys already assigned in an existing saved configuration.
-    for (const action of [...NUDGE_ACTIONS, "searchUI"] as const) {
-      const key = defaults.bindings[action];
-      if (value.bindings && !Object.hasOwn(value.bindings, action) && Object.entries(value.bindings).some(([id, binding]) => id !== action && binding === key && defaults.bindings[id] === key)) defaults.bindings[action] = "";
+    for (const action of ACTIONS) {
+      const key = defaults.bindings[action.id];
+      if (key && value.bindings && !Object.hasOwn(value.bindings, action.id) && Object.entries(value.bindings).some(([id, binding]) =>
+        id !== action.id && binding === key && defaults.bindings[id] === key && actionScope(id) === actionScope(action.id))) defaults.bindings[action.id] = "";
     }
     return defaults;
   } catch { return defaults; }

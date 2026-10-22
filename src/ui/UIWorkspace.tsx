@@ -102,7 +102,8 @@ import { DockWorkspace, dockWorkspaceArea, useDockResident, useDockWorkspace } f
 import type { DockSide } from "./dockTree";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
-import { buttonShortcutId, isTypingTarget, normalizeKey, type ButtonShortcuts } from "../workspaceActions";
+import { buttonShortcutId, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
+import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
@@ -585,6 +586,7 @@ export function UIWorkspace({
   const [shortcutField, setShortcutField] = useState<string | null>(null);
   const [shortcutNotice, setShortcutNotice] = useState("");
   const shortcutRunners = useRef<HTMLDivElement>(null);
+  const shortcutPress = useRef<number | null>(null);
   useEffect(() => {
     const invoke = (id: string) => {
       if (!id.startsWith("button:") || shortcuts?.capturing || shortcuts?.blocked) return;
@@ -617,17 +619,33 @@ export function UIWorkspace({
       const runner = Array.from(shortcutRunners.current?.children ?? []).find(el => el.getAttribute("data-shortcut-runner") === target);
       runner?.querySelector<HTMLButtonElement>("button")?.click();
     };
-    const keydown = (event: KeyboardEvent) => {
-      if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || event.repeat || isTypingTarget(event.target)) return;
-      const key = normalizeKey(event);
+    const input = (event: KeyboardEvent | PointerEvent) => {
+      const keyboard = event instanceof KeyboardEvent;
+      if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || keyboard && (event.repeat || isTypingTarget(event.target))) return;
+      const key = keyboard ? normalizeKey(event) : normalizePointer(event);
       const id = Object.entries(shortcuts?.bindings ?? {}).find(([id, binding]) => id.startsWith("button:") && binding && binding === key)?.[0];
       if (!id) return;
-      event.preventDefault(); event.stopPropagation(); invoke(id);
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (!keyboard) { shortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); }
+      invoke(id);
+    };
+    const consumeClick = (event: MouseEvent) => {
+      // Programmatic runner clicks are the action itself, not the physical
+      // press's trailing click (notably when a button is bound to MB1).
+      if (!event.isTrusted || event.button !== shortcutPress.current) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (event.type === "click" || event.type === "auxclick") shortcutPress.current = null;
     };
     const run = (event: Event) => invoke((event as CustomEvent<string>).detail);
-    window.addEventListener("keydown", keydown, true);
+    window.addEventListener("keydown", input, true);
+    window.addEventListener("pointerdown", input, true);
+    window.addEventListener("mousedown", consumeClick, true);
+    window.addEventListener("click", consumeClick, true);
+    window.addEventListener("auxclick", consumeClick, true);
     window.addEventListener("omnium:invoke-button", run);
-    return () => { window.removeEventListener("keydown", keydown, true); window.removeEventListener("omnium:invoke-button", run); };
+    return () => { window.removeEventListener("keydown", input, true); window.removeEventListener("pointerdown", input, true);
+      window.removeEventListener("mousedown", consumeClick, true); window.removeEventListener("click", consumeClick, true); window.removeEventListener("auxclick", consumeClick, true);
+      window.removeEventListener("omnium:invoke-button", run); };
   }, [shortcuts, frameActions]);
 
   const frameMenu = (owner: string, x: number, y: number) => setMenu({ owner, x, y });
@@ -1581,6 +1599,8 @@ export function UIWorkspace({
         update,
         functions,
         shortcutBindings: shortcuts?.bindings,
+        shortcutCapturing: shortcuts?.capturing,
+        shortcutsBlocked: shortcuts?.blocked,
         registerFunction,
         configure: (id) => {
           if (id) reopenAppearance();
