@@ -4,6 +4,9 @@ import type { VisualPart } from "./visualSelection";
 
 /** A nearest stable UI owner follows docking/reparenting. Structural steps are a fallback for unkeyed markup. */
 export function describeSelectedPart(part: VisualPart): SelectedPart | undefined {
+  if (part.target.binding?.selection?.address === "target")
+    return { base: part.target.id, owner: "app", part: { steps: [] }, label: part.target.label };
+
   if (part.range && (typeof Highlight === "undefined" || !CSS.highlights)) return;
   const element = part.element;
   const root = element.closest("[data-ui-function],[data-ui-resident-root],[data-ui-proxy-for]") ?? document.body;

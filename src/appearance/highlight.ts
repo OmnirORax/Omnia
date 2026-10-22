@@ -4,15 +4,8 @@ import { effectScope } from "./uiEffects";
 import { registerPaintVariable } from "./paintVariables";
 
 export type HighlightTarget = { target: RegisteredTarget; active: boolean };
-export type HierarchyScenePulse = {
-  pulse: (targets: ReadonlyMap<string, boolean>, strength: number) => void;
-  clear: () => void;
-};
-const sceneSources = new Set<HierarchyScenePulse>();
-export function registerHierarchyScene(source: HierarchyScenePulse) {
-  sceneSources.add(source);
-  return () => { source.clear(); sceneSources.delete(source); };
-}
+export { registerHierarchyScene } from "./sceneFeedback";
+import { sceneSources } from "./sceneFeedback";
 const owners = (owner: string) => owner.startsWith("function:")
   ? `[data-ui-function="${CSS.escape(owner.slice(9))}"]:not([data-ui-palette])`
   : `:is([data-ui-resident-root="${CSS.escape(owner)}"],[data-ui-proxy-for="${CSS.escape(owner)}"])`;

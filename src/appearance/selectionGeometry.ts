@@ -31,7 +31,10 @@ export function intersectBoxes(a: Box, b: Box): Box | null {
 export const relativePoint = (point: Point, box: Box): Point => ({ x: (point.x - box.left) / Math.max(1, box.right - box.left), y: (point.y - box.top) / Math.max(1, box.bottom - box.top) });
 export const absolutePoint = (point: Point, box: Box): Point => ({ x: box.left + point.x * (box.right - box.left), y: box.top + point.y * (box.bottom - box.top) });
 export function conditionPoints(line: LineCondition, box: Box): [Point, Point] {
-  return rotatePoints([absolutePoint(line.start, box), absolutePoint(line.end, box)], line.rotation ?? 0) as [Point, Point];
+  const points = [absolutePoint(line.start, box), absolutePoint(line.end, box)];
+  // A line's start is its defined origin, not a moving midpoint. Before
+  // placement this is the cursor hotspot; afterwards it is the stored anchor.
+  return rotatePoints(points, line.rotation ?? 0, points[0]) as [Point, Point];
 }
 export function lineDomain(line: Pick<LineCondition, "mode" | "bounded">): [number, number] {
   return line.bounded || line.mode === "position" ? [0, 1] : line.mode === "direction" ? [0, Infinity] : [-Infinity, Infinity];
@@ -116,10 +119,10 @@ export function pathTouchesBox(path: PathCondition, owner: Box, box: Box, contou
 }
 
 /** Rotation is in screen space, so non-square owners do not distort angles. */
-export function rotatePoints(points: Point[], degrees: number): Point[] {
+export function rotatePoints(points: Point[], degrees: number, origin?: Point): Point[] {
   if (!points.length || !degrees) return points;
-  const cx = (Math.min(...points.map(p => p.x)) + Math.max(...points.map(p => p.x))) / 2;
-  const cy = (Math.min(...points.map(p => p.y)) + Math.max(...points.map(p => p.y))) / 2;
+  const cx = origin?.x ?? (Math.min(...points.map(p => p.x)) + Math.max(...points.map(p => p.x))) / 2;
+  const cy = origin?.y ?? (Math.min(...points.map(p => p.y)) + Math.max(...points.map(p => p.y))) / 2;
   const angle = degrees * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
   return points.map(p => ({ x: cx + (p.x - cx) * cos - (p.y - cy) * sin, y: cy + (p.x - cx) * sin + (p.y - cy) * cos }));
 }
@@ -127,10 +130,10 @@ export const pathVertices = (path: PathCondition, owner: Box) => rotatePoints(un
 
 /** Rotation applies to an armed drawing mode before placement too. Exact input
  * deltas vary: Shift-wheel may arrive on deltaX, or use line/page units. */
-export function selectionWheelRotation(event: Pick<WheelEvent, "shiftKey" | "deltaX" | "deltaY" | "deltaMode">, mode: PatternMode, hasGeometry: boolean, pageHeight: number): { target: "pending" | "placed"; degrees: number } | null {
+export function selectionWheelRotation(event: Pick<WheelEvent, "shiftKey" | "ctrlKey" | "deltaX" | "deltaY" | "deltaMode">, mode: PatternMode, hasGeometry: boolean, pageHeight: number): { target: "pending" | "placed"; degrees: number } | null {
   if (!event.shiftKey) return null;
   const pending = mode !== "pattern" && mode !== "item";
   if (!pending && !hasGeometry) return null;
   const pixels = (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? pageHeight : 1);
-  return pixels ? { target: pending ? "pending" : "placed", degrees: Math.max(-2, Math.min(2, pixels * .02)) } : null;
+  return pixels ? { target: pending ? "pending" : "placed", degrees: Math.max(-2, Math.min(2, pixels * .02)) * (event.ctrlKey ? 10 : 1) } : null;
 }

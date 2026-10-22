@@ -183,14 +183,17 @@ before a boundary/selection; then hold Ctrl: additions green, removal preview hi
 green; no red exclusion paint.
 E cycles pattern, individual, pointed-owner, axis/ray/segment, rectangle, ellipse,
 polygon and freehand modes. Shift+Wheel finely rotates an armed drawing mode
-before placement or the current geometry while refining; ordinary Wheel changes
+before placement or the current geometry while refining (Ctrl accelerates 10×).
+Line origins stay at their defined start/cursor hotspot; ordinary Wheel changes
 pointed-owner depth before placement. New geometry intersects the current
 set; release returns subsequent picks to app-wide matching. Geometry, region
 baselines and exceptions share transient selection history. Pattern recognition
 uses registered parts and mathematical intersections, not regex or arbitrary pixels.
 Blank UI space currently means an owned background surface, not independent gaps.
-Its green pulse paints the actual rounded surface below the contents; world
-background picking still needs a separate adapter.
+Its green pulse paints the actual rounded surface below the contents. The world
+background has a scene adapter with raycast rejection of nodes/binders; its shared
+consumer values are edited directly without DOM-local instances. Green scene
+feedback changes only the background and shares the existing scene registration.
 
 Accepted selection, hover preview and property edits remain separate. Editing
 uses the controller's edit action, native keyboard context gesture or Master

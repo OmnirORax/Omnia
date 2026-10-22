@@ -16,6 +16,9 @@ export const loadController = (value: unknown) =>
     EFFECT_PROPERTIES,
   ), LEGACY_FIELD_BRANCHES);
 export type Binding = {
+  /** Non-DOM paint exposes its screen hit surface separately from CSS styling.
+   * Target addressing edits the existing renderer consumer, not a DOM instance. */
+  selection?: { selector: string; role: "background"; renderer: "scene"; address: "target" };
   selector?: string;
   css?: string;
   legacy?: string;
@@ -354,7 +357,8 @@ part(
   "workspace.background",
   "all",
   "Workspace background",
-  { legacy: "background", animation: { kind: "surface", source: "background" } },
+  { legacy: "background", animation: { kind: "surface", source: "background" },
+    selection: { selector: ".spatial-workspace > canvas", role: "background", renderer: "scene", address: "target" } },
   ["color", "brightness"],
 );
 // Existing renderer declarations also join the same pool. This preserves their

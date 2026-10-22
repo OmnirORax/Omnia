@@ -1,3 +1,4 @@
+import { registerHierarchyScene, scenePartAt, paintSceneSelection } from "../src/appearance/sceneFeedback.ts";
 import { createElementEffectsResolver } from "../src/appearance/localEffects.ts";
 import { describeSelectedParts } from "../src/appearance/selectedParts.ts";
 import test from "node:test";
@@ -18,7 +19,7 @@ import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, s
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
 import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints, selectionWheelRotation } from "../src/appearance/selectionGeometry.ts";
 import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule } from "../src/appearance/selectionToggle.ts";
-import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
+import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide, roleFor, partPaint } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
   for (const [current, side, expected] of [
@@ -88,14 +89,16 @@ test("line and closed-shape rotation uses screen-space angles in non-square owne
   const owner = { left: 0, top: 0, right: 200, bottom: 100 };
   const line = { mode: "position", start: { x: 0, y: .5 }, end: { x: 1, y: .5 }, bounded: true, rotation: 90 };
   const points = conditionPoints(line, owner);
-  assert.ok(Math.abs(points[0].x - 100) < 1e-8 && Math.abs(points[0].y + 50) < 1e-8);
-  assert.ok(Math.abs(points[1].x - 100) < 1e-8 && Math.abs(points[1].y - 150) < 1e-8);
+  assert.deepEqual(points[0], { x: 0, y: 50 });
+  assert.ok(Math.abs(points[1].x) < 1e-8 && Math.abs(points[1].y - 250) < 1e-8);
+  for (const angle of [1, 25, 90, 180, 360, 725])
+    assert.deepEqual(conditionPoints({ ...line, rotation: angle }, owner)[0], { x: 0, y: 50 }, "the stored line origin never drifts with rotation");
   const rectangle = { kind: "rectangle", closed: true, points: [{ x: .25, y: .25 }, { x: .75, y: .75 }], rotation: 90 };
   assert.equal(pathTouchesBox(rectangle, owner, { left: 99, right: 101, top: -1, bottom: 1 }, true), true);
 });
 
 test("Shift-wheel rotates armed axes before placement and working geometry after placement", () => {
-  const event = { shiftKey: true, deltaX: 0, deltaY: 50, deltaMode: 0 };
+  const event = { shiftKey: true, ctrlKey: false, deltaX: 0, deltaY: 50, deltaMode: 0 };
   for (const mode of ["axis", "direction", "position", "rectangle", "ellipse", "polygon", "freehand", "boundary"]) {
     assert.deepEqual(selectionWheelRotation(event, mode, false, 900), { target: "pending", degrees: 1 });
     assert.deepEqual(selectionWheelRotation(event, mode, true, 900), { target: "pending", degrees: 1 }, "a newly armed tool rotates instead of its enclosing boundary");
@@ -107,6 +110,45 @@ test("Shift-wheel rotates armed axes before placement and working geometry after
   assert.deepEqual(selectionWheelRotation({ ...event, deltaY: 1, deltaMode: 1 }, "axis", false, 900), { target: "pending", degrees: .32 });
   assert.deepEqual(selectionWheelRotation({ ...event, deltaY: 1, deltaMode: 2 }, "axis", false, 900), { target: "pending", degrees: 2 });
   assert.equal(selectionWheelRotation({ ...event, deltaY: 0 }, "axis", false, 900), null);
+  assert.deepEqual(selectionWheelRotation({ ...event, ctrlKey: true }, "axis", false, 900), { target: "pending", degrees: 10 });
+  assert.deepEqual(selectionWheelRotation({ ...event, ctrlKey: true, deltaY: -100 }, "pattern", true, 900), { target: "placed", degrees: -20 });
+});
+
+test("scene backgrounds use renderer hit tests, shared values and independent transient feedback", () => {
+  const state = emptyController(), target = controllerTargets(state).find(target => target.id === "workspace.background");
+  assert.equal(roleFor(target), "background");
+  assert.ok(target.binding.selection.selector.includes("canvas"));
+  const canvas = { contains: element => element === canvas };
+  const part = { key: "world-background", element: canvas, role: "background", target };
+  const paints = [], latePaints = [];
+  const stop = registerHierarchyScene({ pulse: () => {}, clear: () => {},
+    pick: (id, element, x) => id === target.id && element === canvas && x > 50,
+    paint: id => id === target.id ? "rgb(3, 12, 21)" : undefined,
+    selection: (targets, strength) => paints.push({ ids: [...targets.keys()], strength }) });
+  let late;
+  try {
+    assert.equal(partAt([part], canvas, 60, 10), part, "empty world pixels resolve to the registered background");
+    assert.equal(partAt([part], canvas, 20, 10), undefined, "scene objects reject background picking");
+    assert.equal(partPaint(part), "rgb(3, 12, 21)", "sampling uses source renderer paint");
+    const [selected] = describeSelectedParts([part]);
+    assert.equal(selectedPartId(selected), target.id);
+    assert.equal(selectedPartTarget(selected), target);
+    const changed = applySelectedValue(state, [selected], "color", "#ff0000");
+    assert.equal(changed.values[target.id].color, "#ff0000");
+    assert.deepEqual(changed.instances, {}, "renderer targets must not manufacture DOM-local instances");
+    assert.equal(resolveControllerAppearance({ ...defaultSettings().appearance, controller: changed }).background, "#ff0000");
+    const locked = structuredClone(changed); locked.locks[target.id] = { all: true };
+    assert.equal(applySelectedValue(locked, [selected], "color", "#00ff00"), locked);
+    assert.equal(resetSelectedParts(changed, [selected]).values[target.id], undefined);
+    paintSceneSelection(new Map([[target.id, { color: "#66efab", opacity: 1 }]]), .5);
+    assert.deepEqual(paints.at(-1), { ids: [target.id], strength: .5 });
+    late = registerHierarchyScene({ pulse: () => {}, clear: () => {}, selection: (targets, strength) => latePaints.push({ ids: [...targets.keys()], strength }) });
+    assert.deepEqual(latePaints.at(-1), paints.at(-1), "late-mounted renderers inherit active transient selection feedback");
+    paintSceneSelection(new Map(), 0);
+    assert.deepEqual(paints.at(-1), { ids: [], strength: 0 });
+    assert.deepEqual(state.values, {}, "detection and feedback never edit saved values");
+  } finally { paintSceneSelection(new Map(), 0); late?.(); stop(); }
+  assert.equal(scenePartAt(target.id, canvas, 60, 10), false, "unmounted renderer adapters cannot remain pickable");
 });
 
 test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {

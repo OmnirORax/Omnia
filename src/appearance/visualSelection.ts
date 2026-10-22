@@ -1,4 +1,5 @@
 import { TARGETS, type RegisteredTarget } from "./registry.ts";
+import { scenePartAt, scenePartPaint } from "./sceneFeedback.ts";
 import { effectScope } from "./uiEffects.ts";
 import { absolutePoint, boxFromPoints, boxesTouch, conditionPoints, intersectBoxes, lineBoxInterval, lineDomain, paintStopDomain,
   regionAllows, pathTouchesBox, pathVertices, type PathCondition, type Box, type LineCondition, type Point, type SelectionRegion } from "./selectionGeometry.ts";
@@ -43,6 +44,7 @@ const keyFor = (node: Node) => {
   return key;
 };
 export function roleFor(target: RegisteredTarget): VisualRole | undefined {
+  if (target.binding?.selection) return target.binding.selection.role;
   if (target.binding?.text) return "text";
   if (target.binding?.animation?.kind === "icons") return "icon";
   return ({ "background-color": "background", "border-color": "contour", "accent-color": "indicator" } as const)[
@@ -58,10 +60,10 @@ export function collectVisualParts(): VisualPart[] {
   const queries = new Map<string, Element[]>();
   const seen = new Set<string>();
   for (const target of TARGETS) {
-    if (target.aggregate || !target.binding?.selector) continue;
+    if (target.aggregate || !(target.binding?.selection?.selector || target.binding?.selector)) continue;
     const role = roleFor(target);
     if (!role) continue;
-    const selector = (role === "icon" ? target.binding.animation?.selector ?? target.binding.selector : target.binding.selector)
+    const selector = (target.binding.selection?.selector ?? (role === "icon" ? target.binding.animation?.selector ?? target.binding.selector : target.binding.selector))!
       .replace(/::placeholder/g, "");
     let elements = queries.get(selector);
     if (!elements) {
@@ -165,7 +167,8 @@ export function boundaryCandidates(element: Element): SelectionBoundary[] {
 const containsPoint = (rect: DOMRect, x: number, y: number) =>
   x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 export function partAt(parts: VisualPart[], element: Element, x: number, y: number): VisualPart | undefined {
-  const candidates = parts.filter(part => part.element === element || part.element.contains(element));
+  const candidates = parts.filter(part => (part.element === element || part.element.contains(element)) &&
+    (!part.target.binding?.selection || scenePartAt(part.target.id, part.element, x, y)));
   // Artwork, actual text ink, then border proximity distinguish overlapping paint
   // on the same component. Background is the final fallback, not the text's box.
   const icon = candidates.find(part => part.role === "icon" && containsPoint(part.element.getBoundingClientRect(), x, y));
@@ -204,6 +207,7 @@ function partMeasurements() {
   };
 }
 export function partPaint(part: VisualPart): string {
+  if (part.target.binding?.selection) return scenePartPaint(part.target.id, part.element) ?? "transparent";
   const style = getComputedStyle(part.element, part.target.id === "text.ui.placeholders" ? "::placeholder" : null);
   // Feedback ink is temporary. Its adapter preserves the actual source for sampling.
   const source = part.element.hasAttribute("data-visual-selection-ink") ? style.getPropertyValue("--omnium-selector-source-color").trim() : "";

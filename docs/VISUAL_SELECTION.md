@@ -113,7 +113,9 @@ tool takes priority over an enclosing boundary. Both horizontal and vertical whe
 deltas and pixel/line/page units are supported. The pending angle survives pointer
 motion and placement; choosing another mode resets the pending angle. Rotation is
 in screen space, including in non-square owners; placed changes join selection
-undo/redo.
+undo/redo. Ctrl+Shift+Wheel rotates 10× faster. Lines rotate around their stored
+start point (the cursor hotspot before placement), keeping the origin fixed; closed
+shapes rotate around their center.
 
 For example: turn the contour baseline off, choose Axis and drag through several
 controls. Its intersections remain the working set while all start off. Click a
@@ -159,8 +161,9 @@ on labels or image/pixel recognition. Text geometry follows separate actual text
 ranges, including wrapped lines; intervening gaps are not text ink. Contours use
 border strips, rather than their entire surface. Existing registered background
 surfaces are selectable, including from empty interiors. Independent negative
-space, arbitrary image shapes, fine letter/word selection and general canvas/3D
-picking require further renderer adapters. Hidden/closed parts and selector chrome
+space, arbitrary image shapes, fine letter/word selection and general 3D object
+picking require further renderer adapters. The workspace background has a dedicated
+scene adapter, separate from UI CSS. Hidden/closed parts and selector chrome
 are not current matches. Live rules reevaluate on relevant DOM/geometry changes.
 
 Blank UI areas resolve to the nearest registered background surface. Individual ·
@@ -168,8 +171,12 @@ toggles that one background; Pattern ⠒ toggles backgrounds throughout the curr
 working set. This is the whole owned surface behind its contents, not a new object
 for each visible gap. In-frame does not implicitly include a pointed frame's own
 background; Frame controls that object independently. Gaps with no registered
-background and the 3D-world background currently have no MS picking adapter.
-Do not infer support from the hierarchy's separate workspace-background controls.
+background remain unsupported. The 3D-world background is a registered scene
+surface: its canvas supplies bounds and the existing raycaster rejects foreground
+nodes/binders when pointing at it. Pattern/Individual and geometric membership use
+the same shared rules as UI surfaces. Its address is the existing
+`workspace.background` consumer, so edits affect that whole background rather than
+manufacturing a DOM-local value or a spatially cropped patch.
 
 Accepted parts reveal applicable properties in Master controller through the
 shared selected-part editor. Hover candidates do not change that inspector. The
@@ -186,6 +193,12 @@ recoverable appearance draft. Apply/discard, theme export and ordinary appearanc
 undo keep their existing behavior. Closing cancels any uncommitted input preview.
 Use inherited appearance removes only the selected, unprotected part refinements;
 broader/category customizations remain. Individuals stay hidden until opted in.
+
+Renderer bindings may declare a separate `selection` hit surface with target-level
+addressing. The selector then resolves the existing consumer ID in the shared
+selected-part editor; it creates no DOM instance. Ordinary draft, preview, reset,
+locks, bypass and selected/unselected history remain shared. Background source
+sampling comes from the renderer, never from temporarily highlighted pixels.
 
 Part references use the nearest stable function/resident owner plus normalized
 keyed or structural steps. Text references also identify the direct text node,
@@ -228,6 +241,13 @@ It preserves the original shadows/gradients and leaves text/icon ink separate,
 with no full-surface blur or per-frame JavaScript writes. The former faint SVG
 surface fill is retained only for non-HTML fallback surfaces. Background and
 contour matches on one element share a trace; geometry/style reads are cached.
+
+Scene selection feedback reuses the same renderer registration as hierarchy
+feedback. The background adapter paints only `scene.background`, preserves scene
+objects, and restores current authored paint on deselection, editor entry, cleanup
+or hiding. Its one-second green pulse is capped at 30 fps with no DOM/geometry
+rescans; reduced motion is steady. New scene adapters receive the current transient
+paint on mounting. Hierarchy cleanup does not erase accepted selector feedback.
 
 Accepted and hover feedback both follow a one-second bright/dim/bright cycle.
 Preview emphasis changes seam thickness, not pulse opacity. The low point keeps a

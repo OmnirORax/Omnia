@@ -19,8 +19,11 @@ gesture to open **Selected appearance**, which reuses PropertyTree/PropertyEdito
 and edits only those parts. Inspection is read-only; an actual edit creates scoped
 local references in the same controller state. Previews, the recoverable draft,
 Apply/discard, locks, bypass, inherited values and theme export remain shared.
-Ranged text currently offers Color, Brightness, Opacity and Glow; surfaces, input
-text and icons expose the properties supported by their existing adapters. See
+Partial text runs support exact paint and text-node effects; complete text hosts
+also support typography. Surfaces, input text and icons expose their adapters'
+supported properties. Selecting empty 3D-world background resolves the existing
+Workspace background consumer in the same editor. It edits scene values directly
+and never creates a CSS-local instance for the canvas. See
 `VISUAL_SELECTION.md` for the exact scope and current limits.
 
 Right-click a frame handle or button and open its existing appearance editor for local refinements. Choose the part and property there. A stable reference to the resident appears under the corresponding category → **Individually customized**, marked **◆** for each locally refined property. An eligible categorical edit replaces that refinement; lock it to protect it. Hover its master entry to reveal and pulse the actual resident, restoring transient expansion and scrolling afterward. Search uses the same reveal mechanism.

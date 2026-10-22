@@ -75,7 +75,8 @@ including anything. Each accepted refinement captures that side. Before any
 boundary/selection, hover previews are automatic; afterwards Ctrl enables them,
 showing additions in green and removals by hiding green; exclusions
 are unpainted. Shift+Wheel rotates the active drawing mode before placement or
-working geometry while refining, in screen space. Pointed
+working geometry while refining, in screen space. Ctrl accelerates rotation 10×;
+line origins remain anchored at the defined start point. Pointed
 boundaries, lines, polygons and freehand share matching, transient selection history
 and the existing selected-part editor. Complete text hosts support CSS typography;
 partial runs retain exact-node paint/effects without widening. Editing pauses
@@ -88,4 +89,9 @@ actual rounded surface, preserving shadows, images, gradients and foreground ink
 It shares the one-second pulse and Included paint, rather than a barely visible
 SVG rectangle fill. Do not animate inherited variables at document scope or scan
 surfaces per frame. Empty UI space resolves to its owned registered background;
-independent gaps and the 3D-world background still need MS picking adapters.
+independent gaps still need picking adapters. The 3D-world background exposes a
+selection-only binding on its canvas, with raycast rejection of foreground objects.
+It addresses the existing consumer directly; no CSS/DOM instance can stand in for
+scene paint. The shared scene registration supplies hierarchy and selector feedback
+independently, so green feedback changes only the background and cleanup restores
+authored paint. It runs at most 30 fps, with no per-frame discovery.

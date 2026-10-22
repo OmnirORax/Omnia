@@ -4,9 +4,11 @@ import { GLYPH_PROPERTIES, scopeContains } from "./partScope.ts";
 import { controllerTargets, instanceId, TARGETS, validateProperty, type RegisteredTarget } from "./registry.ts";
 
 export type SelectedPart = Instance & { part: NonNullable<Instance["part"]> };
-export const selectedPartId = (part: SelectedPart) => `${instanceId(part.base, part.owner)}:part:${stableUIHash(JSON.stringify(part.part))}`;
+const directTarget = (part: SelectedPart) => TARGETS.find(target => target.id === part.base)?.binding?.selection?.address === "target";
+export const selectedPartId = (part: SelectedPart) => directTarget(part) ? part.base : `${instanceId(part.base, part.owner)}:part:${stableUIHash(JSON.stringify(part.part))}`;
 export function selectedPartTarget(part: SelectedPart): RegisteredTarget {
   const base = TARGETS.find(target => target.id === part.base)!;
+  if (directTarget(part)) return base;
   return { ...base, id: selectedPartId(part), parent: `${part.base}.custom`, instance: part,
     properties: part.part.text !== undefined ? base.properties?.filter(p => GLYPH_PROPERTIES.includes(p)) : base.properties };
 }
@@ -56,9 +58,10 @@ export function applySelectedValue(state: Controller, parts: SelectedPart[], pro
     for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
       if (!editable(part, channel)) continue;
       if (next.values[id]?.[channel] === value) continue;
-      next.instances[id] = part;
+      if (!directTarget(part)) next.instances[id] = part;
       next.values[id] = { ...next.values[id], [channel]: value };
-      next.refined[id] = [...new Set([...(next.refined[id] ?? []), channel])];
+      next.refined[id] = directTarget(part) ? (next.refined[id] ?? []).filter(property => property !== channel)
+        : [...new Set([...(next.refined[id] ?? []), channel])];
       for (const [oldId, instance] of equivalentRuns) if (state.values[oldId]?.[channel] !== undefined && editable(instance as SelectedPart, channel))
         next.values[oldId] = { ...next.values[oldId], [channel]: value };
       changed = true;
@@ -72,10 +75,11 @@ export function resetSelectedParts(state: Controller, parts: SelectedPart[]): Co
   let changed = false;
   for (const part of parts) {
     const id = selectedPartId(part);
-    if (!next.instances[id]) continue;
+    const direct = directTarget(part);
+    if (direct ? !next.values[id] && !next.refined[id] : !next.instances[id]) continue;
     // Reset is explicit, but it still cannot remove protected refinements.
     if ((selectedPartTarget(part).properties ?? []).some(p => !editable(part, p))) continue;
-    for (const key of ["instances", "values", "refined", "locks", "disconnected"] as const) delete next[key][id];
+    for (const key of direct ? ["values", "refined"] as const : ["instances", "values", "refined", "locks", "disconnected"] as const) delete next[key][id];
     changed = true;
   }
   return changed ? next : state;

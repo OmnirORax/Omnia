@@ -1,5 +1,6 @@
 import { useEffect, useMemo, type CSSProperties } from "react";
 import { useAppearance } from "./Context";
+import { paintSceneSelection, type SceneSelectionPaint } from "./sceneFeedback";
 import { registerPaintVariable } from "./paintVariables";
 import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint, valueFor } from "./resolve";
@@ -77,6 +78,34 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       opacity: Number(get("opacity")), glow: Number(get("glow")) }];
   })) as Record<Tone, FeedbackPaint>, [appearance?.base, appearance?.state, appearance?.safe]);
   useEffect(() => {
+    const targets = new Map<string, SceneSelectionPaint>();
+    for (const part of [...selected, ...preview]) if (part.target.binding?.selection?.renderer === "scene")
+      targets.set(part.target.id, { color: paints.included.ink, opacity: paints.included.opacity });
+    if (!targets.size) return;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    let frame = 0, previous = -Infinity;
+    // Scene feedback changes only registered renderer paint, at most 30 fps.
+    // No DOM or geometry discovery belongs in this animation loop.
+    const draw = (time: number) => {
+      frame = 0;
+      if (document.hidden) return;
+      if (time - previous >= 1000 / 30) {
+        previous = time;
+        paintSceneSelection(targets, reduced.matches ? .6 : .5 + .5 * Math.cos(time * Math.PI * 2 / 1000));
+      }
+      if (!reduced.matches) frame = requestAnimationFrame(draw);
+    };
+    const resume = () => {
+      cancelAnimationFrame(frame); previous = -Infinity;
+      if (document.hidden) paintSceneSelection(new Map(), 0); else draw(performance.now());
+    };
+    resume(); reduced.addEventListener("change", resume); document.addEventListener("visibilitychange", resume);
+    return () => {
+      cancelAnimationFrame(frame); reduced.removeEventListener("change", resume); document.removeEventListener("visibilitychange", resume);
+      paintSceneSelection(new Map(), 0);
+    };
+  }, [selected, preview, paints]);
+  useEffect(() => {
     const names = ["omnium-selector-selected", "omnium-selector-excluded", "omnium-selector-preview"];
     const highlights = typeof Highlight !== "undefined" && !!CSS.highlights;
     if (highlights) {
@@ -89,6 +118,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     const paint = new Map<HTMLElement | SVGElement, { glyph?: GlyphPaint; surface?: FeedbackPaint }>();
     for (const [parts, feedback] of [[selected, paints.included], [excluded, paints.excluded], [preview, candidate?.include === false ? paints.excluded : paints.included]] as const) {
       for (const part of parts) {
+        if (part.target.binding?.selection?.renderer === "scene") continue;
         if (part.role === "background" && part.element instanceof HTMLElement) {
           paint.set(part.element, { ...paint.get(part.element), surface: feedback });
         } else if (!(part.range && highlights) && (part.role === "icon" || part.role === "text")) {
@@ -137,7 +167,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     document.head.append(style);
     for (const plan of plans) plan.element.setAttribute(attribute, plan.marker);
     const stopPulse = startSelectionPulse([...new Set([...selected, ...excluded, ...preview]
-      .filter(part => part.role === "text" || part.role === "icon" || part.role === "background").map(part => part.element))]);
+      .filter(part => !part.target.binding?.selection && (part.role === "text" || part.role === "icon" || part.role === "background")).map(part => part.element))]);
     return () => {
       stopPulse();
       for (const name of names) CSS.highlights?.delete(name);
@@ -155,7 +185,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   const marksFor = (parts: VisualPart[]) => {
     const marks = new Map<Element, Mark>();
     for (const part of parts) {
-      if (part.range || part.role === "icon" || part.role === "text") continue;
+      if (part.range || part.role === "icon" || part.role === "text" || part.target.binding?.selection?.renderer === "scene") continue;
       let bounds = geometry.get(part.element);
       if (bounds === undefined) {
         const rect = part.element.getBoundingClientRect();
