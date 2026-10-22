@@ -39,10 +39,12 @@ The symbol has independent choices:
   the coupled consumers of the existing Mouse group (currently Mouse trail),
   showing supported properties through the shared editors. The moving native
   cursor and trail remain pointer-transparent. This pick replaces the current
-  accepted selection and shares its undo/redo/clear history. Selecting again or
-  invoking Edit requests inspection without saving appearance or another selection
-  history step. Logical targets can be selected through the context's generic
-  selectObject API; their capabilities come from the discovered function inputs.
+  accepted selection and shares its undo/redo/clear history. The generic
+  selectObject API toggles any already-selected logical target off; pressed state
+  and the selected-properties inspector derive from that same selection and clear
+  on deselection. Selecting and deselecting are undoable selection operations,
+  never appearance writes. Invoking Edit reopens inspection without another
+  selection history step. Target capabilities come from discovered function inputs.
 
 
 - **Ring:** choose or replace the boundary. The ring stays active after clicking

@@ -138,5 +138,8 @@ The logical Mouse group is selected; Master controller reveals Mouse trail with
 Animation open and shows its other registered paint/motion properties. Edits use
 the existing values and appearance draft, and Apply still commits them. Clear/Esc
 releases the logical selection; selection undo/redo restores earlier targets.
-Selecting Mouse again or invoking Edit reopens inspection without changing values.
+Selecting Mouse again deselects it through the shared logical-target selection
+API, clearing its pressed state and selected-properties inspector. This toggle
+behavior applies to all logical targets. Invoking Edit reopens inspection of the
+current selection without changing values.
 The command is listed in shortcuts and can be assigned a binding.

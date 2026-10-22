@@ -132,8 +132,9 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const selectObject = (id: string) => {
     resolvePropertyTarget(PROPERTY_REGISTRY, id);
     gesture.current = null; regionBoundary.current = null; setPreview(null);
-    record(current => current.objects.length === 1 && current.objects[0] === id && !current.boundary && !current.rules.length
-      ? current : { ...emptySelection(), objects: [id] });
+    record(current => current.objects.includes(id)
+      ? { ...current, objects: current.objects.filter(selected => selected !== id) }
+      : { ...emptySelection(), objects: [id] });
     requestInspection(value => value + 1);
     setPhase("configure");
   };
@@ -450,7 +451,8 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
             onClick={() => shortcuts.invoke("selector.colorStop")}>◐</button>
         </div>}
       <button type="button" className="visual-selector-mouse" data-ui-id="select-mouse" aria-label="Select Mouse"
-        aria-pressed={selection.objects.includes("ui.mouse")} title="Select Mouse and inspect its coupled properties in Master controller"
+        aria-pressed={selection.objects.includes("ui.mouse")}
+        title={selection.objects.includes("ui.mouse") ? "Deselect Mouse" : "Select Mouse and inspect its coupled properties in Master controller"}
         onClick={() => shortcuts.invoke("selector.selectMouse")}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="6" /><path d="M12 2v7M6 9h12" /></svg>
       </button>
