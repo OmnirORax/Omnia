@@ -4,7 +4,7 @@ import { claimUIPress } from "../ui/pointerOwnership";
 import { cursorPosition } from "../ui/cursorPosition";
 import { useFeatureActions } from "../ui/useFeatureActions";
 import { clearRecordedShortcutPress, recordedShortcutTail } from "../featureActions";
-import { createInteractionHold, APPEARANCE_EDITOR } from "./interactionHold";
+import { createInteractionHold, selectionFeedbackVisible, type SelectionView, APPEARANCE_EDITOR } from "./interactionHold";
 import { VisualSelectionOverlay } from "./VisualSelectionOverlay";
 import { SelectorSymbol, type SelectorConfiguration } from "./SelectorSymbol";
 import { SelectorCursor } from "./SelectorCursor";
@@ -23,7 +23,7 @@ import {
 } from "./visualSelection";
 
 type SelectionState = { boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
-type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string };
+type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "inspect";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -41,6 +41,8 @@ const isPath = (mode: PatternMode) => mode === "rectangle" || mode === "ellipse"
 /** Geometry defines a working set; later include/exclude rules refine it. */
 export function VisualSelectionProvider({ children, onInspect, masterOpen }: { children: ReactNode; onInspect?: (key: string) => void; masterOpen?: boolean }) {
   const [feedbackHold] = useState(() => createInteractionHold<ComponentProps<typeof VisualSelectionOverlay>>());
+  const [view, setView] = useState<SelectionView>("auto");
+  const [editingFeedback, setEditingFeedback] = useState(false);
   const [timeline, setTimeline] = useState(() => ({ states: [emptySelection()], index: 0 }));
   const selection = timeline.states[timeline.index];
   const [phase, setPhase] = useState<Phase>("off");
@@ -65,6 +67,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   latest.current = { phase, configuration, catalog, selection };
   const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0;
   const previewEnabled = previewModifier || !selection.boundary && !selection.objects.length;
+  const logicalFeedback = selection.objects.some(id => resolvePropertyTarget(PROPERTY_REGISTRY, id).consumers.some(consumer => TARGETS.find(target => target.id === consumer)?.binding?.feedback === "selection"));
+  const feedbackVisible = selectionFeedbackVisible(view, phase === "edit" || phase === "inspect", editingFeedback || logicalFeedback);
   const canPreview = () => previewHeld.current || !hasSelection();
   const setPreview = useCallback((next: Pick | null) => {
     const previous = candidateRef.current;
@@ -158,12 +162,13 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     setPreview(null);
   };
   const clear = useCallback(() => {
-    feedbackHold.release();
+    feedbackHold.release(); setView("auto"); setEditingFeedback(false);
     gesture.current = null; polygon.current = null; setDrawing(false);
     record(current => current.boundary || current.rules.length || current.objects.length ? emptySelection() : current); setPreview(null);
   }, [record, setPreview]);
   const selectObject = useCallback((id: string) => {
     resolvePropertyTarget(PROPERTY_REGISTRY, id);
+    setView("auto"); setEditingFeedback(false);
     // Opening meta properties preserves the last real scene feedback. Deselecting
     // the logical target still clears it through the normal selection lifecycle.
     if (latest.current.selection.objects.includes(id)) feedbackHold.release();
@@ -172,14 +177,14 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     record(current => current.objects.includes(id) ? { ...current, objects: current.objects.filter(selected => selected !== id) } : { ...emptySelection(), objects: [id] });
     requestInspection(value => value + 1); setPhase("configure");
   }, [record, setPreview]);
-  const close = () => { feedbackHold.release(); cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
+  const close = () => { setView("auto"); setEditingFeedback(false); feedbackHold.release(); cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
   const disable = () => { close(); clear(); };
   const undo = () => { feedbackHold.release(); cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); };
   const redo = () => { feedbackHold.release(); cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); };
-  const aim = () => { feedbackHold.release(); setPreview(null); setInventoryOpen(false); setPhase("aim"); };
+  const aim = () => { setView("auto"); setEditingFeedback(false); feedbackHold.release(); setPreview(null); setInventoryOpen(false); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;
-    feedbackHold.hold();
+    feedbackHold.hold(); setView("auto"); setEditingFeedback(false);
     if (latest.current.selection.objects.length) { requestInspection(value => value + 1); return; }
     cancelDrawing(); setPosition({ x, y }); setPhase("edit");
   };
@@ -278,6 +283,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     } },
     "selector.selectMouse": { enabled: canConfigure, run: () => selectObject("ui.mouse") },
     "selector.pattern": { enabled: canConfigure, run: cyclePattern },
+    "selector.feedbackView": { enabled: phase !== "off" || hasSelection(), run: () => setView(feedbackVisible ? "preview" : "selection") },
     "selector.edit": { enabled: hasSelection(), run: input => { const p = inputPosition(input); edit(p.x, p.y); } },
     "selector.cancel": { enabled: phase !== "off" || hasSelection(), run: disable },
     "selector.undo": { enabled: canConfigure, run: undo },
@@ -339,6 +345,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(`${selectorChrome},${APPEARANCE_EDITOR}`);
     const focusEditor = (event: Event) => {
       if (latest.current.phase === "off" && !hasSelection() && !feedbackHold.context) return;
+      if (event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) {
+        setEditingFeedback(!!event.target.closest('[data-selection-feedback="true"]'));
+      }
       if (latest.current.phase !== "edit" && latest.current.phase !== "inspect" && event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) {
         feedbackHold.hold();
         gesture.current = null; polygon.current = null; setDrawing(false); setPreview(null); setPhase("inspect");
@@ -504,8 +513,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const inspectionKey = useMemo(() => selection.boundary || selection.rules.length || selection.objects.length
     ? `${inspectionRequest}:${timeline.index}:${selection.objects.join("|")}:${selection.scope ? constraintKey(selection.scope) : ""}` : "", [selection, timeline.index, inspectionRequest]);
   useEffect(() => { onInspect?.(inspectionKey); }, [inspectionKey, onInspect]);
-  const contextValue = useMemo(() => ({ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey }),
-    [selection, matches.included, properties, clear, selectObject, inspectionKey]);
+  const toggleFeedback = useCallback(() => { shortcuts.invoke("selector.feedbackView"); }, [shortcuts]);
+  const feedbackAvailable = phase !== "off" || hasSelection();
+  const contextValue = useMemo(() => ({ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey,
+    feedbackVisible, feedbackAvailable, toggleFeedback }),
+    [selection, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback]);
   const active = phase !== "off" || !!selection.boundary;
   const wasMasterOpen = useRef(masterOpen);
   useEffect(() => {
@@ -591,7 +603,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const visibleFeedback = heldFeedback ?? liveFeedback;
   return <Context.Provider value={contextValue}>
     {children}
-    {active && (phase !== "edit" && phase !== "inspect" || feedbackHold.held) && createPortal(<VisualSelectionOverlay {...visibleFeedback} />, document.body)}
+    {active && feedbackVisible && (phase !== "edit" && phase !== "inspect" || feedbackHold.held) && createPortal(<VisualSelectionOverlay {...visibleFeedback} />, document.body)}
     {phase === "aim" && createPortal(<SelectorCursor configuration={configuration} include={true} initial={point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position} onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
@@ -619,6 +631,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         <header><strong>Self inventory</strong><button type="button" aria-label="Close Self inventory" onClick={() => setInventoryOpen(false)}>×</button></header>
         <ul>{inventory.map(inventoryRow)}</ul>
       </div>}
+      <SelectionPreviewToggle compact />
       <div className="visual-selector-actions">
         <button type="button" aria-label="Undo selection operation" title={`Undo (${shortcuts.binding("selector.undo")})`} disabled={timeline.index === 0} onClick={() => shortcuts.invoke("selector.undo")}>↶</button>
         <button type="button" aria-label="Redo selection operation" title={`Redo (${shortcuts.binding("selector.redo")})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>
@@ -657,4 +670,16 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       </details>
     </div>, document.body)}
   </Context.Provider>;
+}
+
+/** Shared view control: never clears membership or releases held feedback. */
+export function SelectionPreviewToggle({ compact = false }: { compact?: boolean }) {
+  const selection = useVisualSelection();
+  if (!selection?.feedbackAvailable) return null;
+  return <button type="button" className="selection-preview-toggle" data-ui-id="selection-preview" aria-label="Selection / Preview"
+    aria-pressed={!selection.feedbackVisible} title={selection.feedbackVisible
+      ? "Switch to Preview: hide selection marks, keep targets selected"
+      : "Switch to Selection: show selected targets"} onClick={selection.toggleFeedback}>
+    {compact ? (selection.feedbackVisible ? "◉" : "○") : (selection.feedbackVisible ? "Selection" : "Preview")}
+  </button>;
 }

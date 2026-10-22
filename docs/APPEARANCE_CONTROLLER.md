@@ -110,8 +110,9 @@ coupled nonvisual controls (currently the placement radius/clearance functions).
 Edits retain selected-part scope, protections, shared drafts and state-owner
 transactions. Merely inspecting does not create local instances. Inspector controls
 are tool chrome and preserve the active UI selection while being used. Focusing
-them pauses selector picking and holds the last feedback context while its pulse
-and live paint values continue updating.
+them pauses selector picking and holds the last feedback context. Selection / Preview
+hides feedback during ordinary editing without deselecting targets; feedback itself
+stays visible when inspected. The shared toggle can restore marks at any time.
 Complete selected text hosts use scoped CSS typography; partial runs support exact
 paint and text-node effects, while unsupported partial typography stays unavailable.
 Color edits do not reset fonts, and typography-only edits preserve unrelated paint.
@@ -191,3 +192,10 @@ uses shared properties/setters, locks and bypass, in one appearance
 draft commit. Existing Apply/discard/undo and theme export remain authoritative.
 Its command is in the shared action catalog and shortcut search, unbound by default.
 There is no new shader, copied effect renderer or parallel configuration store.
+
+
+Selection / Preview is transient selector view state, independent of appearance
+and membership. It appears in the main and contextual inspectors and stationary
+selector. Ordinary editing automatically exposes actual paint; adapters tagged
+`binding.feedback: "selection"` retain their effect when editing it. Explicit view
+choices last until clear/dismiss/resume. See VISUAL_SELECTION.md.

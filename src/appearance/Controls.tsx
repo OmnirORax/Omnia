@@ -27,7 +27,7 @@ export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { pr
     window.addEventListener("blur", blur); document.addEventListener("visibilitychange", visibility);
     return () => { window.removeEventListener("blur", blur); document.removeEventListener("visibilitychange", visibility); };
   }, [hover, focus]);
-  return <span data-appearance-editor data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
+  return <span data-appearance-editor data-selection-feedback={props.previewTargets?.some(target => target.binding?.feedback === "selection") || undefined} data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
     onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
     onFocusCapture={() => setFocus(true)} onBlurCapture={event => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocus(false);

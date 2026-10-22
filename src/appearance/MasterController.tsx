@@ -13,7 +13,7 @@ import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
 import { SelectedProperties } from "./SelectionController";
 import { SelectorFeedbackSample } from "./VisualSelectionOverlay";
-import { useVisualSelection } from "./VisualSelector";
+import { useVisualSelection, SelectionPreviewToggle } from "./VisualSelector";
 import { describeSelectedParts } from "./selectedParts";
 import { collectVisualParts } from "./visualSelection";
 import { selectedPartId } from "./selectionCoupling";
@@ -303,6 +303,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
           if (target) reveal(target, false);
         }
       }}>
+      <SelectionPreviewToggle />
       {inspecting && <div data-visual-selector data-selection-editor className="ui-selection-tools"><UISection id="master-selection" title={selectingObject ? logicalTargets.map(target => target.label).join(" · ") : "Selected properties"} expanded>
         <div>
           <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />

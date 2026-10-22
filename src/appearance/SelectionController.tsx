@@ -1,3 +1,4 @@
+import { SelectionPreviewToggle } from "./VisualSelector";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
 import { PropertyEditor } from "./Controls";
@@ -56,6 +57,7 @@ export function SelectionController({ parts, position, onClose, onResume }: {
     style={{ left: Math.max(8, Math.min(position.x, innerWidth - 440)), top, maxHeight: Math.max(0, innerHeight - top - 8) }}
     onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}>
     <header><strong>Selected appearance</strong><button type="button" aria-label="Close selected appearance" onClick={onClose}>×</button></header>
+    <SelectionPreviewToggle />
     <p>{parts.length} selected visual parts</p>
     <SelectedProperties parts={parts} />
     <footer><button type="button" onClick={() => {

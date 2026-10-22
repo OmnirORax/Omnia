@@ -195,8 +195,9 @@ Accepted parts reveal applicable properties in Master controller through the
 shared selected-part editor. Hover candidates do not change that inspector. The
 stationary edit button or platform keyboard context menu opens Selected appearance
 at the pointer. This uses accepted parts even when invoked over a gap. Picking pauses while editing. The last displayed feedback target/hover context
-is held while the controller is used, and its real pulse keeps reading live paint
-values. Continue selecting or the selector toggle releases that context and resumes
+is held while the controller is used. Selection / Preview independently controls
+its visibility: editing ordinary targets automatically hides feedback to expose
+their real paint; editing feedback itself keeps it visible and reads live values. Continue selecting or the selector toggle releases that context and resumes
 the tool. Entering Master controller or moved shared property controls also holds
 the context without updating the app-side pointer position. Logical targets reveal
 Master controller directly. Unsupported capabilities remain unavailable.
@@ -351,3 +352,22 @@ steady feedback. The existing scene background tint remains capped at 30 fps.
 Color and brightness drive the colored halo and hot core together; Opacity fades
 the whole effect and Glow controls halo/core/sparkle strength. No parallel value
 store or separate preview implementation is introduced.
+
+
+## Selection / Preview view
+
+The same toggle appears in Master controller, Selected appearance and the stationary
+selector. Selection shows feedback; Preview removes all selector paint/overlays
+without clearing accepted targets, the neutral boundary, history or held context.
+Ordinary editor entry defaults to Preview. Feedback adapters declare
+`binding.feedback: "selection"`, so inspecting them through Self inventory or the
+shared property editor keeps their own effect visible. This is adapter metadata,
+not a text-only exception or another consumer registry. Explicit toggles override
+automatic visibility until editing/picking resumes. Clear, dismissal and resuming
+picking reset that override; Continue selecting restores normal feedback.
+
+`selector.feedbackView` is a shared, unbound-by-default command and appears in
+shortcut discovery. View changes are transient tool state and do not enter
+selection undo, appearance drafts or saved settings. Hidden feedback unmounts the
+actual overlay, restoring glyph/surface/scene paint through its existing cleanup;
+showing it again uses the same retained targets and current appearance.

@@ -12,3 +12,11 @@ export function createInteractionHold<T>() {
 }
 /** Shared marker also works for property controls moved out of Master controller. */
 export const APPEARANCE_EDITOR = "[data-appearance-editor],[data-selection-editor]";
+
+/** Feedback visibility never changes membership or the held event context. An
+ * explicit view wins until picking resumes; automatic editing reveals real paint,
+ * except when feedback itself is the object being adjusted. */
+export type SelectionView = "auto" | "selection" | "preview";
+export function selectionFeedbackVisible(view: SelectionView, editing: boolean, editingFeedback: boolean) {
+  return view === "selection" || view === "auto" && (!editing || editingFeedback);
+}

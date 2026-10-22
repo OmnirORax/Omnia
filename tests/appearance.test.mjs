@@ -1,6 +1,6 @@
 import { applyTextLightningPreset, TEXT_LIGHTNING_PRESET } from "../src/appearance/textLightningPreset.ts";
 import { laserSparkles, SELECTOR_SPARKLE_BUDGET } from "../src/appearance/selectorLaser.ts";
-import { createInteractionHold } from "../src/appearance/interactionHold.ts";
+import { createInteractionHold, selectionFeedbackVisible } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { registerHierarchyScene, scenePartAt, paintSceneSelection } from "../src/appearance/sceneFeedback.ts";
@@ -864,4 +864,21 @@ test("green text lightning is one shared-property recipe scoped to unlocked conn
   assert.equal(restored.disconnected["text.ui.contents"].all, true);
   const lockedCategory = { ...before, locks: { ...before.locks, "text.ui": { all: true } } };
   assert.deepEqual(applyTextLightningPreset(lockedCategory).values, before.values);
+});
+
+
+test("Selection / Preview changes feedback without losing held targets; feedback editing stays visible", () => {
+  const hold = createInteractionHold();
+  const targets = { selected: ["text", "background"], preview: [] };
+  hold.remember(targets); hold.hold();
+  assert.equal(selectionFeedbackVisible("auto", false, false), true);
+  assert.equal(selectionFeedbackVisible("auto", true, false), false);
+  assert.equal(selectionFeedbackVisible("auto", true, true), true);
+  for (const editingFeedback of [false, true]) {
+    assert.equal(selectionFeedbackVisible("preview", true, editingFeedback), false);
+    assert.equal(selectionFeedbackVisible("selection", true, editingFeedback), true);
+    assert.equal(hold.context, targets);
+    assert.equal(hold.held, true);
+  }
+  assert.equal(selectionFeedbackVisible("auto", false, false), true, "resuming picking restores feedback");
 });

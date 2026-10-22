@@ -895,6 +895,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-self-inventory li > button { width: 100%; }
 .visual-selector-self-inventory button[aria-pressed="true"] { color: #66efab; background: color-mix(in srgb,currentColor 15%,transparent); }
 .selector-feedback-sample { position: relative; display: block; width: 100%; max-width: 300px; height: auto; overflow: visible; margin: 8px 0; pointer-events: none; }
+.visual-selector > .selection-preview-toggle { position: absolute; left: -8px; top: 108px; width: 26px; height: 26px; padding: 0; border: 1px solid currentColor; border-radius: 50%; color: inherit; background: var(--omnium-base,#07131c); font-size: 19px; }
 .visual-selector-actions { position: absolute; inset: 0; pointer-events: none; }
 .visual-selector-actions > * { position: absolute; pointer-events: auto; }
 .visual-selector-actions button:nth-of-type(1) { left: -8px; top: 40px; }

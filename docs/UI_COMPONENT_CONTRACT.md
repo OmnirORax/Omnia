@@ -123,7 +123,9 @@ groups remain recoverable until explicitly changed.
 
 Shared property editors and Master controller roots carry `data-appearance-editor`.
 The visual selector treats those as tool input, preserves the last real feedback
-context on entry, and pauses picking without stopping its animation or live values.
+context on entry, and pauses picking. Selection / Preview controls feedback visibility
+independently of membership; ordinary edits hide marks, while feedback adapters
+retain their effect. Showing marks again uses current live values.
 Moved property controls carry the same marker. Never freeze the physical pointer,
 create fake native events, persist hover state or reuse held context after clear/
 cancel/resume/dismissal. See VISUAL_SELECTION.md for the transient hold lifecycle.
