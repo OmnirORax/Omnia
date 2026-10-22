@@ -1,12 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
+import { useAppearance } from "./Context";
 import { registerPaintVariable } from "./paintVariables";
+import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
+import { brightHex, tint, valueFor } from "./resolve";
 import { boundaryElement, type SelectionBoundary, type SelectionRule, type VisualPart } from "./visualSelection";
 
 type Mark = { key: string; x: number; y: number; width: number; height: number; rx: number; ry: number; surface: boolean };
 const rectAttributes = (mark: Mark) => ({ x: mark.x, y: mark.y, width: mark.width, height: mark.height, rx: mark.rx, ry: mark.ry });
-function SelectionTrace({ mark, tone, preview = false }: { mark: Mark; tone: "included" | "excluded" | "boundary"; preview?: boolean }) {
+type Tone = keyof typeof SELECTOR_FEEDBACK;
+type FeedbackPaint = { ink: string; opacity: number; glow: number };
+function SelectionTrace({ mark, tone, paint, preview = false }: { mark: Mark; tone: Tone; paint: FeedbackPaint; preview?: boolean }) {
   const attributes = rectAttributes(mark);
-  return <g className={`visual-selection-trace is-${tone} ${preview ? "is-preview" : ""}`}>
+  const style = { "--visual-selection-ink": paint.ink, "--visual-selection-opacity": paint.opacity,
+    "--visual-selection-glow": paint.glow } as CSSProperties;
+  return <g style={style} className={`visual-selection-trace is-${tone} ${preview ? "is-preview" : ""}`}>
     {mark.surface && <rect {...attributes} className="visual-selection-surface" />}
     <rect {...attributes} className="visual-selection-halo" />
     <rect {...attributes} className="visual-selection-rail" />
@@ -28,10 +35,10 @@ function startSelectionPulse() {
     animation?.cancel(); animation = undefined;
     if (!supported || reduced.matches || document.hidden || typeof root.animate !== "function") return;
     animation = root.animate([
-      { [signal.strength]: "0.62", [signal.mix]: "45%", [signal.glow]: "2px" },
-      { [signal.strength]: "1", [signal.mix]: "85%", [signal.glow]: "5px" },
-      { [signal.strength]: "0.62", [signal.mix]: "45%", [signal.glow]: "2px" },
-    ], { duration: 1800, iterations: Infinity, easing: "ease-in-out" });
+      { [signal.strength]: "1", [signal.mix]: "95%", [signal.glow]: "9px", easing: "ease-in-out" },
+      { [signal.strength]: "0.18", [signal.mix]: "8%", [signal.glow]: "0.5px", easing: "ease-in-out" },
+      { [signal.strength]: "1", [signal.mix]: "95%", [signal.glow]: "9px" },
+    ], { duration: 3600, iterations: Infinity });
   };
   start();
   reduced.addEventListener("change", start);
@@ -40,15 +47,28 @@ function startSelectionPulse() {
 }
 const glow = "var(--omnium-selector-glow,3px)";
 const mix = "var(--omnium-selector-glyph-mix,65%)";
-const glyphColor = (base: string, ink: string) => `color-mix(in srgb,${base} calc(100% - ${mix}),${ink} ${mix})`;
-const glyphFeedback = (name: string, ink: string) =>
-  `::highlight(${name}){color:${glyphColor("currentColor", ink)};background-color:transparent;text-shadow:0 0 ${glow} ${ink}}`;
+const feedbackInk = (paint: FeedbackPaint) => tint(paint.ink, 1, paint.opacity);
+const feedbackGlow = (paint: FeedbackPaint) => `calc(${glow} * ${paint.glow})`;
+const glyphColor = (base: string, paint: FeedbackPaint) => {
+  const weight = `calc(${mix} * ${paint.opacity})`;
+  return `color-mix(in srgb,${base} calc(100% - ${weight}),${paint.ink} ${weight})`;
+};
+const glyphFeedback = (name: string, paint: FeedbackPaint) =>
+  `::highlight(${name}){color:${glyphColor("currentColor", paint)};background-color:transparent;text-shadow:0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)}}`;
 
 /** Native paint variables and SVG seams animate feedback; no per-frame DOM discovery or writes. */
 export function VisualSelectionOverlay({ selected, excluded, preview, candidate, boundary, hoverBoundary }: {
   selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
   boundary: SelectionBoundary | null; hoverBoundary: SelectionBoundary | null;
 }) {
+  const appearance = useAppearance();
+  const paints = useMemo(() => Object.fromEntries(Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
+    const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
+    const get = (property: string) => appearance && !appearance.safe
+      ? valueFor(appearance.base, appearance.state, target, property) : target.defaults![property];
+    return [tone, { ink: brightHex(String(get("color") ?? defaults.color), Number(get("brightness"))),
+      opacity: Number(get("opacity")), glow: Number(get("glow")) }];
+  })) as Record<Tone, FeedbackPaint>, [appearance?.base, appearance?.state, appearance?.safe]);
   useEffect(startSelectionPulse, []);
   useEffect(() => {
     const names = ["omnium-selector-selected", "omnium-selector-excluded", "omnium-selector-preview"];
@@ -58,22 +78,23 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       CSS.highlights.set(names[1], new Highlight(...excluded.flatMap(part => part.range ? [part.range] : [])));
       CSS.highlights.set(names[2], new Highlight(...preview.flatMap(part => part.range ? [part.range] : [])));
     }
-    const paint = new Map<HTMLElement | SVGElement, { kind: "icon" | "text"; ink: string; pseudo: string }>();
-    for (const [parts, ink] of [[selected, "#66efab"], [excluded, "#ff6c73"], [preview, candidate?.include === false ? "#ff8b94" : "#9affcf"]] as const) {
+    const paint = new Map<HTMLElement | SVGElement, { kind: "icon" | "text"; feedback: FeedbackPaint; pseudo: string }>();
+    for (const [parts, feedback] of [[selected, paints.included], [excluded, paints.excluded], [preview, candidate?.include === false ? paints.excluded : paints.included]] as const) {
       for (const part of parts) {
         if ((part.range && highlights) || !(part.role === "icon" || part.role === "text")) continue;
-        paint.set(part.element, { kind: part.role, ink, pseudo: part.target.id === "text.ui.placeholders" ? "::placeholder" : "" });
+        paint.set(part.element, { kind: part.role, feedback, pseudo: part.target.id === "text.ui.placeholders" ? "::placeholder" : "" });
       }
     }
     // Read source paint once, then own a removable stylesheet/marker layer. The
     // renderer's inline paint remains available to other previews and is never replaced.
     const attribute = "data-visual-selection-ink";
-    const plans = [...paint].map(([element, { kind, ink, pseudo }], index) => {
+    const plans = [...paint].map(([element, { kind, feedback, pseudo }], index) => {
       const computed = getComputedStyle(element, pseudo || null);
       const filter = computed.filter === "none" ? "" : computed.filter;
       const shadow = computed.textShadow === "none" ? "" : computed.textShadow + ",";
-      const declaration = kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${glow} ${ink})!important` :
-        `color:${glyphColor(computed.color, ink)}!important;text-shadow:${shadow}0 0 ${glow} ${ink}!important`;
+      const ink = feedbackInk(feedback), blur = feedbackGlow(feedback);
+      const declaration = kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important` :
+        `color:${glyphColor(computed.color, feedback)}!important;text-shadow:${shadow}0 0 ${blur} ${ink}!important`;
       return { element, pseudo, marker: `selection-${index}`, previous: element.getAttribute(attribute), declaration };
     });
     const style = document.createElement("style");
@@ -89,7 +110,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         if (previous === null) element.removeAttribute(attribute); else element.setAttribute(attribute, previous);
       }
     };
-  }, [selected, excluded, preview, candidate?.include]);
+  }, [selected, excluded, preview, candidate?.include, paints]);
 
   // Background and contour matches on the same element share one trace. Cache
   // bounds/style reads across accepted/excluded/preview layers for this render.
@@ -125,15 +146,17 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   };
   const edge = rectFor(boundary, "boundary"), hover = rectFor(hoverBoundary ?? candidate?.boundary ?? null, "preview-boundary");
   return <div data-visual-selector className="visual-selection-overlay">
-    <style>{glyphFeedback("omnium-selector-selected", "#66efab") + glyphFeedback("omnium-selector-excluded", "#ff6c73") +
-      glyphFeedback("omnium-selector-preview", candidate?.include === false ? "#ff8b94" : "#9affcf")}</style>
+    <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
+      glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : paints.included)}</style>
     <svg aria-hidden="true" width="100%" height="100%">
-      {marks.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="included" />)}
-      {omissions.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="excluded" />)}
-      {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"} preview />)}
-      {edge && <SelectionTrace mark={edge} tone="boundary" />}
+      {marks.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="included" paint={paints.included} />)}
+      {omissions.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="excluded" paint={paints.excluded} />)}
+      {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"}
+        paint={candidate?.include === false ? paints.excluded : paints.included} preview />)}
+      {edge && <SelectionTrace mark={edge} tone="boundary" paint={paints.boundary} />}
       {hover && (hoverBoundary || (candidate && !candidate.part)) && <SelectionTrace mark={hover}
-        tone={!candidate ? "boundary" : candidate.include ? "included" : "excluded"} preview />}
+        tone={!candidate ? "boundary" : candidate.include ? "included" : "excluded"}
+        paint={!candidate ? paints.boundary : candidate.include ? paints.included : paints.excluded} preview />}
     </svg>
   </div>;
 }

@@ -1,6 +1,6 @@
 import { EFFECT_KINDS } from "../graph/effects.ts";
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
-import { type Controller, type Target, type Value, normalizeController } from "./model.ts";
+import { type Controller, type Target, type Value, type Values, normalizeController } from "./model.ts";
 import { migrateEffects } from "./migrateEffects.ts";
 import { migrateFieldBranches } from "./migrateFields.ts";
 import type { AnimationTarget } from "../graph/effects.ts";
@@ -205,7 +205,12 @@ export type Binding = {
     priority?: number;
   };
 };
-export type RegisteredTarget = Target & { binding?: Binding; hidden?: boolean; aggregate?: boolean };
+export type RegisteredTarget = Target & { binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
+export const SELECTOR_FEEDBACK = {
+  included: { label: "Included", color: "#66efab" },
+  excluded: { label: "Excluded", color: "#ff6c73" },
+  boundary: { label: "Boundary", color: "#60ddec" },
+} as const;
 /** Inline artwork has its own ink; it never inherits a text target's color. */
 export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
@@ -426,6 +431,14 @@ part("ui.guides.contour", "ui.guides", "Selection / snapping contours", {
   css: "border-color",
   legacy: "accent",
 });
+branch("ui.guides.selector", "ui.guides", "Selector feedback");
+for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
+  entries.push({
+    id: `ui.guides.selector.${tone}`, parent: "ui.guides.selector", label: defaults.label,
+    properties: [...surface], defaults: { color: defaults.color, brightness: 1, opacity: 1, glow: 1 },
+    // The feedback adapter paints SVG edges, glyph ranges and icons together.
+    binding: { selector: `.visual-selection-trace.is-${tone}` },
+  });
 branch("text", "all", "Text");
 branch("text.ui", "text", "UI text");
 for (const [id, label, selector] of [

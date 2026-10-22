@@ -55,6 +55,7 @@ export function effectsFromValues(get: (property: string) => Value): SparkleStyl
   };
 }
 export function legacyValue(base: Appearance, target: RegisteredTarget, property: string): Value {
+  if (target.defaults?.[property] !== undefined) return target.defaults[property];
   const key = target.binding?.legacy ?? "accent",
     node = key.startsWith("nodes") ? base.nodes : base.binders;
   if (EFFECT_PROPERTIES.includes(property)) {
