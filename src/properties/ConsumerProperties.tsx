@@ -31,7 +31,7 @@ export function ConsumerProperties({ consumers }: { consumers: string[] }) {
           if (temporary) ctx.preview(next); else ctx.commit(next);
         };
         return <div className="selection-property-editor">
-          <PropertyEditor property={id} label={`Selected ${id}`} value={values[0]} effectKinds={kinds.length ? kinds : undefined}
+          <PropertyEditor previewTargets={editable} property={id} label={`Selected ${id}`} value={values[0]} effectKinds={kinds.length ? kinds : undefined}
             disabled={ctx.safe || !editable.length} onPreview={value => change(value, true)} onCommit={value => change(value, false)} />
           <small>{new Set(values).size > 1 ? "Mixed values · " : ""}{editable.length} applicable</small>
         </div>;

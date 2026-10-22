@@ -129,8 +129,8 @@ builtins.push(
   numeric("textWeight", "UI text weight", 100, 900, 100, 400),
   numeric("textSpacing", "UI text spacing", -1, 6, 0.1, 0),
   { id: "gradient", label: "Gradient fill", kind: "toggle", initial: false, neutral: false },
-  { id: "gradientColor", label: "Gradient second color", kind: "color", initial: "#7546cf" },
-  numeric("gradientAngle", "Gradient direction", 0, 360, 1, 135),
+  { id: "gradientColor", label: "Gradient second color", kind: "color", initial: "#7546cf", previewActivation: { property: "gradient", inactive: false, active: true } },
+  { ...numeric("gradientAngle", "Gradient direction", 0, 360, 1, 135), previewActivation: { property: "gradient", inactive: false, active: true } },
   numeric("shadowStrength", "Shadow strength", 0, 1, 0.05, 0),
   numeric("shadowSpread", "Shadow spread", 0, 32, 1, 0),
   numeric("shadowX", "Shadow horizontal offset", -32, 32, 1, 0),
@@ -159,6 +159,8 @@ for (const [id, label, source] of [
   const original = builtins.find((p) => p.id === source)!;
   builtins.push({ ...original, id, label, channelOf: source });
 }
+for (const property of builtins) if (property.id !== "effect" && EFFECT_PROPERTIES.includes(property.id))
+  property.previewActivation = { property: "effect", inactive: "off", active: "lightning" };
 export const PROPERTY_REGISTRY = createPropertyRegistry();
 builtins.forEach(property => PROPERTY_REGISTRY.define({ ...property, category: { id: "visual", label: "Visuals" } }));
 /** Compatibility view of the single shared pool; no separate appearance definitions. */

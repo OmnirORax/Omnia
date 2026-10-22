@@ -1,3 +1,4 @@
+import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { registerHierarchyScene, scenePartAt, paintSceneSelection } from "../src/appearance/sceneFeedback.ts";
 import { createElementEffectsResolver } from "../src/appearance/localEffects.ts";
@@ -743,4 +744,48 @@ test("each registered adjuster has one property node; styles apply only to suppo
   assert.equal(validateProperty("gradient", true), true);
   assert.equal(validateProperty("gradient", "true"), undefined);
   assert.equal(validateProperty("contourWidth", 50), 12);
+});
+
+
+test("editing an inactive consumer previews activation without authoring it or changing its neighbors", () => {
+  const base = defaultSettings().appearance;
+  const targets = controllerTargets(base.controller), trail = targets.find(t => t.id === "ui.mouse.trail");
+  assert.equal(valueFor(base, base.controller, trail, "effect"), "off");
+  const saved = JSON.stringify(base);
+  const preview = activityPreview(base, [{ property: "color", targets: [trail] }]);
+  assert.equal(valueFor(preview, preview.controller, trail, "effect"), "lightning");
+  assert.equal(valueFor(preview, preview.controller, trail, "color"), valueFor(base, base.controller, trail, "color"));
+  assert.deepEqual(Object.keys(preview.controller.values), [trail.id]);
+  assert.equal(JSON.stringify(base), saved);
+  assert.equal(activityPreview(base, []), base, "leaving the editor restores the original source");
+  assert.equal(activityPreview(base, [{ property: "effect", targets: [trail] }]), base, "explicit Off is never overridden");
+  const bypassed = { ...base, controller: toggleRule(base.controller, "disconnected", "ui.mouse") };
+  assert.equal(activityPreview(bypassed, [{ property: "color", targets: [trail] }]), bypassed);
+  const active = { ...base, controller: applyValue(base.controller, targets, "effect", "stars", trail.id) };
+  assert.equal(activityPreview(active, [{ property: "speed", targets: [trail] }]), active, "retain the authored effect");
+});
+
+test("inactive animation previews stay scoped to an uncustomized selected part", () => {
+  const base = defaultSettings().appearance;
+  base.controller = applyValue(base.controller, controllerTargets(base.controller), "effect", "off", "text.ui.buttons");
+  const part = { base: "text.ui.buttons", owner: "function:example", label: "Example", part: { steps: [], text: 0 } };
+  const target = selectedPartTarget(part), saved = JSON.stringify(base);
+  const preview = activityPreview(base, [{ property: "speed", targets: [target] }]);
+  assert.equal(valueFor(preview, preview.controller, target, "effect"), "lightning");
+  assert.equal(valueFor(preview, preview.controller, controllerTargets(base.controller).find(t => t.id === part.base), "effect"), "off");
+  assert.deepEqual(Object.keys(preview.controller.instances), [target.id]);
+  assert.equal(JSON.stringify(base), saved, "no persistent local customization is created");
+  const bypassed = { ...base, controller: toggleRule(base.controller, "disconnected", part.base) };
+  assert.equal(activityPreview(bypassed, [{ property: "speed", targets: [target] }]), bypassed);
+});
+
+
+test("shared property dependencies preview inactive gradients and restore them without saving the switch", () => {
+  const base = defaultSettings().appearance, target = controllerTargets(base.controller).find(t => t.id === "ui.buttons.background");
+  base.controller.values[target.id] = { gradient: false, gradientColor: "#ff0000" };
+  const preview = activityPreview(base, [{ property: "gradientColor", targets: [target] }]);
+  assert.equal(valueFor(preview, preview.controller, target, "gradient"), true);
+  assert.equal(valueFor(preview, preview.controller, target, "gradientColor"), "#ff0000");
+  assert.equal(base.controller.values[target.id].gradient, false);
+  assert.equal(activityPreview(base, [{ property: "gradient", targets: [target] }]), base);
 });

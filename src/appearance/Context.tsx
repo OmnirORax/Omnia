@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
 import { ownerOf } from "../ui/layout";
 import {
@@ -17,11 +17,13 @@ import {
   type RegisteredTarget,
 } from "./registry";
 import { type Appearance, valueFor } from "./resolve";
+import { activityPreview, type ActivityPreview } from "./activityPreview";
 import { MouseTrail } from "./MouseTrail";
 import { VisualSelectionProvider } from "./VisualSelector";
 export type AppearanceLocation = { target: string; property: string };
 export type AppearanceBridge = {
   safe?: boolean;
+  activityPreview?: (requests: ActivityPreview[]) => void;
   subtreeModifier?: "shift" | "alt" | "ctrl" | "none";
   base: Appearance;
   commit: (state: Controller) => void;
@@ -32,6 +34,8 @@ export type AppearanceBridge = {
 };
 type ContextValue = AppearanceBridge & {
   state: Controller;
+  renderBase: Appearance;
+  activatePreview: (request: ActivityPreview) => () => void;
   targets: RegisteredTarget[];
   location: AppearanceLocation | null;
   locate: (location: AppearanceLocation | null, keep?: boolean) => void;
@@ -64,6 +68,18 @@ export function AppearanceProvider({
     preview: () => {},
   };
   const activeBridge = bridge ?? bridgeFallback;
+  const [activities, setActivities] = useState<Map<symbol, ActivityPreview>>(() => new Map());
+  const activityCallback = useRef(activeBridge.activityPreview); activityCallback.current = activeBridge.activityPreview;
+  const activatePreview = useCallback((request: ActivityPreview) => {
+    const token = Symbol();
+    setActivities(old => new Map(old).set(token, request));
+    return () => setActivities(old => { const next = new Map(old); next.delete(token); return next; });
+  }, []);
+  useEffect(() => {
+    activityCallback.current?.(activeBridge.safe ? [] : [...activities.values()]);
+  }, [activities, activeBridge.safe]);
+  useEffect(() => () => activityCallback.current?.([]), []);
+  const renderBase = useMemo(() => activeBridge.safe ? activeBridge.base : activityPreview(activeBridge.base, [...activities.values()]), [activeBridge.base, activeBridge.safe, activities]);
   const [visualInspection, setVisualInspection] = useState("");
   const inspect = useRef(activeBridge.inspect); inspect.current = activeBridge.inspect;
   const inspectedFunctions = [...ui.selectedFunctions].sort().join("|");
@@ -162,6 +178,8 @@ export function AppearanceProvider({
   const value: ContextValue = {
     ...activeBridge,
     state,
+    renderBase,
+    activatePreview,
     targets,
     location: hoverLocation ?? location,
     locate: (next, keep = false) => {

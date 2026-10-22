@@ -204,3 +204,25 @@ or values. Feedback inspection shows a live sample using the real feedback rende
 and its existing shared paint. Native cursor/trail/feedback graphics remain
 pointer-transparent. Logical picks share transient selection history, clear and
 undo/redo; inspection/reopening never writes values or adds a transaction.
+
+
+## Temporary activity while editing
+
+`PropertyEditor` requests a scoped activity preview while its controls are hovered
+or keyboard-focused. The shared property definition can declare `previewActivation`
+(a controlling property, inactive value and active sample value). Animation
+parameters use this to run an Off animation; gradient parameters show a disabled
+gradient. Consumers whose entire function can be inactive declare the same contract
+once in their co-located function definition (Mouse trail is the first consumer).
+Discovery validates the capability and allowed values; restricted effect choices
+use a supported sample. There is no target-specific editor or new value store.
+
+`appearance/activityPreview.ts` projects only the render source. Editor reads,
+commits, Apply/discard, export, drafts and histories retain authored values. It
+preserves existing active effects, bypasses and exact selected-part scope. Editing
+the activation switch itself remains authoritative: choosing Off actually shows
+Off. Leaving/defocusing the editor, deselection, unmount, blur, hidden tabs or safe
+view releases the preview. Feedback self-inspection already supplies a live sample
+using the real pulse renderer. Other state owners still require an actual runtime
+preview adapter before an inactive function can be temporarily activated; a
+registry declaration alone cannot start arbitrary behavior.

@@ -1,12 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
-import { propertyFor } from "./registry";
+import { propertyFor, type RegisteredTarget } from "./registry";
 import type { Value } from "./model";
-import { applyValue, included } from "./model";
+import { applyValue, included, blocked, connected } from "./model";
 import { useAppearance } from "./Context";
 import { valueFor } from "./resolve";
 /** One editor implementation is shared by the controller, rows and contextual UI. */
-export function PropertyEditor({
+export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { previewTargets?: RegisteredTarget[] }) {
+  const ctx = useAppearance();
+  const [hover, setHover] = useState(false), [focus, setFocus] = useState(false);
+  const targets = useRef(props.previewTargets); targets.current = props.previewTargets;
+  const scope = JSON.stringify(props.previewTargets?.map(target => [target.id, target.instance]) ?? []);
+  const activate = ctx?.activatePreview;
+  useEffect(() => {
+    if ((!hover && !focus) || props.disabled || ctx?.safe || !targets.current?.length) return;
+    return activate?.({ property: props.property, targets: targets.current });
+  }, [hover, focus, props.disabled, ctx?.safe, props.property, scope, activate]);
+  useEffect(() => {
+    if (!hover && !focus) return;
+    const clear = () => { setHover(false); setFocus(false); };
+    const visibility = () => { if (document.hidden) clear(); };
+    const blur = () => {
+      // A native color picker may own the OS window while its input retains focus.
+      if (!(document.activeElement instanceof HTMLInputElement && document.activeElement.type === "color")) clear();
+    };
+    window.addEventListener("blur", blur); document.addEventListener("visibilitychange", visibility);
+    return () => { window.removeEventListener("blur", blur); document.removeEventListener("visibilitychange", visibility); };
+  }, [hover, focus]);
+  return <span data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
+    onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
+    onFocusCapture={() => setFocus(true)} onBlurCapture={event => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocus(false);
+    }}><PropertyInput {...props} /></span>;
+}
+function PropertyInput({
   property,
   value,
   onPreview,
@@ -203,6 +230,9 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
     <PropertyEditor
       property={property}
       label={`Adjust selected ${property}`}
+      previewTargets={targets.filter(t => t.properties?.includes(property) &&
+        (target ? t.id === target || t.id.startsWith(target + ".") : included(active, targets, t.id)) &&
+        !blocked(state, targets, t.id, property, target ?? "all") && connected(state, targets, t.id, property))}
       disabled={!chosen}
       value={current}
       onPreview={(v) => change(v, true)}

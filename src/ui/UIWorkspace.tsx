@@ -78,6 +78,8 @@ import {
   updateContainer,
   releaseResident,
   closeContainer,
+  reopenContainer,
+  containers,
   residentKey,
   residentPinned,
   resetContainer,
@@ -316,7 +318,7 @@ export function UIPanel({
         width={400}
         height={560}
         onClose={() =>
-          ui.update((s) => ({ ...closeContainer(s, key), panels: { ...s.panels, [id]: false } }))
+          ui.update(s => closeContainer(s, key))
         }
         closeLabel={`Close ${title}`}
       >
@@ -376,8 +378,9 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
   const rectangular = structured || stacked;
   const desired = { x: frame.x + (rectangular ? 0 : bounds.x), y: frame.y + (rectangular ? 0 : bounds.y), width: rectangular ? width : bounds.width, height: structured && !frame.collapsed ? frame.height ?? 420 : bounds.height };
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
-  const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !nested && !edgeBounds, frame.floatingOverflow);
+  const visible = useDockResident(key, frame.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, frame.chrome?.handle) : fitDockRect(desired, workspace.active ? workspace.floating : viewport), !frame.closed && !nested && !edgeBounds, frame.floatingOverflow);
   const patch = (change: Partial<UIFrame>) => ui.update((s) => updateContainer(s, key, change));
+  if (frame.closed) return null;
   const content = (
     <Rnd
       className={`function-frame contour-frame ${structured ? "ui-structured-frame" : ""} ${stacked ? "ui-stacked-frame" : ""} ${nested ? "nested-ui-frame" : ""} ${frame.collapsed ? "collapsed" : ""}`}
@@ -426,34 +429,8 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
           className="ui-frame-header"
           onChange={patch}
           onRename={(name) => patch({ name })}
-          closeLabel={`Remove UI frame ${frame.name}`}
-          onClose={() => {
-            if (residentPinned(ui.layout, key)) return;
-            if (
-              (frame.members?.length ?? 0) &&
-              !window.confirm(
-                "Remove this frame? Its functions return to their default locations; nested frames and windows remain available. Your graph will not change.",
-              )
-            )
-              return;
-            ui.update((s) => {
-              let next = releaseResident(s, key);
-              for (const member of frame.members ?? []) {
-                const memberKey = residentKey(member);
-                next = releaseResident(next, memberKey);
-                if (member.kind === "function") {
-                  const items = { ...next.items };
-                  if (next.customControls?.[member.id]) items[member.id] = {
-                    ...items[member.id], home: false, x: frame.x + 24, y: frame.y + 64,
-                  };
-                  else delete items[member.id];
-                  next = { ...next, items };
-                } else
-                  next = updateContainer(next, memberKey, { x: frame.x + 24, y: frame.y + 64 });
-              }
-              return { ...next, frames: next.frames.filter((f) => f.id !== frame.id) };
-            });
-          }}
+          closeLabel={`Hide ${frame.name}`}
+          onClose={() => ui.update(layout => closeContainer(layout, key))}
         />
         {structured ? <div className="ui-structured-body" hidden={frame.collapsed}><DockLayout container={key} /></div> : <DockArea container={key} hidden={frame.collapsed} />}
       </div>
@@ -1789,6 +1766,9 @@ export function UIWorkspace({
           >
             Create UI frame
           </button>
+          {containers(layout).some(([, state]) => state.closed) && <button data-ui-id="restore-hidden-ui" onClick={() => {
+            setQuery(""); setLibraryOpen(true); setMenu(null);
+          }}>Restore hidden UI</button>}
           <button
             onClick={() => {
               setLibraryOpen(true);
@@ -1822,15 +1802,14 @@ export function UIWorkspace({
             onChange={(e) => setQuery(e.target.value)}
           /></label></UIField>
           <div className="function-library categorized-library">
-            {Object.entries(layout.windows).some(([, state]) => state.closed) && (
-              <UISection id="closed-frames" title="Closed frames">
-                {Object.entries(layout.windows).filter(([, state]) => state.closed).map(([id]) => {
-                  const key = `window:${id}`;
-                  const title = layout.labels?.[key] ?? frameActions.get(key)?.title ?? id.replace(/^panel:/, "");
-                  return <button key={id} onClick={() => update(layout => updateContainer(layout, key, { closed: false, collapsed: false }))}>Open {title}</button>;
-                })}
-              </UISection>
-            )}
+            {containers(layout).some(([, state]) => state.closed) && <section aria-label="Hidden UI" className="hidden-ui-library">
+              <h3>Hidden UI</h3>
+              {containers(layout).filter(([, state]) => state.closed).map(([key, state]) => {
+                const title = layout.labels?.[key] ?? ("name" in state ? state.name : frameActions.get(key)?.title ?? key.replace(/^window:(panel:)?/, ""));
+                if (query && !`${title} ${key}`.toLowerCase().includes(query.toLowerCase())) return null;
+                return <button key={key} data-ui-id={`restore:${key}`} onClick={() => update(layout => reopenContainer(layout, key))}>Restore {title}</button>;
+              })}
+            </section>}
             {LIBRARY_CATEGORIES.map((category) => {
               const entries = functions
                 .filter(

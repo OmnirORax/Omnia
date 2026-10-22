@@ -34,7 +34,7 @@ export function defineFunction<State = Record<string, PropertyValue>>(
 export function initializeFunctions(functions: readonly { definitions: PropertyDefinition[]; couple: () => unknown }[]) {
   const pending = functions.flatMap(fn => fn.definitions);
   while (pending.length) {
-    const ready = pending.findIndex(property => !property.channelOf || PROPERTY_REGISTRY.property(property.channelOf));
+    const ready = pending.findIndex(property => (!property.channelOf || PROPERTY_REGISTRY.property(property.channelOf)) && (!property.previewActivation || PROPERTY_REGISTRY.property(property.previewActivation.property)));
     if (ready < 0) throw new Error(`Unresolved property channel dependencies: ${pending.map(property => property.id).join(", ")}`);
     PROPERTY_REGISTRY.define(pending.splice(ready, 1)[0]);
   }

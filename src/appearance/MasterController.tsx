@@ -257,6 +257,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
           {!rigidity && target.properties?.includes(property) && (
             <UIField id={`ui:appearance:target:${stableUIHash(target.id)}:${property}`} label={`${target.label} ${property}`} category="Appearance"><PropertyEditor
               property={property}
+              previewTargets={[target]}
               effectKinds={target.effectKinds}
               label={`${target.label} ${property}`}
               value={valueFor(ctx.base, state, target, property)}

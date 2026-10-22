@@ -159,3 +159,12 @@ creates no settings or local overrides. Meta groups declare `self: true` on thei
 existing coupling path, and new descendants appear automatically. Hidden compatibility
 entries stay out of the visible list. Self inventory and the preserved Mouse
 selection command are listed in shortcuts and can be assigned bindings.
+
+
+Parameter editing temporarily activates supported inactive effects while their
+shared controls are hovered/focused. Animation and gradient dependencies are
+shared property metadata; Mouse trail declares whole-function activation through
+its existing coupling. The projection is renderer-only and restores authored Off
+on exit without saving it or entering the appearance draft/history. Explicit Off,
+active effect choices, bypass and narrow selected-part scope remain authoritative.
+See SHARED_PROPERTIES.md for extending this contract.

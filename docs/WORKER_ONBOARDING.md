@@ -291,3 +291,10 @@ a handoff/PR without turning this guide into a chronological chat transcript.
 Read the brief plus relevant references once per fresh worker/context, then consult
 specific sections as needed. No documentation can guarantee model recall forever;
 short entry rules, durable decisions and appropriate automated checks work together.
+
+
+Recent integration: shared property controls have renderer-only activity previews
+for inactive effect/gradient parameters and declared inactive consumers. Never
+send the activity-projected controller to a commit/editor path. Frame × now hides
+custom frames intact; recover saved frames/panels through UI library → Hidden UI.
+See the shared property and UI component contracts for these paths.

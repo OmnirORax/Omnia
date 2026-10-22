@@ -1,5 +1,6 @@
 /** Property definitions and couplings contain no renderer, DOM or persistence assumptions. */
 export type PropertyValue = string | number | boolean;
+export type PreviewActivation = { property: string; inactive: PropertyValue; active: PropertyValue };
 export type Category = { id: string; label: string };
 export type PropertyDefinition = {
   id: string; label: string; kind: "color" | "number" | "select" | "toggle";
@@ -8,12 +9,15 @@ export type PropertyDefinition = {
   category?: Category; unit?: string;
   /** Another independently adjustable channel of the same property, e.g. animation color. */
   channelOf?: string;
+  previewActivation?: PreviewActivation;
 };
 export type PropertyUse = { property: string | PropertyDefinition; initial?: PropertyValue; choices?: readonly string[] };
 export type ConsumerGroup = Category & { self?: boolean };
 export type ConsumerDefinition = {
   id: string; label: string; owner: string;
   locator?: string;
+  /** Render-only activation while inspecting parameters; never a saved value. */
+  previewActivation?: PreviewActivation;
   controls?: readonly string[];
   group: ConsumerGroup[]; properties: readonly PropertyUse[];
 };
@@ -29,7 +33,7 @@ export function validateValue(property: PropertyDefinition, value: unknown): Pro
   return property.options?.some(option => option.id === value) ? value as string : undefined;
 }
 const contract = (property: PropertyDefinition) => JSON.stringify({ kind: property.kind, unit: property.unit,
-  min: property.min, max: property.max, step: property.step, channelOf: property.channelOf,
+  min: property.min, max: property.max, step: property.step, channelOf: property.channelOf, previewActivation: property.previewActivation,
   options: property.options?.map(option => option.id).sort() });
 export function createPropertyRegistry() {
   const definitions: PropertyDefinition[] = [], consumers: CoupledConsumer[] = [], categories: Category[] = [];
@@ -53,6 +57,11 @@ export function createPropertyRegistry() {
     if (validateValue(definition, definition.initial) !== definition.initial) throw new Error(`Invalid initial value: ${definition.id}`);
     if (definition.neutral !== undefined && validateValue(definition, definition.neutral) !== definition.neutral)
       throw new Error(`Invalid neutral value: ${definition.id}`);
+    if (definition.previewActivation) {
+      const activation = definition.previewActivation, prerequisite = byId.get(activation.property);
+      if (!prerequisite || validateValue(prerequisite, activation.inactive) !== activation.inactive || validateValue(prerequisite, activation.active) !== activation.active)
+        throw new Error(`Invalid property preview activation: ${definition.id}`);
+    }
     const next = structuredClone(definition);
     next.category ??= { id: "general", label: "General" };
     category(next.category);
@@ -90,6 +99,13 @@ export function createPropertyRegistry() {
         channels[property.channelOf] = property.id;
         defaults[property.channelOf] = defaults[property.id];
       }
+    }
+    if (definition.previewActivation) {
+      const { property, inactive, active } = definition.previewActivation;
+      const channel = channels[property], spec = staged.property(channel);
+      if (!spec || validateValue(spec, inactive) !== inactive || validateValue(spec, active) !== active ||
+        (choices[channel] && [inactive, active].some(value => !choices[channel].includes(String(value)))))
+        throw new Error(`Invalid preview activation: ${definition.id}/${property}`);
     }
     staged.definitions.forEach(define);
     const consumer = { ...definition, group: structuredClone(definition.group), properties: Object.keys(channels), channels, defaults, choices };

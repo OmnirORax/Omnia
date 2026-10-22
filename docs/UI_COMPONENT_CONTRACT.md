@@ -104,3 +104,18 @@ Master controller inspection. Keep compatibility target IDs but hide retired row
 Feedback inspection reuses the actual trace renderer for its live sample. The old
 Mouse command remains rebindable; a separate mouse-only UI path is replaced by
 inventory access. Ordinary input controls and selected-property editors stay shared.
+
+
+## Hiding and restoration
+
+The frame × hides a custom frame intact through `closeContainer`, preserving its
+members, values and customization. It must not delete the frame or release all its
+contents. Ordinary panels preserve their floating/home preference when closed.
+UI library has a nonclosable **Hidden UI** recovery section for saved frames and
+windows; **Restore hidden UI** in the workspace context menu opens it. Restoration
+reveals enclosing UI and activates the relevant tab without a global reset. Hidden
+workspace-edge groups reserve no space and do not accept new docking. If their
+former edge has since been occupied, restoration floats the retained frame rather
+than overlapping two edge allocations. Transient dialogs continue to reopen through
+their normal actions. UI history owns hide/restore operations; empty hidden dock
+groups remain recoverable until explicitly changed.

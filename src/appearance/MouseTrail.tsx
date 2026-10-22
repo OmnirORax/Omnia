@@ -8,7 +8,7 @@ import mouseTrail from "./mouseTrail.function";
 export function MouseTrail() {
   const ctx = useAppearance()!;
   const target = ctx.targets.find(target => target.id === mouseTrail.consumer.id)!;
-  const values = mouseTrail.readInputs(property => valueFor(ctx.base, ctx.state, target, property));
+  const values = mouseTrail.readInputs(property => valueFor(ctx.renderBase, ctx.renderBase.controller ?? ctx.state, target, property));
   const fx = effectsFromValues(property => values[property]);
   const enabled = !ctx.safe && fx.effect !== "off";
   const trail = useRef<SVGGElement>(null), dust = useRef<SVGGElement>(null);

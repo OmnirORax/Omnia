@@ -3,6 +3,7 @@ import { defineFunction } from "../properties/function.ts";
 export default defineFunction({
   id: "ui.mouse.trail", label: "Mouse trail", owner: "appearance", locator: ".mouse-trail",
   group: [{ id: "ui", label: "Windows / frames / controls" }, { id: "ui.mouse", label: "Mouse", self: true }],
+  previewActivation: { property: "effect", inactive: "off", active: "lightning" },
   inputs: {
     effect: { initial: "off", choices: ["off", "lightning", "stars"] },
     speed: { initial: .25 }, intensity: { initial: .5 }, density: { initial: 1 },
