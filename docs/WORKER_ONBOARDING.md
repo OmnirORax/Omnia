@@ -178,11 +178,12 @@ The circle controls 🞅 Frame, ◉ In-frame and ⏺ Outside frame independently
 it never blocks the geometry mode. Each includes its region; In-frame leaves the
 frame itself out. One LMB action toggles membership; RMB opens editing. With all
 three off, a click establishes a neutral frame, then pattern detection follows
-the pointer inside or outside it without changing inclusion. Hold Ctrl for hover
-previews: additions green, removal preview hides green; no red exclusion paint.
+the pointer inside or outside it without changing inclusion. Previews are automatic
+before a boundary/selection; then hold Ctrl: additions green, removal preview hides
+green; no red exclusion paint.
 E cycles pattern, individual, pointed-owner, axis/ray/segment, rectangle, ellipse,
-polygon and freehand modes. Wheel finely rotates selected geometry, otherwise
-changes pointed-owner depth before placement. New geometry intersects the current
+polygon and freehand modes. Shift+Wheel finely rotates selected geometry; ordinary
+Wheel changes pointed-owner depth before placement. New geometry intersects the current
 set; release returns subsequent picks to app-wide matching. Geometry, region
 baselines and exceptions share transient selection history. Pattern recognition
 uses registered parts and mathematical intersections, not regex or arbitrary pixels.

@@ -61,6 +61,8 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const latest = useRef({ phase, configuration, catalog, selection });
   latest.current = { phase, configuration, catalog, selection };
   const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0;
+  const previewEnabled = previewModifier || !selection.boundary && !selection.objects.length;
+  const canPreview = () => previewHeld.current || !hasSelection();
   const setPreview = useCallback((next: Pick | null) => {
     const previous = candidateRef.current;
     if (previous === next || previous && next && previous.definesScope === next.definesScope && ruleKey(previous.rule) === ruleKey(next.rule)) return;
@@ -195,7 +197,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     region: toggleSelectionRegion(latest.current.configuration.region, side) }, side);
   const toggleContour = () => applyMask({ contour: !latest.current.configuration.contour, region: latest.current.configuration.region }, "contour");
   const previewRegion = (side: SelectionSide | null) => {
-    if (!previewHeld.current) { setPreview(null); return; }
+    if (!canPreview()) { setPreview(null); return; }
     const scope = latest.current.selection.scope, config = latest.current.configuration;
     if (!scope || !side || !scope.path?.closed) { setPreview(null); return; }
     const region = toggleSelectionRegion(config.region, side);
@@ -277,7 +279,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   selectedRef.current = matches.included;
   const editableParts = useMemo(() => describeSelectedParts(matches.included), [matches]);
   const preview = useMemo(() => {
-    if (!previewModifier || !candidate) return noParts;
+    if (!previewEnabled || !candidate) return noParts;
     if (candidate.maskChange) {
       const after = resolveVisualSelection(catalog, selection.boundary, [...selection.rules, ...candidate.maskChange]).included;
       const afterKeys = new Set(after.map(part => part.key)), beforeKeys = new Set(matches.included.map(part => part.key));
@@ -286,13 +288,13 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     const existing = new Set((candidate.rule.include ? matches.included : matches.excluded).map(part => part.key));
     const changed = matchingVisualParts(catalog, candidate.rule).filter(part => !existing.has(part.key));
     return changed.length ? changed : noParts;
-  }, [catalog, candidate, matches, selection, geometry, previewModifier]);
+  }, [catalog, candidate, matches, selection, geometry, previewEnabled]);
   const feedbackPreview = candidate?.rule.include === false ? noParts : preview;
   const feedbackSelected = useMemo(() => {
-    if (!previewModifier || candidate?.rule.include !== false || !preview.length) return matches.included;
+    if (!previewEnabled || candidate?.rule.include !== false || !preview.length) return matches.included;
     const removed = new Set(preview.map(part => part.key));
     return matches.included.filter(part => !removed.has(part.key));
-  }, [matches.included, candidate, preview, previewModifier]);
+  }, [matches.included, candidate, preview, previewEnabled]);
   const guide = useMemo(() => candidate?.rule.line ? selectionLineGuide(catalog, candidate.rule) : null, [catalog, candidate, geometry]);
   const guides = useMemo(() => {
     const chain: SelectionConstraint[] = [];
@@ -310,7 +312,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   }, [catalog, workingScope, geometry]);
   const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
   useEffect(() => {
-    let frame = 0, commandButton = -1, consumedUntil = 0;
+    let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0;
     const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
     const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(selectorChrome);
     const focusEditor = (event: Event) => {
@@ -323,7 +325,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       focusEditor(event);
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
       if (shortcuts.handle(event, id => id === "selector.open" || outsideChrome(event))) {
-        commandButton = event.button; consumedUntil = performance.now() + 1500;
+        commandButton = event.button; consumedPointer = event.pointerId; consumedUntil = performance.now() + 1500;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation(); return;
       }
@@ -334,10 +336,16 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
         return;
       }
       claimUIPress(event.pointerId, event.pointerType, event.buttons);
+      // MS owns the native click tail even when the saved command does not match.
+      commandButton = event.button; consumedPointer = event.pointerId; consumedUntil = performance.now() + 1500;
       // Cleared/rebound commands have no private primary-button fallback.
       event.preventDefault(); event.stopImmediatePropagation();
     };
     const up = (event: PointerEvent) => {
+      if (event.pointerId === consumedPointer) {
+        consumedPointer = null; consumedUntil = performance.now() + 1500;
+        event.preventDefault(); event.stopImmediatePropagation();
+      }
       const draft = gesture.current;
       if (!draft || draft.id !== event.pointerId) return;
       event.preventDefault(); event.stopImmediatePropagation();
@@ -355,7 +363,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       if (previewHeld.current === event.ctrlKey) return;
       previewHeld.current = event.ctrlKey; setPreviewModifier(event.ctrlKey);
       if (event.ctrlKey) settledPoint.current = null;
-      if (!event.ctrlKey && !gesture.current && !polygon.current) setPreview(null);
+      if (!event.ctrlKey && hasSelection() && !gesture.current && !polygon.current) setPreview(null);
     };
     const move = (event: PointerEvent) => {
       updateModifier(event);
@@ -371,7 +379,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
         return;
       }
       if (latest.current.phase !== "aim" || !gesture.current && !outsideChrome(event)) return;
-      if (!event.ctrlKey && !gesture.current && !polygon.current) { setPreview(null); return; }
+      if (!canPreview() && !gesture.current && !polygon.current) { setPreview(null); return; }
       const draft = gesture.current;
       if (draft?.mode === "freehand") {
         const previous = draft.points.at(-1)!;
@@ -396,11 +404,12 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       if (shortcuts.blocked() || shortcutUI(event.target) || !outsideChrome(event) ||
           (latest.current.phase !== "aim" && latest.current.phase !== "configure")) return;
       if (latest.current.selection.scope) {
+        if (!event.shiftKey) return;
         event.preventDefault(); event.stopImmediatePropagation();
-        const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
+        const pixels = (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
         actions.current.rotateGeometry(Math.max(-2, Math.min(2, pixels * .02))); return;
       }
-      if (latest.current.configuration.pattern !== "boundary") return;
+      if (event.shiftKey || latest.current.configuration.pattern !== "boundary") return;
       event.preventDefault(); event.stopImmediatePropagation();
       const p = point.current; if (!p) return;
       depth.current = Math.max(0, Math.min(boundaryCandidates(p.element).length - 1, depth.current + (event.deltaY < 0 ? 1 : -1)));
@@ -433,6 +442,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     window.addEventListener("pointercancel", cancel, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("mousedown", preventClick, true);
+    window.addEventListener("mouseup", preventClick, true);
     window.addEventListener("click", preventClick, true);
     window.addEventListener("auxclick", preventClick, true);
     window.addEventListener("wheel", wheel, { capture: true, passive: false });
@@ -449,6 +459,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       window.removeEventListener("pointercancel", cancel, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("mousedown", preventClick, true);
+      window.removeEventListener("mouseup", preventClick, true);
       window.removeEventListener("click", preventClick, true);
       window.removeEventListener("auxclick", preventClick, true);
       window.removeEventListener("wheel", wheel, true);
@@ -483,13 +494,13 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   }, [active]);
   useEffect(() => {
     if (phase !== "aim") return;
-    if (!previewHeld.current && !gesture.current && !polygon.current) { setPreview(null); return; }
+    if (!canPreview() && !gesture.current && !polygon.current) { setPreview(null); return; }
     const p = point.current;
     if (p) {
       const hit = document.elementFromPoint(p.x, p.y);
       if (hit && !hit.closest(selectorChrome)) actions.current.previewAt(hit, p.x, p.y);
     }
-  }, [phase, configuration, catalog, selection, geometry, previewModifier]);
+  }, [phase, configuration, catalog, selection, geometry, previewEnabled]);
   useEffect(() => {
     document.documentElement.toggleAttribute("data-visual-selecting", phase === "aim");
     return () => document.documentElement.removeAttribute("data-visual-selecting");
@@ -502,7 +513,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     if (!scope || !mask) return;
     setConfiguration(config => ({ ...config, ...mask, closed: scope.path?.kind === "freehand" ? scope.path.closed : config.closed }));
   }, [selection.scope, selection.mask]);
-  const paths = [...scopeChain(selection.scope), (previewModifier || drawing) && candidate?.definesScope ? candidate.rule : null].flatMap((constraint, index, constraints) => {
+  const paths = [...scopeChain(selection.scope), (previewEnabled || drawing) && candidate?.definesScope ? candidate.rule : null].flatMap((constraint, index, constraints) => {
     const box = constraint && boundaryRect(constraint.boundary);
     return constraint?.path && box ? [{ key: `${index}:${constraintKey(constraint)}`, points: pathVertices(constraint.path, box),
       closed: constraint.path.closed, disabledEdges: constraint.path.disabledEdges ?? [], preview: index === constraints.length - 1 && !!candidate?.definesScope,
@@ -518,7 +529,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   return <Context.Provider value={contextValue}>
     {children}
     {active && phase !== "edit" && phase !== "inspect" && createPortal(<VisualSelectionOverlay selected={feedbackSelected} excluded={noParts} preview={feedbackPreview}
-      candidate={previewModifier && candidate?.rule.include ? candidate.rule : null} guide={previewModifier || drawing ? guide : null} guides={guides} paths={paths} />, document.body)}
+      candidate={previewEnabled && candidate?.rule.include ? candidate.rule : null} guide={previewEnabled || drawing ? guide : null} guides={guides} paths={paths} />, document.body)}
     {phase === "aim" && createPortal(<SelectorCursor configuration={configuration} include={true} initial={point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position} onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"

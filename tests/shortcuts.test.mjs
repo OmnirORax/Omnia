@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { ACTIONS, actionForKey, defaultSettings, functionShortcutBinding, keyConflict, matchesShortcut, normalizeKey, normalizePointer, normalizeSettings } from "../src/workspaceActions.ts";
+import { ACTIONS, actionForKey, defaultSettings, functionShortcutBinding, keyConflict, matchesPointerShortcut, matchesShortcut, normalizeKey, normalizePointer, normalizeSettings } from "../src/workspaceActions.ts";
 import { FEATURE_ACTIONS, FEATURE_GESTURES, clearRecordedShortcutPress, createFeatureActionRuntime, recordedShortcutTail, recordShortcutPress } from "../src/featureActions.ts";
 import { privateShortcutLiterals } from "../scripts/shortcut-audit.mjs";
 
@@ -59,6 +59,23 @@ test("keyboard and pointer matching honor rebinding and cleared bindings", () =>
   assert.equal(matchesShortcut("selector.pattern", bindings, "Q"), true);
   assert.equal(matchesShortcut("selector.edit", bindings, "MB2"), false);
   assert.equal(matchesShortcut("selector.edit", bindings, ""), false);
+});
+
+test("pointer gesture modifiers preserve selector picking and explicit bindings without leaking defaults", () => {
+  const bindings = defaultSettings().bindings;
+  const pointer = { button: 0, ctrlKey: true, metaKey: false, altKey: false, shiftKey: false };
+  assert.equal(matchesPointerShortcut("selector.include", bindings, pointer), true, "Ctrl-preview still commits the saved MB1 selection action");
+  assert.equal(matchesPointerShortcut("selector.include", bindings, pointer, false), false, "exact pass leaves explicit Ctrl commands priority");
+  const custom = { ...bindings, "selector.edit": "Ctrl+MB1" };
+  assert.equal(matchesPointerShortcut("selector.edit", custom, pointer, false), true);
+  assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "" }, pointer), false);
+  assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Q" }, pointer), false);
+  assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "MB2" }, pointer), false);
+  assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "MB2" }, { ...pointer, button: 2 }), true, "native preview also works with a rebound pointer action");
+  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, shiftKey: true }), false, "unrelated modifiers retain exact semantics");
+  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, ctrlKey: false, metaKey: true }), false, "the native Ctrl preview gesture does not consume Command clicks");
+  assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Ctrl+MB1" }, pointer, false), true);
+  assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Ctrl+MB1" }, { ...pointer, ctrlKey: false }), false);
 });
 
 test("shortcut search resolves live bindings for commands, rows and customized functions", () => {

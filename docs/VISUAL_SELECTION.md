@@ -32,7 +32,9 @@ There is one selection action: LMB toggles a pattern/individual, or places geome
 A fully included target becomes unselected; an unselected target becomes included.
 A mixed category becomes fully included. Clicking the same category/individual
 again reverses it. Preview and commit use the shared `selectionToggleRule`; commit
-rechecks current state rather than replaying a stale hover decision. Hover previews appear only while holding Ctrl while aiming. Additions preview in
+rechecks current state rather than replaying a stale hover decision. Before any
+boundary or selection, hover previews appear automatically while aiming. After a
+boundary/selection exists, hold Ctrl to preview. Additions preview in
 green; hovering included patterns previews removal by temporarily hiding their
 green. Releasing Ctrl or leaving restores accepted feedback. A settled pointer
 does not immediately preview the inverse action after committing; moving, pressing
@@ -64,7 +66,10 @@ Toggle pointed pattern / define geometry. The retired `selector.exclude` command
 is removed. Exact older default bundles migrate to LMB toggle and RMB edit; custom
 assignments and later explicit clears remain intact. RMB, the controller's edit
 button, the platform keyboard context-menu gesture and Master controller provide
-editing. Shortcut metadata and handlers remain shared and rebindable.
+editing. Shortcut metadata and handlers remain shared and rebindable. Ctrl-preview is
+transparent to the selection command's saved pointer binding; exact modified
+commands keep priority. MS consumes owned press/release/click events even when
+no command matches, so underlying controls cannot activate.
 
 ## Geometry and pattern modes
 
@@ -102,7 +107,7 @@ New geometry intersects the existing working set; Release working geometry keeps
 accepted rules and returns subsequent picks to app-wide matching. This permits
 choosing a window first, then drawing an axis within it. Custom drawing coordinates
 are relative to the viewport owner; pointed geometry uses its actual UI owner.
-Wheel rotates the selected geometry in fine screen-space increments about its
+Shift+Wheel rotates the selected geometry in fine screen-space increments about its
 center, including in non-square owners. Rotation joins selection undo/redo.
 
 For example: turn the contour baseline off, choose Axis and drag through several
@@ -131,7 +136,7 @@ changes, releases, logical-object picks and clear in one transient timeline. It
 never writes graph/UI/appearance history or browser storage. Ctrl/Cmd+Z,
 Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y are the defaults while configuring/aiming. New
 operations after undo replace its redo branch. Unfinished drawing is not accepted
-on blur/cancel. Ctrl-hover previews show only matches whose inclusion state would change.
+on blur/cancel. Hover previews show only matches whose inclusion state would change.
 Additions are green; removals temporarily hide green. Implicit off baselines and
 accepted exclusions have no red paint.
 

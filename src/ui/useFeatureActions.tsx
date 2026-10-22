@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
-import { isTypingTarget, matchesShortcut, normalizeKey, normalizePointer, shortcutBinding } from "../workspaceActions.ts";
+import { isTypingTarget, matchesShortcut, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
 import { useUI } from "./context";
 
 type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void }>;
@@ -23,20 +23,22 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
   const api = useRef({
     blocked: () => !!latest.current.ui.shortcutCapturing || !!latest.current.ui.shortcutsBlocked,
     binding: (id: FeatureActionFor<Owner>) => shortcutBinding(id, latest.current.ui.shortcutBindings ?? {}),
-    matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent) => {
+    matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent, gestureModifiers = true) => {
       const current = latest.current;
       if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked || event.defaultPrevented || !current.handlers[id].enabled) return false;
       if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
       const definition = FEATURE_ACTIONS.find(action => action.id === id)!;
       if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
-      const key = event instanceof KeyboardEvent ? normalizeKey(event) : normalizePointer(event);
-      return matchesShortcut(id, current.ui.shortcutBindings ?? {}, key);
+      return event instanceof KeyboardEvent
+        ? matchesShortcut(id, current.ui.shortcutBindings ?? {}, normalizeKey(event))
+        : matchesPointerShortcut(id, current.ui.shortcutBindings ?? {}, event, gestureModifiers);
     },
     invoke: (id: FeatureActionFor<Owner>, input?: ActionInput) => featureActionRuntime.invoke(id, input),
     handle: (event: KeyboardEvent | MouseEvent, accepts: (id: FeatureActionFor<Owner>) => boolean = () => true) => {
-      for (const definition of definitions) {
+      // Explicit modified commands take priority over gesture-transparent matches.
+      for (const gestureModifiers of [false, true]) for (const definition of definitions) {
         const id = definition.id as FeatureActionFor<Owner>;
-        if (accepts(id) && api.current.matches(id, event)) return api.current.invoke(id, event);
+        if (accepts(id) && api.current.matches(id, event, gestureModifiers)) return api.current.invoke(id, event);
       }
       return false;
     },

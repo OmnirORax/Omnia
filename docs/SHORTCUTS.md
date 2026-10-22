@@ -71,12 +71,21 @@ finite bounds, color stops and logical Mouse selection. The separate exclude
 command is retired. Exact untouched older pointer bundles migrate to these
 single-toggle defaults; custom bindings and later clears remain intact.
 
-Click/drag geometry, polygon closure, Hold Ctrl for selection previews, Wheel for
-fine geometry rotation (or pointed-owner depth before placement), and platform
-keyboard context menus remain listed alongside commands. A click toggles current
+Click/drag geometry, polygon closure, automatic previews before the first
+boundary/selection, Hold Ctrl for later previews, Shift+Wheel for fine geometry
+rotation, Wheel for pointed-owner depth before placement, and platform keyboard
+context menus remain listed alongside commands. A click toggles current
 membership; circle checkboxes supply the region baseline. Buttons and pointer/key
 input use the same registered handlers. F2 focused-label rename and focused-control
 context actions derive their descriptions from gesture metadata.
+
+Pointer commands can declare native `pointerGestureModifiers` in the shared
+feature catalog. The selector's selection command treats held Ctrl-preview as
+transparent to its saved pointer binding. Dispatch first checks every exact
+binding, so an explicit modified command keeps priority. Gesture matching preserves
+rebindings, clears and unrelated modifiers; it is not another button fallback.
+The selector consumes the complete owned pointer/mouse press, release and click
+tail even when no command matches, preventing underlying function activation.
 
 Frame search, global UI search and library filtering resolve each function or
 `shortcut:` row through `functionShortcutBinding`. Current bindings are searchable

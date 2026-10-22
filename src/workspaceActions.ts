@@ -88,6 +88,16 @@ export function actionScope(id: string): string {
 export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
 export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
 export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;
+/** Native pointer gesture modifiers may accompany a saved command. Exact
+ * bindings are dispatched first; fallback never revives cleared/rebound inputs. */
+export function matchesPointerShortcut(id: string, bindings: Record<string, string>, event: Pick<MouseEvent, "button" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">, gestureModifiers = true): boolean {
+  const key = normalizePointer(event);
+  if (matchesShortcut(id, bindings, key)) return true;
+  const action = FEATURE_ACTIONS.find(action => action.id === id);
+  if (!gestureModifiers || !action || !("pointerGestureModifiers" in action) || !event.ctrlKey || event.metaKey) return false;
+  const modifiers: readonly string[] = action.pointerGestureModifiers;
+  return matchesShortcut(id, bindings, key.split("+").filter(part => !modifiers.includes(part)).join("+"));
+}
 export function actionForKey(bindings: WorkspaceSettings["bindings"], key: string): ActionId | null {
   return ACTIONS.find((action) => !isFeatureAction(action.id) && bindings[action.id] === key)?.id ?? null;
 }

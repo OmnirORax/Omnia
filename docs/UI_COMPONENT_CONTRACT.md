@@ -71,9 +71,10 @@ The visual selector's ○ has independent 🞅 Frame, ◉ In-frame and ⏺ Outsi
 inclusion settings, separate from geometry mode. LMB toggles membership; RMB edits.
 In-frame includes all interior parts but not the frame itself. All three off
 creates a neutral boundary: detection follows the pointer inside/outside without
-including anything. Each accepted refinement captures that side. Ctrl alone enables
-hover previews, showing additions in green and removals by hiding green; exclusions
-are unpainted. Wheel finely rotates working geometry in screen space. Pointed
+including anything. Each accepted refinement captures that side. Before any
+boundary/selection, hover previews are automatic; afterwards Ctrl enables them,
+showing additions in green and removals by hiding green; exclusions
+are unpainted. Shift+Wheel finely rotates working geometry in screen space. Pointed
 boundaries, lines, polygons and freehand share matching, transient selection history
 and the existing selected-part editor. Complete text hosts support CSS typography;
 partial runs retain exact-node paint/effects without widening. Editing pauses
