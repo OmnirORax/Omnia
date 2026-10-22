@@ -9,8 +9,8 @@ import { SelectorSymbol, type SelectorConfiguration } from "./SelectorSymbol";
 import { SelectorCursor } from "./SelectorCursor";
 import { SelectionController } from "./SelectionController";
 import { describeSelectedParts } from "./selectedParts";
-import { PROPERTY_REGISTRY } from "./registry";
-import { resolvePropertyTarget } from "../properties/registry";
+import { PROPERTY_REGISTRY, TARGETS } from "./registry";
+import { resolvePropertyTarget, selfInventory, type SelfInventoryNode } from "../properties/registry";
 import { DEFAULT_SELECTION_MASK, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, type SelectionMask, type MaskPart } from "./selectionToggle";
 import { selectedPartTarget } from "./selectionCoupling";
 import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODES, PATTERN_SYMBOLS,
@@ -49,6 +49,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const [candidate, setCandidate] = useState<Pick | null>(null);
   const [geometry, setGeometry] = useState(0);
   const [inspectionRequest, requestInspection] = useState(0);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [automaticRegion, setAutomaticRegion] = useState<SelectionSide>("inside");
   const [previewModifier, setPreviewModifier] = useState(false);
@@ -159,11 +160,11 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     record(current => current.objects.includes(id) ? { ...current, objects: current.objects.filter(selected => selected !== id) } : { ...emptySelection(), objects: [id] });
     requestInspection(value => value + 1); setPhase("configure");
   }, [record, setPreview]);
-  const close = () => { cancelDrawing(); setPhase("off"); };
+  const close = () => { cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
   const disable = () => { close(); clear(); };
   const undo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); };
   const redo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); };
-  const aim = () => { setPreview(null); setPhase("aim"); };
+  const aim = () => { setPreview(null); setInventoryOpen(false); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;
     if (latest.current.selection.objects.length) { requestInspection(value => value + 1); return; }
@@ -257,6 +258,10 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       const p = inputPosition(input), element = document.elementFromPoint(p.x, p.y) ?? document.body;
       setCatalog(collectVisualParts()); setPosition(p); setPhase("configure"); setPreview(null);
       point.current = { ...p, element };
+    } },
+    "selector.selfInventory": { enabled: canConfigure, run: () => {
+      if (phase !== "configure") { const p = cursorPosition(); setPosition(p); setPhase("configure"); }
+      setInventoryOpen(open => !open);
     } },
     "selector.selectMouse": { enabled: canConfigure, run: () => selectObject("ui.mouse") },
     "selector.pattern": { enabled: canConfigure, run: cyclePattern },
@@ -528,6 +533,13 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     const disabled = scope.path.disabledEdges ?? [];
     return { ...scope, path: { ...scope.path, disabledEdges: disabled.includes(index) ? disabled.filter(edge => edge !== index) : [...disabled, index] } };
   });
+  const inventory = inventoryOpen ? selfInventory(PROPERTY_REGISTRY, consumer => !TARGETS.find(target => target.id === consumer.id)?.hidden) : [];
+  const inventoryRow = (target: SelfInventoryNode): ReactNode => <li key={target.id}>
+    <button type="button" aria-pressed={selection.objects.includes(target.id)}
+      title={`${selection.objects.includes(target.id) ? "Deselect" : "Select"} ${target.label}`}
+      onClick={() => selectObject(target.id)}>{selection.objects.includes(target.id) ? "●" : "○"} {target.label}</button>
+    {target.children.length > 0 && <ul>{target.children.map(inventoryRow)}</ul>}
+  </li>;
   const activePath = workingScope?.path, activeBox = workingScope && boundaryRect(workingScope.boundary);
   const edges = activePath && activeBox ? pathEdges(pathVertices(activePath, activeBox), activePath.closed) : [];
   return <Context.Provider value={contextValue}>
@@ -554,15 +566,17 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
         {selection.scope && <button type="button" aria-label="Release working geometry" title="Keep selections, return to matching across the app"
           onClick={() => shortcuts.invoke("selector.releaseGeometry")}>↗</button>}
       </div>
-      <button type="button" className="visual-selector-mouse" data-ui-id="select-mouse" aria-label="Select Mouse"
-        aria-pressed={selection.objects.includes("ui.mouse")} title={selection.objects.includes("ui.mouse") ? "Deselect Mouse" : "Select Mouse in Master controller"}
-        onClick={() => shortcuts.invoke("selector.selectMouse")}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="6" /><path d="M12 2v7M6 9h12" /></svg>
-      </button>
+      <button type="button" className="visual-selector-inventory" data-ui-id="self-inventory" aria-label="Self inventory"
+        aria-expanded={inventoryOpen} title="Self inventory" onClick={() => shortcuts.invoke("selector.selfInventory")}>◎</button>
+      {inventoryOpen && <div className="visual-selector-self-inventory" role="region" aria-label="Self inventory"
+        style={{ left: Math.max(8, Math.min(left + 184, innerWidth - 248)), top: Math.max(8, Math.min(top, innerHeight - 328)) }}>
+        <header><strong>Self inventory</strong><button type="button" aria-label="Close Self inventory" onClick={() => setInventoryOpen(false)}>×</button></header>
+        <ul>{inventory.map(inventoryRow)}</ul>
+      </div>}
       <div className="visual-selector-actions">
         <button type="button" aria-label="Undo selection operation" title={`Undo (${shortcuts.binding("selector.undo")})`} disabled={timeline.index === 0} onClick={() => shortcuts.invoke("selector.undo")}>↶</button>
         <button type="button" aria-label="Redo selection operation" title={`Redo (${shortcuts.binding("selector.redo")})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>
-        <output aria-label={`${matches.included.length} selected visual parts`}>{matches.included.length}</output>
+        <output aria-label={`${matches.included.length + selection.objects.length} selected targets`}>{matches.included.length + selection.objects.length}</output>
         <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={() => shortcuts.invoke("selector.clear")}>×</button>
         <button type="button" aria-label="Edit selected appearance" title="Edit selected appearance" disabled={!hasSelection()} onClick={() => shortcuts.invoke("selector.edit")}>☷</button>
         <button type="button" aria-label={polygon.current ? "Finish polygon" : "Start aiming"} title={polygon.current ? "Finish polygon (Enter)" : `Resume selection (${shortcuts.binding("selector.open")})`}

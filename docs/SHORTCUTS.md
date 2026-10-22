@@ -67,7 +67,7 @@ The selector command group includes configuration/aiming (MB3), geometry modes
 (E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), edit
 (RMB/MB2), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
 unassigned commands for contour, inside/outside, releasing geometry, closing paths,
-finite bounds, color stops and logical Mouse selection. The separate exclude
+finite bounds, color stops, Self inventory and logical Mouse selection. The separate exclude
 command is retired. Exact untouched older pointer bundles migrate to these
 single-toggle defaults; custom bindings and later clears remain intact.
 
@@ -79,6 +79,11 @@ context menus remain listed alongside commands. A click toggles current
 membership; circle checkboxes supply the region baseline. Buttons and pointer/key
 input use the same registered handlers. F2 focused-label rename and focused-control
 context actions derive their descriptions from gesture metadata.
+
+Self inventory is one cataloged, rebindable command. Its rows use native logical
+target selection through the shared selector API. New coupled meta descendants
+need no private key handlers or handwritten target command lists. The existing
+Mouse-selection command remains compatible with saved bindings.
 
 Pointer commands can declare native `pointerGestureModifiers` in the shared
 feature catalog. The selector's selection command treats held Ctrl-preview as

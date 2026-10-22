@@ -130,7 +130,7 @@ registered properties; Physics is not an empty placeholder. Stable window/action
 IDs remain unchanged, and saved user labels still take precedence. Accepted
 selector and UI-function selections reveal a Selected properties inspector,
 using discovered capabilities and independent values. The stationary selector
-also has a Mouse button: logical object/group selection resolves existing consumer
+also has ◎ Self inventory: logical object/group selection resolves existing consumer
 couplings, exposing Mouse trail without clicking the native cursor. Reveal is transient;
 Show all controls restores the general panel. Hover-only candidates do not
 replace the accepted selection, and unmigrated graph/function fields still need
@@ -169,6 +169,13 @@ The universal extension of these principles is [SHARED_PROPERTIES.md](SHARED_PRO
 It supports categories for physical and other nonvisual properties while
 preserving independent values. Register capabilities and connect the real state
 adapter; adding a UI row alone is not a working integration.
+
+Self inventory projects consumer groups tagged `self: true` and their coupled
+descendants. Mouse/trail and Selector feedback/Included/Boundary are the initial
+meta paths. Future meta features declare this on their existing group path, rather
+than maintaining another target list. Selection only reveals shared editors and
+existing values; actual individual edits create local overrides. The feedback
+inspector includes a live sample using the actual renderer. See SHARED_PROPERTIES.md.
 
 ## Visual selector and feedback
 

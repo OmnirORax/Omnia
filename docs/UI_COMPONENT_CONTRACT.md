@@ -95,3 +95,12 @@ It addresses the existing consumer directly; no CSS/DOM instance can stand in fo
 scene paint. The shared scene registration supplies hierarchy and selector feedback
 independently, so green feedback changes only the background and cleanup restores
 authored paint. It runs at most 30 fps, with no per-frame discovery.
+
+The selector's ◎ Self inventory is the common route to pointer-transparent
+logical/meta targets. Project consumer groups tagged `self: true` from the existing
+coupling graph; descendants appear automatically, with no copied properties or
+values. Inventory rows use the shared logical selection/toggle/history API and
+Master controller inspection. Keep compatibility target IDs but hide retired rows.
+Feedback inspection reuses the actual trace renderer for its live sample. The old
+Mouse command remains rebindable; a separate mouse-only UI path is replaced by
+inventory access. Ordinary input controls and selected-property editors stay shared.

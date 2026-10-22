@@ -885,9 +885,16 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-symbol [role="button"]:focus-visible { color: #fff; }
 .visual-selector-symbol [role="button"]:focus-visible .selector-region-mark { opacity: .7; }
 
-.visual-selector-mouse { position: absolute; right: -8px; top: 108px; width: 26px; height: 26px; padding: 4px; border: 1px solid currentColor; border-radius: 50%; color: inherit; background: var(--omnium-base,#07131c); }
-.visual-selector-mouse svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.visual-selector-mouse[aria-pressed="true"] { color: #66efab; box-shadow: 0 0 7px currentColor; }
+.visual-selector-inventory { position: absolute; right: -8px; top: 108px; width: 26px; height: 26px; padding: 0; border: 1px solid currentColor; border-radius: 50%; color: inherit; background: var(--omnium-base,#07131c); font-size: 19px; }
+.visual-selector-inventory[aria-expanded="true"] { color: #66efab; box-shadow: 0 0 7px currentColor; }
+.visual-selector-self-inventory { position: fixed; z-index: 90003; width: 240px; max-width: calc(100vw - 16px); max-height: min(320px,calc(100vh - 16px)); overflow: auto; box-sizing: border-box; padding: 10px; border: 1px solid currentColor; border-radius: 10px; background: var(--omnium-base,#07131c); font: 12px/1.4 system-ui,sans-serif; }
+.visual-selector-self-inventory header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.visual-selector-self-inventory ul { margin: 4px 0 0; padding: 0 0 0 12px; list-style: none; }
+.visual-selector-self-inventory > ul { padding-left: 0; }
+.visual-selector-self-inventory button { color: inherit; background: transparent; border: 0; border-radius: 4px; padding: 4px; text-align: left; }
+.visual-selector-self-inventory li > button { width: 100%; }
+.visual-selector-self-inventory button[aria-pressed="true"] { color: #66efab; background: color-mix(in srgb,currentColor 15%,transparent); }
+.selector-feedback-sample { display: block; width: 100%; max-width: 300px; height: auto; overflow: visible; margin: 8px 0; pointer-events: none; }
 .visual-selector-actions { position: absolute; inset: 0; pointer-events: none; }
 .visual-selector-actions > * { position: absolute; pointer-events: auto; }
 .visual-selector-actions button:nth-of-type(1) { left: -8px; top: 40px; }

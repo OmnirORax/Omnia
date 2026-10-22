@@ -10,11 +10,12 @@ export type PropertyDefinition = {
   channelOf?: string;
 };
 export type PropertyUse = { property: string | PropertyDefinition; initial?: PropertyValue; choices?: readonly string[] };
+export type ConsumerGroup = Category & { self?: boolean };
 export type ConsumerDefinition = {
   id: string; label: string; owner: string;
   locator?: string;
   controls?: readonly string[];
-  group: Category[]; properties: readonly PropertyUse[];
+  group: ConsumerGroup[]; properties: readonly PropertyUse[];
 };
 export type CoupledConsumer = Omit<ConsumerDefinition, "properties"> & {
   properties: string[]; channels: Record<string, string>; defaults: Record<string, PropertyValue>;
@@ -160,4 +161,23 @@ export function resolvePropertyTarget(registry: PropertyRegistry, id: string) {
   const labels = new Set(consumers.flatMap(consumer => consumer.group.filter(group => group.id === id).map(group => group.label)));
   if (!consumers.length || labels.size !== 1) throw new Error(`Unknown or ambiguous property target: ${id}`);
   return { id, label: [...labels][0], consumers: consumers.map(consumer => consumer.id) };
+}
+
+export type SelfInventoryNode = { id: string; label: string; consumers: string[]; children: SelfInventoryNode[] };
+/** Self is metadata on the existing coupling path, not another target registry.
+ * Descendants and future consumers appear automatically after coupling. */
+export function selfInventory(registry: PropertyRegistry, visible: (consumer: CoupledConsumer) => boolean = () => true): SelfInventoryNode[] {
+  const roots: SelfInventoryNode[] = [];
+  for (const consumer of registry.consumers.filter(visible)) {
+    const start = consumer.group.findIndex(group => group.self);
+    if (start < 0) continue;
+    let siblings = roots;
+    for (const entry of [...consumer.group.slice(start), consumer]) {
+      let node = siblings.find(node => node.id === entry.id);
+      if (!node) { node = { id: entry.id, label: entry.label, consumers: [], children: [] }; siblings.push(node); }
+      if (!node.consumers.includes(consumer.id)) node.consumers.push(consumer.id);
+      siblings = node.children;
+    }
+  }
+  return roots;
 }

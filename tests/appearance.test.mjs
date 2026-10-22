@@ -1,3 +1,4 @@
+import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { registerHierarchyScene, scenePartAt, paintSceneSelection } from "../src/appearance/sceneFeedback.ts";
 import { createElementEffectsResolver } from "../src/appearance/localEffects.ts";
 import { describeSelectedParts } from "../src/appearance/selectedParts.ts";
@@ -11,7 +12,7 @@ import {
   toggleRule,
   connected,
 } from "../src/appearance/model.ts";
-import { controllerTargets, loadController } from "../src/appearance/registry.ts";
+import { controllerTargets, loadController, PROPERTY_REGISTRY } from "../src/appearance/registry.ts";
 import { valueFor, createValueResolver, resolveControllerAppearance, effectsFor } from "../src/appearance/resolve.ts";
 import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
@@ -149,6 +150,41 @@ test("scene backgrounds use renderer hit tests, shared values and independent tr
     assert.deepEqual(state.values, {}, "detection and feedback never edit saved values");
   } finally { paintSceneSelection(new Map(), 0); late?.(); stop(); }
   assert.equal(scenePartAt(target.id, canvas, 60, 10), false, "unmounted renderer adapters cannot remain pickable");
+});
+
+test("Self inventory derives meta groups from shared couplings and includes future descendants", () => {
+  const registry = createPropertyRegistry();
+  registry.define({ id: "color", label: "Color", kind: "color", initial: "#000000" });
+  const couple = (id, group) => registry.couple({ id, label: id, owner: "appearance", group, properties: [{ property: "color" }] });
+  couple("ordinary", [{ id: "ui", label: "UI" }]);
+  const path = [{ id: "ui", label: "UI" }, { id: "meta", label: "Meta", self: true }];
+  couple("first", path);
+  assert.deepEqual(selfInventory(registry).map(node => node.id), ["meta"]);
+  assert.deepEqual(selfInventory(registry)[0].children.map(node => node.id), ["first"]);
+  couple("future", [...path, { id: "new-subgroup", label: "New subgroup" }]);
+  const [root] = selfInventory(registry);
+  assert.deepEqual(root.consumers, ["first", "future"]);
+  assert.deepEqual(root.children[1].children.map(node => node.id), ["future"], "coupling alone adds a future meta target without another inventory declaration");
+  assert.deepEqual(resolvePropertyTarget(registry, root.id).consumers, root.consumers);
+  assert.deepEqual(selfInventory(registry, consumer => consumer.id !== "future")[0].children.map(node => node.id), ["first"]);
+  assert.equal(registry.definitions.length, 1, "inventory discovery creates no copied properties");
+});
+
+test("Mouse and Selector feedback inventory entries edit their existing independent consumers", () => {
+  const definitions = PROPERTY_REGISTRY.definitions.length;
+  const targets = controllerTargets(emptyController());
+  const inventory = selfInventory(PROPERTY_REGISTRY, consumer => !targets.find(target => target.id === consumer.id)?.hidden);
+  assert.deepEqual(inventory.find(node => node.id === "ui.mouse").consumers, ["ui.mouse.trail"]);
+  const feedback = inventory.find(node => node.id === "ui.guides.selector");
+  assert.deepEqual(feedback.children.map(node => node.id), ["ui.guides.selector.included", "ui.guides.selector.boundary"]);
+  for (const node of inventory) assert.ok(resolvePropertyTarget(PROPERTY_REGISTRY, node.id).consumers.length);
+  const state = emptyController();
+  const next = applyValue(state, targets, "color", "#aabbcc", feedback.children[0].id);
+  assert.equal(next.values["ui.guides.selector.included"].color, "#aabbcc");
+  assert.equal(next.values["ui.guides.selector.boundary"], undefined);
+  assert.equal(next.values["ui.mouse.trail"], undefined);
+  assert.deepEqual(next.instances, {});
+  assert.equal(PROPERTY_REGISTRY.definitions.length, definitions);
 });
 
 test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {

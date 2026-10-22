@@ -185,10 +185,22 @@ Unregistered graph/functions require migration before their fields can appear.
 
 A logical target is resolved by an existing coupled consumer ID or group ID through
 `resolvePropertyTarget`. There is no separate device/target property inventory.
-The selector's stationary Mouse button selects group `ui.mouse`, whose discovered
-consumers currently include Mouse trail. Master controller shows its real coupled
-properties through ConsumerProperties and the existing shared editors/state.
-Future consumers in that group appear automatically. Native cursor/trail graphics
-remain pointer-transparent; selecting a device does not depend on pixel hit tests.
-Logical picks share the selector's transient selection history, clear and undo/redo.
-Inspection/reopening alone never writes values or adds a history transaction.
+The selector's ◎ **Self inventory** projects existing consumer group paths marked
+`self: true`. Mark the owning logical/meta group in its co-located input declaration
+or existing target definition; the registry carries that metadata into coupling.
+All coupled descendants join the inventory automatically. Do not add a second
+handwritten target list, capability table, value store or per-target editor.
+
+`selfInventory` and `resolvePropertyTarget` share consumer/group identities. The
+normal property contract check verifies that every inventory node resolves to the
+same consumers. Mouse → Mouse trail and Selector feedback → Included / Boundary
+are the first paths. Hidden compatibility targets are omitted in the visible list,
+while their saved IDs and values remain valid. Other state owners can use this same
+projection once they have their normal state/property adapters.
+
+Rows toggle through the selector's generic logical-selection API. Master controller
+reveals ConsumerProperties and existing coupled editors without creating instances
+or values. Feedback inspection shows a live sample using the real feedback renderer
+and its existing shared paint. Native cursor/trail/feedback graphics remain
+pointer-transparent. Logical picks share transient selection history, clear and
+undo/redo; inspection/reopening never writes values or adds a transaction.

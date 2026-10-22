@@ -47,6 +47,9 @@ component presentation or their editors.
   existing definitions seed it in `src/properties/catalog.ts`.
   Reuse the existing property when its meaning matches. A new feature must not
   introduce another Color/Opacity/etc. definition, value store or bespoke editor.
+- Logical/meta features belong in Self inventory: mark their existing coupled
+  group `self: true`; discovery projects descendants automatically. Do not add a
+  second target list or property store. See `docs/SHARED_PROPERTIES.md`.
 - Components expose visual parts and renderer adapters through the shared target
   registry. Target identity, selection boundary, visual role and property are
   separate concepts. HTML, SVG, canvas and 3D may need distinct adapters, but must

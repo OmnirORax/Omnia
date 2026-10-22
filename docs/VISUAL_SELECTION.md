@@ -147,12 +147,25 @@ on blur/cancel. Hover previews show only matches whose inclusion state would cha
 Additions are green; removals temporarily hide green. Implicit off baselines and
 accepted exclusions have no red paint.
 
-The mouse-shaped button selects the logical Mouse group through the generic
-`selectObject` API. Selecting an already selected logical target toggles it off;
-pressed state and the selected-properties inspector derive from that same state.
-Discovered consumers provide capabilities (currently Mouse trail). The native
-cursor and trail remain pointer-transparent. This replaces geometric selection
-and uses the same undo/redo/clear history. Inspection alone never edits values.
+The ◎ button opens **Self inventory**, the shared entry for logical/meta targets
+that cannot be picked through their own pointer-transparent graphics. It projects
+coupled groups marked `self: true` and their descendants: currently Mouse → Mouse
+trail and Selector feedback → Included / Boundary. New coupled descendants appear
+automatically. Hidden compatibility targets stay out of the list. There is no
+second inventory of target capabilities, properties or values.
+
+Inventory rows use the generic `selectObject` API. Selecting the same logical
+identity again toggles it off; pressed state and Master controller inspection derive
+from the same selection state. Clear/Esc and selection undo/redo apply normally.
+Logical selection replaces geometric selection, while inspecting/reopening never
+writes values. Selector feedback exposes a live sample in Master controller using
+the actual trace renderer and existing paint values, so its one-second pulse remains
+visible during editing. Pulse timing is still fixed; only supported paint properties
+are offered. The native cursor/trail and feedback stay pointer-transparent.
+
+The shared Self inventory command is cataloged and rebindable. The existing Mouse
+selection command/ID remains available for saved bindings; its separate mouse-only
+button is replaced by inventory access.
 
 ## Supported parts and editing
 

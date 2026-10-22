@@ -141,9 +141,9 @@ mapping. The separate feature-specific editor section is removed. Values retain
 the appearance draft, locks, bypass, Apply/discard and theme serialization. The
 pointer-transparent renderer is bounded and respects reduced motion.
 
-## Inspect Mouse
+## Self inventory
 
-Press MB3 to open the stationary selector, then click its mouse-shaped button.
+Press MB3 to open the stationary selector, then ◎ → Self inventory → Mouse.
 The logical Mouse group is selected; Master controller reveals Mouse trail with
 Animation open and shows its other registered paint/motion properties. Edits use
 the existing values and appearance draft, and Apply still commits them. Clear/Esc
@@ -152,4 +152,10 @@ Selecting Mouse again deselects it through the shared logical-target selection
 API, clearing its pressed state and selected-properties inspector. This toggle
 behavior applies to all logical targets. Invoking Edit reopens inspection of the
 current selection without changing values.
-The command is listed in shortcuts and can be assigned a binding.
+Self inventory also exposes Selector feedback → Included / Boundary, with a live
+pulsing sample while editing its existing paint values. These are contextual views
+of the shared properties and independent target values; inventory selection itself
+creates no settings or local overrides. Meta groups declare `self: true` on their
+existing coupling path, and new descendants appear automatically. Hidden compatibility
+entries stay out of the visible list. Self inventory and the preserved Mouse
+selection command are listed in shortcuts and can be assigned bindings.

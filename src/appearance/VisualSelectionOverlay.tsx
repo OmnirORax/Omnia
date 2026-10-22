@@ -62,6 +62,34 @@ const glyphColor = (base: string, paint: FeedbackPaint) => {
 const glyphFeedback = (name: string, paint: FeedbackPaint) =>
   `::highlight(${name}){color:${glyphColor("currentColor", paint)};background-color:transparent;text-shadow:0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)}}`;
 
+function useFeedbackPaints() {
+  const appearance = useAppearance();
+  return useMemo(() => Object.fromEntries(Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
+    const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
+    const get = (property: string) => appearance && !appearance.safe
+      ? valueFor(appearance.base, appearance.state, target, property) : target.defaults![property];
+    return [tone, { ink: brightHex(String(get("color") ?? defaults.color), Number(get("brightness"))),
+      opacity: Number(get("opacity")), glow: Number(get("glow")) }];
+  })) as Record<Tone, FeedbackPaint>, [appearance?.base, appearance?.state, appearance?.safe]);
+}
+
+/** A logical feedback target needs a live sample when no scene/UI part is
+ * selected. Reuse the actual trace renderer and its existing shared values. */
+export function SelectorFeedbackSample({ targets }: { targets: string[] }) {
+  const paints = useFeedbackPaints();
+  const tones = (Object.keys(SELECTOR_FEEDBACK) as Tone[]).filter(tone => {
+    const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
+    return !target.hidden && targets.includes(target.id);
+  });
+  if (!tones.length) return null;
+  return <svg className="selector-feedback-sample" viewBox={`0 0 ${tones.length * 128} 52`} role="img" aria-label="Live selector feedback preview">
+    {tones.map((tone, index) => <g key={tone} transform={`translate(${index * 128 + 4},4)`}>
+      <SelectionTrace tone={tone} paint={paints[tone]} mark={{ key: tone, x: 0, y: 0, width: 116, height: 26, rx: 6, ry: 6, surface: true }} />
+      <text x="58" y="43" textAnchor="middle" fill="currentColor" fontSize="11">{SELECTOR_FEEDBACK[tone].label}</text>
+    </g>)}
+  </svg>;
+}
+
 /** Native paint variables and SVG seams animate feedback; no per-frame DOM discovery or writes. */
 export function VisualSelectionOverlay({ selected, excluded, preview, candidate, guide, guides, paths = [] }: {
   selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
@@ -69,14 +97,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   guides: { key: string; points: [Point, Point]; include: boolean; direction: boolean }[];
   paths?: { key: string; points: Point[]; closed: boolean; disabledEdges: number[]; preview: boolean; include?: boolean }[];
 }) {
-  const appearance = useAppearance();
-  const paints = useMemo(() => Object.fromEntries(Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
-    const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
-    const get = (property: string) => appearance && !appearance.safe
-      ? valueFor(appearance.base, appearance.state, target, property) : target.defaults![property];
-    return [tone, { ink: brightHex(String(get("color") ?? defaults.color), Number(get("brightness"))),
-      opacity: Number(get("opacity")), glow: Number(get("glow")) }];
-  })) as Record<Tone, FeedbackPaint>, [appearance?.base, appearance?.state, appearance?.safe]);
+  const paints = useFeedbackPaints();
   useEffect(() => {
     const targets = new Map<string, SceneSelectionPaint>();
     for (const part of [...selected, ...preview]) if (part.target.binding?.selection?.renderer === "scene")

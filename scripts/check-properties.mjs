@@ -1,3 +1,4 @@
+import { selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { PROPERTY_REGISTRY, PROPERTIES, TARGETS } from "../src/appearance/registry.ts";
 import { PROPERTY_TREE } from "../src/appearance/propertyTree.ts";
 import { SETTINGS_PROPERTY_ADAPTERS } from "../src/properties/settingsAdapter.ts";
@@ -25,4 +26,12 @@ for (const consumer of PROPERTY_REGISTRY.consumers) {
       if (!consumer.channels[channel]) throw new Error(`Adapter field is not coupled: ${consumer.id}/${channel}`);
   } else throw new Error(`A new state owner needs adapter coverage in the property check: ${consumer.owner}`);
 }
+// Self inventory is a projection of coupled groups, never a second target list.
+const checkSelf = node => {
+  const resolved = resolvePropertyTarget(PROPERTY_REGISTRY, node.id);
+  if (JSON.stringify([...resolved.consumers].sort()) !== JSON.stringify([...node.consumers].sort()))
+    throw new Error(`Self inventory diverged from coupling graph: ${node.id}`);
+  node.children.forEach(checkSelf);
+};
+selfInventory(PROPERTY_REGISTRY).forEach(checkSelf);
 console.log(`Property contract: ${PROPERTIES.length} shared definitions, ${PROPERTY_REGISTRY.consumers.length} coupled consumers.`);

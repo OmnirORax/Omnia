@@ -10,6 +10,7 @@ import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
 import { SelectedProperties } from "./SelectionController";
+import { SelectorFeedbackSample } from "./VisualSelectionOverlay";
 import { useVisualSelection } from "./VisualSelector";
 import { describeSelectedParts } from "./selectedParts";
 import { collectVisualParts } from "./visualSelection";
@@ -51,7 +52,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
     ...selectedParts.flatMap(part => part.owner.startsWith("function:") ? [part.owner.slice(9)] : [])]);
   const selectedConsumers = [...new Set([...logicalTargets.flatMap(target => target.consumers),
     ...PROPERTY_REGISTRY.consumers.filter(consumer => selectedFunctions.has(consumer.id) || consumer.controls?.some(id => selectedFunctions.has(id))).map(consumer => consumer.id)])];
-  const appearanceConsumers = selectedConsumers.filter(id => PROPERTY_REGISTRY.consumer(id)?.owner === "appearance");
+  const appearanceConsumers = selectedConsumers.filter(id => PROPERTY_REGISTRY.consumer(id)?.owner === "appearance" && !ctx.targets.find(target => target.id === id)?.hidden);
   const scopeKey = [visualSelection?.inspectionKey ?? "", visualSelection?.boundary?.key ?? "", ...selectedParts.map(selectedPartId), ...selectedConsumers, ...ui.selectedFunctions].filter(Boolean).sort().join("|");
   const [dismissedScope, dismissScope] = useState<string | null>(null);
   const inspecting = !!scopeKey && dismissedScope !== scopeKey;
@@ -281,7 +282,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
         <div>
           <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />
           {selectedParts.length > 0 && <SelectedProperties parts={selectedParts} scope="master-selection" />}
-          {appearanceConsumers.length > 0 && <ConsumerProperties consumers={appearanceConsumers} />}
+          {appearanceConsumers.length > 0 && <><SelectorFeedbackSample targets={appearanceConsumers} /><ConsumerProperties consumers={appearanceConsumers} /></>}
           {bindings && selectedConsumers.length > 0 && <CoupledProperties bindings={bindings} selectedConsumers={selectedConsumers} scope="inspection" />}
           {!selectedParts.length && !selectedConsumers.length && <p>Include registered parts to show their settable properties.</p>}
         </div>

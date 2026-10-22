@@ -6,6 +6,7 @@ import { migrateFieldBranches } from "./migrateFields.ts";
 import type { AnimationTarget } from "../graph/effects.ts";
 import { GLYPH_PROPERTIES, partSelector } from "./partScope.ts";
 import { PROPERTY_REGISTRY, propertyFor, validateProperty, EFFECT_PROPERTIES } from "../properties/catalog.ts";
+import type { ConsumerGroup } from "../properties/registry.ts";
 import "../properties/functions.generated.ts";
 export { PROPERTY_REGISTRY, PROPERTIES, propertyFor, validateProperty, EFFECT_PROPERTIES } from "../properties/catalog.ts";
 export type { Property } from "../properties/catalog.ts";
@@ -32,7 +33,7 @@ export type Binding = {
     priority?: number;
   };
 };
-export type RegisteredTarget = Target & { binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
+export type RegisteredTarget = Target & { self?: boolean; binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
 export const SELECTOR_FEEDBACK = {
   included: { label: "Included", color: "#66efab" },
   excluded: { label: "Excluded", color: "#ff6c73" },
@@ -43,8 +44,8 @@ export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[da
 const surface = ["color", "brightness", "opacity", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];
-const branch = (id: string, parent: string | undefined, label: string) =>
-  entries.push({ id, parent, label });
+const branch = (id: string, parent: string | undefined, label: string, self = false) =>
+  entries.push({ id, parent, label, ...(self ? { self } : {}) });
 const part = (
   id: string,
   parent: string,
@@ -258,11 +259,11 @@ part("ui.guides.contour", "ui.guides", "Selection / snapping contours", {
   css: "border-color",
   legacy: "accent",
 });
-branch("ui.guides.selector", "ui.guides", "Selector feedback");
+branch("ui.guides.selector", "ui.guides", "Selector feedback", true);
 for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
   entries.push({
     id: `ui.guides.selector.${tone}`, parent: "ui.guides.selector", label: defaults.label,
-    properties: [...surface], defaults: { color: defaults.color, brightness: 1, opacity: 1, glow: 1 },
+    properties: [...surface], hidden: tone === "excluded", defaults: { color: defaults.color, brightness: 1, opacity: 1, glow: 1 },
     // The feedback adapter paints SVG edges, glyph ranges and icons together.
     binding: { selector: `.visual-selection-trace.is-${tone}` },
   });
@@ -365,9 +366,9 @@ part(
 // IDs/default resolution while making shared capabilities discoverable centrally.
 for (const target of entries.filter(target => target.properties?.length)) {
   if (PROPERTY_REGISTRY.consumer(target.id)) throw new Error(`Consumer registered twice: ${target.id}`);
-  const group: { id: string; label: string }[] = [];
+  const group: ConsumerGroup[] = [];
   let parent = entries.find(entry => entry.id === target.parent);
-  while (parent && parent.id !== "all") { group.unshift({ id: parent.id, label: parent.label }); parent = entries.find(entry => entry.id === parent!.parent); }
+  while (parent && parent.id !== "all") { group.unshift({ id: parent.id, label: parent.label, ...(parent.self ? { self: true } : {}) }); parent = entries.find(entry => entry.id === parent!.parent); }
   const consumer = PROPERTY_REGISTRY.couple({ id: target.id, label: target.label, owner: "appearance", group,
     locator: target.binding?.selector,
     properties: target.properties!.map(property => ({ property,
@@ -389,7 +390,7 @@ for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner ===
   for (const group of consumer.group) {
     const existing = entries.find(entry => entry.id === group.id);
     if (existing && existing.parent !== parent) throw new Error(`Conflicting consumer group: ${group.id}`);
-    if (!existing) branch(group.id, parent, group.label);
+    if (!existing) branch(group.id, parent, group.label, group.self);
     parent = group.id;
   }
   entries.push({ id: consumer.id, label: consumer.label, parent,
