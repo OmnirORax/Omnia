@@ -73,7 +73,7 @@ single-toggle defaults; custom bindings and later clears remain intact.
 
 Click/drag geometry, polygon closure, automatic previews before the first
 boundary/selection, Hold Ctrl for later previews, Shift+Wheel for fine geometry
-rotation, Wheel for pointed-owner depth before placement, and platform keyboard
+rotation before or after placement, Wheel for pointed-owner depth before placement, and platform keyboard
 context menus remain listed alongside commands. A click toggles current
 membership; circle checkboxes supply the region baseline. Buttons and pointer/key
 input use the same registered handlers. F2 focused-label rename and focused-control

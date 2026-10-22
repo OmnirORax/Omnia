@@ -9,6 +9,7 @@ export type SelectorConfiguration = SelectionMask & {
   bounded: boolean;
   stopAtPaint: boolean;
   closed: boolean;
+  rotation: number;
 };
 type Actions = {
   contour: () => void;

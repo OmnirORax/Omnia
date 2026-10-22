@@ -74,10 +74,18 @@ creates a neutral boundary: detection follows the pointer inside/outside without
 including anything. Each accepted refinement captures that side. Before any
 boundary/selection, hover previews are automatic; afterwards Ctrl enables them,
 showing additions in green and removals by hiding green; exclusions
-are unpainted. Shift+Wheel finely rotates working geometry in screen space. Pointed
+are unpainted. Shift+Wheel rotates the active drawing mode before placement or
+working geometry while refining, in screen space. Pointed
 boundaries, lines, polygons and freehand share matching, transient selection history
 and the existing selected-part editor. Complete text hosts support CSS typography;
 partial runs retain exact-node paint/effects without widening. Editing pauses
 selection paint. Reuse indexed/cached effect plans; paint-only edits must not start
 inactive animation scans. Do not restore obsolete boundary-picking flags or bars
 that intercept E modes.
+
+Registered HTML background feedback uses a removable native inset tint on the
+actual rounded surface, preserving shadows, images, gradients and foreground ink.
+It shares the one-second pulse and Included paint, rather than a barely visible
+SVG rectangle fill. Do not animate inherited variables at document scope or scan
+surfaces per frame. Empty UI space resolves to its owned registered background;
+independent gaps and the 3D-world background still need MS picking adapters.

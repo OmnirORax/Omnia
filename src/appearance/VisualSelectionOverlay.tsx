@@ -35,7 +35,7 @@ function startSelectionPulse(elements: Element[]) {
   const start = () => {
     animations.forEach(animation => animation.cancel()); animations = [];
     if (!supported || reduced.matches || document.hidden) return;
-    // Non-inherited variables animate only the actual glyph hosts. Never put
+    // Non-inherited variables animate only the actual paint hosts. Never put
     // inherited animated paint on :root: it invalidates the entire application.
     animations = elements.filter(element => typeof element.animate === "function").map(element => element.animate([
       { [signal.mix]: "95%", [signal.glow]: "9px", easing: "ease-in-out" },
@@ -85,28 +85,47 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       CSS.highlights.set(names[2], new Highlight(...preview.flatMap(part => part.range ? [part.range] : [])));
       for (const name of names) CSS.highlights.get(name)!.priority = 10;
     }
-    const paint = new Map<HTMLElement | SVGElement, { kind: "icon" | "text"; feedback: FeedbackPaint; pseudo: string }>();
+    type GlyphPaint = { kind: "icon" | "text"; feedback: FeedbackPaint; pseudo: string };
+    const paint = new Map<HTMLElement | SVGElement, { glyph?: GlyphPaint; surface?: FeedbackPaint }>();
     for (const [parts, feedback] of [[selected, paints.included], [excluded, paints.excluded], [preview, candidate?.include === false ? paints.excluded : paints.included]] as const) {
       for (const part of parts) {
-        if ((part.range && highlights) || !(part.role === "icon" || part.role === "text")) continue;
-        paint.set(part.element, { kind: part.role, feedback, pseudo: part.target.id === "text.ui.placeholders" ? "::placeholder" : "" });
+        if (part.role === "background" && part.element instanceof HTMLElement) {
+          paint.set(part.element, { ...paint.get(part.element), surface: feedback });
+        } else if (!(part.range && highlights) && (part.role === "icon" || part.role === "text")) {
+          paint.set(part.element, { ...paint.get(part.element), glyph: { kind: part.role, feedback,
+            pseudo: part.target.id === "text.ui.placeholders" ? "::placeholder" : "" } });
+        }
       }
     }
     // Read source paint once, then own a removable stylesheet/marker layer. The
     // renderer's inline paint remains available to other previews and is never replaced.
     const attribute = "data-visual-selection-ink";
-    const plans = [...paint].map(([element, { kind, feedback, pseudo }], index) => {
-      const computed = getComputedStyle(element, pseudo || null);
-      const filter = computed.filter === "none" ? "" : computed.filter;
-      const shadow = computed.textShadow === "none" ? "" : computed.textShadow + ",";
-      const ink = feedbackInk(feedback), blur = feedbackGlow(feedback);
-      const source = (element.hasAttribute(attribute) ? computed.getPropertyValue("--omnium-selector-source-color").trim() : "") || computed.color;
-      const color = glyphColor(source, feedback), textShadow = `${shadow}0 0 ${blur} ${ink}`;
-      // Resolve animated variables on the host before inheriting the computed
-      // paint into ::placeholder; the animation variables themselves do not inherit.
-      const hostDeclaration = pseudo ? `--omnium-selector-placeholder-color:${color};--omnium-selector-placeholder-shadow:${textShadow};` : "";
-      const declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important` :
-        `color:${pseudo ? "var(--omnium-selector-placeholder-color)" : color}!important;text-shadow:${pseudo ? "var(--omnium-selector-placeholder-shadow)" : textShadow}!important`);
+    const plans = [...paint].map(([element, { glyph, surface }], index) => {
+      const computed = getComputedStyle(element, glyph?.pseudo || null);
+      const pseudo = glyph?.pseudo ?? "";
+      let declaration = "", hostDeclaration = "";
+      if (glyph) {
+        const { kind, feedback } = glyph;
+        const filter = computed.filter === "none" ? "" : computed.filter;
+        const shadow = computed.textShadow === "none" ? "" : computed.textShadow + ",";
+        const ink = feedbackInk(feedback), blur = feedbackGlow(feedback);
+        const source = (element.hasAttribute(attribute) ? computed.getPropertyValue("--omnium-selector-source-color").trim() : "") || computed.color;
+        const color = glyphColor(source, feedback), textShadow = `${shadow}0 0 ${blur} ${ink}`;
+        // Resolve variables on the host before inheriting paint into ::placeholder.
+        hostDeclaration = pseudo ? `--omnium-selector-placeholder-color:${color};--omnium-selector-placeholder-shadow:${textShadow};` : "";
+        declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important;` :
+          `color:${pseudo ? "var(--omnium-selector-placeholder-color)" : color}!important;text-shadow:${pseudo ? "var(--omnium-selector-placeholder-shadow)" : textShadow}!important;`);
+      }
+      if (surface) {
+        const original = getComputedStyle(element).boxShadow;
+        const shadow = original === "none" ? "" : `${original},`;
+        const weight = `calc(${mix} * ${surface.opacity} * .3)`;
+        // An inset tint paints the actual rounded surface below its contents,
+        // including image/gradient backgrounds. No blur, wrappers or value writes.
+        const tint = `color-mix(in srgb,transparent calc(100% - ${weight}),${surface.ink} ${weight})`;
+        const fill = `box-shadow:${shadow}inset 0 0 0 100vmax ${tint}!important;`;
+        if (pseudo) hostDeclaration += fill; else declaration += fill;
+      }
       return { element, pseudo, marker: `selection-${index}`, previous: element.getAttribute(attribute), declaration, hostDeclaration };
     });
     const style = document.createElement("style");
@@ -118,7 +137,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     document.head.append(style);
     for (const plan of plans) plan.element.setAttribute(attribute, plan.marker);
     const stopPulse = startSelectionPulse([...new Set([...selected, ...excluded, ...preview]
-      .filter(part => part.role === "text" || part.role === "icon").map(part => part.element))]);
+      .filter(part => part.role === "text" || part.role === "icon" || part.role === "background").map(part => part.element))]);
     return () => {
       stopPulse();
       for (const name of names) CSS.highlights?.delete(name);
@@ -151,8 +170,8 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       }
       if (!bounds) continue;
       const existing = marks.get(part.element);
-      if (existing) existing.surface ||= part.role === "background";
-      else marks.set(part.element, { ...bounds, key: part.key, surface: part.role === "background" });
+      if (existing) existing.surface ||= part.role === "background" && !(part.element instanceof HTMLElement);
+      else marks.set(part.element, { ...bounds, key: part.key, surface: part.role === "background" && !(part.element instanceof HTMLElement) });
     }
     return [...marks.values()];
   };

@@ -16,7 +16,7 @@ import { defaultSettings, normalizeSettings } from "../src/workspaceActions.ts";
 import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
-import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints } from "../src/appearance/selectionGeometry.ts";
+import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints, selectionWheelRotation } from "../src/appearance/selectionGeometry.ts";
 import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule } from "../src/appearance/selectionToggle.ts";
 import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide } from "../src/appearance/visualSelection.ts";
 
@@ -92,6 +92,21 @@ test("line and closed-shape rotation uses screen-space angles in non-square owne
   assert.ok(Math.abs(points[1].x - 100) < 1e-8 && Math.abs(points[1].y - 150) < 1e-8);
   const rectangle = { kind: "rectangle", closed: true, points: [{ x: .25, y: .25 }, { x: .75, y: .75 }], rotation: 90 };
   assert.equal(pathTouchesBox(rectangle, owner, { left: 99, right: 101, top: -1, bottom: 1 }, true), true);
+});
+
+test("Shift-wheel rotates armed axes before placement and working geometry after placement", () => {
+  const event = { shiftKey: true, deltaX: 0, deltaY: 50, deltaMode: 0 };
+  for (const mode of ["axis", "direction", "position", "rectangle", "ellipse", "polygon", "freehand", "boundary"]) {
+    assert.deepEqual(selectionWheelRotation(event, mode, false, 900), { target: "pending", degrees: 1 });
+    assert.deepEqual(selectionWheelRotation(event, mode, true, 900), { target: "pending", degrees: 1 }, "a newly armed tool rotates instead of its enclosing boundary");
+  }
+  assert.deepEqual(selectionWheelRotation(event, "pattern", true, 900), { target: "placed", degrees: 1 });
+  assert.equal(selectionWheelRotation(event, "item", false, 900), null);
+  assert.equal(selectionWheelRotation({ ...event, shiftKey: false }, "axis", true, 900), null, "ordinary scroll/zoom is not captured");
+  assert.deepEqual(selectionWheelRotation({ ...event, deltaX: -50, deltaY: 0 }, "axis", false, 900), { target: "pending", degrees: -1 }, "horizontal Shift-wheel deltas rotate too");
+  assert.deepEqual(selectionWheelRotation({ ...event, deltaY: 1, deltaMode: 1 }, "axis", false, 900), { target: "pending", degrees: .32 });
+  assert.deepEqual(selectionWheelRotation({ ...event, deltaY: 1, deltaMode: 2 }, "axis", false, 900), { target: "pending", degrees: 2 });
+  assert.equal(selectionWheelRotation({ ...event, deltaY: 0 }, "axis", false, 900), null);
 });
 
 test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {

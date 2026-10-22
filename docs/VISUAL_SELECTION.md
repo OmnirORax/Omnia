@@ -107,8 +107,13 @@ New geometry intersects the existing working set; Release working geometry keeps
 accepted rules and returns subsequent picks to app-wide matching. This permits
 choosing a window first, then drawing an axis within it. Custom drawing coordinates
 are relative to the viewport owner; pointed geometry uses its actual UI owner.
-Shift+Wheel rotates the selected geometry in fine screen-space increments about its
-center, including in non-square owners. Rotation joins selection undo/redo.
+Shift+Wheel rotates the armed axis/ray/segment or drawing mode before placement;
+in Pattern/Individual it rotates already placed working geometry. A newly armed
+tool takes priority over an enclosing boundary. Both horizontal and vertical wheel
+deltas and pixel/line/page units are supported. The pending angle survives pointer
+motion and placement; choosing another mode resets the pending angle. Rotation is
+in screen space, including in non-square owners; placed changes join selection
+undo/redo.
 
 For example: turn the contour baseline off, choose Axis and drag through several
 controls. Its intersections remain the working set while all start off. Click a
@@ -157,6 +162,14 @@ surfaces are selectable, including from empty interiors. Independent negative
 space, arbitrary image shapes, fine letter/word selection and general canvas/3D
 picking require further renderer adapters. Hidden/closed parts and selector chrome
 are not current matches. Live rules reevaluate on relevant DOM/geometry changes.
+
+Blank UI areas resolve to the nearest registered background surface. Individual ·
+toggles that one background; Pattern ⠒ toggles backgrounds throughout the current
+working set. This is the whole owned surface behind its contents, not a new object
+for each visible gap. In-frame does not implicitly include a pointed frame's own
+background; Frame controls that object independently. Gaps with no registered
+background and the 3D-world background currently have no MS picking adapter.
+Do not infer support from the hierarchy's separate workspace-background controls.
 
 Accepted parts reveal applicable properties in Master controller through the
 shared selected-part editor. Hover candidates do not change that inspector. The
@@ -209,8 +222,12 @@ Included parts use green neon traces; the boundary stays cyan. Unselected parts
 are unpainted, including accepted exclusions. A soft
 rim, continuous rail and moving dashed seam show each surface or contour. The seam
 travels around the edge without rotating/resizing the selected object. Background
-tints remain translucent. Background and contour matches on one element share a
-trace and geometry/style reads are cached across feedback layers.
+tints remain translucent. HTML backgrounds use a synchronized native inset tint
+on the actual rounded surface, below its contents and over its background imagery.
+It preserves the original shadows/gradients and leaves text/icon ink separate,
+with no full-surface blur or per-frame JavaScript writes. The former faint SVG
+surface fill is retained only for non-HTML fallback surfaces. Background and
+contour matches on one element share a trace; geometry/style reads are cached.
 
 Accepted and hover feedback both follow a one-second bright/dim/bright cycle.
 Preview emphasis changes seam thickness, not pulse opacity. The low point keeps a

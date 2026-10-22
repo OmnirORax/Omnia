@@ -13,7 +13,7 @@ import { PROPERTY_REGISTRY } from "./registry";
 import { resolvePropertyTarget } from "../properties/registry";
 import { DEFAULT_SELECTION_MASK, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, type SelectionMask, type MaskPart } from "./selectionToggle";
 import { selectedPartTarget } from "./selectionCoupling";
-import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, PATTERN_MODES, PATTERN_SYMBOLS,
+import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODES, PATTERN_SYMBOLS,
   type Point, type PathCondition, type PatternMode, type SelectionSide } from "./selectionGeometry";
 import {
   boundaryCandidates, boundaryFor, boundaryRect, collectVisualParts, matchingVisualParts,
@@ -44,7 +44,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const [phase, setPhase] = useState<Phase>("off");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [configuration, setConfiguration] = useState<SelectorConfiguration>({ ...DEFAULT_SELECTION_MASK, pattern: "pattern", patternRole: null,
-    bounded: false, stopAtPaint: false, closed: false });
+    bounded: false, stopAtPaint: false, closed: false, rotation: 0 });
   const [catalog, setCatalog] = useState<VisualPart[]>([]);
   const [candidate, setCandidate] = useState<Pick | null>(null);
   const [geometry, setGeometry] = useState(0);
@@ -104,7 +104,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       setPreview({ definesScope: true, rule: { boundary: app, include, ...parentScope, contour: config.contour,
         ...(config.patternRole || config.stopAtPaint ? { role: config.patternRole ?? sample!.role } : {}),
         line: { mode: mode as "axis" | "direction" | "position", start: relativePoint(start, box), end: relativePoint(end, box),
-          bounded: config.bounded, ...(config.stopAtPaint ? { stopAtPaint: partPaint(sample!) } : {}) } } });
+          bounded: config.bounded, rotation: config.rotation, ...(config.stopAtPaint ? { stopAtPaint: partPaint(sample!) } : {}) } } });
       return;
     }
     if (isPath(mode)) {
@@ -112,7 +112,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       const box = boundaryRect(app)!;
       const points = mode === "polygon" ? [...drag.points, { x, y }] : mode === "freehand" ? drag.points : [drag.start, { x, y }];
       const path: PathCondition = { kind: mode as PathCondition["kind"], points: points.map(p => relativePoint(p, box)),
-        closed: mode !== "freehand" || config.closed };
+        closed: mode !== "freehand" || config.closed, rotation: config.rotation };
       setPreview({ definesScope: true, rule: { boundary: app, include, ...parentScope, path, contour: config.contour,
         ...(config.region ? { region: config.region } : {}), ...(config.patternRole ? { role: config.patternRole } : {}) } });
       return;
@@ -123,7 +123,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       const boundary = depth.current === 0 && sampled ? boundaryFor(sampled.element) : options[Math.min(depth.current, options.length - 1)];
       if (!boundary) { setPreview(null); return; }
       setPreview({ definesScope: true, rule: { boundary, include, ...parentScope, ownerFrame: true, ...(sampled ? { framePart: sampled.key } : {}), contour: config.contour,
-        path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true },
+        path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true, rotation: config.rotation },
         ...(config.region ? { region: config.region } : {}), ...(config.patternRole ? { role: config.patternRole } : {}) } });
       return;
     }
@@ -188,8 +188,12 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     });
     setPreview(null);
   };
-  const rotateGeometry = (degrees: number) => {
-    setPreview(null);
+  const rotateGeometry = (degrees: number, target: "pending" | "placed") => {
+    setPreview(null); settledPoint.current = null;
+    if (target === "pending") {
+      setConfiguration(config => ({ ...config, rotation: config.rotation + degrees }));
+      return;
+    }
     updateScope(scope => ({ ...scope, line: scope.line ? { ...scope.line, rotation: (scope.line.rotation ?? 0) + degrees } : undefined,
       path: scope.path ? { ...scope.path, rotation: (scope.path.rotation ?? 0) + degrees } : undefined }));
   };
@@ -204,7 +208,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     setPreview({ definesScope: false, maskChange: geometryMaskChange(workingGeometry(scope, { contour: config.contour, region }), { contour: config.contour, region }, side),
       rule: { ...scope, contour: false, region: side, include: region === side || region === "both" } });
   };
-  const chooseMode = (pattern: PatternMode) => { cancelDrawing(); depth.current = 0; setConfiguration(config => ({ ...config, pattern })); };
+  const chooseMode = (pattern: PatternMode) => { cancelDrawing(); depth.current = 0; setConfiguration(config => ({ ...config, pattern, rotation: 0 })); };
   const cyclePattern = () => chooseMode(nextPatternMode(latest.current.configuration.pattern));
   const finishPolygon = () => {
     const draft = polygon.current;
@@ -212,7 +216,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     const box = boundaryRect(boundaryFor(document.body))!;
     setPreview({ definesScope: true, rule: { boundary: boundaryFor(document.body), include: true,
       ...(latest.current.selection.scope ? { scope: latest.current.selection.scope } : {}),
-      path: { kind: "polygon", points: draft.points.map(p => relativePoint(p, box)), closed: true },
+      path: { kind: "polygon", points: draft.points.map(p => relativePoint(p, box)), closed: true, rotation: latest.current.configuration.rotation },
       contour: latest.current.configuration.contour, ...(latest.current.configuration.region ? { region: latest.current.configuration.region } : {}),
       ...(latest.current.configuration.patternRole ? { role: latest.current.configuration.patternRole } : {}) } });
     accept(); polygon.current = null; setDrawing(false);
@@ -403,13 +407,13 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     const wheel = (event: WheelEvent) => {
       if (shortcuts.blocked() || shortcutUI(event.target) || !outsideChrome(event) ||
           (latest.current.phase !== "aim" && latest.current.phase !== "configure")) return;
-      if (latest.current.selection.scope) {
-        if (!event.shiftKey) return;
+      const current = latest.current;
+      const rotation = selectionWheelRotation(event, current.configuration.pattern, !!current.selection.scope, innerHeight);
+      if (rotation) {
         event.preventDefault(); event.stopImmediatePropagation();
-        const pixels = (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
-        actions.current.rotateGeometry(Math.max(-2, Math.min(2, pixels * .02))); return;
+        actions.current.rotateGeometry(rotation.degrees, rotation.target); return;
       }
-      if (event.shiftKey || latest.current.configuration.pattern !== "boundary") return;
+      if (current.selection.scope || event.shiftKey || current.configuration.pattern !== "boundary") return;
       event.preventDefault(); event.stopImmediatePropagation();
       const p = point.current; if (!p) return;
       depth.current = Math.max(0, Math.min(boundaryCandidates(p.element).length - 1, depth.current + (event.deltaY < 0 ? 1 : -1)));

@@ -124,3 +124,13 @@ export function rotatePoints(points: Point[], degrees: number): Point[] {
   return points.map(p => ({ x: cx + (p.x - cx) * cos - (p.y - cy) * sin, y: cy + (p.x - cx) * sin + (p.y - cy) * cos }));
 }
 export const pathVertices = (path: PathCondition, owner: Box) => rotatePoints(unrotatedPathVertices(path, owner), path.rotation ?? 0);
+
+/** Rotation applies to an armed drawing mode before placement too. Exact input
+ * deltas vary: Shift-wheel may arrive on deltaX, or use line/page units. */
+export function selectionWheelRotation(event: Pick<WheelEvent, "shiftKey" | "deltaX" | "deltaY" | "deltaMode">, mode: PatternMode, hasGeometry: boolean, pageHeight: number): { target: "pending" | "placed"; degrees: number } | null {
+  if (!event.shiftKey) return null;
+  const pending = mode !== "pattern" && mode !== "item";
+  if (!pending && !hasGeometry) return null;
+  const pixels = (event.deltaY || event.deltaX) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? pageHeight : 1);
+  return pixels ? { target: pending ? "pending" : "placed", degrees: Math.max(-2, Math.min(2, pixels * .02)) } : null;
+}
