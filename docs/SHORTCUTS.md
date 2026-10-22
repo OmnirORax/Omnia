@@ -76,6 +76,13 @@ focused-control context actions also derive their descriptions/keys from the
 gesture metadata. No independent feature settings store or copied shortcut
 editor is introduced.
 
+Frame search, global UI search and library filtering resolve each function or
+`shortcut:` row through `functionShortcutBinding`. Current bindings are searchable
+metadata and appear on search results, even when a command's name contains no key
+name. Matching reads live settings rather than capturing hint text in the search
+index, so rebinding/clearing changes the search immediately. Custom function
+bindings use the same path. Ordinary input values remain excluded from search.
+
 The normal model suite checks catalog/default integration, saved-key precedence,
 scope conflicts, cleared/rebound mouse and keyboard matching, future-owner runtime
 availability/cleanup and the private-hotkey architecture rule. Browser interaction

@@ -162,6 +162,13 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
 
 /** Shared IDs keep ordinary actions and their customized buttons on one binding. */
 export const buttonShortcutId = (id: string) => ACTIONS.some(action => action.id === id) ? id : `button:${id}`;
+/** Search rows, moved functions and ordinary command buttons share one binding
+ * identity. Resolve live settings rather than indexing rendered hint text. */
+export function functionShortcutBinding(functionId: string | undefined, bindings: Record<string, string> = {}): string {
+  if (!functionId) return "";
+  const id = functionId.startsWith("shortcut:") ? functionId.slice("shortcut:".length) : functionId;
+  return shortcutBinding(id.startsWith("button:") ? id : buttonShortcutId(id), bindings);
+}
 export type ButtonShortcuts = {
   bindings: Record<string, string>;
   capturing: string | null;

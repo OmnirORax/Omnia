@@ -102,7 +102,7 @@ import { DockWorkspace, dockWorkspaceArea, useDockResident, useDockWorkspace } f
 import type { DockSide } from "./dockTree";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
-import { buttonShortcutId, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
+import { buttonShortcutId, functionShortcutBinding, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
 import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
@@ -1835,7 +1835,7 @@ export function UIWorkspace({
                   (fn) =>
                     !fn.scope &&
                     libraryCategory(fn) === category &&
-                    `${fn.label} ${fn.id} ${category}`.toLowerCase().includes(query.toLowerCase()),
+                    `${fn.label} ${fn.id} ${category} ${functionShortcutBinding(fn.id, shortcuts?.bindings)}`.toLowerCase().includes(query.toLowerCase()),
                 )
                 .sort((a, b) => a.label.localeCompare(b.label));
               return (
@@ -1855,7 +1855,7 @@ export function UIWorkspace({
               );
             })}
             {!functions.some((fn) =>
-              `${fn.label} ${fn.id} ${libraryCategory(fn)}`
+              `${fn.label} ${fn.id} ${libraryCategory(fn)} ${functionShortcutBinding(fn.id, shortcuts?.bindings)}`
                 .toLowerCase()
                 .includes(query.toLowerCase()),
             ) && <p>No matching controls.</p>}

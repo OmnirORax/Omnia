@@ -2,13 +2,16 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { createPortal } from "react-dom";
 import { useUI, type UIContextValue } from "./context";
 import { activateDockMember, getContainer, residentKey, updateContainer } from "./layout";
+import { functionShortcutBinding } from "../workspaceActions";
+import { ShortcutHint } from "./ShortcutHint";
 
 export type SearchResult = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
 export const normalizeSearch = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 export const rootFor = (key: string) => key === "workspace" ? document.body : [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
 export const nameFor = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
 
-/** Index control labels, never input values or canonical graph data. */
+/** Index control labels; matching also resolves registered shortcut metadata.
+ * Never index input values or canonical graph data. */
 export function frameControls(ui: UIContextValue, container: string): SearchResult[] {
   const results = new Map<string, SearchResult>(), root = rootFor(container);
   const functions = new Map(ui.functions.map(fn => [fn.id, fn]));
@@ -59,7 +62,7 @@ export function FrameSearch({ container, title, expand }: { container: string; t
   useEffect(() => () => cleanup.current(), []);
   const index = useMemo(() => open ? frameControls(ui, container) : [], [open, query, ui.layout, ui.functions, container]);
   const tokens = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
-  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.label} ${result.path.slice(1).map(key => nameFor(ui, key)).join(" ")}`).includes(token)));
+  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.label} ${functionShortcutBinding(result.functionId, ui.shortcutBindings)} ${result.path.slice(1).map(key => nameFor(ui, key)).join(" ")}`).includes(token)));
   const visible = matches.slice(0, 40);
   useEffect(() => { if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: "nearest" }); }, [open, active, query]);
   const close = () => { setOpen(false); setQuery(""); setActive(0); };
@@ -111,7 +114,7 @@ export function FrameSearch({ container, title, expand }: { container: string; t
       <button className="ui-popup-close" aria-label={`Close search in ${title}`} onClick={close}>×</button>
       <input ref={input} type="search" aria-label={`Search controls in ${title}`} placeholder="Find a button, setting or field…" value={query} onChange={event => { setQuery(event.target.value); setActive(0); }} role="combobox" aria-expanded="true" aria-controls={id} aria-activedescendant={visible[active] ? `${id}-${active}` : undefined} />
       <div className="ui-frame-search-results" id={id} role="listbox" aria-label={`UI controls in ${title}`}>
-        {visible.map((result, index) => <button key={result.key} id={`${id}-${index}`} role="option" aria-selected={index === active} onMouseEnter={() => setActive(index)} onClick={() => reveal(result)} title={`Show ${result.label}`}><span>{result.label}</span>{result.path.length > 1 && <small>{result.path.slice(1).map(key => nameFor(ui, key)).join(" › ")}</small>}</button>)}
+        {visible.map((result, index) => <button key={result.key} id={`${id}-${index}`} role="option" aria-selected={index === active} onMouseEnter={() => setActive(index)} onClick={() => reveal(result)} title={`Show ${result.label}`}><span>{result.label}<ShortcutHint binding={functionShortcutBinding(result.functionId, ui.shortcutBindings)} /></span>{result.path.length > 1 && <small>{result.path.slice(1).map(key => nameFor(ui, key)).join(" › ")}</small>}</button>)}
       </div>
       <small role="status">{matches.length ? `${matches.length} matching controls${matches.length > 40 ? " · showing first 40" : ""}` : "No matching UI controls in this frame."}</small>
     </div>, document.body)}

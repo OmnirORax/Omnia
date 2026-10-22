@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { ACTIONS, actionForKey, defaultSettings, keyConflict, matchesShortcut, normalizeKey, normalizePointer, normalizeSettings } from "../src/workspaceActions.ts";
+import { ACTIONS, actionForKey, defaultSettings, functionShortcutBinding, keyConflict, matchesShortcut, normalizeKey, normalizePointer, normalizeSettings } from "../src/workspaceActions.ts";
 import { FEATURE_ACTIONS, FEATURE_GESTURES, clearRecordedShortcutPress, createFeatureActionRuntime, recordedShortcutTail, recordShortcutPress } from "../src/featureActions.ts";
 import { privateShortcutLiterals } from "../scripts/shortcut-audit.mjs";
 
@@ -41,6 +41,20 @@ test("keyboard and pointer matching honor rebinding and cleared bindings", () =>
   assert.equal(matchesShortcut("selector.pattern", bindings, "Q"), true);
   assert.equal(matchesShortcut("selector.edit", bindings, "MB2"), false);
   assert.equal(matchesShortcut("selector.edit", bindings, ""), false);
+});
+
+test("shortcut search resolves live bindings for commands, rows and customized functions", () => {
+  const bindings = defaultSettings().bindings;
+  for (const id of ["selector.open", "shortcut:selector.open"])
+    assert.equal(functionShortcutBinding(id, bindings), "MB3");
+  const rebound = { ...bindings, "selector.open": "Ctrl+P", "button:custom-action": "Shift+MB3" };
+  for (const id of ["selector.open", "shortcut:selector.open"])
+    assert.equal(functionShortcutBinding(id, rebound), "Ctrl+P", "old MB3 must disappear from search metadata");
+  for (const id of ["custom-action", "button:custom-action", "shortcut:button:custom-action"])
+    assert.equal(functionShortcutBinding(id, rebound), "Shift+MB3");
+  assert.equal(functionShortcutBinding("shortcut:selector.open", { ...rebound, "selector.open": "" }), "");
+  assert.equal(functionShortcutBinding("unassigned-control", rebound), "");
+  assert.equal(functionShortcutBinding(undefined, rebound), "");
 });
 
 test("feature runtime rejects missing metadata and respects availability and teardown for future owners", () => {
