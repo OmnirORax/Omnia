@@ -35,7 +35,7 @@ export type Binding = {
 };
 export type RegisteredTarget = Target & { self?: boolean; binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
 export const SELECTOR_FEEDBACK = {
-  included: { label: "Included", color: "#66efab" },
+  included: { label: "Included", color: "#28ff62" },
   excluded: { label: "Excluded", color: "#ff6c73" },
   boundary: { label: "Boundary", color: "#60ddec" },
 } as const;

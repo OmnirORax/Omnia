@@ -1,3 +1,4 @@
+import { laserSparkles, SELECTOR_SPARKLE_BUDGET } from "../src/appearance/selectorLaser.ts";
 import { createInteractionHold } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
@@ -811,4 +812,31 @@ test("editing holds the last visual target context without freezing live propert
   assert.equal(hold.held, false); assert.equal(hold.context, null);
   const next = { selected: [], preview: ["next target"], point: { x: 50, y: 40 } };
   hold.remember(next); assert.equal(hold.context, next, "resuming selection starts from fresh input");
+});
+
+
+test("laser feedback sparkle geometry is stable across paint edits, bounded and respects tiny/rounded targets", () => {
+  const box = { key: "frame:sample", x: 20, y: 40, width: 260, height: 90, rx: 18, ry: 18 };
+  const points = laserSparkles(box, SELECTOR_SPARKLE_BUDGET);
+  assert.ok(points.length > 0 && points.length <= 8);
+  assert.deepEqual(laserSparkles(box, SELECTOR_SPARKLE_BUDGET), points, "color/glow rerenders must not shuffle particles");
+  assert.deepEqual(laserSparkles(box, 0), []);
+  assert.deepEqual(laserSparkles({ ...box, width: 0 }, 4), []);
+  assert.deepEqual(laserSparkles({ ...box, height: 3 }, 4), []);
+  for (const point of points) {
+    assert.ok(point.x >= box.x && point.x <= box.x + box.width);
+    assert.ok(point.y >= box.y && point.y <= box.y + box.height);
+    assert.ok(point.delay <= 0 && point.delay >= -3.7);
+    if (point.y === box.y + 1 || point.y === box.y + box.height - 1)
+      assert.ok(point.x >= box.x + box.rx && point.x <= box.x + box.width - box.rx);
+    else assert.ok(point.y >= box.y + box.ry && point.y <= box.y + box.height - box.ry);
+  }
+  const moved = laserSparkles({ ...box, x: box.x + 50, y: box.y - 20 }, SELECTOR_SPARKLE_BUDGET);
+  moved.forEach((point, index) => {
+    assert.ok(Math.abs(point.x - points[index].x - 50) < 1e-9);
+    assert.ok(Math.abs(point.y - points[index].y + 20) < 1e-9);
+    assert.equal(point.scale, points[index].scale); assert.equal(point.delay, points[index].delay);
+  });
+  assert.equal(laserSparkles(box, 1).length, 1);
+  assert.equal(laserSparkles(box, 4, true).length, 4, "scene surfaces share the same bounded generator");
 });

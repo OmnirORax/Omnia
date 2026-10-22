@@ -159,7 +159,7 @@ identity again toggles it off; pressed state and Master controller inspection de
 from the same selection state. Clear/Esc and selection undo/redo apply normally.
 Logical selection replaces geometric selection, while inspecting/reopening never
 writes values. Selector feedback exposes a live sample in Master controller using
-the actual trace renderer and existing paint values, so its one-second pulse remains
+the actual trace renderer and existing paint values, so its 2.6-second pulse remains
 visible during editing. Pulse timing is still fixed; only supported paint properties
 are offered. The native cursor/trail and feedback stay pointer-transparent.
 
@@ -260,11 +260,11 @@ contour matches on one element share a trace; geometry/style reads are cached.
 Scene selection feedback reuses the same renderer registration as hierarchy
 feedback. The background adapter paints only `scene.background`, preserves scene
 objects, and restores current authored paint on deselection, editor entry, cleanup
-or hiding. Its one-second green pulse is capped at 30 fps with no DOM/geometry
+or hiding. Its 2.6-second green pulse is capped at 30 fps with no DOM/geometry
 rescans; reduced motion is steady. New scene adapters receive the current transient
 paint on mounting. Hierarchy cleanup does not erase accepted selector feedback.
 
-Accepted and hover feedback both follow a one-second bright/dim/bright cycle.
+Accepted and hover feedback both follow a 2.6-second bright/dim/bright cycle.
 Preview emphasis changes seam thickness, not pulse opacity. The low point keeps a
 faint cue while the high point restores full ink and glow. Preview changes do not
 restart the shared pulse clock.
@@ -314,7 +314,7 @@ captures that context before candidates can be cleared by tool chrome. Selecting
 logical Self inventory target retains the preceding real scene feedback while its
 properties are inspected; toggling that logical selection off releases it normally.
 Ctrl release and pointer movement over controls cannot replace held membership.
-The existing feedback renderer continues its real one-second pulse and reads the
+The existing feedback renderer continues its real 2.6-second pulse and reads the
 current controller values, including native color-picker previews. Surviving target
 references refresh through the existing catalog when scene content changes.
 
@@ -325,3 +325,24 @@ Mouse trail remain live. This holds registered selector/hierarchy feedback, not 
 browser `:hover` or arbitrary application events. It does not simulate movement or
 freeze a trail's time. Hierarchy circle feedback can remain active when moving from
 its circle into controller controls, and releases on leaving/defocusing the editor.
+
+
+## Laser feedback style
+
+Included feedback defaults to saturated laser green; authored Color/Brightness/
+Opacity/Glow overrides remain independent and are preserved. Shared traces layer a
+wide translucent green halo, a narrow saturated rail and a thin mint-white moving
+core, with deterministic, staggered white sparkles. Glyphs use their actual ink and
+layered color/glow without rectangular markers; broad backgrounds keep their
+existing native inset tint. A 2.6-second bright/dim/bright envelope retains a visible
+base instead of blinking off. The real overlay and Self inventory sample use the
+same trace and timing source (`selectorLaser.ts`).
+
+Sparkles are capped at 64 per overlay, with at most 12 reserved for the world
+background. Scene sparkle placement rejects UI/foreground hits at setup and is
+cached across paint-only edits. All sparkle/pulse motion uses native animations;
+there are no per-frame DOM scans or full-surface blur filters. Reduced motion uses
+steady feedback. The existing scene background tint remains capped at 30 fps.
+Color and brightness drive the colored halo and hot core together; Opacity fades
+the whole effect and Glow controls halo/core/sparkle strength. No parallel value
+store or separate preview implementation is introduced.

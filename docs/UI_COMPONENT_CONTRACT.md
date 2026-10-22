@@ -86,7 +86,7 @@ that intercept E modes.
 
 Registered HTML background feedback uses a removable native inset tint on the
 actual rounded surface, preserving shadows, images, gradients and foreground ink.
-It shares the one-second pulse and Included paint, rather than a barely visible
+It shares the 2.6-second pulse and Included paint, rather than a barely visible
 SVG rectangle fill. Do not animate inherited variables at document scope or scan
 surfaces per frame. Empty UI space resolves to its owned registered background;
 independent gaps still need picking adapters. The 3D-world background exposes a

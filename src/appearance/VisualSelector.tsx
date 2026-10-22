@@ -577,16 +577,18 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   // Remember the last displayed context, not colors/animation samples. Entering
   // controller chrome can clear a candidate, but must not destroy that context.
   if (active && phase !== "configure" && phase !== "edit" && phase !== "inspect") feedbackHold.remember(liveFeedback);
-  const visibleFeedback = useMemo(() => {
-    const held = feedbackHold.held && feedbackHold.context;
-    if (!held) return liveFeedback;
+  const heldContext = feedbackHold.held ? feedbackHold.context : null;
+  const heldFeedback = useMemo(() => {
+    const held = heldContext;
+    if (!held) return null;
     const byKey = new Map(catalog.map(part => [part.key, part]));
     const refresh = (parts: VisualPart[]) => parts.flatMap(part => {
       const current = byKey.get(part.key);
       return current ? [current] : part.element.isConnected ? [part] : [];
     });
     return { ...held, selected: refresh(held.selected), excluded: refresh(held.excluded), preview: refresh(held.preview) };
-  }, [feedbackHold.held, feedbackHold.context, catalog, feedbackSelected, feedbackPreview, paths, guides]);
+  }, [heldContext, catalog]);
+  const visibleFeedback = heldFeedback ?? liveFeedback;
   return <Context.Provider value={contextValue}>
     {children}
     {active && (phase !== "edit" && phase !== "inspect" || feedbackHold.held) && createPortal(<VisualSelectionOverlay {...visibleFeedback} />, document.body)}

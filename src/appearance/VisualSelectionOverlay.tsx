@@ -1,25 +1,43 @@
 import { useEffect, useMemo, type CSSProperties } from "react";
 import { useAppearance } from "./Context";
-import { paintSceneSelection, type SceneSelectionPaint } from "./sceneFeedback";
+import { paintSceneSelection, scenePartAt, type SceneSelectionPaint } from "./sceneFeedback";
 import { registerPaintVariable } from "./paintVariables";
 import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint, valueFor } from "./resolve";
 import { type SelectionRule, type VisualPart } from "./visualSelection";
+import { laserSparkles, SELECTOR_PULSE_MS, SELECTOR_SPARKLE_BUDGET, type LaserSparkle } from "./selectorLaser";
 import { pathEdges, type Point } from "./selectionGeometry";
 
 type Mark = { key: string; x: number; y: number; width: number; height: number; rx: number; ry: number; surface: boolean };
 const rectAttributes = (mark: Mark) => ({ x: mark.x, y: mark.y, width: mark.width, height: mark.height, rx: mark.rx, ry: mark.ry });
 type Tone = keyof typeof SELECTOR_FEEDBACK;
-type FeedbackPaint = { ink: string; opacity: number; glow: number };
-function SelectionTrace({ mark, tone, paint, preview = false }: { mark: Mark; tone: Tone; paint: FeedbackPaint; preview?: boolean }) {
+type FeedbackPaint = { ink: string; hot: string; opacity: number; glow: number };
+const feedbackStyle = (paint: FeedbackPaint): CSSProperties => ({
+  "--visual-selection-ink": paint.ink, "--visual-selection-core": feedbackCore(paint),
+  "--visual-selection-hot": paint.hot, "--visual-selection-opacity": paint.opacity,
+  "--visual-selection-glow": paint.glow, "--visual-selection-period": `${SELECTOR_PULSE_MS}ms`,
+} as CSSProperties);
+function LaserSparkles({ sparks }: { sparks: LaserSparkle[] }) {
+  return <g className="visual-selection-sparkles">{sparks.map((spark, index) =>
+    <g key={index} transform={`translate(${spark.x},${spark.y}) scale(${spark.scale})`}>
+      <g className="visual-selection-sparkle-energy" style={{ animationDelay: `${spark.delay}s` }}>
+        <path className="visual-selection-sparkle-aura" d="M-3.8 0H3.8M0-3.8V3.8" />
+        <path className="visual-selection-sparkle-core" d="M-3.2 0H3.2M0-3.2V3.2" />
+        <circle className="visual-selection-sparkle-point" r="1" />
+      </g>
+    </g>)}</g>;
+}
+function SelectionTrace({ mark, tone, paint, preview = false, sparkleLimit = 6 }: { mark: Mark; tone: Tone; paint: FeedbackPaint; preview?: boolean; sparkleLimit?: number }) {
   const attributes = rectAttributes(mark);
-  const style = { "--visual-selection-ink": paint.ink, "--visual-selection-opacity": paint.opacity,
-    "--visual-selection-glow": paint.glow } as CSSProperties;
+  const style = feedbackStyle(paint);
+  const sparks = laserSparkles(mark, sparkleLimit);
   return <g style={style} className={`visual-selection-trace is-${tone} ${preview ? "is-preview" : ""}`}>
     {mark.surface && <rect {...attributes} className="visual-selection-surface" />}
     <rect {...attributes} className="visual-selection-halo" />
+    <rect {...attributes} className="visual-selection-bloom" />
     <rect {...attributes} className="visual-selection-rail" />
     <rect {...attributes} className="visual-selection-seam" />
+    <LaserSparkles sparks={sparks} />
   </g>;
 }
 const signal = {
@@ -39,10 +57,10 @@ function startSelectionPulse(elements: Element[]) {
     // Non-inherited variables animate only the actual paint hosts. Never put
     // inherited animated paint on :root: it invalidates the entire application.
     animations = elements.filter(element => typeof element.animate === "function").map(element => element.animate([
-      { [signal.mix]: "95%", [signal.glow]: "9px", easing: "ease-in-out" },
-      { [signal.mix]: "8%", [signal.glow]: "0.5px", easing: "ease-in-out" },
-      { [signal.mix]: "95%", [signal.glow]: "9px" },
-    ], { duration: 1000, iterations: Infinity }));
+      { [signal.mix]: "92%", [signal.glow]: "6px", easing: "ease-in-out" },
+      { [signal.mix]: "38%", [signal.glow]: "2px", easing: "ease-in-out" },
+      { [signal.mix]: "92%", [signal.glow]: "6px" },
+    ], { duration: SELECTOR_PULSE_MS, iterations: Infinity }));
     // New preview targets join the existing clock instead of restarting it.
     if (document.timeline.currentTime !== null) animations.forEach(animation => { animation.startTime = 0; });
   };
@@ -53,14 +71,19 @@ function startSelectionPulse(elements: Element[]) {
 }
 const glow = "var(--omnium-selector-glow,3px)";
 const mix = "var(--omnium-selector-glyph-mix,65%)";
+const feedbackCore = (paint: FeedbackPaint, whiteness = .8) => {
+  const white = Math.min(1, Math.max(0, paint.glow)) * whiteness * 100;
+  return `color-mix(in srgb,${paint.ink} ${100 - white}%,${paint.hot} ${white}%)`;
+};
 const feedbackInk = (paint: FeedbackPaint) => tint(paint.ink, 1, paint.opacity);
 const feedbackGlow = (paint: FeedbackPaint) => `calc(${glow} * ${paint.glow})`;
 const glyphColor = (base: string, paint: FeedbackPaint) => {
   const weight = `calc(${mix} * ${paint.opacity})`;
-  return `color-mix(in srgb,${base} calc(100% - ${weight}),${paint.ink} ${weight})`;
+  return `color-mix(in srgb,${base} calc(100% - ${weight}),${feedbackCore(paint, .18)} ${weight})`;
 };
+const laserShadow = (paint: FeedbackPaint) => `0 0 1px ${feedbackCore(paint, .55)},0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)},0 0 calc(${feedbackGlow(paint)} * 1.7) ${tint(paint.ink, 1, paint.opacity * .4)}`;
 const glyphFeedback = (name: string, paint: FeedbackPaint) =>
-  `::highlight(${name}){color:${glyphColor("currentColor", paint)};background-color:transparent;text-shadow:0 0 ${feedbackGlow(paint)} ${feedbackInk(paint)}}`;
+  `::highlight(${name}){color:${glyphColor("currentColor", paint)};background-color:transparent;text-shadow:${laserShadow(paint)}}`;
 
 function useFeedbackPaints() {
   const appearance = useAppearance();
@@ -69,7 +92,7 @@ function useFeedbackPaints() {
     const get = (property: string) => appearance && !appearance.safe
       ? valueFor(appearance.base, appearance.state, target, property) : target.defaults![property];
     return [tone, { ink: brightHex(String(get("color") ?? defaults.color), Number(get("brightness"))),
-      opacity: Number(get("opacity")), glow: Number(get("glow")) }];
+      hot: brightHex("#ffffff", Number(get("brightness"))), opacity: Number(get("opacity")), glow: Number(get("glow")) }];
   })) as Record<Tone, FeedbackPaint>, [appearance?.base, appearance?.state, appearance?.safe]);
 }
 
@@ -112,7 +135,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       if (document.hidden) return;
       if (time - previous >= 1000 / 30) {
         previous = time;
-        paintSceneSelection(targets, reduced.matches ? .6 : .5 + .5 * Math.cos(time * Math.PI * 2 / 1000));
+        paintSceneSelection(targets, reduced.matches ? .6 : .55 + .45 * Math.cos(time * Math.PI * 2 / SELECTOR_PULSE_MS));
       }
       if (!reduced.matches) frame = requestAnimationFrame(draw);
     };
@@ -161,16 +184,16 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         const shadow = computed.textShadow === "none" ? "" : computed.textShadow + ",";
         const ink = feedbackInk(feedback), blur = feedbackGlow(feedback);
         const source = (element.hasAttribute(attribute) ? computed.getPropertyValue("--omnium-selector-source-color").trim() : "") || computed.color;
-        const color = glyphColor(source, feedback), textShadow = `${shadow}0 0 ${blur} ${ink}`;
+        const color = glyphColor(source, feedback), textShadow = `${shadow}${laserShadow(feedback)}`;
         // Resolve variables on the host before inheriting paint into ::placeholder.
         hostDeclaration = pseudo ? `--omnium-selector-placeholder-color:${color};--omnium-selector-placeholder-shadow:${textShadow};` : "";
-        declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 ${blur} ${ink})!important;` :
+        declaration = `--omnium-selector-source-color:${source};` + (kind === "icon" ? `filter:${filter} drop-shadow(0 0 1px ${feedbackCore(feedback, .4)}) drop-shadow(0 0 ${blur} ${ink})!important;` :
           `color:${pseudo ? "var(--omnium-selector-placeholder-color)" : color}!important;text-shadow:${pseudo ? "var(--omnium-selector-placeholder-shadow)" : textShadow}!important;`);
       }
       if (surface) {
         const original = getComputedStyle(element).boxShadow;
         const shadow = original === "none" ? "" : `${original},`;
-        const weight = `calc(${mix} * ${surface.opacity} * .3)`;
+        const weight = `calc(${mix} * ${surface.opacity} * .2)`;
         // An inset tint paints the actual rounded surface below its contents,
         // including image/gradient backgrounds. No blur, wrappers or value writes.
         const tint = `color-mix(in srgb,transparent calc(100% - ${weight}),${surface.ink} ${weight})`;
@@ -227,17 +250,36 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     return [...marks.values()];
   };
   const marks = marksFor(selected), omissions = marksFor(excluded), candidates = marksFor(preview);
-  return <div data-visual-selector className="visual-selection-overlay">
+  let sparkleBudget = SELECTOR_SPARKLE_BUDGET;
+  const trace = (mark: Mark, tone: Tone, paint: FeedbackPaint, preview = false) => {
+    const count = Math.min(sparkleBudget, Math.max(2, Math.min(8, Math.ceil((mark.width + mark.height) / 170))));
+    sparkleBudget -= count;
+    return <SelectionTrace key={mark.key} mark={mark} tone={tone} paint={paint} preview={preview} sparkleLimit={count} />;
+  };
+  // Canvas surfaces have no DOM contour to trace. Give their background a sparse
+  // sparkle field, rejecting foreground/UI hits once, never in the animation loop.
+  const sceneSparks = useMemo(() => {
+    const parts = [...new Map([...selected, ...preview].filter(part => part.target.binding?.selection?.renderer === "scene").map(part => [part.target.id, part])).values()];
+    let budget = Math.min(12, SELECTOR_SPARKLE_BUDGET);
+    return parts.flatMap(part => {
+      const rect = part.element.getBoundingClientRect();
+      const count = budget; budget -= count;
+      return laserSparkles({ key: part.key, x: rect.x, y: rect.y, width: rect.width, height: rect.height }, count, true)
+        .filter(spark => document.elementFromPoint(spark.x, spark.y) === part.element && scenePartAt(part.target.id, part.element, spark.x, spark.y));
+    });
+  }, [selected, preview]);
+  sparkleBudget -= sceneSparks.length;
+  return <div data-visual-selector className="visual-selection-overlay" style={{ "--visual-selection-period": `${SELECTOR_PULSE_MS}ms` } as CSSProperties}>
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
       glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : paints.included)}</style>
     <svg aria-hidden="true" width="100%" height="100%">
       <defs><marker id="selector-line-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse">
         <path d="M0 0L7 3.5L0 7" fill="none" stroke="context-stroke" />
       </marker></defs>
-      {marks.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="included" paint={paints.included} />)}
-      {omissions.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="excluded" paint={paints.excluded} />)}
-      {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"}
-        paint={candidate?.include === false ? paints.excluded : paints.included} preview />)}
+      {marks.map(mark => trace(mark, "included", paints.included))}
+      {omissions.map(mark => trace(mark, "excluded", paints.excluded))}
+      {candidates.map(mark => trace(mark, candidate?.include === false ? "excluded" : "included", candidate?.include === false ? paints.excluded : paints.included, true))}
+      {sceneSparks.length > 0 && <g className="visual-selection-scene-sparkles" style={feedbackStyle(paints.included)}><LaserSparkles sparks={sceneSparks} /></g>}
       {paths.map(path => {
         const edges = pathEdges(path.points, path.closed);
         const stroke = (disabled: boolean) => edges.flatMap(([a, b], index) => path.disabledEdges.includes(index) === disabled
