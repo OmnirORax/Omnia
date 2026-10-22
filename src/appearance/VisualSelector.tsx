@@ -20,6 +20,7 @@ type Phase = "off" | "configure" | "aim" | "edit";
 const Context = createContext<VisualSelection | null>(null);
 export const useVisualSelection = () => useContext(Context);
 const emptySelection = (): SelectionState => ({ boundary: null, rules: [] });
+const noParts: VisualPart[] = [];
 const ruleKey = (rule: SelectionRule | null) => rule ? `${rule.include}:${rule.boundary.key}:${rule.region ?? "inside"}:${rule.role ?? ""}:${rule.part ?? ""}` : "neutral";
 const pickKey = (pick: Pick | null) => pick ? `${pick.setBoundary}:${pick.boundary.key}:${ruleKey(pick.rule)}` : "";
 
@@ -91,7 +92,8 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
           ruleKey(current.rules[0] ?? null) === ruleKey(pick.rule)) return current;
         return { boundary: pick.boundary, rules };
       });
-      // Boundary picking is deliberately latched. Only the ring turns it off.
+      // Placement fixes the anchor. Re-arm the ring to replace it deliberately.
+      setConfiguration(config => ({ ...config, boundaryPicking: false }));
     } else if (pick.rule) append(pick.rule);
     setPreview(null);
   };
@@ -101,7 +103,10 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   };
   const chooseRegion = (side: Exclude<SelectorRegion, null>) => {
     const next = latest.current.configuration.region === side ? null : side;
-    setConfiguration(config => ({ ...config, region: next }));
+    const hasBoundary = !!latest.current.selection.boundary;
+    setConfiguration(config => ({ ...config, region: next,
+      ...(hasBoundary ? { boundaryPicking: false } : {}),
+    }));
     const rule = regionRule(next);
     if (rule) append(rule);
     setPreview(null);
@@ -122,7 +127,12 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const editableParts = useMemo(() => matches.included.flatMap(part => {
     const description = describeSelectedPart(part); return description ? [description] : [];
   }), [matches]);
-  const preview = useMemo(() => candidate?.rule ? matchingVisualParts(catalog, candidate.rule) : [], [catalog, candidate]);
+  const preview = useMemo(() => {
+    if (!candidate?.rule) return noParts;
+    const existing = new Set((candidate.rule.include ? matches.included : matches.excluded).map(part => part.key));
+    const changed = matchingVisualParts(catalog, candidate.rule).filter(part => !existing.has(part.key));
+    return changed.length ? changed : noParts;
+  }, [catalog, candidate, matches]);
   const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
 
   useEffect(() => {
@@ -282,7 +292,8 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   return <Context.Provider value={{ ...selection, parts: matches.included, properties, clear }}>
     {children}
     {active && phase !== "edit" && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
-      candidate={candidate?.rule ?? null} hoverBoundary={candidate?.setBoundary ? candidate.boundary : null} boundary={selection.boundary} />, document.body)}
+      candidate={preview.length || candidate?.setBoundary ? candidate?.rule ?? null : null}
+      hoverBoundary={candidate?.setBoundary ? candidate.boundary : null} boundary={selection.boundary} />, document.body)}
     {phase === "aim" && createPortal(<SelectorCursor configuration={configuration} initial={point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position}
       onClose={close} onResume={aim} />, document.body)}
@@ -290,7 +301,9 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}
       onPointerLeave={event => { if (event.relatedTarget instanceof Element && !event.relatedTarget.closest(selectorChrome)) aim(); }}>
       <SelectorSymbol configuration={configuration} actions={{
-        boundary: () => { depth.current = 0; setPreview(null); setConfiguration(config => ({ ...config, boundaryPicking: !config.boundaryPicking })); },
+        boundary: () => { depth.current = 0; setPreview(null); setConfiguration(config => ({ ...config,
+          boundaryPicking: !config.boundaryPicking, ...(!config.boundaryPicking ? { region: null } : {}),
+        })); },
         pattern: () => { setPreview(null); setConfiguration(config => ({ ...config, pattern: !config.pattern })); },
         operation: chooseOperation, region: chooseRegion, previewRegion,
       }} />

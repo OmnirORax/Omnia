@@ -145,7 +145,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     const rect = root === document.body ? { x: 3, y: 3, width: innerWidth - 6, height: innerHeight - 6 } : root?.getBoundingClientRect();
     return rect ? { key, ...{ x: rect.x, y: rect.y, width: Math.max(0, rect.width), height: Math.max(0, rect.height) }, rx: 4, ry: 4, surface: false } : undefined;
   };
-  const edge = rectFor(boundary, "boundary"), hover = rectFor(hoverBoundary ?? candidate?.boundary ?? null, "preview-boundary");
+  const edge = rectFor(boundary, "boundary"), hover = rectFor(hoverBoundary, "preview-boundary");
   return <div data-visual-selector className="visual-selection-overlay">
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
       glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : paints.included)}</style>
@@ -155,7 +155,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"}
         paint={candidate?.include === false ? paints.excluded : paints.included} preview />)}
       {edge && <SelectionTrace mark={edge} tone="boundary" paint={paints.boundary} />}
-      {hover && (hoverBoundary || (candidate && !candidate.part)) && <SelectionTrace mark={hover}
+      {hover && <SelectionTrace mark={hover}
         tone={!candidate ? "boundary" : candidate.include ? "included" : "excluded"}
         paint={!candidate ? paints.boundary : candidate.include ? paints.included : paints.excluded} preview />}
     </svg>

@@ -44,7 +44,7 @@ export function SelectorSymbol({ configuration, actions }: { configuration: Sele
       <circle className="selector-region-mark" cx="140" cy="136" r="65" />
     </g>
     <g {...button("Set boundary", boundaryPicking, () => actions?.boundary())}>
-      {actions && <title>Ring: toggle boundary picking. It stays active after a pick. Scroll while aiming to change boundary depth.</title>}
+      {actions && <title>Ring: choose or replace the boundary. Placement fixes it and finishes boundary picking. Scroll while aiming to change boundary depth.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="88" fill="none" strokeWidth="32" />}
       <circle className="selector-ring" cx="140" cy="136" r="88" fill="none" strokeWidth="20" />
     </g>
@@ -59,7 +59,7 @@ export function SelectorSymbol({ configuration, actions }: { configuration: Sele
       <path className="selector-bar" d="M233 136H300" strokeWidth="24" />
     </g>
     <g {...button("Pattern", pattern, () => actions?.pattern())}>
-      {actions && <title>Dots: toggle pattern matching. Turn the ring off to sample patterns within the chosen inside/outside region.</title>}
+      {actions && <title>Dots: toggle pattern matching within the chosen inside/outside region.</title>}
       {actions && <rect className="selector-hit" x="97" y="228" width="88" height="46" />}
       <circle className="selector-dot" cx="123" cy="250" r="15" />
       <circle className="selector-dot" cx="159" cy="250" r="15" />

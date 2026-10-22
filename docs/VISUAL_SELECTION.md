@@ -18,9 +18,11 @@ the left-click intended for the underlying part.
 
 The symbol has independent choices:
 
-- **Ring:** toggle boundary picking. It remains latched after a pick and only the
-  ring turns it off. Scroll while aiming to climb through containing components
-  and frames to the entire app, or downward to narrow the candidate boundary.
+- **Ring:** choose or replace the boundary. Placement fixes the anchor and turns
+  boundary picking off, so normal hover cannot move it. Re-arm the ring to choose
+  another boundary; this returns the working region to its inside default. Scroll
+  while picking to climb through containing components/frames to the entire app,
+  or downward to narrow the candidate boundary.
 - **Inner / outer bar:** arm include (green) / exclude (red). Press an already
   active bar again to return to neutral. Merely arming an operation does not apply
   it to the existing selection.
@@ -30,8 +32,9 @@ The symbol has independent choices:
   Press the active region again to clear the inside/outside choice; this does not
   apply another operation or remove the already accepted selection.
   Outside means other registered UI parts throughout the app, not another frame.
-- **Paired dots:** toggle pattern sampling. Turn the ring off to sample parts or
-  patterns in the chosen region. With dots off, clicks affect individual parts.
+  Choosing a region on an established boundary also finishes boundary picking.
+- **Paired dots:** toggle pattern sampling within the fixed boundary's chosen
+  region. With dots off, clicks affect individual parts.
   With dots on, a clicked role matches across the selected inside/outside region.
 
 A neutral boundary pick establishes an anchor without adding included/excluded
@@ -39,6 +42,13 @@ paint. Picking a new boundary starts a fresh selection; an armed operation appli
 inside that boundary by default, or outside when that region is configured. An
 existing boundary remains the same when its center/surrounding controls are used.
 Parts outside are unselected by default until an explicit outside operation.
+After placement, hover previews stay inside the fixed boundary unless Outside is
+explicitly chosen. Moving beyond it produces no replacement-boundary preview.
+Hover paint shows only parts whose include/exclude state would change: already
+included parts do not preview another inclusion, and explicitly excluded parts do
+not preview another exclusion. These filters affect feedback only, preserving
+live pattern rules and their future matches. A green/red boundary preview appears
+only while explicitly choosing a boundary, not for ordinary item/pattern hovers.
 
 Pattern matching starts with registered text, backgrounds, contours, icons and
 selection indicators. It does not infer semantic structure from pixels or select
