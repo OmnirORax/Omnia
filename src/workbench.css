@@ -862,8 +862,11 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .appearance-target,.appearance-lock { flex: 0 0 auto; width: 22px; border-radius: 50%; }
 .appearance-row > .appearance-target { display: inline-grid; place-items: center; width: 22px; height: 22px; min-width: 22px; padding: 0; aspect-ratio: 1; text-shadow: none; box-shadow: none; }
 .appearance-toggle-icon { display: block; width: 16px; height: 16px; flex: none; }
-.visual-selector { position: fixed; z-index: 90001; width: 176px; height: 176px; box-sizing: border-box; color: var(--omnium-accent,#60ddec); background: color-mix(in srgb,var(--omnium-base,#07131c) 94%,transparent); border: 1px solid currentColor; border-radius: 50%; box-shadow: 0 8px 24px #0007; user-select: none; }
-.visual-selector > .visual-selector-symbol { position: absolute; width: 160px; left: 17px; top: 15px; }
+.visual-selector { position: fixed; z-index: 90001; width: 176px; height: 176px; box-sizing: border-box; color: var(--omnium-accent,#60ddec); user-select: none; }
+/* At half-scale, the outside region ends at radius 67 around (88,84).
+   Keep the frame on that edge; utility controls remain outside the circle. */
+.visual-selector::before { content: ""; position: absolute; left: 21px; top: 17px; width: 134px; height: 134px; box-sizing: border-box; background: color-mix(in srgb,var(--omnium-base,#07131c) 94%,transparent); border: 1px solid currentColor; border-radius: 50%; box-shadow: 0 8px 24px #0007; pointer-events: none; }
+.visual-selector > .visual-selector-symbol { position: absolute; width: 160px; left: 18px; top: 16px; }
 .visual-selector-symbol { display: block; width: 100%; overflow: visible; --selector-operation-ink: var(--omnium-accent,#60ddec); }
 .visual-selector-symbol.operation-include { --selector-operation-ink: #66efab; }
 .visual-selector-symbol.operation-exclude { --selector-operation-ink: #ff6c73; }
