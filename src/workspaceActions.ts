@@ -50,7 +50,7 @@ export const ACTIONS = [
   { id: "cancel", category: "Workspace", label: "Cancel or close menu", defaultKey: "Esc" },
   { id: "settings", category: "Workspace", label: "Workspace settings", defaultKey: "" },
   { id: "theme", category: "Workspace", label: "Toggle neon appearance", defaultKey: "" },
-  { id: "appearance", category: "Workspace", label: "Theme / aesthetics", defaultKey: "" },
+  { id: "appearance", category: "Workspace", label: "Master controller", defaultKey: "" },
   ...FEATURE_ACTIONS,
 ] as const;
 export const NUDGE_ACTIONS = ["nudgeLeft", "nudgeRight", "nudgeUp", "nudgeDown"] as const;

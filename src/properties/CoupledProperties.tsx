@@ -9,9 +9,9 @@ export type PropertyBindings = {
   commit: (changes: PropertyChange[]) => void;
 };
 /** Generated categories, one editor per property, and independent consumer targets. */
-export function CoupledProperties({ bindings, category: requestedCategory }: { bindings: PropertyBindings; category?: string }) {
+export function CoupledProperties({ bindings, category: requestedCategory, selectedConsumers, scope = "master" }: { bindings: PropertyBindings; category?: string; selectedConsumers?: readonly string[]; scope?: string }) {
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
-  const consumers = PROPERTY_REGISTRY.consumers.filter(consumer => consumer.owner !== "appearance");
+  const consumers = PROPERTY_REGISTRY.consumers.filter(consumer => consumer.owner !== "appearance" && (!selectedConsumers || selectedConsumers.includes(consumer.id)));
   for (const consumer of consumers) for (const property of Object.keys(consumer.channels)) {
     if (bindings.values[consumer.id]?.[consumer.channels[property]] === undefined)
       throw new Error(`Missing property adapter: ${consumer.id}/${property}`);
@@ -27,13 +27,13 @@ export function CoupledProperties({ bindings, category: requestedCategory }: { b
         const values = selected.map(consumer => bindings.values[consumer.id][consumer.channels[property.id]]);
         const value = values[0] ?? property.initial;
         const mixed = values.some(item => item !== value);
-        return <UISection key={property.id} id={`master-property:${property.id}`} title={property.label}>
-          {targets.map(consumer => <UIField key={consumer.id} id={`master-target:${property.id}:${consumer.id}`} label={consumer.label} category={category.label}>
+        return <UISection key={property.id} id={`${scope}-property:${property.id}`} title={property.label}>
+          {targets.map(consumer => <UIField key={consumer.id} id={`${scope}-target:${property.id}:${consumer.id}`} label={consumer.label} category={category.label}>
             <label><input type="checkbox" checked={!excluded.has(`${property.id}:${consumer.id}`)}
               onChange={() => setExcluded(old => { const next = new Set(old), key = `${property.id}:${consumer.id}`;
                 if (next.has(key)) next.delete(key); else next.add(key); return next; })} />{consumer.label}</label>
           </UIField>)}
-          <UIField id={`master-setter:${property.id}`} label={property.label} category={category.label}>
+          <UIField id={`${scope}-setter:${property.id}`} label={property.label} category={category.label}>
             <label>{property.label}{property.unit ? ` (${property.unit})` : ""}{mixed ? " · Mixed" : ""}
               <PropertyEditor property={property.id} value={value} disabled={!selected.length} choices={property.kind === "select" ? property.options?.filter(option => selected.every(consumer => !consumer.choices[property.id] || consumer.choices[property.id].includes(option.id))).map(option => option.id) : undefined} onPreview={() => {}}
                 onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property.id, value, selected.map(consumer => consumer.id)))} />
@@ -42,7 +42,7 @@ export function CoupledProperties({ bindings, category: requestedCategory }: { b
         </UISection>;
       })}
     </>;
-    return requestedCategory ? <div key={category.id} className="coupled-category-properties">{contents}</div> : <UISection key={category.id} id={`master-category:${category.id}`} title={category.label}>{contents}</UISection>;
+    return requestedCategory ? <div key={category.id} className="coupled-category-properties">{contents}</div> : <UISection key={category.id} id={`${scope}-category:${category.id}`} title={category.label} defaultExpanded={!!selectedConsumers}>{contents}</UISection>;
   })}</>;
 }
 

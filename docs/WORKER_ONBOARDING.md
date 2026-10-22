@@ -120,6 +120,20 @@ Search reads live bindings: a command bound to MB3 must be found by MB3 even whe
 its name omits those characters. A feature is not fully integrated merely because
 its key listener works. Native gestures have shared descriptive metadata too.
 
+## Master controller and appearance
+
+Master controller (formerly Theme / aesthetics) is the window for shared controls.
+Its top-level categories currently include Visuals and Spatial, collapsed by
+default for new layouts. Visuals contains the appearance controls, theme tools and
+templates; Spatial contains coupled placement settings. Categories follow actual
+registered properties; Physics is not an empty placeholder. Stable window/action
+IDs remain unchanged, and saved user labels still take precedence. Accepted
+selector and UI-function selections reveal a Selected properties inspector,
+using registered capabilities and independent values. Reveal is transient;
+Show all controls restores the general panel. Hover-only candidates do not
+replace the accepted selection, and unmigrated graph/function fields still need
+capability/adapter integration.
+
 ## Appearance: definitions, capabilities and independent values
 
 PROPERTIES is the current visual property pool. PropertyTree/PropertyEditor and

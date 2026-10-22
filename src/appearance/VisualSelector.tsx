@@ -33,7 +33,7 @@ const roleNames: Record<VisualRole, string> = { text: "Text", background: "Backg
 const roleSymbols: Record<VisualRole, string> = { text: "T", background: "□", contour: "○", icon: "◆", indicator: "◉" };
 
 /** Transient target selection; appearance editing stays in the existing master controller. */
-export function VisualSelectionProvider({ children }: { children: ReactNode }) {
+export function VisualSelectionProvider({ children, onInspect }: { children: ReactNode; onInspect?: (key: string) => void }) {
   const [timeline, setTimeline] = useState(() => ({ states: [emptySelection()], index: 0 }));
   const selection = timeline.states[timeline.index];
   const [phase, setPhase] = useState<Phase>("off");
@@ -376,6 +376,9 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", hidden);
     };
   }, []);
+  const inspectionKey = useMemo(() => selection.boundary || selection.rules.length
+    ? `${selection.boundary?.key ?? ""}:${selection.rules.map(ruleKey).join("|")}` : "", [selection]);
+  useEffect(() => { onInspect?.(inspectionKey); }, [inspectionKey, onInspect]);
   const active = phase !== "off" || !!selection.boundary;
   useEffect(() => {
     if (!active) return;

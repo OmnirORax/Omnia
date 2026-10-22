@@ -105,7 +105,7 @@ authoring UI and broader inference remain future work:
   tree IDs and paths stay stable.
 - `CoupledProperties.tsx` generates nonappearance property categories, shared
   editors and consumer inclusion controls from couplings. The existing visual
-  controller is grouped under Visual. Spatial is supplied by the real placement
+  controller is grouped under Visuals. Spatial is supplied by the real placement
   settings; Physical will appear when an actual property declares that category.
 - `preparePropertyChanges` validates one adjustment and prepares writes only for
   selected compatible consumers. State adapters apply them to the existing owner.
@@ -159,3 +159,12 @@ A declared capability with no application path must be detectable, rather than
 silently passing because its panel rendered.
 
 These are behavioral requirements, not authorization to run extra tests now.
+
+## Selection-driven discovery
+
+Master controller follows accepted visual-selector and UI-function selections.
+Selected parts expose the capabilities of their registered adapters; consumer
+`controls` IDs associate a function with its additional nonvisual couplings.
+The selection inspector reuses the contextual selected-part editor and generated
+coupled controls. Inspection is transient and does not customize an instance.
+Unregistered graph/functions require migration before their fields can appear.

@@ -45,7 +45,7 @@ export function applySelectedValue(state: Controller, parts: SelectedPart[], pro
   for (const part of parts) {
     const target = selectedPartTarget(part), id = target.id;
     if (!editable(part, property) || (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value)))) continue;
-    for (const channel of propertyChannels(property)) {
+    for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
       if (!editable(part, channel)) continue;
       if (next.values[id]?.[channel] === value) continue;
       next.instances[id] = part;

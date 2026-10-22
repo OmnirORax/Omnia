@@ -165,7 +165,7 @@ for (const [id, label, source] of [
   builtins.push({ ...original, id, label, channelOf: source });
 }
 export const PROPERTY_REGISTRY = createPropertyRegistry();
-builtins.forEach(property => PROPERTY_REGISTRY.define({ ...property, category: { id: "visual", label: "Visual" } }));
+builtins.forEach(property => PROPERTY_REGISTRY.define({ ...property, category: { id: "visual", label: "Visuals" } }));
 PROPERTY_CONSUMERS.forEach(PROPERTY_REGISTRY.couple);
 /** Compatibility view of the single shared pool; no separate appearance definitions. */
 export const PROPERTIES = PROPERTY_REGISTRY.definitions;

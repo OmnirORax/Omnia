@@ -1,12 +1,18 @@
 import { CoupledProperties, type PropertyBindings } from "../properties/CoupledProperties";
 import { transientReveal, type RevealSession } from "../ui/transientReveal";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAppearance } from "./Context";
 import { nativeContextMenuKey } from "../featureActions";
 import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
+import { SelectedProperties } from "./SelectionController";
+import { useVisualSelection } from "./VisualSelector";
+import { describeSelectedPart } from "./selectedParts";
+import { collectVisualParts } from "./visualSelection";
+import { selectedPartId } from "./selectionCoupling";
+import { PROPERTY_REGISTRY } from "./registry";
 import { PropertyEditor } from "./Controls";
 import { LockControl } from "./LockControl";
 import { rootFor } from "../ui/FrameSearch";
@@ -24,9 +30,29 @@ import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTar
 import { highlightHierarchy } from "./highlight";
 import { residentPinned } from "../ui/layout";
 
-export function MasterController({ bindings }: { bindings?: PropertyBindings }) {
+export function MasterController({ bindings, visualStatus, children: visualTools }: { bindings?: PropertyBindings; visualStatus?: ReactNode; children?: ReactNode }) {
   const ctx = useAppearance()!;
   const ui = useUI();
+  const visualSelection = useVisualSelection();
+  const selectedFunctionKey = [...ui.selectedFunctions].sort().join("|");
+  const selectedParts = useMemo(() => {
+    const picked = [...(visualSelection?.parts ?? [])];
+    if (ui.selectedFunctions.size) picked.push(...collectVisualParts().filter(part => {
+      const functionId = part.element.closest("[data-ui-function]")?.getAttribute("data-ui-function");
+      return !!functionId && ui.selectedFunctions.has(functionId);
+    }));
+    return [...new Map(picked.flatMap(part => {
+      const selected = describeSelectedPart(part); return selected ? [[selectedPartId(selected), selected] as const] : [];
+    })).values()];
+  }, [visualSelection?.parts, selectedFunctionKey]);
+  const selectedFunctions = new Set([...ui.selectedFunctions,
+    ...selectedParts.flatMap(part => part.owner.startsWith("function:") ? [part.owner.slice(9)] : [])]);
+  const selectedConsumers = PROPERTY_REGISTRY.consumers.filter(consumer =>
+    selectedFunctions.has(consumer.id) || consumer.controls?.some(id => selectedFunctions.has(id))).map(consumer => consumer.id);
+  const scopeKey = [visualSelection?.boundary?.key ?? "", ...selectedParts.map(selectedPartId), ...selectedConsumers, ...ui.selectedFunctions].filter(Boolean).sort().join("|");
+  const [dismissedScope, dismissScope] = useState<string | null>(null);
+  const inspecting = !!scopeKey && dismissedScope !== scopeKey;
+  useEffect(() => { if (!scopeKey) dismissScope(null); }, [scopeKey]);
   const originalParent = useContext(UIContainerContext), originalHome = useContext(UIHomeContext);
   const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
   const { state } = ctx;
@@ -247,9 +273,18 @@ export function MasterController({ bindings }: { bindings?: PropertyBindings }) 
     );
   };
   return (
-    <section className="appearance-controller" aria-label="Master appearance controller">
+    <section className="appearance-controller" aria-label="Master controller">
+      {inspecting && <div data-visual-selector className="ui-selection-tools"><UISection id="master-selection" title="Selected properties" expanded>
+        <div>
+          <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />
+          {selectedParts.length > 0 && <SelectedProperties parts={selectedParts} scope="master-selection" />}
+          {bindings && selectedConsumers.length > 0 && <CoupledProperties bindings={bindings} selectedConsumers={selectedConsumers} scope="inspection" />}
+          {!selectedParts.length && !selectedConsumers.length && <p>Include registered parts to show their settable properties.</p>}
+        </div>
+      </UISection></div>}
       {bindings && <CoupledProperties bindings={bindings} />}
-      <UISection id="master-category:visual" title="Visual">
+      <UISection id="master-category:visual" title="Visuals" defaultExpanded={false} expanded={ctx.location ? true : undefined}>
+      {visualStatus}
       {bindings && <CoupledProperties bindings={bindings} category="visual" />}
       <EmbeddedGroup id={`section:${stableUIHash(originalParent ?? originalHome)}:appearance-targeting-sets`} title="Appearance targeting sets" className="ui-section" nativeTag="transparent">
         <div className="appearance-sets">
@@ -317,6 +352,7 @@ export function MasterController({ bindings }: { bindings?: PropertyBindings }) 
           {(children.get("") ?? []).map((t) => row(t, 0))}
         </div>
       </EmbeddedGroup>
+      {visualTools}
       </UISection>
     </section>
   );

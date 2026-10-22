@@ -33,7 +33,7 @@ try {
   const panes = page.locator('.ui-dock-pane');
   const a = await panes.nth(0).boundingBox(), b = await panes.nth(1).boundingBox();
   assert.ok(a.width > 150 && b.width > 150 && Math.abs(a.height-b.height) < 2);
-  assert.ok(await page.locator('[role="dialog"][aria-label="Theme / aesthetics"]').isVisible());
+  assert.ok(await page.locator('[role="dialog"][aria-label="Master controller"]').isVisible());
   assert.ok(await page.locator('[role="dialog"][aria-label="Workspace settings"]').isVisible());
   await drag('[data-ui-drag="frame:Tools"]', b.x + b.width/2, b.y + 15);
   assert.match(await page.locator('.ui-snap-preview').innerText(), /Group as tabs/);
@@ -41,7 +41,7 @@ try {
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('omnium.ui.layout.v1')).frames.find(frame => frame.dockGroup)?.dockLayout.second.keys?.length === 2);
   assert.equal(await page.locator('[role="tab"][data-ui-drag="frame:Tools"]').getAttribute('aria-selected'), 'true');
   await page.locator('[role="tab"][data-ui-drag="window:theme"]').click();
-  await page.locator('[role="dialog"][aria-label="Theme / aesthetics"]').waitFor();
+  await page.locator('[role="dialog"][aria-label="Master controller"]').waitFor();
   const divider = page.locator('.ui-dock-divider'), dividerBefore = await divider.boundingBox();
   await page.mouse.move(dividerBefore.x+3, dividerBefore.y+100); await page.mouse.down();
   await page.mouse.move(dividerBefore.x-65, dividerBefore.y+100, {steps: 4}); await page.mouse.up();
@@ -60,7 +60,7 @@ try {
   const saved = await state();
   await page.reload(); await page.locator('.ui-dock-split, .ui-dock-pane').first().waitFor();
   assert.deepEqual((await state()).frames, saved.frames);
-  assert.ok(await page.locator('[role="dialog"][aria-label="Theme / aesthetics"]').isVisible());
+  assert.ok(await page.locator('[role="dialog"][aria-label="Master controller"]').isVisible());
   // Edge docks reserve space rather than covering native panels, the canvas, or floats.
   await page.waitForFunction(() => {
     const layout = JSON.parse(localStorage.getItem('omnium.ui.layout.v1'));

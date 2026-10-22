@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
 import { ownerOf } from "../ui/layout";
 import {
@@ -26,6 +26,7 @@ export type AppearanceBridge = {
   base: Appearance;
   commit: (state: Controller) => void;
   preview: (state: Controller | null) => void;
+  inspect?: (key: string) => void;
   reveal?: (path: string[] | null) => void;
   fonts?: { id: string; name: string }[];
 };
@@ -63,6 +64,11 @@ export function AppearanceProvider({
     preview: () => {},
   };
   const activeBridge = bridge ?? bridgeFallback;
+  const [visualInspection, setVisualInspection] = useState("");
+  const inspect = useRef(activeBridge.inspect); inspect.current = activeBridge.inspect;
+  const inspectedFunctions = [...ui.selectedFunctions].sort().join("|");
+  const inspectionKey = visualInspection || inspectedFunctions ? `${visualInspection}::${inspectedFunctions}` : "";
+  useEffect(() => { inspect.current?.(inspectionKey); }, [inspectionKey]);
   const state = activeBridge.base.controller ?? loadController(undefined);
   const targets = useMemo(
     () =>
@@ -169,7 +175,7 @@ export function AppearanceProvider({
     plug: (id, property) => activeBridge.commit(toggleRule(state, "disconnected", id, property)),
   };
   return <Context.Provider value={bridge ? value : null}>{bridge
-    ? <VisualSelectionProvider>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
+    ? <VisualSelectionProvider onInspect={setVisualInspection}>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
 }
 export function basesForOwner(owner: string, control = false): RegisteredTarget[] {
   const prefix = owner.startsWith("function:") ? (control ? "ui.fields." : "ui.buttons.") : "ui.";

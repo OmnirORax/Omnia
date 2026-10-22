@@ -13,6 +13,7 @@ export type PropertyUse = { property: string | PropertyDefinition; initial?: Pro
 export type ConsumerDefinition = {
   id: string; label: string; owner: string;
   locator?: string;
+  controls?: readonly string[];
   group: Category[]; properties: readonly PropertyUse[];
 };
 export type CoupledConsumer = Omit<ConsumerDefinition, "properties"> & {

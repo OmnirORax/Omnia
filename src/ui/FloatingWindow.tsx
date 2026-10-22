@@ -82,7 +82,12 @@ export function FloatingWindow({
   }, [id]);
   const [z, setZ] = useState(nextWindowLayer);
   useLayoutEffect(() => {
-    if (!openAtCursor || owner) return;
+    if (!openAtCursor) {
+      // Reveal a persistent controller without moving it or writing its geometry.
+      if (openingKey !== undefined) setZ(nextWindowLayer());
+      return;
+    }
+    if (owner) return;
     const point = cursorPosition();
     ui.update(layout => {
       const current = layout.windows[id] ?? initial;

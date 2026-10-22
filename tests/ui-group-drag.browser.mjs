@@ -22,7 +22,8 @@ try {
     waitUntil: "domcontentloaded",
     timeout: 20000,
   });
-  await p.getByRole("region", { name: "Master appearance controller" }).waitFor();
+  await p.getByRole("region", { name: "Master controller" }).waitFor();
+  if (await p.getByRole("button", { name: "Visuals", exact: true }).getAttribute("aria-expanded") === "false") await p.getByRole("button", { name: "Visuals", exact: true }).click();
   const root = (id) => p.locator(`[data-ui-inline-group="window:property:master:${id}"]`);
   const handle = (id) => root(id).locator(":scope > .property-node-heading > button");
   await handle("futureGroup").waitFor();
@@ -110,7 +111,8 @@ try {
   await handle("futureGroup").click({ modifiers: ["Shift"] });
   assert.equal(await root("opacity").locator('input[type="range"]').first().isVisible(), true);
   await p.reload();
-  await p.getByRole("region", { name: "Master appearance controller" }).waitFor();
+  await p.getByRole("region", { name: "Master controller" }).waitFor();
+  if (await p.getByRole("button", { name: "Visuals", exact: true }).getAttribute("aria-expanded") === "false") await p.getByRole("button", { name: "Visuals", exact: true }).click();
   assert.equal(
     await root("futureGroup")
       .locator('[data-ui-inline-group="window:property:master:opacity"]')

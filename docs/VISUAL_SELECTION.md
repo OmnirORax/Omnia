@@ -29,6 +29,10 @@ the saved bindings. Recording a binding pauses picking and cannot invoke the
 recorded command through the trailing click/contextmenu. See `SHORTCUTS.md` for
 the required integration path and CI architecture check for future features.
 
+Accepted selections also reveal Selected properties in Master controller. This
+reuses the same selected-part editor as the right-click dialog and filters by real
+capabilities. Hover-only candidates do not change that inspector's targets.
+
 The symbol has independent choices:
 
 - **Ring:** choose or replace the boundary. The ring stays active after clicking

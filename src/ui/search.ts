@@ -10,7 +10,7 @@ export type SearchReveal = { path: string[] };
 export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; appearance?:AppearanceLocation };
 const titles: Record<string, string> = {
   [`window:${APPEARANCE_HIERARCHY_ID}`]: "Visual hierarchy",
-  "window:theme": "Theme / aesthetics", "window:settings": "Workspace settings",
+  "window:theme": "Master controller", "window:settings": "Workspace settings",
   "window:shortcuts": "Shortcut display", "window:panel:menu:file": "File",
   "window:panel:menu:create": "Create", "window:panel:menu:view": "View",
   "window:panel:menu:workspace": "Workspace", "window:panel:reuse": "Reuse identity",
@@ -40,7 +40,7 @@ function nativeHome(fn: UIFunction): string {
   return "workspace";
 }
 function sectionFor(id: string): string | undefined {
-  if(id.startsWith('ui:master:'))return 'Master appearance controller';
+  if(id.startsWith('ui:master:'))return 'Master controller';
   if (/^ui:(animation:|appearance:(effect$|effectIntensity$|density$|motion$))/.test(id)) return "Animations";
   if (/^ui:themePreset:/.test(id)) return "Theme templates";
   if (/^ui:appearance:(windowOpacity|blur)$/.test(id)) return "Windows";

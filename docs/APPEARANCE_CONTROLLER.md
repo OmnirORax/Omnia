@@ -1,6 +1,6 @@
 # Shared appearance controller
 
-Open **Theme / aesthetics**. Choose a property above the tree; branches that support it light up. All color inputs are round swatches.
+Open **Master controller → Visuals**. Choose a property above the tree; branches that support it light up. All color inputs are round swatches.
 
 **Animation is an adjuster, like Color.** There is no VFX target branch. Choose **Animation**, target Text, Icons, window surfaces, nodes, binders or the workspace background, then choose an effect. **Lightning text / icons** fills glyphs with moving electric ink; **Lightning outlines** traces their contours. Glyph-only effects exclude incompatible surface targets. Animation speed, density, intensity and color use the same hierarchy, selections and locks.
 
@@ -24,7 +24,7 @@ text and icons expose the properties supported by their existing adapters. See
 
 Right-click a frame handle or button and open its existing appearance editor for local refinements. Choose the part and property there. A stable reference to the resident appears under the corresponding category → **Individually customized**, marked **◆** for each locally refined property. An eligible categorical edit replaces that refinement; lock it to protect it. Hover its master entry to reveal and pulse the actual resident, restoring transient expansion and scrolling afterward. Search uses the same reveal mechanism.
 
-**Show individuals** is off by default. Enable it in Visual hierarchy to display individually customized entries and their groups, including eligible individual rigidity entries. The setting is saved with the UI layout. Hiding these rows preserves their customizations and keeps category targeting and hover behavior intact.
+**Show individuals** is off by default. Enable it in Visuals → Visual hierarchy to display individually customized entries and their groups, including eligible individual rigidity entries. The setting is saved with the UI layout. Hiding these rows preserves their customizations and keeps category targeting and hover behavior intact.
 
 Fields has one shared Background and one Contour control covering single-line, multiline, search, numeric and dropdown fields. Existing type-specific paint, locks, exclusions and local customizations remain supported internally; they do not generate repeated field-type branches. Shared edits reach the existing bindings, while local editors offer the two shared field parts. Checkboxes, sliders and swatches retain their distinct controls.
 
@@ -90,9 +90,28 @@ Old customized headers retain their icons and local appearance compatibility ide
 
 `tests/ui-group-drag.browser.mjs` is a focused Vite-dev-server regression (`ATLAS_URL`): actual Opacity/Blur payloads, collapse/reopen, cycle rejection, UI undo/redo, reload and a fixture-only newly introduced group using the same component path.
 
+## Selection inspection in Master controller
+
+Accepted visual-selector selections and selected UI functions bring up Selected
+properties in Master controller. A closed controller is revealed transiently, with
+no UI history/persistence write for inspection. Closing it dismisses that reveal
+until a new selection. Show all controls dismisses the current inspection without
+clearing the selection or changing values. Hover-only candidate previews do not
+replace the accepted selection's properties.
+
+The inspector and contextual Selected appearance dialog share SelectedProperties,
+PropertyTree and PropertyEditor. Exact selected-part capabilities determine the
+available visual controls, and explicit function-to-consumer declarations add
+coupled nonvisual controls (currently the placement radius/clearance functions).
+Edits retain selected-part scope, protections, shared drafts and state-owner
+transactions. Merely inspecting does not create local instances. Inspector controls
+are tool chrome and preserve the active UI selection while being used. General
+3D/graph selection and unmigrated function fields still need their own capability
+and state-adapter integration; they are not inferred from a screenshot or label.
+
 ## Shared function/property integration
 
-The master panel now groups existing appearance controls under Visual and
+The master panel now groups existing appearance controls under Visuals and
 nonvisual coupled properties under generated categories (currently Spatial).
 The shared `PROPERTY_REGISTRY` contains the canonical definitions; appearance
 `PROPERTIES` is a compatibility view. Registered visual targets join the coupling
@@ -104,7 +123,7 @@ category/target projection and adapter coverage follow that declaration. See
 ## Mouse trail
 
 Mouse trail is a general pointer effect independent of selector activity. Find it
-in Visual hierarchy → Windows / frames / controls → Mouse. It reuses Animation:
+in Visuals → Visual hierarchy → Windows / frames / controls → Mouse. It reuses Animation:
 Off, Lightning outlines (Light) and Stars (Stardust), with shared speed, intensity,
 density, size, length and animation channels. Ordinary Color/Brightness/Opacity/
 Glow automatically couple to its animation channels; its renderer reads that same

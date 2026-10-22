@@ -1,5 +1,7 @@
 import { settingsPropertyBindings } from "./properties/settingsAdapter";
 import { CoupledField } from "./properties/CoupledProperties";
+import { EmbeddedGroup } from "./ui/EmbeddedGroup";
+import { stableUIHash } from "./ui/identity";
 import { UISection } from "./ui/UISection";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
@@ -89,7 +91,19 @@ function Workbench() {
   const { layout: savedUILayout, update: updateUI, savedSettings, setSettings } = ui;
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchReveal, setSearchReveal] = useState<SearchReveal | null>(null);
-  const uiLayout = useMemo(() => revealSearchPath(savedUILayout, searchReveal), [savedUILayout, searchReveal]);
+  const [masterInspection, setMasterInspection] = useState("");
+  const [dismissedInspection, setDismissedInspection] = useState("");
+  useEffect(() => { setDismissedInspection(""); }, [masterInspection]);
+  const uiLayout = useMemo(() => {
+    let revealed = savedUILayout;
+    if (masterInspection && masterInspection !== dismissedInspection) {
+      const path: string[] = [], seen = new Set<string>();
+      let owner: string | undefined = "window:theme";
+      while (owner && !seen.has(owner)) { seen.add(owner); path.unshift(owner); owner = ownerOf(savedUILayout, owner); }
+      revealed = revealSearchPath(revealed, { path });
+    }
+    return revealSearchPath(revealed, searchReveal);
+  }, [savedUILayout, searchReveal, masterInspection, dismissedInspection]);
   const [colorPreview, setColorPreview] = useState<ColorPreview | null>(null);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -182,8 +196,11 @@ function Workbench() {
   const [target, setTarget] = useState("");
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
   const setSettingsOpen = (value: boolean) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@settings": value } }));
-  const themeOpen = uiLayout.panels["@theme"] ?? true;
-  const setThemeOpen = (value: boolean) => updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@theme": value } }));
+  const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
+  const setThemeOpen = (value: boolean) => {
+    if (!value) setDismissedInspection(masterInspection);
+    updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@theme": value } }));
+  };
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
   const captureLabel = useRef("");
@@ -1048,13 +1065,13 @@ function Workbench() {
   replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
-  replaceFunction("appearance", "Theme / aesthetics", <button onClick={() => setThemeOpen(true)}>Theme / aesthetics</button>);
+  replaceFunction("appearance", "Master controller", <button onClick={() => setThemeOpen(true)}>Master controller</button>);
   // Old resident IDs keep their placement and appearance, while editing the same
   // registry as the master controller. Unused legacy controls leave the library.
   const savedThemeControls = new Set([...Object.keys(uiLayout.items), ...[...Object.values(uiLayout.windows), ...uiLayout.frames].flatMap(frame => (frame.members ?? []).filter(m => m.kind === "function").map(m => m.id))]);
   for(const property of PROPERTIES.filter(property => property.category?.id === "visual"))replaceFunction(`ui:master:${property.id}`, property.label, <AppearanceAdjustment property={property.id}/>, true);
   for(const [id,control] of Object.entries(LEGACY_CONTROLS))if(savedThemeControls.has(id))replaceFunction(id,control.label,<label>{control.label}<AppearanceAdjustment property={control.property} target={control.target}/></label>,true);
-  for(const id of ["ui:animation:scope","ui:animation:inherit","ui:animation:targets","ui:appearance:scope","ui:appearance:inherit","ui:atmosphere"])if(savedThemeControls.has(id))replaceFunction(id,"Master appearance controller",<button onClick={()=>setThemeOpen(true)}>Open appearance tree</button>);
+  for(const id of ["ui:animation:scope","ui:animation:inherit","ui:animation:targets","ui:appearance:scope","ui:appearance:inherit","ui:atmosphere"])if(savedThemeControls.has(id))replaceFunction(id,"Master controller",<button onClick={()=>setThemeOpen(true)}>Open Master controller</button>);
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => setSettings(old=>({...old,appearance:{...old.appearance,theme:event.target.value as WorkspaceSettings["appearance"]["theme"]}}))}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>,true);
   replaceFunction("ui:appearance:importFont", "Import font", <button disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
   replaceFunction("ui:resetAppearance", "Preview default appearance", <button onClick={()=>restoreAppearance(defaultSettings().appearance)}>Preview default appearance</button>);
@@ -1104,7 +1121,7 @@ function Workbench() {
   for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace appearance={{ inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -2072,17 +2089,18 @@ function Workbench() {
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
-      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} title="Theme / aesthetics" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
-        <p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>
-        <MasterController bindings={propertyBindings} />
-        <UISection id="theme-utilities" title="Theme utilities">
+      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
+        <MasterController bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
+        {/* Keep the original theme subsection identities when nesting them in Visuals. */}
+        <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-utilities`} title="Theme utilities" className="ui-section" nativeTag="transparent">
           {["ui:appearance:apply", "ui:appearance:discard", "ui:appearance:recovery", "ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
-        </UISection>
-        <UISection id="theme-templates" title="Theme templates">
+        </EmbeddedGroup>
+        <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-templates`} title="Theme templates" className="ui-section" nativeTag="transparent">
           <p>Save colors, window appearance and animations together.</p>
           {["name", "select", "save", "apply", "delete", "export", "import"].map(action => <FunctionControl key={action} id={`ui:themePreset:${action}`} />)}
 
-        </UISection>
+        </EmbeddedGroup>
+        </MasterController>
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
         <UISection id="spatial-settings" title="Spatial settings">
