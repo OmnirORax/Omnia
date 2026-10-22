@@ -1,3 +1,5 @@
+import { ConsumerProperties } from "../properties/ConsumerProperties";
+import { resolvePropertyTarget } from "../properties/registry";
 import { CoupledProperties, type PropertyBindings } from "../properties/CoupledProperties";
 import { transientReveal, type RevealSession } from "../ui/transientReveal";
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -34,22 +36,25 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   const ctx = useAppearance()!;
   const ui = useUI();
   const visualSelection = useVisualSelection();
+  const logicalTargets = (visualSelection?.objects ?? []).map(id => resolvePropertyTarget(PROPERTY_REGISTRY, id));
+  const selectingObject = logicalTargets.length > 0;
   const selectedFunctionKey = [...ui.selectedFunctions].sort().join("|");
   const selectedParts = useMemo(() => {
-    const picked = [...(visualSelection?.parts ?? [])];
-    if (ui.selectedFunctions.size) picked.push(...collectVisualParts().filter(part => {
+    const picked = selectingObject ? [] : [...(visualSelection?.parts ?? [])];
+    if (!selectingObject && ui.selectedFunctions.size) picked.push(...collectVisualParts().filter(part => {
       const functionId = part.element.closest("[data-ui-function]")?.getAttribute("data-ui-function");
       return !!functionId && ui.selectedFunctions.has(functionId);
     }));
     return [...new Map(picked.flatMap(part => {
       const selected = describeSelectedPart(part); return selected ? [[selectedPartId(selected), selected] as const] : [];
     })).values()];
-  }, [visualSelection?.parts, selectedFunctionKey]);
-  const selectedFunctions = new Set([...ui.selectedFunctions,
+  }, [visualSelection?.parts, selectedFunctionKey, selectingObject]);
+  const selectedFunctions = new Set([...(selectingObject ? [] : ui.selectedFunctions),
     ...selectedParts.flatMap(part => part.owner.startsWith("function:") ? [part.owner.slice(9)] : [])]);
-  const selectedConsumers = PROPERTY_REGISTRY.consumers.filter(consumer =>
-    selectedFunctions.has(consumer.id) || consumer.controls?.some(id => selectedFunctions.has(id))).map(consumer => consumer.id);
-  const scopeKey = [visualSelection?.boundary?.key ?? "", ...selectedParts.map(selectedPartId), ...selectedConsumers, ...ui.selectedFunctions].filter(Boolean).sort().join("|");
+  const selectedConsumers = [...new Set([...logicalTargets.flatMap(target => target.consumers),
+    ...PROPERTY_REGISTRY.consumers.filter(consumer => selectedFunctions.has(consumer.id) || consumer.controls?.some(id => selectedFunctions.has(id))).map(consumer => consumer.id)])];
+  const appearanceConsumers = selectedConsumers.filter(id => PROPERTY_REGISTRY.consumer(id)?.owner === "appearance");
+  const scopeKey = [visualSelection?.inspectionKey ?? "", visualSelection?.boundary?.key ?? "", ...selectedParts.map(selectedPartId), ...selectedConsumers, ...ui.selectedFunctions].filter(Boolean).sort().join("|");
   const [dismissedScope, dismissScope] = useState<string | null>(null);
   const inspecting = !!scopeKey && dismissedScope !== scopeKey;
   useEffect(() => { if (!scopeKey) dismissScope(null); }, [scopeKey]);
@@ -274,10 +279,11 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   };
   return (
     <section className="appearance-controller" aria-label="Master controller">
-      {inspecting && <div data-visual-selector className="ui-selection-tools"><UISection id="master-selection" title="Selected properties" expanded>
+      {inspecting && <div data-visual-selector className="ui-selection-tools"><UISection id="master-selection" title={selectingObject ? logicalTargets.map(target => target.label).join(" · ") : "Selected properties"} expanded>
         <div>
           <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />
           {selectedParts.length > 0 && <SelectedProperties parts={selectedParts} scope="master-selection" />}
+          {appearanceConsumers.length > 0 && <ConsumerProperties consumers={appearanceConsumers} />}
           {bindings && selectedConsumers.length > 0 && <CoupledProperties bindings={bindings} selectedConsumers={selectedConsumers} scope="inspection" />}
           {!selectedParts.length && !selectedConsumers.length && <p>Include registered parts to show their settable properties.</p>}
         </div>

@@ -129,14 +129,18 @@ templates; Spatial contains coupled placement settings. Categories follow actual
 registered properties; Physics is not an empty placeholder. Stable window/action
 IDs remain unchanged, and saved user labels still take precedence. Accepted
 selector and UI-function selections reveal a Selected properties inspector,
-using registered capabilities and independent values. Reveal is transient;
+using discovered capabilities and independent values. The stationary selector
+also has a Mouse button: logical object/group selection resolves existing consumer
+couplings, exposing Mouse trail without clicking the native cursor. Reveal is transient;
 Show all controls restores the general panel. Hover-only candidates do not
 replace the accepted selection, and unmigrated graph/function fields still need
 capability/adapter integration.
 
 ## Appearance: definitions, capabilities and independent values
 
-PROPERTIES is the current visual property pool. PropertyTree/PropertyEditor and
+PROPERTIES is a compatibility view of the shared property pool seeded in
+properties/catalog.ts. Co-located *.function.ts input modules are discovered
+automatically; there is no manually maintained central consumer list. PropertyTree/PropertyEditor and
 the master/contextual controllers provide shared editing. Targets declare which
 properties their adapters actually support. General paint, glyph ink, icons and
 surfaces are distinct; text styling must not accidentally recolor icon artwork.
@@ -221,7 +225,7 @@ entry points, not a replacement specification; follow dependencies only as neede
 | UI containers / arrangement | [layout.ts](../src/ui/layout.ts), [UIWorkspace.tsx](../src/ui/UIWorkspace.tsx), [docking.ts](../src/ui/docking.ts): ownership, live residents, pinning and committed layout. |
 | Drag / resize / camera interference | [pointerOwnership.ts](../src/ui/pointerOwnership.ts), [liveDrag.ts](../src/ui/liveDrag.ts), [transientStore.ts](../src/ui/transientStore.ts): physical gesture ownership vs temporary preview. |
 | Actions / shortcuts / discovery | [workspaceActions.ts](../src/workspaceActions.ts), [featureActions.ts](../src/featureActions.ts), [useFeatureActions.tsx](../src/ui/useFeatureActions.tsx): declarations vs runtime dispatch, saved bindings and live search metadata. |
-| Shared properties / coupling | [properties/registry.ts](../src/properties/registry.ts), [consumers.ts](../src/properties/consumers.ts), [appearance registry](../src/appearance/registry.ts), [model.ts](../src/appearance/model.ts), [resolve.ts](../src/appearance/resolve.ts): definition/capability, targeted write, independent values, read/application path. Read SHARED_PROPERTIES.md before generalizing these. |
+| Shared properties / coupling | [properties/registry.ts](../src/properties/registry.ts), [function inputs](../src/properties/function.ts), [appearance registry](../src/appearance/registry.ts), [model.ts](../src/appearance/model.ts), [resolve.ts](../src/appearance/resolve.ts): definition/capability, targeted write, independent values, read/application path. Read SHARED_PROPERTIES.md before generalizing these. |
 | Appearance controls / persistence | [propertyTree.ts](../src/appearance/propertyTree.ts), [Controls.tsx](../src/appearance/Controls.tsx), [session.ts](../src/appearance/session.ts), [themeTemplates.ts](../src/themeTemplates.ts): shared editors, draft lifecycle and portable values. |
 | Selector behavior | [VisualSelector.tsx](../src/appearance/VisualSelector.tsx), [visualSelection.ts](../src/appearance/visualSelection.ts), [selectionGeometry.ts](../src/appearance/selectionGeometry.ts): accepted state, candidate feedback, matching and boundaries. |
 | Undo / settings | [ui/history.ts](../src/ui/history.ts), [appearance/session.ts](../src/appearance/session.ts), [App.tsx](../src/App.tsx): verify the actual commit path and which history owns the requested change. |

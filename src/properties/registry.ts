@@ -151,3 +151,13 @@ export function bindStateProperties<State>(registry: PropertyRegistry, owner: st
     if (writes.length) update(current => writes.reduce((next, write) => write.adapter.write(next, write.value), current));
   } };
 }
+
+/** Logical objects/devices use the same consumer/group identities as the hierarchy. */
+export function resolvePropertyTarget(registry: PropertyRegistry, id: string) {
+  const exact = registry.consumer(id);
+  if (exact) return { id, label: exact.label, consumers: [exact.id] };
+  const consumers = registry.consumers.filter(consumer => consumer.group.some(group => group.id === id));
+  const labels = new Set(consumers.flatMap(consumer => consumer.group.filter(group => group.id === id).map(group => group.label)));
+  if (!consumers.length || labels.size !== 1) throw new Error(`Unknown or ambiguous property target: ${id}`);
+  return { id, label: [...labels][0], consumers: consumers.map(consumer => consumer.id) };
+}

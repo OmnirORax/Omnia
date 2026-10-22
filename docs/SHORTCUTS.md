@@ -66,7 +66,8 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 The complete command group includes toggling configuration / selection (MB3), cycling patterns
 (E), editing accepted appearance (MB2), disable/clear (Esc), selection undo/redo
 (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y) and unassigned commands for the ring, inside/outside,
-include/exclude, clear, aiming, finite bounds and color termination. Their buttons
+include/exclude, clear, aiming, finite bounds, color termination and Select Mouse
+for logical-object inspection. Their buttons
 and input paths invoke the same handlers. A selected appearance editor retains
 normal property editing and its own input-preview lifecycle.
 

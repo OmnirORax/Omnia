@@ -888,6 +888,9 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selector-symbol [role="button"]:focus-visible { color: #fff; }
 .visual-selector-symbol [role="button"]:focus-visible .selector-region-mark { opacity: .7; }
 
+.visual-selector-mouse { position: absolute; right: -8px; top: 108px; width: 26px; height: 26px; padding: 4px; border: 1px solid currentColor; border-radius: 50%; color: inherit; background: var(--omnium-base,#07131c); }
+.visual-selector-mouse svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.visual-selector-mouse[aria-pressed="true"] { color: #66efab; box-shadow: 0 0 7px currentColor; }
 .visual-selector-actions { position: absolute; inset: 0; pointer-events: none; }
 .visual-selector-actions > * { position: absolute; pointer-events: auto; }
 .visual-selector-actions button:nth-of-type(1) { left: -8px; top: 40px; }

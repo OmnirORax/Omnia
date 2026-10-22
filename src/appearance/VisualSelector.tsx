@@ -9,6 +9,8 @@ import { SelectorSymbol, type SelectorConfiguration, type SelectorOperation } fr
 import { SelectorCursor } from "./SelectorCursor";
 import { SelectionController } from "./SelectionController";
 import { describeSelectedPart } from "./selectedParts";
+import { PROPERTY_REGISTRY } from "./registry";
+import { resolvePropertyTarget } from "../properties/registry";
 import { selectedPartTarget } from "./selectionCoupling";
 import { boxFromPoints, nextPatternMode, regionAllows, relativePoint, toggleSelectionRegion, type Point, type PatternMode, type SelectionSide } from "./selectionGeometry";
 import {
@@ -17,13 +19,13 @@ import {
   type SelectionBoundary, type SelectionRule, type VisualPart, type VisualRole,
 } from "./visualSelection";
 
-type SelectionState = { boundary: SelectionBoundary | null; rules: SelectionRule[] };
-type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void };
+type SelectionState = { boundary: SelectionBoundary | null; rules: SelectionRule[]; objects: string[] };
+type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string };
 type Pick = { boundary: SelectionBoundary; rule: SelectionRule | null; setBoundary: boolean };
 type Phase = "off" | "configure" | "aim" | "edit";
 const Context = createContext<VisualSelection | null>(null);
 export const useVisualSelection = () => useContext(Context);
-const emptySelection = (): SelectionState => ({ boundary: null, rules: [] });
+const emptySelection = (): SelectionState => ({ boundary: null, rules: [], objects: [] });
 const noParts: VisualPart[] = [];
 const ruleKey = (rule: SelectionRule | null) => rule ? `${rule.include}:${rule.boundary.key}:${rule.region ?? "inside"}:${rule.role ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.line ?? null)}:${rule.scope?.boundary.key ?? ""}:${rule.scope?.region ?? ""}` : "neutral";
 const pickKey = (pick: Pick | null) => pick ? `${pick.setBoundary}:${pick.boundary.key}:${ruleKey(pick.rule)}` : "";
@@ -43,6 +45,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const [catalog, setCatalog] = useState<VisualPart[]>([]);
   const [candidate, setCandidate] = useState<Pick | null>(null);
   const [geometry, setGeometry] = useState(0);
+  const [inspectionRequest, requestInspection] = useState(0);
   const point = useRef<{ x: number; y: number; element: Element } | null>(null);
   const depth = useRef(0), candidateRef = useRef<Pick | null>(null);
   const selectedRef = useRef<VisualPart[]>([]);
@@ -50,7 +53,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const regionBoundary = useRef<SelectionBoundary | null>(null);
   const latest = useRef({ phase, configuration, catalog, selection });
   latest.current = { phase, configuration, catalog, selection };
-  const hasSelection = () => !!latest.current.selection.boundary || selectedRef.current.length > 0;
+  const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0;
   const setPreview = (next: Pick | null) => {
     if (pickKey(next) === pickKey(candidateRef.current)) return;
     candidateRef.current = next; setCandidate(next);
@@ -62,7 +65,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     return { states, index: states.length - 1 };
   });
   const append = (rule: SelectionRule) => record(current => ruleKey(current.rules.at(-1) ?? null) === ruleKey(rule) ? current : {
-    boundary: current.boundary ?? rule.boundary, rules: [...current.rules, rule],
+    boundary: current.boundary ?? rule.boundary, rules: [...current.rules, rule], objects: [],
   });
   const previewAt = (element: Element, x: number, y: number) => {
     const current = latest.current, config = current.configuration;
@@ -125,7 +128,15 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     setPreview(part ? { boundary, setBoundary: false, rule: { include: config.operation === "include", boundary, region,
       ...(config.pattern === "pattern" ? { role: config.patternRole ?? part.role } : { part: part.key }) } } : null);
   };
-  const clear = () => { gesture.current = null; regionBoundary.current = null; record(current => current.boundary || current.rules.length ? emptySelection() : current); setPreview(null); };
+  const clear = () => { gesture.current = null; regionBoundary.current = null; record(current => current.boundary || current.rules.length || current.objects.length ? emptySelection() : current); setPreview(null); };
+  const selectObject = (id: string) => {
+    resolvePropertyTarget(PROPERTY_REGISTRY, id);
+    gesture.current = null; regionBoundary.current = null; setPreview(null);
+    record(current => current.objects.length === 1 && current.objects[0] === id && !current.boundary && !current.rules.length
+      ? current : { ...emptySelection(), objects: [id] });
+    requestInspection(value => value + 1);
+    setPhase("configure");
+  };
   const close = () => { gesture.current = null; setPhase("off"); setPreview(null); };
   const disable = () => { close(); clear(); };
   const undo = () => { gesture.current = null; setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); setPreview(null); };
@@ -133,6 +144,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   const aim = () => { setPreview(null); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;
+    if (latest.current.selection.objects.length) { requestInspection(value => value + 1); return; }
     setPreview(null); setPosition({ x, y }); setPhase("edit");
   };
   const accept = () => {
@@ -144,7 +156,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
         const rules = pick.rule ? [pick.rule] : [];
         if (current.boundary?.key === pick.boundary.key && current.rules.length === rules.length &&
           ruleKey(current.rules[0] ?? null) === ruleKey(pick.rule)) return current;
-        return { boundary: pick.boundary, rules };
+        return { boundary: pick.boundary, rules, objects: [] };
       });
     } else if (pick.rule) append(pick.rule);
     setPreview(null);
@@ -188,6 +200,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       gesture.current = null; setCatalog(collectVisualParts()); setPosition(p); setPhase("configure"); setPreview(null);
       depth.current = 0; point.current = { ...p, element };
     } },
+    "selector.selectMouse": { enabled: canConfigure, run: () => selectObject("ui.mouse") },
     "selector.pattern": { enabled: canConfigure, run: cyclePattern },
     "selector.edit": { enabled: hasSelection(), run: input => { const p = inputPosition(input); gesture.current = null; edit(p.x, p.y); } },
     "selector.cancel": { enabled: phase !== "off" || hasSelection(), run: disable },
@@ -376,8 +389,8 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
       document.removeEventListener("visibilitychange", hidden);
     };
   }, []);
-  const inspectionKey = useMemo(() => selection.boundary || selection.rules.length
-    ? `${selection.boundary?.key ?? ""}:${selection.rules.map(ruleKey).join("|")}` : "", [selection]);
+  const inspectionKey = useMemo(() => selection.boundary || selection.rules.length || selection.objects.length
+    ? `${inspectionRequest}:${timeline.index}:${selection.objects.join("|")}:${selection.boundary?.key ?? ""}:${selection.rules.map(ruleKey).join("|")}` : "", [selection, timeline.index, inspectionRequest]);
   useEffect(() => { onInspect?.(inspectionKey); }, [inspectionKey, onInspect]);
   const active = phase !== "off" || !!selection.boundary;
   useEffect(() => {
@@ -411,7 +424,7 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
   // Ring center, rather than the asymmetric SVG box, is centered on the MB3 point.
   const left = Math.max(8, Math.min(position.x - 88, innerWidth - 184));
   const top = Math.max(8, Math.min(position.y - 84, innerHeight - 184));
-  return <Context.Provider value={{ ...selection, parts: matches.included, properties, clear }}>
+  return <Context.Provider value={{ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey }}>
     {children}
     {active && phase !== "edit" && createPortal(<VisualSelectionOverlay selected={matches.included} excluded={matches.excluded} preview={preview}
       candidate={preview.length || candidate?.setBoundary || guide ? candidate?.rule ?? null : null} guide={guide} guides={guides}
@@ -436,6 +449,11 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
             title="Sample the starting part's color and role; stop independently in each direction at the first differently colored peer. Empty gaps do not stop it. Start on a painted part."
             onClick={() => shortcuts.invoke("selector.colorStop")}>◐</button>
         </div>}
+      <button type="button" className="visual-selector-mouse" data-ui-id="select-mouse" aria-label="Select Mouse"
+        aria-pressed={selection.objects.includes("ui.mouse")} title="Select Mouse and inspect its coupled properties in Master controller"
+        onClick={() => shortcuts.invoke("selector.selectMouse")}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="6" /><path d="M12 2v7M6 9h12" /></svg>
+      </button>
       <div className="visual-selector-actions">
         <button type="button" aria-label="Undo selection operation" title={`Undo selection (${shortcuts.binding("selector.undo") || "Unassigned"})`} disabled={timeline.index === 0} onClick={() => shortcuts.invoke("selector.undo")}>↶</button>
         <button type="button" aria-label="Redo selection operation" title={`Redo selection (${[shortcuts.binding("selector.redo"), shortcuts.binding("selector.redoAlternate")].filter(Boolean).join(" / ") || "Unassigned"})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>

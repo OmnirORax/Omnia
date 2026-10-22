@@ -35,6 +35,16 @@ capabilities. Hover-only candidates do not change that inspector's targets.
 
 The symbol has independent choices:
 
+- **Mouse button:** select the logical Mouse object. Master controller resolves
+  the coupled consumers of the existing Mouse group (currently Mouse trail),
+  showing supported properties through the shared editors. The moving native
+  cursor and trail remain pointer-transparent. This pick replaces the current
+  accepted selection and shares its undo/redo/clear history. Selecting again or
+  invoking Edit requests inspection without saving appearance or another selection
+  history step. Logical targets can be selected through the context's generic
+  selectObject API; their capabilities come from the discovered function inputs.
+
+
 - **Ring:** choose or replace the boundary. The ring stays active after clicking
   or dragging a selection; press the ring again to turn boundary picking off.
   Hover previews the next boundary but only a click replaces the accepted one.

@@ -42,7 +42,7 @@ Theme/UI templates retain target sets, values, local references, locks and plugs
 
 ## Extension points
 
-- `src/appearance/registry.ts`: declare a property once (type, validation, limits, neutral value), and list it on applicable targets. Editors, search entries, target highlighting and per-property lock controls derive from this metadata.
+- `src/properties/catalog.ts` supplies existing shared definitions; actual inputs in `*.function.ts` modules reuse them or define unique properties once. Discovery handles registration/coupling. `src/appearance/registry.ts` projects visual targets and adapters; editors, search and property locks consume the shared metadata.
 - `model.ts`: pure targeting, propagation, rules and validated state normalization. Values are materialized on registered leaves so changing selection does not change presentation.
 - `resolve.ts`: resolve saved values, baseline fallbacks, bypass and computed renderer defaults. Computed defaults are never persisted.
 - `Styles.tsx`: declarative CSS target bindings and UI icon styling.
@@ -115,9 +115,9 @@ The master panel now groups existing appearance controls under Visuals and
 nonvisual coupled properties under generated categories (currently Spatial).
 The shared `PROPERTY_REGISTRY` contains the canonical definitions; appearance
 `PROPERTIES` is a compatibility view. Registered visual targets join the coupling
-graph while preserving their IDs and existing persistence. New consumers declare
-inputs through `src/properties/consumers.ts`; compatible property lookup,
-category/target projection and adapter coverage follow that declaration. See
+graph while preserving their IDs and existing persistence. Features define actual inputs once in co-located `*.function.ts` modules.
+Automatic discovery loads them and derives property coupling, category/target
+projection and state-adapter coverage; no second consumer list is maintained. See
 [Shared properties](SHARED_PROPERTIES.md) before adding another setter/editor.
 
 ## Mouse trail
@@ -130,3 +130,13 @@ Glow automatically couple to its animation channels; its renderer reads that sam
 mapping. The separate feature-specific editor section is removed. Values retain
 the appearance draft, locks, bypass, Apply/discard and theme serialization. The
 pointer-transparent renderer is bounded and respects reduced motion.
+
+## Inspect Mouse
+
+Press MB3 to open the stationary selector, then click its mouse-shaped button.
+The logical Mouse group is selected; Master controller reveals Mouse trail with
+Animation open and shows its other registered paint/motion properties. Edits use
+the existing values and appearance draft, and Apply still commits them. Clear/Esc
+releases the logical selection; selection undo/redo restores earlier targets.
+Selecting Mouse again or invoking Edit reopens inspection without changing values.
+The command is listed in shortcuts and can be assigned a binding.

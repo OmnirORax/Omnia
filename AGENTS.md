@@ -18,12 +18,13 @@ Essential invariants for every worker:
   values. It never means changing one automatically changes other consumers.
 - The general function/property registry and generated category/hierarchy paths
   are implemented, with incremental migration of existing features. Read [docs/SHARED_PROPERTIES.md](docs/SHARED_PROPERTIES.md)
-  before adding adjustable function inputs. Use `src/properties/consumers.ts` and
-  the shared registry: reference existing property IDs, or define a genuinely new
-  property once with its category/type/units. Supply a real adapter to its existing
-  state owner. Coupling generates discovery; do not add a parallel hierarchy row
-  or value store. Native button discovery is not property detection. The property
-  contract check runs in normal builds; extend coverage for new state owners.
+  before adding adjustable function inputs. Define their actual input/read/write
+  contract once in a co-located `*.function.ts` module using `defineFunction`.
+  Discovery loads those modules automatically; input keys reuse shared property
+  IDs and genuinely new input definitions join the pool/categories automatically.
+  Never maintain a second consumer/channel list or edit `functions.generated.ts`.
+  Native button discovery is not property detection. The property contract check
+  runs in normal builds; extend coverage for new state owners.
 
 # Shared visual editing architecture
 
@@ -43,7 +44,7 @@ Read `docs/VISUAL_SELECTION.md`, `docs/APPEARANCE_CONTROLLER.md` and
 component presentation or their editors.
 
 - Define properties once in the shared property pool (`PROPERTY_REGISTRY`); the
-  existing visual definitions seed it in `src/appearance/registry.ts`.
+  existing definitions seed it in `src/properties/catalog.ts`.
   Reuse the existing property when its meaning matches. A new feature must not
   introduce another Color/Opacity/etc. definition, value store or bespoke editor.
 - Components expose visual parts and renderer adapters through the shared target

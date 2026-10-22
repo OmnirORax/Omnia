@@ -15,6 +15,7 @@ export function PropertyTree({
   scope = "master",
   extraProperties = [],
   transient = false,
+  initialOpen,
 }: {
   selected: string;
   onSelect: (id: string) => void;
@@ -23,11 +24,12 @@ export function PropertyTree({
   scope?: string;
   extraProperties?: PropertyNode[];
   transient?: boolean;
+  initialOpen?: string[];
 }) {
   const ui = useUI(),
     ctx = useAppearance();
   const prefix = `@appearance-properties:${scope}:`;
-  const [localOpen, setLocalOpen] = useState(() => new Set(["color"]));
+  const [localOpen, setLocalOpen] = useState(() => new Set(initialOpen ?? ["color"]));
 
   const supported = (node: PropertyNode): boolean =>
     !available ||

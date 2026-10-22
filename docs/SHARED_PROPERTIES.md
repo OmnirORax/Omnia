@@ -86,11 +86,17 @@ authoring UI and broader inference remain future work:
   category. `define` reuses a compatible existing ID and rejects conflicting
   contracts. `couple` accepts shared IDs or new definitions, discovers new
   categories and publishes a consumer only after validation succeeds.
-- `src/properties/consumers.ts` declares new consumer channels once. Referencing a
-  property by ID couples to that exact shared meaning. Supplying a definition for
-  an existing ID performs compatibility checking before reuse; it does not create
-  a duplicate. Labels alone are never used to guess equivalence.
-- The existing visual definitions seed the same `PROPERTY_REGISTRY`; `PROPERTIES`
+- Functions define their real inputs once in co-located `*.function.ts` modules
+  through `defineFunction` (`src/properties/function.ts`). Input keys reference
+  existing property identities; new inputs include their definition inline. State
+  readers/writers are part of that same input, not repeated in another registry.
+- `scripts/discover-functions.mjs` automatically finds those modules and generates
+  the loader before dev, typechecking, model CI and both builds. Vite also discovers
+  additions/removals and reloads changed input modules. No central consumer list or
+  hand-maintained settings-adapter map remains. Definitions initialize before
+  coupling, including channel dependencies, so references do not depend on filename
+  order. Do not edit `functions.generated.ts` by hand.
+- Built-in definitions in `src/properties/catalog.ts` seed `PROPERTY_REGISTRY`; `PROPERTIES`
   is a compatibility view, not a second pool. Existing renderer target declarations
   also join the coupling graph automatically. Their IDs and fallback resolution
   remain intact.
@@ -127,11 +133,16 @@ property, and edit it through the shared visual controls.
 
 ## Adding a consumer
 
-For an existing property, add a consumer declaration using its canonical ID and
-supply its real input/state adapter. For a new property, supply its definition in
-the declaration, including meaningful units/category and a valid default. Another
-consumer can subsequently reference that ID. Do not add a parallel hierarchy row,
-property editor, persistence key or independent definition for the same meaning.
+Implement a configurable function in a `*.function.ts` module near the feature.
+Default-export `defineFunction({ id, label, owner, group, inputs })`. The function's
+runtime uses those same inputs (`readInputs` for resolved appearance, generated
+state adapters for other owners). Existing input keys couple automatically. For a
+new property, its input's `definition` supplies the type, units/category, bounds and
+default once; discovery adds it to the shared pool and controller. Other functions
+reference its key without repeating that definition. Legacy UI control identities
+can be associated through `controls`; generated master controls need no duplicate
+registration. Supply any actual state-owner integration once; do not add another
+consumer registry entry, setter map, hierarchy row or private editor.
 
 For example, a future function can declare a new numeric `physics.gravity`
 property in category `{ id: "physical", label: "Physical" }` with acceleration
@@ -139,8 +150,9 @@ units and valid bounds. That creates the pool entry/category. A second compatibl
 function references `physics.gravity`; each adapter reads/writes its own value.
 This example does not add a physics simulator or gravity setting to the product.
 
-The declaration is the detection boundary. Every future feature must use it;
-undeclared fields in arbitrary code cannot be discovered by this mechanism.
+Actual function input definitions are the detection boundary. Every future
+configurable function uses that path; discovery does not guess arbitrary local
+variables or assign semantics from names alone.
 Adapter validation establishes declared coverage, not a proof that every renderer
 is visually correct. User interaction checks still determine behavior and fit.
 
@@ -168,3 +180,15 @@ Selected parts expose the capabilities of their registered adapters; consumer
 The selection inspector reuses the contextual selected-part editor and generated
 coupled controls. Inspection is transient and does not customize an instance.
 Unregistered graph/functions require migration before their fields can appear.
+
+## Logical objects and self-selection
+
+A logical target is resolved by an existing coupled consumer ID or group ID through
+`resolvePropertyTarget`. There is no separate device/target property inventory.
+The selector's stationary Mouse button selects group `ui.mouse`, whose discovered
+consumers currently include Mouse trail. Master controller shows its real coupled
+properties through ConsumerProperties and the existing shared editors/state.
+Future consumers in that group appear automatically. Native cursor/trail graphics
+remain pointer-transparent; selecting a device does not depend on pixel hit tests.
+Logical picks share the selector's transient selection history, clear and undo/redo.
+Inspection/reopening alone never writes values or adds a history transaction.
