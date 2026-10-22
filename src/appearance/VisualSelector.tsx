@@ -39,6 +39,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const selectedRef = useRef<VisualPart[]>([]);
   const latest = useRef({ phase, configuration, catalog, selection });
   latest.current = { phase, configuration, catalog, selection };
+  const hasSelection = () => !!latest.current.selection.boundary || selectedRef.current.length > 0;
   const setPreview = (next: Pick | null) => {
     if (pickKey(next) === pickKey(candidateRef.current)) return;
     candidateRef.current = next; setCandidate(next);
@@ -79,7 +80,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   const redo = () => { setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); setPreview(null); };
   const aim = () => { setPreview(null); setPhase("aim"); };
   const edit = (x: number, y: number) => {
-    if (!selectedRef.current.length) return;
+    if (!hasSelection()) return;
     setPreview(null); setPosition({ x, y }); setPhase("edit");
   };
   const accept = () => {
@@ -138,12 +139,6 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let frame = 0, consumedUntil = 0;
     const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(selectorChrome);
-    const overSelection = (event: MouseEvent) => event.target instanceof Element && selectedRef.current.some(part => {
-      if (!part.element.contains(event.target as Element)) return false;
-      if (!part.range) return true;
-      return [...part.range.getClientRects()].some(rect => event.clientX >= rect.left && event.clientX <= rect.right &&
-        event.clientY >= rect.top && event.clientY <= rect.bottom);
-    });
     const down = (event: PointerEvent) => {
       if (!(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
       if (event.button === 1) {
@@ -157,7 +152,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
         point.current = { element: event.target, x: event.clientX, y: event.clientY };
         return;
       }
-      if (event.button === 2 && outsideChrome(event) && overSelection(event)) {
+      if (event.button === 2 && outsideChrome(event) && hasSelection()) {
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation();
         consumedUntil = 0;
@@ -225,7 +220,19 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
       }
     };
     const context = (event: MouseEvent) => {
-      if (latest.current.phase !== "off" && outsideChrome(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
+      if (!(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery") || !outsideChrome(event)) return;
+      if (hasSelection()) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        consumedUntil = 0;
+        if (latest.current.phase !== "edit") {
+          // Also support context-menu invocations without pointerdown (keyboard
+          // and platform gestures). Never require hitting a selected glyph.
+          const rect = event.target.getBoundingClientRect();
+          const keyboard = event.button !== 2 && event.clientX === 0 && event.clientY === 0;
+          actions.current.edit(keyboard ? rect.left + rect.width / 2 : event.clientX,
+            keyboard ? rect.top + rect.height / 2 : event.clientY);
+        }
+      } else if (latest.current.phase !== "off") { event.preventDefault(); event.stopImmediatePropagation(); }
     };
     // Native color pickers can blur the browser. Keep their editor mounted so
     // the normal preview/commit lifecycle can finish.
@@ -315,7 +322,7 @@ export function VisualSelectionProvider({ children }: { children: ReactNode }) {
           {matches.included.length}<small> / {matches.excluded.length}</small>
         </output>
         <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={clear}>×</button>
-        <button type="button" aria-label="Edit selected appearance" title="Edit selected appearance" disabled={!editableParts.length}
+        <button type="button" aria-label="Edit selected appearance" title="Edit selected appearance" disabled={!selection.boundary && !editableParts.length}
           onClick={() => edit(position.x, position.y)}>☷</button>
         <button type="button" aria-label="Start aiming" title="Aim, or move outside the controller. MB3 configures again; Escape disables and clears." onClick={aim}>✓</button>
       </div>

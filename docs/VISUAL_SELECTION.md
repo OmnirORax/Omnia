@@ -15,6 +15,10 @@ and updates its position without rerendering the application.
 Only the stationary symbol renders hit areas. The aiming cursor and every SVG
 descendant explicitly reject pointer events, so a settled cursor cannot intercept
 the left-click intended for the underlying part.
+The larger aiming symbol has a high-contrast precision dot at its SVG hotspot.
+Its measured size determines the pointer offset, including fractional sizes; the
+dot stays exactly at the mouse position. Measurement runs at mount/resize, while
+pointer motion updates only the cached transform before painting.
 
 The symbol has independent choices:
 
@@ -78,8 +82,15 @@ apply values, persist settings, change camera/graph selection or create ordinary
 undo entries. The shared selection context exposes boundary, operations, matches
 and applicable property IDs.
 
-Right-click an accepted part, or press the controller's edit button, to open
-**Selected appearance** at the pointer. Picking stops while the panel is open.
+With a boundary or accepted parts selected, right-click anywhere outside selector controls, or
+press the controller's edit button, to open **Selected appearance** at the pointer.
+Gaps, outlines and unselected areas are valid invocation positions: the editor
+uses the accepted selection, not a new pointer hit. Context-menu events also open
+the editor without requiring pointerdown, including keyboard/platform gestures.
+Picking stops while the panel is open. Escape clears the selection and restores
+ordinary application context menus.
+If the boundary has no included editable parts, the panel explains that parts
+must be included; it does not silently consume right-click or create any values.
 The existing PropertyTree and PropertyEditor show supported properties, mixed
 values and the count of applicable/locked/bypassed parts. Inapplicable parts are
 skipped; category and local protections still apply. The panel's expansion state

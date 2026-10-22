@@ -49,7 +49,7 @@ export function SelectionController({ parts, position, onClose, onResume }: {
             disabled={ctx.safe || !editable.length} onPreview={value => change(id, value, true)} onCommit={value => change(id, value, false)} />
           <small>{mixed ? "Mixed values · " : ""}{editable.length} applicable{applicable.length > editable.length ? ` · ${applicable.length - editable.length} locked or bypassed` : ""}</small>
         </div>;
-      }} /> : <p>No editable visual parts are currently available.</p>}
+      }} /> : <p>Include visual parts to edit their appearance.</p>}
     <footer><button type="button" onClick={() => {
       ctx.preview(null);
       const next = resetSelectedParts(ctx.state, parts);
