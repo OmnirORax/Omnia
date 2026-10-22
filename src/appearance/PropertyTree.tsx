@@ -13,12 +13,14 @@ export function PropertyTree({
   available,
   renderEditor,
   scope = "master",
+  extraProperties = [],
 }: {
   selected: string;
   onSelect: (id: string) => void;
   available?: string[];
   renderEditor: (id: string) => ReactNode;
   scope?: string;
+  extraProperties?: PropertyNode[];
 }) {
   const ui = useUI(),
     ctx = useAppearance();
@@ -68,6 +70,7 @@ export function PropertyTree({
         key={node.id}
         id={groupId(node.id)}
         title={node.label}
+        tooltip={node.tooltip}
         expanded={expanded}
         selected={selected === node.property}
         className={`property-node ${selected === node.property ? "is-selected" : ""}`}
@@ -82,7 +85,7 @@ export function PropertyTree({
           toggle(node);
         }}
       >
-        {p && node.property && (
+        {(p || extraProperties.some(extra => extra.property === node.property)) && node.property && (
           <div
             className="property-node-editor"
             onFocusCapture={() => {
@@ -102,7 +105,7 @@ export function PropertyTree({
   return (
     <div className="property-roots" role="group" aria-label="Appearance properties">
       <small>Click a property to expand/collapse · subtree modifier for all levels</small>
-      <div className="property-root-row">{PROPERTY_TREE.map(row)}</div>
+      <div className="property-root-row">{[...PROPERTY_TREE, ...extraProperties].map(row)}</div>
     </div>
   );
 }

@@ -25,14 +25,16 @@ export function elementEffects(
   if (fn) owners.push(`function:${fn}`);
   const values = { ...effective.renderDefaults?.[target.id] };
   for (const owner of owners) {
-    const local = targets.find((t) => t.instance?.base === target.id && t.instance.owner === owner);
-    if (!local) continue;
-    for (const property of EFFECT_PROPERTIES)
-      if (
-        state.values[local.id]?.[property] !== undefined ||
-        !connected(state, targets, local.id, property)
-      )
-        values[property] = valueFor(raw, state, local, property);
+    const locals = targets.filter(t => t.instance?.owner === owner &&
+      (t.instance.base === target.id || (target.hidden && t.instance.base === target.parent)))
+      .sort((a, b) => Number(a.instance!.base === target.parent) - Number(b.instance!.base === target.parent));
+    for (const local of locals)
+      for (const property of EFFECT_PROPERTIES)
+        if (
+          state.values[local.id]?.[property] !== undefined ||
+          !connected(state, targets, local.id, property)
+        )
+          values[property] = valueFor(raw, state, local, property);
   }
   return Object.keys(values).length
     ? effectsFromValues((p) => values[p] ?? valueFor(raw, state, target, p))

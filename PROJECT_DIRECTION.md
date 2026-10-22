@@ -10,7 +10,9 @@ Omnia is intended to become a shared environment where humans and AI construct, 
 
 For each task, implement the requested capability with the smallest compatible change. Preserve existing functionality and user data. Keep semantic graph data distinct from view state, make costly-to-reverse decisions explicit, and avoid speculative features or abstractions.
 
-Verification preference: the user performs testing. Prioritize implementation; skip routine test suites, browser checks and extra test-writing. Use a small targeted check only when genuinely unsure about a concrete implementation issue. Avoid expensive regression work unless explicitly requested. Build only when needed to produce the requested preview/artifact. Human testing determines usability and design fit.
+Verification preference: the user performs testing. Do not run tests, browser checks or write extra tests unless explicitly requested. Prioritize implementation and build only when needed to produce the requested preview/artifact. Human testing determines usability and design fit.
+
+Publish GitHack previews from `yarn build:preview` → `dist-preview`, whose HTML embeds startup assets. The preview host has returned HTTP 429 for separate CSS/module requests; a rejected lazy import previously unmounted the editor. Keep the canvas error boundary and the single-file preview packaging. Production Pages builds still use normal `yarn build` → `dist`.
 
 The interface is user-arrangeable: individual global functions/settings can float, snap into named frames whose outline follows their slots, use text or icon buttons, and be pinned. Windows are draggable, resizable and collapsible. Entity-specific context menus retain fixed membership and the clicked entity; only internal order, shape and size are customized. UI templates are portable presentation configuration, separate from canonical graph knowledge.
 
@@ -56,8 +58,12 @@ The Theme editor now uses a shared hierarchical property controller, replacing t
 
 UI additions must follow [the shared UI component contract](docs/UI_COMPONENT_CONTRACT.md): actions, fields and complete expandable groups use the same ownership, drop validation, customization, undo and persistence paths. Do not add draggable headers that leave their live contents behind.
 
+Create UI frame offers Stacked sections or Freeform; right-click Layout switches between them and remembers each arrangement. Stacked sections reuse the existing residents and natural-height window hosts, with full-width vertical rows and automatic reflow on child collapse/expansion. Floating/docked placement is independent of this layout choice. Older frames remain Freeform, and switching preserves current membership, authored appearance and UI history/templates.
+
 ## Editable UI contract
 
 Use `UISection` for categories/headings with contents, `UIField` for a label and its live input, and `UIAction` or the action registry for buttons. Give each a stable ID independent of its editable name. These components inherit moving, nesting, selection, styling, closing, search, history and template persistence; do not create fixed markup equivalents beside them. Reuse a neighboring component in the same category before adding an adapter.
 
-UI edit mode places existing registered controls and creates custom UI-local fields. UI labels, custom field values and layout stay separate from canonical graph knowledge. Custom fields do not acquire new computational behavior merely by being placed. Default definitions remain in code and the built-in UI template; Reset to default restores that reference. The emergency appearance recovery panel deliberately remains independent of customized UI. UI edit mode’s coverage inventory identifies visible fields/headings that bypass this contract; use it when adding a new window.
+UI edit mode is a simple arrangement on/off toggle and opens no toolbox window. The separate UI library and existing template actions remain available. Previously saved custom UI fields remain supported; their values and labels stay separate from canonical graph knowledge. Default definitions remain in code and the built-in UI template; Reset to default restores that reference. The emergency appearance recovery panel deliberately remains independent of customized UI.
+
+UI edit mode now controls arrangement permission: placement is fixed by default outside the mode, while normal control interaction remains available. The UI rigidity property in the existing visual hierarchy selects exceptions through the same binary inherited controls: included stays fixed; excluded can move outside edit mode. Keep this UI-layout policy distinct from visual values and appearance targeting sets. New actions/fields/frames inherit the shared movement rule, including resizing and selection arrangement; explicit pins remain protected even in edit mode.

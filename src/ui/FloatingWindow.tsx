@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
-import { fitWindow, ownerOf, releaseResident, residentPinned, type WindowState } from "./layout";
+import { fitWindow, getContainer, ownerOf, releaseResident, type WindowState } from "./layout";
 import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
@@ -18,6 +18,7 @@ export function FloatingWindow({
   title,
   label = title,
   children,
+  residentArea,
   onClose,
   closeLabel = `Close ${label}`,
   width = 420,
@@ -35,6 +36,8 @@ export function FloatingWindow({
   title: string;
   label?: string;
   children: ReactNode;
+  /** Collections can supply their existing resident renderer, keeping one payload per member. */
+  residentArea?: ReactNode;
   onClose?: () => void;
   closeLabel?: string;
   width?: number;
@@ -70,6 +73,7 @@ export function FloatingWindow({
   const desired = state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state;
   const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !saved.closed && !owner && !openAtCursor, saved.floatingOverflow);
   const dockFill = !!host?.classList.contains("ui-dock-fill");
+  const stacked = !dockFill && !!owner && getContainer(ui.layout, owner)?.layoutMode === "stacked";
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -141,29 +145,29 @@ export function FloatingWindow({
         <div className="floating-backdrop" style={{ zIndex: z - 1 }} onClick={onClose} />
       )}
       <Rnd
-        className={`floating-window ${state.collapsed ? "is-collapsed" : ""} ${owner ? "docked-window" : ""} ${className}`}
+        className={`floating-window ${state.collapsed ? "is-collapsed" : ""} ${stacked ? "ui-stacked-window" : ""} ${owner ? "docked-window" : ""} ${className}`}
         position={
           owner
             ? { x: 0, y: 0 }
             : { x: visible.x, y: visible.y }
         }
         size={{
-          width: state.collapsed
+          width: stacked ? "100%" : state.collapsed
             ? visible.width
             : owner
               ? Math.min(state.width, host?.clientWidth ?? state.width)
               : visible.width,
-          height: owner ? state.collapsed ? bounds.height : state.height : visible.height,
+          height: stacked ? "auto" : owner ? state.collapsed ? bounds.height : state.height : visible.height,
         }}
-        style={{ position: owner ? "absolute" : "fixed", zIndex: z }}
-        minWidth={Math.min(state.collapsed ? 40 : 240, visible.width)}
-        minHeight={Math.min(state.collapsed ? 44 : 120, visible.height)}
+        style={{ position: stacked ? "relative" : owner ? "absolute" : "fixed", zIndex: z }}
+        minWidth={stacked ? 0 : Math.min(state.collapsed ? 40 : 240, visible.width)}
+        minHeight={stacked ? 0 : Math.min(state.collapsed ? 44 : 120, visible.height)}
         maxWidth={saved.floatingOverflow && !owner ? undefined : available.width}
-        maxHeight={saved.floatingOverflow && !owner ? undefined : available.height}
+        maxHeight={stacked || saved.floatingOverflow && !owner ? undefined : available.height}
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging
-        enableResizing={!dockFill && !residentPinned(ui.layout, key) && !state.collapsed}
+        enableResizing={!dockFill && !stacked && ui.canMove(key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
         onMouseDown={(event) => {
@@ -191,11 +195,11 @@ export function FloatingWindow({
           style={
             state.collapsed
               ? {
-                  width: state.width,
+                  width: stacked ? "100%" : state.width,
                   height: 44,
                   position: "relative",
-                  left: -bounds.x,
-                  top: -bounds.y,
+                  left: stacked ? 0 : -bounds.x,
+                  top: stacked ? 0 : -bounds.y,
                 }
               : undefined
           }
@@ -221,7 +225,7 @@ export function FloatingWindow({
             <UIHomeContext.Provider value={key}>
               <UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
                 {children}
-                <DockArea container={key} contour={false} />
+                {residentArea === undefined ? <DockArea container={key} contour={false} /> : residentArea}
               </UIContainerContext.Provider></UIPathContext.Provider>
             </UIHomeContext.Provider>
           </div>

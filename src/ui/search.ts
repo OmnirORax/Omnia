@@ -96,7 +96,7 @@ export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null):
   let next = layout;
   for (const key of reveal.path) {
     next = activateDockMember(next, key);
-    const flag = key === "window:theme" ? "@theme" : key === "window:settings" ? "@settings" : key === "window:shortcuts" ? "@shortcuts" : key === "window:ui-editor" ? "@devMode" : key === "window:function-library" ? "@library" : undefined;
+    const flag = key === "window:theme" ? "@theme" : key === "window:settings" ? "@settings" : key === "window:shortcuts" ? "@shortcuts" : key === "window:function-library" ? "@library" : undefined;
     if (flag) next = { ...next, panels: { ...next.panels, [flag]: true } };
     const container = getContainer(next, key);
     if (container?.collapsed || container?.closed) next = updateContainer(next, key, { collapsed: false, closed: false });

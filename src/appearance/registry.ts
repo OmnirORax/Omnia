@@ -2,6 +2,7 @@ import { EFFECT_KINDS } from "../graph/effects.ts";
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
 import { type Controller, type Target, type Value, normalizeController } from "./model.ts";
 import { migrateEffects } from "./migrateEffects.ts";
+import { migrateFieldBranches } from "./migrateFields.ts";
 import type { AnimationTarget } from "../graph/effects.ts";
 export type Property = {
   id: string;
@@ -185,11 +186,11 @@ export function validateProperty(id: string, value: unknown): Value | undefined 
   return p.options?.some((o) => o.id === value) ? (value as string) : undefined;
 }
 export const loadController = (value: unknown) =>
-  migrateEffects(
+  migrateFieldBranches(migrateEffects(
     normalizeController(value, validateProperty),
     LEGACY_EFFECT_TARGETS,
     EFFECT_PROPERTIES,
-  );
+  ), LEGACY_FIELD_BRANCHES);
 export type Binding = {
   selector?: string;
   css?: string;
@@ -204,7 +205,9 @@ export type Binding = {
     priority?: number;
   };
 };
-export type RegisteredTarget = Target & { binding?: Binding };
+export type RegisteredTarget = Target & { binding?: Binding; hidden?: boolean; aggregate?: boolean };
+/** Inline artwork has its own ink; it never inherits a text target's color. */
+export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];
@@ -246,7 +249,7 @@ const part = (
           contents: 30,
         } as Record<string, number>
       )[id.split(".").at(-1)!] ?? 0;
-    binding = { ...binding, animation: { kind, source, glyphsOnly: !!binding.text, priority } };
+    binding = { ...binding, animation: binding.animation ?? { kind, source, glyphsOnly: !!binding.text, priority } };
   }
   if (binding.selector && binding.css === "border-color")
     properties = [...properties, "contourWidth", "contourStyle"];
@@ -326,16 +329,29 @@ for (const [id, label, selector] of [
   ["select", "Dropdowns / selectors", "select"],
 ] as const) {
   branch(`ui.fields.${id}`, "ui.fields", label);
-  part(`ui.fields.${id}.background`, `ui.fields.${id}`, "Background", {
+  entries.at(-1)!.hidden = true;
+  part(`ui.fields.${id}.background`, "ui.fields.background", "Background", {
     selector,
     css: "background-color",
     legacy: "fieldBackground",
   });
-  part(`ui.fields.${id}.contour`, `ui.fields.${id}`, "Contour", {
+  entries.at(-1)!.hidden = true;
+  part(`ui.fields.${id}.contour`, "ui.fields.contour", "Contour", {
     selector,
     css: "border-color",
     legacy: "accent",
   });
+  entries.at(-1)!.hidden = true;
+}
+// Shared controls operate on the original bindings, retaining saved type-specific
+// paint and local refinements without duplicating the visible hierarchy or renderer.
+for (const kind of ["background", "contour"] as const) {
+  const template = entries.find(target => target.id === `ui.fields.single.${kind}`)!;
+  entries.push({ ...template, id: `ui.fields.${kind}`, parent: "ui.fields", hidden: false,
+    aggregate: true, binding: { ...template.binding,
+      selector: entries.filter(target => target.parent === `ui.fields.${kind}`)
+        .map(target => target.binding?.selector).filter(Boolean).join(","),
+    } });
 }
 branch("ui.toggles", "ui.fields", "Checkboxes / radio buttons / switches");
 part("ui.toggles.indicator", "ui.toggles", "Selection indicator", {
@@ -356,7 +372,7 @@ part("ui.swatches", "ui.fields", "Color swatch contours", {
 });
 branch("ui.buttons", "ui.contents", "Buttons / action controls");
 part("ui.buttons.background", "ui.buttons", "Background", {
-  selector: "button:not(.appearance-target):not(.appearance-plug):not(.appearance-lock)",
+  selector: "button:not(.appearance-target):not(.appearance-lock)",
   css: "background-color",
   legacy: "controlBackground",
 });
@@ -419,7 +435,7 @@ for (const [id, label, selector] of [
     ".ui-frame-handle button,.entity-menu-header strong,.brand strong,[data-ui-inline-handle]",
   ],
   ["headings", "Section / category headings", "h1,h2,h3,legend"],
-  ["buttons", "Button labels", "button"],
+  ["buttons", "Button labels", 'button:not([data-ui-visual-kind="icon"]):not(.function-icon):not([data-ui-native-icon])'],
   ["labels", "Field labels", "label"],
   ["placeholders", "Placeholder text", "input::placeholder,textarea::placeholder"],
   ["contents", "Field contents", "input,textarea,select"],
@@ -439,33 +455,34 @@ for (const [id, label, selector] of [
   );
 part(
   "text.nodes",
-  "text",
+  "omnium.nodes",
   "Node text · defaults",
   { legacy: "nodeText", animation: { kind: "text", source: "nodes" } },
   text,
 );
 part(
   "text.binders",
-  "text",
+  "omnium.binders",
   "Binder text · defaults",
   { legacy: "binderText", animation: { kind: "text", source: "binders", glyphsOnly: true } },
   text,
 );
-branch("symbols", "all", "Icons / symbols / visual assets");
-part("symbols.ui", "symbols", "UI icons", {
+part("symbols.ui", "ui", "UI icons", {
+  selector: UI_INLINE_ICON_SELECTOR,
+  css: "color",
   legacy: "accent",
   animation: {
     kind: "icons",
     source: "buttons",
     glyphsOnly: true,
-    selector: "button img,.ui-frame-handle img,.appearance-icon-mask",
+    selector: `button img,.ui-frame-handle img,.appearance-icon-mask,${UI_INLINE_ICON_SELECTOR}`,
   },
 });
-part("symbols.nodes", "symbols", "Node visuals · defaults", {
+part("symbols.nodes", "omnium.nodes", "Node visuals · defaults", {
   legacy: "nodes.color",
   animation: { kind: "icons", source: "nodes" },
 });
-part("symbols.binders", "symbols", "Binder operators · defaults", {
+part("symbols.binders", "omnium.binders", "Binder operators · defaults", {
   legacy: "binders.color",
   animation: { kind: "icons", source: "binders", glyphsOnly: true },
 });
@@ -496,15 +513,19 @@ part("omnium.selection", "omnium", "Selection / focus rings", {
   legacy: "nodes.color",
   animation: { kind: "surface" },
 });
-branch("workspace", "all", "Workspace environment");
 part(
   "workspace.background",
-  "workspace",
-  "Background",
+  "all",
+  "Workspace background",
   { legacy: "background", animation: { kind: "surface", source: "background" } },
   ["color", "brightness"],
 );
 export const TARGETS: readonly RegisteredTarget[] = entries;
+const LEGACY_FIELD_BRANCHES = Object.fromEntries(
+  ["single", "multi", "search", "number", "select"].map(kind => [
+    `ui.fields.${kind}`, [`ui.fields.${kind}.background`, `ui.fields.${kind}.contour`],
+  ]),
+);
 const LEGACY_EFFECT_TARGETS = Object.fromEntries(
   ["windows", "buttons", "fields", "nodes", "binders", "background"].map((source) => [
     `vfx.${source}`,
@@ -524,7 +545,7 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
     const parent = `${base.id}.custom`;
     if (!parents.has(parent)) {
       parents.add(parent);
-      targets.push({ id: parent, parent: base.id, label: "Individually customized" });
+      targets.push({ id: parent, parent: base.id, label: "Individually customized", hidden: base.hidden });
     }
     targets.push({
       id,

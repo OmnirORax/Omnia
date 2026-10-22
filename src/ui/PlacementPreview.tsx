@@ -25,6 +25,14 @@ export function PlacementPreviewOverlay() {
   const guides = preview?.frameDock?.bounds ? dockGuides(preview.frameDock.bounds,
     { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 }) : [];
   const rect = preview?.dock?.screenRect ?? preview?.rect;
+  const docking = preview?.frameDock, bounds = docking?.bounds;
+  const vertical = docking?.side === 'left' || docking?.side === 'right';
+  const edgeMarker = bounds && docking?.side !== 'tab' ? {
+    x: bounds.x + (docking?.side === 'right' ? bounds.width : 0) - (vertical ? 2 : 0),
+    y: bounds.y + (docking?.side === 'bottom' ? bounds.height : 0) - (vertical ? 0 : 2),
+    width: vertical ? 4 : bounds.width,
+    height: vertical ? bounds.height : 4,
+  } : undefined;
   return (
     <div ref={layer} popover="manual" className="ui-drag-feedback" aria-hidden="true">
       {preview?.frameLayout && <DockLayoutPreview preview={preview} />}
@@ -42,6 +50,8 @@ export function PlacementPreviewOverlay() {
       )}
       {preview?.dock?.screenRect && preview.destination && preview.rect && <div className="ui-placement-preview"
         style={{ left: preview.rect.x, top: preview.rect.y, width: preview.rect.width, height: preview.rect.height }} />}
+      {edgeMarker && <div className="ui-placement-preview ui-docking-edge" data-ui-docking-edge={docking?.side}
+        style={{ left: edgeMarker.x, top: edgeMarker.y, width: edgeMarker.width, height: edgeMarker.height }} />}
       {preview && <div className="ui-snap-preview">{preview.text}</div>}
       {guides.length > 0 && <div className="ui-dock-guides">
         {guides.map(({ side, symbol, label, rect }) => <span key={side} data-dock-guide={side} title={label}

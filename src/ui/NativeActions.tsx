@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useUI } from "./context";
-import { functionPinned, ownerOf } from "./layout";
+import { ownerOf } from "./layout";
 import { stableUIHash } from "./identity";
+import { useAppearance } from "../appearance/Context";
+import { iconTintFor } from "../appearance/Styles";
 
 /** Identity is scoped to the owning frame and structural anchors, never to displayed text.
  * Authors can supply data-ui-id for stability across future markup reorganizations. */
@@ -99,7 +101,7 @@ const CSS = `
 button[data-ui-auto-action][data-ui-native-hidden]{display:none!important}
 button[data-ui-auto-action][data-ui-native-icon]{position:relative;display:inline-grid;place-items:center;width:var(--ui-native-width,44px)!important;height:var(--ui-native-height,44px)!important;min-width:0!important;padding:0!important;font-size:0!important;line-height:0!important;text-indent:-99999px!important;overflow:hidden}
 button[data-ui-auto-action][data-ui-native-icon]>*{display:none!important}
-button[data-ui-auto-action][data-ui-native-icon]::before{content:var(--ui-native-character);display:block;width:70%;height:70%;font:22px/1 system-ui;text-indent:0!important;white-space:nowrap;position:absolute;inset:15%;background-image:var(--ui-native-image);background-size:contain;background-repeat:no-repeat;background-position:center}
+button[data-ui-auto-action][data-ui-native-icon]::before{content:var(--ui-native-character);display:block;width:70%;height:70%;font:22px/1 system-ui;text-indent:0!important;white-space:nowrap;position:absolute;inset:15%;color:var(--ui-native-ink,var(--omnium-accent,#233348));filter:var(--ui-native-filter,none);opacity:var(--ui-native-opacity,1);background-image:var(--ui-native-image);background-size:contain;background-repeat:no-repeat;background-position:center}
 button[data-ui-auto-action][data-ui-native-geometry="circle"]{border-radius:50%!important}
 button[data-ui-auto-action][data-ui-native-geometry="square"]{border-radius:4px!important}
 button[data-ui-auto-action][data-ui-native-geometry="triangle"]{border-radius:0!important;clip-path:polygon(50% 0,100% 100%,0 100%)}
@@ -111,6 +113,8 @@ export function NativeActions() {
   const ui = useUI(),
     latest = useRef(ui);
   latest.current = ui;
+  const appearance = useAppearance(), ink = useRef(appearance);
+  ink.current = appearance;
   const entries = useRef(new Map<HTMLButtonElement, Entry>());
   const apply = (entry: Entry) => {
     const { element, id } = entry,
@@ -121,7 +125,7 @@ export function NativeActions() {
       element.dataset.uiNameFallback = element.title.split(/\s*·\s*|;\s*/)[0];
     // Unknown expandable buttons are not complete movable groups. Their declared
     // container must provide the payload; never hide/move a header on its own.
-    element.draggable = !element.hasAttribute("aria-expanded") && !functionPinned(layout, id);
+    element.draggable = !element.hasAttribute("aria-expanded") && latest.current.canMove(`function:${id}`);
     const renamed = layout.labels?.[`function:${id}`];
     if (renamed) {
       element.dataset.uiCaption = renamed;
@@ -132,7 +136,7 @@ export function NativeActions() {
       if (entry.originalName === null) delete element.dataset.uiName; else element.dataset.uiName = entry.originalName;
       if (entry.originalAria === null) element.removeAttribute("aria-label"); else element.setAttribute("aria-label", entry.originalAria);
     }
-    const title = layout.hideNames ? renamed ?? entry.label : "";
+    const title = element.hasAttribute("data-ui-preserve-title") ? element.title : layout.hideNames ? renamed ?? entry.label : "";
     if (element.title !== title) element.title = title;
     element.dataset.uiNativeTitle = "true";
     element.toggleAttribute(
@@ -150,6 +154,10 @@ export function NativeActions() {
       element.style.setProperty("--ui-native-width", `${item?.size?.width ?? 44}px`);
       element.style.setProperty("--ui-native-height", `${item?.size?.height ?? 44}px`);
       const asset = layout.assets.find((asset) => asset.id === style.assetId);
+      const tint = iconTintFor(ink.current, `function:${id}`);
+      element.style.setProperty("--ui-native-ink", tint.color ?? tint.glyphColor ?? "var(--omnium-accent,#233348)");
+      element.style.setProperty("--ui-native-filter", tint.style?.filter ?? "none");
+      element.style.setProperty("--ui-native-opacity", String(tint.style?.opacity ?? 1));
       element.style.setProperty(
         "--ui-native-character",
         JSON.stringify(asset ? "" : style.character || "○"),
@@ -172,7 +180,7 @@ export function NativeActions() {
   };
   useLayoutEffect(() => {
     entries.current.forEach(apply);
-  }, [ui.layout, ui.shortcutBindings]);
+  }, [ui.layout, ui.shortcutBindings, appearance]);
   useEffect(() => {
     let frame = 0;
     const dirty = new Set<HTMLButtonElement>();

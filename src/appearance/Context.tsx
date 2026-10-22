@@ -170,5 +170,5 @@ export function AppearanceProvider({
 }
 export function basesForOwner(owner: string, control = false): RegisteredTarget[] {
   const prefix = owner.startsWith("function:") ? (control ? "ui.fields." : "ui.buttons.") : "ui.";
-  return TARGETS.filter((t) => t.properties && t.id.startsWith(prefix));
+  return TARGETS.filter((t) => !t.hidden && t.properties && t.id.startsWith(prefix));
 }

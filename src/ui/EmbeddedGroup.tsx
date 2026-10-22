@@ -25,6 +25,7 @@ import { useContentSize } from "./frameBounds";
 export function EmbeddedGroup({
   id,
   title,
+  tooltip,
   expanded: expandedOverride,
   defaultExpanded = true,
   selected,
@@ -36,6 +37,7 @@ export function EmbeddedGroup({
 }: {
   id: string;
   title: string;
+  tooltip?: string;
   expanded?: boolean;
   defaultExpanded?: boolean;
   selected?: boolean;
@@ -177,6 +179,7 @@ export function EmbeddedGroup({
       <FrameChrome
         container={key}
         title={title}
+        tooltip={tooltip}
         state={{ ...state, collapsed: !expanded }}
         onChange={patch}
         inline

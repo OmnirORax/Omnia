@@ -1,7 +1,7 @@
 import { transientReveal, type RevealSession } from "../ui/transientReveal";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
-import { ancestry, applyValue, cycleTarget, included, ruleHas, type Value } from "./model";
+import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
@@ -18,17 +18,22 @@ import { stableUIHash } from "../ui/identity";
 import { UIAction } from "../ui/UIAction";
 import { useUI } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
+import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTargets, toggleRigidity } from "../ui/rigidity";
+import { highlightHierarchy } from "./highlight";
+import { residentPinned } from "../ui/layout";
 
 export function MasterController() {
   const ctx = useAppearance()!;
   const ui = useUI();
   const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
-  const { state, targets } = ctx;
+  const { state } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
-    [savedQuery, setQuery] = useState(""),
     [expanded, setExpanded] = useState<Set<string>>(() => new Set(["all", "ui", "text", "omnium"]));
-  const property = ctx.location?.property ?? selectedProperty,
-    query = ctx.location ? "" : savedQuery;
+  const property = ctx.location?.property ?? selectedProperty;
+  const rigidity = property === UI_RIGIDITY_PROPERTY;
+  const showIndividuals = !!ui.layout.panels["@appearanceShowIndividuals"];
+  const effectiveLayout = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
+  const targets = rigidity ? rigidityTargets(ctx.targets, effectiveLayout, ui.functions, ui.frameActions) : ctx.targets;
   const active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
   const structureKey = JSON.stringify(
     targets.map((t) => [t.id, t.parent, t.label, t.properties, t.instance]),
@@ -46,9 +51,19 @@ export function MasterController() {
   );
   const children = useMemo(() => {
     const map = new Map<string, RegisteredTarget[]>();
-    for (const t of targets) map.set(t.parent ?? "", [...(map.get(t.parent ?? "") ?? []), t]);
+    const byId = new Map(targets.map(target => [target.id, target]));
+    const individualGroups = new Set(ctx.targets.flatMap(target =>
+      target.instance ? [`${target.instance.base}.custom`] : []));
+    for (const t of targets) {
+      if (t.hidden) continue;
+      if (!showIndividuals && (t.instance || individualGroups.has(t.id))) continue;
+      if (rigidity && !rigidityRowVisible(t, ctx.targets, effectiveLayout)) continue;
+      let parent = t.parent;
+      while (parent && byId.get(parent)?.hidden) parent = byId.get(parent)?.parent;
+      map.set(parent ?? "", [...(map.get(parent ?? "") ?? []), t]);
+    }
     return map;
-  }, [structureKey]);
+  }, [structureKey, rigidity, showIndividuals, ctx.targets, ui.layout.uiRigidity]);
   const currentEffect = active.adjustments?.effect ?? "off";
   const applicable = (t: RegisteredTarget): boolean =>
     (descendants.get(t.id) ?? []).some(
@@ -58,10 +73,6 @@ export function MasterController() {
           !child.effectKinds ||
           child.effectKinds.includes(String(currentEffect))),
     );
-  const matches = (t: RegisteredTarget): boolean =>
-    !query ||
-    t.label.toLowerCase().includes(query.toLowerCase()) ||
-    (children.get(t.id) ?? []).some(matches);
   const change = (value: Value, preview = false, origin?: string) => {
     const next = applyValue(
       state,
@@ -75,12 +86,45 @@ export function MasterController() {
     else ctx.commit(next);
   };
   const revealSession = useRef<RevealSession | null>(null);
-  useEffect(() => () => revealSession.current?.stop(), []);
+  const highlighted = useRef<ReturnType<typeof highlightHierarchy> | null>(null),
+    hovered = useRef<string | null>(null);
+  const highlight = (id: string) => {
+    highlighted.current?.stop();
+    const eligible = (descendants.get(id) ?? []).filter(target => !target.aggregate && target.properties?.includes(property) &&
+      (property !== "effect" || !target.effectKinds || target.effectKinds.includes(String(currentEffect))));
+    highlighted.current = eligible.length ? highlightHierarchy(eligible.map(target => ({ target,
+      active: rigidity ? !target.instance || !residentPinned(effectiveLayout, target.instance.owner)
+        : !ctx.safe && included(active, targets, target.id) && !blocked(state, targets, target.id, property, active.only ?? "all") && connected(state, targets, target.id, property),
+    })), targets, property) : null;
+  };
+  useEffect(() => {
+    if (hovered.current) highlight(hovered.current);
+  }, [property, currentEffect, state, structureKey, ctx.safe, ui.layout.uiRigidity]);
+  useEffect(() => () => { revealSession.current?.stop(); highlighted.current?.stop(); }, []);
+  useEffect(() => {
+    if (!hierarchyOpen) {
+      hovered.current = null; highlighted.current?.stop(); revealSession.current?.stop();
+    }
+  }, [hierarchyOpen]);
+  useEffect(() => {
+    const target = targets.find(target => target.id === hovered.current);
+    if (!showIndividuals && target && (target.instance || target.id.endsWith(".custom"))) {
+      hovered.current = null;
+      highlighted.current?.stop();
+      revealSession.current?.stop();
+    }
+  }, [showIndividuals]);
   const reveal = (target: RegisteredTarget, on: boolean) => {
+    if (target.id === "all") on = false;
     revealSession.current?.stop();
     revealSession.current = null;
-    if (on && target.instance)
+    highlighted.current?.stop();
+    highlighted.current = null;
+    hovered.current = on ? target.id : null;
+    if (on) highlight(target.id);
+    if (on && target.instance && applicable(target))
       revealSession.current = transientReveal({
+        highlight: false,
         path: target.instance.path ?? [],
         reveal: (path) => ctx.reveal?.(path),
         locate: () => {
@@ -97,21 +141,18 @@ export function MasterController() {
   };
 
   const row = (target: RegisteredTarget, depth: number): React.ReactNode => {
-    if (!matches(target)) return null;
     const nested = children.get(target.id) ?? [],
       can = applicable(target),
-      lit = can && included(active, targets, target.id),
-      isolated = active.only === target.id;
+      lit = rigidity ? rigidityIncluded(effectiveLayout, targets, target.id, ui.functions) : included(active, targets, target.id);
     const locks = state.locks[target.id],
       ancestorLock = paths
         .get(target.id)!
         .slice(0, -1)
         .some((id) => ruleHas(state.locks[id], property));
-    const off = paths.get(target.id)!.some((id) => ruleHas(state.disconnected[id], property));
+    const off = !rigidity && paths.get(target.id)!.some((id) => ruleHas(state.disconnected[id], property));
     const refined = state.refined[target.id]?.includes(property),
       open =
         expanded.has(target.id) ||
-        !!query ||
         (!!ctx.location && ancestry(targets, ctx.location.target).includes(target.id));
     const properties = [
       ...new Set((descendants.get(target.id) ?? []).flatMap((t) => t.properties ?? [])),
@@ -121,8 +162,6 @@ export function MasterController() {
         <div
           className={`appearance-row ${lit ? "is-included" : "is-excluded"} ${can ? "" : "not-applicable"}`}
           style={{ paddingLeft: depth * 12 }}
-          onMouseEnter={() => target.instance && reveal(target, true)}
-          onMouseLeave={() => target.instance && reveal(target, false)}
         >
           <button
             className="appearance-expand"
@@ -140,28 +179,36 @@ export function MasterController() {
             {nested.length ? (open ? "▾" : "▸") : "·"}
           </button>
           <button
-            className="appearance-target"
-            aria-label={`Target ${target.label}`}
-            title={
-              isolated
-                ? "Only this branch · click to restore other targets"
-                : lit
-                  ? "Branch on · click to exclude"
-                  : "Branch off · click to isolate"
-            }
+            className={`appearance-target ${off ? "is-disconnected" : ""}`}
+            data-ui-preserve-title
+            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `${target.label}: ${lit ? "included" : "excluded"}, ${off ? "bypassed" : "connected"}`}
+            title={rigidity ? `${lit ? "Allow moving" : "Fix"} ${target.label} outside UI edit mode` : `Left-click: ${lit ? "exclude" : "include"} ${target.label}. Right-click: toggle saved appearance bypass. Filled / hollow = included / excluded; bright / dark = connected / bypassed. Parent bypasses also apply. Shift+F10 toggles bypass with the keyboard.`}
+            aria-pressed={lit}
+            aria-keyshortcuts={rigidity ? undefined : "Shift+F10"}
             disabled={!can}
-            onClick={() => ctx.commit(cycleTarget(state, targets, target.id))}
+            onMouseEnter={() => reveal(target, true)}
+            onMouseLeave={() => reveal(target, false)}
+            onFocus={() => reveal(target, true)}
+            onBlur={() => reveal(target, false)}
+            onContextMenuCapture={event => {
+              if (rigidity || !can) return;
+              event.preventDefault();
+              event.stopPropagation();
+              ctx.plug(target.id);
+            }}
+            onKeyDown={event => {
+              if (rigidity || !can || !(event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) return;
+              event.preventDefault();
+              event.stopPropagation();
+              ctx.plug(target.id);
+            }}
+            onClick={() => rigidity
+              ? ui.update(layout => toggleRigidity({ ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows } }, targets, target.id, ui.functions))
+              : ctx.commit(toggleTarget(state, targets, target.id))}
           >
-            {isolated ? "◎" : lit ? "●" : "○"}
-          </button>
-          <button
-            className={`appearance-plug ${off ? "is-disconnected" : ""}`}
-            aria-label={`${off ? "Connect" : "Disconnect"} ${target.label}`}
-            title="Connect / bypass saved property application; values are retained"
-            disabled={!can}
-            onClick={() => ctx.plug(target.id)}
-          >
-            ⏻
+            <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" fill={lit ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" />
+            </svg>
           </button>
           <span className="appearance-row-name">
             <EditableLabel id={`appearance:target:${target.id}`} fallback={target.label} />
@@ -174,7 +221,7 @@ export function MasterController() {
               </span>
             )}
           </span>
-          {target.properties?.includes(property) && (
+          {!rigidity && target.properties?.includes(property) && (
             <UIField id={`ui:appearance:target:${stableUIHash(target.id)}:${property}`} label={`${target.label} ${property}`} category="Appearance"><PropertyEditor
               property={property}
               effectKinds={target.effectKinds}
@@ -184,13 +231,13 @@ export function MasterController() {
               onCommit={(v) => change(v, false, target.id)}
             /></UIField>
           )}
-          <LockControl
+          {!rigidity && <LockControl
             label={target.label}
             rule={locks}
             properties={properties}
             inherited={ancestorLock}
             onToggle={(p) => ctx.lock(target.id, p)}
-          />
+          />}
         </div>
         {open && nested.map((child) => row(child, depth + 1))}
       </div>
@@ -223,13 +270,19 @@ export function MasterController() {
       </UISection>
       <NameVisibilityControl />
       <PropertyTree
+        extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity",
+          tooltip: "Included parts stay fixed outside UI edit mode. Exclude a branch or individual item to let it move freely. Normal clicks and field editing stay available.",
+        }]}
         selected={property}
         onSelect={(id) => {
           ctx.preview(null);
           ctx.locate(null, true);
           setProperty(id);
         }}
-        renderEditor={(id) => <FunctionControl id={`ui:master:${id}`} />}
+        renderEditor={(id) => id === UI_RIGIDITY_PROPERTY ? <>
+          <UIAction id="ui:rigidity:editMode" label={ui.layout.panels["@devMode"] ? "Exit UI edit mode" : "Enter UI edit mode"}
+            category="Interface" onClick={() => ui.update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } }))} />
+        </> : <FunctionControl id={`ui:master:${id}`} />}
       />
       <EmbeddedGroup
         id={APPEARANCE_HIERARCHY_ID}
@@ -247,17 +300,12 @@ export function MasterController() {
           });
         }}
       >
-        <UIField id="ui:appearance:findBranch" label="Find appearance branch" category="Appearance"><label>Find appearance branch<input
-          type="search"
-          aria-label="Find appearance branch"
-          placeholder="Find a branch…"
-          value={query}
-          onChange={(e) => {
-            ctx.locate(null, true);
-            setQuery(e.target.value);
-          }}
-        /></label></UIField>
-        <small>● include · ○ exclude · ◎ only · ⏻ plug · ◆ local refinement</small>
+        <UIField id="ui:appearance:showIndividuals" label="Show individuals" category="Appearance">
+          <label><input type="checkbox" checked={showIndividuals} onChange={event => {
+            const show = event.target.checked;
+            ui.update(layout => ({ ...layout, panels: { ...layout.panels, "@appearanceShowIndividuals": show } }));
+          }} /> Show individuals</label>
+        </UIField>
         <div className="appearance-tree" role="tree" aria-label="Appearance hierarchy">
           {(children.get("") ?? []).map((t) => row(t, 0))}
         </div>

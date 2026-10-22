@@ -41,7 +41,7 @@ export function createSceneElectricText() {
     const mask = factory ? new THREE.CanvasTexture(factory()) : material.map!;
     const image = mask.image as { width?: number; height?: number };
     const uniforms = uniformsFor(mask, image.width || 128, image.height || 128);
-    const previous = material.onBeforeCompile;
+    const previous = material.onBeforeCompile, previousKey = material.customProgramCacheKey;
     material.onBeforeCompile = (shader, renderer) => {
       previous.call(material, shader, renderer);
       Object.assign(shader.uniforms, uniforms);
@@ -65,7 +65,8 @@ export function createSceneElectricText() {
         #endif`,
       );
     };
-    material.customProgramCacheKey = () => "omnium-electric-ink-v1";
+    // Preserve other renderer extensions, including the hierarchy's glyph pulse.
+    material.customProgramCacheKey = () => previousKey.call(material) + "|omnium-electric-ink-v1";
     material.needsUpdate = true;
     const state = {
       uniforms,

@@ -1,6 +1,7 @@
 import {
   canDock,
   dockResident,
+  releaseResident,
   floatResident,
   getContainer,
   residentContextScope,
@@ -151,6 +152,7 @@ export function placeButtons(
   boxes: ButtonBox[],
   target?: string,
   baseline?: UIResident[],
+  index?: number,
 ): UILayout {
   if (new Set(boxes.map((b) => b.id)).size !== boxes.length)
     throw new Error("Duplicate selected UI function.");
@@ -159,6 +161,12 @@ export function placeButtons(
       throw new Error("Unpin the selected buttons and their frames first.");
     if (target ? !canDock(layout, selectionResident(b.id), target) : residentContextScope(layout, selectionResident(b.id)))
       throw new Error("These actions must stay in their owning menu.");
+  }
+  if (target && getContainer(layout, target)?.layoutMode === "stacked") {
+    let next = boxes.reduce((layout, box) => releaseResident(layout, selectionResident(box.id)), layout);
+    let at = index ?? getContainer(next, target)?.members?.length ?? 0;
+    for (const box of readingOrder(boxes)) next = dockResident(next, selectionResident(box.id), target, at++);
+    return validateUILayout(next);
   }
   let next = target && baseline ? updateContainer(layout, target, { members: baseline }) : layout;
   for (const b of boxes) {

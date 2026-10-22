@@ -21,21 +21,21 @@ test("target off/only/on changes only the editing mask and restores other target
   state = applyValue(state, targets, "color", "#8844cc", "text");
   const before = structuredClone(state.values);
   state = cycleTarget(state, targets, "text");
-  assert.equal(included(state.sets[0], targets, "text.nodes"), false);
+  assert.equal(included(state.sets[0], targets, "text.ui.buttons"), false);
   state = cycleTarget(state, targets, "text");
-  assert.equal(included(state.sets[0], targets, "text.nodes"), true);
+  assert.equal(included(state.sets[0], targets, "text.ui.buttons"), true);
   assert.equal(included(state.sets[0], targets, "ui.buttons.background"), false);
   state = cycleTarget(state, targets, "text");
   assert.equal(included(state.sets[0], targets, "ui.buttons.background"), true);
-  assert.equal(included(state.sets[0], targets, "text.nodes"), true);
+  assert.equal(included(state.sets[0], targets, "text.ui.buttons"), true);
   assert.deepEqual(state.values, before);
 });
 test("inherited exclusions cycle correctly and targeting sets remember independent adjustments", () => {
   let { state, targets } = fixture();
   state = cycleTarget(state, targets, "text");
-  state = cycleTarget(state, targets, "text.nodes");
-  assert.equal(state.sets[0].only, "text.nodes");
-  state = cycleTarget(state, targets, "text.nodes");
+  state = cycleTarget(state, targets, "text.ui.buttons");
+  assert.equal(state.sets[0].only, "text.ui.buttons");
+  state = cycleTarget(state, targets, "text.ui.buttons");
   assert.equal(included(state.sets[0], targets, "ui.buttons.background"), true);
   state = applyValue(state, targets, "color", "#112233");
   state.sets.push({ id: "second", name: "Second", selection: {} });
@@ -52,15 +52,15 @@ test("category locks block ancestor propagation but allow direct edits and respe
   let { state, targets } = fixture();
   state = toggleRule(state, "locks", "text");
   state = applyValue(state, targets, "color", "#abcdef");
-  assert.equal(state.values["text.nodes"], undefined);
+  assert.equal(state.values["text.ui.buttons"], undefined);
   assert.equal(state.values["ui.buttons.background"].color, "#abcdef");
   state = applyValue(state, targets, "color", "#123456", "text");
-  assert.equal(state.values["text.nodes"].color, "#123456");
-  state = toggleRule(state, "locks", "text.nodes");
+  assert.equal(state.values["text.ui.buttons"].color, "#123456");
+  state = toggleRule(state, "locks", "text.ui.buttons");
   state = applyValue(state, targets, "color", "#654321", "text");
-  assert.equal(state.values["text.nodes"].color, "#123456");
-  state = applyValue(state, targets, "color", "#fedcba", "text.nodes");
-  assert.equal(state.values["text.nodes"].color, "#fedcba");
+  assert.equal(state.values["text.ui.buttons"].color, "#123456");
+  state = applyValue(state, targets, "color", "#fedcba", "text.ui.buttons");
+  assert.equal(state.values["text.ui.buttons"].color, "#fedcba");
 });
 test("property locks are independent and all locks cover future property IDs", () => {
   let { state, targets } = fixture();
@@ -82,7 +82,7 @@ test("plugs bypass application without erasing values and reconnect restores eff
   const base = defaultSettings().appearance;
   let { state, targets } = fixture();
   state = applyValue(state, targets, "effect", "starfield", "workspace.background");
-  state = toggleRule(state, "disconnected", "workspace");
+  state = toggleRule(state, "disconnected", "workspace.background");
   assert.equal(connected(state, targets, "workspace.background", "effect"), false);
   assert.equal(
     valueFor(
@@ -94,7 +94,7 @@ test("plugs bypass application without erasing values and reconnect restores eff
     "off",
   );
   assert.equal(state.values["workspace.background"].effect, "starfield");
-  state = toggleRule(state, "disconnected", "workspace");
+  state = toggleRule(state, "disconnected", "workspace.background");
   assert.equal(
     valueFor(
       base,
@@ -168,19 +168,25 @@ test("animations are properties of real branches, with independent text and surf
     "workspace.background",
   ])
     assert.ok(targets.find((t) => t.id === id).properties.includes("effect"));
+  for (const [id, parent] of [
+    ["text.nodes", "omnium.nodes"], ["text.binders", "omnium.binders"],
+    ["symbols.nodes", "omnium.nodes"], ["symbols.binders", "omnium.binders"],
+    ["symbols.ui", "ui"], ["workspace.background", "all"],
+  ]) assert.equal(targets.find(t => t.id === id).parent, parent);
+  assert.ok(!targets.some(t => t.id === "symbols" || t.id === "workspace"));
   state = applyValue(state, targets, "effect", "electric-text", "text");
   base.controller = state;
   const resolved = resolveControllerAppearance(base);
-  assert.equal(effectsFor(resolved, "text.nodes").effect, "electric-text");
+  assert.notEqual(effectsFor(resolved, "text.nodes").effect, "electric-text");
   assert.equal(effectsFor(resolved, "text.ui.buttons").effect, "electric-text");
   assert.notEqual(effectsFor(resolved, "omnium.nodes.body").effect, "electric-text");
   state = applyValue(state, targets, "effect", "electric-text", "all");
   assert.equal(state.values["omnium.nodes.body"]?.effect, undefined);
-  state = toggleRule(state, "locks", "text", "effect");
+  state = toggleRule(state, "locks", "omnium.nodes", "effect");
   state = applyValue(state, targets, "effect", "off");
   assert.equal(state.values["text.nodes"].effect, "electric-text");
   const withoutFormatting = structuredClone(state.values["text.nodes"]);
-  state = applyValue(state, targets, "speed", 0.8, "text");
+  state = applyValue(state, targets, "speed", 0.8, "text.nodes");
   assert.equal(state.values["text.nodes"].color, withoutFormatting.color);
 });
 test("old VFX values, locks, plugs and local references migrate without overwriting surface colors", () => {

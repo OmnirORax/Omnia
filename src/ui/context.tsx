@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from "react";
-import type { UILayout, WindowState, UIResident } from "./layout";
+import type { UILayout, WindowState, UIResident, FrameLayoutMode } from "./layout";
 import type { PlacementPreview } from "./drag";
 import type { TransientStore } from "./transientStore";
 export type UIFunction = {
@@ -11,17 +11,19 @@ export type UIFunction = {
   available?: boolean;
   scope?: string;
   homePath?: string[];
+  rigidityTarget?: string;
 };
-export type UICommand = { action: "select" | "compact" | "align" | "reset"; sequence: number };
+export type UICommand = { action: "select" | "compact" | "align" | "reset" | "createFrame"; sequence: number };
 export type UIContextValue = {
   layout: UILayout;
+  canMove: (key: string) => boolean;
   update: (change: (layout: UILayout) => UILayout) => void;
   functions: UIFunction[];
   shortcutBindings?: Record<string, string>;
   registerFunction: (fn: UIFunction) => () => void;
   configure: (id: string | null) => void;
   configureFrame: (key: string) => void;
-  createFrame: (x: number, y: number) => void;
+  createFrame: (x: number, y: number, mode?: FrameLayoutMode) => void;
   library: () => void;
   frameMenu: (key: string, x: number, y: number) => void;
   configureControl: (owner: string, control: "collapse" | "pin" | "close") => void;

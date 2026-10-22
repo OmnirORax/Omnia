@@ -5,7 +5,6 @@ import { DockLayout } from "./DockLayout";
 import {
   getContainer,
   residentKey,
-  residentPinned,
   updateContainer,
   type UIResident,
 } from "./layout";
@@ -72,16 +71,17 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
   const gesture = useRef<{ pointerId: number; x: number; y: number; offset: { x: number; y: number } } | null>(null);
   const measureContent = useRef<() => void>(() => {});
   const state = getContainer(ui.layout, container);
+  const stacked = state?.layoutMode === "stacked";
   const members = state?.members ?? [];
   const preview = useDockPreview(container);
   // Live dragging reserves the source footprint. Destination hints must not
   // reflow residents; only a committed drop changes the authored arrangement.
   const entries = members;
   const occupied = members;
-  const positioned = occupied.length > 0 && occupied.every((m) => m.position && m.size);
+  const positioned = !stacked && occupied.length > 0 && occupied.every((m) => m.position && m.size);
   const minX = positioned ? Math.min(0, ...occupied.map((m) => m.position!.x - 12)) : 0,
     minY = positioned ? Math.min(0, ...occupied.map((m) => m.position!.y - 12)) : 0;
-  const offset = moving ?? state?.bodyOffset ?? { x: 0, y: 0 };
+  const offset = stacked ? { x: 0, y: 0 } : moving ?? state?.bodyOffset ?? { x: 0, y: 0 };
   const connections = useMemo(() => bridges(shapes), [shapes]);
   useLayoutEffect(() => {
     const cancel = (e: KeyboardEvent) => {
@@ -97,6 +97,7 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
   }, []);
   useLayoutEffect(() => {
     const node = root.current;
+    if (stacked || state?.dockLayout) { measureContent.current = () => {}; return; }
     if (!node) return;
     let frame = 0;
     const measure = () => {
@@ -157,13 +158,13 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
       children.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [container]);
+  }, [container, stacked, !!state?.dockLayout]);
   useLayoutEffect(() => { measureContent.current(); }, [ui.layout, moving]);
   if (state?.dockLayout) return <div className="ui-embedded-dock-layout" hidden={hidden}><DockLayout container={container} /></div>;
   return (
     <div
       hidden={hidden}
-      className={`ui-dock-area ${preview ? "is-drop-target" : ""} ${!contour && !entries.length ? "ui-dock-empty" : ""}`}
+      className={`ui-dock-area ${stacked ? "ui-stacked-area" : ""} ${preview ? "is-drop-target" : ""} ${!contour && !entries.length ? "ui-dock-empty" : ""}`}
       data-ui-drop-zone={container}
       data-ui-container-key={container}
       data-origin-x={minX}
@@ -190,7 +191,7 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
         ui.frameMenu(container, e.clientX, e.clientY);
       }}
     >
-      {contour && shapes.length > 0 && (
+      {contour && !stacked && shapes.length > 0 && (
         <svg
           className="ui-contour"
           aria-hidden="true"
@@ -269,8 +270,9 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
             fill="transparent"
             stroke="transparent"
             strokeWidth="16"
+            data-ui-movable={ui.canMove(container)}
             onPointerDown={(e) => {
-              if (e.button !== 0 || residentPinned(ui.layout, container)) return;
+              if (e.button !== 0 || !ui.canMove(container)) return;
               e.preventDefault();
               e.stopPropagation();
               gesture.current = {
@@ -312,6 +314,7 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
         <ResidentSlot
           key={residentKey(member)}
           member={member}
+          stacked={stacked}
           origin={{ x: minX, y: minY }}
         />
       ))}
@@ -321,21 +324,23 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
 function ResidentSlot({
   member,
   origin,
+  stacked = false,
 }: {
   member: UIResident;
   origin: { x: number; y: number };
+  stacked?: boolean;
 }) {
   const ui = useUI();
   return (
     <>
-      {member.breakBefore && !member.position && (
+      {!stacked && member.breakBefore && !member.position && (
         <span className="ui-row-break" aria-hidden="true" />
       )}
       <div
-        className={`ui-resident-slot ${member.position ? "is-positioned" : ""}`}
+        className={`ui-resident-slot ${stacked ? "ui-stacked-section" : member.position ? "is-positioned" : ""}`}
         data-ui-slot-key={residentKey(member)}
         style={{
-          ...(member.position
+          ...(!stacked && member.position
             ? {
                 position: "absolute",
                 left: member.position.x - origin.x,

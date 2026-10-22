@@ -89,7 +89,7 @@ export function NamePresentation() {
         ) {
           write(element, "aria-label", ownText);
         }
-        const tooltip = active.layout.hideNames ? name : "";
+        const tooltip = element.dataset.uiTooltip ?? (active.layout.hideNames ? name : "");
         write(element, "title", tooltip);
         const custom =
           element.matches(".function-icon,[data-ui-native-icon]") ||
@@ -97,6 +97,10 @@ export function NamePresentation() {
         const asset = !!element.querySelector("img,svg,canvas,.appearance-icon-mask");
         // Existing glyph-only controls already have a symbol; do not add another.
         const namedText = /[\p{L}\p{N}]/u.test(ownText);
+        // Visual roles are shared with appearance bindings. An SVG/glyph-only
+        // button is an icon, while a mixed text/icon button retains its label.
+        if (element.matches("button"))
+          write(element, "data-ui-visual-kind", custom || (!namedText && (!!ownText || asset)) ? "icon" : "text");
         const decoratable = element.matches(captions);
         if (!decoratable || custom || !namedText) {
           if (element.hasAttribute("data-ui-name-symbol")) delete element.dataset.uiNameSymbol;
@@ -152,6 +156,7 @@ export function NamePresentation() {
         "title",
         "aria-label",
         "data-ui-name",
+        "data-ui-tooltip",
         "data-ui-symbol",
         "data-ui-native-icon",
       ],

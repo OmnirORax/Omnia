@@ -34,6 +34,7 @@ import { ContextSubmenu } from "./ContextSubmenu";
 import { AlignmentControls } from "./AlignmentControls";
 import { FloatingWindow } from "./FloatingWindow";
 import { beginLiveDrag, dragSurface } from "./liveDrag";
+import { residentMovable } from "./rigidity";
 
 const selectable = '[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]';
 const idOf = (el: HTMLElement) => el.dataset.uiDrag && /^(window|frame):/.test(el.dataset.uiDrag) ? el.dataset.uiDrag : el.dataset.uiFunction!;
@@ -77,6 +78,7 @@ type Proposal = {
   boxes: ButtonBox[];
   target?: string;
   baseline?: UIResident[];
+  index?: number;
   message: string;
 };
 type Gesture = {
@@ -176,9 +178,15 @@ export function useButtonSelection({
     buttons()
       .filter((el) => current.current.ids.has(idOf(el)))
       .map((el) => ({ id: idOf(el), ...selectionBox(el) }));
+  const requireMovable = (boxes: ButtonBox[]) => {
+    const { layout, functions } = current.current;
+    if (boxes.some(box => !residentMovable(layout, selectionResident(box.id), functions)))
+      throw new Error("Enable UI edit mode to rearrange fixed UI. Pinned items must also be unpinned.");
+  };
   const group = () => {
     try {
       const boxes = selectedBoxes();
+      requireMovable(boxes);
       if (boxes.length < 2) throw new Error("Select at least two UI items to group.");
       const bounds = buttonBounds(boxes);
       const next = groupResidents(current.current.layout, boxes.map(box => selectionResident(box.id)), bounds.x, bounds.y);
@@ -219,6 +227,7 @@ export function useButtonSelection({
     try {
       const state = current.current,
         all = selectedBoxes();
+      requireMovable(all);
       if (all.length < 2) {
         setMessage("Select at least two UI items to compact.");
         return;
@@ -231,6 +240,7 @@ export function useButtonSelection({
       let next = state.layout;
       for (const [owner, group] of groups) {
         if (group.length < 2) continue;
+        if (owner && getContainer(state.layout, owner)?.layoutMode === "stacked") throw new Error("Stacked sections already flow automatically. Switch their frame to Freeform to compact positions.");
         const zone = owner ? zoneFor(owner) : undefined;
         if (owner && !zone) throw new Error("Expand this frame before compacting its buttons.");
         const excluded = new Set(group.map((b) => b.id)),
@@ -289,6 +299,7 @@ export function useButtonSelection({
       const roots = selected.filter(entry => !selected.some(parent => parent !== entry &&
         (parent.element.contains(entry.element) || entry.parents.has(parent.key))));
       const source = roots.map(entry => entry.box);
+      requireMovable(source);
       if (!source.length) throw new Error("Select visible UI items to align first.");
       const area = { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
       const target = reference === "selection" ? buttonBounds(source) : area;
@@ -316,6 +327,8 @@ export function useButtonSelection({
         const owner = ownerOf(state.layout, selectionResident(box.id));
         if (owner && getContainer(state.layout, owner)?.dockLayout)
           throw new Error("Drag these items out of their dock before aligning them. Docked panes follow their split or tab layout.");
+        if (owner && getContainer(state.layout, owner)?.layoutMode === "stacked")
+          throw new Error("Stacked sections align automatically. Switch their frame to Freeform to align individual positions.");
         groups.set(owner, [...groups.get(owner) ?? [], box]);
       }
       let next = state.layout;
@@ -404,10 +417,15 @@ export function useButtonSelection({
       x: desired.x + b.x - g.bounds.x,
       y: desired.y + b.y - g.bounds.y,
     }));
+    const stackSlots = zone && container?.layoutMode === "stacked" ? [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")]
+      .filter(slot => !excluded.has(selectionId(slot.dataset.uiSlotKey!))) : undefined;
+    const before = stackSlots?.find(slot => { const r = slot.getBoundingClientRect(); return y < r.y + r.height / 2; });
+    const stackKeys = container?.members?.map(residentKey).filter(key => !excluded.has(selectionId(key))) ?? [];
     return {
       boxes: placed,
       target,
-      baseline: zone ? baselineOf(state.layout, target!, zone) : undefined,
+      index: stackSlots ? before ? stackKeys.indexOf(before.dataset.uiSlotKey!) : stackKeys.length : undefined,
+      baseline: zone && !stackSlots ? baselineOf(state.layout, target!, zone) : undefined,
       message: `Move ${placed.length} UI items ${target ? "into this frame" : "together"}`,
     };
   };
@@ -562,6 +580,7 @@ export function useButtonSelection({
         select(next);
       } else if (g.moved) {
         try {
+          requireMovable(g.boxes);
           if (!g.live) {
             const sources = buttons().filter(el => g.initial.has(idOf(el))).map(el => {
               const key = selectionResident(idOf(el));
@@ -612,7 +631,7 @@ export function useButtonSelection({
       if (!g.marquee && g.moved && g.proposal?.boxes.length) {
         const proposal = g.proposal;
         current.current.update((s) =>
-          placeButtons({ ...s, windows: { ...current.current.layout.windows, ...s.windows } }, proposal.boxes, proposal.target, proposal.baseline),
+          placeButtons({ ...s, windows: { ...current.current.layout.windows, ...s.windows } }, proposal.boxes, proposal.target, proposal.baseline, proposal.index),
         );
         setMessage("UI selection moved. Shift+MB4 undoes it.");
       }

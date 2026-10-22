@@ -45,6 +45,7 @@ import type { BinderPresentation } from "./graph/structural";
 import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
 import { UIFrameStrip } from "./ui/UIFrameStrip";
+import { WorkspaceBoundary } from "./WorkspaceBoundary";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
 import { loadUILayout, ownerOf, updateContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
@@ -898,7 +899,7 @@ function Workbench() {
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
-      case "ui:createFrame": updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: 120, y: 180, cellSize: 96, collapsed: false, pinned: false }] })); break;
+      case "ui:createFrame": setUICommand(old => ({ action: "createFrame", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
       case "deleteSelected": deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
@@ -1166,7 +1167,7 @@ function Workbench() {
       )}
       <main className="workspace">
         <aside className="sidebar">
-          <UIFrameStrip id="@sidebar" vertical>
+          <UIFrameStrip id="@sidebar" title="Sidebar" vertical>
           <UIPanel id="reuse" title="Reuse identity">
             {field("field:find-existing-identity", "Find existing identity", <label>
               Find an existing entity or subsystem
@@ -1993,7 +1994,7 @@ function Workbench() {
           </UIFrameStrip>
         </aside>
         <div className="canvas" aria-label="Atlas canvas">
-          <Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
+          <WorkspaceBoundary><Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
             <SpatialWorkspace
               atlas={atlas}
               document={document}
@@ -2026,7 +2027,7 @@ function Workbench() {
               onNest={nest}
               onContextAction={contextAction}
             />
-          </Suspense>
+          </Suspense></WorkspaceBoundary>
           {!atlas.nodes.length && (
             <div className="empty-state">
               <h1>Build your atlas</h1>

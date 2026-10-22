@@ -20,9 +20,11 @@ export function AppearanceStyles() {
         (b.instance?.owner.startsWith("function:") ? 1 : 0),
     )) {
       const binding = target.binding;
+      if (target.aggregate && !target.instance) continue;
       if (!binding?.selector || !binding.css || !target.properties) continue;
       const values = state.values[target.id] ?? {};
       const local = !!target.instance;
+      const icon = binding.animation?.kind === "icons" && binding.css === "color";
       const active = target.properties
         .filter(
           (p) =>
@@ -31,7 +33,9 @@ export function AppearanceStyles() {
         )
         .some((p) => values[p] !== undefined || !connected(state, targets, target.id, p));
       const legacyText = !!binding.text && (base.textColor !== undefined || base.textGlow > 0);
-      if (!active && !legacyText) continue;
+      // Always establish an icon's own ink, even before it has an override.
+      // Otherwise currentColor falls through to a styled text container.
+      if (!active && !legacyText && !icon) continue;
       const color = valueFor(base, state, target, "color") as string,
         brightness = valueFor(base, state, target, "brightness") as number,
         opacity = valueFor(base, state, target, "opacity") as number,
@@ -55,7 +59,10 @@ export function AppearanceStyles() {
       const get = (p: string) => valueFor(base, state, target, p);
       const custom = (p: string) =>
         values[p] !== undefined || !connected(state, targets, target.id, p);
-      if (binding.text) {
+      if (icon) {
+        declarations.push("text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
+          `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${color})` : ""} !important`);
+      } else if (binding.text) {
         declarations.push(
           `text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${color}` : "none"} !important`,
         );
@@ -117,7 +124,10 @@ export function AppearanceStyles() {
   return <style data-appearance-registry>{css}</style>;
 }
 export function useIconTint(owner: string, fallbackOwner?: string) {
-  const ctx = useAppearance();
+  return iconTintFor(useAppearance(), owner, fallbackOwner);
+}
+/** Shared by React artwork and the native-button adapter. */
+export function iconTintFor(ctx: ReturnType<typeof useAppearance>, owner: string, fallbackOwner?: string) {
   if (!ctx || ctx.safe) return {};
   const instance = ctx.targets.find(
     (t) => t.instance?.base === "symbols.ui" && t.instance.owner === owner,
@@ -144,5 +154,5 @@ export function useIconTint(owner: string, fallbackOwner?: string) {
       `${color ? "" : `brightness(${brightness}) `}saturate(${Number(get("saturation"))}) ${glow > 0 ? `drop-shadow(0 0 ${glow * 8}px ${color ?? get("color")})` : ""}`.trim() ||
       undefined,
   };
-  return { color, style };
+  return { color, glyphColor: String(get("color")), style };
 }

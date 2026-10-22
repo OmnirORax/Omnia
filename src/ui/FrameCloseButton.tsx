@@ -14,7 +14,7 @@ export function FrameCloseButton({ container, title, onClose, label }: {
   return <button type="button" className="ui-frame-close frame-mini-control"
     aria-label={label ?? `Close ${title}`} title={ui.layout.hideNames ? label ?? `Close ${title}` : ""}
     data-ui-control="close" data-ui-control-owner={container}
-    draggable={!state?.pinned}
+    draggable={ui.canMove(container)}
     style={position ? { left: position.x, top: position.y, right: "auto" } : undefined}
     onDragStart={event => startResidentDrag(event, container)}
     onContextMenu={event => { event.preventDefault(); event.stopPropagation(); ui.configureControl(container, "close"); }}

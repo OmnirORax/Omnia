@@ -101,7 +101,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
       }
     });
   };
-  return createPortal(<div ref={popup} className={`ui-frame-search-popup ui-global-search ${dragging ? "is-moving" : ""}`} style={{ left: position.x, top: position.y }} data-ui-search role="dialog" aria-label="Global UI search" onPointerDown={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={event => {
+  return createPortal(<div ref={popup} className={`ui-frame-search-popup ui-global-search ${dragging ? "is-moving" : ""}`} style={{ left: position.x, top: position.y }} data-ui-resident-root="window:global-ui-search" data-ui-search role="dialog" aria-label="Global UI search" onPointerDown={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={event => {
     event.stopPropagation();
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault(); const position = (active + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % Math.max(1, visible.length);
@@ -109,8 +109,8 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
     }
     if (event.key === "Enter" && visible[active < 0 ? 0 : active]) { event.preventDefault(); const position = active < 0 ? 0 : active; choose(visible[position], position, event.shiftKey); }
   }}>
-    <header title="Drag to move search" onPointerDown={event => {
-      if (event.button !== 0 || (event.target as Element).closest("button")) return;
+    <header title={ui.canMove("window:global-ui-search") ? "Drag to move search" : ""} data-ui-movable={ui.canMove("window:global-ui-search")} onPointerDown={event => {
+      if (event.button !== 0 || !ui.canMove("window:global-ui-search") || (event.target as Element).closest("button")) return;
       event.preventDefault(); event.stopPropagation(); stopPreview();
       drag.current = { pointer: event.pointerId, offset: { x: event.clientX - position.x, y: event.clientY - position.y } };
       event.currentTarget.setPointerCapture(event.pointerId); setDragging(true);

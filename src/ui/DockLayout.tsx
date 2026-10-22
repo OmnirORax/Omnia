@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DockFillContext, useUI } from "./context";
-import { getContainer, residentPinned, updateContainer } from "./layout";
+import { getContainer, updateContainer } from "./layout";
 import { dockSplitStyle, updateDockNode, type DockNode } from "./dockTree";
 import { DockHost } from "./DockHost";
 import { captureUIPointer, startResidentDrag } from "./drag";
@@ -24,11 +24,11 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
     <div className="ui-dock-tabs" role="tablist" aria-label="Docked frames">
       {node.keys.map(key => {
         const title = nameFor(ui, key), state = getContainer(ui.layout, key), style = state?.chrome?.style;
-        return <span key={key} className="ui-dock-tab-with-close"><button type="button" role="tab" aria-selected={key === node.active}
+        return <span key={key} className="ui-dock-tab-with-close" data-ui-dock-tab={key}><button type="button" role="tab" aria-selected={key === node.active}
           className={`ui-dock-tab ${style?.mode === "icon" ? `function-icon shape-${style.geometry}` : ""}`}
           data-ui-drag={key} data-ui-inline-handle data-ui-name={title} data-ui-symbol={nameSymbol(key, title)} data-ui-proxy-for={key}
           aria-label={title} title={ui.layout.hideNames || style?.mode === "icon" ? title : ""}
-          draggable={!residentPinned(ui.layout, key)}
+          draggable={ui.canMove(key)}
           onDragStart={event => startResidentDrag(event, key)}
           onContextMenu={event => { event.preventDefault(); event.stopPropagation(); ui.frameMenu(key, event.clientX, event.clientY); }}
           onClick={() => ui.update(layout => {
@@ -40,7 +40,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
     </div>
     <FrameSearch container={node.active} title={nameFor(ui, node.active)} expand={() => {}} />
     </div>
-    {node.keys.map(key => <div className="ui-dock-tab-body" role="tabpanel" hidden={key !== node.active} key={key} aria-label={nameFor(ui, key)}>
+    {node.keys.map(key => <div className="ui-dock-tab-body" role="tabpanel" data-ui-dock-content={key} hidden={key !== node.active} key={key} aria-label={nameFor(ui, key)}>
       {key.startsWith("window:")
         ? <DockHost id={key} width={320} height={400} fill />
         : <DockFrameHost id={key} />}
@@ -53,7 +53,7 @@ function DockTabLabel({ id, title }: { id: string; title: string }) {
   if (style?.mode !== "icon") return title;
   return asset ? tint.color ? <span className="appearance-icon-mask" style={{ ...tint.style, backgroundColor: tint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} />
     : <img src={asset.dataUrl} alt="" style={tint.style} />
-    : <span style={{ ...tint.style, color: tint.color }}>{style.character || "○"}</span>;
+    : <span style={{ ...tint.style, color: tint.color ?? tint.glyphColor }}>{style.character || "○"}</span>;
 }
 function DockFrameHost({ id }: { id: string }) {
   const ui = useUI();
@@ -100,15 +100,15 @@ function DockSplit({ node, path, container }: { node: Extract<DockNode, { kind: 
     style={dockSplitStyle(node.axis, ratio)}>
     <DockBranch node={node.first} path={[...path, 0]} container={container} />
     <div role="separator" tabIndex={0} aria-label="Resize dock split" aria-orientation={horizontal ? "vertical" : "horizontal"}
-      aria-valuenow={Math.round(ratio * 100)} className="ui-dock-divider" data-ui-resize
+      aria-valuenow={Math.round(ratio * 100)} aria-disabled={!ui.canMove(container)} className="ui-dock-divider" data-ui-resize
       onPointerDown={event => {
-        if (event.button !== 0 || residentPinned(ui.layout, container)) return;
+        if (event.button !== 0 || !ui.canMove(container)) return;
         event.preventDefault(); event.stopPropagation();
         const bounds = root.current!.getBoundingClientRect();
         gesture.current = { pointer: event.pointerId, start: horizontal ? bounds.x : bounds.y, extent: horizontal ? bounds.width : bounds.height, ratio: node.ratio, release: captureUIPointer(event.pointerId, event.pointerType) };
       }}
       onKeyDown={event => {
-        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) || residentPinned(ui.layout, container)) return;
+        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) || !ui.canMove(container)) return;
         event.preventDefault(); event.stopPropagation();
         commit(Math.max(0.1, Math.min(0.9, node.ratio + (["ArrowRight", "ArrowDown"].includes(event.key) ? 0.025 : -0.025))));
       }} />

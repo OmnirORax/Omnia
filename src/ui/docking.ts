@@ -3,6 +3,7 @@ import { dockKeys, dockTabs, insertDockKey, type DockSide, type DockNode } from 
 
 export type DockRect = { x: number; y: number; width: number; height: number };
 export type FrameDock = { target?: string; side: DockSide; rect: DockRect; bounds?: DockRect; edge?: Exclude<DockSide, "tab">;
+  tabOwner?: string;
   host?: { container: string; order: string; keys: string[] } };
 /** One allocation for every edge and the remaining workspace, independent of rendering. */
 export function workspaceDockRects(layout: UILayout, area: DockRect) {
@@ -74,11 +75,44 @@ export function dockFrame(layout: UILayout, key: string, intent: FrameDock): UIL
   if (target && !canDock(layout, key, target)) return layout;
   const parent = target && (ownerOf(layout, target) ?? intent.host?.container);
   if (parent && !canDock(layout, key, parent)) return layout;
-  const root = target && getContainer(layout, target)?.dockLayout ? target
-    : parent && getContainer(layout, parent)?.dockLayout ? parent : undefined;
+  // A tab-bar drop joins that bar, even when its active tab is itself a split group.
+  const tabOwner = intent.side === "tab" && intent.tabOwner === parent && parent && getContainer(layout, parent)?.dockLayout ? parent : undefined;
+  const root = tabOwner || (target && getContainer(layout, target)?.dockLayout ? target
+    : parent && getContainer(layout, parent)?.dockLayout ? parent : undefined);
   if (root && !dockKeys(getContainer(layout, root)?.dockLayout).some(member => member !== key)) return layout;
   let next = releaseResident(layout, key);
   next = updateContainer(next, key, { collapsed: false, dockEdge: undefined });
+  const native = target?.startsWith("window:") ? layout.windows[target.slice(7)]?.nativeStrip : undefined;
+  if (target && native && !getContainer(next, target)?.dockLayout) {
+    const container = getContainer(next, target)!, contents = getContainer(next, native.contents);
+    if (!contents || !("inline" in contents) || !contents.inline) return layout;
+    let members = container.members ?? [];
+    // Adopt the live native collection as one ordinary window. Its controls and
+    // extra residents stay together; only the outer presentation becomes split.
+    if (!contents.inline.detached) {
+      if (key === native.contents) return layout;
+      next = updateContainer(next, native.contents, { members,
+        inline: { ...contents.inline, detached: true }, collapsed: false, closed: false });
+      members = [readResident(native.contents)];
+    } else if (key === native.contents && !members.length) {
+      // Returning the original collection to an empty native home restores it.
+      next = updateContainer(next, target, { members: contents.members ?? [] });
+      return validateUILayout(updateContainer(next, native.contents, { members: [], inline: { ...contents.inline, detached: false } }));
+    }
+    if (members.some(member => member.kind === "function")) {
+      const id = crypto.randomUUID();
+      next = { ...next, frames: [...next.frames, {
+        id, name: "Panels", x: intent.rect.x, y: intent.rect.y, width: intent.rect.width,
+        cellSize: 96, layoutMode: "stacked", collapsed: false, pinned: false, members,
+      }] };
+      members = [readResident(`frame:${id}`)];
+    }
+    const keys = members.map(residentKey), tree = keys.length ? { kind: "tabs" as const, keys, active: keys[0] } : undefined;
+    return validateUILayout(pruneEmptyDockGroups(updateContainer(next, target, {
+      ...intent.rect, members: [...members, readResident(key)],
+      dockLayout: tree ? splitRoot(tree, key, intent.side) : dockTabs(key),
+    })));
+  }
   if (intent.edge && !target && key.startsWith("frame:") && getContainer(layout, key) && "dockGroup" in getContainer(layout, key)! && getContainer(layout, key)!.dockLayout) {
     return validateUILayout(pruneEmptyDockGroups(updateContainer(next, key, { dockEdge: intent.edge, ...intent.rect })));
   }

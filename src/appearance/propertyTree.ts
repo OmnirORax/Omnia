@@ -3,6 +3,7 @@ export const APPEARANCE_HIERARCHY_ID = "appearance:hierarchy";
 export type PropertyNode = {
   id: string;
   label: string;
+  tooltip?: string;
   property?: string;
   children?: PropertyNode[];
 };

@@ -45,7 +45,7 @@ export function DockWorkspace({ children, projection }: { children: ReactNode; p
       (!key.startsWith('frame:') || !!getContainer(layout, key))));
     // Reserve a proposed floating group just as its real frame will on release.
     const group = getContainer(layout, allocation.root);
-    if (group && !ownerOf(layout, allocation.root) && !('dockEdge' in group && group.dockEdge) && !remaining[allocation.root])
+    if (group && !ownerOf(layout, allocation.root) && !('dockEdge' in group && group.dockEdge) && !('nativeStrip' in group && group.nativeStrip) && !remaining[allocation.root])
       remaining[allocation.root] = { x: group.x, y: group.y, width: group.width ?? 280, height: group.height ?? 420 };
     return remaining;
   }, [allocation, layout, residents]);
