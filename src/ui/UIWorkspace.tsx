@@ -1,3 +1,4 @@
+import { ValueFieldBehavior } from "./ValueFieldBehavior";
 import { residentMovable } from "./rigidity";
 import { captureNativeActions, NativeActions } from "./NativeActions";
 import { UINameInput } from "./EditableLabel";
@@ -1637,6 +1638,7 @@ export function UIWorkspace({
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />
       <NativeActions />
+      <ValueFieldBehavior />
       <CustomControls />
       <NamePresentation />
       {children}

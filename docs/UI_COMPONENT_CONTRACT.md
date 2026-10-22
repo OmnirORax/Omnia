@@ -5,7 +5,11 @@ Visual-hierarchy targeting uses a binary inherited edit mask: parents set the su
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
-- Fields use `UIField`, which moves the label and input together.
+- Fields use `UIField`, which moves the label and input together. Shared
+  `ValueFieldBehavior` selects numeric value contents on focus/first click so typing
+  replaces the old value. Subsequent clicks allow caret placement; deliberate
+  drag selections remain available. Native and portalled fields inherit this
+  without per-feature handlers; ordinary prose/search inputs keep native editing.
 - Expandable groups use `EmbeddedGroup`; floating windows use `FloatingWindow`. Both are complete window residents in the same `UILayout.windows` model. Moving a group moves its header, editors, children and behavior together. New property definitions receive this automatically through `PropertyTree`.
 - Every `FrameChrome` header opens the shared frame context menu, including compact embedded groups and icon handles. Appearance customization remains an action in that menu; header presentation must not change which frame capabilities are available.
 - An embedded group's `inline.parent` records its original home. Until detached, that home participates in normal ownership, pinning and cycle validation. Docking and floating use the same operations as existing windows, not a second property-specific layout store.
