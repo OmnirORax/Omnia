@@ -779,6 +779,7 @@ button.active,
 .ui-frame-search-toggle:hover, .ui-frame-search-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--omnium-accent, #386991) 15%, transparent); border-radius: 5px; }
 .ui-menu-panel > .frame-chrome > .ui-frame-tools { position: relative; }
 .ui-frame-search-popup { position: fixed; z-index: 36000; width: min(320px, calc(100vw - 16px)); padding: 8px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #88a6c0; border-radius: 7px; background: #f8faff; color: #233348; box-shadow: 0 8px 25px #0005; pointer-events: auto; overflow: hidden; }
+.ui-frame-search-popup:focus-visible { outline: 1px solid var(--omnium-accent, #386991); outline-offset: 2px; }
 .ui-frame-search-popup > input { width: 100%; min-width: 0; font-size: 13px; }
 .ui-frame-search-results { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
 .ui-frame-search-results > button { flex: 0 0 auto; text-align: left; font-size: 12px; padding: 6px 8px; white-space: normal; overflow-wrap: anywhere; }
