@@ -31,7 +31,6 @@ import { UIAction } from "../ui/UIAction";
 import { useUI, UIContainerContext, UIHomeContext } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTargets, toggleRigidity } from "../ui/rigidity";
-import { APPEARANCE_EDITOR } from "./interactionHold";
 import { highlightHierarchy } from "./highlight";
 import { residentPinned } from "../ui/layout";
 
@@ -234,13 +233,8 @@ export function MasterController({ bindings, visualStatus, children: visualTools
             aria-keyshortcuts={rigidity ? undefined : "Shift+F10"}
             disabled={!can}
             onMouseEnter={() => reveal(target, true)}
-            onMouseLeave={event => {
-              if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR))) reveal(target, false);
-            }}
-            onFocus={() => reveal(target, true)}
-            onBlur={event => {
-              if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR))) reveal(target, false);
-            }}
+            // Feedback belongs only to pointer hover on this circle, never focus or editor activity.
+            onMouseLeave={() => reveal(target, false)}
             onContextMenuCapture={event => {
               if (rigidity || !can) return;
               event.preventDefault();
@@ -297,16 +291,9 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   };
   return (
     <section data-appearance-editor className="appearance-controller" aria-label="Master controller"
-      onPointerLeave={event => {
-        if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR)) && !event.currentTarget.contains(document.activeElement) && hovered.current) {
-          const target = targets.find(target => target.id === hovered.current);
-          if (target) reveal(target, false);
-        }
-      }} onBlurCapture={event => {
-        if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR)) && !event.currentTarget.matches(":hover") && hovered.current) {
-          const target = targets.find(target => target.id === hovered.current);
-          if (target) reveal(target, false);
-        }
+      onPointerLeave={() => {
+        const target = targets.find(target => target.id === hovered.current);
+        if (target) reveal(target, false);
       }}>
       <SelectionPreviewToggle />
       {inspecting && <div data-visual-selector data-selection-editor className="ui-selection-tools"><UISection id="master-selection" title={selectingObject ? logicalTargets.map(target => target.label).join(" · ") : "Selected properties"} expanded>

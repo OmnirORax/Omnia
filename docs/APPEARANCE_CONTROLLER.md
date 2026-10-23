@@ -270,3 +270,8 @@ depth: a customized word overrides only that node, while unchanged siblings and
 other controls remain categorical matches. Whole-host parts use the registered
 text role rather than requiring their DOM host to equal the broader effect owner.
 This ownership work belongs to hover preparation and uses cached text-node lookups.
+
+Hierarchy feedback runs only while the pointer hovers the row's inclusion circle.
+Leaving that circle immediately clears the hover target and stops all text,
+surface, scene and transient reveal feedback. Focus and movement into another
+Master Controller editor must never retain or restart that feedback.
