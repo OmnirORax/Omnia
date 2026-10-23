@@ -1,8 +1,6 @@
 import { HistoryControls } from "../ui/ContextualHistoryController";
 import type { ActionHistory } from "../ui/actionHistory";
 import { ActiveContextControls } from "../ui/ActiveContext";
-import { useFeatureActions } from "../ui/useFeatureActions";
-import { applyTextLightningPreset } from "./textLightningPreset";
 import { ConsumerProperties } from "../properties/ConsumerProperties";
 import { resolvePropertyTarget } from "../properties/registry";
 import { CoupledProperties, type PropertyBindings } from "../properties/CoupledProperties";
@@ -41,12 +39,6 @@ import { residentPinned } from "../ui/layout";
 export function MasterController({ bindings, visualStatus, history, children: visualTools }: { bindings?: PropertyBindings; visualStatus?: ReactNode; history?: ActionHistory; children?: ReactNode }) {
   const ctx = useAppearance()!;
   const ui = useUI();
-  useFeatureActions("masterController", {
-    "appearance.greenElectricText": { enabled: !ctx.safe, run: () => {
-      ctx.preview(null);
-      ctx.commit(applyTextLightningPreset(ctx.state));
-    } },
-  });
   const visualSelection = useVisualSelection();
   const logicalTargets = (visualSelection?.objects ?? []).map(id => resolvePropertyTarget(PROPERTY_REGISTRY, id));
   const selectingObject = logicalTargets.length > 0;
@@ -395,7 +387,6 @@ export function MasterController({ bindings, visualStatus, history, children: vi
       {bindings && !inspecting && <CoupledProperties bindings={bindings} />}
       <UISection id="master-category:visual" title="Visuals" reveal={inspecting} defaultExpanded={inspecting} expanded={ctx.location || inspecting ? true : undefined}>
       {visualStatus}
-      <FunctionControl id="appearance.greenElectricText" />
 
       <EmbeddedGroup id={`section:${stableUIHash(originalParent ?? originalHome)}:appearance-targeting-sets`} title="Appearance targeting sets" className="ui-section" nativeTag="transparent">
         <div className="appearance-sets">

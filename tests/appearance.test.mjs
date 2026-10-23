@@ -1,5 +1,4 @@
 import { selectorPulseSettings } from "../src/appearance/selectorFeedback.ts";
-import { applyTextLightningPreset, TEXT_LIGHTNING_PRESET } from "../src/appearance/textLightningPreset.ts";
 import { selectionFeedbackVisible } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
@@ -815,30 +814,6 @@ test("shared property dependencies preview inactive gradients and restore them w
   assert.equal(valueFor(preview, preview.controller, target, "gradientColor"), "#ff0000");
   assert.equal(base.controller.values[target.id].gradient, false);
   assert.equal(activityPreview(base, [{ property: "gradient", targets: [target] }]), base);
-});
-
-
-test("green text lightning is one shared-property recipe scoped to unlocked connected UI lettering", () => {
-  const before = emptyController();
-  before.values["text.ui.buttons"] = { font: "serif", textSize: 17, color: "#abcdef" };
-  before.locks["text.ui.labels"] = { all: true };
-  before.disconnected["text.ui.contents"] = { all: true };
-  const saved = JSON.stringify(before), after = applyTextLightningPreset(before);
-  assert.equal(JSON.stringify(before), saved);
-  for (const [property, value] of Object.entries(TEXT_LIGHTNING_PRESET)) assert.equal(after.values["text.ui.buttons"][property], value);
-  assert.equal(after.values["text.ui.buttons"].font, "serif");
-  assert.equal(after.values["text.ui.buttons"].textSize, 17);
-  assert.equal(after.values["text.ui.buttons"].color, "#abcdef");
-  assert.equal(after.values["text.ui.labels"], undefined);
-  assert.equal(after.values["text.ui.contents"], undefined);
-  assert.ok(Object.keys(after.values).every(id => id.startsWith("text.ui.")));
-  assert.deepEqual(after.sets, before.sets); assert.deepEqual(after.instances, before.instances);
-  const restored = loadController(JSON.parse(JSON.stringify(after)));
-  assert.deepEqual(restored.values, after.values);
-  assert.equal(restored.locks["text.ui.labels"].all, true);
-  assert.equal(restored.disconnected["text.ui.contents"].all, true);
-  const lockedCategory = { ...before, locks: { ...before.locks, "text.ui": { all: true } } };
-  assert.deepEqual(applyTextLightningPreset(lockedCategory).values, before.values);
 });
 
 
