@@ -31,7 +31,7 @@ function project(element: HTMLElement) {
         if (element.style.getPropertyValue(key) !== value || element.style.getPropertyPriority(key) !== "important") element.style.setProperty(key, value, "important");
     },
     restore() {
-      element.hidePopover(); if (popover === null) element.removeAttribute("popover"); else element.setAttribute("popover", popover);
+      if (element.isConnected && element.matches(":popover-open")) element.hidePopover(); if (popover === null) element.removeAttribute("popover"); else element.setAttribute("popover", popover);
       element.classList.remove("ui-frame-viewport"); spacer.remove();
       if (original === null) element.removeAttribute("data-ui-viewport-original"); else element.setAttribute("data-ui-viewport-original", original);
       for (const [key, value, priority] of saved) { if (value) element.style.setProperty(key, value, priority); else element.style.removeProperty(key); }
@@ -40,19 +40,28 @@ function project(element: HTMLElement) {
 }
 export function FrameViewportSystem() {
   const ui = useUI(), active = useRef(new Map<string, { element: HTMLElement; projection: ReturnType<typeof project>; rect: ResizeRect & { full?: boolean } }>());
+  const seenLayout = useRef<unknown>(null), cached = useRef<ReturnType<typeof containers>>([]), pending = useRef(new Set<string>());
   useLayoutEffect(() => {
-    const desired = new Map(containers(ui.layout).filter(([, value]) => value.viewport && !value.closed && !value.collapsed));
+    const changed = seenLayout.current !== ui.layout;
+    if (!changed && !pending.current.size && ![...active.current.values()].some(entry => !entry.element.isConnected)) return;
+    if (changed) {
+      seenLayout.current = ui.layout;
+      cached.current = containers(ui.layout).filter(([, value]) => value.viewport && !value.closed && !value.collapsed);
+      pending.current.clear();
+    }
+    const desired = new Map(cached.current);
     for (const [key, entry] of active.current) if (!desired.has(key) || !entry.element.isConnected) { entry.projection.restore(); active.current.delete(key); }
     for (const [key, state] of desired) {
       let entry = active.current.get(key);
       if (!entry) {
-        const root = document.querySelector<HTMLElement>(`[data-ui-resident-root="${CSS.escape(key)}"]`); if (!root) continue;
+        const root = document.querySelector<HTMLElement>(`[data-ui-resident-root="${CSS.escape(key)}"]`); if (!root) { pending.current.add(key); continue; }
+        pending.current.delete(key);
         const element = dragSurface(root); entry = { element, projection: project(element), rect: state.viewport! }; active.current.set(key, entry);
       }
       const rect = entry.rect = state.viewport!;
       entry.projection.set(rect.full ? { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 } : { x: Math.min(rect.x, innerWidth - 40), y: Math.min(rect.y, innerHeight - 40), width: Math.min(rect.width, innerWidth - 16), height: Math.min(rect.height, innerHeight - 16) });
     }
-  }, [ui.layout]);
+  });
   useEffect(() => {
     const resize = () => { for (const { projection, rect } of active.current.values()) projection.set(rect.full
       ? { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 }
