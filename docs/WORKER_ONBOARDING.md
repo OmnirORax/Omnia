@@ -27,8 +27,10 @@ renaming, renderer changes and upgrades.
 ## Core interface signature: Shift configures the function
 
 Shift plus any configured keyboard/mouse shortcut opens only that function's
-adaptive Master Controller configuration, without executing it. Release Shift to
-finish; use the base shortcut to execute the retained settings. This is a global
+adaptive Master Controller configuration. Repeat the shortcut while holding Shift
+to cycle options; release Shift to execute once. Right-click an MC option applies
+and locks it as the future default; left-click resets to priority 1. Temporary
+choices leave the locked default intact. The base shortcut uses retained settings. This is a global
 interface contract for every future feature. Do not create per-feature Shift
 handlers. The shared router uses action metadata and discovered property couplings;
 specialized adapters provide only their real configuration/preview content. Read
@@ -392,4 +394,4 @@ Master Controller is also the universal contextual menu: explicit opening gives
 general categories; contextual invocation projects only relevant controls. History
 is available in both through the same controls. Reuse the transient
 `ContextualMasterController` shell for future narrow action projections. Hold Shift + base Undo/Redo mouse
-trigger to configure; release Shift to finish. See SHORTCUTS.md and UI_LAYOUT.md.
+trigger to configure/cycle; release Shift to execute the choice. See SHORTCUTS.md and UI_LAYOUT.md.

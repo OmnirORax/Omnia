@@ -228,7 +228,9 @@ separate explicit target. Ordinary interior drops still use resident placement.
 ## Universal adaptive function configuration
 
 Shift plus any configured shortcut opens only that function's compact Master
-Controller configuration; releasing Shift finishes. This applies to every new
+Controller configuration. Repeated presses cycle choices; releasing Shift executes
+once. Right-click an option applies and locks its future default; left-click
+resets to priority 1. Temporary choices do not overwrite locked defaults. This applies to every new
 feature. Use the single `ShortcutConfiguration` router and existing action/input
 metadata, not per-feature modifier handlers. Primary clicks inside configuration
 remain ordinary controls while Shift is held. Read FUNCTION_CONFIGURATION.md.

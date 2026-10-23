@@ -1180,3 +1180,6 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .resize-levels button[aria-pressed="true"] { border-color: var(--omnium-accent); box-shadow: inset 2px 0 var(--omnium-accent); }
 .frame-resize-preview { margin: 0; inset: auto; position: fixed; box-sizing: border-box; border: 1px dashed #60ffd0; background: #60ffd00c; pointer-events: none; z-index: 100001; }
 .ui-frame-viewport { background-color: var(--ui-viewport-background, transparent); padding: var(--ui-viewport-padding, 0); border: var(--ui-viewport-border, none); }
+.configuration-options { display: flex; flex-wrap: wrap; gap: 3px; }
+.configuration-options button { flex: 1 1 auto; white-space: nowrap; }
+.configuration-options button[aria-pressed="true"] { border-color: var(--omnium-accent); box-shadow: inset 2px 0 var(--omnium-accent); }

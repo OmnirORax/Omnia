@@ -243,3 +243,11 @@ editors. Specialized configuration content attaches to existing action metadata;
 it must use the same property values and setters. `ui/resize.function.ts` is the
 first Interface operation using the shared ordinal Level input and the normalized
 extensible `settings.functionValues` store. Read FUNCTION_CONFIGURATION.md.
+
+Temporary contextual choices are local drafts, not saved defaults. Generic actions
+read invocation-only overrides through `bindStateProperties`/`withFunctionInputs`;
+read bound inputs synchronously and capture them before async work. Right-click
+locks through the existing validated commit path; Shift release invokes once
+without persisting temporary choices. See FUNCTION_CONFIGURATION.md for the shared
+interaction adapter contract. Do not duplicate input stores or per-feature Shift
+listeners.

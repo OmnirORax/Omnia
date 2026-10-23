@@ -246,3 +246,35 @@ test("new function settings serialize with typed property validation and safe de
   assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(settings))).functionValues, settings.functionValues);
   assert.deepEqual(normalizeSettings({ functionValues: { "ui.frame.resize": { "operation.level": "invalid" } } }).functionValues["ui.frame.resize"], {});
 });
+
+test("the shared configuration gesture cycles repeated presses and applies exactly once on release", async () => {
+  const { createConfigurationGesture } = await import("../src/ui/configurationGesture.ts");
+  const invoked = [], gesture = createConfigurationGesture(id => invoked.push(id));
+  let selected = 1, applied = 0;
+  assert.equal(gesture.begin("resize"), "open");
+  gesture.register({ cycle: () => { selected = selected % 3 + 1; }, apply: () => { applied = selected; } });
+  assert.equal(gesture.begin("resize"), "cycle"); assert.equal(selected, 2);
+  gesture.begin("resize"); assert.equal(selected, 3); gesture.begin("resize"); assert.equal(selected, 1);
+  assert.equal(gesture.finish(), true); assert.equal(applied, 1);
+  assert.equal(gesture.finish(), false); assert.deepEqual(invoked, []);
+  gesture.begin("undo"); gesture.finish(); assert.deepEqual(invoked, ["undo"]);
+  gesture.begin("resize"); gesture.cancel(); assert.equal(gesture.finish(), false);
+  gesture.begin("resize", false); assert.equal(gesture.finish(), false, "opening configuration by a button does not arm a release action");
+});
+
+test("MC option reset and lock preserve defaults and never double execute", async () => {
+  const { createConfigurationGesture } = await import("../src/ui/configurationGesture.ts");
+  const calls = [], gesture = createConfigurationGesture(id => calls.push(id));
+  let choice = 2, locked = 2;
+  const register = () => gesture.register({ cycle: () => { choice = choice % 3 + 1; }, select: index => { choice = index + 1; },
+    reset: () => { choice = locked = 1; }, lock: () => { locked = choice; calls.push("lock"); }, apply: () => calls.push(choice) });
+  gesture.begin("resize"); register(); gesture.begin("resize");
+  assert.equal(choice, 3); gesture.finish(); assert.equal(locked, 2); assert.deepEqual(calls, [3]);
+  gesture.begin("resize"); register(); gesture.reset(); assert.equal(locked, 1); assert.deepEqual(calls, [3]);
+  gesture.finish(); assert.deepEqual(calls, [3, 1]);
+  gesture.begin("resize"); register(); gesture.select(2); gesture.lock();
+  assert.equal(locked, 3); assert.deepEqual(calls, [3, 1, "lock", 3]);
+  assert.equal(gesture.finish(), false);
+  gesture.begin("resize"); register(); gesture.begin("other"); gesture.finish();
+  assert.equal(calls.at(-1), "other", "switching actions discards the old adapter");
+});

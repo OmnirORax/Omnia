@@ -10,7 +10,9 @@ current when changing a cross-cutting contract or its implementation status.
 # Universal Master Controller signature
 
 **Shift + any configured shortcut opens that function's adaptive Master Controller
-configuration instead of executing it. Releasing Shift finishes configuration.**
+configuration. Repeated presses cycle choices; releasing Shift executes the choice
+once. Right-click an MC option applies and locks its future default; left-click
+resets to priority 1. Temporary cycling never overwrites the locked default.**
 This applies to keyboard/mouse commands, existing and future. Shift is reserved for
 configuration, not an alternate executable shortcut. Preserve ordinary text entry
 and protected recovery. Read [docs/FUNCTION_CONFIGURATION.md](docs/FUNCTION_CONFIGURATION.md).

@@ -1,8 +1,9 @@
+import { useConfigurationInteraction } from "./ConfigurationInteraction";
 import { dragSurface } from "./liveDrag";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { activeFrame } from "./activeContextModel";
-import { useUI } from "./context";
+import { useUI, type UIContextValue } from "./context";
 import { getContainer, residentPinned, updateContainer } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { resizeLevels, type ResizeRect } from "./resizeGeometry";
@@ -15,6 +16,12 @@ function snapshot(key: string) {
   const original = dragSurface(root).dataset.uiViewportOriginal;
   const current = original ? JSON.parse(original) as ResizeRect : root.getBoundingClientRect(), others = roots.filter(other => other !== root && !root.contains(other)).map(other => other.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0 && rect.right > 8 && rect.bottom > 8 && rect.left < innerWidth - 8 && rect.top < innerHeight - 8);
   return resizeLevels(current, others, { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 });
+}
+function applyResize(ui: UIContextValue, key: string, rect: ResizeRect) {
+  const layout = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
+  if (!getContainer(layout, key) || residentPinned(layout, key)) return;
+  ui.update(previous => updateContainer({ ...previous, windows: { ...Object.fromEntries(ui.defaults), ...previous.windows } }, key,
+    { viewport: { ...rect, full: Math.abs(rect.width - (innerWidth - 16)) < 1 && Math.abs(rect.height - (innerHeight - 16)) < 1 }, collapsed: false }));
 }
 export function FrameResizeController({ bindings }: { bindings: PropertyBindings }) {
   const ui = useUI(), stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot), frame = activeFrame(stack);
@@ -43,15 +50,22 @@ function ResizeConfiguration({ bindings }: { bindings: PropertyBindings }) {
   const ui = useUI(), stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot), key = activeFrame(stack)?.key;
   const levels = useMemo(() => key ? snapshot(key) : [], [key]);
   const [preview, setPreview] = useState<ResizeRect | null>(null);
-  const selected = Math.min(Number(bindings.values["ui.frame.resize"]?.["operation.level"] ?? 1), levels.length);
+  const [choice, setChoice] = useState(() => Math.max(0, Math.min(Number(bindings.values["ui.frame.resize"]?.["operation.level"] ?? 1), levels.length) - 1));
+  const choiceRef = useRef(choice);
+  const select = (index: number) => { choiceRef.current = Math.max(0, Math.min(levels.length - 1, index)); setChoice(choiceRef.current); setPreview(levels[choiceRef.current] ?? null); };
+  const save = (level: number) => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, "operation.level", level, ["ui.frame.resize"]));
+  useConfigurationInteraction({
+    cycle: () => select((choiceRef.current + 1) % Math.max(1, levels.length)), select,
+    apply: () => { const rect = levels[choiceRef.current]; if (key && rect) applyResize(ui, key, rect); },
+    lock: () => save(choiceRef.current + 1), reset: () => { select(0); save(1); },
+  });
   return <div className="resize-levels" data-scroll-configuration onWheel={event => {
     if (!levels.length) return; event.preventDefault(); event.stopPropagation();
-    const level = Math.max(1, Math.min(levels.length, selected + (event.deltaY > 0 ? 1 : -1)));
-    bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, "operation.level", level, ["ui.frame.resize"]));
+    select((choiceRef.current + (event.deltaY > 0 ? 1 : levels.length - 1)) % levels.length);
   }} onPointerLeave={() => setPreview(null)}>
-    {levels.length ? levels.map((rect, index) => <button key={index} aria-pressed={selected === index + 1}
-      title={`${Math.round(rect.width)} × ${Math.round(rect.height)}`} onPointerEnter={() => setPreview(rect)} onFocus={() => setPreview(rect)} onBlur={() => setPreview(null)}
-      onClick={() => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, "operation.level", index + 1, ["ui.frame.resize"]))}>
+    {levels.length ? levels.map((rect, index) => <button key={index} data-configuration-option={index} aria-pressed={choice === index}
+      title={`${Math.round(rect.width)} × ${Math.round(rect.height)} · right-click to apply and lock; left-click resets to 1`} onPointerEnter={() => setPreview(rect)} onFocus={() => setPreview(rect)} onBlur={() => setPreview(null)}
+>
       {index + 1} · {index === levels.length - 1 ? "Full viewport" : index === 0 ? "Nearest edges" : "Wider edges"}
     </button>) : <p>Activate a frame to see resize levels.</p>}
     {preview && <ResizePreview rect={preview} />}

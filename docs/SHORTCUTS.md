@@ -139,7 +139,8 @@ hold-Esc recovery stays independent. No website shortcut closes browser tabs.
 
 MB4/MB5 default to Undo/Redo using the retained settings. Hold Shift and press
 either configured base undo/redo mouse trigger to open Master Controller's compact
-history projection; releasing Shift closes configuration without executing history.
+history projection; repeat the trigger to cycle scopes and release Shift to execute
+the chosen history operation once.
 Wheel cycles: most recent action (default), active context, selective categories.
 Over category controls it cycles categories; checkboxes permit multiple categories.
 Over Steps/Locked maximum it changes that number; both accept typed values.
@@ -160,7 +161,10 @@ first unavailable/conflicting action. No pointer-move scans or persisted snapsho
 
 Shift is reserved for configuring the function behind any assigned shortcut.
 Hold Shift, press its normal trigger, configure only that function's adaptive
-controls, then release Shift to finish. The base command is not executed. This
+controls. Repeat the shortcut to cycle options, then release Shift to execute
+the chosen option once. Right-click an MC option applies and locks its future
+default; left-click resets to priority 1. Temporary choices preserve locked
+defaults. The opening press does not execute. This
 single router replaces history's private Shift route and applies to future actions
 without per-feature input handlers. Native gestures which are not shortcuts (such
 as Shift+wheel geometry rotation) retain their normal mechanics.
@@ -172,5 +176,6 @@ capture explains why Shift cannot be assigned to an executable command. Explicit
 clears remain cleared; migrations never steal another assigned combination.
 
 W resizes/restores the active frame; Shift+W shows its detected levels. Hover/focus
-previews a level and scrolling/selecting changes the retained setting. Read
+previews a level; scrolling/cycling changes the temporary choice. Right-click
+applies and locks a level; left-click restores priority 1. Read
 [FUNCTION_CONFIGURATION.md](FUNCTION_CONFIGURATION.md) for the shared architecture.

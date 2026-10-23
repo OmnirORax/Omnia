@@ -31,7 +31,8 @@ shared action journal (`ui/actionHistory.ts`) owns chronological undo/redo acros
 Omnium, UI arrangement, appearance and settings, retaining at most 100 actions.
 Completed drags are atomic and typing coalesces. MB4/MB5 execute using configured
 scope/steps; hold Shift with either base trigger to open contextual history controls,
-then release Shift to finish configuration. Legacy Shift-side-button UI-history
+repeat to cycle and release Shift to execute the chosen option. Right-click an
+option applies and locks its default; left-click resets to priority 1. Legacy Shift-side-button UI-history
 assignments migrate to configuration. Explicit category actions remain available.
 History is transient; committed layout/settings autosave. Scope/step preferences
 persist separately without adding undo entries. Hover previews never enter history.

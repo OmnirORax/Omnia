@@ -822,3 +822,28 @@ test("Selection / Preview changes only feedback visibility", () => {
   assert.equal(selectionFeedbackVisible("selection"), true);
   assert.equal(selectionFeedbackVisible("preview"), false);
 });
+
+test("invocation-only coupled inputs preserve independent defaults and restore after nesting/errors", async () => {
+  const { bindStateProperties } = await import("../src/properties/registry.ts");
+  const { withFunctionInputs } = await import("../src/properties/runtimeInputs.ts");
+  const registry = createPropertyRegistry();
+  registry.define({ id: "level", label: "Level", kind: "number", min: 0, max: 10, step: 1, initial: 1 });
+  registry.define({ id: "enabled", label: "Enabled", kind: "toggle", initial: true });
+  for (const id of ["a", "b"]) registry.couple({ id, label: id, owner: "settings", group: [], properties: [{ property: "level" }, { property: "enabled" }] });
+  const state = { a: { level: 3, enabled: true }, b: { level: 7, enabled: true } };
+  let writes = 0;
+  const adapters = Object.fromEntries(["a", "b"].map(id => [id, { channels: Object.fromEntries(["level", "enabled"].map(property => [property, {
+    read: current => current[id][property], write: (current, value) => ({ ...current, [id]: { ...current[id], [property]: value } }),
+  }])) }]));
+  const bindings = bindStateProperties(registry, "settings", state, adapters, () => { writes++; });
+  withFunctionInputs([{ consumer: "a", property: "level", value: 0 }, { consumer: "a", property: "enabled", value: false }], () => {
+    assert.equal(bindings.values.a.level, 0); assert.equal(bindings.values.a.enabled, false);
+    assert.equal(bindings.values.b.level, 7);
+    assert.throws(() => withFunctionInputs([{ consumer: "a", property: "level", value: 9 }], () => {
+      assert.equal(bindings.values.a.level, 9); assert.equal(bindings.values.a.enabled, false); throw Error("stop");
+    }), /stop/);
+    assert.equal(bindings.values.a.level, 0);
+  });
+  assert.deepEqual(bindings.values, state); assert.equal(writes, 0);
+  bindings.commit([{ consumer: "a", property: "level", value: 4 }]); assert.equal(writes, 1, "locking still uses the shared setter");
+});

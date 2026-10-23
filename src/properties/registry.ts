@@ -1,3 +1,4 @@
+import { functionInputValue } from "./runtimeInputs.ts";
 /** Property definitions and couplings contain no renderer, DOM or persistence assumptions. */
 export type PropertyValue = string | number | boolean;
 export type PreviewActivation = { property: string; inactive: PropertyValue; active: PropertyValue };
@@ -152,7 +153,7 @@ export function bindStateProperties<State>(registry: PropertyRegistry, owner: st
       const adapter = adapters[consumer.id]?.channels[channel];
       if (!adapter || typeof adapter.read !== "function" || typeof adapter.write !== "function")
         throw new Error(`Missing state adapter: ${consumer.id}/${channel}`);
-      values[consumer.id][channel] = adapter.read(state);
+      Object.defineProperty(values[consumer.id], channel, { enumerable: true, get: () => functionInputValue(consumer.id, channel, () => adapter.read(state)) });
     }
   }
   return { values, commit: (changes: PropertyChange[]) => {

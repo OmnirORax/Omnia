@@ -60,7 +60,7 @@ export function ShortcutDisplay({
         <p>Left-drag node: move · wheel: zoom</p>
         <p>Arrow keys: move the selected node in the view plane, one snap step (0.2 units with snapping off). Hold to repeat.</p>
         <p>
-          MB4/MB5: undo/redo with configured scope and steps · Hold Shift + any shortcut to configure its function; release Shift to finish.
+          MB4/MB5: undo/redo with configured scope and steps · Hold Shift + any shortcut to configure; repeat to cycle, release Shift to execute. Right-click an option locks it; left-click resets to 1.
         </p>
         <p>
           Ctrl/Cmd-click UI buttons to select them, or use Select UI buttons and drag a box. Drag
