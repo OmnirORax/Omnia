@@ -485,3 +485,11 @@ collapsed saved hierarchies. This is a transient per-selection reveal, without
 layout writes or history entries. The hierarchy may be manually collapsed for
 that selection; another selection reveals it again. Clearing selection restores
 its ordinary saved expansion state. Hover-only preview does not reveal it.
+
+
+After an accepted selection, entering Master Controller (including its frame
+chrome/contextual projections) or a shared property editor ends MS aiming and
+restores the normal cursor. Accepted membership, feedback visibility and editing
+scope remain intact; resume MS explicitly through its existing shortcut. This
+handoff runs on pointer entry/press, not polling, and never interrupts unfinished
+geometry drawing. Explicit parked/locked MS behavior remains separate.

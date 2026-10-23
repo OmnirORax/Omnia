@@ -402,3 +402,8 @@ nudge arrows and a current-value dot. Left-click bars selects limits; right-clic
 bars edits limits, dot types the value, arrows edits the click jump. Native drag/
 keyboard semantics remain intact. Existing property, appearance and visual-size
 sliders and history steps share this widget. See UI_COMPONENT_CONTRACT.md.
+
+After selection, entering MC/shared property editors automatically ends MS aiming
+and restores the normal cursor while preserving accepted selection and feedback.
+Resume selection explicitly with its shortcut. Do not interrupt an unfinished
+geometry drag or implement per-frame editor checks. See VISUAL_SELECTION.md.

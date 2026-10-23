@@ -5,7 +5,7 @@ import { claimUIPress } from "../ui/pointerOwnership";
 import { cursorPosition } from "../ui/cursorPosition";
 import { useFeatureActions } from "../ui/useFeatureActions";
 import { clearRecordedShortcutPress, recordedShortcutTail } from "../featureActions";
-import { selectionFeedbackVisible, type SelectionView, APPEARANCE_EDITOR } from "./interactionHold";
+import { selectionFeedbackVisible, type SelectionView, APPEARANCE_EDITOR, SELECTION_EDITING_SURFACE } from "./interactionHold";
 import { VisualSelectionOverlay } from "./VisualSelectionOverlay";
 import { SelectorSymbol, type SelectorConfiguration } from "./SelectorSymbol";
 import { SelectorCursor } from "./SelectorCursor";
@@ -376,7 +376,15 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   useEffect(() => {
     let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0;
     const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
-    const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(`${selectorChrome},${APPEARANCE_EDITOR}`);
+    const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(`${selectorChrome},${APPEARANCE_EDITOR}`) &&
+      !(hasSelection() && event.target.closest(SELECTION_EDITING_SURFACE));
+    // Entering editing ends aiming, not the accepted selection. Resume explicitly
+    // through the existing selector shortcut; do not poll or rebuild geometry.
+    const handoffToEditing = (target: EventTarget | null) => {
+      if (latest.current.phase !== "aim" || !hasSelection() || gesture.current || polygon.current ||
+        !(target instanceof Element) || !target.closest(SELECTION_EDITING_SURFACE)) return false;
+      actions.current.close(); return true;
+    };
     const down = (event: PointerEvent) => {
       clearRecordedShortcutPress(); commandButton = -1;
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
@@ -385,6 +393,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation(); return;
       }
+      if (handoffToEditing(event.target)) return;
       if (latest.current.phase === "off" || latest.current.phase === "locked") return;
       if (!outsideChrome(event)) { claimUIPress(event.pointerId, event.pointerType, event.buttons); return; }
       if (latest.current.phase === "edit") {
@@ -418,6 +427,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const move = (event: PointerEvent) => {
       // Parked MS ignores pointer motion; ordinary app input remains live.
       if (latest.current.phase === "locked" || latest.current.phase === "edit") return;
+      if (handoffToEditing(event.target)) return;
       if (event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) { setCandidatePick(null); return; }
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element)) return;
       point.current = { element: event.target, x: event.clientX, y: event.clientY };
