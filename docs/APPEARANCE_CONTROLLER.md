@@ -279,12 +279,11 @@ Master Controller editor must never retain or restart that feedback.
 Everyday appearance preview actions live in the Master Controller's non-scrolling
 shared window footer, not the protected recovery shadow root. They reuse the
 registered Apply/Discard/Recovery actions as contextual mirrors, retaining shared
-appearance and action identity even when their residents were moved. Closing the
-controller or clicking another in-page area with pending edits opens a normal
-shared modal offering Apply, Discard and Keep editing. Native pointer exit and
+appearance and action identity even when their residents were moved. Minimizing or closing the
+controller with pending edits opens a normal
+shared modal offering Apply, Discard and Keep editing. Clicking elsewhere, pointer exit and
 browser chrome/focus loss are not leave commands. Selector aiming and appearance
-editor controls remain part of editing. The outside press is consumed through
-its click tail so it cannot trigger the underlying action. Input guards are
-click-time only, with no geometry polling or pointer-move discovery. Closing is
+editor controls remain part of editing. Minimize/close guards run only on those
+explicit actions, with no outside-click listener, geometry polling or pointer-move discovery. Closing is
 vetoed before dock ownership changes. The protected emergency recovery UI remains
 available through its existing long-Escape gesture and Recovery action.

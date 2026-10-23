@@ -2,8 +2,6 @@ import { useEffect, useRef } from "react";
 import { FloatingWindow } from "../ui/FloatingWindow";
 import { FunctionControl } from "../ui/UIWorkspace";
 import { UIAction } from "../ui/UIAction";
-import { claimUIPress } from "../ui/pointerOwnership";
-import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 
 /** Everyday preview actions participate in normal shared UI discovery/styling. */
 export function AppearancePreviewActions({ pending, safe, onSafe }: {
@@ -41,46 +39,8 @@ export function AppearancePreviewPrompt({ onContinue, safe, onSafe }: {
     return () => { window.removeEventListener("keydown", key, true); if (previous?.isConnected) previous.focus(); };
   }, []);
   return <FloatingWindow id="appearance-preview" title="Unsaved appearance" width={390} height={230} modal onClose={onContinue}>
-    <p>Apply or discard your appearance changes before leaving Master Controller.</p>
+    <p>Apply or discard your appearance changes before minimizing or closing Master Controller.</p>
     <AppearancePreviewActions pending safe={safe} onSafe={onSafe} />
     <UIAction id="ui:appearance:continueEditing" label="Keep editing" category="Appearance" onClick={onContinue} />
   </FloatingWindow>;
-}
-
-/** Click-time only: no pointer tracking, geometry reads or background observers. */
-export function AppearancePreviewLeaveGuard({ enabled, onLeave }: { enabled: boolean; onLeave: () => void }) {
-  const callback = useRef(onLeave); callback.current = onLeave;
-  const consumed = useRef(false);
-  useEffect(() => {
-    const reset = () => { consumed.current = false; };
-    const tail = (event: MouseEvent) => {
-      if (!event.isTrusted || !consumed.current) return;
-      event.preventDefault(); event.stopImmediatePropagation();
-      if (event.type === "click" || event.type === "auxclick") reset();
-    };
-    window.addEventListener("pointerdown", reset, true);
-    for (const type of ["mousedown", "mouseup", "click", "auxclick"] as const) window.addEventListener(type, tail, true);
-    window.addEventListener(PAGE_INPUT_SUSPEND, reset);
-    return () => {
-      window.removeEventListener("pointerdown", reset, true);
-      for (const type of ["mousedown", "mouseup", "click", "auxclick"] as const) window.removeEventListener(type, tail, true);
-      window.removeEventListener(PAGE_INPUT_SUSPEND, reset);
-    };
-  }, []);
-  useEffect(() => {
-    if (!enabled) return;
-    const down = (event: PointerEvent) => {
-      if (!event.isTrusted || event.button !== 0 || !(event.target instanceof Element)) return;
-      // Aiming the visual selector is part of editing; external browser chrome
-      // emits no page pointer event and must never open this prompt.
-      if (document.documentElement.hasAttribute("data-visual-selecting")) return;
-      if (event.target.closest('[data-appearance-editor],[data-ui-resident-root="window:theme"],[data-ui-resident-root="window:appearance-preview"],omnium-appearance-recovery')) return;
-      consumed.current = true;
-      claimUIPress(event.pointerId, event.pointerType, event.buttons);
-      event.preventDefault(); event.stopImmediatePropagation(); callback.current();
-    };
-    window.addEventListener("pointerdown", down, true);
-    return () => window.removeEventListener("pointerdown", down, true);
-  }, [enabled]);
-  return null;
 }

@@ -181,6 +181,7 @@ listeners may pause rendering clocks without changing application state.
 
 `FloatingWindow.footer` provides shared, non-scrolling action content below the
 body with the same window scope/theme. An `onClose` returning false vetoes closing
-before releasing dock ownership. `FunctionControl mirror` renders an existing
+before releasing dock ownership. `onMinimize` can similarly veto collapsing
+until pending work is resolved. `FunctionControl mirror` renders an existing
 action contextually with its shared styling, without relocating its resident or
 creating another registry/action definition.

@@ -21,6 +21,7 @@ export function FloatingWindow({
   residentArea,
   footer,
   onClose,
+  onMinimize,
   closeLabel = `Close ${label}`,
   width = 420,
   height = 560,
@@ -42,6 +43,8 @@ export function FloatingWindow({
   /** Non-scrolling actions beneath the window body, using the same theme/ownership. */
   footer?: ReactNode;
   onClose?: () => void | boolean;
+  /** Return false to keep the window expanded until pending work is resolved. */
+  onMinimize?: () => void | boolean;
   closeLabel?: string;
   width?: number;
   height?: number;
@@ -111,7 +114,8 @@ export function FloatingWindow({
     // Opening a new target also repositions an editor that is already mounted.
     // Saved coordinate updates during dragging must not recenter it.
   }, [id, openAtCursor, openingKey]);
-  const set = (patch: Partial<WindowState>) =>
+  const set = (patch: Partial<WindowState>) => {
+    if (patch.collapsed === true && !saved.collapsed && onMinimize?.() === false) return;
     ui.update((layout) => ({
       ...layout,
       windows: {
@@ -139,6 +143,7 @@ export function FloatingWindow({
         })(),
       },
     }));
+  };
   useEffect(() => {
     const resize = () =>
       ui.update((layout) => ({

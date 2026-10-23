@@ -3,7 +3,7 @@ import { CoupledField } from "./properties/CoupledProperties";
 import { EmbeddedGroup } from "./ui/EmbeddedGroup";
 import { stableUIHash } from "./ui/identity";
 import { UISection } from "./ui/UISection";
-import { AppearancePreviewActions, AppearancePreviewPrompt, AppearancePreviewLeaveGuard } from "./appearance/PreviewPrompt";
+import { AppearancePreviewActions, AppearancePreviewPrompt } from "./appearance/PreviewPrompt";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
 import { sameAppearance } from "./appearance/session";
@@ -110,7 +110,7 @@ function Workbench() {
   const [activityRequests, setActivityRequests] = useState<ActivityPreview[]>([]);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
-  const [appearanceExit, setAppearanceExit] = useState<"close" | "outside" | "review" | null>(null);
+  const [appearanceExit, setAppearanceExit] = useState<"close" | "minimize" | "review" | null>(null);
   const [safeView, setSafeView] = useState(() => new URLSearchParams(window.location.search).get("safe-ui") === "1");
   const [checkpoints, setCheckpoints] = useState(loadCheckpoints);
   const [recoveryError, setRecoveryError] = useState("");
@@ -785,6 +785,13 @@ function Workbench() {
       return false;
     }
   }
+  function finishAppearanceExit() {
+    if (appearanceExit === "close") setThemeOpen(false, true);
+    if (appearanceExit === "minimize") updateUI(layout => ({ ...layout, windows: { ...layout.windows,
+      theme: { ...(layout.windows.theme ?? { x: Math.max(8, window.innerWidth - 374), y: 90, width: 350, height: 600, pinned: false }), collapsed: true },
+    } }));
+    setAppearanceExit(null);
+  }
   function applyAppearance() {
     const next = normalizeSettings({ ...savedSettings, appearance: previewAppearance });
     const previous = checkpoints.length ? checkpoints : appendCheckpoint([], savedSettings.appearance, "Before first appearance change");
@@ -794,8 +801,7 @@ function Workbench() {
     ui.applyAppearance(next.appearance);
     setAppearancePreview(null);
     setRecoveryError("");
-    if (appearanceExit === "close") setThemeOpen(false, true);
-    setAppearanceExit(null);
+    finishAppearanceExit();
     return true;
   }
   function discardAppearance() {
@@ -803,8 +809,7 @@ function Workbench() {
     ui.discardAppearance();
     setRecoveryError("");
     setRecoveryOpen(false);
-    if (appearanceExit === "close") setThemeOpen(false, true);
-    setAppearanceExit(null);
+    finishAppearanceExit();
   }
   function restoreAppearance(appearance: WorkspaceSettings["appearance"]) {
     setAppearancePreview(null);
@@ -1141,7 +1146,6 @@ function Workbench() {
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
     <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext || !!appearanceExit, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
-      <AppearancePreviewLeaveGuard enabled={appearancePending && themeOpen && !appearanceExit && !recoveryOpen && !settingsOpen && !insertContext} onLeave={() => setAppearanceExit("outside")} />
       {appearanceExit && <AppearancePreviewPrompt onContinue={() => { setAppearanceExit(null); setThemeOpen(true); }} safe={safeView} onSafe={() => setSafeView(false)} />}
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
@@ -2110,7 +2114,10 @@ function Workbench() {
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
-      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} footer={!appearanceExit && (appearancePending || safeView) ? <AppearancePreviewActions pending={appearancePending} safe={safeView} onSafe={() => setSafeView(false)} /> : undefined}>
+      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} onMinimize={() => {
+        if (appearancePending) { setAppearanceExit("minimize"); return false; }
+        return true;
+      }} footer={!appearanceExit && (appearancePending || safeView) ? <AppearancePreviewActions pending={appearancePending} safe={safeView} onSafe={() => setSafeView(false)} /> : undefined}>
         <MasterController bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
         {/* Keep the original theme subsection identities when nesting them in Visuals. */}
         <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-utilities`} title="Theme utilities" className="ui-section" nativeTag="transparent">
