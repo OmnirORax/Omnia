@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { UIAction } from "../ui/UIAction";
 import { FunctionControl } from "../ui/UIWorkspace";
 
 /** One compact action strip; a leave request promotes it to an attached popover. */
@@ -19,10 +20,11 @@ export function AppearancePreviewActions({ prompted = false, onContinue }: {
     return () => { window.removeEventListener("keydown", key, true); if (previous?.isConnected) previous.focus(); };
   }, [prompted]);
   return <div ref={root} className={`appearance-preview-buttons${prompted ? " is-prompt" : ""}`}
-    role={prompted ? "dialog" : "group"} aria-label={prompted ? "Unsaved appearance: apply, discard or recovery" : "Appearance preview actions"}
+    role={prompted ? "dialog" : "group"} aria-label={prompted ? "Unsaved appearance: apply, discard or cancel" : "Appearance preview actions"}
     data-appearance-editor>
     <FunctionControl id="ui:appearance:apply" mirror />
     <FunctionControl id="ui:appearance:discard" mirror />
-    <FunctionControl id="ui:appearance:recovery" mirror />
+    {prompted ? <UIAction id="ui:appearance:cancelLeave" label="Cancel" category="Appearance" onClick={onContinue} />
+      : <FunctionControl id="ui:appearance:recovery" mirror />}
   </div>;
 }

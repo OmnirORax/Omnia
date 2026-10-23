@@ -1,3 +1,4 @@
+import { createTargetIndex } from "./model.ts";
 import { TARGETS, type RegisteredTarget } from "./registry.ts";
 import { scenePartAt, scenePartPaint } from "./sceneFeedback.ts";
 import { effectScope } from "./uiEffects.ts";
@@ -26,6 +27,8 @@ export type SelectionConstraint = {
   backgrounds?: boolean;
   region?: SelectionRegion;
   role?: VisualRole;
+  /** Registered subtype/branch identity, independent of visual role or instance. */
+  target?: string;
   part?: string;
   line?: LineCondition;
   path?: PathCondition;
@@ -36,6 +39,10 @@ export type SelectionConstraint = {
   scope?: SelectionConstraint;
 };
 export type SelectionRule = SelectionConstraint & { include: boolean; implicit?: boolean };
+// Cached categorical paths serve every pattern hierarchy, never inferred from ink.
+const patternIndex = createTargetIndex([...TARGETS]);
+export const patternTarget = (part: VisualPart) => part.target.instance?.base ?? part.target.id;
+export const patternTargetPath = (part: VisualPart) => patternIndex.path(patternTarget(part));
 export const selectorChrome = "[data-visual-selector]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
 const ids = new WeakMap<Node, number>();
@@ -239,7 +246,8 @@ function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, meas
   const root = boundaryElement(rule.boundary), box = boundaryRect(rule.boundary);
   const vertices = rule.path && box ? pathVertices(rule.path, box) : undefined;
   const peers = root && box ? source.filter(part => {
-    if (rule.backgrounds === false && part.role === "background" || rule.role && rule.role !== part.role || rule.part && rule.part !== part.key) return false;
+    if (rule.backgrounds === false && part.role === "background" || rule.role && rule.role !== part.role ||
+        rule.target && !patternTargetPath(part).includes(rule.target) || rule.part && rule.part !== part.key) return false;
     const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
     // Paths define their own inside/outside. The owner merely anchors coordinates.
     const frameItself = part.key === rule.framePart || rule.ownerFrame && part.element === root && !part.range && (part.role === "background" || part.role === "contour");

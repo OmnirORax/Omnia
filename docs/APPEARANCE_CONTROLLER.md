@@ -281,8 +281,8 @@ Recovery) attached below Master Controller, with no status field or enclosing
 panel. They reuse registered actions as contextual mirrors, retaining styling and
 action identity even if residents were moved. Discard acts directly; it never
 opens another confirmation. Minimizing/closing with pending edits promotes that
-same strip to a compact attached popover and focuses Apply; Escape cancels the
-leave request. Apply/Discard then completes the requested minimize/close. No
+same strip to a compact attached Apply / Discard / Cancel popover and focuses
+Apply. Cancel (or Escape) cancels the leave request without changing the draft. Apply/Discard then completes the requested minimize/close. No
 separate modal window, backdrop, extra buttons or outside-click listener is used.
 Clicks elsewhere, pointer exit and browser chrome are not leave commands. The
 protected emergency recovery dialog remains available via Recovery/long Escape.
@@ -305,3 +305,10 @@ changes, rather than rediscovering DOM sources during property dragging.
 Properties and the shared frame header offer the same descendant expand/collapse
 action, including transient selected-property trees. Expansion changes UI view
 state only, retaining property values, lock/bypass state and current selection.
+
+A pointed pattern selects its registered leaf subtype, not all peers sharing a
+visual role. Hierarchy circles show partial parents as hollow (`aria-pressed=mixed`);
+explicitly choosing that parent broadens to its matching subtypes within the
+existing geometric work area. Choosing a fully included branch deselects it.
+Counts reuse cached work-area peers and canonical paths, refreshed on selection
+or geometry changes, never by new DOM scans during pointer motion.

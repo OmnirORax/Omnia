@@ -463,3 +463,19 @@ Removal preview reuses the stable `ui.guides.selector.excluded` feedback target,
 now visible under Selector feedback as Removal preview. Its saved values remain
 compatible. Only currently included matching candidates receive that pending red
 paint; committing deselection removes the mark rather than leaving red behind.
+
+### Registered pattern specificity
+
+Default pointed-pattern rules capture `target` (the sampled registered subtype)
+in addition to `role` (text/background/contour/icon/indicator). Matching follows
+the shared registry's categorical path, with instance parts classified by their
+base target. A title therefore matches other titles, not every kind of text. This
+is one rule for all visual hierarchies; current color/font/brightness is not the
+type identity. Explicit role-wide choices and drawn geometric intersection modes
+retain their broader intended semantics. Include `target` in constraint/cache
+identity so moving between sibling subtypes cannot reuse a broader candidate.
+Master Controller can explicitly select a parent branch through the same selection
+rule/timeline, preserving the active work-area geometry and BG policy. Mixed
+parents include all their subtypes on click; fully included parents deselect.
+Registered paths are indexed once; branch counts reuse existing cached work-area
+peers and update with membership/geometry rather than hover frames.

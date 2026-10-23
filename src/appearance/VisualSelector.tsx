@@ -19,12 +19,12 @@ import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pa
   type Point, type PathCondition, type PatternMode, type SelectionSide } from "./selectionGeometry";
 import {
   createVisualMeasurements, boundaryCandidates, boundaryFor, boundaryRect, collectVisualParts, matchingVisualParts,
-  partAt, partPaint, pointerInSelectionScope, resolveVisualSelection, selectionLineGuide, selectorChrome,
+  partAt, partPaint, patternTarget, patternTargetPath, pointerInSelectionScope, resolveVisualSelection, selectionLineGuide, selectorChrome,
   type SelectionBoundary, type SelectionConstraint, type SelectionRule, type VisualPart, type VisualRole,
 } from "./visualSelection";
 
 type SelectionState = { boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
-type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string };
+type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "locked";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -32,7 +32,7 @@ const Context = createContext<VisualSelection | null>(null);
 export const useVisualSelection = () => useContext(Context);
 const emptySelection = (): SelectionState => ({ boundary: null, scope: null, mask: null, rules: [], objects: [] });
 const noParts: VisualPart[] = [];
-const constraintKey = (rule: SelectionConstraint): string => `${rule.boundary.key}:${rule.backgrounds ?? ""}:${rule.region ?? ""}:${rule.contour ?? ""}:${rule.role ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.line ?? rule.path ?? null)}:${rule.geometryId ?? ""}:${rule.scope ? constraintKey(rule.scope) : ""}`;
+const constraintKey = (rule: SelectionConstraint): string => `${rule.boundary.key}:${rule.backgrounds ?? ""}:${rule.region ?? ""}:${rule.contour ?? ""}:${rule.role ?? ""}:${rule.target ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.line ?? rule.path ?? null)}:${rule.geometryId ?? ""}:${rule.scope ? constraintKey(rule.scope) : ""}`;
 const ruleKey = (rule: SelectionRule) => `${rule.include}:${constraintKey(rule)}`;
 const roleNames: Record<VisualRole, string> = { text: "Text", background: "Backgrounds", contour: "Contours", icon: "Icons", indicator: "Indicators" };
 const roleSymbols: Record<VisualRole, string> = { text: "T", background: "□", contour: "○", icon: "◆", indicator: "◉" };
@@ -90,6 +90,19 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (!matchingVisualParts(parts, rule).length) return current;
     return { ...current, boundary: current.boundary ?? rule.boundary, rules: [...current.rules, rule], objects: [] };
   });
+  const selectTarget = useCallback((target: string) => {
+    const current = latest.current;
+    const constraint: SelectionConstraint = { boundary: boundaryFor(document.body), target,
+      backgrounds: current.configuration.backgrounds,
+      ...(current.selection.scope ? { scope: workingGeometry(current.selection.scope, current.configuration) } : {}) };
+    record(selection => {
+      const included = resolveVisualSelection(current.catalog, selection.boundary, selection.rules, current.measurements).included;
+      const rule = selectionToggleRule(current.catalog, included, constraint, current.measurements);
+      if (!matchingVisualParts(current.catalog, rule, current.measurements).length) return selection;
+      return { ...selection, boundary: selection.boundary ?? rule.boundary, rules: [...selection.rules, rule], objects: [] };
+    });
+    setCandidatePick(null);
+  }, [record, setCandidatePick]);
   const prepareToggle = (constraint: SelectionConstraint) => {
     constraint = { ...constraint, backgrounds: latest.current.configuration.backgrounds };
     const { catalog, selection, measurements } = latest.current, key = constraintKey(constraint);
@@ -155,7 +168,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const hit = partAt(current.catalog, element, x, y, current.measurements);
     const part = hit && (config.backgrounds || hit.role !== "background") && (!scope || matchingVisualParts([hit], { ...scope, include: true }, current.measurements).length) ? hit : undefined;
     if (part) prepareToggle({ boundary: app, ...(scope ? { scope } : {}),
-      ...(mode === "pattern" ? { role: config.patternRole ?? part.role } : { part: part.key }) });
+      ...(mode === "pattern" ? { role: config.patternRole ?? part.role, target: patternTarget(part) } : { part: part.key }) });
     else setCandidatePick(null);
   };
   const accept = (geometryOnly = false) => {
@@ -349,6 +362,17 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     return (Object.keys(roleNames) as VisualRole[]).flatMap(role => { const peers = parts.filter(part => part.role === role); return peers.length ? [{ role, parts: peers }] : []; });
   }, [catalog, workingScope, geometry, configuration.backgrounds]);
   const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
+  const targetSelection = useMemo(() => {
+    const selected = new Set(matches.included.map(part => part.key));
+    const counts = new Map<string, { included: number; total: number }>();
+    // Reuse the already cached work-area peers; no extra discovery/geometry pass.
+    for (const group of patternGroups) for (const part of group.parts) for (const id of patternTargetPath(part)) {
+      const count = counts.get(id) ?? { included: 0, total: 0 };
+      count.total++; if (selected.has(part.key)) count.included++;
+      counts.set(id, count);
+    }
+    return counts;
+  }, [patternGroups, matches.included]);
   useEffect(() => {
     let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0;
     const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
@@ -509,8 +533,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const feedbackAvailable = phase !== "off" || hasSelection();
   const feedbackBinding = shortcuts.binding("selector.feedbackView");
   const contextValue = useMemo(() => ({ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey,
-    feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding }),
-    [selection, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding]);
+    feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection }),
+    [selection, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection]);
   const active = phase !== "off" || !!selection.boundary;
   const wasMasterOpen = useRef(masterOpen);
   useEffect(() => {

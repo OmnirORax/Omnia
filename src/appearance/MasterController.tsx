@@ -139,6 +139,11 @@ export function MasterController({ bindings, visualStatus, children: visualTools
     setExpanded(previous => new Set([...previous, ...scopeBranches.keys()]));
   }, [scopeKey, inspecting]);
   const toggleScopeBranch = (id: string) => {
+    // Explicitly choosing a parent can broaden the live pattern selection within
+    // its existing work area. Logical/individual scopes retain their local mask.
+    if (!selectingObject && visualSelection?.boundary && visualSelection.targetSelection.has(id)) {
+      ctx.preview(null); visualSelection.selectTarget(id); return;
+    }
     const items = inBranch(id), exclude = items.some(item => !excludedItems.has(item.id));
     ctx.preview(null);
     setScopeExclusions(previous => {
@@ -256,10 +261,12 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   };
 
   const row = (target: RegisteredTarget, depth: number): React.ReactNode => {
+    const count = inspecting && !selectingObject && visualSelection?.boundary ? visualSelection.targetSelection.get(target.id) : undefined;
+    const partial = !!count && count.included > 0 && count.included < count.total;
     const nested = children.get(target.id) ?? [],
-      can = applicable(target) && (!inspecting || inBranch(target.id).some(item => item.target?.properties?.includes(property))),
+      can = applicable(target) && (!inspecting || !!count?.total || inBranch(target.id).some(item => item.target?.properties?.includes(property))),
       lit = rigidity ? rigidityIncluded(effectiveLayout, targets, target.id, ui.functions) : inspecting
-        ? inBranch(target.id).some(item => !excludedItems.has(item.id)) : included(active, targets, target.id);
+        ? count ? count.included === count.total : inBranch(target.id).some(item => !excludedItems.has(item.id)) : included(active, targets, target.id);
     const branchItems = inspecting ? inBranch(target.id).filter(item => !excludedItems.has(item.id)) : [];
     const scopedLocks = branchItems.map(item => state.locks[item.id]);
     const locks = inspecting ? (scopedLocks.some(Boolean) ? {
@@ -281,7 +288,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
     return (
       <div key={target.id} className="appearance-branch" data-appearance-target={target.id}>
         <div
-          className={`appearance-row ${lit ? "is-included" : "is-excluded"} ${can ? "" : "not-applicable"}`}
+          className={`appearance-row ${partial ? "is-partial" : lit ? "is-included" : "is-excluded"} ${can ? "" : "not-applicable"}`}
           style={{ paddingLeft: depth * 12 }}
         >
           <button
@@ -302,9 +309,9 @@ export function MasterController({ bindings, visualStatus, children: visualTools
           <button
             className={`appearance-target ${off ? "is-disconnected" : ""}`}
             data-ui-preserve-title
-            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `${target.label}: ${lit ? "included" : "excluded"}, ${off ? "bypassed" : "connected"}`}
+            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `${target.label}: ${partial ? "partially included" : lit ? "included" : "excluded"}, ${off ? "bypassed" : "connected"}`}
             title={rigidity ? `${lit ? "Allow moving" : "Fix"} ${target.label} outside UI edit mode` : `Left-click: ${lit ? "exclude" : "include"} ${target.label}. Right-click: toggle saved appearance bypass. Filled / hollow = included / excluded; bright / dark = connected / bypassed. Parent bypasses also apply. Shift+F10 toggles bypass with the keyboard.`}
-            aria-pressed={lit}
+            aria-pressed={partial ? "mixed" : lit}
             aria-keyshortcuts={rigidity ? undefined : "Shift+F10"}
             disabled={!can}
             onMouseEnter={() => reveal(target, true)}

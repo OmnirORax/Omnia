@@ -340,3 +340,10 @@ setters. Preserve the saved global targeting set when selecting/deselecting.
 Shared frame headers support descendant expand/collapse through the existing
 ownership graph, with local expansion adapters for transient trees; do not add
 per-feature bulk controls or per-render graph scans.
+
+Pointed pattern selection defaults to the registered subtype in every visual
+hierarchy, not the broad text/background/etc. role. Parent selection is explicit
+in Master Controller and retains the active work area. Keep subtype identity in
+selection constraint/cache keys; do not classify by current color/font values.
+Pending Master Controller minimize/close uses Apply / Discard / Cancel; Cancel
+keeps the draft and controller open.

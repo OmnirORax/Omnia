@@ -180,7 +180,7 @@ test("Mouse and Selector feedback inventory entries edit their existing independ
   const inventory = selfInventory(PROPERTY_REGISTRY, consumer => !targets.find(target => target.id === consumer.id)?.hidden);
   assert.deepEqual(inventory.find(node => node.id === "ui.mouse").consumers, ["ui.mouse.trail"]);
   const feedback = inventory.find(node => node.id === "ui.guides.selector");
-  assert.deepEqual(feedback.children.map(node => node.id), ["ui.guides.selector.pulse", "ui.guides.selector.included", "ui.guides.selector.boundary"]);
+  assert.deepEqual(feedback.children.map(node => node.id), ["ui.guides.selector.backgroundFill", "ui.guides.selector.contourStrength", "ui.guides.selector.pulse", "ui.guides.selector.included", "ui.guides.selector.excluded", "ui.guides.selector.boundary"]);
   for (const node of inventory) assert.ok(resolvePropertyTarget(PROPERTY_REGISTRY, node.id).consumers.length);
   const state = emptyController();
   const next = applyValue(state, targets, "color", "#aabbcc", "ui.guides.selector.included");
@@ -250,6 +250,20 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   assert.deepEqual(matchingVisualParts(parts, { ...rule, line: { ...line, mode: "axis" } }).map(p => p.key), ["label", "icon", "button"]);
   assert.deepEqual(matchingVisualParts(parts, { ...rule, region: "outside", line: { ...line, mode: "axis" } }).map(p => p.key), ["outside"]);
   const appBoundary = { element: app, key: "app" };
+  const typed = [
+    { ...a, key: "title", target: { id: "text.ui.titles" } },
+    { ...a, key: "label", target: { id: "text.ui.buttons" } },
+    { ...c, key: "window-fill", target: { id: "ui.windows.background" } },
+    { ...c, key: "button-fill", target: { id: "ui.buttons.background" } },
+  ];
+  const targetRule = target => ({ boundary, include: true, target });
+  assert.deepEqual(matchingVisualParts(typed, targetRule("text.ui.titles")).map(part => part.key), ["title"], "hovered text subtype excludes sibling text types");
+  assert.deepEqual(matchingVisualParts(typed, targetRule("ui.buttons.background")).map(part => part.key), ["button-fill"], "the same subtype rule applies to backgrounds");
+  assert.deepEqual(matchingVisualParts(typed, targetRule("text.ui")).map(part => part.key), ["title", "label"], "an explicitly chosen parent includes its subtypes");
+  const widened = selectionToggleRule(typed, [typed[0]], targetRule("text.ui"));
+  assert.equal(widened.include, true, "a partially selected parent broadens rather than clearing its selected child");
+  assert.equal(selectionToggleRule(typed, typed.slice(0, 2), targetRule("text.ui")).include, false, "a fully selected parent toggles off");
+  assert.deepEqual(matchingVisualParts(typed, { ...targetRule("text.ui"), scope: { boundary: appBoundary, region: "outside" } }), [], "parent widening retains geometric constraints");
   const outline = { boundary, path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true } };
   const defaultMask = { contour: true, region: null };
   let work = workingGeometry(outline, defaultMask);
