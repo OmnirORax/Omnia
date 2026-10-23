@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type WheelEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type WheelEvent } from "react";
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
 
@@ -10,9 +10,27 @@ export function ContextualMasterController({ title, hint, position, onClose, onW
 }) {
   const root = useRef<HTMLDivElement>(null);
   useActiveLayer(!!position, root, onClose);
+  useLayoutEffect(() => {
+    const node = root.current; if (!node || !position) return;
+    node.setAttribute("popover", "manual"); node.showPopover();
+    return () => { node.hidePopover(); node.removeAttribute("popover"); };
+  }, [!!position]);
+  useLayoutEffect(() => {
+    const node = root.current; if (!node || !position) return;
+    const fit = () => {
+      const bounds = node.getBoundingClientRect();
+      node.style.left = `${Math.max(8, Math.min(position.x, innerWidth - bounds.width - 8))}px`;
+      node.style.top = `${Math.max(8, Math.min(position.y, innerHeight - bounds.height - 8))}px`;
+    };
+    const observer = new ResizeObserver(fit); observer.observe(node); fit();
+    window.addEventListener("resize", fit);
+    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
+  }, [position?.x, position?.y]);
   useEffect(() => {
-    const node = root.current; if (!node || !onWheel) return;
-    const preventScroll = (event: globalThis.WheelEvent) => event.preventDefault();
+    const node = root.current; if (!node) return;
+    const preventScroll = (event: globalThis.WheelEvent) => {
+      if (onWheel || event.target instanceof Element && event.target.closest("[data-scroll-configuration]")) event.preventDefault();
+    };
     node.addEventListener("wheel", preventScroll, { passive: false });
     return () => node.removeEventListener("wheel", preventScroll);
   }, [!!position, !!onWheel]);

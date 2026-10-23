@@ -160,6 +160,6 @@ export function ActiveContextControls() {
     if ((event.target as Element).closest("button")) event.preventDefault();
   }}><UISection id="active-context-actions" title="Active context">
     <p role="status">{top ? label : "Click a frame to activate it"}</p>
-    {["context.back", "context.search", "context.close", "context.minimize", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
+    {["context.back", "context.search", "context.close", "context.minimize", "context.resize", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
   </UISection></div>;
 }

@@ -24,6 +24,16 @@ should inherit shared behavior rather than arrive as a fixed, isolated widget.
 Stable identity, stored values and user customization must survive rearrangement,
 renaming, renderer changes and upgrades.
 
+## Core interface signature: Shift configures the function
+
+Shift plus any configured keyboard/mouse shortcut opens only that function's
+adaptive Master Controller configuration, without executing it. Release Shift to
+finish; use the base shortcut to execute the retained settings. This is a global
+interface contract for every future feature. Do not create per-feature Shift
+handlers. The shared router uses action metadata and discovered property couplings;
+specialized adapters provide only their real configuration/preview content. Read
+[the implementation contract](FUNCTION_CONFIGURATION.md) before adding an action.
+
 ## Compactness
 
 Compactness is a standing product rule for every feature: fit the controls to
@@ -322,7 +332,7 @@ See the shared property and UI component contracts for these paths.
 
 Selector hover previews remain enabled while aiming; automatic editor-entry
 feedback holds and Ctrl-preview gating are removed.
-`selector.lock` (Shift+MB3 by default) explicitly parks MS and restores the normal
+`selector.lock` (Ctrl+MB3 by default) explicitly parks MS and restores the normal
 cursor while retaining its pointed preview; pressing again resumes MS. Selection / Preview and accepted membership
 remain independent. See VISUAL_SELECTION.md.
 

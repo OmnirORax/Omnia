@@ -171,7 +171,7 @@ active effect choices, bypass and narrow selected-part scope remain authoritativ
 See SHARED_PROPERTIES.md for extending this contract.
 
 
-MS locking is explicit (`selector.lock`, Shift+MB3 by default). Editor entry does
+MS locking is explicit (`selector.lock`, Ctrl+MB3 by default). Editor entry does
 not capture hover/event context. Normal property-input previews remain unchanged;
 Selection / Preview toggles feedback independently of accepted membership.
 

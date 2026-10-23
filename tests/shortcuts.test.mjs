@@ -130,13 +130,13 @@ test("active context commands share catalog defaults and preserve saved search c
   const defaults = defaultSettings().bindings;
   for (const [id, key] of Object.entries({ back: "Esc", search: "S", close: "X", minimize: "M", descendants: "D" }))
     assert.equal(defaults[`context.${id}`], key);
-  assert.equal(defaults.searchUI, "Shift+S");
-  assert.equal(normalizeSettings({ bindings: { searchUI: "S" } }).bindings.searchUI, "Shift+S");
+  assert.equal(defaults.searchUI, "Ctrl+Alt+S");
+  assert.equal(normalizeSettings({ bindings: { searchUI: "S" } }).bindings.searchUI, "Ctrl+Alt+S");
   assert.equal(normalizeSettings({ bindings: { searchUI: "Q" } }).bindings.searchUI, "Q");
   assert.equal(normalizeSettings({ bindings: { searchUI: "" } }).bindings.searchUI, "");
   const occupied = normalizeSettings({ bindings: { searchUI: "S", "button:custom": "Shift+S" } });
-  assert.equal(occupied.bindings.searchUI, "S");
-  assert.equal(occupied.bindings["button:custom"], "Shift+S");
+  assert.equal(occupied.bindings.searchUI, "Ctrl+Alt+S");
+  assert.equal(occupied.bindings["button:custom"], "");
   assert.equal(keyConflict(defaults, "context.close", "X"), null);
 });
 
@@ -210,4 +210,39 @@ test("coalesced history handles new object branches and creates one reversible g
   for (const next of [{ color: { red: 1 } }, { color: { red: 2 } }]) { h.record("ui", value, next, ["appearance"], ["window:a"], "gesture"); value = next; }
   assert.equal(h.candidates("undo").length, 1); h.travel("undo"); assert.deepEqual(value, {});
   h.travel("redo"); assert.deepEqual(value, { color: { red: 2 } });
+});
+
+test("Shift universally resolves the base action, scoped commands, custom buttons and pointer assignments", async () => {
+  const { configurationTarget } = await import("../src/ui/shortcutConfiguration.ts");
+  const bindings = defaultSettings().bindings;
+  assert.equal(configurationTarget(bindings, "Shift+W", id => id === "context.resize"), "context.resize");
+  assert.equal(configurationTarget(bindings, "Shift+Ctrl+Z", () => false), "undo");
+  assert.equal(configurationTarget(bindings, "Ctrl+Shift+Z", id => id === "selector.undo"), "selector.undo");
+  assert.equal(configurationTarget(bindings, "Shift+S", id => id === "context.search"), "context.search");
+  assert.equal(configurationTarget(bindings, "Shift+MB4", () => false, { MB4: "undo" }), "undo");
+  assert.equal(configurationTarget({ ...bindings, "button:custom": "P" }, "Shift+P", () => false), "button:custom");
+  assert.equal(configurationTarget({ ...bindings, undo: "" }, "Ctrl+Shift+Z", () => false), null, "cleared bindings never revive");
+  assert.equal(configurationTarget(bindings, "W", () => true), null, "normal presses execute rather than configure");
+});
+
+test("Shift executable bindings migrate without stealing keys or reviving clears", () => {
+  const defaults = defaultSettings();
+  assert.ok(Object.values(defaults.bindings).every(binding => !binding.split("+").includes("Shift")));
+  const migrated = normalizeSettings({ bindings: { searchUI: "Shift+S", redo: "Ctrl+Shift+Z", "selector.lock": "Shift+MB3", newChild: "", "button:custom": "Shift+P" } });
+  assert.equal(migrated.bindings.searchUI, "Ctrl+Alt+S");
+  assert.equal(migrated.bindings.redo, "Ctrl+Y");
+  assert.equal(migrated.bindings["selector.lock"], "Ctrl+MB3");
+  assert.equal(migrated.bindings["button:custom"], "Ctrl+Alt+P");
+  assert.equal(migrated.bindings.newChild, "");
+  const occupied = normalizeSettings({ bindings: { redo: "Ctrl+Shift+Z", "button:owned": "Ctrl+Y" } });
+  assert.equal(occupied.bindings.redo, ""); assert.equal(occupied.bindings["button:owned"], "Ctrl+Y");
+  assert.deepEqual(normalizeSettings(migrated).bindings, migrated.bindings, "migration is idempotent");
+});
+
+test("new function settings serialize with typed property validation and safe defaults", () => {
+  const settings = normalizeSettings({ functionValues: { "ui.frame.resize": { "operation.level": 500, invalid: Infinity }, future: { flag: true, count: 2, text: "value" } } });
+  assert.equal(settings.functionValues["ui.frame.resize"]["operation.level"], 10);
+  assert.equal(Object.hasOwn(settings.functionValues["ui.frame.resize"], "invalid"), false);
+  assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(settings))).functionValues, settings.functionValues);
+  assert.deepEqual(normalizeSettings({ functionValues: { "ui.frame.resize": { "operation.level": "invalid" } } }).functionValues["ui.frame.resize"], {});
 });

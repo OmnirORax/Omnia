@@ -233,3 +233,13 @@ reuses `speed` and `intensity`, and introduces `pulse` once as a reusable visual
 toggle. Its values are independent from Included/Boundary paint and other effects.
 The runtime reads those exact couplings for native UI feedback, the scene adapter
 and the live controller sample. No separate pulse store or bespoke editor exists.
+
+## Action configuration projection
+
+Every configured shortcut has Shift-to-configure through the universal router;
+future features inherit that input rule automatically. Its adaptive MC projection
+finds consumers through the existing `controls`/consumer IDs and uses their shared
+editors. Specialized configuration content attaches to existing action metadata;
+it must use the same property values and setters. `ui/resize.function.ts` is the
+first Interface operation using the shared ordinal Level input and the normalized
+extensible `settings.functionValues` store. Read FUNCTION_CONFIGURATION.md.

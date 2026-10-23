@@ -7,6 +7,7 @@ export type UIFunction = {
   id: string;
   label: string;
   element: ReactElement;
+  configuration?: ReactNode;
   control?: boolean;
   category?: string;
   available?: boolean;
@@ -24,6 +25,8 @@ export type UIContextValue = {
   shortcutCapturing?: string | null;
   shortcutsBlocked?: boolean;
   registerFunction: (fn: UIFunction) => () => void;
+  captureShortcut?: (id: string, label: string) => void;
+  clearShortcut?: (id: string) => void;
   configure: (id: string | null) => void;
   configureFrame: (key: string) => void;
   createFrame: (x: number, y: number, mode?: FrameLayoutMode) => void;

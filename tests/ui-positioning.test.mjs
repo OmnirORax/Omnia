@@ -156,3 +156,29 @@ test("incompatible frame interiors block accidental detachment for single and mu
   assert.equal(frameInteriorDrop(layout, ["window:child", "window:parent"], "window:parent", true), "blocked", "one incompatible member rejects the whole selection");
   assert.equal(frameInteriorDrop(layout, ["window:child"], "window:closed", false), undefined, "collapsed handles keep their separate rules");
 });
+
+test("resize levels expand to progressively wider detected edges, ending at the viewport", async () => {
+  const { resizeLevels } = await import("../src/ui/resizeGeometry.ts");
+  const viewport = { x: 8, y: 8, width: 1000, height: 800 }, current = { x: 300, y: 250, width: 200, height: 150 };
+  const levels = resizeLevels(current, [{ x: 200, y: 150, width: 400, height: 350 }, { x: 100, y: 50, width: 600, height: 600 }], viewport);
+  assert.deepEqual(levels[0], { x: 200, y: 150, width: 400, height: 350 });
+  assert.deepEqual(levels.at(-1), viewport); assert.ok(levels.length <= 10);
+  for (let i = 1; i < levels.length; i++) {
+    assert.ok(levels[i].x <= levels[i - 1].x && levels[i].y <= levels[i - 1].y);
+    assert.ok(levels[i].x + levels[i].width >= levels[i - 1].x + levels[i - 1].width);
+    assert.ok(levels[i].y + levels[i].height >= levels[i - 1].y + levels[i - 1].height);
+  }
+  assert.deepEqual(resizeLevels(current, [], viewport), [viewport]);
+});
+
+test("viewport resize serializes and undoes without detaching the original frame", () => {
+  const layout = emptyUILayout(), state = { x: 20, y: 30, width: 240, height: 180, collapsed: false, pinned: false };
+  layout.windows.parent = { ...state, members: [{ kind: "window", id: "child" }] };
+  layout.windows.child = { ...state };
+  const resized = { ...layout, windows: { ...layout.windows, child: { ...state, viewport: { x: 8, y: 8, width: 900, height: 700 } } } };
+  assert.deepEqual(validateUILayout(JSON.parse(JSON.stringify(resized))), resized);
+  const history = recordHistory(startHistory(layout), resized);
+  assert.deepEqual(undoHistory(history).present, layout);
+  assert.deepEqual(redoHistory(undoHistory(history)).present.windows.parent.members, layout.windows.parent.members);
+  assert.throws(() => validateUILayout({ ...resized, windows: { ...resized.windows, child: { ...resized.windows.child, viewport: { x: 0, y: 0, width: -1, height: 20 } } } }), /viewport/);
+});

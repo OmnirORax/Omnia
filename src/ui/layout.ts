@@ -21,6 +21,7 @@ export type FrameLayoutSnapshot = {
   dockLayout?: DockNode;
 };
 type FrameLayoutState = {
+  viewport?: { x: number; y: number; width: number; height: number; full?: boolean };
   layoutMode?: FrameLayoutMode;
   layoutMemory?: Partial<Record<FrameLayoutMode, FrameLayoutSnapshot>>;
 };
@@ -352,6 +353,10 @@ export function validateUILayout(value: unknown): UILayout {
         if (memory.dockLayout) validateDockNode(memory.dockLayout, new Set(memory.order));
       }
     }
+    if (container.viewport !== undefined && (!record(container.viewport) ||
+        ![container.viewport.x, container.viewport.y, container.viewport.width, container.viewport.height].every(numeric) ||
+        container.viewport.width < 1 || container.viewport.height < 1 ||
+        container.viewport.full !== undefined && typeof container.viewport.full !== "boolean")) throw new Error("Invalid frame viewport.");
     if (container.closed !== undefined && typeof container.closed !== "boolean") throw new Error("Invalid frame visibility.");
     if (container.floatingOverflow !== undefined && typeof container.floatingOverflow !== "boolean") throw new Error("Invalid floating placement.");
     if (container.dockLayout) validateDockNode(container.dockLayout, new Set((container.members ?? []).map(residentKey)));

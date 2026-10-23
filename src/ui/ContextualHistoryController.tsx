@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { ContextualMasterController } from "./ContextualMasterController";
+import { useLayoutEffect, useSyncExternalStore } from "react";
+import { openActionConfiguration } from "./shortcutConfiguration";
 import { activeFrame } from "./activeContextModel";
 import type { ActionHistory, HistoryCategory, HistoryMode } from "./actionHistory";
 import { useUI } from "./context";
@@ -15,45 +15,26 @@ const categories: { id: HistoryCategory; label: string }[] = [
   { id: "appearance", label: "Appearance" }, { id: "settings", label: "Settings" },
 ];
 /** A contextual projection of Master Controller, not a second settings inventory. */
-export function ContextualHistoryController({ history, position, onClose }: { history: ActionHistory; position: { x: number; y: number } | null; onClose: () => void }) {
-  const ui = useUI(), lastPointer = useRef({ x: 160, y: 120 });
-  useSyncExternalStore(history.subscribe, history.getSnapshot);
-  const stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot);
+export function HistoryActionBridge({ history }: { history: ActionHistory }) {
+  const ui = useUI(), stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot);
   useLayoutEffect(() => {
-    if (!position) {
-      history.activeContext = activeFrame(stack)?.key ?? "omnium";
-      history.contextPath = stack.flatMap(entry => entry.kind === "frame" ? [entry.key] : []);
-    }
-  }, [stack, position, history]);
-  useFeatureActions("historyController", { "history.configure": { enabled: true, run: () => {
-    // Invocation from a clickable master control is dispatched by App, too.
-    window.dispatchEvent(new CustomEvent("omnium:history-configure", { detail: lastPointer.current }));
-  } } });
-  useEffect(() => {
-    const pointer = (event: PointerEvent) => { lastPointer.current = { x: event.clientX, y: event.clientY }; };
-    window.addEventListener("pointerdown", pointer, true);
-    return () => window.removeEventListener("pointerdown", pointer, true);
-  }, []);
-  const wheel = (event: React.WheelEvent) => {
-    if ((event.target as Element).closest("input,select,[data-history-value]")) return;
-    event.preventDefault(); event.stopPropagation();
-    const index = modes.findIndex(mode => mode.id === history.options.mode);
-    history.configure({ mode: modes[(index + (event.deltaY > 0 ? 1 : 2)) % modes.length].id });
-  };
-  // The explicit controller gets the same controls; contextual opening hides unrelated categories.
-  return <>
-    {history.message && !position && <div className="operation-banner" role="alert">{history.message}</div>}
-    <ContextualMasterController title="History" position={position} onClose={onClose} onWheel={wheel}>
-      <HistoryControls history={history} />
-    </ContextualMasterController>
-  </>;
+    history.activeContext = activeFrame(stack)?.key ?? "omnium";
+    history.contextPath = stack.flatMap(entry => entry.kind === "frame" ? [entry.key] : []);
+  }, [stack, history]);
+  useFeatureActions("historyController", { "history.configure": { enabled: true,
+    configuration: <HistoryControls history={history} />, run: () => openActionConfiguration("undo") } });
+  return history.message ? <div className="operation-banner" role="alert">{history.message}</div> : null;
 }
 
 export function HistoryControls({ history }: { history: ActionHistory }) {
   const ui = useUI();
   useSyncExternalStore(history.subscribe, history.getSnapshot);
   const undo = history.candidates("undo"), redo = history.candidates("redo");
-  return <div data-context-controller className="history-controls" title="Scroll scope; hover a category or number to scroll that value. Release Shift to finish.">
+  return <div data-context-controller data-scroll-configuration className="history-controls" onWheel={event => {
+    if ((event.target as Element).closest("input,select,[data-history-value]")) return;
+    event.preventDefault(); event.stopPropagation(); const index = modes.findIndex(mode => mode.id === history.options.mode);
+    history.configure({ mode: modes[(index + (event.deltaY > 0 ? 1 : 2)) % modes.length].id });
+  }} title="Scroll scope; hover a category or number to scroll that value. Release Shift to finish.">
     <label className="history-scope"><select onWheel={event => {
       event.preventDefault(); event.stopPropagation(); const index = modes.findIndex(mode => mode.id === history.options.mode);
       history.configure({ mode: modes[(index + (event.deltaY > 0 ? 1 : 2)) % modes.length].id });

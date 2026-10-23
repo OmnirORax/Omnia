@@ -307,7 +307,7 @@ preserving saved values, IDs, locks, bypass and default restoration.
 
 ## Explicit MS lock
 
-`selector.lock` (default Shift+MB3, rebindable in Shortcuts) parks the compact MS
+`selector.lock` (default Ctrl+MB3, rebindable in Shortcuts) parks the compact MS
 symbol at its current position and restores the normal cursor. The parked symbol
 is pointer-transparent; clicks, context menus, wheel and property editing work
 normally. Pressing the same command again resumes MS at the current pointer.

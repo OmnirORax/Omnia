@@ -134,7 +134,7 @@ are retained for saved customization and bindings.
 Shared property editors and Master controller roots carry `data-appearance-editor`.
 The visual selector treats those as tool input. Selection / Preview controls
 feedback independently of membership. MS locking is explicit and rebindable:
-Shift+MB3 parks its symbol, restores normal cursor input, and toggles back to MS.
+Ctrl+MB3 parks its symbol, restores normal cursor input, and toggles back to MS.
 Do not automatically retain hover/event context when entering editors. Accepted
 selection and normal property-input previews remain live.
 
@@ -224,3 +224,17 @@ points at another frame header or tab strip. Body centers, body edges and native
 strip borders do not activate merging. Once opened, the existing guide cross and
 its travel gaps remain usable for choosing any side. Workspace-edge docking is a
 separate explicit target. Ordinary interior drops still use resident placement.
+
+## Universal adaptive function configuration
+
+Shift plus any configured shortcut opens only that function's compact Master
+Controller configuration; releasing Shift finishes. This applies to every new
+feature. Use the single `ShortcutConfiguration` router and existing action/input
+metadata, not per-feature modifier handlers. Primary clicks inside configuration
+remain ordinary controls while Shift is held. Read FUNCTION_CONFIGURATION.md.
+
+Resize/restore is a shared active-frame action (W). Its viewport projection retains
+the actual resident, ownership and original geometry; undo/redo uses UI history.
+Hovering detected resize levels is only a preview outline. Enlarged frames must
+be restored before ordinary dragging/resizing, so dock ownership cannot change
+beneath a projection. Pinned residents and ancestors reject the action.

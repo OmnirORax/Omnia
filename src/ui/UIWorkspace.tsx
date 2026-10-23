@@ -1595,6 +1595,8 @@ export function UIWorkspace({
         shortcutCapturing: shortcuts?.capturing,
         shortcutsBlocked: shortcuts?.blocked,
         registerFunction,
+        captureShortcut: shortcuts?.onCapture,
+        clearShortcut: shortcuts?.onClear,
         configure: (id) => {
           if (id) reopenAppearance();
           configureFrame(null);

@@ -188,7 +188,7 @@ export function FloatingWindow({
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging
-        enableResizing={!dockFill && !stacked && ui.canMove(key) && !state.collapsed}
+        enableResizing={!state.viewport && !dockFill && !stacked && ui.canMove(key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
         onMouseDown={(event) => {

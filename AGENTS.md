@@ -7,6 +7,23 @@ the project from source or chat history for every task; inspect the affected cod
 after loading the shared model. Keep this brief and the relevant subsystem docs
 current when changing a cross-cutting contract or its implementation status.
 
+# Universal Master Controller signature
+
+**Shift + any configured shortcut opens that function's adaptive Master Controller
+configuration instead of executing it. Releasing Shift finishes configuration.**
+This applies to keyboard/mouse commands, existing and future. Shift is reserved for
+configuration, not an alternate executable shortcut. Preserve ordinary text entry
+and protected recovery. Read [docs/FUNCTION_CONFIGURATION.md](docs/FUNCTION_CONFIGURATION.md).
+
+Use the single router in `ShortcutConfiguration.tsx`; do not add per-feature Shift
+listeners, modifier conditionals or separate configuration windows. A feature's
+normal action remains in the action catalog. Declare settable inputs once through
+`*.function.ts`; matching consumers/controls automatically supply generic editors.
+A specialized configuration/preview may attach to the existing function/action
+metadata (`configuration`), reusing its inputs and setters. No second settings store
+or per-shortcut registry. Contextual MC shows only relevant controls; explicit MC
+shows general categories. Keep previews transient and configuration compact.
+
 # Compactness is a product requirement
 
 Every new or changed UI feature must use the smallest practical layout that fits

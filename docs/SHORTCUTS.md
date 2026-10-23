@@ -112,7 +112,7 @@ Visual selector, search **Toggle Selection / Preview** or **Toggle BG / empty sp
 detection**. Both remain unassigned by default; saved bindings/explicit clears are
 preserved. BG's label includes both aliases so searching "space" finds it.
 
-MS cursor locking uses `selector.lock` (Shift+MB3 by default). It is a normal
+MS cursor locking uses `selector.lock` (Ctrl+MB3 by default). It is a normal
 rebindable catalog action: park MS / use normal cursor, then resume MS. The former
 Hold Ctrl selection-preview gesture is removed; Selection / Preview remains an
 independent feedback visibility toggle.
@@ -120,12 +120,12 @@ independent feedback visibility toggle.
 ## Active UI context
 
 The shared catalog declares Esc (one level back), S (search active frame), X
-(close), M (minimize), D (toggle descendants), and Shift+S (global UI search).
+(close), M (minimize), D (toggle descendants), and Ctrl+Alt+S (global UI search).
 Master Controller → Active context exposes the same commands as clickable buttons.
 Click/focus activates a field, popup or frame; hovering does not. Esc cancels an
 uncommitted field draft first, then exits its popup/parent, then minimizes the
 frame. Letter shortcuts do not intercept typing. World-axis X remains available
-when no UI frame is active. Legacy default global S migrates to Shift+S only if
+when no UI frame is active. Legacy default global S migrates to Ctrl+Alt+S only if
 that binding is free; custom bindings and explicit clears survive.
 
 The controller preserves the previous target while its action buttons are used.
@@ -144,7 +144,7 @@ Wheel cycles: most recent action (default), active context, selective categories
 Over category controls it cycles categories; checkboxes permit multiple categories.
 Over Steps/Locked maximum it changes that number; both accept typed values.
 The hard maximum is 10; the chosen maximum stays fixed until explicitly edited.
-Ctrl+Z / Ctrl+Shift+Z route through the same general history commands; the visual
+Ctrl+Z / Ctrl+Y route through the same general history commands; the visual
 selector still has its explicit transient selection timeline and scoped shortcuts.
 
 The obsolete Shift-side-button UI-only defaults migrate to `history.configure`.
@@ -155,3 +155,22 @@ undo preserves unrelated paths and refuses overlapping newer changes with feedba
 Arrays are atomic patches, so some dependent edits must be undone in reverse order.
 After undo, a new edit clears the redo branch. A multi-step request stops at the
 first unavailable/conflicting action. No pointer-move scans or persisted snapshots.
+
+## Universal configuration signature (supersedes feature-specific Shift routes)
+
+Shift is reserved for configuring the function behind any assigned shortcut.
+Hold Shift, press its normal trigger, configure only that function's adaptive
+controls, then release Shift to finish. The base command is not executed. This
+single router replaces history's private Shift route and applies to future actions
+without per-feature input handlers. Native gestures which are not shortcuts (such
+as Shift+wheel geometry rotation) retain their normal mechanics.
+
+Executable shifted bindings migrate to non-Shift alternatives. Current defaults
+are Ctrl+Alt+S global search, Ctrl+Y redo, Ctrl+MB3 MS lock, Ctrl+Alt+N new child,
+Ctrl+Alt+E subtree expansion, Ctrl+Alt+F local fit and Ctrl+/ shortcuts. Shortcut
+capture explains why Shift cannot be assigned to an executable command. Explicit
+clears remain cleared; migrations never steal another assigned combination.
+
+W resizes/restores the active frame; Shift+W shows its detected levels. Hover/focus
+previews a level and scrolling/selecting changes the retained setting. Read
+[FUNCTION_CONFIGURATION.md](FUNCTION_CONFIGURATION.md) for the shared architecture.
