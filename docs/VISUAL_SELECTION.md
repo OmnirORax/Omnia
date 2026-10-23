@@ -417,3 +417,21 @@ Opening/closing the meta MS controller through `selector.open` preserves the
 current candidate and displayed preview. Returning to aiming does not pick the
 controller's former location; actual pointer motion resumes retargeting. Explicit
 clear, selection commits and geometry/configuration changes keep their own rules.
+
+### Shared background tint
+
+`selectorSurface.ts` defines one surface strength for HTML, SVG and the scene:
+paint opacity × pulse strength × 0.2. Peak pulse strength remains 0.82; preview
+opacity keeps its normal 0.6 factor. Scene colors mix in display sRGB and then
+return to Three's linear working space, matching CSS compositing instead of
+producing an unusually bright green background.
+
+Native backgrounds keep the inset tint below their contents. A cached source
+plan accounts for same-color tint visible through transparent selected descendants;
+each adds only the remaining source-over amount. Transparent portalled windows
+fully contained over a selected scene surface account for that backdrop too.
+Ancestor paint and geometry are read when feedback sources change, never in the
+pulse loop. Background images are treated as their own painted material rather
+than inferred from arbitrary image pixels. This normalizes highlight strength;
+translucency still preserves differences in original background colors/imagery.
+No appearance values, selection membership or pulse settings are rewritten.

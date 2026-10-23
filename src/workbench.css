@@ -946,8 +946,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selection-trace.is-excluded { --visual-selection-ink: #ff6c73; }
 .visual-selection-trace.is-boundary { --visual-selection-ink: var(--omnium-accent,#60ddec); }
 .visual-selection-trace rect { fill: none; stroke: currentColor; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
-.visual-selection-trace .visual-selection-surface { fill: currentColor; fill-opacity: .035; stroke: none; }
-.visual-selection-trace.is-preview .visual-selection-surface { fill-opacity: .065; }
+.visual-selection-trace .visual-selection-surface { fill: currentColor; fill-opacity: var(--visual-selection-surface-strength,.164); stroke: none; }
 .visual-selection-trace .visual-selection-halo { stroke-width: calc(1px + 6px * var(--visual-selection-glow,1)); stroke-opacity: calc(.12 * var(--visual-selection-glow,1)); }
 .visual-selection-trace .visual-selection-bloom { stroke-width: calc(1px + 2px * var(--visual-selection-glow,1)); stroke-opacity: calc(.3 * var(--visual-selection-glow,1)); }
 .visual-selection-trace .visual-selection-rail { stroke-width: var(--visual-selection-hairline,1px); stroke-opacity: .55; }

@@ -5,6 +5,7 @@ import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint } from "./resolve";
 import { type SelectionRule, type VisualPart, type VisualMeasurements, createVisualMeasurements } from "./visualSelection";
 import { selectorPulseSettings, selectorPulseLevel, type SelectorPulseSettings } from "./selectorFeedback";
+import { SELECTOR_SURFACE_OPACITY, SELECTOR_PAINT_PEAK, selectorSurfaceStrength, remainingSurfaceTint, paintAlpha } from "./selectorSurface";
 import selectorFeedback from "./selectorFeedback.function";
 import { pathEdges, type Point } from "./selectionGeometry";
 
@@ -17,6 +18,7 @@ const feedbackStyle = (paint: FeedbackPaint): CSSProperties => ({
   "--visual-selection-hot": paint.hot, "--visual-selection-opacity": paint.opacity,
   "--visual-selection-hairline": `${1 / Math.max(1, devicePixelRatio)}px`,
   "--visual-selection-glow": paint.glow,
+  "--visual-selection-surface-strength": SELECTOR_SURFACE_OPACITY * SELECTOR_PAINT_PEAK,
 } as CSSProperties);
 function SelectionTrace({ mark, tone, paint, preview = false, seam = true }: { mark: Mark; tone: Tone; paint: FeedbackPaint; preview?: boolean; seam?: boolean }) {
   const attributes = rectAttributes(mark);
@@ -29,23 +31,31 @@ function SelectionTrace({ mark, tone, paint, preview = false, seam = true }: { m
     {seam && <rect {...attributes} className="visual-selection-seam" />}
   </g>;
 }
-const signal = { mix: "--omnium-selector-glyph-mix" };
+const signal = { mix: "--omnium-selector-glyph-mix", surface: "--omnium-selector-surface-mix" };
+type SurfaceHost = { element: HTMLElement; opacity: number; inheritedOpacity: number; transmission: number };
+type SurfaceSources = { current: SurfaceHost[] };
 /** One continuous clock, no React frames, layout reads or browser custom-property
  * keyframe interpolation. Membership changes only replace this cached host list. */
-function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings, root: RefObject<HTMLDivElement | null>) {
+function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings, root: RefObject<HTMLDivElement | null>, sources?: SurfaceSources, revision = "") {
   useEffect(() => {
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const surfaces = [...(root.current?.children ?? [])].filter((element): element is SVGSVGElement =>
       element instanceof SVGSVGElement && !element.classList.contains("visual-selection-seams"));
     const hosts = elements.filter((element): element is HTMLElement | SVGElement => element instanceof HTMLElement || element instanceof SVGElement);
     if (!hosts.length && !surfaces.length) return;
-    const previous = hosts.map(element => ({ element, value: element.style.getPropertyValue(signal.mix), priority: element.style.getPropertyPriority(signal.mix) }));
+    const previous = hosts.flatMap(element => [signal.mix, signal.surface].map(property => ({ element, property,
+      value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property) })));
     let frame = 0;
     const draw = (time: number) => {
       frame = 0;
       const level = settings.enabled && !reduced.matches ? selectorPulseLevel(time / settings.duration, settings.depth) : 1;
-      const weight = `${(82 * level).toFixed(5)}%`;
+      const strength = SELECTOR_PAINT_PEAK * level;
+      const weight = `${(100 * strength).toFixed(5)}%`;
       for (const element of hosts) element.style.setProperty(signal.mix, weight);
+      for (const source of sources?.current ?? []) {
+        const inherited = selectorSurfaceStrength(source.inheritedOpacity, strength) * source.transmission;
+        source.element.style.setProperty(signal.surface, `${100 * remainingSurfaceTint(source.opacity, strength, inherited)}%`);
+      }
       for (const surface of surfaces) surface.style.opacity = String(level);
       if (settings.enabled && !reduced.matches && !document.hidden) frame = requestAnimationFrame(draw);
     };
@@ -54,13 +64,13 @@ function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings,
     reduced.addEventListener("change", resume); document.addEventListener("visibilitychange", resume);
     return () => {
       cancelAnimationFrame(frame);
-      for (const { element, value, priority } of previous) {
-        if (value) element.style.setProperty(signal.mix, value, priority); else element.style.removeProperty(signal.mix);
+      for (const { element, property, value, priority } of previous) {
+        if (value) element.style.setProperty(property, value, priority); else element.style.removeProperty(property);
       }
       for (const surface of surfaces) surface.style.removeProperty("opacity");
       reduced.removeEventListener("change", resume); document.removeEventListener("visibilitychange", resume);
     };
-  }, [elements, settings, root]);
+  }, [elements, settings, root, sources, revision]);
 }
 const mix = "var(--omnium-selector-glyph-mix,82%)";
 const feedbackCore = (paint: FeedbackPaint, whiteness = .8) => {
@@ -148,7 +158,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   }, [selected, excluded, preview, measure]);
   const pulseHosts = useMemo(() => [...new Set([...visible.selected, ...visible.excluded, ...visible.preview]
     .filter(part => part.target.binding?.selection?.renderer !== "scene" && (part.role === "text" || part.role === "icon" || part.role === "background")).map(part => part.element))], [visible]);
-  useSelectionPulse(pulseHosts, pulse, pulseRoot);
+  const surfaceSources = useRef<SurfaceHost[]>([]);
   useEffect(() => {
     const targets = new Map<string, SceneSelectionPaint>();
     for (const [parts, paint] of [[selected, paints.included], [preview, pendingPaint]] as const)
@@ -162,8 +172,8 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     const draw = (time: number) => {
       frame = 0;
       if (document.hidden) return;
-      paintSceneSelection(targets, reduced.matches || !pulse.enabled ? .82
-        : .82 * selectorPulseLevel(time / pulse.duration, pulse.depth));
+      paintSceneSelection(targets, reduced.matches || !pulse.enabled ? SELECTOR_PAINT_PEAK
+        : SELECTOR_PAINT_PEAK * selectorPulseLevel(time / pulse.duration, pulse.depth));
       if (!reduced.matches && pulse.enabled) frame = requestAnimationFrame(draw);
     };
     const resume = () => {
@@ -201,6 +211,39 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     // Read source paint once, then own a removable stylesheet/marker layer. The
     // renderer's inline paint remains available to other previews and is never replaced.
     const attribute = "data-visual-selection-ink";
+    const surfaces = new Map([...paint].flatMap(([element, plan]) => element instanceof HTMLElement && plan.surface ? [[element, plan.surface] as const] : []));
+    const material = new WeakMap<HTMLElement, number>();
+    const transmission = (element: HTMLElement) => {
+      const cached = material.get(element);
+      if (cached !== undefined) return cached;
+      const style = getComputedStyle(element);
+      // Images have their own ink; don't assume their pixels are transparent.
+      const value = style.backgroundImage !== "none" ? 0 : 1 - paintAlpha(style.backgroundColor);
+      material.set(element, value); return value;
+    };
+    const sceneBackdrops = [[visible.selected, paints.included], [visible.preview, pendingPaint]] as const;
+    const backdrops = sceneBackdrops.flatMap(([parts, feedback]) => parts
+      .filter(part => part.role === "background" && part.target.binding?.selection?.renderer === "scene")
+      .map(part => ({ element: part.element, feedback, bounds: measure.bounds(part.element) })));
+    surfaceSources.current = [...surfaces].map(([element, feedback]) => {
+      let ancestor = element.parentElement, exposure = transmission(element);
+      while (ancestor && !surfaces.has(ancestor)) { exposure *= transmission(ancestor); ancestor = ancestor.parentElement; }
+      let parent = ancestor ? surfaces.get(ancestor) : undefined;
+      if (!ancestor && backdrops.length) {
+        const bounds = measure.bounds(element);
+        const backdrop = backdrops.find(source => source.feedback.ink === feedback.ink && !element.contains(source.element) &&
+          bounds.left >= source.bounds.left && bounds.top >= source.bounds.top && bounds.right <= source.bounds.right && bounds.bottom <= source.bounds.bottom);
+        if (backdrop) {
+          // Portalled windows may sit over the selected scene rather than inside
+          // its DOM subtree. Count transmission only above their common owner.
+          exposure = 1;
+          let current: HTMLElement | null = element;
+          while (current && !current.contains(backdrop.element)) { exposure *= transmission(current); current = current.parentElement; }
+          if (current) { ancestor = current; parent = backdrop.feedback; }
+        }
+      }
+      return { element, opacity: feedback.opacity, inheritedOpacity: parent?.ink === feedback.ink ? parent.opacity : 0, transmission: ancestor ? exposure : 0 };
+    });
     const plans = [...paint].map(([element, { glyph, surface }], index) => {
       const computed = getComputedStyle(element, glyph?.pseudo || null);
       const pseudo = glyph?.pseudo ?? "";
@@ -220,7 +263,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       if (surface) {
         const original = getComputedStyle(element).boxShadow;
         const shadow = original === "none" ? "" : `${original},`;
-        const weight = `calc(${mix} * ${surface.opacity} * .2)`;
+        const weight = `var(${signal.surface},${100 * selectorSurfaceStrength(surface.opacity, SELECTOR_PAINT_PEAK)}%)`;
         // An inset tint paints the actual rounded surface below its contents,
         // including image/gradient backgrounds. No blur, wrappers or value writes.
         const tint = `color-mix(in srgb,transparent calc(100% - ${weight}),${surface.ink} ${weight})`;
@@ -240,12 +283,16 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     return () => {
       for (const name of names) CSS.highlights?.delete(name);
       style.remove();
+      surfaceSources.current = [];
       for (const { element, marker, previous } of plans) {
         if (element.getAttribute(attribute) !== marker) continue;
         if (previous === null) element.removeAttribute(attribute); else element.setAttribute(attribute, previous);
       }
     };
-  }, [visible, candidate?.include, paints, pendingPaint]);
+  }, [visible, candidate?.include, paints, pendingPaint, measure]);
+
+  useSelectionPulse(pulseHosts, pulse, pulseRoot, surfaceSources,
+    `${paints.included.opacity}:${paints.excluded.opacity}:${pendingPaint.opacity}`);
 
   // Background and contour matches on the same element share one trace. Cache
   // bounds/style reads across accepted/excluded/preview layers for this render.

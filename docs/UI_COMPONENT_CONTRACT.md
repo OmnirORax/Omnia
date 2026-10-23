@@ -149,3 +149,10 @@ the clamped circle; their titles show live shortcut bindings. Pulse speed/depth
 and enablement use the discovered shared Pulse consumer, normal serialization and
 property editors; unsupported parent properties never render an editor merely
 because supported children are present.
+
+Selector background feedback uses the shared `selectorSurface.ts` source-over
+strength and display-sRGB blend in DOM/SVG/scene adapters. Native inset tint stays
+below content; cached transparency compensation prevents full-strength tint from
+stacking through nested selected surfaces or transparent windows over the scene.
+Preserve underlying paint and configured pulse values; do not add independent
+renderer-specific strength multipliers or per-frame geometry queries.
