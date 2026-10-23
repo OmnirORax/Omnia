@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Checkpoint } from "./checkpoints";
@@ -90,13 +91,13 @@ export function AppearanceRecovery(props: Props) {
     };
     window.addEventListener("keydown", down, true);
     window.addEventListener("keyup", up, true);
-    window.addEventListener("blur", clear);
+    window.addEventListener(PAGE_INPUT_SUSPEND, clear);
     document.addEventListener("visibilitychange", visibility);
     return () => {
       clear();
       window.removeEventListener("keydown", down, true);
       window.removeEventListener("keyup", up, true);
-      window.removeEventListener("blur", clear);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, clear);
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [root]);

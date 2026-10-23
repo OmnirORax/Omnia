@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useAppearance } from "./Context";
@@ -64,12 +65,12 @@ export function MouseTrail() {
       if (!frame) frame = requestAnimationFrame(paint);
     };
     window.addEventListener("pointermove", move, true);
-    window.addEventListener("blur", clearTrail);
+    window.addEventListener(PAGE_INPUT_SUSPEND, clearTrail);
     document.addEventListener("pointerleave", clearTrail);
     document.addEventListener("visibilitychange", clearTrail);
     reducedMotion.addEventListener("change", clearTrail);
     return () => { cancelAnimationFrame(frame);
-      document.removeEventListener("pointerleave", clearTrail); window.removeEventListener("pointermove", move, true); window.removeEventListener("blur", clearTrail);
+      document.removeEventListener("pointerleave", clearTrail); window.removeEventListener("pointermove", move, true); window.removeEventListener(PAGE_INPUT_SUSPEND, clearTrail);
       document.removeEventListener("visibilitychange", clearTrail); reducedMotion.removeEventListener("change", clearTrail); };
   }, [enabled]);
   if (!enabled) return null;

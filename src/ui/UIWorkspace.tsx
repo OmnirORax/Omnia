@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { ValueFieldBehavior } from "./ValueFieldBehavior";
 import { residentMovable } from "./rigidity";
 import { captureNativeActions, NativeActions } from "./NativeActions";
@@ -1459,7 +1460,7 @@ export function UIWorkspace({
     window.addEventListener("pointerup", pointerUp, true);
     window.addEventListener("pointercancel", pointerCancel, true);
     window.addEventListener("contextmenu", preventContext, true);
-    window.addEventListener("blur", cancelPointer);
+    window.addEventListener(PAGE_INPUT_SUSPEND, cancelPointer);
     window.addEventListener("dragstart", nativeStart, true);
     window.addEventListener("dragover", over, true);
     window.addEventListener("drop", nativeDrop, true);
@@ -1472,7 +1473,7 @@ export function UIWorkspace({
       window.removeEventListener("pointerup", pointerUp, true);
       window.removeEventListener("pointercancel", pointerCancel, true);
       window.removeEventListener("contextmenu", preventContext, true);
-      window.removeEventListener("blur", cancelPointer);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, cancelPointer);
       window.removeEventListener("dragstart", nativeStart, true);
       window.removeEventListener("dragover", over, true);
       window.removeEventListener("drop", nativeDrop, true);

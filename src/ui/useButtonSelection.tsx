@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createTransientStore } from "./transientStore";
 import {
@@ -694,7 +695,7 @@ export function useButtonSelection({
     window.addEventListener("pointercancel", pointerCancel, true);
     window.addEventListener("contextmenu", preventContext, true);
     window.addEventListener("dragstart", preventNative, true);
-    window.addEventListener("blur", cancel);
+    window.addEventListener(PAGE_INPUT_SUSPEND, cancel);
     window.addEventListener("keydown", key, true);
     return () => {
       cancelMove();
@@ -705,7 +706,7 @@ export function useButtonSelection({
       window.removeEventListener("pointercancel", pointerCancel, true);
       window.removeEventListener("contextmenu", preventContext, true);
       window.removeEventListener("dragstart", preventNative, true);
-      window.removeEventListener("blur", cancel);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, cancel);
       window.removeEventListener("keydown", key, true);
     };
   }, [suppress]);

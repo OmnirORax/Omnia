@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { claimUIPress } from "../ui/pointerOwnership";
@@ -459,10 +460,16 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         event.preventDefault(); event.stopImmediatePropagation();
       }
     };
-    const cancel = () => { gesture.current = null; polygon.current = null; setDrawing(false); setCandidatePick(null); };
+    const cancel = () => {
+      // Browser chrome is outside the app: release unfinished input without
+      // accepting, clearing, closing or changing the current selection/preview.
+      cancelAnimationFrame(frame); frame = 0;
+      gesture.current = null; polygon.current = null; setDrawing(false);
+      commandButton = -1; consumedPointer = null; consumedUntil = 0;
+    };
     const blur = () => {
-      if (!document.hidden && document.activeElement instanceof HTMLInputElement && document.activeElement.type === "color") return;
-      cancel(); actions.current.close();
+      retainedPreview.current = !!candidateRef.current;
+      cancel();
     };
     const hidden = () => { if (document.hidden) blur(); };
     window.addEventListener("pointerdown", down, true);
@@ -476,7 +483,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     window.addEventListener("wheel", wheel, { capture: true, passive: false });
     window.addEventListener("keydown", key, true);
     window.addEventListener("contextmenu", context, true);
-    window.addEventListener("blur", blur);
+    window.addEventListener(PAGE_INPUT_SUSPEND, blur);
     document.addEventListener("visibilitychange", hidden);
     return () => {
       cancelAnimationFrame(frame);
@@ -491,7 +498,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       window.removeEventListener("wheel", wheel, true);
       window.removeEventListener("keydown", key, true);
       window.removeEventListener("contextmenu", context, true);
-      window.removeEventListener("blur", blur);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, blur);
       document.removeEventListener("visibilitychange", hidden);
     };
   }, []);

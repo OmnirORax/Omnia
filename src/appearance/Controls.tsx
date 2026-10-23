@@ -15,17 +15,6 @@ export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { pr
     if ((!hover && !focus) || props.disabled || ctx?.safe || !targets.current?.length) return;
     return activate?.({ property: props.property, targets: targets.current });
   }, [hover, focus, props.disabled, ctx?.safe, props.property, scope, activate]);
-  useEffect(() => {
-    if (!hover && !focus) return;
-    const clear = () => { setHover(false); setFocus(false); };
-    const visibility = () => { if (document.hidden) clear(); };
-    const blur = () => {
-      // A native color picker may own the OS window while its input retains focus.
-      if (!(document.activeElement instanceof HTMLInputElement && document.activeElement.type === "color")) clear();
-    };
-    window.addEventListener("blur", blur); document.addEventListener("visibilitychange", visibility);
-    return () => { window.removeEventListener("blur", blur); document.removeEventListener("visibilitychange", visibility); };
-  }, [hover, focus]);
   return <span data-appearance-editor data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
     onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
     onFocusCapture={() => setFocus(true)} onBlurCapture={event => {

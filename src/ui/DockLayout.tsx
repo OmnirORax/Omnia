@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState } from "react";
 import { DockFillContext, useUI } from "./context";
 import { getContainer, updateContainer } from "./layout";
@@ -88,11 +89,11 @@ function DockSplit({ node, path, container }: { node: Extract<DockNode, { kind: 
     const key = (event: KeyboardEvent) => { if (event.key === "Escape" && gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); cancel(); } };
     const cancelled = (event: PointerEvent) => { if (gesture.current?.pointer === event.pointerId) cancel(); };
     window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", up, true);
-    window.addEventListener("pointercancel", cancelled, true); window.addEventListener("keydown", key, true); window.addEventListener("blur", cancel);
+    window.addEventListener("pointercancel", cancelled, true); window.addEventListener("keydown", key, true); window.addEventListener(PAGE_INPUT_SUSPEND, cancel);
     return () => {
       gesture.current?.release(); gesture.current = null;
       window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true);
-      window.removeEventListener("pointercancel", cancelled, true); window.removeEventListener("keydown", key, true); window.removeEventListener("blur", cancel);
+      window.removeEventListener("pointercancel", cancelled, true); window.removeEventListener("keydown", key, true); window.removeEventListener(PAGE_INPUT_SUSPEND, cancel);
     };
   }, []);
   const ratio = draft ?? node.ratio, horizontal = node.axis === "horizontal";

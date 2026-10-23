@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "./ui/pageInputBoundary";
 import { claimUIPress, observeUIPress, uiPointerHeld } from "./ui/pointerOwnership";
 
 /** A press belongs to the surface where it began, until its actual release.
@@ -57,7 +58,7 @@ export function guardCameraPointer(
   window.addEventListener("pointerup", up, true);
   window.addEventListener("pointercancel", up, true);
   window.addEventListener("lostpointercapture", lost, true);
-  window.addEventListener("blur", blur);
+  window.addEventListener(PAGE_INPUT_SUSPEND, blur);
   return {
     owns: (event: PointerEvent) => !uiPointerHeld() && world.has(event.pointerId),
     dispose: () => {
@@ -66,7 +67,7 @@ export function guardCameraPointer(
       window.removeEventListener("pointerup", up, true);
       window.removeEventListener("pointercancel", up, true);
       window.removeEventListener("lostpointercapture", lost, true);
-      window.removeEventListener("blur", blur);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, blur);
     },
   };
 }

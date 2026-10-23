@@ -11,8 +11,12 @@ MB3 toggles the stationary controller at the pointer and the compact aiming
 cursor. The circle is centered on the pointer and clamped near viewport edges.
 The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
-Escape disables the tool and clears selection. Blur/tab hiding cancels an
-unfinished gesture; native color-picker blur keeps the property editor mounted.
+Escape disables the tool and clears selection. Browser chrome clicks, window
+blur and tab hiding are not app commands: preserve tool phase, configuration,
+selection, editor and pointed preview. Only release unfinished input (never
+accept it), pending animation callbacks and press ownership. Resume aiming on
+actual in-page pointer motion. Property activity previews and draft editors must
+likewise survive browser focus loss; blur commits apply only within the page.
 
 The ○ has three independent settings:
 

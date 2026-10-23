@@ -171,3 +171,10 @@ with editable descendants remain as navigation, with no unavailable parent edito
 Supported descendants/operators retain their normal paint.
 Native and canvas text effects omit disabled controls so animation cannot make an
 unavailable setter appear active.
+
+Browser chrome is outside application input. `pageInputBoundary.ts`, installed
+before mounting React, blocks external blur/focusout from reaching UI action and
+commit handlers. Never implement semantic actions on window blur. Held-input
+owners use `PAGE_INPUT_SUSPEND` only to release unfinished presses/drags; it must
+not clear selections, close editors, commit drafts or create history. Visibility
+listeners may pause rendering clocks without changing application state.

@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { setHierarchyTextSources, updateHierarchyTextLevel, clearHierarchyTextFeedback } from "./hierarchyTextFeedback";
 import type { RegisteredTarget } from "./registry";
 import { EFFECT_PROPERTIES } from "./registry";
@@ -317,9 +318,9 @@ export function highlightHierarchy(entries: HighlightTarget[], targets: Register
     for (const source of sceneSources) source.clear();
     clearHierarchyTextFeedback(textToken);
     if (textHighlights) { CSS.highlights.delete(name); CSS.highlights.delete(`${name}-muted`); }
-    style.remove(); textStyle.remove(); window.removeEventListener("blur", stop); document.removeEventListener("visibilitychange", hidden); reduced.removeEventListener("change", schedulePrepare);
+    style.remove(); textStyle.remove(); window.removeEventListener(PAGE_INPUT_SUSPEND, stop); document.removeEventListener("visibilitychange", hidden); reduced.removeEventListener("change", schedulePrepare);
   };
   const hidden = () => { if (document.hidden) stop(); };
-  window.addEventListener("blur", stop); document.addEventListener("visibilitychange", hidden); reduced.addEventListener("change", schedulePrepare);
+  window.addEventListener(PAGE_INPUT_SUSPEND, stop); document.addEventListener("visibilitychange", hidden); reduced.addEventListener("change", schedulePrepare);
   schedulePrepare(); return { stop };
 }

@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect } from "react";
 
 const valueField = (target: EventTarget | null): HTMLInputElement | null =>
@@ -29,12 +30,12 @@ export function ValueFieldBehavior() {
     document.addEventListener("mousedown", down, true);
     document.addEventListener("focusin", focus);
     document.addEventListener("mouseup", up);
-    window.addEventListener("blur", cancel);
+    window.addEventListener(PAGE_INPUT_SUSPEND, cancel);
     return () => {
       document.removeEventListener("mousedown", down, true);
       document.removeEventListener("focusin", focus);
       document.removeEventListener("mouseup", up);
-      window.removeEventListener("blur", cancel);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, cancel);
     };
   }, []);
   return null;
