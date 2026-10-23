@@ -162,6 +162,12 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     } else if (savedBindings["selector.include"] === "" && legacyExclude === "" && savedBindings["selector.edit"] === "MB2") {
       savedBindings["selector.include"] = "MB1";
     }
+    // RMB now removes selection. Migrate the retired default edit binding once;
+    // explicit clears/custom bindings in newer saves stay unchanged.
+    if (!Object.hasOwn(savedBindings, "selector.deselect") && savedBindings["selector.edit"] === "MB2") {
+      if (savedBindings["selector.open"] === "MB3" && !Object.entries(savedBindings).some(([id, binding]) => id !== "selector.open" && binding === "Q" && actionScope(id) === "global")) savedBindings["selector.open"] = "Q";
+      savedBindings["selector.edit"] = ""; savedBindings["selector.deselect"] = "MB2";
+    }
     delete savedBindings["selector.exclude"];
     if (savedBindings["selector.redo"] === "Ctrl+Shift+Z" && savedBindings["selector.redoAlternate"] === "Ctrl+Y") savedBindings["selector.redoAlternate"] = "";
     // Retire the old Shift-side-button UI-only route in favor of history configuration.
@@ -239,7 +245,12 @@ export const buttonShortcutId = (id: string) => ACTIONS.some(action => action.id
 export function functionShortcutBinding(functionId: string | undefined, bindings: Record<string, string> = {}): string {
   if (!functionId) return "";
   const id = functionId.startsWith("shortcut:") ? functionId.slice("shortcut:".length) : functionId;
-  return shortcutBinding(id.startsWith("button:") ? id : buttonShortcutId(id), bindings);
+  const binding = shortcutBinding(id.startsWith("button:") ? id : buttonShortcutId(id), bindings);
+  if (binding) return binding;
+  const source = ACTIONS.find(action => "configurationAction" in action && action.configurationAction === id);
+  const base = source && shortcutBinding(source.id, bindings);
+  if (!base) return "";
+  const parts = base.split("+"); parts.splice(parts.length - 1, 0, "Shift"); return parts.join("+");
 }
 export type ButtonShortcuts = {
   bindings: Record<string, string>;

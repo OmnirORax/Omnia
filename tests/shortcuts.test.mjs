@@ -13,7 +13,7 @@ test("feature commands automatically join the catalog, defaults and saved settin
     assert.equal(defaults.bindings[feature.id], feature.defaultKey);
     assert.ok(feature.label && feature.category && feature.scope && feature.description);
   }
-  assert.equal(defaults.bindings["selector.open"], "MB3");
+  assert.equal(defaults.bindings["selector.open"], "Q");
   assert.equal(defaults.bindings["selector.pattern"], "E");
   assert.equal(keyConflict(defaults.bindings, "selector.pattern", "E"), null, "contextual E coexists with global expand");
   assert.equal(actionForKey(defaults.bindings, "E"), "expand", "inactive selector never steals global E");
@@ -32,7 +32,7 @@ test("selector single-toggle defaults migrate retired operation bundles without 
   const dual = { bindings: { "selector.edit": "", "selector.include": "MB2", "selector.exclude": "MB1", "selector.finishGeometry": "Enter" } };
   const migrated = normalizeSettings(dual);
   assert.equal(migrated.bindings["selector.include"], "MB1");
-  assert.equal(migrated.bindings["selector.edit"], "MB2");
+  assert.equal(migrated.bindings["selector.edit"], "");
   assert.equal(Object.hasOwn(migrated.bindings, "selector.exclude"), false);
   assert.equal(FEATURE_ACTIONS.some(action => action.id === "selector.exclude"), false);
   assert.equal(dual.bindings["selector.edit"], "", "loading does not mutate saved input");
@@ -81,10 +81,10 @@ test("pointer gesture modifiers preserve selector picking and explicit bindings 
 test("shortcut search resolves live bindings for commands, rows and customized functions", () => {
   const bindings = defaultSettings().bindings;
   for (const id of ["selector.open", "shortcut:selector.open"])
-    assert.equal(functionShortcutBinding(id, bindings), "MB3");
+    assert.equal(functionShortcutBinding(id, bindings), "Q");
   const rebound = { ...bindings, "selector.open": "Ctrl+P", "button:custom-action": "Shift+MB3" };
   for (const id of ["selector.open", "shortcut:selector.open"])
-    assert.equal(functionShortcutBinding(id, rebound), "Ctrl+P", "old MB3 must disappear from search metadata");
+    assert.equal(functionShortcutBinding(id, rebound), "Ctrl+P", "old Q must disappear from search metadata");
   for (const id of ["custom-action", "button:custom-action", "shortcut:button:custom-action"])
     assert.equal(functionShortcutBinding(id, rebound), "Shift+MB3");
   assert.equal(functionShortcutBinding("shortcut:selector.open", { ...rebound, "selector.open": "" }), "");
@@ -355,4 +355,15 @@ test("a searchable popup resident retains its dismissal layer after field focus"
   assert.equal(closed, 1); assert.equal(stack.at(-1).key, "window:theme");
   const nested = contextStackFromScopes([{ element: owner, frame: "window:theme" }, { element: popup, frame: "window:global-ui-search", layer }], framesFor);
   assert.deepEqual(nested.map(entry => entry.kind), ["frame", "layer"], "DOM nesting and portals preserve the same dismissal order");
+});
+
+test("RMB edit migrates to deselection and Shift-selector delegates to selected-property editing", async () => {
+  const settings = normalizeSettings({ bindings: { "selector.open": "MB3", "selector.edit": "MB2" } });
+  assert.equal(settings.bindings["selector.open"], "Q");
+  assert.equal(settings.bindings["selector.edit"], ""); assert.equal(settings.bindings["selector.deselect"], "MB2");
+  const modern = normalizeSettings({ bindings: { "selector.deselect": "", "selector.edit": "Ctrl+P", "selector.open": "K" } });
+  assert.equal(modern.bindings["selector.deselect"], ""); assert.equal(modern.bindings["selector.edit"], "Ctrl+P");
+  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Q", "selector.edit": "" }), "Shift+Q");
+  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Ctrl+P", "selector.edit": "" }), "Ctrl+Shift+P");
+  assert.equal(FEATURE_ACTIONS.find(action => action.id === "selector.open").configurationAction, "selector.edit");
 });

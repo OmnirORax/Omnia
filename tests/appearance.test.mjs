@@ -22,7 +22,7 @@ import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
 import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints, selectionWheelRotation } from "../src/appearance/selectionGeometry.ts";
-import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule } from "../src/appearance/selectionToggle.ts";
+import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule } from "../src/appearance/selectionToggle.ts";
 import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide, roleFor, partPaint } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
@@ -263,6 +263,16 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   assert.equal(widened.include, true, "a partially selected parent broadens rather than clearing its selected child");
   assert.equal(selectionToggleRule(typed, typed.slice(0, 2), targetRule("text.ui")).include, false, "a fully selected parent toggles off");
   assert.deepEqual(matchingVisualParts(typed, { ...targetRule("text.ui"), scope: { boundary: appBoundary, region: "outside" } }), [], "parent widening retains geometric constraints");
+  const removeText = selectionRemovalRule(parts, [a, b], a, { boundary, role: "text" });
+  assert.equal(removeText.include, false, "right-click removal cannot turn a mixed pattern on");
+  const start = [{ boundary, part: a.key, include: true }, { boundary, part: b.key, include: true }];
+  assert.deepEqual(resolveVisualSelection(parts, boundary, [...start, removeText]).included.map(part => part.key), [b.key]);
+  assert.equal(selectionRemovalRule(parts, [a, b], c, { boundary, role: "background" }), null, "an unselected hovered target requests clear-all");
+  assert.equal(selectionRemovalRule(parts, [a, b], undefined, { boundary }), null, "empty space requests clear-all");
+  const individualRemoval = selectionRemovalRule(parts, [a, b], a, { boundary, part: b.key });
+  assert.equal(individualRemoval.part, a.key, "nonmatching geometry falls back to the pointed selected part");
+  const axisRemoval = selectionRemovalRule(parts, [a, b, outside], a, rule);
+  assert.deepEqual(resolveVisualSelection(parts, appBoundary, [{ boundary: appBoundary, include: true }, axisRemoval]).included.map(part => part.key), [gap.key, outside.key], "axis removal follows its existing mathematical intersection");
   const outline = { boundary, path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true } };
   const defaultMask = { contour: true, region: null };
   let work = workingGeometry(outline, defaultMask);

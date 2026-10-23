@@ -63,9 +63,9 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 
 ## Visual selector integration
 
-The selector command group includes configuration/aiming (MB3), geometry modes
-(E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), edit
-(RMB/MB2), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
+The selector command group includes configuration/aiming (Q), geometry modes
+(E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), deselect pointed pattern or all (RMB/MB2), selected-property editing
+(Shift + selector shortcut, default Shift+Q), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
 unassigned commands for BG detection, Selection / Preview, contour, inside/outside, releasing geometry, closing paths,
 finite bounds, color stops, Self inventory and logical Mouse selection. The separate exclude
 command is retired. Exact untouched older pointer bundles migrate to these
@@ -198,3 +198,11 @@ therefore owns Escape before the active window; clearing MS yields subsequent
 Escape to the normal field/popup/window stack. Cleared/rebound bindings, typing,
 availability, capture and protected recovery rules remain authoritative. Shift
 configuration resolves the same priority. Do not rely on listener mount order.
+
+
+The selector action declares `configurationAction: selector.edit`: universal Shift
+routing opens the existing selected-property MC instead of its old generic Shift
+configuration. This follows the live base binding and uses shared catalog dispatch;
+there is no private Shift+Q listener or executable Shift binding. Shortcut search
+shows the derived editing gesture. Q is the new selector default; legacy default
+MB3/RMB-edit settings migrate when Q is free, preserving other custom assignments.

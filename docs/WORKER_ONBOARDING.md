@@ -210,10 +210,12 @@ inspector includes a live sample using the actual renderer. See SHARED_PROPERTIE
 ## Visual selector and feedback
 
 The stationary meta-selector configures the tool; the compact aiming symbol is
-pointer-transparent. MB3 is the current default toggle between these states.
+pointer-transparent. Q is the current default toggle between these states.
 The circle controls 🞅 Frame, ◉ In-frame and ⏺ Outside frame independently;
 it never blocks the geometry mode. Each includes its region; In-frame leaves the
-frame itself out. One LMB action toggles membership; RMB opens editing. With all
+frame itself out. One LMB action toggles membership; RMB removes the pointed selected pattern or
+clears all if its target is unselected. Shift + the selector shortcut (Shift+Q)
+opens selected-property editing. With all
 three off, a click establishes a neutral frame, then pattern detection follows
 the pointer inside or outside it without changing inclusion. Previews are automatic
 before a boundary/selection; then hold Ctrl: additions green, removal preview hides
@@ -427,3 +429,10 @@ Keyboard feature conflicts use shared active-scope priority (MS before UI contex
 before global), including Shift configuration. Escape clears active MS/selection
 before minimizing a window. Reuse preferredFeatureKey; do not add private Escape
 branches or assume capture-listener mount order. See SHORTCUTS.md.
+
+
+Selector's Shift configuration now delegates to its existing contextual edit
+action through declarative `configurationAction` metadata. RMB is removal-only,
+respecting the current pattern/geometry, with empty/unselected hits clearing all.
+Selection removal still uses the transient timeline, never UI/appearance history.
+See VISUAL_SELECTION.md and FUNCTION_CONFIGURATION.md for migration and routing.

@@ -30,6 +30,12 @@ export function ShortcutConfiguration({ mouse, bindings }: { mouse: WorkspaceSet
       if (!id) return;
       event.preventDefault(); event.stopImmediatePropagation();
       if (event instanceof PointerEvent) { cursor.current = { x: event.clientX, y: event.clientY }; recordShortcutPress(event); claimUIPress(event.pointerId, event.pointerType, event.buttons); }
+      const action = ACTIONS.find(action => action.id === id.replace(/^button:/, ""));
+      // A function may delegate contextual configuration to an existing editor
+      // action. This replaces its generic configuration without another key path.
+      if (action && "configurationAction" in action) {
+        close(); window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: `button:${action.configurationAction}` })); return;
+      }
       if (gesture.begin(id) === "open") setRequest({ id, position: cursor.current, token: ++token.current });
     };
     const point = (event: PointerEvent) => { cursor.current = { x: event.clientX, y: event.clientY }; };

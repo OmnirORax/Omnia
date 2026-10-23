@@ -107,3 +107,11 @@ A catalog action must not require a separate `button:` binding or hidden DOM
 runner to execute. Arbitrary customized button residents retain their own runner
 path. This covers S/Shift+S reaching global search as well as future configured
 commands; do not patch individual keys to click a specific DOM button.
+
+
+An action may declare `configurationAction` to use an existing contextual editor
+instead of its generic configuration. The shared router consumes the modified
+press and invokes that catalog action immediately; Shift release does not execute
+the base action afterward. Selector opening uses this link to `selector.edit`
+(Shift+Q by default). Do not add literal Shift key combinations or competing
+configuration handlers. Derived hints/search follow the source's live binding.

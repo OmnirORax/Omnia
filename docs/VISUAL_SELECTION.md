@@ -7,7 +7,7 @@ appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
 ## One circle, independent geometry
 
-MB3 toggles the stationary controller at the pointer and the compact aiming
+Q (rebindable) toggles the stationary controller at the pointer and the compact aiming
 cursor. The circle is centered on the pointer and clamped near viewport edges.
 The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
@@ -63,10 +63,16 @@ physical paths across associated rules without overwriting their inclusion masks
 
 The shared command keeps ID `selector.include` for compatibility and is labeled
 Toggle pointed pattern / define geometry. The retired `selector.exclude` command
-is removed. Exact older default bundles migrate to LMB toggle and RMB edit; custom
-assignments and later explicit clears remain intact. RMB, the controller's edit
-button, the platform keyboard context-menu gesture and Master controller provide
-editing. Shortcut metadata and handlers remain shared and rebindable. Optional Ctrl is transparent to the selection command's saved pointer binding; exact modified
+is removed. LMB toggles selection; RMB removes the selected pattern at the
+pointer using the current selector constraint, and clears all selection when the
+pointed target is not selected (including empty space). Removal never includes
+an unselected peer, even in a mixed pattern. Unplaced closed geometry falls back
+to the pointed selected part. Both removals use the transient selection timeline.
+Shift + the selector binding (Shift+Q by default) opens the selected-property MC
+through the existing edit action, replacing generic selector Shift configuration.
+The controller's edit button, platform keyboard context gesture and explicit MC
+remain available. Legacy default RMB editing migrates once to deselection; newer
+custom bindings/clears remain intact. Shortcut metadata and handlers remain shared and rebindable. Optional Ctrl is transparent to the selection command's saved pointer binding; exact modified
 commands keep priority. MS consumes owned press/release/click events even when
 no command matches, so underlying controls cannot activate.
 

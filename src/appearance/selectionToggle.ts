@@ -42,3 +42,12 @@ export function detectionGeometry(geometry: SelectionConstraint, mask: Selection
   const inside = pointerInSelectionScope({ ...geometry, contour: false, region: "inside" }, element, point);
   return { ...geometry, contour: false, region: inside ? "inside" : "outside" };
 }
+
+/** Removal is never a toggle-on. A nonselected pointed part means clear-all;
+ * otherwise keep the current selector constraint when it contains that hit. */
+export function selectionRemovalRule(parts: VisualPart[], included: readonly VisualPart[], pointed: VisualPart | undefined, constraint: SelectionConstraint, measure?: VisualMeasurements): SelectionRule | null {
+  if (!pointed || !included.some(part => part.key === pointed.key)) return null;
+  const peers = matchingVisualParts(parts, { ...constraint, include: false }, measure);
+  if (peers.some(part => part.key === pointed.key)) return { ...constraint, include: false };
+  return { boundary: constraint.boundary, part: pointed.key, include: false };
+}

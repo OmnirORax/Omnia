@@ -13,7 +13,7 @@ import { SelectionController } from "./SelectionController";
 import { describeSelectedParts } from "./selectedParts";
 import { PROPERTY_REGISTRY, TARGETS } from "./registry";
 import { resolvePropertyTarget, selfInventory, type SelfInventoryNode } from "../properties/registry";
-import { DEFAULT_SELECTION_MASK, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, type SelectionMask, type MaskPart } from "./selectionToggle";
+import { DEFAULT_SELECTION_MASK, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule, type SelectionMask, type MaskPart } from "./selectionToggle";
 import { selectedPartTarget } from "./selectionCoupling";
 import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODE_GROUPS, PATTERN_SYMBOLS,
   type Point, type PathCondition, type PatternMode, type SelectionSide } from "./selectionGeometry";
@@ -281,6 +281,20 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     settledPoint.current = null;
     if (element && !element.closest(selectorChrome)) { pickAt(element, p.x, p.y); accept(); }
   };
+  const deselectAt = (input?: KeyboardEvent | MouseEvent) => {
+    const p = inputPosition(input), element = input instanceof MouseEvent && input.target instanceof Element ? input.target : document.elementFromPoint(p.x, p.y);
+    if (!element) { clear(); return; }
+    const current = latest.current;
+    const pointed = partAt(current.catalog, element, p.x, p.y, current.measurements);
+    settledPoint.current = null;
+    pickAt(element, p.x, p.y);
+    const constraint = candidateRef.current?.rule ?? { boundary: boundaryFor(document.body), ...(pointed ? { part: pointed.key } : {}) };
+    const removal = selectionRemovalRule(current.catalog, selectedRef.current, pointed, constraint, current.measurements);
+    if (!removal) { clear(); return; }
+    cancelDrawing();
+    record(selection => ({ ...selection, rules: [...selection.rules, removal] }));
+    settledPoint.current = p;
+  };
   const shortcuts = useFeatureActions("visualSelector", {
     "selector.open": { enabled: true, run: input => {
       if (phase === "configure") { aim(); return; }
@@ -309,7 +323,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     "selector.selectMouse": { enabled: canConfigure, run: () => selectObject("ui.mouse") },
     "selector.pattern": { enabled: canConfigure, run: cyclePattern },
     "selector.feedbackView": { enabled: phase !== "off" || hasSelection(), run: () => setView(feedbackVisible ? "preview" : "selection") },
-    "selector.edit": { enabled: phase !== "locked" && hasSelection(), run: input => { const p = inputPosition(input); edit(p.x, p.y); } },
+    "selector.deselect": { enabled: canConfigure, run: deselectAt },
+    "selector.edit": { enabled: hasSelection(), run: input => { const p = inputPosition(input); edit(p.x, p.y); } },
     "selector.cancel": { enabled: phase !== "off" || hasSelection(), run: disable },
     "selector.undo": { enabled: canConfigure, run: undo },
     "selector.redo": { enabled: canConfigure, run: redo },
@@ -656,7 +671,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         <button type="button" aria-label="Redo selection operation" title={`Redo (${shortcuts.binding("selector.redo")})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>
         <output aria-label={`${matches.included.length + selection.objects.length} selected targets`}>{matches.included.length + selection.objects.length}</output>
         <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={() => shortcuts.invoke("selector.clear")}>×</button>
-        <button type="button" aria-label="Edit selected appearance" title="Edit selected appearance" disabled={!hasSelection()} onClick={() => shortcuts.invoke("selector.edit")}>☷</button>
+        <button type="button" aria-label="Edit selected appearance" title={`Edit selected appearance (Shift + ${shortcuts.binding("selector.open") || "selector shortcut"})`} disabled={!hasSelection()} onClick={() => shortcuts.invoke("selector.edit")}>☷</button>
         <button type="button" aria-label={polygon.current ? "Finish polygon" : "Start aiming"} title={polygon.current ? "Finish polygon (Enter)" : `Resume selection (${shortcuts.binding("selector.open")})`}
           onClick={() => shortcuts.invoke(polygon.current ? "selector.finishGeometry" : "selector.aim")}>✓</button>
       </div>
