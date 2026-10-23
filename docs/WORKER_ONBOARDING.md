@@ -345,5 +345,6 @@ Pointed pattern selection defaults to the registered subtype in every visual
 hierarchy, not the broad text/background/etc. role. Parent selection is explicit
 in Master Controller and retains the active work area. Keep subtype identity in
 selection constraint/cache keys; do not classify by current color/font values.
-Pending Master Controller minimize/close uses Apply / Discard / Cancel; Cancel
-keeps the draft and controller open.
+Pending Master Controller minimize/close queues the requested action and blinks
+the existing Apply / Discard / Cancel choices in place, without a popup/focus jump.
+Apply/Discard completes the queued action; Cancel keeps the draft and controller open.

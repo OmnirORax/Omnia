@@ -280,10 +280,11 @@ Everyday appearance preview actions are just three shared buttons (Apply, Discar
 Recovery) attached below Master Controller, with no status field or enclosing
 panel. They reuse registered actions as contextual mirrors, retaining styling and
 action identity even if residents were moved. Discard acts directly; it never
-opens another confirmation. Minimizing/closing with pending edits promotes that
-same strip to a compact attached Apply / Discard / Cancel popover and focuses
-Apply. Cancel (or Escape) cancels the leave request without changing the draft. Apply/Discard then completes the requested minimize/close. No
-separate modal window, backdrop, extra buttons or outside-click listener is used.
+opens another confirmation. Minimizing/closing with pending edits queues the
+requested action and blinks the existing Apply / Discard / Cancel choices in
+place. No popup opens and focus does not jump. Cancel (or Escape) clears the
+request without changing the draft; Apply/Discard completes the queued action. No
+separate window, backdrop, enclosing field or outside-click listener is used.
 Clicks elsewhere, pointer exit and browser chrome are not leave commands. The
 protected emergency recovery dialog remains available via Recovery/long Escape.
 

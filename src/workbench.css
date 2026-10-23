@@ -1135,3 +1135,10 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close) { padding-right: 46px; }
 .ui-inline-frame-bar > .property-node-name { padding-right: 46px; }
 .ui-frame-branch-toggle img { width: 10px; height: 10px; object-fit: contain; }
+
+/* Save choices blink in place; opacity animation stays on the compositor. */
+.appearance-preview-buttons.needs-choice { animation: appearance-choice-attention 900ms ease-in-out infinite; }
+@keyframes appearance-choice-attention { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) {
+  .appearance-preview-buttons.needs-choice { animation: none; outline: 1px solid currentColor; outline-offset: 3px; }
+}
