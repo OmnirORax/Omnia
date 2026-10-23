@@ -313,8 +313,6 @@ export function UIPanel({
       ui.defaults.delete(`panel:${id}`);
     };
   }, [id, ui.layout.panels[id], owner]);
-  const float = (value: boolean) =>
-    ui.update((layout) => ({ ...layout, panels: { ...layout.panels, [id]: value } }));
   if (state.closed) return null;
   if (ui.layout.panels[id] || owner)
     return (
@@ -343,15 +341,6 @@ export function UIPanel({
       }}
     >
       <FrameChrome container={key} title={title} state={state} onChange={patch} />
-      {!menu && <button
-        className="detach-panel"
-        title={`Float ${title}`}
-        aria-label={`Undock ${id} panel`}
-        data-ui-drag={key}
-        draggable={ui.canMove(key)}
-        onDragStart={(e) => startResidentDrag(e, key)}
-        onClick={() => ui.canMove(key) && float(true)}
-      >↗</button>}
       <div className={`ui-panel-body ${className}`} hidden={state.collapsed} style={menu ? { width: Math.min(state.width, window.innerWidth - 24), left: popup.left, maxHeight: popup.height } : undefined}>
       <UIHomeContext.Provider value={key}><UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
         {children}

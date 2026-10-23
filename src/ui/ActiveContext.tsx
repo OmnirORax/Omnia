@@ -1,7 +1,7 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { UIContext, useUI, type UIContextValue } from "./context";
 import { activeFrame, parentContext, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
-import { getContainer, ownerOf } from "./layout";
+import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
@@ -116,7 +116,12 @@ export function ActiveContextSystem() {
   const shortcuts = useFeatureActions("activeContext", {
     "context.back": { enabled: stack.length > 0, run: back },
     "context.close": { enabled: stack.length > 0, run: close },
-    "context.search": { enabled: !!actions?.onSearch, run: () => { const key = activeFrame(latest.current.activeContext.getSnapshot())?.key; if (key) latest.current.frameActions.get(key)?.onSearch?.(); } },
+    "context.float": { enabled: !!frame && ui.canMove(frame.key), run: () => {
+      const current = latest.current, target = activeFrame(current.activeContext.getSnapshot());
+      if (!target || !current.canMove(target.key)) return;
+      const rect = frameElement(target.key)?.getBoundingClientRect();
+      current.update(layout => floatResident({ ...layout, windows: { ...Object.fromEntries(current.defaults), ...layout.windows } }, target.key, rect?.x ?? 320, rect?.y ?? 160));
+    } },
     "context.minimize": { enabled: !!frame, run: () => {
       const current = latest.current, entries = current.activeContext.getSnapshot(), active = activeFrame(entries);
       if (!active) return;
@@ -160,6 +165,6 @@ export function ActiveContextControls() {
     if ((event.target as Element).closest("button")) event.preventDefault();
   }}><UISection id="active-context-actions" title="Active context">
     <p role="status">{top ? label : "Click a frame to activate it"}</p>
-    {["context.back", "context.search", "context.close", "context.minimize", "context.resize", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
+    {["context.back", "context.search", "context.close", "context.minimize", "context.resize", "context.float", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
   </UISection></div>;
 }

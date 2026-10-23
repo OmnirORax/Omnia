@@ -153,3 +153,13 @@ test("window merge guides start only on headers, never body centers or edges", a
   for (const guide of dockGuides(bounds, viewport))
     assert.equal(dockGuideAt(bounds, viewport, guide.rect.x + guide.rect.width / 2, guide.rect.y + guide.rect.height / 2, "tab"), guide.side);
 });
+
+test("shared float command projects native panels while retaining contents and pins", () => {
+  const before = { ...emptyUILayout(), windows: { "panel:help": { x: 0, y: 0, width: 300, height: 400, collapsed: false, pinned: false,
+    members: [{ kind: "function", id: "help-action" }] } } };
+  const after = floatResident(before, "window:panel:help", 100, 150);
+  assert.equal(after.panels.help, true); assert.equal(after.windows["panel:help"].x, 100);
+  assert.deepEqual(after.windows["panel:help"].members, before.windows["panel:help"].members);
+  const pinned = { ...before, windows: { "panel:help": { ...before.windows["panel:help"], pinned: true } } };
+  assert.equal(floatResident(pinned, "window:panel:help", 100, 150), pinned);
+});

@@ -326,3 +326,25 @@ activation is a narrow projection containing only controls relevant to the invok
 action; it must not open unrelated Visuals/Spatial panels. History is the first
 action projection (`ContextualHistoryController`), sharing `HistoryControls` with
 the full controller. It preserves the active target while the user configures it.
+
+
+### Copy and paste applicable properties
+
+Properties contains cataloged Copy properties and Paste applicable properties
+commands. The transient clipboard holds resolved values under shared property IDs,
+never source identities, targeting masks, locks or bypass policies. Copy uses the
+current selected/filtered editing scope (or ordinary targeting when unselected).
+Mixed values have no single source value and are omitted with feedback. Clipboard
+values remain available after switching the selected type/part.
+Paste uses the destination capabilities, supported choices and existing state-owner
+setters. Unsupported, locked and bypassed properties are skipped; accepted exact
+part addresses stay narrow. Appearance paste commits one draft update; nonvisual
+consumer changes use their ordinary owner commit. Separate state owners retain
+their existing history entries. Source and destination values remain independent.
+No native text copy/paste binding is replaced; the actions are unassigned by default.
+
+Global search distinguishes hover revelation from an accepted result. Clicking or
+navigating to a result retains its expansion and appearance location; pointer exit
+only cancels unaccepted hover previews. Property destinations carry their appearance
+location whether already mounted or not. Accepted property headers are focused,
+not toggled closed by a synthetic click after revelation.

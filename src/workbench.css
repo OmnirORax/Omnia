@@ -77,7 +77,6 @@
 .ui-menu-panel .ui-form-control > label { display: flex; flex-direction: column; gap: 4px; margin: 0 0 6px; font-size: 12px; }
 .ui-menu-panel :is(input,select,textarea) { max-width: 100%; min-width: 0; box-sizing: border-box; }
 .primary-charting-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; border-left: 1px solid #cad7e5; padding-left: 10px; margin-left: 4px; }
-.detach-panel { position: absolute; right: 8px; top: 9px; font-size: 11px; padding: 2px 5px; }
 .ui-workspace-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
 .ui-free-function { position: absolute; pointer-events: auto; max-width: 190px; }
 .ui-function { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
@@ -1035,7 +1034,6 @@ html[data-visual-selecting],html[data-visual-selecting] * { cursor: none !import
 .ui-dock-tab-with-close { position: relative; display: inline-flex; align-items: stretch; flex-shrink: 0; }
 .ui-dock-tab-with-close > .ui-dock-tab { padding-right: 18px; }
 [data-ui-resident-root][hidden] { display: none !important; }
-.ui-docked-panel > .detach-panel { right: 8px; }
 .ui-docked-panel > .ui-legacy-search { right: 36px; }
 .ui-popup-close { position: absolute; right: 4px; top: 3px; width: 14px; height: 14px; min-height: 14px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: 11px/1 sans-serif; }
 :is(.ui-background-menu,.ui-frame-search-popup):has(> .ui-popup-close) { padding-top: 20px; }
@@ -1184,25 +1182,37 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .configuration-options button[aria-pressed="true"] { border-color: var(--omnium-accent); box-shadow: inset 2px 0 var(--omnium-accent); }
 
 /* Shared spectrum slider: endpoint bars, nudge arrows, native dragging and dot. */
-.range-spectrum { position: relative; display: inline-flex; flex-direction: row; align-items: flex-start; align-self: flex-start; flex: none; width: 180px; height: 52px; gap: 0; color: var(--omnium-accent, #60ddec); vertical-align: middle; }
+.range-spectrum { position: relative; display: inline-flex; flex-direction: row; align-items: flex-start; align-self: flex-start; flex: none; width: 126px; height: 38px; gap: 0; color: var(--omnium-accent, #60ddec); vertical-align: middle; }
 .range-spectrum :is(.range-end,.range-nudge) { display: flex; align-items: center; flex: none; border: 0; border-radius: 0; padding: 0; min-width: 0; min-height: 0; margin: 0; background: transparent; box-shadow: none; color: inherit; }
 .range-spectrum :is(.range-end,.range-nudge):hover { background: transparent; filter: brightness(1.25); }
 .range-spectrum svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
-.range-spectrum .range-end { flex-direction: column; width: 24px; gap: 4px; font-size: 12px; line-height: 1; }
-.range-spectrum .range-end svg { width: 10px; height: 32px; }
-.range-axis { position: relative; display: block; height: 32px; width: 132px; flex: none; }
-.range-spectrum .range-nudge { position: absolute; top: 0; width: 16px; height: 32px; }
-.range-nudge svg { width: 16px; height: 32px; }
-.range-nudge-right { right: 0; }
-.range-nudge-left { left: 0; }
+.range-spectrum .range-end { flex-direction: column; width: 6px; gap: 3px; font-size: 12px; line-height: 1; }
+.range-spectrum .range-end svg { width: 6px; height: 22px; }
+.range-axis { position: relative; display: block; height: 22px; width: 114px; flex: none; }
+.range-spectrum .range-nudge { position: absolute; top: 0; width: 14px; height: 22px; }
+.range-nudge svg { width: 14px; height: 22px; }
+.range-nudge-right { right: -4px; }
+.range-nudge-left { left: -4px; }
 .range-track { position: absolute; top: 0; bottom: 0; left: 14px; right: 14px; }
-.range-track::before { content: ""; position: absolute; top: 15px; left: -10px; right: -10px; height: 2px; background: currentColor; pointer-events: none; }
+.range-track::before { content: ""; position: absolute; top: 10px; left: -10px; right: -10px; height: 2px; background: currentColor; pointer-events: none; }
 .range-current { position: absolute; left: var(--range-position); top: 0; width: 0; height: 100%; pointer-events: none; }
-.range-current i { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: currentColor; top: 11px; left: -5px; }
-.range-current > span { position: absolute; top: 36px; left: 0; transform: translateX(-50%); font-size: 12px; white-space: nowrap; }
-.range-spectrum .range-spectrum-input { position: absolute; inset: 0 -5px; width: calc(100% + 10px) !important; min-width: 0 !important; height: 32px; min-height: 0; margin: 0; padding: 0; opacity: 0; cursor: pointer; writing-mode: horizontal-tb; direction: ltr; touch-action: none; }
+.range-current i { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: currentColor; top: 7px; left: -4px; }
+.range-current > span { position: absolute; top: 25px; left: 0; transform: translateX(-50%); font-size: 12px; white-space: nowrap; }
+.range-spectrum .range-spectrum-input { position: absolute; inset: 0 -5px; width: calc(100% + 10px) !important; min-width: 0 !important; height: 22px; min-height: 0; margin: 0; padding: 0; opacity: 0; cursor: pointer; writing-mode: horizontal-tb; direction: ltr; touch-action: none; }
 .range-spectrum:has(.range-spectrum-input:focus-visible) .range-track { outline: 1px solid currentColor; outline-offset: 2px; border-radius: 4px; }
 .range-spectrum:has(:disabled) { opacity: .45; }
-.range-spectrum input.range-bound-editor { position: absolute; left: 58px; top: 32px; width: 64px !important; min-width: 64px !important; z-index: 2; box-sizing: border-box; field-sizing: fixed; padding: 2px 3px; font-size: 12px; }
+.range-spectrum input.range-bound-editor { position: absolute; left: 31px; top: 23px; width: 64px !important; min-width: 64px !important; z-index: 2; box-sizing: border-box; field-sizing: fixed; padding: 2px 3px; font-size: 12px; }
 .range-spectrum input.range-edit-max { left: auto; right: 0; }
 .range-spectrum input.range-edit-min { left: 0; }
+
+/* Compound slider glyphs are unboxed parts, not ordinary button surfaces. */
+:root[data-omnium-theme] body .range-spectrum :is(.range-end,.range-nudge) {
+  background: none !important; border: 0 !important; box-shadow: none !important;
+  filter: none !important; backdrop-filter: none !important; text-shadow: none !important;
+}
+
+.search-scopes { flex-direction: column; flex-wrap: nowrap; }
+.search-scopes button { text-align: left; }
+.property-clipboard-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 4px; }
+.property-clipboard-tools button { padding: 3px 5px; font-size: 12px; }
+.property-clipboard-tools small { font-size: 11px; }

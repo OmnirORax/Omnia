@@ -1,3 +1,4 @@
+import type { PropertySnapshot } from "../properties/clipboard";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
 import { ownerOf } from "../ui/layout";
@@ -34,6 +35,8 @@ export type AppearanceBridge = {
   fonts?: { id: string; name: string }[];
 };
 type ContextValue = AppearanceBridge & {
+  propertyClipboard: PropertySnapshot | null;
+  copyProperties: (snapshot: PropertySnapshot) => void;
   state: Controller;
   renderBase: Appearance;
   activatePreview: (request: ActivityPreview) => () => void;
@@ -64,6 +67,7 @@ export function AppearanceProvider({
   children: ReactNode;
 }) {
   const ui = useUI();
+  const [propertyClipboard, copyProperties] = useState<PropertySnapshot | null>(null);
   const [location, setLocation] = useState<AppearanceLocation | null>(null),
     [hoverLocation, setHoverLocation] = useState<AppearanceLocation | null>(null);
   const bridgeFallback: AppearanceBridge = {
@@ -187,6 +191,7 @@ export function AppearanceProvider({
     else activeBridge.commit(next);
   };
   const value: ContextValue = {
+    propertyClipboard, copyProperties,
     ...activeBridge,
     state,
     renderBase,

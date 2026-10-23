@@ -1,3 +1,6 @@
+import { copyPropertyValues, type PropertySource } from "../properties/clipboard";
+import { preparePropertyChanges, validateValue, type PropertyChange } from "../properties/registry";
+import { useFeatureActions } from "../ui/useFeatureActions";
 import { HistoryControls } from "../ui/ContextualHistoryController";
 import type { ActionHistory } from "../ui/actionHistory";
 import { ActiveContextControls } from "../ui/ActiveContext";
@@ -205,6 +208,60 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     if (preview) ctx.preview(next);
     else ctx.commit(next);
   };
+  const [clipboardNotice, setClipboardNotice] = useState("");
+  const copyProperties = () => {
+    const sources: PropertySource[] = [];
+    if (inspecting) {
+      for (const part of editingParts) {
+        const target = selectedPartTarget(part);
+        sources.push({ properties: target.properties ?? [], read: property => ctx.read(target, property) });
+      }
+      for (const id of editingConsumers) {
+        const consumer = PROPERTY_REGISTRY.consumer(id); if (!consumer) continue;
+        const target = targets.find(target => target.id === id);
+        if (consumer.owner === "appearance" && target) {
+          sources.push({ properties: target.properties ?? [], read: property => ctx.read(target, property) });
+        } else if (consumer.owner !== "appearance" && bindings) {
+          sources.push({ properties: consumer.properties, read: property => bindings.values[id][consumer.channels[property]] });
+        }
+      }
+    } else {
+      const index = createTargetIndex(targets), properties = new Map<string, Set<string>>();
+      for (const property of editableProperties) for (const target of adjustmentTargets(state, targets, property, undefined, index)) {
+        const set = properties.get(target.id) ?? new Set<string>(); set.add(property); properties.set(target.id, set);
+      }
+      for (const target of targets) if (properties.has(target.id)) sources.push({ properties: [...properties.get(target.id)!], read: property => ctx.read(target, property) });
+    }
+    const snapshot = copyPropertyValues(PROPERTY_REGISTRY, sources); ctx.copyProperties(snapshot);
+    setClipboardNotice(`Copied ${Object.keys(snapshot.values).length}${snapshot.mixed.length ? ` · ${snapshot.mixed.length} mixed omitted` : ""}`);
+  };
+  const pasteProperties = () => {
+    if (!ctx.propertyClipboard || ctx.safe) return;
+    let next = state;
+    const changes: PropertyChange[] = [];
+    // Effect kind first; its channels then restore the exact copied tuning.
+    const entries = Object.entries(ctx.propertyClipboard.values).sort(([a], [b]) => Number(b === "effect") - Number(a === "effect"));
+    for (const [property, value] of entries) {
+      if (inspecting) {
+        next = applySelectedValue(next, editingParts, property, value);
+        for (const id of appearanceConsumers.filter(id => editingConsumers.includes(id)))
+          if (!blocked(next, targets, id, property, "all") && connected(next, targets, id, property)) next = applyValue(next, targets, property, value, id, false, true);
+        if (bindings) for (const id of editingConsumers) {
+          const consumer = PROPERTY_REGISTRY.consumer(id), channel = consumer?.channels[property];
+          const definition = PROPERTY_REGISTRY.property(property);
+          if (!consumer || consumer.owner === "appearance" || !channel || !definition || validateValue(definition, value) !== value ||
+            consumer.choices[channel] && !consumer.choices[channel].includes(String(value))) continue;
+          changes.push(...preparePropertyChanges(PROPERTY_REGISTRY, property, value, [id]));
+        }
+      } else if (editableProperties.includes(property)) next = applyValue(next, targets, property, value, undefined, false, true);
+    }
+    ctx.preview(null); if (next !== state) ctx.commit(next); if (changes.length) bindings?.commit(changes);
+    setClipboardNotice("Pasted applicable properties");
+  };
+  useFeatureActions("propertyClipboard", {
+    "properties.copy": { enabled: !ctx.safe && (inspecting ? editingParts.length + editingConsumers.length > 0 : editableProperties.length > 0), run: copyProperties },
+    "properties.paste": { enabled: !ctx.safe && !!ctx.propertyClipboard && Object.keys(ctx.propertyClipboard.values).length > 0, run: pasteProperties },
+  });
   const revealSession = useRef<RevealSession | null>(null);
   const highlighted = useRef<ReturnType<typeof highlightHierarchy> | null>(null),
     hovered = useRef<string | null>(null);
@@ -413,6 +470,10 @@ export function MasterController({ bindings, visualStatus, history, children: vi
       </EmbeddedGroup>
       <NameVisibilityControl />
       <UISection id="master-properties" title="Properties">
+      <div className="property-clipboard-tools" data-context-controller>
+        <FunctionControl id="properties.copy" mirror /><FunctionControl id="properties.paste" mirror />
+        {clipboardNotice && <small role="status">{clipboardNotice}</small>}
+      </div>
       {inspecting ? <div data-visual-selector data-selection-editor>
         <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />
         {editingParts.length > 0 && <SelectedProperties parts={editingParts} scope="master-selection" selectedProperty={property}

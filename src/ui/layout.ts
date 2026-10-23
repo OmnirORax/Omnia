@@ -791,8 +791,9 @@ export function dockResident(
 export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
   if (residentContextScope(layout, key) || key.startsWith("window:context:")) return layout;
   if (residentPinned(layout, key)) return layout;
-  const next = releaseResident(layout, key),
-    m = readResident(key);
+  const released = releaseResident(layout, key);
+  const next = key.startsWith("window:panel:") ? { ...released, panels: { ...released.panels, [key.slice("window:panel:".length)]: true } } : released;
+  const m = readResident(key);
   if (m.kind === "function")
     return validateUILayout({
       ...next,

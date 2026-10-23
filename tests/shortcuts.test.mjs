@@ -297,3 +297,13 @@ test("shared spectrum stepping clamps and quantizes without decimal drift", asyn
   assert.equal(rangeValue(.26, .1, 5, .1), .3);
   assert.equal(rangeValue(1, 1, 1, 1), 1);
 });
+
+test("search scope progresses through nearest ancestors and keeps a locked global choice global", async () => {
+  const { searchScopes, searchScope } = await import("../src/ui/searchScopes.ts");
+  assert.deepEqual(searchScopes(["window:theme", "window:properties"]), [
+    { key: "window:properties", level: 1 }, { key: "window:theme", level: 2 }, { key: "workspace", level: 10 },
+  ]);
+  assert.equal(searchScope([], 1).key, "workspace");
+  assert.equal(searchScope(["window:other"], 10).key, "workspace");
+  assert.equal(searchScope(["window:theme", "window:properties"], 2).key, "window:theme");
+});

@@ -181,3 +181,12 @@ W resizes/restores the active frame; Shift+W shows its detected levels. Hover/fo
 previews a level; scrolling/cycling changes the temporary choice. Right-click
 applies and locks a level; left-click restores priority 1. Read
 [FUNCTION_CONFIGURATION.md](FUNCTION_CONFIGURATION.md) for the shared architecture.
+
+
+S now uses the retained progressive search scope. Shift+S configures nearest frame,
+parents or All UI; repeat to cycle and release Shift to focus the chosen search
+before typing. All UI is available even without an active frame. Ctrl+Alt+S remains
+a compatible direct global alias. Copy properties/Paste applicable properties are
+cataloged MC actions, unassigned by default, preserving native text copy/paste.
+Float active frame is also a shared MC Active context action, replacing repeated
+sidebar ↗ buttons; existing movement/pin restrictions and UI history apply.

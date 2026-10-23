@@ -261,3 +261,12 @@ inside the allowed bounds. Working intervals and jump size are widget-local and
 reset on remount; they are not duplicated property definitions or saved defaults.
 Widget internals are one `data-ui-control`, not separately movable/discoverable
 commands. Spectrum appearance is coupled under Visual hierarchy → Sliders.
+
+
+Spectrum glyphs use a compact 126px horizontal span with 22px bars. Arrow tips meet
+the end bars. Internal glyph buttons have no button background/border/shadow/filter;
+shared slider color still applies through the existing spectrum target. These are
+one compound widget, not independent movable button surfaces.
+Native sidebar ↗ float buttons are removed. MC Active context → Float active frame
+uses the shared floatResident transaction, including the native panel's floating
+projection flag. The live contents, ownership constraints and pins remain intact.

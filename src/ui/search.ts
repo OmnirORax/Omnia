@@ -69,7 +69,7 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
     if (section && section.closest("[data-ui-resident-root]") === result.element?.closest("[data-ui-resident-root]")) heading.push(section.getAttribute("aria-label")!);
     else if (home === "window:theme" && result.functionId) heading.push(sectionFor(result.functionId)!);
     if (!heading.length) heading.push(fn?.category ?? "Workspace");
-    results.push({ ...result, path, home, heading: heading.join(" › "), available: fn?.available !== false, appearance:fn?.id.startsWith('ui:master:')&&!result.element?{target:'all',property:fn.id.slice(10)}:undefined });
+    results.push({ ...result, path, home, heading: heading.join(" › "), available: fn?.available !== false, appearance:fn?.id.startsWith('ui:master:')?{target:'all',property:fn.id.slice(10)}:undefined });
   };
   for (const fn of ui.functions) {
     if (fn.id === "searchUI") continue;

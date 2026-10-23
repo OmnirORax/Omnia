@@ -407,3 +407,12 @@ After selection, entering MC/shared property editors automatically ends MS aimin
 and restores the normal cursor while preserving accepted selection and feedback.
 Resume selection explicitly with its shortcut. Do not interrupt an unfinished
 geometry drag or implement per-frame editor checks. See VISUAL_SELECTION.md.
+
+
+MC Properties now has shared copy/paste actions: snapshots contain resolved common
+values only; paste filters by destination capability and policy through existing
+setters. Clipboard values are transient and independent of their source.
+S uses progressive scope (nearest frame → parents → All UI); Shift+S configures it
+through the shared gesture, then release to focus search and type. Clicked global
+search destinations retain their reveal after pointer exit. Sidebar float arrows
+live once in MC Active context. See the relevant subsystem contracts.

@@ -255,6 +255,7 @@ export function applyValue(
   value: Value,
   origin?: string,
   local = false,
+  skipBypassed = false,
 ): Controller {
   // Paint changes do not change target structure. Preserve instance/rule identity
   // so previewing a slider cannot rebuild every scoped selector and text binding.
@@ -271,7 +272,7 @@ export function applyValue(
     // Global adjustment originates at the nearest included category; direct row edits bypass its own lock.
     const root = origin ?? set.only ?? "all";
     for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
-      if (!target.properties.includes(channel) || blocked(state, targets, target.id, channel, root, index))
+      if (!target.properties.includes(channel) || skipBypassed && !connected(state, targets, target.id, channel, index) || blocked(state, targets, target.id, channel, root, index))
         continue;
       next.values[target.id] = { ...next.values[target.id], [channel]: value };
       next.refined[target.id] =

@@ -847,3 +847,33 @@ test("invocation-only coupled inputs preserve independent defaults and restore a
   assert.deepEqual(bindings.values, state); assert.equal(writes, 0);
   bindings.commit([{ consumer: "a", property: "level", value: 4 }]); assert.equal(writes, 1, "locking still uses the shared setter");
 });
+
+test("property clipboard captures shared values, omits mixed/unknown values and retains independent sources", async () => {
+  const { copyPropertyValues } = await import("../src/properties/clipboard.ts");
+  const registry = createPropertyRegistry();
+  registry.define({ id: "color", label: "Color", kind: "color", initial: "#000000" });
+  registry.define({ id: "opacity", label: "Opacity", kind: "number", min: 0, max: 1, step: .05, initial: 1 });
+  const a = { color: "#00ff00", opacity: .7 }, b = { color: "#ff0000", opacity: .7 };
+  const snapshot = copyPropertyValues(registry, [a, b].map(values => ({ properties: ["color", "opacity", "unknown"], read: property => values[property] })));
+  assert.deepEqual(snapshot.values, { opacity: .7 }); assert.deepEqual(snapshot.mixed, ["color"]);
+  const one = copyPropertyValues(registry, [{ properties: ["color", "opacity"], read: property => a[property] }]);
+  a.color = "#ffffff"; assert.equal(one.values.color, "#00ff00", "clipboard holds values, not a live source link");
+  registry.define({ id: "font", label: "Font", kind: "select", initial: "system", options: [{ id: "system", label: "System" }] });
+  assert.equal(copyPropertyValues(registry, [{ properties: ["font"], read: () => "imported-font" }]).values.font, "imported-font", "runtime font choices survive copying");
+});
+
+test("clipboard application skips bypassed and locked destinations without widening applicability", () => {
+  const targets = [{ id: "all", label: "All" },
+    { id: "a", label: "A", parent: "all", properties: ["color", "font"] },
+    { id: "b", label: "B", parent: "all", properties: ["color"] },
+    { id: "c", label: "C", parent: "all", properties: ["color"] },
+    { id: "d", label: "D", parent: "all", properties: ["color"] }];
+  let state = emptyController(); state.disconnected.b = { properties: ["color"] }; state.locks.c = { all: true };
+  const before = JSON.stringify(state);
+  state = applyValue(state, targets, "color", "#00ff00", undefined, false, true);
+  state = applyValue(state, targets, "font", "serif", undefined, false, true);
+  assert.equal(state.values.a.color, "#00ff00"); assert.equal(state.values.d.color, "#00ff00");
+  assert.equal(state.values.a.font, "serif"); assert.equal(state.values.b?.color, undefined);
+  assert.equal(state.values.c?.color, undefined); assert.equal(state.values.d.font, undefined);
+  assert.notEqual(JSON.stringify(state), before); assert.deepEqual(state.instances, {});
+});

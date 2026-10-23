@@ -6,5 +6,6 @@ import function2 from "../appearance/selectorContourStrength.function.ts";
 import function3 from "../appearance/selectorFeedback.function.ts";
 import function4 from "../graph/placement.function.ts";
 import function5 from "../ui/resize.function.ts";
-export const CONFIGURABLE_FUNCTIONS = [function0, function1, function2, function3, function4, function5] as const;
+import function6 from "../ui/search.function.ts";
+export const CONFIGURABLE_FUNCTIONS = [function0, function1, function2, function3, function4, function5, function6] as const;
 initializeFunctions(CONFIGURABLE_FUNCTIONS);

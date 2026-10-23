@@ -85,3 +85,16 @@ Arbitrary direct state reads and deferred reads cannot inherit temporary values.
 A specialized adapter may execute its chosen operation directly (resize geometry,
 history scope) while keeping the same gesture and persistence contract. No runtime
 code inspection or automatic enumeration of arbitrary behavior is implied.
+
+
+## Progressive search scope
+
+S (`context.search`) executes the retained search scope. Shift + its configured
+binding shows real options: active frame, each enclosing frame, then All UI. Repeat
+or scroll to cycle; release Shift to open/focus the chosen search, then type.
+Right-click locks a scope, left-click restores nearest scope. Without an active
+frame, nearest means All UI. Global is stored at ordinal 10 so locking it remains
+global across different nesting depths. `search.function.ts` reuses the shared
+Level input with independent values; SearchController supplies the existing shared
+interaction adapter and frame/global search renderers. Ctrl+Alt+S remains a direct
+global-search alias for existing bindings, but is not required to reach All UI.

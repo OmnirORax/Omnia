@@ -56,14 +56,14 @@ export function RangeControl({ value, min, max, onValueChange, onMinimumChange, 
     </button>
     <span className="range-axis">
       <button type="button" className="range-nudge range-nudge-left" disabled={inputProps.disabled} aria-label={`Decrease ${label} by ${jump}`} title={`Decrease by ${jump} · right-click to set jump`} onClick={() => choose(rangeValue(value - jump, low, high, resolution))} onContextMenu={context("jump")}>
-        <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M13 6L3 16L13 26" /></svg>
+        <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M13 6L1 16L13 26" /></svg>
       </button>
       <span className="range-track">
         <span className="range-current" aria-hidden><i /><span>{value}</span></span>
         <input {...inputProps} ref={inputRef} type="range" min={low} max={high} value={value} className={`range-spectrum-input ${inputProps.className ?? ""}`} onChange={event => onValueChange(Number(event.currentTarget.value))} onContextMenu={context("value")} />
       </span>
       <button type="button" className="range-nudge range-nudge-right" disabled={inputProps.disabled} aria-label={`Increase ${label} by ${jump}`} title={`Increase by ${jump} · right-click to set jump`} onClick={() => choose(rangeValue(value + jump, low, high, resolution))} onContextMenu={context("jump")}>
-        <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M3 6L13 16L3 26" /></svg>
+        <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M3 6L15 16L3 26" /></svg>
       </button>
     </span>
     <button type="button" className="range-end range-end-max" disabled={inputProps.disabled} aria-label={`${label} maximum: ${high}`} title="Select maximum · right-click to edit" onClick={() => choose(high)} onContextMenu={context("max")}>
