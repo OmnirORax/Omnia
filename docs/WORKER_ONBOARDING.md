@@ -297,7 +297,9 @@ short entry rules, durable decisions and appropriate automated checks work toget
 Recent integration: shared property controls have renderer-only activity previews
 for inactive effect/gradient parameters and declared inactive consumers. Never
 send the activity-projected controller to a commit/editor path. Frame × now hides
-custom frames intact; recover saved frames/panels through UI library → Hidden UI.
+custom frames intact. Normal launchers reopen closed panels directly through
+`reopenContainer`; custom frames also appear under UI library → Closed frames
+and panels. Closing and minimizing are separate.
 See the shared property and UI component contracts for these paths.
 
 Selector hover previews remain enabled while aiming; automatic editor-entry

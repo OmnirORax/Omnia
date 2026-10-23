@@ -429,7 +429,7 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
           className="ui-frame-header"
           onChange={patch}
           onRename={(name) => patch({ name })}
-          closeLabel={`Hide ${frame.name}`}
+          closeLabel={`Close ${frame.name}`}
           onClose={() => ui.update(layout => closeContainer(layout, key))}
         />
         {structured ? <div className="ui-structured-body" hidden={frame.collapsed}><DockLayout container={key} /></div> : <DockArea container={key} hidden={frame.collapsed} />}
@@ -525,7 +525,7 @@ export function UIWorkspace({
   }), [definitions, registered, layout.labels, layout.customControls]);
   const libraryOpen = layout.panels["@library"] ?? false;
   const setLibraryOpen = (value: boolean) =>
-    update((s) => ({ ...s, panels: { ...s.panels, "@library": value } }));
+    update(s => value ? reopenContainer(s, "window:function-library") : { ...s, panels: { ...s.panels, "@library": false } });
   const [query, setQuery] = useState(""),
     [configured, configure] = useState<string | null>(null),
     [configuredFrame, configureFrame] = useState<string | null>(null);
@@ -1768,7 +1768,7 @@ export function UIWorkspace({
           </button>
           {containers(layout).some(([, state]) => state.closed) && <button data-ui-id="restore-hidden-ui" onClick={() => {
             setQuery(""); setLibraryOpen(true); setMenu(null);
-          }}>Restore hidden UI</button>}
+          }}>Closed frames and panels</button>}
           <button
             onClick={() => {
               setLibraryOpen(true);
@@ -1802,12 +1802,12 @@ export function UIWorkspace({
             onChange={(e) => setQuery(e.target.value)}
           /></label></UIField>
           <div className="function-library categorized-library">
-            {containers(layout).some(([, state]) => state.closed) && <section aria-label="Hidden UI" className="hidden-ui-library">
-              <h3>Hidden UI</h3>
+            {containers(layout).some(([, state]) => state.closed) && <section aria-label="Closed frames and panels" className="hidden-ui-library">
+              <h3>Closed frames and panels</h3>
               {containers(layout).filter(([, state]) => state.closed).map(([key, state]) => {
                 const title = layout.labels?.[key] ?? ("name" in state ? state.name : frameActions.get(key)?.title ?? key.replace(/^window:(panel:)?/, ""));
                 if (query && !`${title} ${key}`.toLowerCase().includes(query.toLowerCase())) return null;
-                return <button key={key} data-ui-id={`restore:${key}`} onClick={() => update(layout => reopenContainer(layout, key))}>Restore {title}</button>;
+                return <button key={key} data-ui-id={`restore:${key}`} onClick={() => update(layout => reopenContainer(layout, key))}>Open {title}</button>;
               })}
             </section>}
             {LIBRARY_CATEGORIES.map((category) => {

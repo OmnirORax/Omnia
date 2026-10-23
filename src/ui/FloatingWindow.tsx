@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
-import { fitWindow, getContainer, ownerOf, releaseResident, type WindowState } from "./layout";
+import { fitWindow, getContainer, ownerOf, releaseResident, reopenContainer, type WindowState } from "./layout";
 import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
@@ -81,6 +81,11 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, setZ] = useState(nextWindowLayer);
+  // Mounting a caller-controlled window is an explicit open request. Repair
+  // stale closed flags from tab/fallback closes through the same model path.
+  useLayoutEffect(() => {
+    if (onClose) ui.update(layout => layout.windows[id]?.closed ? reopenContainer(layout, key) : layout);
+  }, [id, openingKey]);
   useLayoutEffect(() => {
     if (!openAtCursor) {
       // Reveal a persistent controller without moving it or writing its geometry.

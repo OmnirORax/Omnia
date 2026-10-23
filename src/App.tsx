@@ -55,7 +55,7 @@ import { UIFrameStrip } from "./ui/UIFrameStrip";
 import { WorkspaceBoundary } from "./WorkspaceBoundary";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
-import { loadUILayout, ownerOf, updateContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
+import { loadUILayout, ownerOf, reopenContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
 import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
@@ -174,7 +174,10 @@ function Workbench() {
   const [uiCommand, setUICommand] = useState<UICommand | null>(null);
   const [binderPopup, setBinderPopup] = useState<{ x: number; y: number } | null>(null);
   const shortcutsPinned = uiLayout.panels["@shortcuts"] ?? false;
-  const setShortcutsPinned = (value: boolean | ((current: boolean) => boolean)) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@shortcuts": typeof value === "function" ? value(layout.panels["@shortcuts"] ?? false) : value } }));
+  const setShortcutsPinned = (value: boolean | ((current: boolean) => boolean)) => updateUI(layout => {
+    const open = typeof value === "function" ? value(layout.panels["@shortcuts"] ?? false) : value;
+    return open ? reopenContainer(layout, "window:shortcuts") : { ...layout, panels: { ...layout.panels, "@shortcuts": false } };
+  });
   const [shortcutsHovered, setShortcutsHovered] = useState(false);
   useEffect(() => {
     if (selection?.kind === "node") setSelectedIds((current) => current.has(selection.id) ? current : new Set([selection.id]));
@@ -198,11 +201,11 @@ function Workbench() {
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
-  const setSettingsOpen = (value: boolean) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@settings": value } }));
+  const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : { ...layout, panels: { ...layout.panels, "@settings": false } });
   const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
   const setThemeOpen = (value: boolean) => {
     if (!value) setDismissedInspection(masterInspection);
-    updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@theme": value } }));
+    updateUI(layout => value ? reopenContainer(layout, "window:theme") : { ...layout, panels: { ...layout.panels, "@theme": false } });
   };
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
@@ -857,10 +860,8 @@ function Workbench() {
     updateUI(layout => {
       const key = `window:panel:${id}`;
       const saved = layout.windows[`panel:${id}`] ?? { x: 320, y: 140, width: 400, height: 560, collapsed: false, pinned: false };
-      let next: typeof layout = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: { ...saved, collapsed: false } } };
-      let owner = ownerOf(next, key);
-      while (owner) { next = updateContainer(next, owner, { collapsed: false }); owner = ownerOf(next, owner); }
-      return next;
+      const next = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: saved } };
+      return reopenContainer(next, key);
     });
     requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
   }

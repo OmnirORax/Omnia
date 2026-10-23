@@ -106,19 +106,22 @@ Mouse command remains rebindable; a separate mouse-only UI path is replaced by
 inventory access. Ordinary input controls and selected-property editors stay shared.
 
 
-## Hiding and restoration
+## Closing and reopening
 
-The frame × hides a custom frame intact through `closeContainer`, preserving its
-members, values and customization. It must not delete the frame or release all its
-contents. Ordinary panels preserve their floating/home preference when closed.
-UI library has a nonclosable **Hidden UI** recovery section for saved frames and
-windows; **Restore hidden UI** in the workspace context menu opens it. Restoration
-reveals enclosing UI and activates the relevant tab without a global reset. Hidden
-workspace-edge groups reserve no space and do not accept new docking. If their
-former edge has since been occupied, restoration floats the retained frame rather
-than overlapping two edge allocations. Transient dialogs continue to reopen through
-their normal actions. UI history owns hide/restore operations; empty hidden dock
-groups remain recoverable until explicitly changed.
+The frame × closes its content through the normal window/panel close action. It
+is separate from collapse/minimize and never deletes members or customizations.
+Normal open buttons use `reopenContainer`: clear saved closed/collapsed state,
+reveal containing frames, activate its dock tab and enable the corresponding
+window visibility flag. This applies to Master controller, settings, shortcuts,
+sidebar panels and the UI library, including old saved closed flags. Explicitly
+mounting a caller-controlled FloatingWindow also clears stale closed state.
+
+Custom frames without a dedicated launcher are available under UI library →
+**Closed frames and panels**, with ordinary **Open** actions. No separate unhide
+step is required before a normal panel launcher can work. Closed workspace-edge
+groups reserve no space or docking targets; reopening floats them if their former
+edge is occupied. UI history owns closing/reopening. Stable recovery control IDs
+are retained for saved customization and bindings.
 
 
 Shared property editors and Master controller roots carry `data-appearance-editor`.

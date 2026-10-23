@@ -668,16 +668,16 @@ export function releaseResident(layout: UILayout, key: string): UILayout {
       });
   return next;
 }
-/** Hide a frame without deleting its controls. Release explicit docking so closed
+/** Close a frame without deleting its controls. Release explicit docking so closed
  * tabs do not leave empty panes; an embedded group's native home is preserved. */
 export function closeContainer(layout: UILayout, key: string): UILayout {
   const state = key.startsWith("window:") ? layout.windows[key.slice(7)] : undefined;
   const released = state?.inline && !state.inline.detached ? layout : releaseResident(layout, key);
   return pruneEmptyDockGroups(updateContainer(released, key, { closed: true }));
 }
-/** Restore the saved object and reveal its enclosing UI without resetting it. */
+/** Normal open path: clear saved close/collapse flags, reveal enclosing UI and
+ * activate the dock tab. Closing never requires a separate unhide operation. */
 export function reopenContainer(layout: UILayout, key: string): UILayout {
-  if (!getContainer(layout, key)) return layout;
   let next = layout, current: string | undefined = key;
   const state = getContainer(layout, key);
   if (state && "dockEdge" in state && state.dockEdge && layout.frames.some(frame =>
@@ -686,6 +686,9 @@ export function reopenContainer(layout: UILayout, key: string): UILayout {
   const seen = new Set<string>();
   while (current && !seen.has(current)) {
     seen.add(current);
+    const flag = current === "window:theme" ? "@theme" : current === "window:settings" ? "@settings"
+      : current === "window:shortcuts" ? "@shortcuts" : current === "window:function-library" ? "@library" : undefined;
+    if (flag && !next.panels[flag]) next = { ...next, panels: { ...next.panels, [flag]: true } };
     next = updateContainer(next, current, { closed: false, collapsed: false });
     current = ownerOf(next, current);
   }
