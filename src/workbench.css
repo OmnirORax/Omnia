@@ -1113,11 +1113,6 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .visual-selector-mode-group { border: 0; padding: 3px 0; margin: 0; min-width: 0; }
 .visual-selector-mode-group legend { font-size: .8em; opacity: .7; }
 
-/* Dim the setter itself, without fading supported descendants or its operators. */
-.property-node.is-unavailable > .property-node-heading .property-node-name,
-.property-node.is-unavailable > button {
-  opacity: .32 !important; filter: none !important; box-shadow: none !important;
-}
 .property-node-children > .property-node { position: relative; }
 .property-node-children > .property-node::before {
   content: ""; position: absolute; top: 14px; left: -8px; width: 8px;

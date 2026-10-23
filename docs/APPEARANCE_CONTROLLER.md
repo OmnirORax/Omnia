@@ -248,7 +248,16 @@ without changing property coupling or adding another effect renderer.
 Setter headings and AppearanceAdjustment share `adjustmentTargets`: applicable,
 included, connected targets not blocked by inherited locks. Selected-part and
 logical-consumer trees pass their corresponding policy-derived editable properties.
-Capabilities determine structure; editability determines heading availability, and
-safe mode disables both headings and their actual editors. Parent properties with
-editable descendants retain expansion access. Do not infer heading availability
+Capabilities and current editability determine which setters are visible;
+unavailable headings and editors are omitted. Parent branches with editable
+descendants retain expansion access without exposing an unavailable parent setter. Do not infer heading availability
 by inspecting mounted/expanded DOM editors.
+
+Hierarchy text hover uses concrete, continuous Custom Highlight paint with priority
+above selection/custom-part ink. Animated text also receives the same transient
+wave through `hierarchyTextFeedback.ts`, keyed by existing effect-scope IDs and
+source elements. WindowSparkles modulates only matched text-effect jobs; lettering
+remains readable, unrelated surfaces/icons stay unchanged, and stopping hover
+restores normal drawing. No appearance values or history are written. The bridge
+requests canvas repaint at its existing scene-feedback cadence, with no per-frame
+source discovery, geometry queries or React updates.

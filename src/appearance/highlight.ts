@@ -1,3 +1,4 @@
+import { setHierarchyTextSources, updateHierarchyTextLevel, clearHierarchyTextFeedback } from "./hierarchyTextFeedback";
 import type { RegisteredTarget } from "./registry";
 import { EFFECT_PROPERTIES } from "./registry";
 import { effectScope } from "./uiEffects";
@@ -107,6 +108,9 @@ export function highlightHierarchy(entries: HighlightTarget[], targets: Register
     const old = value(element, key); element.style.setProperty(key, paint, priority); old.written = element.style.getPropertyValue(key);
   };
   const style = document.createElement("style"); style.setAttribute("data-appearance-pulse-style", ""); document.head.append(style);
+  const textToken = Symbol("hierarchy-text"), textStyle = document.createElement("style");
+  textStyle.setAttribute("data-appearance-pulse-style", ""); document.head.append(textStyle);
+  let hasText = false, hasTextRanges = false;
   const name = `omnium-appearance-hover-${++pulseSequence}`, textHighlights = typeof Highlight !== "undefined" && !!CSS.highlights;
   const began = performance.now() - 160, duration = 1200, reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const accent = getComputedStyle(document.documentElement).getPropertyValue("--omnium-accent").trim() || "#60ddec";
@@ -155,19 +159,34 @@ export function highlightHierarchy(entries: HighlightTarget[], targets: Register
     return String(parseFloat(pulse.from) + (parseFloat(pulse.to) - parseFloat(pulse.from)) * amount) + suffix;
   };
   const waveAt = (time: number) => reduced.matches ? .6 : .5 - .5 * Math.cos((time - began) * Math.PI * 2 / duration);
+  const paintText = (wave: number) => {
+    if (!hasTextRanges) { textStyle.textContent = ""; return; }
+    // Concrete paint values avoid inherited custom-property animation failing to
+    // invalidate Custom Highlight glyph paint in some browsers.
+    const tint = 42 * wave, blur = 10 * wave;
+    const hot = `color-mix(in srgb,${accent} 40%,white)`;
+    textStyle.textContent = `::highlight(${name}){color:color-mix(in srgb,currentColor ${100 - tint}%,${hot} ${tint}%);text-shadow:0 0 ${blur}px ${accent}}` +
+      `::highlight(${name}-muted){color:color-mix(in srgb,currentColor ${100 - tint / 2}%,${hot} ${tint / 2}%);text-shadow:0 0 ${blur / 2}px ${accent}}`;
+  };
   const pump = (time: number) => {
     sceneFrame = 0; if (stopped || document.hidden) return;
     const wave = waveAt(time);
+    paintText(wave);
     for (const pulse of fallback) write(pulse.element, pulse.variable, mix(pulse, wave), "");
-    if (sceneTargets.size && time - previousScene >= 32) {
-      previousScene = time; for (const source of sceneSources) source.pulse(sceneTargets, wave);
+    if ((sceneTargets.size || hasText) && time - previousScene >= 32) {
+      previousScene = time;
+      if (sceneTargets.size) for (const source of sceneSources) source.pulse(sceneTargets, wave);
+      if (hasText) updateHierarchyTextLevel(textToken, wave);
     }
-    if (fallback.length || sceneTargets.size) sceneFrame = requestAnimationFrame(pump);
+    if (!reduced.matches && (fallback.length || sceneTargets.size || hasText)) sceneFrame = requestAnimationFrame(pump);
   };
   const prepare = () => {
     pending = 0; if (stopped) return;
     observer.disconnect(); restorePaint();
     const matches = matchesFor(entries, targets, property).filter(match => visible(match.element));
+    hasText = matches.some(match => match.target.binding?.text);
+    hasTextRanges = textHighlights && matches.some(match => match.ranges?.length);
+    setHierarchyTextSources(textToken, matches.filter(match => match.target.binding?.text).map(match => ({ key: match.target.id, element: match.element, scale: match.active ? 1 : .5 })));
     const paints: (() => void)[] = [], variables = new Map<PaintElement, Map<string, VariablePulse>>(), rules: string[] = [], tags = new Map<Element, string>();
     const variable = (element: PaintElement, key: string, syntax: string, from: string, to: string, inherited = false) => {
       const name = `--omnium-hierarchy-${key}`, group = variables.get(element) ?? new Map<string, VariablePulse>();
@@ -194,12 +213,8 @@ export function highlightHierarchy(entries: HighlightTarget[], targets: Register
     if (textHighlights) {
       CSS.highlights.set(name, new Highlight(...matches.filter(match => match.active).flatMap(match => match.ranges ?? [])));
       CSS.highlights.set(`${name}-muted`, new Highlight(...matches.filter(match => !match.active).flatMap(match => match.ranges ?? [])));
-      if (matches.some(match => match.ranges?.length)) {
-        const root = document.documentElement, tint = variable(root, "highlight-tint", "<percentage>", "0%", "24%", true),
-          blur = variable(root, "highlight-glow", "<length>", "0px", "10px", true);
-        rules.push(`::highlight(${name}){color:color-mix(in srgb,currentColor calc(100% - ${tint}),${accent} ${tint});text-shadow:0 0 ${blur} ${accent}}`,
-          `::highlight(${name}-muted){color:color-mix(in srgb,currentColor calc(100% - ${tint}),${accent} ${tint});text-shadow:0 0 calc(${blur} * .5) ${accent}}`);
-      }
+      CSS.highlights.get(name)!.priority = 20;
+      CSS.highlights.get(`${name}-muted`)!.priority = 20;
     }
     // All geometry/style reads finish before any temporary paint is written.
     for (const { element, target, active, scrollbar, ranges } of matches) {
@@ -269,15 +284,18 @@ export function highlightHierarchy(entries: HighlightTarget[], targets: Register
       }
     }
     paints.forEach(apply => apply()); computed.clear(); observe();
-    if ((fallback.length || sceneTargets.size) && !sceneFrame) sceneFrame = requestAnimationFrame(pump);
+    const initialWave = waveAt(performance.now());
+    paintText(initialWave); if (hasText) updateHierarchyTextLevel(textToken, initialWave);
+    if (!reduced.matches && (fallback.length || sceneTargets.size || hasText) && !sceneFrame) sceneFrame = requestAnimationFrame(pump);
   };
   function schedulePrepare() { if (!stopped && !pending) pending = requestAnimationFrame(prepare); }
   const stop = () => {
     if (stopped) return; stopped = true;
     cancelAnimationFrame(pending); cancelAnimationFrame(sceneFrame); observer.disconnect(); restorePaint();
     for (const source of sceneSources) source.clear();
+    clearHierarchyTextFeedback(textToken);
     if (textHighlights) { CSS.highlights.delete(name); CSS.highlights.delete(`${name}-muted`); }
-    style.remove(); window.removeEventListener("blur", stop); document.removeEventListener("visibilitychange", hidden); reduced.removeEventListener("change", schedulePrepare);
+    style.remove(); textStyle.remove(); window.removeEventListener("blur", stop); document.removeEventListener("visibilitychange", hidden); reduced.removeEventListener("change", schedulePrepare);
   };
   const hidden = () => { if (document.hidden) stop(); };
   window.addEventListener("blur", stop); document.addEventListener("visibilitychange", hidden); reduced.addEventListener("change", schedulePrepare);

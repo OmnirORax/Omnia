@@ -82,21 +82,17 @@ export function PropertyTree({
     });
   };
   const row = (node: PropertyNode): ReactNode => {
-    if (!supported(node)) return null;
+    if (!supported(node) || !canEdit(node)) return null;
     // A branch may exist only to expose supported descendants. Its own property
     // then remains unavailable even though the branch can still be expanded.
-    const property = node.property && (!available || available.includes(node.property)) ? node.property : undefined;
+    const property = node.property && (!available || available.includes(node.property)) && (!editable || editable.includes(node.property)) ? node.property : undefined;
     const expanded = open(node),
-      children = (node.children ?? []).filter(supported),
+      children = (node.children ?? []).filter(child => supported(child) && canEdit(child)),
       p = property && propertyFor(property),
       isSelected = !!property && selected === property;
-    const ownEditable = !!property && (!editable || editable.includes(property));
-    const hasEditableChildren = children.some(canEdit);
-    const unavailable = node.property ? !ownEditable : !hasEditableChildren;
-    const disabled = unavailable && !hasEditableChildren;
-    if (transient) return <div key={node.id} className={`property-node ${isSelected ? "is-selected" : ""} ${unavailable ? "is-unavailable" : ""}`}>
-      <button type="button" disabled={disabled} aria-disabled={disabled} aria-expanded={expanded} aria-pressed={isSelected} onClick={event => {
-        if (ownEditable && property) onSelect(property);
+    if (transient) return <div key={node.id} className={`property-node ${isSelected ? "is-selected" : ""}`}>
+      <button type="button" aria-expanded={expanded} aria-pressed={isSelected} onClick={event => {
+        if (property) onSelect(property);
         toggle(node, subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift"));
       }}>{node.label}</button>
       {p && property && expanded && <div data-appearance-editor className="property-node-editor">{renderEditor(property)}</div>}
@@ -107,19 +103,18 @@ export function PropertyTree({
         key={node.id}
         id={groupId(node.id)}
         title={node.label}
-        tooltip={unavailable ? hasEditableChildren ? "This property is unavailable; expand for supported child properties." : "Unavailable for the current targets." : node.tooltip}
-        disabled={disabled}
+        tooltip={node.property && !property ? "Expand for supported child properties." : node.tooltip}
         expanded={expanded}
         selected={isSelected}
-        className={`property-node ${isSelected ? "is-selected" : ""} ${unavailable ? "is-unavailable" : ""}`}
+        className={`property-node ${isSelected ? "is-selected" : ""}`}
         nodeId={node.id}
         onToggle={(event) => {
-          if (disabled || event.detail > 1) return;
+          if (event.detail > 1) return;
           if (subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift")) {
             toggle(node, true);
             return;
           }
-          if (ownEditable && property) onSelect(property);
+          if (property) onSelect(property);
           toggle(node);
         }}
       >

@@ -166,8 +166,8 @@ clicking its first control (which could collapse it).
 
 Property hierarchy stems use a 2px, 65%-accent line with short child connectors.
 The shared PropertyTree receives editability separately from supported properties.
-Unavailable setter headings darken and disable when no editable descendants exist;
-a branch with supported children remains expandable without selecting its own
-unavailable property. Supported descendants/operators retain their normal paint.
+Unavailable setters are omitted, including their headings and editors. Branches
+with editable descendants remain as navigation, with no unavailable parent editor.
+Supported descendants/operators retain their normal paint.
 Native and canvas text effects omit disabled controls so animation cannot make an
 unavailable setter appear active.

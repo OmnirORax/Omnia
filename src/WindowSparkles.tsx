@@ -1,3 +1,4 @@
+import { hierarchyTextLevel, subscribeHierarchyTextFeedback } from "./appearance/hierarchyTextFeedback";
 import { unavailableControl } from "./ui/controlAvailability";
 import { createPaintClipReader, clipCanvas } from "./ui/paintClip";
 import { effectsFor } from "./appearance/resolve";
@@ -107,6 +108,8 @@ export function WindowSparkles({
               input: (input: HTMLElement) => input === element && resolver.textHostOwner(target, input)?.id === exact.id, icons: false }
             : { ...baseScope, node: (node: Node) => !resolver.nodeOwner(target, node),
               input: (input: HTMLElement) => (!baseScope.input || baseScope.input(input)) && !resolver.textHostOwner(target, input) };
+          const hover = target.binding?.text ? hierarchyTextLevel(scope.key, element) : undefined;
+          const hoverOpacity = hover === undefined ? 1 : .25 + .75 * hover;
           processed++;
           moving ||= localFx.motion > 0;
           const seed = effectSeed(
@@ -120,7 +123,7 @@ export function WindowSparkles({
               r,
               localFx,
               localTime,
-              a.opacity * (localFx.opacity ?? 1),
+              a.opacity * (localFx.opacity ?? 1) * hoverOpacity,
               !reduced.matches && localFx.motion > 0,
               electricBudget,
               scope,
@@ -136,7 +139,7 @@ export function WindowSparkles({
               localFx,
               localTime,
               seed,
-              a.opacity * (localFx.opacity ?? 1),
+              a.opacity * (localFx.opacity ?? 1) * hoverOpacity,
               !reduced.matches && localFx.motion > 0,
               lightningBudget,
               scope,
@@ -196,6 +199,9 @@ export function WindowSparkles({
     const request = () => {
       if (!frame) frame = requestAnimationFrame(draw);
     };
+    const stopTextFeedback = subscribeHierarchyTextFeedback(() => {
+      if (uiEffectTargets.some(target => effectVisible(effectsFor(current.current, target.id))) || plan.current.activeLocalBases.size) request();
+    });
     redraw.current = request;
     const resume = () => {
       previous = 0;
@@ -229,6 +235,7 @@ export function WindowSparkles({
     reduced.addEventListener("change", resume);
     request();
     return () => {
+      stopTextFeedback();
       document.fonts.removeEventListener("loadingdone", fontsLoaded);
       observer.disconnect();
       cancelAnimationFrame(frame);
