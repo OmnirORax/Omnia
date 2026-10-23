@@ -111,8 +111,8 @@ Edits retain selected-part scope, protections, shared drafts and state-owner
 transactions. Merely inspecting does not create local instances. Inspector controls
 are tool chrome and preserve the active UI selection while being used. Focusing
 them pauses selector picking and holds the last feedback context. Selection / Preview
-hides feedback during ordinary editing without deselecting targets; feedback itself
-stays visible when inspected. The shared toggle can restore marks at any time.
+hides feedback only when explicitly toggled to Preview, without deselecting targets.
+Entering an editor preserves the current marks; the toggle shows the selected count.
 Complete selected text hosts use scoped CSS typography; partial runs support exact
 paint and text-node effects, while unsupported partial typography stays unavailable.
 Color edits do not reset fonts, and typography-only edits preserve unrelated paint.
@@ -196,9 +196,9 @@ There is no new shader, copied effect renderer or parallel configuration store.
 
 Selection / Preview is transient selector view state, independent of appearance
 and membership. It appears in the main and contextual inspectors and stationary
-selector. Ordinary editing automatically exposes actual paint; adapters tagged
-`binding.feedback: "selection"` retain their effect when editing it. Explicit view
-choices last until clear/dismiss/resume. See VISUAL_SELECTION.md.
+selector. Entering an editor does not change the view. Choose Preview explicitly
+to expose actual paint, and Selection to restore marks. Choices last until
+clear/resume. See VISUAL_SELECTION.md.
 
 
 ## Preview performance contract
@@ -223,3 +223,11 @@ Layout/DOM refreshes replace the catalog; resuming picking rediscovers it after
 editing. Feedback geometry and native animations survive unrelated property edits;
 its actual paint changes remain live. Do not fix lag by disabling live previews or
 reducing picker updates to commits only.
+
+
+Pattern feedback now shares a lazy geometry snapshot across hit testing, matching
+and display; layout/discovery revisions invalidate it. Native pulses retain
+unchanged visible hosts instead of restarting the accepted selection on hover
+changes. BG detection is off by default and explicitly enabled through the selector.
+Accepted contours have moving one-device-pixel seams; fainter hover previews do
+not. This distinguishes pending and accepted marks without another color or editor.

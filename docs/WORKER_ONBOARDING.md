@@ -205,8 +205,8 @@ feedback changes only the background and shares the existing scene registration.
 Accepted selection, hover preview and property edits remain separate. Editing
 uses the controller's edit action, native keyboard context gesture or Master
 controller. Focusing its selected-properties controls pauses picking and holds the
-last feedback context. Selection / Preview hides marks during ordinary editing
-without deselecting; editing feedback itself retains its live effect. Complete text hosts support typography; partial text
+last feedback context. Selection / Preview hides marks only through its explicit
+toggle, without deselecting; entering an editor leaves the view alone. Complete text hosts support typography; partial text
 runs keep exact-node paint/effect scope and do not advertise unsupported fonts.
 Effect plans cache local ownership/styles and skip inactive paint-only edits.
 Current limitations include arbitrary negative-space patterns, general
@@ -310,3 +310,9 @@ Performance integration: mounted appearance consumers share context `read` /
 instance/policy structure so exact text ranges and overlay bounds survive picker
 samples. Target metadata tracks actual captions/ownership, not changing React
 elements. See APPEARANCE_CONTROLLER.md for the shared invalidation contract.
+
+Selector BG detection is off by default; enabling BG permits owned backgrounds in
+new picks/previews without rewriting accepted membership. Current pattern feedback
+uses layout-revision measurement snapshots and incremental visible-host pulses.
+Accepted contours have hairline moving seams; pending hover is fainter. Opening
+editors never automatically hides selection. See VISUAL_SELECTION.md.

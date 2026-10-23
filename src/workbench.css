@@ -948,16 +948,21 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selection-trace.is-preview .visual-selection-surface { fill-opacity: .065; }
 .visual-selection-trace .visual-selection-halo { stroke-width: calc(1px + 6px * var(--visual-selection-glow,1)); stroke-opacity: calc(.12 * var(--visual-selection-glow,1)); }
 .visual-selection-trace .visual-selection-bloom { stroke-width: calc(1px + 2px * var(--visual-selection-glow,1)); stroke-opacity: calc(.3 * var(--visual-selection-glow,1)); }
-.visual-selection-trace .visual-selection-rail { stroke-width: 1.7; stroke-opacity: .95; }
-.visual-selection-trace .visual-selection-seam { stroke: var(--visual-selection-core,currentColor); stroke-width: .7; stroke-opacity: .85; }
-.visual-selection-trace.is-boundary .visual-selection-seam { stroke-width: 1; }
-.visual-selection-trace.is-preview .visual-selection-seam { stroke-width: 1.1; }
+.visual-selection-trace .visual-selection-rail { stroke-width: var(--visual-selection-hairline,1px); stroke-opacity: .55; }
+.visual-selection-seam { fill: none; stroke: var(--visual-selection-core,currentColor); stroke-width: var(--visual-selection-hairline,1px); stroke-opacity: .9; stroke-dasharray: 4 5; vector-effect: non-scaling-stroke; }
+
+
 .visual-selection-sparkles { position: absolute; inset: 0; pointer-events: none; opacity: calc(var(--visual-selection-opacity,1) * clamp(0,var(--visual-selection-glow,1),1)); }
 .visual-selection-sparkle { position: absolute; display: block; transform: translate(-50%,-50%); }
 .visual-selection-sparkle-energy { display: block; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle,var(--visual-selection-hot,#fff) 0 24%,var(--visual-selection-core,#fff) 28%,var(--visual-selection-ink) 42%,transparent 72%); opacity: .4; animation: visual-selection-scintillate 2.4s ease-in-out infinite; will-change: opacity; }
-@keyframes visual-selection-envelope { 0%,100% { opacity: 1; } 50% { opacity: .62; } }
+/* Moving seams have a separate, unfiltered paint layer. Do not repaint the
+   halo/rail SVG just to advance the dash offset. Only accepted parts have seams. */
+.selector-feedback-sample .visual-selection-seam { animation: visual-selection-seam-travel 2.4s linear infinite; }
+.visual-selection-overlay > .visual-selection-seams { position: absolute; inset: 0; animation: visual-selection-seam-travel 2.4s linear infinite; will-change: auto; }
+@keyframes visual-selection-seam-travel { to { stroke-dashoffset: -18; } }
+@keyframes visual-selection-envelope { 0%,100% { opacity: 1; } 50% { opacity: .78; } }
 @keyframes visual-selection-scintillate { 0%,100% { opacity: .3; } 24%,36% { opacity: 1; } 66% { opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { .visual-selection-overlay > svg,.selector-feedback-sample > svg,.visual-selection-sparkle-energy { animation: none; will-change: auto; } .visual-selection-sparkle-energy { opacity: .75; } }
+@media (prefers-reduced-motion: reduce) { .visual-selection-overlay > svg,.visual-selection-overlay > .visual-selection-seams,.selector-feedback-sample > svg,.selector-feedback-sample .visual-selection-seam,.visual-selection-sparkle-energy { animation: none; will-change: auto; } .visual-selection-sparkle-energy { opacity: .75; } }
 html[data-visual-selecting],html[data-visual-selecting] * { cursor: none !important; }
 .appearance-target:not(.is-disconnected):not(:disabled) { opacity: 1; filter: drop-shadow(0 0 3px currentColor); }
 .appearance-row.is-excluded > .appearance-row-name { opacity: .4; }

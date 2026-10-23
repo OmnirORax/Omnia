@@ -66,7 +66,7 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 The selector command group includes configuration/aiming (MB3), geometry modes
 (E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), edit
 (RMB/MB2), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
-unassigned commands for contour, inside/outside, releasing geometry, closing paths,
+unassigned commands for BG detection, Selection / Preview, contour, inside/outside, releasing geometry, closing paths,
 finite bounds, color stops, Self inventory and logical Mouse selection. The separate exclude
 command is retired. Exact untouched older pointer bundles migrate to these
 single-toggle defaults; custom bindings and later clears remain intact.

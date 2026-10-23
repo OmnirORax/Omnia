@@ -22,6 +22,8 @@ export type SelectionBoundary = {
 };
 export type SelectionConstraint = {
   boundary: SelectionBoundary;
+  /** Capture detection policy on this rule, never on its geometric work area. */
+  backgrounds?: boolean;
   region?: SelectionRegion;
   role?: VisualRole;
   part?: string;
@@ -164,13 +166,13 @@ export function boundaryCandidates(element: Element): SelectionBoundary[] {
   candidates.push(boundaryFor(document.body));
   return candidates;
 }
-const containsPoint = (rect: DOMRect, x: number, y: number) =>
+const containsPoint = (rect: Box, x: number, y: number) =>
   x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 // Catalog identity is the invalidation boundary: discovery after structure/layout
-// changes replaces it. Cache relationships only; current geometry and scene hits
-// are still read at the pointer so movement never uses stale rectangles.
+// changes replaces it. Relationships and optional measured bounds belong to that
+// revision; scene point hits remain live for every pointer position.
 const hitIndexes = new WeakMap<VisualPart[], WeakMap<Element, { ancestors: VisualPart[]; text: VisualPart[] }>>();
-export function partAt(parts: VisualPart[], element: Element, x: number, y: number): VisualPart | undefined {
+export function partAt(parts: VisualPart[], element: Element, x: number, y: number, measure?: VisualMeasurements): VisualPart | undefined {
   let index = hitIndexes.get(parts);
   if (!index) { index = new WeakMap(); hitIndexes.set(parts, index); }
   let hit = index.get(element);
@@ -183,9 +185,9 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
   const candidates = hit.ancestors.filter(part => !part.target.binding?.selection || scenePartAt(part.target.id, part.element, x, y));
   // Artwork, actual text ink, then border proximity distinguish overlapping paint
   // on the same component. Background is the final fallback, not the text's box.
-  const icon = candidates.find(part => part.role === "icon" && containsPoint(part.element.getBoundingClientRect(), x, y));
+  const icon = candidates.find(part => part.role === "icon" && containsPoint(measure?.bounds(part.element) ?? part.element.getBoundingClientRect(), x, y));
   if (icon) return icon;
-  const text = hit.text.find(part => [...part.range!.getClientRects()].some(rect => containsPoint(rect, x, y)));
+  const text = hit.text.find(part => (measure?.rects(part) ?? [...part.range!.getClientRects()]).some(rect => containsPoint(rect, x, y)));
   if (text) return text;
   const depth = (part: VisualPart) => {
     let node: Element | null = element, depth = 0;
@@ -195,7 +197,7 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
   candidates.sort((a, b) => depth(a) - depth(b));
   const contour = candidates.find(part => {
     if (part.role !== "contour") return false;
-    const rect = part.element.getBoundingClientRect();
+    const rect = measure?.bounds(part.element) ?? part.element.getBoundingClientRect();
     return containsPoint(rect, x, y) && Math.min(x - rect.left, rect.right - x, y - rect.top, rect.bottom - y) <= 5;
   });
   return contour ?? candidates.find(part => part.role === "indicator") ??
@@ -203,9 +205,15 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
       part.element.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),textarea,select')) ??
     candidates.find(part => part.role === "background");
 }
-function partMeasurements() {
+/** Lazy bounds/paint for one catalog/layout revision. Replace on invalidation;
+ * pointer motion alone does not invalidate an unchanged layout. */
+export function createVisualMeasurements() {
   const rects = new Map<VisualPart, Box[]>(), paint = new Map<VisualPart, string>();
+  const bounds = new Map<Element, DOMRect>();
   return {
+    bounds: (element: Element) => {
+      let box = bounds.get(element); if (!box) { box = element.getBoundingClientRect(); bounds.set(element, box); } return box;
+    },
     rects: (part: VisualPart) => {
       let value = rects.get(part); if (!value) { value = partRects(part); rects.set(part, value); } return value;
     },
@@ -216,6 +224,7 @@ function partMeasurements() {
     },
   };
 }
+export type VisualMeasurements = ReturnType<typeof createVisualMeasurements>;
 export function partPaint(part: VisualPart): string {
   if (part.target.binding?.selection) return scenePartPaint(part.target.id, part.element) ?? "transparent";
   const style = getComputedStyle(part.element, part.target.id === "text.ui.placeholders" ? "::placeholder" : null);
@@ -224,19 +233,20 @@ export function partPaint(part: VisualPart): string {
   return part.role === "background" ? style.backgroundColor : part.role === "contour" ? style.borderTopColor :
     part.role === "indicator" ? style.accentColor : source || style.color;
 }
-function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, measure: ReturnType<typeof partMeasurements>):
+function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, measure: VisualMeasurements):
   { peers: VisualPart[]; start?: Point; end?: Point; domain?: [number, number]; box?: Box } {
   const source = rule.scope ? constraintGeometry(parts, rule.scope, measure).peers : parts;
   const root = boundaryElement(rule.boundary), box = boundaryRect(rule.boundary);
   const vertices = rule.path && box ? pathVertices(rule.path, box) : undefined;
   const peers = root && box ? source.filter(part => {
+    if (rule.backgrounds === false && part.role === "background" || rule.role && rule.role !== part.role || rule.part && rule.part !== part.key) return false;
     const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
     // Paths define their own inside/outside. The owner merely anchors coordinates.
     const frameItself = part.key === rule.framePart || rule.ownerFrame && part.element === root && !part.range && (part.role === "background" || part.role === "contour");
     const inRegion = frameItself ? rule.contour !== false : rule.path ?
       (rule.region === "outside" || rule.region === "both" || root.contains(part.element)) && measure.rects(part).some(rect => pathTouchesBox(rule.path!, box, rect, rule.contour !== false, rule.region, vertices)) :
       regionAllows(rule.region ?? "inside", inside);
-    return inRegion && (!rule.role || rule.role === part.role) && (!rule.part || rule.part === part.key);
+    return inRegion;
   }) : [];
   if (!rule.line || !box) return { peers };
   const line = rule.line, [start, end] = conditionPoints(line, box), domain = lineDomain(line);
@@ -250,16 +260,16 @@ function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, meas
     !(stopped[1] < domain[1] && a >= stopped[1]) && !(stopped[0] > domain[0] && b <= stopped[0])).map(hit => hit.part))],
     start, end, domain: stopped, box };
 }
-function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: ReturnType<typeof partMeasurements>) {
+function ruleGeometry(parts: VisualPart[], rule: SelectionRule, measure: VisualMeasurements) {
   return constraintGeometry(parts, rule, measure);
 }
-export function matchingVisualParts(parts: VisualPart[], rule: SelectionRule): VisualPart[] {
-  return ruleGeometry(parts, rule, partMeasurements()).peers;
+export function matchingVisualParts(parts: VisualPart[], rule: SelectionRule, measure = createVisualMeasurements()): VisualPart[] {
+  return ruleGeometry(parts, rule, measure).peers;
 }
 /** The guide uses the same geometry/paint stop as actual matching. */
-export function selectionLineGuide(parts: VisualPart[], rule: SelectionRule): [Point, Point] | null {
+export function selectionLineGuide(parts: VisualPart[], rule: SelectionRule, measure = createVisualMeasurements()): [Point, Point] | null {
   if (!rule.line) return null;
-  const geometry = ruleGeometry(parts, rule, partMeasurements());
+  const geometry = ruleGeometry(parts, rule, measure);
   if (!geometry.box || !geometry.start || !geometry.end || !geometry.domain) return null;
   const viewport = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
   const region = rule.region === "outside" || rule.region === "both" ? viewport : intersectBoxes(viewport, geometry.box);
@@ -268,10 +278,10 @@ export function selectionLineGuide(parts: VisualPart[], rule: SelectionRule): [P
   return clip.map(t => ({ x: geometry.start!.x + (geometry.end!.x - geometry.start!.x) * t,
     y: geometry.start!.y + (geometry.end!.y - geometry.start!.y) * t })) as [Point, Point];
 }
-export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionBoundary | null, rules: SelectionRule[]): { included: VisualPart[]; excluded: VisualPart[] } {
+export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionBoundary | null, rules: SelectionRule[], measure = createVisualMeasurements()): { included: VisualPart[]; excluded: VisualPart[] } {
   const result = { included: [] as VisualPart[], excluded: [] as VisualPart[] };
   if (!boundary || !boundaryElement(boundary)) return result;
-  const measure = partMeasurements(), states = new Map<VisualPart, SelectionRule>();
+  const states = new Map<VisualPart, SelectionRule>();
   for (const rule of rules) for (const part of ruleGeometry(parts, rule, measure).peers) states.set(part, rule);
   for (const part of parts) {
     const state = states.get(part);

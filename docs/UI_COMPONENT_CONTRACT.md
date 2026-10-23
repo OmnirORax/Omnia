@@ -124,8 +124,8 @@ groups remain recoverable until explicitly changed.
 Shared property editors and Master controller roots carry `data-appearance-editor`.
 The visual selector treats those as tool input, preserves the last real feedback
 context on entry, and pauses picking. Selection / Preview controls feedback visibility
-independently of membership; ordinary edits hide marks, while feedback adapters
-retain their effect. Showing marks again uses current live values.
+independently of membership through an explicit toggle; entering an editor never
+hides marks. Showing marks again uses current live values.
 Moved property controls carry the same marker. Never freeze the physical pointer,
 create fake native events, persist hover state or reuse held context after clear/
 cancel/resume/dismissal. See VISUAL_SELECTION.md for the transient hold lifecycle.
@@ -135,3 +135,10 @@ Mounted appearance consumers use the shared context `read`/`renderRead` instead 
 building a resolver per icon/control. Value-only previews preserve target structure
 and policy identity; new controls must not trigger glyph discovery or selector
 geometry rebuilds on every input sample. See APPEARANCE_CONTROLLER.md.
+
+
+The selector's BG detection toggle defaults off and affects new picks/previews,
+not already accepted membership. It uses the common action catalog. Retargeting
+shares catalog-scoped geometry, viewport-only paint and incremental native pulse
+registration. Accepted contour seams are one device pixel, moving in their own
+unfiltered layer; hover previews are fainter and do not have accepted seams.

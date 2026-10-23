@@ -17,8 +17,6 @@ export const loadController = (value: unknown) =>
     EFFECT_PROPERTIES,
   ), LEGACY_FIELD_BRANCHES);
 export type Binding = {
-  /** This adapter draws selection feedback itself; keep it visible while editing. */
-  feedback?: "selection";
   /** Non-DOM paint exposes its screen hit surface separately from CSS styling.
    * Target addressing edits the existing renderer consumer, not a DOM instance. */
   selection?: { selector: string; role: "background"; renderer: "scene"; address: "target" };
@@ -267,7 +265,7 @@ for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
     id: `ui.guides.selector.${tone}`, parent: "ui.guides.selector", label: defaults.label,
     properties: [...surface], hidden: tone === "excluded", defaults: { color: defaults.color, brightness: 1, opacity: 1, glow: 1 },
     // The feedback adapter paints SVG edges, glyph ranges and icons together.
-    binding: { selector: `.visual-selection-trace.is-${tone}`, feedback: "selection" },
+    binding: { selector: `.visual-selection-trace.is-${tone}` },
   });
 branch("text", "all", "Text");
 branch("text.ui", "text", "UI text");

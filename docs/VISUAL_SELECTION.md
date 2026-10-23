@@ -196,8 +196,8 @@ shared selected-part editor. Hover candidates do not change that inspector. The
 stationary edit button or platform keyboard context menu opens Selected appearance
 at the pointer. This uses accepted parts even when invoked over a gap. Picking pauses while editing. The last displayed feedback target/hover context
 is held while the controller is used. Selection / Preview independently controls
-its visibility: editing ordinary targets automatically hides feedback to expose
-their real paint; editing feedback itself keeps it visible and reads live values. Continue selecting or the selector toggle releases that context and resumes
+its visibility through an explicit toggle. Entering an editor does not hide marks;
+Preview reveals actual paint without deselecting. Feedback keeps reading live values. Continue selecting or the selector toggle releases that context and resumes
 the tool. Entering Master controller or moved shared property controls also holds
 the context without updating the app-side pointer position. Logical targets reveal
 Master controller directly. Unsupported capabilities remain unavailable.
@@ -249,7 +249,8 @@ remain follow-up work. No competing appearance editor or property store is added
 
 Included parts use green neon traces; the boundary stays cyan. Unselected parts
 are unpainted, including accepted exclusions. A soft
-rim, continuous rail and moving dashed seam show each surface or contour. The seam
+rim and continuous rail show previews; accepted surfaces/contours also have a moving,
+one-device-pixel dashed seam. Pending previews use fainter green ink. The seam
 travels around the edge without rotating/resizing the selected object. Background
 tints remain translucent. HTML backgrounds use a synchronized native inset tint
 on the actual rounded surface, below its contents and over its background imagery.
@@ -266,7 +267,7 @@ rescans; reduced motion is steady. New scene adapters receive the current transi
 paint on mounting. Hierarchy cleanup does not erase accepted selector feedback.
 
 Accepted and hover feedback both follow a 2.6-second bright/dim/bright cycle.
-Preview emphasis changes seam thickness, not pulse opacity. The low point keeps a
+Accepted seams stay one device pixel wide; previews never thicken them. The low point keeps a
 faint cue while the high point restores full ink and glow. Preview changes do not
 restart the shared pulse clock.
 
@@ -343,8 +344,8 @@ White pinpoints are capped at 20 per overlay, with at most six reserved for the
 world background. Visible glyph/icon parts receive pinpoints too; they do not
 acquire rectangular traces. Offscreen rectangles are clipped before placement.
 Pinpoints use tiny independently composited HTML layers, so their twinkle does
-not repaint the viewport SVG. Borders have no marching-dash animation; the SVG
-breathes as one composited opacity layer. Native glyph glow is one tight, static
+not repaint the viewport SVG. Accepted seams travel in a separate unfiltered SVG, leaving halo/rail rendering
+static while the main SVG breathes as one composited opacity layer. Native glyph glow is one tight, static
 shadow rather than multiple animated blur radii. Scene sparkle placement rejects
 UI/foreground hits at setup and is cached across paint-only edits. All sparkle/pulse motion uses native animations;
 there are no per-frame DOM scans or full-surface blur filters. Reduced motion uses
@@ -359,12 +360,11 @@ store or separate preview implementation is introduced.
 The same toggle appears in Master controller, Selected appearance and the stationary
 selector. Selection shows feedback; Preview removes all selector paint/overlays
 without clearing accepted targets, the neutral boundary, history or held context.
-Ordinary editor entry defaults to Preview. Feedback adapters declare
-`binding.feedback: "selection"`, so inspecting them through Self inventory or the
-shared property editor keeps their own effect visible. This is adapter metadata,
-not a text-only exception or another consumer registry. Explicit toggles override
-automatic visibility until editing/picking resumes. Clear, dismissal and resuming
-picking reset that override; Continue selecting restores normal feedback.
+Opening or entering an editor never switches the view. The explicit toggle shows
+its current mode and selected count in the inspectors. Preview hides feedback only;
+accepted membership, exclusions, history and held context remain intact. Resume and clear restore Selection; dismissing an editor preserves the explicit
+view choice. No per-adapter automatic visibility metadata
+or hidden editing-mode transition is used.
 
 `selector.feedbackView` is a shared, unbound-by-default command and appears in
 shortcut discovery. View changes are transient tool state and do not enter
@@ -384,3 +384,24 @@ edits, so controls cannot restart all native pulses on every color sample.
 Exact text appearance likewise retains its bound Ranges while changing paint.
 Use the shared context reader and preserve unchanged instance/policy identity in
 setters; see APPEARANCE_CONTROLLER.md for the renderer/editor performance contract.
+
+
+## BG detection and pattern retargeting
+
+BG is off by default. New pointer/pattern/geometry picks and previews omit owned UI
+and scene backgrounds until BG is enabled in the stationary selector. Its command
+`selector.backgrounds` joins shortcut discovery, unbound by default. This is a
+detection option, not a property setter or a deselection command: changing it does
+not erase already accepted backgrounds. Each new rule captures its BG policy; the
+geometric working area itself does not, so turning BG on can find backgrounds
+within an existing boundary. Independent negative-space gaps still need adapters.
+
+Picking, matching, guides and feedback share one lazy measurement snapshot per
+catalog/layout revision. Revisited categories reuse cached toggle candidates.
+Scroll, resize, relevant DOM changes and resuming after edits replace the snapshot;
+scene point hits remain live. Do not silently keep snapshot bounds across a layout
+revision. The native pulse manager adds/removes only changed visible hosts, keeping
+unchanged accepted animations and their common clock. Offscreen membership remains
+selected but does not create Highlights/paint animations until brought into view.
+The shallow 2.6-second pulse keeps a visible base; accepted hairline seams travel
+in their own SVG so dash motion does not repaint the halo/rail layer.

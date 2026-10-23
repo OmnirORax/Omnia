@@ -867,18 +867,16 @@ test("green text lightning is one shared-property recipe scoped to unlocked conn
 });
 
 
-test("Selection / Preview changes feedback without losing held targets; feedback editing stays visible", () => {
+test("Selection / Preview changes feedback explicitly without losing held targets", () => {
   const hold = createInteractionHold();
   const targets = { selected: ["text", "background"], preview: [] };
   hold.remember(targets); hold.hold();
-  assert.equal(selectionFeedbackVisible("auto", false, false), true);
-  assert.equal(selectionFeedbackVisible("auto", true, false), false);
-  assert.equal(selectionFeedbackVisible("auto", true, true), true);
-  for (const editingFeedback of [false, true]) {
-    assert.equal(selectionFeedbackVisible("preview", true, editingFeedback), false);
-    assert.equal(selectionFeedbackVisible("selection", true, editingFeedback), true);
+  assert.equal(selectionFeedbackVisible("auto"), true, "editor entry cannot implicitly hide selection marks");
+  for (const view of ["auto", "selection"]) {
+    assert.equal(selectionFeedbackVisible("preview"), false);
+    assert.equal(selectionFeedbackVisible(view), true);
     assert.equal(hold.context, targets);
     assert.equal(hold.held, true);
   }
-  assert.equal(selectionFeedbackVisible("auto", false, false), true, "resuming picking restores feedback");
+  assert.equal(selectionFeedbackVisible("auto"), true, "resuming picking restores feedback");
 });

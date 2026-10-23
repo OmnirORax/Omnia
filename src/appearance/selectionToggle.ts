@@ -1,9 +1,9 @@
 import type { Point, SelectionRegion } from "./selectionGeometry";
-import { matchingVisualParts, pointerInSelectionScope, type SelectionConstraint, type SelectionRule, type VisualPart } from "./visualSelection.ts";
+import { matchingVisualParts, pointerInSelectionScope, type VisualMeasurements, type SelectionConstraint, type SelectionRule, type VisualPart } from "./visualSelection.ts";
 
-export type SelectionMask = { contour: boolean; region: SelectionRegion | null };
+export type SelectionMask = { contour: boolean; region: SelectionRegion | null; backgrounds?: boolean };
 export type MaskPart = "contour" | "inside" | "outside";
-export const DEFAULT_SELECTION_MASK: SelectionMask = { contour: true, region: null };
+export const DEFAULT_SELECTION_MASK: SelectionMask = { contour: true, region: null, backgrounds: false };
 
 /** Active regions constrain detection; a neutral frame follows the pointer side. */
 export function workingGeometry(geometry: SelectionConstraint, mask: SelectionMask): SelectionConstraint {
@@ -16,21 +16,23 @@ export function maskedGeometry(geometry: SelectionConstraint, mask: SelectionMas
   return { ...geometry, contour: mask.contour, region: geometry.path?.closed ? mask.region ?? undefined : undefined };
 }
 export function geometryBaseline(geometry: SelectionConstraint, mask: SelectionMask): SelectionRule[] {
-  return [{ ...geometry, include: false, implicit: true }, { ...maskedGeometry(geometry, mask), include: true }];
+  const detection = mask.backgrounds === undefined ? {} : { backgrounds: mask.backgrounds };
+  return [{ ...geometry, ...detection, include: false, implicit: true }, { ...maskedGeometry(geometry, mask), ...detection, include: true }];
 }
 /** Reset the changed region, then restore enabled overlaps. Unrelated regions
  * keep their individual exceptions; contour and fill may touch the same part. */
 export function geometryMaskChange(geometry: SelectionConstraint, mask: SelectionMask, part: MaskPart): SelectionRule[] {
   if (part !== "contour" && !geometry.path?.closed) return [];
   const changed: SelectionConstraint = { ...geometry, contour: part === "contour", region: part === "contour" ? undefined : part };
-  return [{ ...changed, include: false, implicit: true }, { ...maskedGeometry(geometry, mask), scope: changed, include: true }];
+  const detection = mask.backgrounds === undefined ? {} : { backgrounds: mask.backgrounds };
+  return [{ ...changed, ...detection, include: false, implicit: true }, { ...maskedGeometry(geometry, mask), ...detection, scope: changed, include: true }];
 }
 
 /** One toggle for every category/individual: mixed becomes included; all included
  * becomes excluded. Preview and commit use the same decision. */
-export function selectionToggleRule(parts: VisualPart[], included: readonly VisualPart[], constraint: SelectionConstraint): SelectionRule {
+export function selectionToggleRule(parts: VisualPart[], included: readonly VisualPart[], constraint: SelectionConstraint, measure?: VisualMeasurements): SelectionRule {
   const keys = new Set(included.map(part => part.key));
-  const peers = matchingVisualParts(parts, { ...constraint, include: true });
+  const peers = matchingVisualParts(parts, { ...constraint, include: true }, measure);
   return { ...constraint, include: !peers.length || peers.some(part => !keys.has(part.key)) };
 }
 
