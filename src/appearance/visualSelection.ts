@@ -56,8 +56,8 @@ export function roleFor(target: RegisteredTarget): VisualRole | undefined {
   if (target.binding?.selection) return target.binding.selection.role;
   if (target.binding?.text) return "text";
   if (target.binding?.animation?.kind === "icons") return "icon";
-  return ({ "background-color": "background", "border-color": "contour", "accent-color": "indicator" } as const)[
-    target.binding?.css as "background-color" | "border-color" | "accent-color"
+  return ({ "background-color": "background", "border-color": "contour", "accent-color": "indicator", "color": "indicator" } as const)[
+    target.binding?.css as "background-color" | "border-color" | "accent-color" | "color"
   ];
 }
 const visible = (element: Element) => !element.closest(ignored) && !!element.getClientRects().length &&
@@ -238,7 +238,7 @@ export function partPaint(part: VisualPart): string {
   // Feedback ink is temporary. Its adapter preserves the actual source for sampling.
   const source = part.element.hasAttribute("data-visual-selection-ink") ? style.getPropertyValue("--omnium-selector-source-color").trim() : "";
   return part.role === "background" ? style.backgroundColor : part.role === "contour" ? style.borderTopColor :
-    part.role === "indicator" ? style.accentColor : source || style.color;
+    part.target.binding?.css === "accent-color" ? style.accentColor : source || style.color;
 }
 function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, measure: VisualMeasurements):
   { peers: VisualPart[]; start?: Point; end?: Point; domain?: [number, number]; box?: Box } {

@@ -194,7 +194,7 @@ part("ui.toggles.indicator", "ui.toggles", "Selection indicator", {
 });
 branch("ui.sliders", "ui.fields", "Sliders");
 part("ui.sliders.fill", "ui.sliders", "Filled track / thumb", {
-  selector: 'input[type="range"],progress,meter',
+  selector: 'input[type="range"]:not(.range-spectrum-input),progress,meter',
   css: "accent-color",
   legacy: "accent",
 });
