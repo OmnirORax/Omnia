@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
-import { isTypingTarget, matchesShortcut, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
+import { isTypingTarget, preferredFeatureKey, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
 import { useUI } from "./context";
 
 type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void; configuration?: ReactNode }>;
@@ -31,7 +31,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
       if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
       if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
       return event instanceof KeyboardEvent
-        ? matchesShortcut(id, current.ui.shortcutBindings ?? {}, normalizeKey(event))
+        ? preferredFeatureKey(current.ui.shortcutBindings ?? {}, normalizeKey(event), candidate => featureActionRuntime.available(candidate), isTypingTarget(event.target), !!current.ui.shortcutsBlocked) === id
         : matchesPointerShortcut(id, current.ui.shortcutBindings ?? {}, event, gestureModifiers);
     },
     invoke: (id: FeatureActionFor<Owner>, input?: ActionInput) => featureActionRuntime.invoke(id, input),

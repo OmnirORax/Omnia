@@ -422,3 +422,8 @@ Paste preserves unchecked companion channels. Shared programmatic command dispat
 uses `invokeCatalogAction`; catalog actions never depend on a separate button
 binding/hidden runner. This is required for S/Shift+S global search and every new
 configured command. See FUNCTION_CONFIGURATION.md and APPEARANCE_CONTROLLER.md.
+
+Keyboard feature conflicts use shared active-scope priority (MS before UI context
+before global), including Shift configuration. Escape clears active MS/selection
+before minimizing a window. Reuse preferredFeatureKey; do not add private Escape
+branches or assume capture-listener mount order. See SHORTCUTS.md.

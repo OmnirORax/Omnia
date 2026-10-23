@@ -321,3 +321,22 @@ test("programmatic catalog dispatch executes search without a button binding or 
     assert.equal(invokeCatalogAction("unknown", base), false); assert.equal(calls.length, 2);
   } finally { stop(); }
 });
+
+test("active MS owns Escape before window actions, then yields once selection is cleared", async () => {
+  const { preferredFeatureKey } = await import("../src/workspaceActions.ts");
+  const bindings = defaultSettings().bindings;
+  const active = new Set(["selector.cancel", "context.back"]);
+  assert.equal(preferredFeatureKey(bindings, "", () => true), null);
+  assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id)), "selector.cancel");
+  assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id), true, true), "selector.cancel");
+  active.delete("selector.cancel");
+  assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id)), "context.back");
+  assert.equal(preferredFeatureKey({ ...bindings, "selector.cancel": "" }, "Esc", () => true), "context.back");
+  assert.equal(preferredFeatureKey({ ...bindings, "selector.cancel": "P" }, "P", id => id === "selector.cancel"), "selector.cancel");
+});
+
+
+test("Shift configuration preserves the same selector-before-window priority", async () => {
+  const { configurationTarget } = await import("../src/ui/shortcutConfiguration.ts");
+  assert.equal(configurationTarget(defaultSettings().bindings, "Shift+Esc", id => id === "selector.cancel" || id === "context.back"), "selector.cancel");
+});

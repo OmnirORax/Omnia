@@ -190,3 +190,11 @@ a compatible direct global alias. Copy properties/Paste applicable properties ar
 cataloged MC actions, unassigned by default, preserving native text copy/paste.
 Float active frame is also a shared MC Active context action, replacing repeated
 sidebar ↗ buttons; existing movement/pin restrictions and UI history apply.
+
+
+When feature bindings overlap, keyboard routing uses active scope priority:
+Visual selector → active UI context → global. Active MS or its accepted selection
+therefore owns Escape before the active window; clearing MS yields subsequent
+Escape to the normal field/popup/window stack. Cleared/rebound bindings, typing,
+availability, capture and protected recovery rules remain authoritative. Shift
+configuration resolves the same priority. Do not rely on listener mount order.

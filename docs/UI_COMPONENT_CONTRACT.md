@@ -263,7 +263,9 @@ Widget internals are one `data-ui-control`, not separately movable/discoverable
 commands. Spectrum appearance is coupled under Visual hierarchy → Sliders.
 
 
-Spectrum glyphs use a compact 126px horizontal span with 22px bars. Arrow tips meet
+Spectrum glyphs use a compact 44px axis with 22px bars, plus content-sized
+inline min/max labels. The current value sits directly above the dot. The rail,
+bar/arrow strokes and thumb are thicker for readability. Arrow tips meet
 the end bars. Internal glyph buttons have no button background/border/shadow/filter;
 shared slider color still applies through the existing spectrum target. These are
 one compound widget, not independent movable button surfaces.
