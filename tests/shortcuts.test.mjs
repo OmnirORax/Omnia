@@ -340,3 +340,19 @@ test("Shift configuration preserves the same selector-before-window priority", a
   const { configurationTarget } = await import("../src/ui/shortcutConfiguration.ts");
   assert.equal(configurationTarget(defaultSettings().bindings, "Shift+Esc", id => id === "selector.cancel" || id === "context.back"), "selector.cancel");
 });
+
+test("a searchable popup resident retains its dismissal layer after field focus", async () => {
+  const { contextStackFromScopes, parentContext } = await import("../src/ui/activeContextModel.ts");
+  const popup = { id: "search" }, input = { id: "query" }, owner = { id: "mc" };
+  let closed = 0;
+  const layer = { parent: "window:theme", close: () => closed++ };
+  const framesFor = key => [{ kind: "frame", key, element: owner }];
+  let stack = contextStackFromScopes([{ element: popup, frame: "window:global-ui-search", layer }], framesFor, input);
+  assert.deepEqual(stack.map(entry => entry.kind), ["frame", "layer", "field"]);
+  assert.equal(stack[0].key, "window:theme");
+  stack = parentContext(stack); assert.equal(stack.at(-1).kind, "layer");
+  assert.equal(stack.at(-1).element, popup); layer.close(); stack = parentContext(stack);
+  assert.equal(closed, 1); assert.equal(stack.at(-1).key, "window:theme");
+  const nested = contextStackFromScopes([{ element: owner, frame: "window:theme" }, { element: popup, frame: "window:global-ui-search", layer }], framesFor);
+  assert.deepEqual(nested.map(entry => entry.kind), ["frame", "layer"], "DOM nesting and portals preserve the same dismissal order");
+});

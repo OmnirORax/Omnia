@@ -272,3 +272,10 @@ one compound widget, not independent movable button surfaces.
 Native sidebar ↗ float buttons are removed. MC Active context → Float active frame
 uses the shared floatResident transaction, including the native panel's floating
 projection flag. The live contents, ownership constraints and pins remain intact.
+
+
+A registered active popup layer takes precedence over a `data-ui-resident-root`
+on the same element. Resident IDs support search/ownership, but must not erase a
+popup's close handler from the active stack. Shared contextStackFromScopes builds
+field → popup → parent-frame Escape order, including portalled search dialogs.
+Do not register such popups as ordinary frames without close/minimize adapters.

@@ -1,6 +1,6 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { UIContext, useUI, type UIContextValue } from "./context";
-import { activeFrame, parentContext, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
+import { activeFrame, parentContext, contextStackFromScopes, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
@@ -23,19 +23,9 @@ function stackAt(ui: UIContextValue, element: HTMLElement): ActiveContextStack {
   const scopes: HTMLElement[] = [];
   for (let node: HTMLElement | null = element; node; node = node.parentElement)
     if (node.hasAttribute("data-ui-resident-root") || ui.contextLayers.has(node)) scopes.unshift(node);
-  let stack: ActiveContextEntry[] = [];
-  for (const node of scopes) {
-    const key = node.getAttribute("data-ui-resident-root"), layer = ui.contextLayers.get(node);
-    if (key) {
-      if (!stack.some(entry => entry.kind === "frame" && entry.key === key)) stack.push(...frameChain(ui, key).filter(entry => entry.kind !== "frame" || !stack.some(old => old.kind === "frame" && old.key === entry.key)));
-    } else if (layer) {
-      if (!stack.length && layer.parent) stack = frameChain(ui, layer.parent);
-      stack.push({ kind: "layer", element: node });
-    }
-  }
-  const field = element.closest<HTMLElement>(fieldSelector);
-  if (field && stack.length) stack.push({ kind: "field", element: field });
-  return stack;
+  return contextStackFromScopes(scopes.map(node => ({ element: node,
+    frame: node.getAttribute("data-ui-resident-root") ?? undefined, layer: ui.contextLayers.get(node),
+  })), key => frameChain(ui, key), element.closest<HTMLElement>(fieldSelector));
 }
 export function activateFrameContext(ui: UIContextValue, key: string) {
   publish(ui, frameChain(ui, key));

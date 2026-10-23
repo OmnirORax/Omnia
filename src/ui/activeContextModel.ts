@@ -8,3 +8,19 @@ export const UI_CANCEL_EDIT = "omnium:cancel-value-edit";
 /** One level only, even when the same physical key repeats. */
 export const parentContext = (stack: ActiveContextStack): ActiveContextStack => stack.slice(0, -1);
 export const activeFrame = (stack: ActiveContextStack) => [...stack].reverse().find((entry): entry is Extract<ActiveContextEntry, { kind: "frame" }> => entry.kind === "frame");
+
+/** A popup may also have a resident ID for search/ownership. Its registered
+ * dismissal layer takes precedence over that presentation identity. */
+export function contextStackFromScopes(scopes: readonly { element: HTMLElement; frame?: string; layer?: ContextLayer }[], framesFor: (key: string) => ActiveContextEntry[], field?: HTMLElement | null): ActiveContextStack {
+  let stack: ActiveContextEntry[] = [];
+  for (const scope of scopes) {
+    if (scope.layer) {
+      if (!stack.length && scope.layer.parent) stack = framesFor(scope.layer.parent);
+      stack.push({ kind: "layer", element: scope.element });
+    } else if (scope.frame && !stack.some(entry => entry.kind === "frame" && entry.key === scope.frame)) {
+      stack.push(...framesFor(scope.frame).filter(entry => entry.kind !== "frame" || !stack.some(old => old.kind === "frame" && old.key === entry.key)));
+    }
+  }
+  if (field && stack.length) stack.push({ kind: "field", element: field });
+  return stack;
+}
