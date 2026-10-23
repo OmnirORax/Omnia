@@ -412,3 +412,8 @@ candidate patterns by default. The view toggle hides/restores feedback without
 changing membership. Explicit MS lock retains the current candidate and symbol;
 normal cursor movement does not retarget them. Unlock resumes hover detection.
 No Ctrl requirement or automatic editor-entry freeze is used.
+
+Opening/closing the meta MS controller through `selector.open` preserves the
+current candidate and displayed preview. Returning to aiming does not pick the
+controller's former location; actual pointer motion resumes retargeting. Explicit
+clear, selection commits and geometry/configuration changes keep their own rules.

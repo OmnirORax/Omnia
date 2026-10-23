@@ -57,6 +57,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const [automaticRegion, setAutomaticRegion] = useState<SelectionSide>("inside");
   const point = useRef<{ x: number; y: number; element: Element } | null>(null);
   const settledPoint = useRef<Point | null>(null);
+  const retainedPreview = useRef(false);
   const depth = useRef(0), candidateRef = useRef<Pick | null>(null), geometrySequence = useRef(0);
   const selectedRef = useRef<VisualPart[]>([]), gesture = useRef<Gesture | null>(null);
   const polygon = useRef<Gesture | null>(null);
@@ -186,7 +187,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const disable = () => { close(); clear(); };
   const undo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); };
   const redo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); };
-  const aim = () => { toggleCandidate.current = null; setCatalog(collectVisualParts()); setCandidatePick(null); setInventoryOpen(false); setPhase("aim"); };
+  const aim = () => { retainedPreview.current = !!candidateRef.current; toggleCandidate.current = null; setCatalog(collectVisualParts()); setInventoryOpen(false); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;
     if (latest.current.selection.objects.length) { requestInspection(value => value + 1); return; }
@@ -270,7 +271,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     "selector.open": { enabled: true, run: input => {
       if (phase === "configure") { aim(); return; }
       const p = inputPosition(input), element = document.elementFromPoint(p.x, p.y) ?? document.body;
-      setCatalog(collectVisualParts()); setPosition(p); setPhase("configure"); setCandidatePick(null);
+      retainedPreview.current = !!candidateRef.current;
+      setCatalog(collectVisualParts()); setPosition(p); setPhase("configure");
       point.current = { ...p, element };
     } },
     "selector.lock": { enabled: phase !== "off", run: input => {
@@ -320,7 +322,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   selectedRef.current = matches.included;
   const editableParts = useMemo(() => describeSelectedParts(matches.included), [matches]);
   const preview = useMemo(() => {
-    if (!candidate || (phase !== "aim" && phase !== "locked")) return noParts;
+    if (!candidate || (phase !== "aim" && phase !== "locked" && phase !== "configure")) return noParts;
     const changed = matchingVisualParts(catalog, candidate.rule, measurements);
     const selected = new Set(matches.included.map(part => part.key));
     return changed.filter(part => candidate.rule.include ? !selected.has(part.key) : selected.has(part.key));
@@ -404,6 +406,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         return;
       }
       if (latest.current.phase !== "aim" || !gesture.current && !outsideChrome(event)) return;
+      retainedPreview.current = false;
       const draft = gesture.current;
       if (draft?.mode === "freehand") {
         const previous = draft.points.at(-1)!;
@@ -524,9 +527,10 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", refresh); window.removeEventListener("scroll", refresh, true); };
   }, [active]);
   // Re-evaluate the pointed preview when resuming or changing the tool, not
-  // when entering an editor. Locked MS retains its last explicit preview.
+  // when entering an editor. Meta-view toggles retain the pointed preview until
+  // actual aiming motion; opening/closing chrome is not a new hover decision.
   useEffect(() => {
-    if (phase !== "aim") return;
+    if (phase !== "aim" || retainedPreview.current) return;
     const p = point.current;
     if (!p) return;
     const element = document.elementFromPoint(p.x, p.y);
@@ -544,7 +548,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (!scope || !mask) return;
     setConfiguration(config => ({ ...config, ...mask, closed: scope.path?.kind === "freehand" ? scope.path.closed : config.closed }));
   }, [selection.scope, selection.mask]);
-  const paths = [...scopeChain(selection.scope), (phase === "aim" || phase === "locked") && candidate?.definesScope ? candidate.rule : null].flatMap((constraint, index, constraints) => {
+  const paths = [...scopeChain(selection.scope), (phase === "aim" || phase === "locked" || phase === "configure") && candidate?.definesScope ? candidate.rule : null].flatMap((constraint, index, constraints) => {
     const box = constraint && boundaryRect(constraint.boundary);
     return constraint?.path && box ? [{ key: `${index}:${constraintKey(constraint)}`, points: pathVertices(constraint.path, box),
       closed: constraint.path.closed, disabledEdges: constraint.path.disabledEdges ?? [], preview: index === constraints.length - 1 && !!candidate?.definesScope,
@@ -566,8 +570,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const edges = activePath && activeBox ? pathEdges(pathVertices(activePath, activeBox), activePath.closed) : [];
   const liveFeedback: ComponentProps<typeof VisualSelectionOverlay> = {
     selected: feedbackSelected, excluded: noParts, preview: candidate?.rule.include === false ? noParts : preview, measurements,
-    candidate: (phase === "aim" || phase === "locked") && candidate?.rule.include ? candidate.rule : null,
-    guide: phase === "aim" || phase === "locked" ? guide : null, guides, paths,
+    candidate: (phase === "aim" || phase === "locked" || phase === "configure") && candidate?.rule.include ? candidate.rule : null,
+    guide: phase === "aim" || phase === "locked" || phase === "configure" ? guide : null, guides, paths,
   };
   return <Context.Provider value={contextValue}>
     {children}
