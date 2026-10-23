@@ -1126,6 +1126,5 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 }
 
 /* Preview actions use the ordinary window surface and shared controls. */
-.floating-footer { flex: none; padding: 10px 14px; border-top: 1px solid currentColor; max-height: 45%; overflow: auto; }
-.appearance-preview-actions p { margin: 0 0 8px; }
+.floating-footer { position: absolute; top: calc(100% + 6px); left: 0; width: max-content; max-width: 100%; padding: 0; border: 0; background: transparent; pointer-events: auto; }
 .appearance-preview-buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

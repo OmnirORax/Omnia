@@ -142,8 +142,10 @@ changes, releases, logical-object picks and clear in one transient timeline. It
 never writes graph/UI/appearance history or browser storage. Ctrl/Cmd+Z,
 Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y are the defaults while configuring/aiming. New
 operations after undo replace its redo branch. Unfinished drawing is not accepted
-on blur/cancel. Hover previews additions in green and removals by hiding their accepted green. Accepted exclusions
-have no red paint.
+on blur/cancel. Hover previews additions in green and already-selected removal candidates in red.
+The hovered candidates temporarily replace their accepted green; actual excluded
+items retain no paint after committing. HTML, glyph, SVG and scene feedback share
+the same pending tone and existing pulse clock.
 
 The ◎ button opens **Self inventory**, the shared entry for logical/meta targets
 that cannot be picked through their own pointer-transparent graphics. It projects
@@ -456,3 +458,8 @@ brighten backgrounds without boosting contour highlights. The fill slider reache
 full coverage at 1 for accepted selection with tone opacity 1 and pulse at peak.
 Rendering uses existing cached hosts and clocks; no additional frame loop, source
 discovery or geometry reads are introduced.
+
+Removal preview reuses the stable `ui.guides.selector.excluded` feedback target,
+now visible under Selector feedback as Removal preview. Its saved values remain
+compatible. Only currently included matching candidates receive that pending red
+paint; committing deselection removes the mark rather than leaving red behind.

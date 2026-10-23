@@ -576,8 +576,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const activePath = workingScope?.path, activeBox = workingScope && boundaryRect(workingScope.boundary);
   const edges = activePath && activeBox ? pathEdges(pathVertices(activePath, activeBox), activePath.closed) : [];
   const liveFeedback: ComponentProps<typeof VisualSelectionOverlay> = {
-    selected: feedbackSelected, excluded: noParts, preview: candidate?.rule.include === false ? noParts : preview, measurements,
-    candidate: (phase === "aim" || phase === "locked" || phase === "configure") && candidate?.rule.include ? candidate.rule : null,
+    selected: feedbackSelected, excluded: noParts, preview, measurements,
+    candidate: (phase === "aim" || phase === "locked" || phase === "configure") && candidate ? candidate.rule : null,
     guide: phase === "aim" || phase === "locked" || phase === "configure" ? guide : null, guides, paths,
   };
   return <Context.Provider value={contextValue}>

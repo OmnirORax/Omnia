@@ -179,8 +179,8 @@ owners use `PAGE_INPUT_SUSPEND` only to release unfinished presses/drags; it mus
 not clear selections, close editors, commit drafts or create history. Visibility
 listeners may pause rendering clocks without changing application state.
 
-`FloatingWindow.footer` provides shared, non-scrolling action content below the
-body with the same window scope/theme. An `onClose` returning false vetoes closing
+`FloatingWindow.footer` provides a compact strip of shared actions attached
+below the window, outside its scroll body, with the same scope/theme. An `onClose` returning false vetoes closing
 before releasing dock ownership. `onMinimize` can similarly veto collapsing
 until pending work is resolved. `FunctionControl mirror` renders an existing
 action contextually with its shared styling, without relocating its resident or

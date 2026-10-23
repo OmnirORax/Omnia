@@ -158,7 +158,11 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   const paints = useFeedbackPaints();
   const pulse = usePulseSettings();
   const pulseRoot = useRef<HTMLDivElement>(null);
-  const pendingPaint = useMemo(() => ({ ...paints.included, opacity: paints.included.opacity * .6 }), [paints]);
+  const removing = candidate?.include === false;
+  const pendingPaint = useMemo(() => {
+    const tone = removing ? paints.excluded : paints.included;
+    return { ...tone, opacity: tone.opacity * .6 };
+  }, [paints, removing]);
   const measure = useMemo(() => measurements ?? createVisualMeasurements(), [measurements, selected, excluded, preview]);
   // Membership is app-wide; only feedback in the viewport needs paint, text
   // Highlights or native animation. Scrolling refreshes the catalog/snapshot.
@@ -208,7 +212,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     }
     type GlyphPaint = { kind: "icon" | "text"; feedback: FeedbackPaint; pseudo: string };
     const paint = new Map<HTMLElement | SVGElement, { glyph?: GlyphPaint; surface?: FeedbackPaint }>();
-    for (const [parts, feedback] of [[visible.selected, paints.included], [visible.excluded, paints.excluded], [visible.preview, candidate?.include === false ? paints.excluded : pendingPaint]] as const) {
+    for (const [parts, feedback] of [[visible.selected, paints.included], [visible.excluded, paints.excluded], [visible.preview, pendingPaint]] as const) {
       for (const part of parts) {
         if (part.target.binding?.selection?.renderer === "scene") continue;
         if (part.role === "background" && part.element instanceof HTMLElement) {
@@ -336,12 +340,12 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   }, [visible, measure]);
   return <div ref={pulseRoot} data-visual-selector data-pulse={pulse.enabled} className="visual-selection-overlay">
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
-      glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : pendingPaint)}</style>
+      glyphFeedback("omnium-selector-preview", pendingPaint)}</style>
     <svg aria-hidden="true" width="100%" height="100%">
       {marks.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="included" paint={paints.included} seam={false} />)}
       {omissions.map(mark => <SelectionTrace key={mark.key} mark={mark} tone="excluded" paint={paints.excluded} seam={false} />)}
       {candidates.map(mark => <SelectionTrace key={mark.key} mark={mark} tone={candidate?.include === false ? "excluded" : "included"}
-        paint={candidate?.include === false ? paints.excluded : pendingPaint} preview seam={false} />)}
+        paint={pendingPaint} preview seam={false} />)}
     </svg>
     <svg className="visual-selection-seams" aria-hidden="true" width="100%" height="100%"
       style={{ "--visual-selection-hairline": `${1 / Math.max(1, devicePixelRatio)}px` } as CSSProperties}>
@@ -358,7 +362,8 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         const edges = pathEdges(path.points, path.closed);
         const stroke = (disabled: boolean) => edges.flatMap(([a, b], index) => path.disabledEdges.includes(index) === disabled
           ? [`M${a.x} ${a.y}L${b.x} ${b.y}`] : []).join(" ");
-        return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(path.preview && path.include !== undefined ? paints.included : paints.boundary), opacity: paints.boundary.contour }}>
+        const pathPaint = path.preview && path.include !== undefined ? (path.include ? paints.included : paints.excluded) : paints.boundary;
+        return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(pathPaint), opacity: pathPaint.contour }}>
           <path className="visual-selection-line" d={stroke(false)} fill="none" />
           <path className="visual-selection-line is-disabled" d={stroke(true)} fill="none" />
           {path.closed && path.points.length > 2 && path.points.length < 24 && path.points.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="2.5" />)}
