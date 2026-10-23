@@ -2,7 +2,7 @@ import { createTransientStore } from "./transientStore.ts";
 
 export type HistoryMode = "recent" | "context" | "selective";
 export type HistoryCategory = "omnium" | "ui" | "appearance" | "settings";
-export type HistoryOptions = { mode: HistoryMode; categories: HistoryCategory[]; steps: number; limit: number };
+export type HistoryOptions = { mode: HistoryMode; categories: HistoryCategory[]; steps: number; limit: number; minimum: number };
 type Patch = { path: string[]; before: unknown; after: unknown };
 type Adapter = { read: () => unknown; write: (value: any) => void };
 type Entry = { id: number; owner: string; categories: HistoryCategory[]; contexts: string[]; patches: Patch[]; undone: boolean; group?: string; at: number };
@@ -37,13 +37,14 @@ export function createActionHistory(initial?: Partial<HistoryOptions>): ActionHi
   const api: ActionHistory = {
     ...store,
     activeContext: "omnium", contextPath: ["omnium"],
-    options: { mode: "recent", categories: ["ui"], steps: 1, limit: 10 } as HistoryOptions,
+    options: { mode: "recent", categories: ["ui"], steps: 1, limit: 10, minimum: 1 } as HistoryOptions,
     message: "",
     register(owner: string, adapter: Adapter) { adapters.set(owner, adapter); return () => { if (adapters.get(owner) === adapter) adapters.delete(owner); }; },
     configure(patch: Partial<HistoryOptions>) {
       const next = { ...api.options, ...patch };
       next.limit = Math.max(1, Math.min(10, Math.floor(Number(next.limit) || 1)));
-      next.steps = Math.max(1, Math.min(next.limit, Math.floor(Number(next.steps) || 1)));
+      next.minimum = Math.max(1, Math.min(next.limit, Math.floor(Number(next.minimum) || 1)));
+      next.steps = Math.max(next.minimum, Math.min(next.limit, Math.floor(Number(next.steps) || 1)));
       api.options = next; store.set(store.getSnapshot() + 1);
     },
     record(owner: string, before: unknown, after: unknown, categories: HistoryCategory[], contexts: string[], group?: string) {
@@ -67,7 +68,7 @@ export function createActionHistory(initial?: Partial<HistoryOptions>): ActionHi
     },
     travel(direction: "undo" | "redo", options = api.options) {
       let count = 0; api.message = "";
-      const steps = Math.max(1, Math.min(10, options.limit, options.steps));
+      const steps = Math.max(options.minimum ?? 1, Math.min(10, options.limit, options.steps));
       for (const entry of api.candidates(direction, options).slice(0, steps)) {
         const adapter = adapters.get(entry.owner); if (!adapter) break;
         let value = adapter.read();
@@ -88,7 +89,7 @@ export function createActionHistory(initial?: Partial<HistoryOptions>): ActionHi
   if (initial) api.configure({
     ...(initial.mode && ["recent", "context", "selective"].includes(initial.mode) ? { mode: initial.mode } : {}),
     ...(Array.isArray(initial.categories) ? { categories: initial.categories.filter(id => ["omnium", "ui", "appearance", "settings"].includes(id)) } : {}),
-    steps: initial.steps ?? 1, limit: initial.limit ?? 10,
+    steps: initial.steps ?? 1, limit: initial.limit ?? 10, minimum: initial.minimum ?? 1,
   });
   return api;
 }

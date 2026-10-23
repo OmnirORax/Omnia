@@ -1,3 +1,4 @@
+import { RangeControl } from "./RangeControl";
 import { ConfigurationInteractionContext, useConfigurationInteraction } from "./ConfigurationInteraction";
 import { useContext, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { openActionConfiguration } from "./shortcutConfiguration";
@@ -47,17 +48,14 @@ export function HistoryControls({ history }: { history: ActionHistory }) {
   const options = { ...history.options, mode: choice };
   const undo = history.candidates("undo", options), redo = history.candidates("redo", options);
   return <div data-context-controller data-scroll-configuration className="history-controls" onWheel={event => {
-    if ((event.target as Element).closest("input,select,[data-history-value]")) return;
+    if ((event.target as Element).closest("input,select,[data-history-value],[data-range-control]")) return;
     event.preventDefault(); event.stopPropagation(); const index = modes.findIndex(mode => mode.id === choice);
     selectMode(index + (event.deltaY > 0 ? 1 : 2));
   }} title="Scroll scope; hover a category or number to scroll that value. Release Shift to apply; right-click locks, left-click resets to 1.">
-    <div className="history-step-row"><label data-history-value>Steps<input aria-label="History steps" type="number" min="1" max={history.options.limit} value={history.options.steps}
-      onFocus={event => event.currentTarget.select()} onChange={event => history.configure({ steps: Number(event.target.value) })}
-      onWheel={event => { event.preventDefault(); event.stopPropagation(); history.configure({ steps: history.options.steps + (event.deltaY > 0 ? -1 : 1) }); }} /></label>
-    <label data-history-value title="Locked maximum · edit to change, up to 10">Max<input aria-label="History step maximum" type="number" min="1" max="10" value={history.options.limit}
-      onFocus={event => event.currentTarget.select()} onChange={event => history.configure({ limit: Number(event.target.value) })}
-      onWheel={event => { event.preventDefault(); event.stopPropagation(); history.configure({ limit: history.options.limit + (event.deltaY > 0 ? -1 : 1) }); }} /></label>
-    </div>
+    <RangeControl aria-label="History steps" min={history.options.minimum} max={history.options.limit} hardMin={1} hardMax={10} step={1}
+      value={history.options.steps} onValueChange={steps => history.configure({ steps })}
+      onMinimumChange={minimum => history.configure({ minimum })} onMaximumChange={limit => history.configure({ limit })}
+      onWheel={event => { event.preventDefault(); event.stopPropagation(); history.configure({ steps: history.options.steps + (event.deltaY > 0 ? -1 : 1) }); }} />
     <div className="configuration-options history-scope" role="group" aria-label="History scope">
       {modes.map((mode, index) => <button key={mode.id} data-configuration-option={index} aria-pressed={choice === mode.id}
         title={`${mode.label} · right-click to apply and lock; left-click resets to 1`}

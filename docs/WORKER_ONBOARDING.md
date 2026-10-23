@@ -395,3 +395,10 @@ general categories; contextual invocation projects only relevant controls. Histo
 is available in both through the same controls. Reuse the transient
 `ContextualMasterController` shell for future narrow action projections. Hold Shift + base Undo/Redo mouse
 trigger to configure/cycle; release Shift to execute the choice. See SHORTCUTS.md and UI_LAYOUT.md.
+
+
+Shared numeric sliders use `ui/RangeControl.tsx`: horizontal spectrum, endpoint bars,
+nudge arrows and a current-value dot. Left-click bars selects limits; right-click
+bars edits limits, dot types the value, arrows edits the click jump. Native drag/
+keyboard semantics remain intact. Existing property, appearance and visual-size
+sliders and history steps share this widget. See UI_COMPONENT_CONTRACT.md.

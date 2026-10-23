@@ -1155,16 +1155,12 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .history-controls label { display: flex; flex-direction: row; align-items: center; gap: 5px; margin: 0; font-size: inherit; }
 .history-controls .history-scope { flex-direction: column; flex-wrap: nowrap; }
 .history-controls .history-scope button { text-align: left; }
-.history-controls .history-step-row { gap: 4px; }
-.history-controls .history-step-row > label { flex: 1; flex-direction: column; align-items: stretch; gap: 2px; }
-.history-controls .history-step-row input[type="number"] { width: 100%; flex: none; }
 .history-controls :is(input,select,button) { padding: 3px 5px; min-height: 0; line-height: 1.25; font-size: inherit; }
 .history-controls input[type="number"] { field-sizing: fixed; box-sizing: border-box; width: 54px; min-width: 54px; flex: 0 0 54px; align-self: center; }
 .history-controls input[type="checkbox"] { margin: 0; }
 .history-controls fieldset { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; padding: 3px 5px 5px; border: 1px solid var(--omnium-border, #60ddec); }
 .history-controls legend { font-size: inherit; padding: 0 3px; }
-.history-step-row,.history-action-row { display: flex; align-items: center; gap: 8px; }
-.history-step-row { justify-content: space-between; }
+.history-action-row { display: flex; align-items: center; gap: 8px; }
 .history-controls p { margin: 0; line-height: 1.25; font-size: inherit; }
 .history-controls .history-next { font-size: 11px; opacity: .8; }
 .history-action-row button { flex: 1; white-space: nowrap; }
@@ -1186,3 +1182,27 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .configuration-options { display: flex; flex-wrap: wrap; gap: 3px; }
 .configuration-options button { flex: 1 1 auto; white-space: nowrap; }
 .configuration-options button[aria-pressed="true"] { border-color: var(--omnium-accent); box-shadow: inset 2px 0 var(--omnium-accent); }
+
+/* Shared spectrum slider: endpoint bars, nudge arrows, native dragging and dot. */
+.range-spectrum { position: relative; display: inline-flex; flex-direction: row; align-items: flex-start; align-self: flex-start; flex: none; width: 180px; height: 52px; gap: 0; color: var(--omnium-accent, #60ddec); vertical-align: middle; }
+.range-spectrum :is(.range-end,.range-nudge) { display: flex; align-items: center; flex: none; border: 0; border-radius: 0; padding: 0; min-width: 0; min-height: 0; margin: 0; background: transparent; box-shadow: none; color: inherit; }
+.range-spectrum :is(.range-end,.range-nudge):hover { background: transparent; filter: brightness(1.25); }
+.range-spectrum svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.range-spectrum .range-end { flex-direction: column; width: 24px; gap: 4px; font-size: 12px; line-height: 1; }
+.range-spectrum .range-end svg { width: 10px; height: 32px; }
+.range-axis { position: relative; display: block; height: 32px; width: 132px; flex: none; }
+.range-spectrum .range-nudge { position: absolute; top: 0; width: 16px; height: 32px; }
+.range-nudge svg { width: 16px; height: 32px; }
+.range-nudge-right { right: 0; }
+.range-nudge-left { left: 0; }
+.range-track { position: absolute; top: 0; bottom: 0; left: 14px; right: 14px; }
+.range-track::before { content: ""; position: absolute; top: 15px; left: -10px; right: -10px; height: 2px; background: currentColor; pointer-events: none; }
+.range-current { position: absolute; left: var(--range-position); top: 0; width: 0; height: 100%; pointer-events: none; }
+.range-current i { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: currentColor; top: 11px; left: -5px; }
+.range-current > span { position: absolute; top: 36px; left: 0; transform: translateX(-50%); font-size: 12px; white-space: nowrap; }
+.range-spectrum .range-spectrum-input { position: absolute; inset: 0 -5px; width: calc(100% + 10px) !important; min-width: 0 !important; height: 32px; min-height: 0; margin: 0; padding: 0; opacity: 0; cursor: ew-resize; writing-mode: horizontal-tb; direction: ltr; touch-action: none; }
+.range-spectrum:has(.range-spectrum-input:focus-visible) .range-track { outline: 1px solid currentColor; outline-offset: 2px; border-radius: 4px; }
+.range-spectrum:has(:disabled) { opacity: .45; }
+.range-spectrum input.range-bound-editor { position: absolute; left: 58px; top: 32px; width: 64px !important; min-width: 64px !important; z-index: 2; box-sizing: border-box; field-sizing: fixed; padding: 2px 3px; font-size: 12px; }
+.range-spectrum input.range-edit-max { left: auto; right: 0; }
+.range-spectrum input.range-edit-min { left: 0; }

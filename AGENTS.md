@@ -38,6 +38,10 @@ readable labels, keyboard access and usable pointer targets; enlarge a surface
 only when its actual interaction or content needs the space. Apply this by default,
 not only after the user requests a compactness pass.
 
+Numeric slider controls use `ui/RangeControl.tsx`, the shared spectrum widget.
+Reuse it instead of adding private ranges, arrow steppers or duplicate min/max
+fields. See the UI component contract for its left/right-click semantics.
+
 # Responsiveness is a product requirement
 
 Every feature and fix must preserve interactive responsiveness. Before implementing

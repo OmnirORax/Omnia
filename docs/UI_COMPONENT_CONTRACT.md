@@ -240,3 +240,24 @@ the actual resident, ownership and original geometry; undo/redo uses UI history.
 Hovering detected resize levels is only a preview outline. Enlarged frames must
 be restored before ordinary dragging/resizing, so dock ownership cannot change
 beneath a projection. Pinned residents and ancestors reject the action.
+
+
+## Shared spectrum slider
+
+`ui/RangeControl.tsx` is the shared numeric slider, including PropertyEditor,
+legacy appearance/visual-size controls and history steps. Use it for new slider
+features rather than introducing another implementation. The horizontal spectrum
+shows maximum on the right, minimum on the left and the current value beside the
+dot. Left-click/drag the native range selects the value. Left-click an endpoint
+bar selects that limit. Left-click an arrow nudges by the configured jump.
+Right-click the dot types the value; right-click a bar types its bound; right-click
+either arrow types their shared jump size. Enter/blur accepts, Escape cancels.
+Native range focus and keyboard support remain; no per-pointer layout scans.
+
+The component retains existing input preview/commit/cancel semantics. Property
+validation limits are authoritative. Owners can supply real min/max setters
+(history does); otherwise endpoint edits narrow a transient working interval
+inside the allowed bounds. Working intervals and jump size are widget-local and
+reset on remount; they are not duplicated property definitions or saved defaults.
+Widget internals are one `data-ui-control`, not separately movable/discoverable
+commands. Spectrum appearance is coupled under Visual hierarchy → Sliders.

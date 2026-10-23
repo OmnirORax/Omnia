@@ -143,8 +143,10 @@ history projection; repeat the trigger to cycle scopes and release Shift to exec
 the chosen history operation once.
 Wheel cycles: most recent action (default), active context, selective categories.
 Over category controls it cycles categories; checkboxes permit multiple categories.
-Over Steps/Locked maximum it changes that number; both accept typed values.
-The hard maximum is 10; the chosen maximum stays fixed until explicitly edited.
+Over the step spectrum it changes the current count. Left-click its bars selects
+min/max; right-click the bars edits those limits. Right-click the dot types a count;
+left-click arrows nudges, right-click arrows edits their jump size. The hard maximum
+is 10; chosen bounds stay fixed until explicitly edited.
 Ctrl+Z / Ctrl+Y route through the same general history commands; the visual
 selector still has its explicit transient selection timeline and scoped shortcuts.
 

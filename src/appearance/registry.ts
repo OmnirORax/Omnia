@@ -40,7 +40,7 @@ export const SELECTOR_FEEDBACK = {
   boundary: { label: "Boundary", color: "#60ddec" },
 } as const;
 /** Inline artwork has its own ink; it never inherits a text target's color. */
-export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
+export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]),[role="button"] svg:not([data-range-glyph]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];
@@ -196,6 +196,11 @@ branch("ui.sliders", "ui.fields", "Sliders");
 part("ui.sliders.fill", "ui.sliders", "Filled track / thumb", {
   selector: 'input[type="range"],progress,meter',
   css: "accent-color",
+  legacy: "accent",
+});
+part("ui.sliders.spectrum", "ui.sliders", "Spectrum / arrows", {
+  selector: '.range-spectrum',
+  css: "color",
   legacy: "accent",
 });
 part("ui.swatches", "ui.fields", "Color swatch contours", {

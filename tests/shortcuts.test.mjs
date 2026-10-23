@@ -278,3 +278,22 @@ test("MC option reset and lock preserve defaults and never double execute", asyn
   gesture.begin("resize"); register(); gesture.begin("other"); gesture.finish();
   assert.equal(calls.at(-1), "other", "switching actions discards the old adapter");
 });
+
+test("history spectrum bounds clamp steps and remain valid after shrinking the maximum", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const h = createActionHistory();
+  h.configure({ minimum: 3, limit: 8, steps: 1 }); assert.equal(h.options.steps, 3);
+  h.configure({ steps: 100 }); assert.equal(h.options.steps, 8);
+  h.configure({ limit: 2 }); assert.equal(h.options.minimum, 2); assert.equal(h.options.steps, 2);
+  const restored = createActionHistory({ minimum: -100, limit: 100, steps: -1 });
+  assert.equal(restored.options.minimum, 1); assert.equal(restored.options.limit, 10); assert.equal(restored.options.steps, 1);
+});
+
+test("shared spectrum stepping clamps and quantizes without decimal drift", async () => {
+  const { rangeValue } = await import("../src/ui/rangeMath.ts");
+  assert.equal(rangeValue(.1 + .2, 0, 1, .05), .3);
+  assert.equal(rangeValue(30, 1, 10, 1), 10);
+  assert.equal(rangeValue(-30, 1, 10, 1), 1);
+  assert.equal(rangeValue(.26, .1, 5, .1), .3);
+  assert.equal(rangeValue(1, 1, 1, 1), 1);
+});
