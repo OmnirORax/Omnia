@@ -7,6 +7,20 @@ the project from source or chat history for every task; inspect the affected cod
 after loading the shared model. Keep this brief and the relevant subsystem docs
 current when changing a cross-cutting contract or its implementation status.
 
+# Responsiveness is a product requirement
+
+Every feature and fix must preserve interactive responsiveness. Before implementing
+an approach likely to cause substantial lag, tell the user what could become slow
+and suggest practical alternatives (for example bounded work, caching, incremental
+updates or an explicit expensive operation). Prefer the responsive approach within
+the authorized scope; do not silently ship a costly design and wait for the user
+to discover it. Consider pointer movement, selection, live property/color dragging,
+large documents and concurrent effects. Keep full-app scans, layout reads, expensive
+matching and broad React updates out of per-pointer/per-frame hot paths. Assess
+cost as part of implementation and report unresolved performance risks honestly;
+a successful build is not evidence of smooth interaction. Respect the user's
+preference to perform browser testing themselves; do not add unsolicited suites.
+
 Essential invariants for every worker:
 
 - Knowledge identity/relationships, visual placements and UI organization are

@@ -24,6 +24,14 @@ should inherit shared behavior rather than arrive as a fixed, isolated widget.
 Stable identity, stored values and user customization must survive rearrangement,
 renaming, renderer changes and upgrades.
 
+## Responsiveness
+
+The user requires features to preserve responsiveness. Flag an approach likely to
+cause significant lag before implementing it, explain the cost and offer practical
+workarounds. Account for selection, pointer movement, live editing and large scenes
+from the outset. Follow the performance rule in `AGENTS.md`; do not rely on the
+user repeatedly discovering regressions. Builds alone do not verify smoothness.
+
 ## Essential distinctions
 
 | Concept | Meaning and boundary |
