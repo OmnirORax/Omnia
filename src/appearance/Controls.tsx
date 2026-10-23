@@ -71,12 +71,13 @@ function PropertyInput({
       node.removeEventListener("blur", commit);
     };
   }, [p.kind]);
-  useCancelValueEdit(input, () => {
+  const cancelRange = () => {
     if (!editing.current) return;
     editing.current = false; draft.current = beforeRange.current;
     setNumber(Number(beforeRange.current));
     onPreview(beforeRange.current);
-  }, p.kind);
+  };
+  useCancelValueEdit(input, cancelRange, p.kind);
   if (p.kind === "color")
     return (
       <ColorInput
@@ -133,6 +134,7 @@ function PropertyInput({
       if (!editing.current) beforeRange.current = value;
       editing.current = true; draft.current = next; setNumber(next); onPreview(next);
     }}
+    onValueCancel={cancelRange}
     onValueCommit={next => { editing.current = false; draft.current = next; onCommit(next); }}
   />;
 }

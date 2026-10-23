@@ -248,7 +248,9 @@ beneath a projection. Pinned residents and ancestors reject the action.
 legacy appearance/visual-size controls and history steps. Use it for new slider
 features rather than introducing another implementation. The horizontal spectrum
 shows maximum on the right, minimum on the left and the current value beside the
-dot. Left-click/drag the native range selects the value. Left-click an endpoint
+dot. Press anywhere along the track to select and drag the value, including
+outside the track after capture. Track bounds are measured once per gesture;
+release commits once, while Escape/capture loss cancels the draft. Left-click an endpoint
 bar selects that limit. Left-click an arrow nudges by the configured jump.
 Right-click the dot types the value; right-click a bar types its bound; right-click
 either arrow types their shared jump size. Enter/blur accepts, Escape cancels.

@@ -1,28 +1,51 @@
 import { useCancelValueEdit } from "./ActiveContext";
+import { claimUIPress } from "./pointerOwnership";
 import { rangeValue } from "./rangeMath";
-import { useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref } from "react";
 
 type Edit = "min" | "max" | "value" | "jump";
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min" | "max" | "onChange" | "onWheel" | "children"> & {
   value: number; min: number; max: number;
   onValueChange: (value: number) => void;
   onValueCommit?: (value: number) => void;
+  onValueCancel?: (value: number) => void;
   onMinimumChange?: (value: number) => void;
   onMaximumChange?: (value: number) => void;
   hardMin?: number; hardMax?: number;
   inputRef?: Ref<HTMLInputElement>;
   onWheel?: (event: React.WheelEvent<HTMLElement>) => void;
 };
-/** A shared slider presentation, retaining native drag/keyboard/change semantics.
+/** A shared slider presentation with track-wide dragging and native keyboard support.
  * Local working intervals and jump size never alter property validation bounds. */
 export function RangeControl({ value, min, max, onValueChange, onMinimumChange, onMaximumChange,
-  hardMin = min, hardMax = max, inputRef, onValueCommit, onWheel, ...inputProps }: Props) {
+  hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, ...inputProps }: Props) {
   const resolution = Number(inputProps.step) || 1;
   const [interval, setInterval] = useState({ min, max }), [jump, setJump] = useState(resolution);
   const [editing, setEditing] = useState<Edit | null>(null), [text, setText] = useState("");
   const low = onMinimumChange ? min : Math.min(value, Math.max(min, interval.min));
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
+  const input = useRef<HTMLInputElement>(null);
+  const drag = useRef<{ id: number; left: number; width: number; low: number; high: number; step: number; before: number; next: number } | null>(null);
+  const cancelDrag = () => {
+    const active = drag.current;
+    if (!active) return;
+    drag.current = null;
+    if (onValueCancel) onValueCancel(active.before); else onValueChange(active.before);
+  };
+  useCancelValueEdit(input, cancelDrag);
+  const cancelLatest = useRef(cancelDrag); cancelLatest.current = cancelDrag;
+  useEffect(() => {
+    const cancel = () => cancelLatest.current();
+    window.addEventListener("blur", cancel);
+    return () => { window.removeEventListener("blur", cancel); };
+  }, []);
+  const moveDrag = (clientX: number) => {
+    const active = drag.current;
+    if (!active) return;
+    const next = rangeValue(active.low + (clientX - active.left) / active.width * (active.high - active.low), active.low, active.high, active.step);
+    if (next !== active.next) { active.next = next; onValueChange(next); }
+  };
   const label = inputProps["aria-label"] ?? "Value";
   const edit = (which: Edit) => { cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
   const choose = (next: number) => { onValueChange(next); onValueCommit?.(next); };
@@ -58,9 +81,36 @@ export function RangeControl({ value, min, max, onValueChange, onMinimumChange, 
       <button type="button" className="range-nudge range-nudge-left" disabled={inputProps.disabled} aria-label={`Decrease ${label} by ${jump}`} title={`Decrease by ${jump} · right-click to set jump`} onClick={() => choose(rangeValue(value - jump, low, high, resolution))} onContextMenu={context("jump")}>
         <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M13 6L1 16L13 26" /></svg>
       </button>
-      <span className="range-track">
+      <span className="range-track"
+        onPointerDown={event => {
+          if (event.button !== 0 || inputProps.disabled || drag.current) return;
+          event.preventDefault(); event.stopPropagation();
+          claimUIPress(event.pointerId, event.pointerType, event.buttons);
+          input.current?.focus({ preventScroll: true });
+          const bounds = event.currentTarget.getBoundingClientRect();
+          drag.current = { id: event.pointerId, left: bounds.left, width: Math.max(1, bounds.width), low, high, step: resolution, before: value, next: value };
+          event.currentTarget.setPointerCapture(event.pointerId);
+          moveDrag(event.clientX);
+        }}
+        onPointerMove={event => {
+          if (drag.current?.id !== event.pointerId) return;
+          event.stopPropagation(); moveDrag(event.clientX);
+        }}
+        onPointerUp={event => {
+          if (drag.current?.id !== event.pointerId) return;
+          event.stopPropagation(); moveDrag(event.clientX);
+          const next = drag.current!.next; drag.current = null;
+          onValueCommit?.(next);
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
+        onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
+
         <span className="range-current" aria-hidden><i /><span>{value}</span></span>
-        <input {...inputProps} ref={inputRef} type="range" min={low} max={high} value={value} className={`range-spectrum-input ${inputProps.className ?? ""}`} onChange={event => onValueChange(Number(event.currentTarget.value))} onContextMenu={context("value")} />
+        <input {...inputProps} ref={node => {
+          input.current = node;
+          if (typeof inputRef === "function") inputRef(node); else if (inputRef) inputRef.current = node;
+        }} type="range" min={low} max={high} value={value} className={`range-spectrum-input ${inputProps.className ?? ""}`} onChange={event => onValueChange(Number(event.currentTarget.value))} onContextMenu={context("value")} />
       </span>
       <button type="button" className="range-nudge range-nudge-right" disabled={inputProps.disabled} aria-label={`Increase ${label} by ${jump}`} title={`Increase by ${jump} · right-click to set jump`} onClick={() => choose(rangeValue(value + jump, low, high, resolution))} onContextMenu={context("jump")}>
         <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M3 6L15 16L3 26" /></svg>
