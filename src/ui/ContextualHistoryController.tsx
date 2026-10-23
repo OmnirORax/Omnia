@@ -8,7 +8,7 @@ import { useFeatureActions } from "./useFeatureActions";
 const modes: { id: HistoryMode; label: string }[] = [
   { id: "recent", label: "1 · Most recent action" },
   { id: "context", label: "2 · Active context" },
-  { id: "selective", label: "3 · Select categories" },
+  { id: "selective", label: "3 · Categories" },
 ];
 const categories: { id: HistoryCategory; label: string }[] = [
   { id: "omnium", label: "Omnium" }, { id: "ui", label: "UI arrangement" },
@@ -43,7 +43,7 @@ export function ContextualHistoryController({ history, position, onClose }: { hi
   // The explicit controller gets the same controls; contextual opening hides unrelated categories.
   return <>
     {history.message && !position && <div className="operation-banner" role="alert">{history.message}</div>}
-    <ContextualMasterController title="History" hint="Scroll scope · release Shift to finish" position={position} onClose={onClose} onWheel={wheel}>
+    <ContextualMasterController title="History" position={position} onClose={onClose} onWheel={wheel}>
       <HistoryControls history={history} />
     </ContextualMasterController>
   </>;
@@ -52,8 +52,9 @@ export function ContextualHistoryController({ history, position, onClose }: { hi
 export function HistoryControls({ history }: { history: ActionHistory }) {
   const ui = useUI();
   useSyncExternalStore(history.subscribe, history.getSnapshot);
-  return <div data-context-controller className="history-controls">
-    <label>Scope<select onWheel={event => {
+  const undo = history.candidates("undo"), redo = history.candidates("redo");
+  return <div data-context-controller className="history-controls" title="Scroll scope; hover a category or number to scroll that value. Release Shift to finish.">
+    <label className="history-scope"><select onWheel={event => {
       event.preventDefault(); event.stopPropagation(); const index = modes.findIndex(mode => mode.id === history.options.mode);
       history.configure({ mode: modes[(index + (event.deltaY > 0 ? 1 : 2)) % modes.length].id });
     }} aria-label="History scope" value={history.options.mode} onChange={event => history.configure({ mode: event.target.value as HistoryMode })}>
@@ -63,19 +64,21 @@ export function HistoryControls({ history }: { history: ActionHistory }) {
     {history.options.mode === "selective" && <fieldset data-history-value onWheel={event => {
       event.preventDefault(); event.stopPropagation(); const index = categories.findIndex(category => history.options.categories.includes(category.id));
       history.configure({ categories: [categories[(index + (event.deltaY > 0 ? 1 : categories.length - 1) + categories.length) % categories.length].id] });
-    }}><legend>Categories · scroll to choose</legend>{categories.map(category => <label key={category.id}>
+    }}><legend>Categories</legend>{categories.map(category => <label key={category.id}>
       <input type="checkbox" checked={history.options.categories.includes(category.id)} onChange={event => history.configure({ categories: event.target.checked ? [...history.options.categories, category.id] : history.options.categories.filter(id => id !== category.id) })} />{category.label}
     </label>)}</fieldset>}
-    <label data-history-value>Steps<input aria-label="History steps" type="number" min="1" max={history.options.limit} value={history.options.steps}
+    <div className="history-step-row"><label data-history-value>Steps<input aria-label="History steps" type="number" min="1" max={history.options.limit} value={history.options.steps}
       onFocus={event => event.currentTarget.select()} onChange={event => history.configure({ steps: Number(event.target.value) })}
       onWheel={event => { event.preventDefault(); event.stopPropagation(); history.configure({ steps: history.options.steps + (event.deltaY > 0 ? -1 : 1) }); }} /></label>
-    <label data-history-value>Locked maximum<input aria-label="History step maximum" type="number" min="1" max="10" value={history.options.limit}
+    <label data-history-value title="Locked maximum · edit to change, up to 10">Max<input aria-label="History step maximum" type="number" min="1" max="10" value={history.options.limit}
       onFocus={event => event.currentTarget.select()} onChange={event => history.configure({ limit: Number(event.target.value) })}
       onWheel={event => { event.preventDefault(); event.stopPropagation(); history.configure({ limit: history.options.limit + (event.deltaY > 0 ? -1 : 1) }); }} /></label>
-    <p>{history.candidates("undo").length} undo · {history.candidates("redo").length} redo</p>
-    <p>Next undo: {history.candidates("undo")[0]?.categories.map(id => categories.find(category => category.id === id)?.label).join(" / ") || "None"}</p>
-    <button disabled={!history.candidates("undo").length} onClick={() => history.travel("undo")}>Undo</button>
-    <button disabled={!history.candidates("redo").length} onClick={() => history.travel("redo")}>Redo</button>
+    </div>
+    <div className="history-action-row">
+      <button disabled={!undo.length} onClick={() => history.travel("undo")}>Undo <small>{undo.length}</small></button>
+      <button disabled={!redo.length} onClick={() => history.travel("redo")}>Redo <small>{redo.length}</small></button>
+    </div>
+    <p className="history-next" title="Next action to undo">Next: {undo[0]?.categories.map(id => categories.find(category => category.id === id)?.label).join(" / ") || "None"}</p>
     {history.message && <p role="alert">{history.message}</p>}
   </div>;
 }

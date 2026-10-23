@@ -2,6 +2,13 @@
 
 Visual-hierarchy targeting uses a binary inherited edit mask: parents set the subtree baseline, and later child toggles create exceptions. Toggling a parent in either direction clears prior exceptions in that subtree. Excluding a target does not change its rendered appearance; the existing plug separately bypasses/restores saved styling. Current editors use `toggleTarget`; old isolate selections remain readable and become equivalent inherited masks on the first binary edit. The targeting/power controls use square hit areas and symmetric SVG geometry, with no isolate state in the UI.
 
+Compactness applies to every new or changed feature. Prefer content-sized surfaces,
+tight consistent spacing and compact rows of related controls. Avoid unused space,
+redundant headings, permanent explanatory paragraphs and arbitrary large minimum
+sizes. Use accessible tooltips for secondary instructions. Preserve readable text,
+keyboard navigation and usable pointer targets. Contextual projections must fit
+only their relevant controls, with category-specific rows appearing when needed.
+
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
@@ -198,3 +205,16 @@ docked/detached. Local expansion adapters in `frameExpansion.tsx` let transient
 property trees and hierarchy chevrons participate without persisting their state.
 Legacy frame-control configuration remains readable for compatibility; new commands
 use the shared action catalog, with no private hotkeys or second expansion store.
+
+An expanded frame's visible interior is a drop destination even where its resident
+allocation is smaller than the window. `dropSurface.ts` supplies the shared
+single/multi-item rule: use the containing frame's live zone, reject incompatible
+interiors without detaching, and keep sidebar-strip/collapsed-handle rules intact.
+Explicit pointed destinations take priority over the source owner's proximity.
+The final release refreshes only pointed destination/ancestor geometry and their
+slots, so scrolling/reflow between movement and release cannot use stale origins.
+
+`EmbeddedGroup`/`UISection` accept a transient `reveal` projection for inspection:
+it shows a saved-closed group without changing its persisted closed flag. Clearing
+the inspection restores ordinary visibility. Keep this separate from reopening
+a resident through an explicit user layout action.

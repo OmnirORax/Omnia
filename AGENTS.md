@@ -7,6 +7,18 @@ the project from source or chat history for every task; inspect the affected cod
 after loading the shared model. Keep this brief and the relevant subsystem docs
 current when changing a cross-cutting contract or its implementation status.
 
+# Compactness is a product requirement
+
+Every new or changed UI feature must use the smallest practical layout that fits
+its controls neatly and readably. Size containers to content, use tight consistent
+spacing, group related controls in rows, and avoid large minimum dimensions,
+full-width fields, redundant headings, decorative padding and empty space.
+Put secondary explanations in accessible tooltips instead of permanent paragraphs.
+Contextual Master Controller projections show only relevant controls. Preserve
+readable labels, keyboard access and usable pointer targets; enlarge a surface
+only when its actual interaction or content needs the space. Apply this by default,
+not only after the user requests a compactness pass.
+
 # Responsiveness is a product requirement
 
 Every feature and fix must preserve interactive responsiveness. Before implementing

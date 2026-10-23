@@ -479,3 +479,9 @@ rule/timeline, preserving the active work-area geometry and BG policy. Mixed
 parents include all their subtypes on click; fully included parents deselect.
 Registered paths are indexed once; branch counts reuse existing cached work-area
 peers and update with membership/geometry rather than hover frames.
+
+Accepted MS selection reveals Visuals → Visual hierarchy, including previously
+collapsed saved hierarchies. This is a transient per-selection reveal, without
+layout writes or history entries. The hierarchy may be manually collapsed for
+that selection; another selection reveals it again. Clearing selection restores
+its ordinary saved expansion state. Hover-only preview does not reveal it.

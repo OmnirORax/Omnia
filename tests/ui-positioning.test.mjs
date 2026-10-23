@@ -128,3 +128,31 @@ test("native fields reorder as siblings, round-trip, undo, and release their anc
   const h = recordHistory(startHistory(original), reordered);
   assert.deepEqual(undoHistory(h).present, original);
 });
+
+test("an expanded frame's interior accepts drops beyond its content allocation", async () => {
+  const { frameInteriorDrop } = await import("../src/ui/dropSurface.ts");
+  const layout = emptyUILayout();
+  const state = { x: 0, y: 0, width: 400, height: 300, collapsed: false, pinned: false, members: [] };
+  layout.windows.source = { ...state };
+  layout.windows.destination = { ...state };
+  // The pointer hits the outer frame, even though its content zone isn't hit.
+  assert.equal(frameInteriorDrop(layout, ["window:source"], "window:destination", true), "dock");
+  const moved = dockResident(layout, "window:source", "window:destination", 0);
+  assert.ok(moved.windows.destination.members.some(member => member.kind === "window" && member.id === "source"));
+  assert.equal(frameInteriorDrop(layout, ["window:source"], undefined, false), undefined, "the workspace retains free placement");
+});
+
+test("incompatible frame interiors block accidental detachment for single and multi drops", async () => {
+  const { frameInteriorDrop } = await import("../src/ui/dropSurface.ts");
+  const layout = emptyUILayout();
+  const state = { x: 0, y: 0, width: 400, height: 300, collapsed: false, pinned: false, members: [] };
+  layout.windows.parent = { ...state, members: [{ kind: "window", id: "child" }] };
+  layout.windows.child = { ...state };
+  layout.windows.pinned = { ...state, pinned: true };
+  layout.windows.closed = { ...state, collapsed: true };
+  assert.equal(frameInteriorDrop(layout, ["window:parent"], "window:child", true), "blocked", "ownership cycles reject in place");
+  assert.equal(frameInteriorDrop(layout, ["window:child"], "window:pinned", true), "blocked");
+  assert.equal(frameInteriorDrop(layout, ["window:child"], "window:parent", false), "blocked", "a visible unsupported interior does not become a free drop");
+  assert.equal(frameInteriorDrop(layout, ["window:child", "window:parent"], "window:parent", true), "blocked", "one incompatible member rejects the whole selection");
+  assert.equal(frameInteriorDrop(layout, ["window:child"], "window:closed", false), undefined, "collapsed handles keep their separate rules");
+});

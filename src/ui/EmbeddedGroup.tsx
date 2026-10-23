@@ -30,6 +30,7 @@ export function EmbeddedGroup({
   expanded: expandedOverride,
   defaultExpanded = true,
   selected,
+  reveal = false,
   className = "",
   nodeId,
   nativeTag,
@@ -43,6 +44,8 @@ export function EmbeddedGroup({
   expanded?: boolean;
   defaultExpanded?: boolean;
   selected?: boolean;
+  /** Transient inspection reveal; never clears the saved closed flag. */
+  reveal?: boolean;
   className?: string;
   nodeId?: string;
   nativeTag?: string;
@@ -68,13 +71,14 @@ export function EmbeddedGroup({
     inline: { parent },
   };
   const state = ui.layout.windows[id] ?? initial;
+  const closed = !!state.closed && !reveal;
   const host = useDockHost(key),
     atHome = !state.inline?.detached;
   const workspace = useDockWorkspace();
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
   const available = workspace.active ? workspace.floating : viewport;
   const desired = { x: state.x, y: state.y, width: size.width || state.width, height: size.height || state.height };
-  const visible = useDockResident(key, state.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, state.chrome?.handle) : fitDockRect(desired, available), !state.closed && !atHome && !host, state.floatingOverflow);
+  const visible = useDockResident(key, state.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, state.chrome?.handle) : fitDockRect(desired, available), !closed && !atHome && !host, state.floatingOverflow);
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
     return () => {
@@ -164,7 +168,7 @@ export function EmbeddedGroup({
   const content = (
     <div
       ref={ref}
-      hidden={state.closed}
+      hidden={closed}
       className={`ui-inline-group ${className}`}
       onMouseDown={(event) => {
         if (!atHome && !host) {
@@ -215,7 +219,7 @@ export function EmbeddedGroup({
     className="ui-floating-group-viewport"
     data-ui-native-tag="transparent"
     data-ui-floating-surface={key}
-    hidden={state.closed}
+    hidden={closed}
     style={{ position: "fixed", left: visible.x, top: visible.y, zIndex: z,
       width: visible.width, maxHeight: visible.height, overflow: "auto" }}
   >{content}</div>, host ?? document.body);

@@ -1147,10 +1147,21 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close),
 .ui-inline-frame-bar > .property-node-name { padding-right: 8px; }
 
-.contextual-master-controller { width: 304px; padding: 12px; z-index: 100000; display: flex; flex-wrap: wrap; gap: 8px; overflow: auto; max-height: calc(100vh - 16px); }
-.contextual-master-controller > strong, .contextual-master-controller > p, .contextual-master-controller > label, .contextual-master-controller > fieldset { width: 100%; margin: 0; }
-.contextual-master-controller label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
-.contextual-master-controller input[type="number"] { width: 64px; }
-.contextual-master-controller fieldset { border: 1px solid var(--omnium-accent); }
-.history-controls { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
-.history-controls > label, .history-controls > fieldset, .history-controls > p { width: 100%; margin: 0; }
+/* Contextual projections fit their controls rather than the general window size. */
+.contextual-master-controller { width: max-content; max-width: min(244px, calc(100vw - 16px)); padding: 6px; z-index: 100000; gap: 4px; overflow: auto; max-height: calc(100vh - 16px); font-size: 12px; }
+.contextual-master-controller > strong { margin: 0; font-size: 12px; line-height: 1.2; }
+.contextual-master-controller > p { margin: 0; }
+.history-controls { width: 100%; max-width: 240px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.history-controls label { display: flex; flex-direction: row; align-items: center; gap: 5px; margin: 0; font-size: inherit; }
+.history-controls .history-scope select { width: 100%; align-self: center; }
+.history-controls :is(input,select,button) { padding: 3px 5px; min-height: 0; line-height: 1.25; font-size: inherit; }
+.history-controls input[type="number"] { width: 4ch; min-width: 3ch; align-self: center; }
+.history-controls input[type="checkbox"] { margin: 0; }
+.history-controls fieldset { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; padding: 3px 5px 5px; border: 1px solid var(--omnium-border, #60ddec); }
+.history-controls legend { font-size: inherit; padding: 0 3px; }
+.history-step-row,.history-action-row { display: flex; align-items: center; gap: 8px; }
+.history-step-row { justify-content: space-between; }
+.history-controls p { margin: 0; line-height: 1.25; font-size: inherit; }
+.history-controls .history-next { font-size: 11px; opacity: .8; }
+.history-action-row button { flex: 1; white-space: nowrap; }
+.history-action-row small { opacity: .65; margin-left: 4px; }

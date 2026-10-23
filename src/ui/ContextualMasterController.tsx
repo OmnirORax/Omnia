@@ -16,9 +16,9 @@ export function ContextualMasterController({ title, hint, position, onClose, onW
     node.addEventListener("wheel", preventScroll, { passive: false });
     return () => node.removeEventListener("wheel", preventScroll);
   }, [!!position, !!onWheel]);
-  return position && createPortal(<div ref={root} className="contextual-master-controller ui-frame-search-popup" data-context-controller data-ui-search
+  return position && createPortal(<div ref={root} className="contextual-master-controller ui-frame-search-popup" data-context-controller data-ui-search data-ui-name-ignore
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
-    style={{ left: Math.max(8, Math.min(position.x, innerWidth - 320)), top: Math.max(8, Math.min(position.y, innerHeight - 420)) }}>
-    <strong>Master controller · {title}</strong>{hint && <p>{hint}</p>}{children}
+    style={{ left: Math.max(8, Math.min(position.x, innerWidth - 252)), top: Math.max(8, Math.min(position.y, innerHeight - 240)) }}>
+    <strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}{children}
   </div>, document.body);
 }

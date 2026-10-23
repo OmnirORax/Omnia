@@ -1,3 +1,4 @@
+import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
 import type { ActiveContextStack } from "./activeContextModel";
 import { ActiveContextSystem } from "./ActiveContext";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
@@ -942,9 +943,13 @@ export function UIWorkspace({
         if (!area || rectDistance(x, y, boundsOf(area)) > DOCK_DISTANCE)
           return { text: "This control stays in its owning menu" };
       }
+      const surface = pointedDropSurface(elements), surfaceKey = surface?.dataset.uiResidentRoot;
+      const surfaceZone = surfaceKey ? source.targetZones.get(surfaceKey) : undefined;
+      const interior = frameInteriorDrop(s, [source.key], surfaceKey, !!surfaceZone?.getClientRects().length);
+      if (interior === "blocked") return { text: "This frame cannot accept this item here; placement is unchanged" };
       // Stacked containers insert a row; they never save arbitrary XY placement.
       const stackHandle = elements[0]?.closest<HTMLElement>(".ui-frame-handle,[data-ui-inline-handle]")?.dataset.uiDrag;
-      const pointedZone = elements[0]?.closest<HTMLElement>("[data-ui-drop-zone]");
+      const pointedZone = elements[0]?.closest<HTMLElement>("[data-ui-drop-zone]") ?? (interior === "dock" ? surfaceZone : undefined);
       const stackTarget = stackHandle && getContainer(s, stackHandle)?.layoutMode === "stacked"
         ? stackHandle : pointedZone?.dataset.uiDropZone;
       if (stackTarget && getContainer(s, stackTarget)?.layoutMode === "stacked" && stackTarget !== source.key) {
@@ -1104,13 +1109,13 @@ export function UIWorkspace({
         !canDock(s, source.key, directZone.dataset.uiDropZone!)
       )
         return { text: "Cannot dock into a pinned frame or into this frame’s own contents" };
-      let zone = elements
+      let zone = (interior === "dock" ? surfaceZone : undefined) ?? elements
         .map((e) => e.closest<HTMLElement>("[data-ui-drop-zone]"))
         .find((e) => e && canDock(s, source.key, e.dataset.uiDropZone!));
       const zones = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")];
       if (handleTarget && canDock(s, source.key, handleTarget))
         zone = zones.find((e) => e.dataset.uiDropZone === handleTarget);
-      else {
+      else if (!zone) {
         const owner = ownerOf(s, source.key),
           own = zones.find((e) => e.dataset.uiDropZone === owner);
         if (
@@ -1314,6 +1319,26 @@ export function UIWorkspace({
       e.preventDefault();
       e.stopPropagation();
       cancelFrame();
+      // Release may arrive after scrolling/reflow but before another move frame.
+      // Refresh only the pointed destination and ancestors, not the full app.
+      const releaseZones = new Set<string>();
+      for (const hit of document.elementsFromPoint(e.clientX, e.clientY)) {
+        if (hit.closest("[data-ui-ghost],.ui-live-drag,.ui-drag-source")) continue;
+        for (let node: Element | null = hit; node; node = node.parentElement) {
+          if (!node.matches(dropGeometrySelector)) continue;
+          const bounds = node.hasAttribute("data-ui-resident-root") ? residentBounds(node as HTMLElement) : node.getBoundingClientRect();
+          source.targetBounds.set(node, new DOMRect(bounds.x, bounds.y, bounds.width, bounds.height));
+          const key = (node as HTMLElement).dataset.uiResidentRoot ?? (node as HTMLElement).dataset.uiDropZone;
+          if (key) releaseZones.add(key);
+        }
+      }
+      for (const key of releaseZones) {
+        const zone = source.targetZones.get(key); if (!zone?.getClientRects().length) continue;
+        source.targetBounds.set(zone, zone.getBoundingClientRect());
+        source.zoneOrigins.set(zone, { x: Number(zone.dataset.originX || 0), y: Number(zone.dataset.originY || 0) });
+        source.slots.set(key, [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")]
+          .map(slot => ({ key: slot.dataset.uiSlotKey!, r: slot.getBoundingClientRect() })));
+      }
       const p = resolve(e.clientX, e.clientY);
       source.live?.restore();
       show(null);

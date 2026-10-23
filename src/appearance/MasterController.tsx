@@ -69,7 +69,16 @@ export function MasterController({ bindings, visualStatus, history, children: vi
   const inspecting = !!scopeKey && dismissedScope !== scopeKey;
   useEffect(() => { if (!scopeKey) dismissScope(null); }, [scopeKey]);
   const originalParent = useContext(UIContainerContext), originalHome = useContext(UIHomeContext);
-  const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
+  const selectionKey = visualSelection?.inspectionKey ?? "";
+  const [selectionHierarchy, setSelectionHierarchy] = useState<{ key: string; open: boolean } | null>(null);
+  useEffect(() => {
+    setSelectionHierarchy(selectionKey ? { key: selectionKey, open: true } : null);
+  }, [selectionKey]);
+  // Selection reveals the existing hierarchy without writing layout or history.
+  // A manual collapse applies only to this selection; the next one reveals it again.
+  const hierarchyOpen = !!ctx.location || (selectionKey
+    ? selectionHierarchy?.key !== selectionKey || selectionHierarchy.open
+    : !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false));
   const { state } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
     [expanded, setExpanded] = useState<Set<string>>(() => new Set(["all", "ui", "text", "omnium"]));
@@ -384,7 +393,7 @@ export function MasterController({ bindings, visualStatus, history, children: vi
       {history && <UISection id="history-controls" title="History"><HistoryControls history={history} /></UISection>}
       <SelectionPreviewToggle />
       {bindings && !inspecting && <CoupledProperties bindings={bindings} />}
-      <UISection id="master-category:visual" title="Visuals" defaultExpanded={inspecting} expanded={ctx.location ? true : undefined}>
+      <UISection id="master-category:visual" title="Visuals" reveal={inspecting} defaultExpanded={inspecting} expanded={ctx.location || inspecting ? true : undefined}>
       {visualStatus}
       <FunctionControl id="appearance.greenElectricText" />
 
@@ -446,9 +455,11 @@ export function MasterController({ bindings, visualStatus, history, children: vi
         id={APPEARANCE_HIERARCHY_ID}
         title="Visual hierarchy"
         className="appearance-hierarchy"
+        reveal={!!selectionKey || !!ctx.location}
         expanded={hierarchyOpen}
         onToggle={() => {
           ctx.locate(null, true);
+          if (selectionKey) { setSelectionHierarchy({ key: selectionKey, open: !hierarchyOpen }); return; }
           ui.update(layout => {
             const windows = { ...Object.fromEntries(ui.defaults), ...layout.windows };
             return { ...layout, windows: {

@@ -24,6 +24,16 @@ should inherit shared behavior rather than arrive as a fixed, isolated widget.
 Stable identity, stored values and user customization must survive rearrangement,
 renaming, renderer changes and upgrades.
 
+## Compactness
+
+Compactness is a standing product rule for every feature: fit the controls to
+content, minimize unused space, keep related controls on the same row, and put
+secondary instructions in tooltips. Avoid oversized defaults, redundant headings
+and forced full-width fields. Keep labels readable and controls usable. Contextual
+Master Controller projections expose only relevant controls; reuse its compact
+shell rather than opening the whole general panel. See AGENTS.md and the UI
+component contract before choosing a new layout.
+
 ## Responsiveness
 
 The user requires features to preserve responsiveness. Flag an approach likely to

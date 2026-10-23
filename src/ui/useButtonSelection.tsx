@@ -1,3 +1,4 @@
+import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createTransientStore } from "./transientStore";
@@ -365,6 +366,13 @@ export function useButtonSelection({
         .map((el) => el.closest<HTMLElement>("[data-ui-drop-zone]"))
         .find((el): el is HTMLElement => !!el);
       target = zone?.dataset.uiDropZone;
+    }
+    if (!target) {
+      const surface = pointedDropSurface(elements), key = surface?.dataset.uiResidentRoot;
+      const interiorZone = key ? zoneFor(key) : undefined;
+      const intent = frameInteriorDrop(state.layout, g.boxes.map(box => selectionResident(box.id)), key, !!interiorZone?.getClientRects().length);
+      if (intent === "blocked") return { boxes: [], message: "This frame cannot accept these items here; placement is unchanged." };
+      if (intent === "dock") { zone = interiorZone; target = key; }
     }
     if (!target) {
       const owners = new Set(g.boxes.map((b) => ownerOf(state.layout, selectionResident(b.id))));
