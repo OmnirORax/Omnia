@@ -65,7 +65,7 @@ Numeric adjusters offer a slider and bounded precise input, committed on Enter/b
 
 `src/appearance/session.ts` separates committed interface history from a recoverable appearance draft. Controller changes (including local UI instances, locks, plugs and targeting sets), theme changes, imported themes and fonts all enter the draft. Other UI layout, mouse and keybinding changes retain normal persistence. Live picker/slider previews remain transient; finishing a gesture adds one draft history entry. Shift+MB4/MB5 undo/redo the pending draft while it is open, including Alt's existing five-step variant. Apply records the complete appearance as one ordinary UI history step; discard restores the last applied appearance without changing layout or knowledge. Reload drops unapproved drafts, with the browser's unsaved-change prompt where supported. Theme/UI export explicitly exports the candidate theme, even while temporary safe view is active.
 
-The fixed Apply/recovery bar and emergency dialog use a Shadow DOM root attached outside `body`, with independent colors, font, opacity and stacking. Appearance selectors/effects cannot style them. Holding Escape for two seconds opens recovery even while typing; an ordinary Escape keeps its normal workspace meaning. Key release, browser blur and tab hiding cancel an incomplete hold. Recovery traps keyboard focus while open.
+Everyday Apply/Discard actions use the themed Master Controller footer and a normal shared leave-confirmation popup. The emergency recovery dialog and safe-view fallback use a Shadow DOM root attached outside `body`, with independent colors, font, opacity and stacking. Appearance selectors/effects cannot style the emergency layer. Holding Escape for two seconds opens recovery even while typing; an ordinary Escape keeps its normal workspace meaning. Key release, browser blur and tab hiding cancel an incomplete hold. Recovery traps keyboard focus while open.
 
 Recovery actions:
 
@@ -275,3 +275,16 @@ Hierarchy feedback runs only while the pointer hovers the row's inclusion circle
 Leaving that circle immediately clears the hover target and stops all text,
 surface, scene and transient reveal feedback. Focus and movement into another
 Master Controller editor must never retain or restart that feedback.
+
+Everyday appearance preview actions live in the Master Controller's non-scrolling
+shared window footer, not the protected recovery shadow root. They reuse the
+registered Apply/Discard/Recovery actions as contextual mirrors, retaining shared
+appearance and action identity even when their residents were moved. Closing the
+controller or clicking another in-page area with pending edits opens a normal
+shared modal offering Apply, Discard and Keep editing. Native pointer exit and
+browser chrome/focus loss are not leave commands. Selector aiming and appearance
+editor controls remain part of editing. The outside press is consumed through
+its click tail so it cannot trigger the underlying action. Input guards are
+click-time only, with no geometry polling or pointer-move discovery. Closing is
+vetoed before dock ownership changes. The protected emergency recovery UI remains
+available through its existing long-Escape gesture and Recovery action.

@@ -3,6 +3,7 @@ import { CoupledField } from "./properties/CoupledProperties";
 import { EmbeddedGroup } from "./ui/EmbeddedGroup";
 import { stableUIHash } from "./ui/identity";
 import { UISection } from "./ui/UISection";
+import { AppearancePreviewActions, AppearancePreviewPrompt, AppearancePreviewLeaveGuard } from "./appearance/PreviewPrompt";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
 import { sameAppearance } from "./appearance/session";
@@ -55,7 +56,7 @@ import { UIFrameStrip } from "./ui/UIFrameStrip";
 import { WorkspaceBoundary } from "./WorkspaceBoundary";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
-import { loadUILayout, ownerOf, reopenContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
+import { loadUILayout, ownerOf, reopenContainer, releaseResident, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
 import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
@@ -109,6 +110,7 @@ function Workbench() {
   const [activityRequests, setActivityRequests] = useState<ActivityPreview[]>([]);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [appearanceExit, setAppearanceExit] = useState<"close" | "outside" | "review" | null>(null);
   const [safeView, setSafeView] = useState(() => new URLSearchParams(window.location.search).get("safe-ui") === "1");
   const [checkpoints, setCheckpoints] = useState(loadCheckpoints);
   const [recoveryError, setRecoveryError] = useState("");
@@ -203,9 +205,15 @@ function Workbench() {
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
   const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : { ...layout, panels: { ...layout.panels, "@settings": false } });
   const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
-  const setThemeOpen = (value: boolean) => {
+  const setThemeOpen = (value: boolean, confirmed = false) => {
+    if (!value && appearancePending && !confirmed) { setAppearanceExit("close"); return false; }
     if (!value) setDismissedInspection(masterInspection);
-    updateUI(layout => value ? reopenContainer(layout, "window:theme") : { ...layout, panels: { ...layout.panels, "@theme": false } });
+    updateUI(layout => {
+      if (value) return reopenContainer(layout, "window:theme");
+      const released = releaseResident(layout, "window:theme");
+      return { ...released, panels: { ...released.panels, "@theme": false } };
+    });
+    return true;
   };
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
@@ -780,18 +788,23 @@ function Workbench() {
   function applyAppearance() {
     const next = normalizeSettings({ ...savedSettings, appearance: previewAppearance });
     const previous = checkpoints.length ? checkpoints : appendCheckpoint([], savedSettings.appearance, "Before first appearance change");
-    if (!storeCheckpoints(appendCheckpoint(previous, next.appearance))) return;
+    if (!storeCheckpoints(appendCheckpoint(previous, next.appearance))) return false;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); }
-    catch { setRecoveryError("Appearance could not be saved. Your preview is still open; export a theme backup."); setRecoveryOpen(true); return; }
+    catch { setRecoveryError("Appearance could not be saved. Your preview is still open; export a theme backup."); setRecoveryOpen(true); return false; }
     ui.applyAppearance(next.appearance);
     setAppearancePreview(null);
     setRecoveryError("");
+    if (appearanceExit === "close") setThemeOpen(false, true);
+    setAppearanceExit(null);
+    return true;
   }
   function discardAppearance() {
     setAppearancePreview(null);
     ui.discardAppearance();
     setRecoveryError("");
     setRecoveryOpen(false);
+    if (appearanceExit === "close") setThemeOpen(false, true);
+    setAppearanceExit(null);
   }
   function restoreAppearance(appearance: WorkspaceSettings["appearance"]) {
     setAppearancePreview(null);
@@ -968,6 +981,7 @@ function Workbench() {
       setCapturing(null); setError("");
     };
     const keydown = (event: KeyboardEvent) => {
+      if (appearanceExit) return;
       if (capturing) {
         event.preventDefault();
         const key = normalizeKey(event);
@@ -979,7 +993,7 @@ function Workbench() {
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
-      if ((settingsOpen || insertContext) && action !== "cancel" && action !== "searchUI") return;
+      if ((settingsOpen || insertContext || appearanceExit) && action !== "cancel" && action !== "searchUI") return;
       event.preventDefault(); runAction(action);
     };
     const keyup = (event: KeyboardEvent) => {
@@ -988,11 +1002,12 @@ function Workbench() {
       if (action === "axisX" || action === "axisY" || action === "axisZ") setConstraintAxis(null);
     };
     const mouseHistory = (event: PointerEvent) => {
+      if (appearanceExit) return;
       clearRecordedShortcutPress();
       if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
       if (event.defaultPrevented) return;
       const action = actionForKey(settings.bindings, normalizePointer(event));
-      if (action && (!(settingsOpen || insertContext) || action === "cancel" || action === "searchUI")) {
+      if (action && (!(settingsOpen || insertContext || appearanceExit) || action === "cancel" || action === "searchUI")) {
         consumedShortcutPress.current = event.button;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation(); runAction(action); return;
@@ -1080,7 +1095,7 @@ function Workbench() {
   replaceFunction("ui:appearance:importFont", "Import font", <button disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
   replaceFunction("ui:resetAppearance", "Preview default appearance", <button onClick={()=>restoreAppearance(defaultSettings().appearance)}>Preview default appearance</button>);
   replaceFunction("ui:appearance:apply", "Apply appearance", <button disabled={!appearancePending} onClick={applyAppearance}>Apply appearance</button>);
-  replaceFunction("ui:appearance:discard", "Discard appearance preview", <button disabled={!appearancePending} onClick={()=>setRecoveryOpen(true)}>Discard preview…</button>);
+  replaceFunction("ui:appearance:discard", "Discard appearance preview", <button disabled={!appearancePending} onClick={() => appearanceExit ? discardAppearance() : setAppearanceExit("review")}>{appearanceExit ? "Discard" : "Discard preview…"}</button>);
   replaceFunction("ui:appearance:recovery", "Appearance recovery / checkpoints", <button onClick={()=>setRecoveryOpen(true)}>Recovery / checkpoints (hold Esc 2s)</button>);
   replaceFunction("ui:themePreset:name", "Theme template name", <label>Template name<input aria-label="Theme template name" maxLength={80} value={themePresetName} onChange={event => setThemePresetName(event.target.value)} /></label>, true);
   replaceFunction("ui:themePreset:select", "Saved themes", <label>Saved themes<select aria-label="Saved themes" value={selectedThemePreset} onChange={event => { setSelectedThemePreset(event.target.value); setThemePresetName(event.target.value || "My theme"); }}><option value="">Choose a saved theme</option>{themePresets.map(preset => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select></label>, true);
@@ -1125,7 +1140,9 @@ function Workbench() {
   for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext || !!appearanceExit, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+      <AppearancePreviewLeaveGuard enabled={appearancePending && themeOpen && !appearanceExit && !recoveryOpen && !settingsOpen && !insertContext} onLeave={() => setAppearanceExit("outside")} />
+      {appearanceExit && <AppearancePreviewPrompt onContinue={() => { setAppearanceExit(null); setThemeOpen(true); }} safe={safeView} onSafe={() => setSafeView(false)} />}
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -2093,11 +2110,11 @@ function Workbench() {
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
-      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
+      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} footer={!appearanceExit && (appearancePending || safeView) ? <AppearancePreviewActions pending={appearancePending} safe={safeView} onSafe={() => setSafeView(false)} /> : undefined}>
         <MasterController bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
         {/* Keep the original theme subsection identities when nesting them in Visuals. */}
         <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-utilities`} title="Theme utilities" className="ui-section" nativeTag="transparent">
-          {["ui:appearance:apply", "ui:appearance:discard", "ui:appearance:recovery", "ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
         </EmbeddedGroup>
         <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-templates`} title="Theme templates" className="ui-section" nativeTag="transparent">
           <p>Save colors, window appearance and animations together.</p>

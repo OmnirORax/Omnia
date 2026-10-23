@@ -111,12 +111,15 @@ import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
-export function FunctionControl({ id, palette = false }: { id: string; palette?: boolean }) {
+export function FunctionControl({ id, palette = false, mirror = false }: { id: string; palette?: boolean; mirror?: boolean }) {
   const ui = useUI(),
     fn = ui.functions.find((f) => f.id === id),
     item = ui.layout.items[id];
   const scope = useContext(UIHomeContext),
     anchor = `${scope}|${id}`;
+  // A contextual action surface reuses its registered action and styling without
+  // relocating the resident or adding another action definition.
+  if (mirror) return fn ? <FunctionElement fn={fn} /> : null;
   if (palette) return fn ? <FunctionElement fn={fn} palette /> : null;
   const peers = ui.functions.filter((f) => ui.layout.items[f.id]?.anchorId === anchor);
   const order = [

@@ -178,3 +178,9 @@ commit handlers. Never implement semantic actions on window blur. Held-input
 owners use `PAGE_INPUT_SUSPEND` only to release unfinished presses/drags; it must
 not clear selections, close editors, commit drafts or create history. Visibility
 listeners may pause rendering clocks without changing application state.
+
+`FloatingWindow.footer` provides shared, non-scrolling action content below the
+body with the same window scope/theme. An `onClose` returning false vetoes closing
+before releasing dock ownership. `FunctionControl mirror` renders an existing
+action contextually with its shared styling, without relocating its resident or
+creating another registry/action definition.

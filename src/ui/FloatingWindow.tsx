@@ -19,6 +19,7 @@ export function FloatingWindow({
   label = title,
   children,
   residentArea,
+  footer,
   onClose,
   closeLabel = `Close ${label}`,
   width = 420,
@@ -38,7 +39,9 @@ export function FloatingWindow({
   children: ReactNode;
   /** Collections can supply their existing resident renderer, keeping one payload per member. */
   residentArea?: ReactNode;
-  onClose?: () => void;
+  /** Non-scrolling actions beneath the window body, using the same theme/ownership. */
+  footer?: ReactNode;
+  onClose?: () => void | boolean;
   closeLabel?: string;
   width?: number;
   height?: number;
@@ -224,8 +227,9 @@ export function FloatingWindow({
             onClose={
               onClose
                 ? () => {
+                    // A pending-edit guard can veto closing before ownership changes.
+                    if (onClose() === false) return;
                     if (owner) ui.update((s) => releaseResident(s, key));
-                    onClose();
                   }
                 : undefined
             }
@@ -239,6 +243,13 @@ export function FloatingWindow({
               </UIContainerContext.Provider></UIPathContext.Provider>
             </UIHomeContext.Provider>
           </div>
+          {footer && !state.collapsed && <div className="floating-footer" data-appearance-editor>
+            <UIHomeContext.Provider value={key}>
+              <UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
+                {footer}
+              </UIContainerContext.Provider></UIPathContext.Provider>
+            </UIHomeContext.Provider>
+          </div>}
         </div>
       </Rnd>
     </>,

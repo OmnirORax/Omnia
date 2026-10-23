@@ -123,19 +123,11 @@ export function AppearanceRecovery(props: Props) {
     <>
       <style>{CSS}</style>
       <div className="shell">
-        {!props.open && (props.pending || props.safe) && (
+        {!props.open && props.safe && (
           <aside className="bar" aria-label="Appearance preview">
             <span>
-              {props.pending
-                ? "Appearance preview · not saved"
-                : "Safe view · saved appearance unchanged"}
+              Safe view · saved appearance unchanged
             </span>
-            {props.pending && (
-              <>
-                <button onClick={props.onApply}>Apply</button>
-                <button onClick={() => props.onOpen(true)}>Discard…</button>
-              </>
-            )}
             {props.safe && (
               <button onClick={() => props.onSafe(false)}>Show custom appearance</button>
             )}
