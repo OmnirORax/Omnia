@@ -24,7 +24,7 @@ import { createTransientStore } from "./transientStore";
 import { PlacementPreviewOverlay } from "./PlacementPreview";
 import { captureUIPointer } from "./drag";
 import { beginLiveDrag, beginLiveTabDrag, dragSurface } from "./liveDrag";
-import { dockGuideAt } from "./dockGuides";
+import { dockGuideAt, initialFrameDockSide, retainHeaderDock } from "./dockGuides";
 import { AppearanceProvider, type AppearanceBridge } from "../appearance/Context";
 import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
@@ -803,23 +803,6 @@ export function UIWorkspace({
       const chosen = previous?.bounds && dockGuideAt(previous.bounds, viewport, x, y, previous.side);
       if (chosen && previous?.target && canDock(s, source.key, previous.target)) return { ...previous, side: chosen };
       const area = dockWorkspaceArea();
-      // Native strips have a real outer frame as well as individual sections.
-      // Resolve that narrow border before the nested section under the pointer;
-      // its interior retains ordinary section insertion and handle targeting.
-      for (const surface of document.querySelectorAll<HTMLElement>('.ui-native-strip-frame[data-ui-resident-root]')) {
-        const target = surface.dataset.uiResidentRoot!, state = getContainer(s, target);
-        if (!state || !canDock(s, source.key, target)) continue;
-        const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
-        if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) > 5) continue;
-        const near = { left: Math.abs(x-bounds.x), right: Math.abs(bounds.right-x), top: Math.abs(y-bounds.y), bottom: Math.abs(bounds.bottom-y) };
-        const side = (Object.keys(near) as Exclude<DockSide, 'tab'>[]).sort((a,b) => near[a]-near[b]).find(side => near[side] <= 12);
-        if (!side) continue;
-        const sourceState = getContainer(s, source.key);
-        const horizontal = side === 'left' || side === 'right';
-        const width = !state.dockLayout && horizontal
-          ? Math.min(bounds.width + (sourceState?.width ?? 280) + 6, workspaceDockRects(s, area).center.width * .75) : bounds.width;
-        return { target, side, bounds, rect: { x: bounds.x, y: bounds.y, width, height: bounds.height } };
-      }
       const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
       const edge = (Object.keys(distances) as Exclude<DockSide, "tab">[]).find(side => distances[side] >= -8 && distances[side] <= 14);
       if (edge && source.key.startsWith("frame:") && s.frames.find(frame => `frame:${frame.id}` === source.key)?.dockEdge === edge) return;
@@ -836,7 +819,8 @@ export function UIWorkspace({
         // enclosing Sidebar tab's full-surface docking target.
         const pane = nativeRows && enclosingPane?.contains(nativeRows) ? null : enclosingPane;
         const root = element.closest<HTMLElement>("[data-ui-resident-root]");
-        if (!pane && root?.matches('.ui-native-strip-frame')) continue;
+        const header = !!element.closest("[data-ui-chrome],.ui-dock-tab-strip");
+        if (!header) continue;
         const target = pane ? element.closest<HTMLElement>('[role="tab"][data-ui-drag]')?.dataset.uiDrag ?? pane.dataset.uiDockPane : root?.dataset.uiResidentRoot;
         // A sidebar row's empty space is not a frame target. Its actual handle
         // still is; ordinary buttons continue through the existing group logic.
@@ -845,23 +829,20 @@ export function UIWorkspace({
         if (!target || !surface || source.key === target || !canDock(s, source.key, target)) continue;
         const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
         if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
-        const near = { left: x - bounds.left, right: bounds.right - x, top: y - bounds.top, bottom: bounds.bottom - y };
-        const header = !!element.closest("[data-ui-chrome],.ui-dock-tab-strip");
         const tabStrip = pane && element.closest(".ui-dock-tab-strip");
-        const stacked = getContainer(s, target)?.layoutMode === "stacked";
-        // A title/tab strip groups panels. The outermost edge still allows a split.
-        // A stacked body's interior inserts rows; its frame edges still split.
-        // Once shown, the existing retained-guide path enables all five choices.
-        const side = tabStrip ? "tab" : (!stacked || header ? dockGuideAt(bounds, viewport, x, y) : undefined) ?? (Object.keys(near) as Exclude<DockSide, "tab">[]).sort((a,b) => near[a]-near[b]).find(side => near[side] < (header ? 6 : Math.min(26, (side === "left" || side === "right" ? bounds.width : bounds.height) * 0.18)));
-        const center = !stacked && Math.abs(x-bounds.x-bounds.width/2) <= 32 && Math.abs(y-bounds.y-bounds.height/2) <= 32;
-        if (!side && !header && !center) return;
+        const side = initialFrameDockSide(header, !!tabStrip, bounds, viewport, x, y);
+        if (!side) continue;
         const width = Math.min(area.width, Math.max(280, bounds.width)), height = Math.min(area.height, Math.max(220, bounds.height));
         const rect = { x: Math.max(area.x, Math.min(bounds.x, area.x+area.width-width)), y: Math.max(area.y, Math.min(bounds.y, area.y+area.height-height)), width, height };
         const slot = root?.closest<HTMLElement>("[data-ui-frame-slot]");
         const strip = slot?.dataset.uiFrameSlot === target ? slot.closest<HTMLElement>("[data-ui-frame-strip]") : null;
         const host = strip ? { container: strip.dataset.uiFrameStrip!, order: strip.dataset.uiFrameOrder!, keys: [...strip.querySelectorAll<HTMLElement>(":scope > [data-ui-frame-slot]")].sort((a,b) => Number(a.style.order)-Number(b.style.order)).map(slot => slot.dataset.uiFrameSlot!) } : undefined;
-        return { target, side: side ?? "tab", rect, bounds, host, tabOwner: tabStrip ? pane?.dataset.uiDockOwner : undefined };
+        return { target, side, rect, bounds, host, tabOwner: tabStrip ? pane?.dataset.uiDockOwner : undefined };
       }
+      // The header starts docking; keep it alive while travelling to its guides.
+      // A different header above has priority; leaving the target cancels it.
+      if (previous?.bounds && previous.target && canDock(s, source.key, previous.target) &&
+          retainHeaderDock(previous.bounds, viewport, x, y, previous.side)) return previous;
     };
     const frameFeedback = (source: DragState, layout: UILayout, intent: FrameDock): Pick<Preview, 'rect' | 'frameLayout' | 'allocation'> => {
       const signature = JSON.stringify(intent);

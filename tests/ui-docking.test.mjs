@@ -138,3 +138,18 @@ test("closing a custom dock frame retains its contents and customization through
   assert.notEqual(next.frames.find(f => !f.closed).id, frame.id, "new docking does not enter hidden UI");
   assert.equal(reopenContainer(next, key).frames.find(f => f.id === frame.id).dockEdge, undefined, "restore floats when its old edge is occupied");
 });
+
+test("window merge guides start only on headers, never body centers or edges", async () => {
+  const { initialFrameDockSide, retainHeaderDock, dockGuideAt, dockGuides } = await import("../src/ui/dockGuides.ts");
+  const bounds = { x: 100, y: 100, width: 400, height: 300 };
+  const viewport = { x: 0, y: 0, width: 1000, height: 800 };
+  for (const point of [{ x: 300, y: 250 }, { x: 101, y: 250 }, { x: 499, y: 250 }, { x: 300, y: 399 }])
+    assert.equal(initialFrameDockSide(false, false, bounds, viewport, point.x, point.y), undefined);
+  assert.equal(initialFrameDockSide(true, false, bounds, viewport, 200, 110), "tab");
+  assert.equal(initialFrameDockSide(true, true, bounds, viewport, 200, 110), "tab");
+  assert.equal(retainHeaderDock(bounds, viewport, 240, 170, "tab"), true, "the route from header to guides stays active");
+  assert.equal(retainHeaderDock(bounds, viewport, 800, 600, "tab"), false, "leaving the target cancels docking");
+  // Once opened by a header, all directional guide cells remain selectable.
+  for (const guide of dockGuides(bounds, viewport))
+    assert.equal(dockGuideAt(bounds, viewport, guide.rect.x + guide.rect.width / 2, guide.rect.y + guide.rect.height / 2, "tab"), guide.side);
+});

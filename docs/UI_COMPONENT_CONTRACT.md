@@ -218,3 +218,9 @@ slots, so scrolling/reflow between movement and release cannot use stale origins
 it shows a saved-closed group without changing its persisted closed flag. Clearing
 the inspection restores ordinary visibility. Keep this separate from reopening
 a resident through an explicit user layout action.
+
+Window merge/tab/split guides initially activate only when a dragged frame header
+points at another frame header or tab strip. Body centers, body edges and native
+strip borders do not activate merging. Once opened, the existing guide cross and
+its travel gaps remain usable for choosing any side. Workspace-edge docking is a
+separate explicit target. Ordinary interior drops still use resident placement.

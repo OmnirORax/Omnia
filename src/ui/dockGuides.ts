@@ -30,3 +30,15 @@ export function dockGuideAt(bounds: DockRect, viewport: DockRect, x: number, y: 
   if (previousSide && x >= Math.min(...guides.map(({ hit }) => hit.x)) && x < Math.max(...guides.map(({ hit }) => hit.x + hit.width)) &&
       y >= Math.min(...guides.map(({ hit }) => hit.y)) && y < Math.max(...guides.map(({ hit }) => hit.y + hit.height))) return previousSide;
 }
+
+/** Start window merging only over actual chrome. Body edges and the central
+ * guide location do not activate anything until a header has opened the guides. */
+export function initialFrameDockSide(header: boolean, tabStrip: boolean, bounds: DockRect, viewport: DockRect, x: number, y: number): DockSide | undefined {
+  if (!header) return;
+  return tabStrip ? 'tab' : dockGuideAt(bounds, viewport, x, y) ?? 'tab';
+}
+
+export function retainHeaderDock(bounds: DockRect, viewport: DockRect, x: number, y: number, side: DockSide): boolean {
+  return !!dockGuideAt(bounds, viewport, x, y, side) ||
+    x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height;
+}
