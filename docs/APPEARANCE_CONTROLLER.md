@@ -261,3 +261,12 @@ remains readable, unrelated surfaces/icons stay unchanged, and stopping hover
 restores normal drawing. No appearance values or history are written. The bridge
 requests canvas repaint at its existing scene-feedback cadence, with no per-frame
 source discovery, geometry queries or React updates.
+
+Hierarchy matching must use an individual part's actual `partSelector` when
+checking whether it owns a source. Reusing the categorical selector there makes
+one customized text part suppress all ordinary text in that category. Keep
+matches per target identity and resolve text-node ownership by existing scope
+depth: a customized word overrides only that node, while unchanged siblings and
+other controls remain categorical matches. Whole-host parts use the registered
+text role rather than requiring their DOM host to equal the broader effect owner.
+This ownership work belongs to hover preparation and uses cached text-node lookups.

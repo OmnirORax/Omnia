@@ -1,15 +1,14 @@
 import { setHierarchyTextSources, updateHierarchyTextLevel, clearHierarchyTextFeedback } from "./hierarchyTextFeedback";
 import type { RegisteredTarget } from "./registry";
 import { EFFECT_PROPERTIES } from "./registry";
-import { effectScope } from "./uiEffects";
+import { partSelector, scopeDepth, ownerSelector } from "./partScope";
+import { effectScope, textOwner } from "./uiEffects";
 import { registerPaintVariable } from "./paintVariables";
 
 export type HighlightTarget = { target: RegisteredTarget; active: boolean };
 export { registerHierarchyScene } from "./sceneFeedback";
 import { sceneSources } from "./sceneFeedback";
-const owners = (owner: string) => owner.startsWith("function:")
-  ? `[data-ui-function="${CSS.escape(owner.slice(9))}"]:not([data-ui-palette])`
-  : `:is([data-ui-resident-root="${CSS.escape(owner)}"],[data-ui-proxy-for="${CSS.escape(owner)}"])`;
+const owners = ownerSelector;
 const visible = (element: Element) => {
   if (!element.isConnected || !element.getClientRects().length || element.closest("[hidden],[data-shortcut-runner]")) return false;
   const style = getComputedStyle(element);
@@ -29,15 +28,32 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
     return result;
   };
   const scoped = (target: RegisteredTarget, selector: string) => {
-    if (target.instance?.part) return selector;
+    if (target.instance?.part) return partSelector(target.instance);
     const scope = target.instance && owners(target.instance.owner);
     return scope ? `:is(${scope}:is(${selector}),${scope} :is(${selector}))` : selector;
+  };
+  const localsByBase = new Map<string, RegisteredTarget[]>();
+  for (const target of targets) if (target.instance) localsByBase.set(target.instance.base,
+    [...(localsByBase.get(target.instance.base) ?? []), target]);
+  for (const locals of localsByBase.values()) locals.sort((a, b) => scopeDepth(b.instance!) - scopeDepth(a.instance!));
+  const textOwners = new Map<string, WeakMap<Node, RegisteredTarget | null>>();
+  const localTextOwner = (base: string, node: Node) => {
+    const cache = textOwners.get(base) ?? new WeakMap<Node, RegisteredTarget | null>(); textOwners.set(base, cache);
+    if (cache.has(node)) return cache.get(node);
+    const owner = (localsByBase.get(base) ?? []).find(local => {
+      const instance = local.instance!;
+      const host = node.parentElement?.closest(instance.part ? partSelector(instance) : owners(instance.owner));
+      if (!host) return false;
+      return instance.part?.text === undefined || [...host.childNodes]
+        .filter(child => child.nodeType === Node.TEXT_NODE && child.textContent?.trim())[instance.part.text] === node;
+    }) ?? null;
+    cache.set(node, owner); return owner;
   };
   const matches = new Map<string, Map<Element, Match>>();
   for (const { target, active } of entries) {
     const base = target.instance?.base ?? target.id;
-    const map = matches.get(base) ?? new Map<Element, Match>();
-    matches.set(base, map);
+    const map = matches.get(target.id) ?? new Map<Element, Match>();
+    matches.set(target.id, map);
     const selector = (EFFECT_PROPERTIES.includes(property) || base === "symbols.ui"
       ? base === "symbols.ui" ? `${target.binding?.animation?.selector ?? target.binding?.selector},button[data-ui-native-icon]` : target.binding?.animation?.selector ?? target.binding?.selector
       : target.binding?.selector)?.replace(/::placeholder/g, "");
@@ -48,16 +64,16 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
         (element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1));
     else if (target.instance) elements = query(owners(target.instance.owner));
     else continue;
-    const locals = targets.filter(item => item.instance?.base === base);
+    const locals = localsByBase.get(base) ?? [];
     for (const element of elements) {
       if (base === "text.ui.placeholders" &&
         (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) || element.value || !element.placeholder)) continue;
-      // An instance's own binding wins over the categorical binding on its parts.
-      const local = locals.filter(item => selector ? element.matches(scoped(item, selector))
-        : !!element.closest(owners(item.instance!.owner)))
-        .sort((a, b) => (b.instance!.path?.length ?? 0) + Number(b.instance!.owner.startsWith("function:")) -
-          (a.instance!.path?.length ?? 0) - Number(a.instance!.owner.startsWith("function:")))[0];
-      if (local && local.id !== target.id) continue;
+      // Glyph ownership is resolved per text node below: one customized word
+      // must not suppress the remaining lettering in its host/category.
+      if (!target.binding?.text || element.matches("input,textarea,select")) {
+        const local = locals.find(item => selector ? element.matches(scoped(item, selector)) : !!element.closest(owners(item.instance!.owner)));
+        if (local && local.id !== target.id) continue;
+      }
       map.set(element, { element, target, active,
         scrollbar: base.startsWith("ui.scrollbars.") ? base.endsWith(".thumb") ? "thumb" : "track" : undefined });
     }
@@ -76,7 +92,13 @@ function matchesFor(entries: HighlightTarget[], targets: RegisteredTarget[], pro
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     for (let text = walker.nextNode(); text; text = walker.nextNode()) {
       const parent = text.parentElement;
-      if (!text.textContent?.trim() || !(parent instanceof HTMLElement) || !scope.text?.(parent)) continue;
+      if (!text.textContent?.trim() || !(parent instanceof HTMLElement)) continue;
+      const base = target.instance?.base ?? target.id;
+      const owns = target.instance?.part
+        ? textOwner(parent)?.target.id === base && element.contains(parent) : scope.text?.(parent);
+      if (!owns) continue;
+      const local = localTextOwner(base, text);
+      if (local ? local.id !== target.id : !!target.instance) continue;
       const range = document.createRange(); range.selectNodeContents(text); match.ranges.push(range);
     }
   }
