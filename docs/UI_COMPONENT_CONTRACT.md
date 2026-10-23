@@ -156,3 +156,18 @@ below content; cached transparency compensation prevents full-strength tint from
 stacking through nested selected surfaces or transparent windows over the scene.
 Preserve underlying paint and configured pulse values; do not add independent
 renderer-specific strength multipliers or per-frame geometry queries.
+
+Workspace settings exposes the existing Master controller action even when its
+normal resident was moved or closed; it invokes the shared function, not another
+controller. Global search indexes window/frame destinations independently of their
+mounted contents. Direct label matches rank before ancestor-heading matches and
+before the first-100 limit. Choosing a window keeps its reveal path instead of
+clicking its first control (which could collapse it).
+
+Property hierarchy stems use a 2px, 65%-accent line with short child connectors.
+The shared PropertyTree receives editability separately from supported properties.
+Unavailable setter headings darken and disable when no editable descendants exist;
+a branch with supported children remains expandable without selecting its own
+unavailable property. Supported descendants/operators retain their normal paint.
+Native and canvas text effects omit disabled controls so animation cannot make an
+unavailable setter appear active.

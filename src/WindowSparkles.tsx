@@ -1,3 +1,4 @@
+import { unavailableControl } from "./ui/controlAvailability";
 import { createPaintClipReader, clipCanvas } from "./ui/paintClip";
 import { effectsFor } from "./appearance/resolve";
 import { uiEffectTargets, effectSelector, effectScope, textOwner } from "./appearance/uiEffects";
@@ -78,7 +79,7 @@ export function WindowSparkles({
           const { element, local: exact } = candidates[index];
           if (
             !element.getClientRects().length ||
-            element.closest("[hidden],.ui-drag-source,[data-visual-selector]") ||
+            element.closest("[hidden],.ui-drag-source,[data-visual-selector]") || unavailableControl(element) ||
             getComputedStyle(element).visibility === "hidden"
           )
             continue;
@@ -207,6 +208,8 @@ export function WindowSparkles({
     const observer = new MutationObserver(records => {
       const relevant = records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest("[data-visual-selector],style,script,canvas"));
       if (!relevant) return;
+      if (records.some(record => record.attributeName === "disabled" || record.attributeName === "aria-disabled" ||
+          record.attributeName === "class" && record.target instanceof Element && record.target.classList.contains("property-node"))) clearUILightningContours();
       plan.current.invalidate();
       if (uiEffectTargets.some(target => effectVisible(effectsFor(current.current, target.id))) || plan.current.activeLocalBases.size) request();
     });
@@ -214,7 +217,7 @@ export function WindowSparkles({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["style", "class", "hidden"],
+      attributeFilter: ["style", "class", "hidden", "disabled", "aria-disabled"],
     });
     document.fonts.addEventListener("loadingdone", fontsLoaded);
     const layoutChanged = () => { clearUILightningContours(); request(); };

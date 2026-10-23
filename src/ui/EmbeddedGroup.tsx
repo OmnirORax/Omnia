@@ -26,6 +26,7 @@ export function EmbeddedGroup({
   id,
   title,
   tooltip,
+  disabled = false,
   expanded: expandedOverride,
   defaultExpanded = true,
   selected,
@@ -38,6 +39,7 @@ export function EmbeddedGroup({
   id: string;
   title: string;
   tooltip?: string;
+  disabled?: boolean;
   expanded?: boolean;
   defaultExpanded?: boolean;
   selected?: boolean;
@@ -180,6 +182,7 @@ export function EmbeddedGroup({
         container={key}
         title={title}
         tooltip={tooltip}
+        disabled={disabled}
         state={{ ...state, collapsed: !expanded }}
         onChange={patch}
         inline

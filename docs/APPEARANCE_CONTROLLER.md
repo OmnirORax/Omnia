@@ -244,3 +244,11 @@ Glyph masks also clip individual text/input/image sources inside nested scroller
 Scroll/resize invalidates masks, so hidden content cannot survive in a cached
 raster after scrolling. This applies to shared text effects and exact local parts,
 without changing property coupling or adding another effect renderer.
+
+Setter headings and AppearanceAdjustment share `adjustmentTargets`: applicable,
+included, connected targets not blocked by inherited locks. Selected-part and
+logical-consumer trees pass their corresponding policy-derived editable properties.
+Capabilities determine structure; editability determines heading availability, and
+safe mode disables both headings and their actual editors. Parent properties with
+editable descendants retain expansion access. Do not infer heading availability
+by inspecting mounted/expanded DOM editors.

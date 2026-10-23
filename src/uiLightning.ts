@@ -1,3 +1,4 @@
+import { unavailableControl } from "./ui/controlAvailability";
 import { clipCanvas, type PaintClip } from "./ui/paintClip";
 import { imageContours, lightningBolts, type Contour } from "./lightning";
 import type { SparkleStyle } from "./graph/effects";
@@ -92,7 +93,7 @@ function snapshot(
   context.fillStyle = "white";
   const visible = (el: Element) =>
     !!el.getClientRects().length &&
-    !el.closest("[hidden],.ui-drag-source") &&
+    !el.closest("[hidden],.ui-drag-source") && !unavailableControl(el) &&
     getComputedStyle(el).visibility !== "hidden";
   const overlaps = (r: DOMRect) =>
     r.right >= clip.x &&

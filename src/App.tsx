@@ -2107,6 +2107,7 @@ function Workbench() {
         </MasterController>
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
+        <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
           {["ui:sphereDiameter", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>

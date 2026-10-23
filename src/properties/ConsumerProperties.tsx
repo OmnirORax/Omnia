@@ -19,6 +19,7 @@ export function ConsumerProperties({ consumers }: { consumers: string[] }) {
   return <div>
     <p>{targets.map(target => target.label).join(" · ")}</p>
     <PropertyTree transient scope="consumer-inspection" initialOpen={propertyPath(chosen)} selected={chosen} available={available}
+      editable={available.filter(id => !ctx.safe && targets.some(target => target.properties?.includes(id) && !blocked(ctx.state, ctx.targets, target.id, id, "all") && connected(ctx.state, ctx.targets, target.id, id)))}
       onSelect={id => { ctx.preview(null); setProperty(id); }} renderEditor={id => {
         const applicable = targets.filter(target => target.properties?.includes(id));
         const editable = applicable.filter(target => !blocked(ctx.state, ctx.targets, target.id, id, "all") && connected(ctx.state, ctx.targets, target.id, id));

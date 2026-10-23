@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { createPortal } from "react-dom";
 import { useUI } from "./context";
 import { normalizeSearch } from "./FrameSearch";
-import { globalControls, locateSearchResult, type GlobalResult, type SearchReveal } from "./search";
+import { globalControls, globalSearchRank, locateSearchResult, type GlobalResult, type SearchReveal } from "./search";
 import { useAppearance } from '../appearance/Context';
 import { functionShortcutBinding } from "../workspaceActions";
 import { ShortcutHint } from "./ShortcutHint";
@@ -48,7 +48,8 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
   }, []);
   const revealSession = useRef<RevealSession | null>(null);
   const tokens = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
-  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.heading} ${result.label} ${functionShortcutBinding(result.functionId, ui.shortcutBindings)}`).includes(token)));
+  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.heading} ${result.label} ${functionShortcutBinding(result.functionId, ui.shortcutBindings)}`).includes(token)))
+    .sort((a, b) => globalSearchRank(a, query) - globalSearchRank(b, query));
   const visible = matches.slice(0, 100);
   const groups = useMemo(() => {
     const grouped = new Map<string, { result: GlobalResult; position: number }[]>();
@@ -78,6 +79,9 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
   };
 
   const choose = (result: GlobalResult, position: number, navigate: boolean) => {
+    if (result.container) {
+      stopPreview(); callbacks.current.onKeep({ path: result.path }); callbacks.current.onClose(); return;
+    }
     preview(result, position, element => {
       const fn = ui.functions.find(fn => fn.id === result.functionId);
       const target = element ? focusable(element) : null;

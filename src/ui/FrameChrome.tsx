@@ -21,6 +21,7 @@ export function FrameChrome({
   onClose,
   closeLabel,
   className = "",
+  disabled = false,
   fixed = false,
   inline = false,
   legacyHandleId,
@@ -37,6 +38,7 @@ export function FrameChrome({
   onClose?: () => void;
   closeLabel?: string;
   className?: string;
+  disabled?: boolean;
   fixed?: boolean;
   inline?: boolean;
   legacyHandleId?: string;
@@ -92,6 +94,8 @@ export function FrameChrome({
           data-ui-inline-handle
           data-ui-drag={container}
           draggable={ui.canMove(container)}
+          disabled={disabled}
+          aria-disabled={disabled}
           aria-expanded={!state.collapsed}
           aria-pressed={selected}
           aria-label={title}

@@ -993,7 +993,7 @@ html[data-visual-selecting],html[data-visual-selecting] * { cursor: none !import
 .property-node-heading { display: flex; gap: 2px; align-items: center; }
 .property-node-heading button { padding: 3px 5px; min-height: 24px; }
 .property-node.is-selected > .property-node-heading .property-node-name { border-color: var(--omnium-accent); box-shadow: 0 0 5px color-mix(in srgb, var(--omnium-accent) 45%, transparent); }
-.property-node-contents { border-left: 1px solid color-mix(in srgb, var(--omnium-accent) 25%, transparent); padding: 6px 0 2px 8px; margin-left: 7px; max-width: 280px; }
+.property-node-contents { border-left: 2px solid color-mix(in srgb, var(--omnium-accent) 65%, transparent); padding: 6px 0 2px 8px; margin-left: 7px; max-width: 280px; }
 .property-node-children { display: grid; gap: 5px; }
 .property-node-editor { margin-bottom: 6px; }
 .property-options { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; max-height: 180px; overflow: auto; }
@@ -1112,3 +1112,20 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 
 .visual-selector-mode-group { border: 0; padding: 3px 0; margin: 0; min-width: 0; }
 .visual-selector-mode-group legend { font-size: .8em; opacity: .7; }
+
+/* Dim the setter itself, without fading supported descendants or its operators. */
+.property-node.is-unavailable > .property-node-heading .property-node-name,
+.property-node.is-unavailable > button {
+  opacity: .32 !important; filter: none !important; box-shadow: none !important;
+}
+.property-node-children > .property-node { position: relative; }
+.property-node-children > .property-node::before {
+  content: ""; position: absolute; top: 14px; left: -8px; width: 8px;
+  border-top: 1px solid color-mix(in srgb,var(--omnium-accent) 65%,transparent);
+  pointer-events: none;
+}
+
+.property-node > .property-node-children {
+  margin-left: 7px; padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb,var(--omnium-accent) 65%,transparent);
+}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
 import { propertyFor, type RegisteredTarget } from "./registry";
 import type { Value } from "./model";
-import { applyValue, included, blocked, connected } from "./model";
+import { applyValue, adjustmentTargets } from "./model";
 import { useAppearance } from "./Context";
 /** One editor implementation is shared by the controller, rows and contextual UI. */
 export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { previewTargets?: RegisteredTarget[] }) {
@@ -212,11 +212,8 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
   if (!ctx) return null;
   const { state, targets } = ctx,
     active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
-  const chosen = targets.find(
-    (t) =>
-      t.properties?.includes(property) &&
-      (target ? t.id === target || t.id.startsWith(target + ".") : included(active, targets, t.id)),
-  );
+  const editable = adjustmentTargets(state, targets, property, target);
+  const chosen = editable[0];
   const current =
     (!target ? active.adjustments?.[property] : undefined) ??
     (chosen ? ctx.read(chosen, property) : propertyFor(property)!.initial);
@@ -229,10 +226,8 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
     <PropertyEditor
       property={property}
       label={`Adjust selected ${property}`}
-      previewTargets={targets.filter(t => t.properties?.includes(property) &&
-        (target ? t.id === target || t.id.startsWith(target + ".") : included(active, targets, t.id)) &&
-        !blocked(state, targets, t.id, property, target ?? "all") && connected(state, targets, t.id, property))}
-      disabled={!chosen}
+      previewTargets={editable}
+      disabled={ctx.safe || !chosen}
       value={current}
       onPreview={(v) => change(v, true)}
       onCommit={(v) => change(v)}

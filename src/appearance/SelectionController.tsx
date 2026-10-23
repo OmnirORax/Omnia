@@ -22,6 +22,7 @@ export function SelectedProperties({ parts, scope = "selection" }: { parts: Sele
     if (temporary) ctx.preview(next); else ctx.commit(next);
   };
   return chosenProperty ? <PropertyTree transient scope={scope} selected={chosenProperty} available={available}
+      editable={available.filter(id => !ctx.safe && parts.some(part => editablePart(part, id)))}
       onSelect={id => { ctx.preview(null); setProperty(id); }} renderEditor={id => {
         const applicable = targets.filter(target => target.properties?.includes(id));
         const editable = parts.filter(part => editablePart(part, id));

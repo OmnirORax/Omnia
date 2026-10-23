@@ -7,7 +7,7 @@ import { transientReveal, type RevealSession } from "../ui/transientReveal";
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAppearance } from "./Context";
 import { nativeContextMenuKey } from "../featureActions";
-import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
+import { ancestry, adjustmentTargets, createTargetIndex, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
 import { PropertyTree } from "./PropertyTree";
 import { SelectedProperties } from "./SelectionController";
@@ -75,6 +75,12 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   const showIndividuals = !!ui.layout.panels["@appearanceShowIndividuals"];
   const effectiveLayout = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
   const targets = rigidity ? rigidityTargets(ctx.targets, effectiveLayout, ui.functions, ui.frameActions) : ctx.targets;
+  const editableProperties = useMemo(() => {
+    if (ctx.safe) return [];
+    const index = createTargetIndex(ctx.targets);
+    return [...new Set(ctx.targets.flatMap(target => target.properties ?? []))]
+      .filter(id => adjustmentTargets(state, ctx.targets, id, undefined, index).length > 0);
+  }, [state, ctx.targets, ctx.safe]);
   const active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
   const structureKey = JSON.stringify(
     targets.map((t) => [t.id, t.parent, t.label, t.properties, t.instance]),
@@ -343,6 +349,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
       <NameVisibilityControl />
       <PropertyTree
         available={[...new Set(targets.flatMap(target => target.properties ?? [])), UI_RIGIDITY_PROPERTY]}
+        editable={[...editableProperties, UI_RIGIDITY_PROPERTY]}
         extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity",
           tooltip: "Included parts stay fixed outside UI edit mode. Exclude a branch or individual item to let it move freely. Normal clicks and field editing stay available.",
         }]}

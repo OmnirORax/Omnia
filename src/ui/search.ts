@@ -1,5 +1,5 @@
 import type { UIContextValue, UIFunction } from "./context";
-import { frameControls, nameFor, rootFor, type SearchResult } from "./FrameSearch";
+import { frameControls, nameFor, rootFor, normalizeSearch, type SearchResult } from "./FrameSearch";
 import { activateDockMember, getContainer, ownerOf, updateContainer, type UILayout } from "./layout";
 import { PROPERTIES, type RegisteredTarget } from '../appearance/registry';
 import { ancestry } from '../appearance/model';
@@ -7,7 +7,7 @@ import type { AppearanceLocation } from '../appearance/Context';
 import { APPEARANCE_HIERARCHY_ID } from '../appearance/propertyTree';
 
 export type SearchReveal = { path: string[] };
-export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; appearance?:AppearanceLocation };
+export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; container?: string; appearance?:AppearanceLocation };
 const titles: Record<string, string> = {
   [`window:${APPEARANCE_HIERARCHY_ID}`]: "Visual hierarchy",
   "window:theme": "Master controller", "window:settings": "Workspace settings",
@@ -78,6 +78,17 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
     const found = byFunction.get(fn.id);
     add(found ?? { key: `function:${fn.id}`, label: fn.label, functionId: fn.id, path: fallbackPath.filter(key => key !== "workspace") }, fn);
   }
+  // Windows are destinations themselves, even if their controls are unmounted.
+  const windowKeys = new Set([...Object.keys(titles), ...ui.layout.frames.map(frame => `frame:${frame.id}`), ...ui.frameActions.keys()]);
+  for (const key of windowKeys) {
+    const path: string[] = [], seen = new Set<string>();
+    let current: string | undefined = key;
+    while (current && current !== "workspace" && !seen.has(current)) {
+      seen.add(current); path.unshift(current); current = ownerOf(ui.layout, current);
+    }
+    results.push({ key: `container:${key}`, container: key, label: searchTitle(ui, key),
+      heading: "Windows / frames", home: key, path, available: true });
+  }
   const hierarchy = `window:${APPEARANCE_HIERARCHY_ID}`;
   const hierarchyOwners: string[] = [];
   const effective = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
@@ -89,6 +100,14 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
     results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${propertyName}`,heading:[...hierarchyPath.map(key=>searchTitle(ui,key)),...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:hierarchy,path:hierarchyPath,available:true,appearance:{target:target.id,property:property.id}});
   }
   return results.sort((a, b) => a.heading.localeCompare(b.heading) || a.label.localeCompare(b.label));
+}
+/** Direct label matches precede ancestor-heading matches and the result limit. */
+export function globalSearchRank(result: GlobalResult, query: string) {
+  const label = normalizeSearch(result.label), normalized = normalizeSearch(query).trim();
+  if (!normalized) return 0;
+  const rank = label === normalized ? 0 : label.startsWith(normalized) ? 1
+    : normalized.split(/\s+/).every(token => label.includes(token)) ? 2 : 3;
+  return rank * 2 + (result.container ? 0 : 1);
 }
 /** Only display state changes. Applied as an overlay while hovering, never saved. */
 export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null): UILayout {
@@ -104,6 +123,7 @@ export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null):
   return next;
 }
 export function locateSearchResult(result: GlobalResult): HTMLElement | undefined {
+  if (result.container) return rootFor(result.container) ?? undefined;
   const root = rootFor(result.home) ?? document.body;
   if(result.appearance){
     if(result.functionId)return [...root.querySelectorAll<HTMLElement>('[data-ui-function]:not([data-ui-native-hidden])')].find(el=>el.dataset.uiFunction===result.functionId);

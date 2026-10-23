@@ -241,6 +241,13 @@ export function toggleRule(
   }
   return next;
 }
+/** Shared applicability for setter headings and their actual editor controls. */
+export function adjustmentTargets(state: Controller, targets: Target[], property: string, origin?: string, index = createTargetIndex(targets)) {
+  const set = state.sets.find(item => item.id === state.activeSet) ?? state.sets[0];
+  return targets.filter(target => target.properties?.includes(property) &&
+    (origin ? index.path(target.id).includes(origin) : included(set, targets, target.id, index)) &&
+    !blocked(state, targets, target.id, property, origin ?? set.only ?? "all", index) && connected(state, targets, target.id, property, index));
+}
 export function applyValue(
   state: Controller,
   targets: Target[],
