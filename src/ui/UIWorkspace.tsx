@@ -535,7 +535,7 @@ export function UIWorkspace({
     [configuredFrame, configureFrame] = useState<string | null>(null);
   const [configuredControl, configureControl] = useState<{
     owner: string;
-    control: "collapse" | "pin" | "close";
+    control: "collapse" | "pin" | "close" | "branch";
   } | null>(null);
   const [appearanceOpening, setAppearanceOpening] = useState(0);
   const reopenAppearance = () => setAppearanceOpening(value => value + 1);
@@ -587,6 +587,7 @@ export function UIWorkspace({
           if (control === "close") frame.onClose?.();
           if (control === "pin") frame.onChange({ pinned: !frame.state.pinned });
           if (control === "collapse") frame.onChange({ collapsed: !frame.state.collapsed });
+          if (control === "branch") frame.onBranchToggle?.();
         }
         return;
       }

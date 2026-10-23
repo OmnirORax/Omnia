@@ -286,3 +286,22 @@ leave request. Apply/Discard then completes the requested minimize/close. No
 separate modal window, backdrop, extra buttons or outside-click listener is used.
 Clicks elsewhere, pointer exit and browser chrome are not leave commands. The
 protected emergency recovery dialog remains available via Recovery/long Escape.
+
+### Selected editing scope and Properties
+
+Master Controller's Properties frame contains the existing shared setters. An
+active visual/UI/self-inventory selection becomes the exclusive temporary editing
+scope: matching hierarchy branches alone are included. Branch switches filter
+those selected items, not every item in the matching category. The chosen property
+is shared between scoped setters and hierarchy feedback/applicability. Hover
+feedback is likewise restricted to selected items. Scoped policy changes address
+selected part/consumer IDs; ordinary selection/filtering never modifies targeting
+sets, appearance values or instances. Part instances are created only on explicit
+customization/policy edits. Deselecting, or Show all controls, restores the existing
+global targeting setup. Individual rows still follow Show individuals and actual
+customization rules. The scope-to-branch index is rebuilt for membership/structure
+changes, rather than rediscovering DOM sources during property dragging.
+
+Properties and the shared frame header offer the same descendant expand/collapse
+action, including transient selected-property trees. Expansion changes UI view
+state only, retaining property values, lock/bypass state and current selection.

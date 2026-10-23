@@ -81,6 +81,18 @@ export function EmbeddedGroup({
       ui.defaults.delete(id);
     };
   });
+  // Native homes follow shared UI regrouping, while detached/docked placements
+  // remain explicitly owned. This keeps bulk branch actions correct after upgrades.
+  useLayoutEffect(() => {
+    if (!state.inline || state.inline.detached || state.inline.parent === parent ||
+        containers(ui.layout).some(([, owner]) => owner.members?.some(member => member.kind === "window" && member.id === id))) return;
+    ui.update(layout => {
+      const saved = layout.windows[id];
+      return saved?.inline && !saved.inline.detached ? { ...layout, windows: { ...layout.windows,
+        [id]: { ...saved, inline: { ...saved.inline, parent } },
+      } } : layout;
+    });
+  }, [id, parent, state.inline, ui.update]);
   // Preserve existing customized property icons and recover former button-only moves.
   useEffect(() => {
     if (ui.layout.windows[id]?.inline || !root) return;

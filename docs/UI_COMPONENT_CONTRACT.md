@@ -185,3 +185,15 @@ before releasing dock ownership. `onMinimize` can similarly veto collapsing
 until pending work is resolved. `FunctionControl mirror` renders an existing
 action contextually with its shared styling, without relocating its resident or
 creating another registry/action definition.
+
+Every shared FrameChrome and active dock-tab strip has a descendant expansion control (`→←` / `←→`).
+At click time it follows actual saved/inline ownership, excludes the owning frame
+from collapse, and collapses all descendants if any are open; otherwise expands
+all. The parent stays expanded. One indexed ownership traversal and one batched
+UI update preserve a single undo entry; never scan the graph per frame render or
+pointer move. Closed flags, docking, placement, pins and appearance values remain
+unchanged. Native inline homes follow code regrouping only while not explicitly
+docked/detached. Local expansion adapters in `frameExpansion.tsx` let transient
+property trees and hierarchy chevrons participate without persisting their state.
+The control's icon/position and shortcut use the existing shared frame-control
+configuration (`branch`); no private hotkey or second expansion value store.

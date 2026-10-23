@@ -1,3 +1,4 @@
+import { FrameBranchButton, toggleFrameDescendants } from "./frameExpansion";
 import { useIconTint } from "../appearance/Styles";
 import { useLayoutEffect, type MouseEvent } from "react";
 import { ShortcutHint } from "./ShortcutHint";
@@ -62,6 +63,7 @@ export function FrameChrome({
   const closeButton = <FrameCloseButton container={container} title={title} onClose={close} label={closeLabel} />;
   const operators = (
     <span className="ui-frame-operators">
+      <FrameBranchButton container={container} title={title} />
       {!inline && <FrameSearch
         container={container}
         title={title}
@@ -76,7 +78,7 @@ export function FrameChrome({
     ui.frameMenu(container, event.clientX, event.clientY);
   };
   useLayoutEffect(() => {
-    const actions = { title, label: label ?? title, state, onChange, onRename, onClose: close, closeLabel };
+    const actions = { title, label: label ?? title, state, onChange, onRename, onClose: close, closeLabel, onBranchToggle: () => toggleFrameDescendants(ui, container) };
     ui.frameActions.set(container, actions);
     return () => {
       if (ui.frameActions.get(container) === actions) ui.frameActions.delete(container);

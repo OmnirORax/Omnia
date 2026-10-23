@@ -1,3 +1,4 @@
+import { FrameBranchButton } from "./frameExpansion";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState } from "react";
 import { DockFillContext, useUI } from "./context";
@@ -39,6 +40,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
         ><DockTabLabel id={key} title={title} /><ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${key}`]} /></button><FrameCloseButton container={key} title={title} /></span>;
       })}
     </div>
+    <FrameBranchButton container={node.active} title={nameFor(ui, node.active)} />
     <FrameSearch container={node.active} title={nameFor(ui, node.active)} expand={() => {}} />
     </div>
     {node.keys.map(key => <div className="ui-dock-tab-body" role="tabpanel" data-ui-dock-content={key} hidden={key !== node.active} key={key} aria-label={nameFor(ui, key)}>

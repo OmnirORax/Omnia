@@ -1128,3 +1128,8 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 /* Preview actions use the ordinary window surface and shared controls. */
 .floating-footer { position: absolute; top: calc(100% + 6px); left: 0; width: max-content; max-width: 100%; padding: 0; border: 0; background: transparent; pointer-events: auto; }
 .appearance-preview-buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+.ui-frame-branch-toggle { font: inherit; font-size: 10px; line-height: 1; min-width: 20px; min-height: 14px; padding: 1px 2px; }
+.ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close) { padding-right: 54px; }
+.ui-inline-frame-bar > .property-node-name { padding-right: 54px; }
+.ui-frame-branch-toggle img { width: 12px; height: 12px; object-fit: contain; }

@@ -28,7 +28,7 @@ export type UIContextValue = {
   createFrame: (x: number, y: number, mode?: FrameLayoutMode) => void;
   library: () => void;
   frameMenu: (key: string, x: number, y: number) => void;
-  configureControl: (owner: string, control: "collapse" | "pin" | "close") => void;
+  configureControl: (owner: string, control: "collapse" | "pin" | "close" | "branch") => void;
   placementPreview: TransientStore<PlacementPreview | null>;
   defaults: Map<string, WindowState>;
   frameActions: Map<
@@ -40,6 +40,7 @@ export type UIContextValue = {
       onChange: (patch: Partial<WindowState>) => void;
       onRename?: (value: string) => void;
       onClose?: () => void;
+      onBranchToggle?: () => boolean;
       closeLabel?: string;
     }
   >;

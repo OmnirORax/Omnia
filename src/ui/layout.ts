@@ -58,8 +58,8 @@ export type UIResident = {
 export type FrameChrome = {
   style?: FunctionStyle;
   handle?: Cell;
-  controls?: Partial<Record<"collapse" | "pin" | "close", Cell>>;
-  controlStyles?: Partial<Record<"collapse" | "pin" | "close", FunctionStyle>>;
+  controls?: Partial<Record<"collapse" | "pin" | "close" | "branch", Cell>>;
+  controlStyles?: Partial<Record<"collapse" | "pin" | "close" | "branch", FunctionStyle>>;
 };
 export type FunctionStyle = {
   mode: "text" | "icon";
@@ -386,14 +386,14 @@ export function validateUILayout(value: unknown): UILayout {
         throw new Error("Invalid frame control position.");
       if (
         chrome.controls &&
-        Object.keys(chrome.controls).some((k) => !["collapse", "pin", "close"].includes(k))
+        Object.keys(chrome.controls).some((k) => !["collapse", "pin", "close", "branch"].includes(k))
       )
         throw new Error("Invalid frame control.");
       if (chrome.style) validateStyle(chrome.style, layout);
       if (chrome.controlStyles) {
         if (
           !record(chrome.controlStyles) ||
-          Object.keys(chrome.controlStyles).some((k) => !["collapse", "pin", "close"].includes(k))
+          Object.keys(chrome.controlStyles).some((k) => !["collapse", "pin", "close", "branch"].includes(k))
         )
           throw new Error("Invalid frame control styles.");
         Object.values(chrome.controlStyles).forEach((style) => validateStyle(style, layout));
@@ -520,18 +520,29 @@ export function containers(layout: UILayout): [string, UIFrame | WindowState][] 
 }
 /** UI-only traversal follows actual ownership, including embedded native homes. */
 export function residentBranch(layout: UILayout, root: string): string[] {
-  return containers(layout)
-    .map(([key]) => key)
-    .filter((key) => {
-      const seen = new Set<string>();
-      let parent: string | undefined = key;
-      while (parent && !seen.has(parent)) {
-        if (parent === root) return true;
-        seen.add(parent);
-        parent = ownerOf(layout, parent);
-      }
-      return false;
-    });
+  const entries = containers(layout), parents = new Map<string, string>();
+  for (const [key, value] of entries) {
+    if (key.startsWith("window:") && "inline" in value && value.inline && !value.inline.detached && value.inline.parent !== "workspace")
+      parents.set(key, value.inline.parent);
+  }
+  // Explicit membership takes precedence over native inline homes, as ownerOf does.
+  const explicit = new Set<string>();
+  for (const [key, value] of entries) for (const member of value.members ?? []) {
+    const child = residentKey(member);
+    if (!explicit.has(child)) { parents.set(child, key); explicit.add(child); }
+  }
+  const children = new Map<string, string[]>();
+  for (const [child, parent] of parents) {
+    const siblings = children.get(parent);
+    if (siblings) siblings.push(child); else children.set(parent, [child]);
+  }
+  const found = new Set<string>(), pending = [root];
+  while (pending.length) {
+    const key = pending.pop()!;
+    if (found.has(key)) continue;
+    found.add(key); pending.push(...(children.get(key) ?? []));
+  }
+  return entries.map(([key]) => key).filter(key => found.has(key));
 }
 export function collapseResidentBranch(
   layout: UILayout,

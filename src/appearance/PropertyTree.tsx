@@ -1,3 +1,4 @@
+import { useFrameExpansion } from "../ui/frameExpansion";
 import { useState, type ReactNode } from "react";
 import { collapseResidentBranch, ownerOf } from "../ui/layout";
 import { EmbeddedGroup } from "../ui/EmbeddedGroup";
@@ -40,6 +41,12 @@ export function PropertyTree({
   const canEdit = (node: PropertyNode): boolean =>
     (!!node.property && (!available || available.includes(node.property)) && (!editable || editable.includes(node.property))) ||
     (node.children ?? []).some(canEdit);
+  const allNodes = [...PROPERTY_TREE, ...extraProperties];
+  const expansionIds = (nodes: PropertyNode[]): string[] => nodes.flatMap(node => supported(node) && canEdit(node) ? [node.id, ...expansionIds(node.children ?? [])] : []);
+  useFrameExpansion(true, transient && expansionIds(allNodes).some(id => localOpen.has(id)), expanded => {
+    ctx?.locate(null, true);
+    if (transient) setLocalOpen(new Set(expanded ? expansionIds(allNodes) : []));
+  });
   const groupId = (id: string) => `property:${scope}:${id}`;
   const reveal = new Set<string>();
   if (ctx?.location) {

@@ -7,11 +7,12 @@ import { applySelectedValue, selectedPartPolicy, resetSelectedParts, selectedPar
 import type { Value } from "./model";
 
 /** The main controller and contextual popup share this exact selected-part editor. */
-export function SelectedProperties({ parts, scope = "selection" }: { parts: SelectedPart[]; scope?: string }) {
+export function SelectedProperties({ parts, scope = "selection", selectedProperty, onSelectProperty }: { parts: SelectedPart[]; scope?: string; selectedProperty?: string; onSelectProperty?: (id: string) => void }) {
   const ctx = useAppearance()!;
   const preview = useRef(ctx.preview); preview.current = ctx.preview;
   useEffect(() => () => preview.current(null), []);
-  const [property, setProperty] = useState("color");
+  const [localProperty, setProperty] = useState("color");
+  const property = selectedProperty ?? localProperty;
   const editablePart = useMemo(() => selectedPartPolicy(ctx.state), [ctx.state]);
   const read = ctx.read;
   const targets = parts.map(selectedPartTarget);
@@ -23,7 +24,7 @@ export function SelectedProperties({ parts, scope = "selection" }: { parts: Sele
   };
   return chosenProperty ? <PropertyTree transient scope={scope} selected={chosenProperty} available={available}
       editable={available.filter(id => !ctx.safe && parts.some(part => editablePart(part, id)))}
-      onSelect={id => { ctx.preview(null); setProperty(id); }} renderEditor={id => {
+      onSelect={id => { ctx.preview(null); setProperty(id); onSelectProperty?.(id); }} renderEditor={id => {
         const applicable = targets.filter(target => target.properties?.includes(id));
         const editable = parts.filter(part => editablePart(part, id));
         const values = applicable.map(target => read(target, id));

@@ -333,3 +333,10 @@ are hairlines. Selection / Preview and BG now have visible labels below the
 stationary circle and live shortcut hints; the commands remain unassigned by
 default. Selector feedback → Pulse uses discovered shared inputs for speed,
 intensity/depth and on/off, saved through existing Controller.values/Apply/export.
+
+Selected items temporarily become Master Controller's exclusive editing scope;
+Visual hierarchy switches refine that scope and Properties hosts the shared
+setters. Preserve the saved global targeting set when selecting/deselecting.
+Shared frame headers support descendant expand/collapse through the existing
+ownership graph, with local expansion adapters for transient trees; do not add
+per-feature bulk controls or per-render graph scans.
