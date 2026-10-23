@@ -870,10 +870,30 @@ test("clipboard application skips bypassed and locked destinations without widen
     { id: "d", label: "D", parent: "all", properties: ["color"] }];
   let state = emptyController(); state.disconnected.b = { properties: ["color"] }; state.locks.c = { all: true };
   const before = JSON.stringify(state);
-  state = applyValue(state, targets, "color", "#00ff00", undefined, false, true);
-  state = applyValue(state, targets, "font", "serif", undefined, false, true);
+  state = applyValue(state, targets, "color", "#00ff00", undefined, false, { skipBypassed: true });
+  state = applyValue(state, targets, "font", "serif", undefined, false, { skipBypassed: true });
   assert.equal(state.values.a.color, "#00ff00"); assert.equal(state.values.d.color, "#00ff00");
   assert.equal(state.values.a.font, "serif"); assert.equal(state.values.b?.color, undefined);
   assert.equal(state.values.c?.color, undefined); assert.equal(state.values.d.font, undefined);
   assert.notEqual(JSON.stringify(state), before); assert.deepEqual(state.instances, {});
+});
+
+test("selectable property copies retain only checked values, including zero and false", async () => {
+  const { selectPropertyValues } = await import("../src/properties/clipboard.ts");
+  const snapshot = { values: { color: "#00ff00", opacity: 0, pulse: false, font: "serif" }, mixed: ["glow"] };
+  const selected = selectPropertyValues(snapshot, new Set(["opacity", "pulse", "unknown"]));
+  assert.deepEqual(selected.values, { opacity: 0, pulse: false });
+  assert.deepEqual(selectPropertyValues(snapshot, new Set()).values, {});
+  assert.equal(Object.keys(snapshot.values).length, 4);
+});
+
+test("selective paste does not rewrite unchecked companion properties", () => {
+  const targets = [{ id: "all", label: "All" }, { id: "text", label: "Text", parent: "all", properties: ["color", "effectColor", "opacity"] }];
+  const state = emptyController(); state.values.text = { effectColor: "#0000ff", opacity: .4 };
+  const next = applyValue(state, targets, "color", "#00ff00", undefined, false, { skipBypassed: true, exact: true });
+  assert.deepEqual(next.values.text, { color: "#00ff00", effectColor: "#0000ff", opacity: .4 });
+  const part = { base: "text.ui.buttons", owner: "window:theme", label: "Text", part: { steps: [{ tag: "button", index: 0 }] } };
+  const selected = applySelectedValue(emptyController(), [part], "color", "#00ff00", { exact: true });
+  assert.equal(selected.values[selectedPartId(part)].color, "#00ff00");
+  assert.equal(selected.values[selectedPartId(part)].effectColor, undefined);
 });

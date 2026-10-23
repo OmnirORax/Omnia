@@ -585,9 +585,11 @@ export function UIWorkspace({
         }
         return;
       }
+      // Catalog actions have real dispatch paths. Hidden DOM runners exist only
+      // for arbitrary button residents, not as a requirement for core actions.
+      if (shortcuts?.onInvoke?.(target)) return;
       const fn = current.current.functions.find(f => f.id === target);
       if (!fn || fn.available === false) {
-        if (shortcuts?.onInvoke?.(target)) return;
         setShortcutNotice(target.startsWith("context:node:") ? "Select a node to use this shortcut." : target.startsWith("context:selection:") ? "Select nodes to use this shortcut." : "This action needs its relevant node, relationship or window open.");
         return;
       }

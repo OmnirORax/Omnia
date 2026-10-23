@@ -307,3 +307,17 @@ test("search scope progresses through nearest ancestors and keeps a locked globa
   assert.equal(searchScope(["window:other"], 10).key, "workspace");
   assert.equal(searchScope(["window:theme", "window:properties"], 2).key, "window:theme");
 });
+
+test("programmatic catalog dispatch executes search without a button binding or DOM runner", async () => {
+  const { invokeCatalogAction } = await import("../src/workspaceActions.ts");
+  const { featureActionRuntime } = await import("../src/featureActions.ts");
+  const calls = [], base = id => calls.push(id);
+  assert.equal(invokeCatalogAction("searchUI", base), true); assert.deepEqual(calls, ["searchUI"]);
+  let enabled = true;
+  const stop = featureActionRuntime.register("context.search", { enabled: () => enabled, run: () => calls.push("context.search") });
+  try {
+    assert.equal(invokeCatalogAction("context.search", base), true); assert.equal(calls.at(-1), "context.search");
+    enabled = false; assert.equal(invokeCatalogAction("context.search", base), false);
+    assert.equal(invokeCatalogAction("unknown", base), false); assert.equal(calls.length, 2);
+  } finally { stop(); }
+});

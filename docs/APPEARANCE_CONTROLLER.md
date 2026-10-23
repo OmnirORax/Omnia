@@ -348,3 +348,14 @@ navigating to a result retains its expansion and appearance location; pointer ex
 only cancels unaccepted hover previews. Property destinations carry their appearance
 location whether already mounted or not. Accepted property headers are focused,
 not toggled closed by a synthetic click after revelation.
+
+
+Copy properties now opens its compact contextual MC picker. It snapshots the
+source values once on opening and initially checks every unambiguous property.
+Checkboxes and All/None choose the channels; Copy accepts, Escape cancels without
+replacing the existing clipboard. Mixed values remain visible but unavailable.
+Shift-configured invocation uses the same picker and copies on release; repeated
+presses toggle All/None. Paste applies exactly the checked channels: ordinary
+setter companion behavior (such as Color also changing animation color) is disabled
+for clipboard application only. Ordinary direct property editing retains its
+established companion behavior.

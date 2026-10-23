@@ -98,3 +98,12 @@ global across different nesting depths. `search.function.ts` reuses the shared
 Level input with independent values; SearchController supplies the existing shared
 interaction adapter and frame/global search renderers. Ctrl+Alt+S remains a direct
 global-search alias for existing bindings, but is not required to reach All UI.
+
+
+Programmatic execution goes through `invokeCatalogAction` and the workspace's
+shared invocation adapter. Cataloged feature commands use their runtime handlers
+with availability checks; base commands use the normal application action runner.
+A catalog action must not require a separate `button:` binding or hidden DOM
+runner to execute. Arbitrary customized button residents retain their own runner
+path. This covers S/Shift+S reaching global search as well as future configured
+commands; do not patch individual keys to click a specific DOM button.

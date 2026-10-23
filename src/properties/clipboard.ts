@@ -17,3 +17,8 @@ export function copyPropertyValues(registry: PropertyRegistry, sources: readonly
   for (const property of mixed) delete values[property];
   return { values, mixed: [...mixed] };
 }
+
+/** Selection copies exactly those channels, retaining valid false/zero values. */
+export function selectPropertyValues(snapshot: PropertySnapshot, selected: ReadonlySet<string>): PropertySnapshot {
+  return { values: Object.fromEntries(Object.entries(snapshot.values).filter(([property]) => selected.has(property))), mixed: [...snapshot.mixed] };
+}

@@ -1216,3 +1216,9 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .property-clipboard-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 4px; }
 .property-clipboard-tools button { padding: 3px 5px; font-size: 12px; }
 .property-clipboard-tools small { font-size: 11px; }
+.copy-property-picker { width: 228px; max-width: 100%; display: flex; flex-direction: column; gap: 4px; }
+.copy-property-actions { display: flex; gap: 3px; }
+.copy-property-choices { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 3px 6px; max-height: 240px; overflow: auto; }
+.copy-property-choices label { justify-content: flex-start; align-items: flex-start; gap: 4px; line-height: 1.2; }
+.copy-property-choices input { flex: none; margin: 0; }
+.copy-property-choices label:has(:disabled) { opacity: .45; }

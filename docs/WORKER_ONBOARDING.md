@@ -416,3 +416,9 @@ S uses progressive scope (nearest frame → parents → All UI); Shift+S configu
 through the shared gesture, then release to focus search and type. Clicked global
 search destinations retain their reveal after pointer exit. Sidebar float arrows
 live once in MC Active context. See the relevant subsystem contracts.
+
+Copy opens a contextual MC property checklist (All/None, checked channels only).
+Paste preserves unchecked companion channels. Shared programmatic command dispatch
+uses `invokeCatalogAction`; catalog actions never depend on a separate button
+binding/hidden runner. This is required for S/Shift+S global search and every new
+configured command. See FUNCTION_CONFIGURATION.md and APPEARANCE_CONTROLLER.md.

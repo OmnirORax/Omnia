@@ -1,3 +1,6 @@
+import { CopyPropertiesConfiguration } from "../properties/CopyPropertiesConfiguration";
+import { openActionConfiguration } from "../ui/shortcutConfiguration";
+import type { PropertySnapshot } from "../properties/clipboard";
 import { copyPropertyValues, type PropertySource } from "../properties/clipboard";
 import { preparePropertyChanges, validateValue, type PropertyChange } from "../properties/registry";
 import { useFeatureActions } from "../ui/useFeatureActions";
@@ -209,7 +212,7 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     else ctx.commit(next);
   };
   const [clipboardNotice, setClipboardNotice] = useState("");
-  const copyProperties = () => {
+  const readCopyProperties = () => {
     const sources: PropertySource[] = [];
     if (inspecting) {
       for (const part of editingParts) {
@@ -232,7 +235,10 @@ export function MasterController({ bindings, visualStatus, history, children: vi
       }
       for (const target of targets) if (properties.has(target.id)) sources.push({ properties: [...properties.get(target.id)!], read: property => ctx.read(target, property) });
     }
-    const snapshot = copyPropertyValues(PROPERTY_REGISTRY, sources); ctx.copyProperties(snapshot);
+    return copyPropertyValues(PROPERTY_REGISTRY, sources);
+  };
+  const copyProperties = (snapshot: PropertySnapshot) => {
+    ctx.copyProperties(snapshot);
     setClipboardNotice(`Copied ${Object.keys(snapshot.values).length}${snapshot.mixed.length ? ` · ${snapshot.mixed.length} mixed omitted` : ""}`);
   };
   const pasteProperties = () => {
@@ -243,9 +249,9 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     const entries = Object.entries(ctx.propertyClipboard.values).sort(([a], [b]) => Number(b === "effect") - Number(a === "effect"));
     for (const [property, value] of entries) {
       if (inspecting) {
-        next = applySelectedValue(next, editingParts, property, value);
+        next = applySelectedValue(next, editingParts, property, value, { exact: true });
         for (const id of appearanceConsumers.filter(id => editingConsumers.includes(id)))
-          if (!blocked(next, targets, id, property, "all") && connected(next, targets, id, property)) next = applyValue(next, targets, property, value, id, false, true);
+          if (!blocked(next, targets, id, property, "all") && connected(next, targets, id, property)) next = applyValue(next, targets, property, value, id, false, { skipBypassed: true, exact: true });
         if (bindings) for (const id of editingConsumers) {
           const consumer = PROPERTY_REGISTRY.consumer(id), channel = consumer?.channels[property];
           const definition = PROPERTY_REGISTRY.property(property);
@@ -253,13 +259,14 @@ export function MasterController({ bindings, visualStatus, history, children: vi
             consumer.choices[channel] && !consumer.choices[channel].includes(String(value))) continue;
           changes.push(...preparePropertyChanges(PROPERTY_REGISTRY, property, value, [id]));
         }
-      } else if (editableProperties.includes(property)) next = applyValue(next, targets, property, value, undefined, false, true);
+      } else if (editableProperties.includes(property)) next = applyValue(next, targets, property, value, undefined, false, { skipBypassed: true, exact: true });
     }
     ctx.preview(null); if (next !== state) ctx.commit(next); if (changes.length) bindings?.commit(changes);
     setClipboardNotice("Pasted applicable properties");
   };
   useFeatureActions("propertyClipboard", {
-    "properties.copy": { enabled: !ctx.safe && (inspecting ? editingParts.length + editingConsumers.length > 0 : editableProperties.length > 0), run: copyProperties },
+    "properties.copy": { enabled: !ctx.safe && (inspecting ? editingParts.length + editingConsumers.length > 0 : editableProperties.length > 0), run: () => openActionConfiguration("properties.copy"),
+      configuration: <CopyPropertiesConfiguration read={readCopyProperties} onCopy={copyProperties} /> },
     "properties.paste": { enabled: !ctx.safe && !!ctx.propertyClipboard && Object.keys(ctx.propertyClipboard.values).length > 0, run: pasteProperties },
   });
   const revealSession = useRef<RevealSession | null>(null);

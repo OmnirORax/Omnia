@@ -42,7 +42,7 @@ export function selectedPartPolicy(state: Controller) {
 }
 export const partEditable = (state: Controller, part: SelectedPart, property: string) => selectedPartPolicy(state)(part, property);
 /** One transaction in the existing controller; inspection never calls this. */
-export function applySelectedValue(state: Controller, parts: SelectedPart[], property: string, input: Value): Controller {
+export function applySelectedValue(state: Controller, parts: SelectedPart[], property: string, input: Value, options: { exact?: boolean } = {}): Controller {
   const value = validateProperty(property, input);
   if (value === undefined) return state;
   const next = { ...state, values: { ...state.values }, refined: { ...state.refined } };
@@ -59,7 +59,7 @@ export function applySelectedValue(state: Controller, parts: SelectedPart[], pro
     // Whole-text hosts supersede older exact-run paint at the same address.
     // Update eligible channels together so an old Highlight cannot mask the edit.
     const equivalentRuns = part.part.text === undefined ? runs.get(hostKey(part)) ?? [] : [];
-    for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
+    for (const channel of new Set((options.exact ? [property] : propertyChannels(property)).map(channel => target.couplings?.[channel] ?? channel))) {
       if (!editable(part, channel)) continue;
       if (next.values[id]?.[channel] === value) continue;
       if (!directTarget(part) && next.instances[id] !== part) {

@@ -1,3 +1,4 @@
+import { invokeCatalogAction } from "./workspaceActions";
 import { SearchController } from "./ui/SearchController";
 import { ShortcutConfiguration } from "./ui/ShortcutConfiguration";
 import { FrameResizeController } from "./ui/FrameResize";
@@ -890,6 +891,7 @@ function Workbench() {
     requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
   }
   function invokeContextShortcut(id: string): boolean {
+    if (invokeCatalogAction(id, action => runAction(action))) return true;
     const nodeAction = ["createChild", "insertExisting", "connect", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
     if (nodeAction && selectedNode) {
       contextAction(nodeAction as ContextAction, { kind: "node", id: selectedNode.id });

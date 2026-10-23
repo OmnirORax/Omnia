@@ -5,7 +5,7 @@ import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from
 import { ANIMATION_TARGETS, EFFECT_KINDS, MAX_STAR_DENSITY, MAX_STAR_SIZE, normalizeSparkleOverrides, type AnimationTarget, type SurfaceTarget, type SparkleStyle, type EffectKind } from "./graph/effects.ts";
 import type { StyleDefaults } from "./graph/appearance.ts";
 import { normalizeFont, type FontId } from "./fonts.ts";
-import { FEATURE_ACTIONS } from "./featureActions.ts";
+import { FEATURE_ACTIONS, featureActionRuntime } from "./featureActions.ts";
 
 export const ACTIONS = [
   { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "Ctrl+Alt+S" },
@@ -58,6 +58,15 @@ export const NUDGE_ACTIONS = ["nudgeLeft", "nudgeRight", "nudgeUp", "nudgeDown"]
 export type NudgeActionId = (typeof NUDGE_ACTIONS)[number];
 export const isNudgeAction = (id: string): id is NudgeActionId => NUDGE_ACTIONS.some(action => action === id);
 export type ActionId = (typeof ACTIONS)[number]["id"];
+/** Shared programmatic dispatch must not depend on a mounted button runner or
+ * a separately assigned button: binding. Feature availability stays authoritative. */
+export function invokeCatalogAction(id: string, invokeBase: (id: ActionId) => void): boolean {
+  const action = ACTIONS.find(action => action.id === id);
+  if (!action) return false;
+  if (FEATURE_ACTIONS.some(feature => feature.id === id)) return featureActionRuntime.invoke(id);
+  invokeBase(action.id); return true;
+}
+
 export type MouseAction = "pan" | "rotate" | "none";
 export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
