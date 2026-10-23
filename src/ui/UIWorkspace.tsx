@@ -1807,7 +1807,7 @@ export function UIWorkspace({
               {containers(layout).filter(([, state]) => state.closed).map(([key, state]) => {
                 const title = layout.labels?.[key] ?? ("name" in state ? state.name : frameActions.get(key)?.title ?? key.replace(/^window:(panel:)?/, ""));
                 if (query && !`${title} ${key}`.toLowerCase().includes(query.toLowerCase())) return null;
-                return <button key={key} data-ui-id={`restore:${key}`} onClick={() => update(layout => reopenContainer(layout, key))}>Open {title}</button>;
+                return <button key={key} data-ui-id={`restore:${key}`} onClick={() => update(layout => reopenContainer(layout, key))}>{title}</button>;
               })}
             </section>}
             {LIBRARY_CATEGORIES.map((category) => {
