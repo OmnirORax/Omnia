@@ -1,5 +1,5 @@
 import type { UIContextValue, UIFunction } from "./context";
-import { frameControls, nameFor, rootFor, normalizeSearch, type SearchResult } from "./FrameSearch";
+import { frameControls, nameFor, rootFor, type SearchResult } from "./FrameSearch";
 import { activateDockMember, getContainer, ownerOf, updateContainer, type UILayout } from "./layout";
 import { PROPERTIES, type RegisteredTarget } from '../appearance/registry';
 import { ancestry } from '../appearance/model';
@@ -7,7 +7,7 @@ import type { AppearanceLocation } from '../appearance/Context';
 import { APPEARANCE_HIERARCHY_ID } from '../appearance/propertyTree';
 
 export type SearchReveal = { path: string[] };
-export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; container?: string; appearance?:AppearanceLocation };
+export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; container?: string; appearance?:AppearanceLocation; appearanceProperties?: { id: string; label: string }[] };
 const titles: Record<string, string> = {
   [`window:${APPEARANCE_HIERARCHY_ID}`]: "Visual hierarchy",
   "window:theme": "Master controller", "window:settings": "Workspace settings",
@@ -95,19 +95,16 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
   for(let key: string | undefined = hierarchy; key && key !== 'workspace' && !hierarchyOwners.includes(key); key = ownerOf(effective, key)) hierarchyOwners.unshift(key);
   // The source window mounts the live controller even when its group lives elsewhere.
   const hierarchyPath = [...new Set(['window:theme', ...hierarchyOwners])];
-  for(const target of appearanceTargets.filter(t=>t.properties))for(const property of PROPERTIES.filter(p=>target.properties!.includes(p.id))){
-    const propertyName = ui.layout.labels?.[`window:property:master:${property.id}`] ?? property.label;
-    results.push({key:`appearance:${target.id}:${property.id}`,label:`${target.label} · ${propertyName}`,heading:[...hierarchyPath.map(key=>searchTitle(ui,key)),...ancestry(appearanceTargets,target.id).slice(1,-1).map(id=>appearanceTargets.find(t=>t.id===id)!.label)].join(' › '),home:hierarchy,path:hierarchyPath,available:true,appearance:{target:target.id,property:property.id}});
+  const targetIndex = new Map(appearanceTargets.map(target => [target.id, target]));
+  const propertyNames = new Map(PROPERTIES.map(property => [property.id, ui.layout.labels?.[`window:property:master:${property.id}`] ?? property.label]));
+  for (const target of appearanceTargets.filter(target => !target.hidden && !target.instance)) {
+    const parents = ancestry(appearanceTargets, target.id).slice(1, -1);
+    results.push({ key: `appearance:${target.id}`, label: target.label,
+      heading: [...hierarchyPath.map(key => searchTitle(ui, key)), ...parents.map(id => targetIndex.get(id)!.label)].join(" › "),
+      home: hierarchy, path: hierarchyPath, available: true, appearance: { target: target.id },
+      appearanceProperties: target.properties?.map(id => ({ id, label: propertyNames.get(id) ?? id })) });
   }
   return results.sort((a, b) => a.heading.localeCompare(b.heading) || a.label.localeCompare(b.label));
-}
-/** Direct label matches precede ancestor-heading matches and the result limit. */
-export function globalSearchRank(result: GlobalResult, query: string) {
-  const label = normalizeSearch(result.label), normalized = normalizeSearch(query).trim();
-  if (!normalized) return 0;
-  const rank = label === normalized ? 0 : label.startsWith(normalized) ? 1
-    : normalized.split(/\s+/).every(token => label.includes(token)) ? 2 : 3;
-  return rank * 2 + (result.container ? 0 : 1);
 }
 /** Only display state changes. Applied as an overlay while hovering, never saved. */
 export function revealSearchPath(layout: UILayout, reveal: SearchReveal | null): UILayout {
@@ -128,7 +125,7 @@ export function locateSearchResult(result: GlobalResult): HTMLElement | undefine
   if(result.appearance){
     if(result.functionId)return [...root.querySelectorAll<HTMLElement>('[data-ui-function]:not([data-ui-native-hidden])')].find(el=>el.dataset.uiFunction===result.functionId);
     const row=[...root.querySelectorAll<HTMLElement>('[data-appearance-target]')].find(el=>el.dataset.appearanceTarget===result.appearance!.target)?.querySelector<HTMLElement>(':scope > .appearance-row');
-    return row?.querySelector<HTMLElement>('input,select,[aria-pressed="true"],.property-options button')??row??undefined;
+    return result.appearance.property ? row?.querySelector<HTMLElement>('input,select,[aria-pressed="true"],.property-options button') ?? row ?? undefined : row ?? undefined;
   }
   if (result.functionId) return [...root.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(element => element.dataset.uiFunction === result.functionId && !element.closest("[data-ui-search],[data-ui-palette],[data-shortcut-runner]"));
   return result.element?.isConnected ? result.element : undefined;

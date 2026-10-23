@@ -21,7 +21,7 @@ import { type Appearance, createValueResolver } from "./resolve";
 import { activityPreview, type ActivityPreview } from "./activityPreview";
 import { MouseTrail } from "./MouseTrail";
 import { VisualSelectionProvider } from "./VisualSelector";
-export type AppearanceLocation = { target: string; property: string };
+export type AppearanceLocation = { target: string; property?: string };
 export type AppearanceBridge = {
   safe?: boolean;
   masterOpen?: boolean;

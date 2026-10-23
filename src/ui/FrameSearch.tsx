@@ -8,7 +8,8 @@ import { functionShortcutBinding } from "../workspaceActions";
 import { ShortcutHint } from "./ShortcutHint";
 
 export type SearchResult = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
-export const normalizeSearch = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+export { normalizeSearch } from "./searchMatching";
+import { prepareSearchResults, matchSearchResults } from "./searchMatching";
 export const rootFor = (key: string) => key === "workspace" ? document.body : [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
 export const nameFor = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
 
@@ -62,9 +63,9 @@ export function FrameSearch({ container, title, expand, renderToggle = true }: {
   const toggle = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
   const cleanup = useRef<() => void>(() => {});
   useEffect(() => () => cleanup.current(), []);
-  const index = useMemo(() => open ? frameControls(ui, container) : [], [open, query, ui.layout, ui.functions, container]);
-  const tokens = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
-  const matches = index.filter(result => tokens.every(token => normalizeSearch(`${result.label} ${functionShortcutBinding(result.functionId, ui.shortcutBindings)} ${result.path.slice(1).map(key => nameFor(ui, key)).join(" ")}`).includes(token)));
+  const index = useMemo(() => open ? frameControls(ui, container) : [], [open, ui.layout, ui.functions, container]);
+  const prepared = useMemo(() => prepareSearchResults(index.map(result => ({ ...result, heading: result.path.slice(1).map(key => nameFor(ui, key)).join(" ") })), result => functionShortcutBinding(result.functionId, ui.shortcutBindings)), [index, ui.shortcutBindings]);
+  const matches = useMemo(() => matchSearchResults(prepared, query), [prepared, query]);
   const visible = matches.slice(0, 40);
   useEffect(() => { if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: "nearest" }); }, [open, active, query]);
   const close = () => { setOpen(false); setQuery(""); setActive(0); };

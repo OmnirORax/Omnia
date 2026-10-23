@@ -49,7 +49,7 @@ export function PropertyTree({
   });
   const groupId = (id: string) => `property:${scope}:${id}`;
   const reveal = new Set<string>();
-  if (ctx?.location) {
+  if (ctx?.location?.property) {
     const path = propertyPath(ctx.location.property);
     let key: string | undefined = `window:${groupId(path.at(-1) ?? ctx.location.property)}`;
     const effective = {

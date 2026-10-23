@@ -367,3 +367,27 @@ test("RMB edit migrates to deselection and Shift-selector delegates to selected-
   assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Ctrl+P", "selector.edit": "" }), "Ctrl+Shift+P");
   assert.equal(FEATURE_ACTIONS.find(action => action.id === "selector.open").configurationAction, "selector.edit");
 });
+
+
+test("search returns a category instead of its property cross-product, retaining explicit setter queries", async () => {
+  const { prepareSearchResults, matchSearchResults } = await import("../src/ui/searchMatching.ts");
+  const entries = [
+    { key: "sliders", label: "Sliders", appearance: { target: "ui.sliders" } },
+    { key: "spectrum", label: "Spectrum / arrows", heading: "Controls › Sliders", appearance: { target: "ui.sliders.spectrum" }, appearanceProperties: [{ id: "color", label: "Color" }, { id: "opacity", label: "Opacity" }] },
+    { key: "fill", label: "Filled track / thumb", heading: "Controls › Sliders", appearance: { target: "ui.sliders.fill" }, appearanceProperties: [{ id: "color", label: "Color" }] },
+    { key: "color", label: "Color", heading: "Properties" },
+    { key: "search", label: "Search", heading: "Workspace" },
+    { key: "accent", label: "Éclairage", heading: "Visuals" },
+  ];
+  const index = prepareSearchResults(entries, entry => entry.key === "search" ? "Ctrl+K" : "");
+  assert.deepEqual(matchSearchResults(index, "slider").map(entry => entry.key), ["sliders"]);
+  assert.deepEqual(matchSearchResults(index, "color").map(entry => entry.key), ["color"]);
+  const specific = matchSearchResults(index, "slider color");
+  assert.equal(specific.length, 2);
+  assert.ok(specific.every(entry => entry.appearance.property === "color"));
+  assert.deepEqual(matchSearchResults(index, "spectrum opacity").map(entry => entry.appearance), [{ target: "ui.sliders.spectrum", property: "opacity" }]);
+  assert.equal(matchSearchResults(index, "ctrl+k")[0].key, "search");
+  assert.equal(matchSearchResults(index, "eclairage")[0].key, "accent");
+  assert.equal(matchSearchResults(index, "no-such-control").length, 0);
+  assert.equal(entries[1].appearance.property, undefined, "specific queries do not mutate branch destinations");
+});

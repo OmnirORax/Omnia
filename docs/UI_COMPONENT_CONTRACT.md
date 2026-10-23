@@ -286,3 +286,15 @@ on the same element. Resident IDs support search/ownership, but must not erase a
 popup's close handler from the active stack. Shared contextStackFromScopes builds
 field → popup → parent-frame Escape order, including portalled search dialogs.
 Do not register such popups as ordinary frames without close/minimize adapters.
+
+
+Search indexes visual hierarchy destinations once, rather than every target ×
+property combination. Direct name/shortcut matches take precedence over results
+that match only an ancestor breadcrumb. A category query (for example `slider`)
+opens that branch without forcing a property; a contextual query (`slider color`)
+materializes only the matching applicable setters. Bare property queries use the
+shared property command. Normalize the catalog once per snapshot; hover must not
+rebuild or re-sort it. Global search renders at most 24 results and invites a more
+specific query beyond that. Hover revelation waits 180ms and cancels on exit, so
+crossing result rows does not repeatedly mount/reveal the controller. Clicking or
+keyboard navigation remains immediate. Frame searches do not rescan DOM per keystroke.
