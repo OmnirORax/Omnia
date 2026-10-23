@@ -226,3 +226,10 @@ view releases the preview. Feedback self-inspection already supplies a live samp
 using the real pulse renderer. Other state owners still require an actual runtime
 preview adapter before an inactive function can be temporarily activated; a
 registry declaration alone cannot start arbitrary behavior.
+
+
+Selector feedback's Pulse function is also discovered from co-located inputs. It
+reuses `speed` and `intensity`, and introduces `pulse` once as a reusable visual
+toggle. Its values are independent from Included/Boundary paint and other effects.
+The runtime reads those exact couplings for native UI feedback, the scene adapter
+and the live controller sample. No separate pulse store or bespoke editor exists.

@@ -104,3 +104,10 @@ The normal model suite checks catalog/default integration, saved-key precedence,
 scope conflicts, cleared/rebound mouse and keyboard matching, future-owner runtime
 availability/cleanup and the private-hotkey architecture rule. Browser interaction
 testing remains user-driven unless requested.
+
+
+The stationary selector exposes labeled Selection / Preview and BG buttons below
+the circle. Both titles show their live binding or Unassigned. In Shortcuts →
+Visual selector, search **Toggle Selection / Preview** or **Toggle BG / empty space
+detection**. Both remain unassigned by default; saved bindings/explicit clears are
+preserved. BG's label includes both aliases so searching "space" finds it.

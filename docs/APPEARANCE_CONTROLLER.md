@@ -231,3 +231,13 @@ unchanged visible hosts instead of restarting the accepted selection on hover
 changes. BG detection is off by default and explicitly enabled through the selector.
 Accepted contours have moving one-device-pixel seams; fainter hover previews do
 not. This distinguishes pending and accepted marks without another color or editor.
+
+
+Selector feedback → Pulse now exposes the shared Animation speed and Effect
+intensity (fade depth), plus Pulse on/off. Its co-located function declaration
+adds the consumer and reusable toggle to automatic coupling/discovery. All three
+use Controller.values, existing draft/Apply, theme export, protections and bypass.
+Native feedback and the live sample use those same inputs; speed/intensity zero or
+Pulse off yields a steady cue. Geometry seam travel remains separate. Selector
+sparkles are removed. Unsupported Animation parent editors stay unavailable while
+their supported parameter children remain accessible in the shared property tree.

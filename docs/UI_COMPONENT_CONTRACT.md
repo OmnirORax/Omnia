@@ -140,5 +140,12 @@ geometry rebuilds on every input sample. See APPEARANCE_CONTROLLER.md.
 The selector's BG detection toggle defaults off and affects new picks/previews,
 not already accepted membership. It uses the common action catalog. Retargeting
 shares catalog-scoped geometry, viewport-only paint and incremental native pulse
-registration. Accepted contour seams are one device pixel, moving in their own
-unfiltered layer; hover previews are fainter and do not have accepted seams.
+registration. Contour and geometry seams are one device pixel, moving in their own unfiltered
+layer for both hover previews and accepted selection. Hover remains fainter.
+
+Selector feedback sparkles are removed. The MS center dot has a contrasting halo
+without moving its hotspot. Labeled Selection / Preview and BG controls sit below
+the clamped circle; their titles show live shortcut bindings. Pulse speed/depth
+and enablement use the discovered shared Pulse consumer, normal serialization and
+property editors; unsupported parent properties never render an editor merely
+because supported children are present.

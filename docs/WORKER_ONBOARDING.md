@@ -316,3 +316,9 @@ new picks/previews without rewriting accepted membership. Current pattern feedba
 uses layout-revision measurement snapshots and incremental visible-host pulses.
 Accepted contours have hairline moving seams; pending hover is fainter. Opening
 editors never automatically hides selection. See VISUAL_SELECTION.md.
+
+Selector sparkles are removed. Both pending and accepted contour/geometry seams
+are hairlines. Selection / Preview and BG now have visible labels below the
+stationary circle and live shortcut hints; the commands remain unassigned by
+default. Selector feedback → Pulse uses discovered shared inputs for speed,
+intensity/depth and on/off, saved through existing Controller.values/Apply/export.

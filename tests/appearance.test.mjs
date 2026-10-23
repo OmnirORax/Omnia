@@ -1,5 +1,5 @@
+import { selectorPulseSettings } from "../src/appearance/selectorFeedback.ts";
 import { applyTextLightningPreset, TEXT_LIGHTNING_PRESET } from "../src/appearance/textLightningPreset.ts";
-import { laserSparkles, SELECTOR_SPARKLE_BUDGET } from "../src/appearance/selectorLaser.ts";
 import { createInteractionHold, selectionFeedbackVisible } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
@@ -180,15 +180,25 @@ test("Mouse and Selector feedback inventory entries edit their existing independ
   const inventory = selfInventory(PROPERTY_REGISTRY, consumer => !targets.find(target => target.id === consumer.id)?.hidden);
   assert.deepEqual(inventory.find(node => node.id === "ui.mouse").consumers, ["ui.mouse.trail"]);
   const feedback = inventory.find(node => node.id === "ui.guides.selector");
-  assert.deepEqual(feedback.children.map(node => node.id), ["ui.guides.selector.included", "ui.guides.selector.boundary"]);
+  assert.deepEqual(feedback.children.map(node => node.id), ["ui.guides.selector.pulse", "ui.guides.selector.included", "ui.guides.selector.boundary"]);
   for (const node of inventory) assert.ok(resolvePropertyTarget(PROPERTY_REGISTRY, node.id).consumers.length);
   const state = emptyController();
-  const next = applyValue(state, targets, "color", "#aabbcc", feedback.children[0].id);
+  const next = applyValue(state, targets, "color", "#aabbcc", "ui.guides.selector.included");
   assert.equal(next.values["ui.guides.selector.included"].color, "#aabbcc");
   assert.equal(next.values["ui.guides.selector.boundary"], undefined);
   assert.equal(next.values["ui.mouse.trail"], undefined);
   assert.deepEqual(next.instances, {});
   assert.equal(PROPERTY_REGISTRY.definitions.length, definitions);
+  let tuned = applyValue(next, targets, "speed", .5, "ui.guides.selector.pulse");
+  tuned = applyValue(tuned, targets, "intensity", .7, "ui.guides.selector.pulse");
+  tuned = applyValue(tuned, targets, "pulse", false, "ui.guides.selector.pulse");
+  const restored = loadController(JSON.parse(JSON.stringify(tuned)));
+  const pulse = selectorPulseSettings(restored.values["ui.guides.selector.pulse"]);
+  assert.equal(pulse.enabled, false);
+  assert.equal(pulse.duration, 1300);
+  assert.equal(pulse.depth, .7);
+  assert.deepEqual(restored.values["ui.guides.selector.included"], next.values["ui.guides.selector.included"]);
+  assert.equal(restored.values["ui.mouse.trail"], undefined);
 });
 
 test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {
@@ -813,33 +823,6 @@ test("editing holds the last visual target context without freezing live propert
   assert.equal(hold.held, false); assert.equal(hold.context, null);
   const next = { selected: [], preview: ["next target"], point: { x: 50, y: 40 } };
   hold.remember(next); assert.equal(hold.context, next, "resuming selection starts from fresh input");
-});
-
-
-test("laser feedback sparkle geometry is stable across paint edits, bounded and respects tiny/rounded targets", () => {
-  const box = { key: "frame:sample", x: 20, y: 40, width: 260, height: 90, rx: 18, ry: 18 };
-  const points = laserSparkles(box, SELECTOR_SPARKLE_BUDGET);
-  assert.ok(points.length > 0 && points.length <= 8);
-  assert.deepEqual(laserSparkles(box, SELECTOR_SPARKLE_BUDGET), points, "color/glow rerenders must not shuffle particles");
-  assert.deepEqual(laserSparkles(box, 0), []);
-  assert.deepEqual(laserSparkles({ ...box, width: 0 }, 4), []);
-  assert.deepEqual(laserSparkles({ ...box, height: 3 }, 4), []);
-  for (const point of points) {
-    assert.ok(point.x >= box.x && point.x <= box.x + box.width);
-    assert.ok(point.y >= box.y && point.y <= box.y + box.height);
-    assert.ok(point.delay <= 0 && point.delay >= -3.7);
-    if (point.y === box.y + 1 || point.y === box.y + box.height - 1)
-      assert.ok(point.x >= box.x + box.rx && point.x <= box.x + box.width - box.rx);
-    else assert.ok(point.y >= box.y + box.ry && point.y <= box.y + box.height - box.ry);
-  }
-  const moved = laserSparkles({ ...box, x: box.x + 50, y: box.y - 20 }, SELECTOR_SPARKLE_BUDGET);
-  moved.forEach((point, index) => {
-    assert.ok(Math.abs(point.x - points[index].x - 50) < 1e-9);
-    assert.ok(Math.abs(point.y - points[index].y + 20) < 1e-9);
-    assert.equal(point.scale, points[index].scale); assert.equal(point.delay, points[index].delay);
-  });
-  assert.equal(laserSparkles(box, 1).length, 1);
-  assert.equal(laserSparkles(box, 4, true).length, 4, "scene surfaces share the same bounded generator");
 });
 
 

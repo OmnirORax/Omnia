@@ -160,8 +160,9 @@ from the same selection state. Clear/Esc and selection undo/redo apply normally.
 Logical selection replaces geometric selection, while inspecting/reopening never
 writes values. Selector feedback exposes a live sample in Master controller using
 the actual trace renderer and existing paint values, so its 2.6-second pulse remains
-visible during editing. Pulse timing is still fixed; only supported paint properties
-are offered. The native cursor/trail and feedback stay pointer-transparent.
+visible during editing. Selector feedback → Pulse exposes the shared Animation
+speed, Effect intensity (fade depth) and Pulse on/off properties in the existing
+controller. Their normal draft/Apply/theme export serialization applies. The native cursor/trail and feedback stay pointer-transparent.
 
 The shared Self inventory command is cataloged and rebindable. The existing Mouse
 selection command/ID remains available for saved bindings; its separate mouse-only
@@ -329,36 +330,37 @@ freeze a trail's time. Hierarchy circle feedback can remain active when moving f
 its circle into controller controls, and releases on leaving/defocusing the editor.
 
 
-## Laser feedback style
+## Feedback appearance and pulse controls
 
-Included feedback defaults to saturated laser green; authored Color/Brightness/
-Opacity/Glow overrides remain independent and are preserved. Shared traces layer a
-restrained green halo, a narrow saturated rail and a thin mint-white core,
-with deterministic, staggered white pinpoints. Glyphs use their actual ink and
-layered color/glow without rectangular markers; broad backgrounds keep their
-existing native inset tint. A 2.6-second bright/dim/bright envelope retains a visible
-base instead of blinking off. The real overlay and Self inventory sample use the
-same trace and timing source (`selectorLaser.ts`).
+Selector sparkles are removed; the white particle generator, placement work and
+its decorative DOM layers no longer run. Glyphs still light their actual ink;
+backgrounds retain their native tint and contours retain their thin rail/glow.
+Moving one-device-pixel seams now cover hover preview contours, accepted contours,
+geometry boundaries and axis guides in the same unfiltered SVG. Text-only patterns
+keep glyph feedback rather than receiving rectangular boxes.
 
-White pinpoints are capped at 20 per overlay, with at most six reserved for the
-world background. Visible glyph/icon parts receive pinpoints too; they do not
-acquire rectangular traces. Offscreen rectangles are clipped before placement.
-Pinpoints use tiny independently composited HTML layers, so their twinkle does
-not repaint the viewport SVG. Accepted seams travel in a separate unfiltered SVG, leaving halo/rail rendering
-static while the main SVG breathes as one composited opacity layer. Native glyph glow is one tight, static
-shadow rather than multiple animated blur radii. Scene sparkle placement rejects
-UI/foreground hits at setup and is cached across paint-only edits. All sparkle/pulse motion uses native animations;
-there are no per-frame DOM scans or full-surface blur filters. Reduced motion uses
-steady feedback. The existing scene background tint remains capped at 30 fps.
-Color and brightness drive the colored halo and hot core together; Opacity fades
-the whole effect and Glow controls halo/core/sparkle strength. No parallel value
-store or separate preview implementation is introduced.
+Selector feedback → Pulse is a discovered configurable function, with shared
+`speed` / `intensity` and one reusable `pulse` toggle definition. It owns the pulse
+for this selector, while Included / Boundary keep their independent paint values.
+Animation speed .25 gives a 2.6-second cycle; zero speed freezes it. Effect intensity
+sets fade depth (zero is steady); Pulse off also keeps a steady cue. Samples,
+native glyph/surface pulses and the scene adapter consume these same values.
+Seam travel stays independent from opacity pulsing. Existing animations update
+keyframes/timing in place when parameters change. The actual clock mapping lives
+in `selectorFeedback.ts`; its co-located input declaration supplies automatic
+coupling, Self inventory inclusion, shared editors and Controller.values
+serialization. Apply/discard, theme export, locks and bypass remain authoritative.
+No feature-specific editor or parallel values are introduced.
+
+The aiming precision dot is larger with a contrasting halo; its center remains
+the exact hotspot. The stationary controller displays the same center cue.
 
 
 ## Selection / Preview view
 
 The same toggle appears in Master controller, Selected appearance and the stationary
-selector. Selection shows feedback; Preview removes all selector paint/overlays
+selector. The stationary circle has a labeled Selection / Preview and BG row below
+it, kept within the clamped viewport; neither toggle is hidden beyond its left edge. Selection shows feedback; Preview removes all selector paint/overlays
 without clearing accepted targets, the neutral boundary, history or held context.
 Opening or entering an editor never switches the view. The explicit toggle shows
 its current mode and selected count in the inspectors. Preview hides feedback only;
@@ -403,5 +405,6 @@ scene point hits remain live. Do not silently keep snapshot bounds across a layo
 revision. The native pulse manager adds/removes only changed visible hosts, keeping
 unchanged accepted animations and their common clock. Offscreen membership remains
 selected but does not create Highlights/paint animations until brought into view.
-The shallow 2.6-second pulse keeps a visible base; accepted hairline seams travel
-in their own SVG so dash motion does not repaint the halo/rail layer.
+Pulse timing/depth are configurable through Selector feedback → Pulse. Hairline
+seams travel in their own SVG for accepted and pending contours/geometry, so dash
+motion does not repaint the halo/rail layer.

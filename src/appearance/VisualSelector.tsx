@@ -23,7 +23,7 @@ import {
 } from "./visualSelection";
 
 type SelectionState = { boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
-type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void };
+type VisualSelection = SelectionState & { parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "inspect";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -533,9 +533,10 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   useEffect(() => { onInspect?.(inspectionKey); }, [inspectionKey, onInspect]);
   const toggleFeedback = useCallback(() => { shortcuts.invoke("selector.feedbackView"); }, [shortcuts]);
   const feedbackAvailable = phase !== "off" || hasSelection();
+  const feedbackBinding = shortcuts.binding("selector.feedbackView");
   const contextValue = useMemo(() => ({ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey,
-    feedbackVisible, feedbackAvailable, toggleFeedback }),
-    [selection, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback]);
+    feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding }),
+    [selection, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding]);
   const active = phase !== "off" || !!selection.boundary;
   const wasMasterOpen = useRef(masterOpen);
   useEffect(() => {
@@ -572,7 +573,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     return () => document.documentElement.removeAttribute("data-visual-selecting");
   }, [phase]);
   const left = Math.max(8, Math.min(position.x - 88, innerWidth - 184));
-  const top = Math.max(8, Math.min(position.y - 84, innerHeight - 184));
+  const top = Math.max(8, Math.min(position.y - 84, innerHeight - 242));
   const scopeChain = (scope: SelectionConstraint | null): SelectionConstraint[] => scope ? [...scopeChain(scope.scope ?? null), scope] : [];
   useEffect(() => {
     const scope = selection.scope, mask = selection.mask;
@@ -626,13 +627,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position} onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
       style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}>
-      <SelectorSymbol configuration={configuration} include={true} patternBinding={shortcuts.binding("selector.pattern")} actions={{
+      <SelectorSymbol configuration={configuration} include={true} precision patternBinding={shortcuts.binding("selector.pattern")} actions={{
         contour: () => shortcuts.invoke("selector.boundary"), pattern: () => shortcuts.invoke("selector.pattern"),
         region: side => shortcuts.invoke(side === "inside" ? "selector.inside" : "selector.outside"), previewRegion,
       }} />
       <div className="visual-selector-conditions">
-        <button type="button" data-ui-id="detect-bg" aria-label="Include BG in selection detection" aria-pressed={!!configuration.backgrounds}
-          title="BG: detect backgrounds / empty space. Does not clear existing selections." onClick={() => shortcuts.invoke("selector.backgrounds")}>BG</button>
         {lineMode && <>
           <button type="button" aria-label="Finite drag bounds" aria-pressed={configuration.bounded || configuration.pattern === "position"}
             disabled={configuration.pattern === "position"} title="Limit the line to its dragged segment" onClick={() => shortcuts.invoke("selector.bounds")}>↦↤</button>
@@ -651,7 +650,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         <header><strong>Self inventory</strong><button type="button" aria-label="Close Self inventory" onClick={() => setInventoryOpen(false)}>×</button></header>
         <ul>{inventory.map(inventoryRow)}</ul>
       </div>}
-      <SelectionPreviewToggle compact />
+      <div className="visual-selector-tool-toggles" role="group" aria-label="Selector view and background detection">
+        <SelectionPreviewToggle compact />
+        <button type="button" data-ui-id="detect-bg" aria-label="Include BG in selection detection" aria-pressed={!!configuration.backgrounds}
+          title={`BG: backgrounds / empty space. Shortcut: ${shortcuts.binding("selector.backgrounds") || "Unassigned (Shortcuts → Visual selector)"}. Preserves existing selections.`} onClick={() => shortcuts.invoke("selector.backgrounds")}>BG</button>
+      </div>
       <div className="visual-selector-actions">
         <button type="button" aria-label="Undo selection operation" title={`Undo (${shortcuts.binding("selector.undo")})`} disabled={timeline.index === 0} onClick={() => shortcuts.invoke("selector.undo")}>↶</button>
         <button type="button" aria-label="Redo selection operation" title={`Redo (${shortcuts.binding("selector.redo")})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>
@@ -697,10 +700,10 @@ export function SelectionPreviewToggle({ compact = false }: { compact?: boolean 
   const selection = useVisualSelection();
   if (!selection?.feedbackAvailable) return null;
   return <button type="button" className="selection-preview-toggle" data-ui-id="selection-preview" aria-label="Selection / Preview"
-    aria-pressed={!selection.feedbackVisible} title={selection.feedbackVisible
+    aria-pressed={!selection.feedbackVisible} title={`${selection.feedbackVisible
       ? "Switch to Preview: hide selection marks, keep targets selected"
-      : "Switch to Selection: show selected targets"} onClick={selection.toggleFeedback}>
-    {compact ? (selection.feedbackVisible ? "◉" : "○")
+      : "Switch to Selection: show selected targets"}. Shortcut: ${selection.feedbackBinding || "Unassigned (Shortcuts → Visual selector)"}`} onClick={selection.toggleFeedback}>
+    {compact ? (selection.feedbackVisible ? "Selection" : "Preview")
       : `${selection.feedbackVisible ? "Selection" : "Preview"} · ${selection.parts.length + selection.objects.length} selected`}
   </button>;
 }
