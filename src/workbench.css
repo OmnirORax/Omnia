@@ -1146,3 +1146,11 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 /* Shared frame actions live in Master Controller, leaving clean frame handles. */
 .ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close),
 .ui-inline-frame-bar > .property-node-name { padding-right: 8px; }
+
+.contextual-master-controller { width: 304px; padding: 12px; z-index: 100000; display: flex; flex-wrap: wrap; gap: 8px; overflow: auto; max-height: calc(100vh - 16px); }
+.contextual-master-controller > strong, .contextual-master-controller > p, .contextual-master-controller > label, .contextual-master-controller > fieldset { width: 100%; margin: 0; }
+.contextual-master-controller label { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.contextual-master-controller input[type="number"] { width: 64px; }
+.contextual-master-controller fieldset { border: 1px solid var(--omnium-accent); }
+.history-controls { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.history-controls > label, .history-controls > fieldset, .history-controls > p { width: 100%; margin: 0; }

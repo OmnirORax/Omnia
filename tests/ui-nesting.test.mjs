@@ -192,10 +192,10 @@ test("UI undo/redo restores settings and arrangement together, coalesces typing,
   assert.equal(h.future.length, 0);
   assert.deepEqual(original.layout.frames, []);
 });
-test("existing mouse settings gain separate Shift MB4/MB5 UI undo/redo defaults", () => {
+test("existing mouse settings gain contextual history configuration on Shift MB4/MB5", () => {
   const settings = normalizeSettings({ mouse: { backButton: "undo", forwardButton: "redo" } });
-  assert.equal(settings.mouse.shiftBackButton, "ui:undo");
-  assert.equal(settings.mouse.shiftForwardButton, "ui:redo");
+  assert.equal(settings.mouse.shiftBackButton, "history.configure");
+  assert.equal(settings.mouse.shiftForwardButton, "history.configure");
   assert.equal(settings.mouse.backButton, "undo");
   assert.equal(settings.mouse.forwardButton, "redo");
 });

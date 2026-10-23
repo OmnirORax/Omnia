@@ -43,7 +43,7 @@ export type SelectionRule = SelectionConstraint & { include: boolean; implicit?:
 const patternIndex = createTargetIndex([...TARGETS]);
 export const patternTarget = (part: VisualPart) => part.target.instance?.base ?? part.target.id;
 export const patternTargetPath = (part: VisualPart) => patternIndex.path(patternTarget(part));
-export const selectorChrome = "[data-visual-selector]";
+export const selectorChrome = "[data-visual-selector],[data-context-controller]";
 const ignored = `${selectorChrome},[hidden],[data-shortcut-runner],[data-ui-palette],[data-ui-native-hidden],omnium-appearance-recovery`;
 const ids = new WeakMap<Node, number>();
 let sequence = 0;

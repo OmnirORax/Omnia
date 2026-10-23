@@ -357,3 +357,19 @@ Esc exits one field/popup/frame level. Controller clicks preserve the target.
 Use shared frame actions, `useCancelValueEdit` for uncommitted drafts and
 `useActiveLayer` for popup levels. Do not restore duplicated header tools or
 track context through pointer polling. See SHORTCUTS.md for bindings/migration.
+
+## Cross-system undo/redo and contextual projections
+
+`ui/actionHistory.ts` is the app's chronological history router. Omnium and
+interface state owners register read/write adapters and record actual commits,
+not previews. Interface state retains draft/saved lifecycle but does not retain
+a second active undo stack when the journal is supplied. Categories and affected
+frame keys allow filtering; overlapping patch conflicts stop safely. New committed
+state owners must register with this router rather than install private undo
+priority rules. UI/graph/appearance remain distinct data owners.
+
+Master Controller is also the universal contextual menu: explicit opening gives
+general categories; contextual invocation projects only relevant controls. History
+is available in both through the same controls. Reuse the transient
+`ContextualMasterController` shell for future narrow action projections. Hold Shift + base Undo/Redo mouse
+trigger to configure; release Shift to finish. See SHORTCUTS.md and UI_LAYOUT.md.

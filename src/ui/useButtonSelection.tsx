@@ -193,7 +193,7 @@ export function useButtonSelection({
       const next = groupResidents(current.current.layout, boxes.map(box => selectionResident(box.id)), bounds.x, bounds.y);
       current.current.update(() => next);
       select(new Set()); setMenu(null);
-      setMessage("Selection grouped in a frame. Shift+MB4 undoes it.");
+      setMessage("Selection grouped in a frame. Undo reverses it.");
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   };
   const obstacles = (excluded: Set<string>, target?: string): PositionedBox[] => {
@@ -273,7 +273,7 @@ export function useButtonSelection({
       }
       state.update(() => next);
       setMenu(null);
-      setMessage("Selected UI compacted. Shift+MB4 undoes it.");
+      setMessage("Selected UI compacted. Undo reverses it.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
@@ -344,7 +344,7 @@ export function useButtonSelection({
       }
       state.update(() => next);
       setMenu(null);
-      setMessage(`UI ${operation.startsWith("distribute") ? "distributed" : "aligned"}. Shift+MB4 undoes it.`);
+      setMessage(`UI ${operation.startsWith("distribute") ? "distributed" : "aligned"}. Undo reverses it.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   };
   const resolve = (g: Gesture, x: number, y: number): Proposal => {
@@ -634,7 +634,7 @@ export function useButtonSelection({
         current.current.update((s) =>
           placeButtons({ ...s, windows: { ...current.current.layout.windows, ...s.windows } }, proposal.boxes, proposal.target, proposal.baseline, proposal.index),
         );
-        setMessage("UI selection moved. Shift+MB4 undoes it.");
+        setMessage("UI selection moved. Undo reverses it.");
       }
     };
     const cancel = () => {

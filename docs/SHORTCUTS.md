@@ -134,3 +134,24 @@ Shared draft editors use `useCancelValueEdit`; popup adapters use `useActiveLaye
 (or `useOutsideDismiss`). Frame adapters can veto close/minimize by returning
 false, preserving pending appearance Apply/Discard/Cancel behavior. Protected
 hold-Esc recovery stays independent. No website shortcut closes browser tabs.
+
+## Shared action history
+
+MB4/MB5 default to Undo/Redo using the retained settings. Hold Shift and press
+either configured base undo/redo mouse trigger to open Master Controller's compact
+history projection; releasing Shift closes configuration without executing history.
+Wheel cycles: most recent action (default), active context, selective categories.
+Over category controls it cycles categories; checkboxes permit multiple categories.
+Over Steps/Locked maximum it changes that number; both accept typed values.
+The hard maximum is 10; the chosen maximum stays fixed until explicitly edited.
+Ctrl+Z / Ctrl+Shift+Z route through the same general history commands; the visual
+selector still has its explicit transient selection timeline and scoped shortcuts.
+
+The obsolete Shift-side-button UI-only defaults migrate to `history.configure`.
+Legacy explicit UI undo/redo commands remain category-filtered commands.
+`actionHistory.ts` records per-owner patches, categories and affected contexts.
+Global undo uses commit order, not whichever subsystem has an open draft. Selective
+undo preserves unrelated paths and refuses overlapping newer changes with feedback.
+Arrays are atomic patches, so some dependent edits must be undone in reverse order.
+After undo, a new edit clears the redo branch. A multi-step request stops at the
+first unavailable/conflicting action. No pointer-move scans or persisted snapshots.

@@ -156,3 +156,58 @@ test("context back removes exactly one field/popup/frame level without mutating 
   assert.equal(stack.length, 4);
   assert.equal(activeFrame([]), undefined);
 });
+
+test("history configuration replaces legacy Shift side-button UI routing", () => {
+  assert.equal(defaultSettings().mouse.backButton, "undo");
+  assert.equal(defaultSettings().mouse.forwardButton, "redo");
+  assert.equal(defaultSettings().mouse.shiftBackButton, "history.configure");
+  const migrated = normalizeSettings({ mouse: { shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" } });
+  assert.equal(migrated.mouse.shiftBackButton, "history.configure");
+  assert.equal(migrated.mouse.shiftForwardButton, "history.configure");
+});
+
+test("chronological undo crosses owners and selective undo preserves unrelated edits", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const history = createActionHistory();
+  let ui = { color: "blue", x: 0 }, graph = { label: "A" };
+  history.register("ui", { read: () => ui, write: value => { ui = value; } });
+  history.register("graph", { read: () => graph, write: value => { graph = value; } });
+  const edit = (next, category) => { history.record("ui", ui, next, [category], ["window:theme"]); ui = next; };
+  edit({ ...ui, color: "red" }, "appearance");
+  edit({ ...ui, x: 5 }, "ui");
+  history.travel("undo"); assert.deepEqual(ui, { color: "red", x: 0 });
+  history.travel("redo"); assert.equal(ui.x, 5);
+  history.configure({ mode: "selective", categories: ["appearance"] });
+  history.travel("undo"); assert.deepEqual(ui, { color: "blue", x: 5 });
+  history.travel("redo"); assert.deepEqual(ui, { color: "red", x: 5 });
+  history.record("graph", graph, { label: "B" }, ["omnium"], ["omnium"]); graph = { label: "B" };
+  history.configure({ mode: "recent", steps: 2 });
+  assert.equal(history.travel("undo"), 2);
+  assert.equal(graph.label, "A"); assert.deepEqual(ui, { color: "red", x: 0 });
+  assert.equal(history.travel("redo"), 2); assert.equal(graph.label, "B"); assert.equal(ui.x, 5);
+});
+
+test("history scopes, locked step cap, overlap protection and branching are safe", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const h = createActionHistory(); let value = { x: 0 };
+  h.register("ui", { read: () => value, write: next => { value = next; } });
+  const edit = (x, category, context) => { h.record("ui", value, { x }, [category], [context]); value = { x }; };
+  edit(1, "ui", "window:a"); edit(2, "settings", "window:b");
+  h.activeContext = "window:a"; h.configure({ mode: "context", steps: 100, limit: 3 });
+  assert.equal(h.options.steps, 3); assert.equal(h.options.limit, 3);
+  assert.equal(h.travel("undo"), 0); assert.match(h.message, /overlaps/); assert.equal(value.x, 2);
+  h.configure({ mode: "recent", steps: 1 }); h.travel("undo"); assert.equal(value.x, 1);
+  h.configure({ mode: "context" }); h.travel("undo"); assert.equal(value.x, 0);
+  edit(9, "ui", "window:a"); assert.equal(h.candidates("redo").length, 0);
+  h.configure({ steps: 10 }); assert.equal(h.options.steps, 3);
+  h.configure({ limit: 1 }); assert.equal(h.options.steps, 1);
+});
+
+test("coalesced history handles new object branches and creates one reversible gesture", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const h = createActionHistory(); let value = {};
+  h.register("ui", { read: () => value, write: next => { value = next; } });
+  for (const next of [{ color: { red: 1 } }, { color: { red: 2 } }]) { h.record("ui", value, next, ["appearance"], ["window:a"], "gesture"); value = next; }
+  assert.equal(h.candidates("undo").length, 1); h.travel("undo"); assert.deepEqual(value, {});
+  h.travel("redo"); assert.deepEqual(value, { color: { red: 2 } });
+});

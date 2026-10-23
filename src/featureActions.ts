@@ -1,6 +1,7 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "history.configure", owner: "historyController", scope: "global", category: "History", label: "Configure undo / redo", defaultKey: "", description: "Hold Shift and press your Undo/Redo mouse binding. Scroll to choose scope; release Shift to finish. Shows only contextual history controls in Master Controller." },
   { id: "context.back", owner: "activeContext", scope: "uiContext", allowBlocked: true, category: "Active context", label: "Step back / minimize active context", defaultKey: "Esc", allowTyping: true, description: "Leave one value field or popup level; minimize the active frame at frame level. Pending appearance choices remain protected." },
   { id: "context.search", owner: "activeContext", scope: "uiContext", allowBlocked: true, category: "Active context", label: "Search active frame", defaultKey: "S", description: "Search only the active frame. Shift+S is the default global UI search." },
   { id: "context.close", owner: "activeContext", scope: "uiContext", allowBlocked: true, category: "Active context", label: "Close active context", defaultKey: "X", description: "Close the active frame or popup through its shared close action. Does not close a browser tab or intercept typed text." },
@@ -75,6 +76,7 @@ export const nativeContextMenuKey = (event: Pick<KeyboardEvent, "key" | "shiftKe
   !event.ctrlKey && !event.metaKey && !event.altKey && CONTEXT_MENU_KEYS.some(binding => binding.key === event.key && binding.shift === event.shiftKey);
 export const FEATURE_GESTURES = [
   RECOVERY_GESTURE,
+  { id: "history.scope", category: "History", binding: "Hold Shift + Undo/Redo mouse trigger; Wheel; release Shift", label: "Configure contextual history", description: "Shift with the configured base undo/redo mouse trigger opens only history controls. Wheel selects scope; over category or steps it adjusts that value. Releasing Shift finishes configuration without executing an undo." },
   { id: "selector.pick", category: "Visual selector", binding: "Left click / drag", label: "Define geometry or toggle matching patterns", description: "One rebindable selection command. Unselected patterns become included; fully included patterns become unselected. Drag defines geometry; polygon vertices finish with Enter or its first vertex." },
   { id: "selector.rotate", category: "Visual selector", binding: "Shift+Wheel / Ctrl+Shift+Wheel", label: "Rotate geometry finely / 10× faster", description: "Rotate the active axis/shape before placement or placed geometry while refining. Lines keep their defined origin fixed. Ctrl accelerates rotation 10×; ordinary wheel remains scrolling/zooming." },
   { id: "selector.depth", category: "Visual selector", binding: "Wheel", label: "Change pointed owner depth", description: "Before placing pointed geometry: choose its containing owner." },

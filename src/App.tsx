@@ -1,3 +1,5 @@
+import { createActionHistory } from "./ui/actionHistory";
+import { ContextualHistoryController } from "./ui/ContextualHistoryController";
 import { settingsPropertyBindings } from "./properties/settingsAdapter";
 import { CoupledField } from "./properties/CoupledProperties";
 import { EmbeddedGroup } from "./ui/EmbeddedGroup";
@@ -13,7 +15,7 @@ import { applyValue, type Controller } from "./appearance/model";
 import { controllerTargets, PROPERTIES, appearanceFonts } from "./appearance/registry";
 import { AppearanceAdjustment } from "./appearance/Controls";
 import { LEGACY_CONTROLS } from "./appearance/legacy";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useLayoutEffect, useEffect, useMemo, useRef, useState } from "react";
 import "./workbench.css";
 import { descendants, newId, parseAtlas } from "./graph/model";
 import type { Atlas, AtlasNode } from "./graph/model";
@@ -89,7 +91,20 @@ function loadInitial(): { atlas: AtlasDocument; error: string } {
 function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
-  const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
+  const [actionHistory] = useState(() => {
+    try { return createActionHistory(JSON.parse(localStorage.getItem("omnium-history-options-v1") ?? "null") ?? undefined); }
+    catch { return createActionHistory(); }
+  });
+  useEffect(() => {
+    let previous = JSON.stringify(actionHistory.options);
+    return actionHistory.subscribe(() => {
+      const next = JSON.stringify(actionHistory.options); if (next === previous) return; previous = next;
+      try { localStorage.setItem("omnium-history-options-v1", next); } catch { /* Optional preferences; history remains usable. */ }
+    });
+  }, [actionHistory]);
+  const [historyMenu, setHistoryMenu] = useState<{ x: number; y: number } | null>(null);
+  const documentRef = useRef(document); documentRef.current = document;
+  const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text), actionHistory);
   const { layout: savedUILayout, update: updateUI, savedSettings, setSettings } = ui;
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchReveal, setSearchReveal] = useState<SearchReveal | null>(null);
@@ -193,8 +208,10 @@ function Workbench() {
   const [autosave, setAutosave] = useState(!initial.error);
   const [saveStatus, setSaveStatus] = useState(initial.error ? "Autosave paused" : "Saved locally");
   const [revision, setRevision] = useState(0);
-  const [past, setPast] = useState<AtlasDocument[]>([]);
-  const [future, setFuture] = useState<AtlasDocument[]>([]);
+  actionHistory.register("omnium", { read: () => ({ ...documentRef.current, revision: 0 }), write: value => {
+    const checked = validateDocument({ ...value, revision: documentRef.current.revision + 1 });
+    documentRef.current = checked; setDocument(checked); setSelection(null); setBinderPopup(null); setRevision(r => r + 1);
+  } });
   const [proposalText, setProposalText] = useState("");
   const [proposalPreview, setProposalPreview] = useState<Preview | null>(null);
   const [frameQuestion, setFrameQuestion] = useState("");
@@ -245,8 +262,8 @@ function Workbench() {
     try {
       const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
       const validated = validateDocument({ ...synced, revision: document.revision + 1 });
-      setPast((p) => [...p.slice(-49), document]);
-      setFuture([]);
+      actionHistory.record("omnium", { ...documentRef.current, revision: 0 }, { ...validated, revision: 0 }, ["omnium"], ["omnium"]);
+      documentRef.current = validated;
       setDocument(validated);
       setProposalPreview(null);
       setRevision((r) => r + 1);
@@ -328,27 +345,13 @@ function Workbench() {
     });
     setSelection({ kind: "relationship", id });
   }
-  function undo(steps = 1) {
-    setBinderPopup(null);
-    const count = Math.min(past.length, Math.max(1, Math.floor(steps)));
-    const restored = past.slice(-count);
-    const previous = count ? restored[0] : undefined;
-    if (!previous) return;
-    setFuture((f) => [...restored.slice(1), document, ...f].slice(0, 50));
-    setPast((p) => p.slice(0, -count));
-    setDocument({ ...previous, revision: document.revision + 1 });
-    setSelection(null);
-    setRevision((r) => r + 1);
+  function undo(steps?: number) {
+    setAppearancePreview(null);
+    actionHistory.travel("undo", { ...actionHistory.options, ...(steps === undefined ? {} : { steps }) });
   }
-  function redo(steps = 1) {
-    setBinderPopup(null);
-    if (!future[0]) return;
-    const count = Math.min(future.length, Math.max(1, Math.floor(steps)));
-    setPast((p) => [...p, document, ...future.slice(0, count - 1)].slice(-50));
-    setDocument({ ...future[count - 1], revision: document.revision + 1 });
-    setFuture((f) => f.slice(count));
-    setSelection(null);
-    setRevision((r) => r + 1);
+  function redo(steps?: number) {
+    setAppearancePreview(null);
+    actionHistory.travel("redo", { ...actionHistory.options, ...(steps === undefined ? {} : { steps }) });
   }
   function exportJSON() {
     const url = URL.createObjectURL(
@@ -933,14 +936,15 @@ function Workbench() {
       case "settings": setSettingsOpen(true); break;
     }
   }
-  function runAction(action: ActionId, steps = 1) {
+  function runAction(action: ActionId, steps?: number) {
+    if (action === "history.configure") { setHistoryMenu({ x: window.innerWidth / 2, y: 140 }); return; }
     if (isFeatureAction(action)) { featureActionRuntime.invoke(action); return; }
     switch (action) {
       case "searchUI": setSearchOpen(true); break;
-      case "ui:undo": setAppearancePreview(null); ui.undo(steps); break;
+      case "ui:undo": setAppearancePreview(null); actionHistory.travel("undo", { ...actionHistory.options, mode: "selective", categories: ["ui"], ...(steps ? { steps } : {}) }); break;
       case "theme": setSettings(old => ({ ...old, appearance: { ...old.appearance, theme: old.appearance.theme === "neon" ? "classic" : "neon" } })); break;
       case "appearance": setThemeOpen(true); break;
-      case "ui:redo": setAppearancePreview(null); ui.redo(steps); break;
+      case "ui:redo": setAppearancePreview(null); actionHistory.travel("redo", { ...actionHistory.options, mode: "selective", categories: ["ui"], ...(steps ? { steps } : {}) }); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
@@ -977,7 +981,7 @@ function Workbench() {
       case "settings": setSettingsOpen(true); break;
     }
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
     const assignBinding = (key: string) => {
       if (!capturing) return;
       const conflict = keyConflict(settings.bindings, capturing, key);
@@ -1001,6 +1005,7 @@ function Workbench() {
       event.preventDefault(); runAction(action);
     };
     const keyup = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setHistoryMenu(null);
       if (isTypingTarget(event.target)) return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (action === "axisX" || action === "axisY" || action === "axisZ") setConstraintAxis(null);
@@ -1009,6 +1014,12 @@ function Workbench() {
       clearRecordedShortcutPress();
       if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
       if (event.defaultPrevented) return;
+      const baseEvent = { ...event, button: event.button, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: false };
+      const base = actionForKey(settings.bindings, normalizePointer(baseEvent)) ?? (event.button === 3 ? settings.mouse.backButton : event.button === 4 ? settings.mouse.forwardButton : undefined);
+      if (event.shiftKey && (base === "undo" || base === "redo")) {
+        consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons);
+        event.preventDefault(); event.stopImmediatePropagation(); setHistoryMenu({ x: event.clientX, y: event.clientY }); return;
+      }
       const action = actionForKey(settings.bindings, normalizePointer(event));
       if (action && (!(settingsOpen || insertContext) || action === "cancel" || action === "searchUI")) {
         consumedShortcutPress.current = event.button;
@@ -1017,7 +1028,7 @@ function Workbench() {
       }
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault(); event.stopImmediatePropagation();
-      runAction(event.shiftKey ? event.button === 3 ? settings.mouse.shiftBackButton : settings.mouse.shiftForwardButton : event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton, event.altKey ? 5 : 1);
+      runAction(event.shiftKey ? event.button === 3 ? settings.mouse.shiftBackButton : settings.mouse.shiftForwardButton : event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton, undefined);
     };
     const preventMouseNavigation = (event: MouseEvent) => {
       if (event.isTrusted && event.button === consumedShortcutPress.current) {
@@ -1026,13 +1037,15 @@ function Workbench() {
       } else if (event.button === 3 || event.button === 4) event.preventDefault();
     };
     const preventRecordedMenu = (event: MouseEvent) => { if (recordedShortcutTail(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
+    const configureHistory = (event: Event) => setHistoryMenu((event as CustomEvent).detail);
+    window.addEventListener("omnium:history-configure", configureHistory);
     window.addEventListener("pointerdown", mouseHistory, true);
     window.addEventListener("mousedown", preventMouseNavigation, true);
     window.addEventListener("auxclick", preventMouseNavigation, true);
     window.addEventListener("click", preventMouseNavigation, true);
     window.addEventListener("contextmenu", preventRecordedMenu, true);
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
-    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); window.removeEventListener("click", preventMouseNavigation, true); window.removeEventListener("contextmenu", preventRecordedMenu, true); };
+    return () => { window.removeEventListener("omnium:history-configure", configureHistory); window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); window.removeEventListener("click", preventMouseNavigation, true); window.removeEventListener("contextmenu", preventRecordedMenu, true); };
   });
   function outline(parentId: string | null, variantsOnly = false): React.ReactNode {
     return (
@@ -1081,7 +1094,7 @@ function Workbench() {
 
   replaceFunction("ui:devMode", "UI edit mode", <button aria-pressed={!!savedUILayout.panels["@devMode"]} onClick={() => runAction("ui:devMode")}>UI edit mode</button>);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
-  for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
+  for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (History settings)"], ["shiftForwardButton", "Shift + MB5 (History settings)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
   for (const key of ["leftEmpty", "rightEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
@@ -1113,8 +1126,8 @@ function Workbench() {
     else if (fn.id.startsWith("ui:appearance:") || fn.id.startsWith("ui:themePreset:") || ["ui:glow", "ui:resetAppearance", "appearance", "theme"].includes(fn.id)) fn.category = "Appearance";
   }
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
-  replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!past.length}>Undo</button>);
-  replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!future.length}>Redo</button>);
+  replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!actionHistory.candidates("undo").length}>Undo</button>);
+  replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!actionHistory.candidates("redo").length}>Redo</button>);
   replaceFunction("zoom100", "Reset zoom to 100%", <button title="Reset zoom to 100% at the current orbit target" onClick={() => runAction("zoom100")}>100%</button>);
   replaceFunction("cameraOrigin", "Go to world origin", <button onClick={() => runAction("cameraOrigin")}>Origin</button>);
   replaceFunction("rollLeft", "Roll view left 90°", <button onClick={() => runAction("rollLeft")}>↶ 90°</button>);
@@ -1143,7 +1156,7 @@ function Workbench() {
   for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><ContextualHistoryController history={actionHistory} position={historyMenu} onClose={() => setHistoryMenu(null)} />
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -2115,7 +2128,7 @@ function Workbench() {
         if (appearancePending) { setAppearanceExit("minimize"); return false; }
         return true;
       }} footer={appearancePending ? <AppearancePreviewActions awaitingChoice={!!appearanceExit} onContinue={() => setAppearanceExit(null)} /> : undefined}>
-        <MasterController bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
+        <MasterController history={actionHistory} bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
         {/* Keep the original theme subsection identities when nesting them in Visuals. */}
         <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-utilities`} title="Theme utilities" className="ui-section" nativeTag="transparent">
           {["ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}

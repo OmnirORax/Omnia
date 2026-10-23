@@ -1,3 +1,5 @@
+import { HistoryControls } from "../ui/ContextualHistoryController";
+import type { ActionHistory } from "../ui/actionHistory";
 import { ActiveContextControls } from "../ui/ActiveContext";
 import { useFeatureActions } from "../ui/useFeatureActions";
 import { applyTextLightningPreset } from "./textLightningPreset";
@@ -36,7 +38,7 @@ import { highlightHierarchy } from "./highlight";
 import { useFrameExpansion } from "../ui/frameExpansion";
 import { residentPinned } from "../ui/layout";
 
-export function MasterController({ bindings, visualStatus, children: visualTools }: { bindings?: PropertyBindings; visualStatus?: ReactNode; children?: ReactNode }) {
+export function MasterController({ bindings, visualStatus, history, children: visualTools }: { bindings?: PropertyBindings; visualStatus?: ReactNode; history?: ActionHistory; children?: ReactNode }) {
   const ctx = useAppearance()!;
   const ui = useUI();
   useFeatureActions("masterController", {
@@ -379,6 +381,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
         if (target) reveal(target, false);
       }}>
       <ActiveContextControls />
+      {history && <UISection id="history-controls" title="History"><HistoryControls history={history} /></UISection>}
       <SelectionPreviewToggle />
       {bindings && !inspecting && <CoupledProperties bindings={bindings} />}
       <UISection id="master-category:visual" title="Visuals" defaultExpanded={inspecting} expanded={ctx.location ? true : undefined}>

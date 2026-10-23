@@ -110,3 +110,8 @@ UI frame commands belong in Master Controller's shared Active context panel and
 the action catalog, not repeated header tools. Activation is click/focus based
 and transient. Draft controls use `useCancelValueEdit`; popups use the shared
 active-layer adapter. Preserve close/minimize vetoes and avoid hover polling.
+
+Committed state owners must integrate with `ui/actionHistory.ts` for chronological
+Undo/Redo; keep previews and selection timelines transient. Reuse owner adapters
+and patch conflict checks. Contextual Master Controller activation exposes only
+relevant controls; explicit activation exposes the general controller.

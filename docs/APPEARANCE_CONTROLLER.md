@@ -63,7 +63,7 @@ Appearance adjusters are UI nodes, separate from both the target hierarchy and t
 
 Numeric adjusters offer a slider and bounded precise input, committed on Enter/blur. Empty or invalid numeric input restores its prior value. Effect and font choices are visible child choices rather than another property dropdown; effects include Off, and gradient has an on/off switch. Additional styles are registered once with supported renderer adapters: UI contour width/style, rounding, gradient second color/direction, shadow strength/spread/offset, UI text size/weight/spacing and UI icon saturation. Binder path thickness uses its existing Three.js line material; UI pixel sizing is not applied to 3D text or canonical geometry. Native graph assets retain their authored colors.
 
-`src/appearance/session.ts` separates committed interface history from a recoverable appearance draft. Controller changes (including local UI instances, locks, plugs and targeting sets), theme changes, imported themes and fonts all enter the draft. Other UI layout, mouse and keybinding changes retain normal persistence. Live picker/slider previews remain transient; finishing a gesture adds one draft history entry. Shift+MB4/MB5 undo/redo the pending draft while it is open, including Alt's existing five-step variant. Apply records the complete appearance as one ordinary UI history step; discard restores the last applied appearance without changing layout or knowledge. Reload drops unapproved drafts, with the browser's unsaved-change prompt where supported. Theme/UI export explicitly exports the candidate theme, even while temporary safe view is active.
+`src/appearance/session.ts` separates committed interface history from a recoverable appearance draft. Controller changes (including local UI instances, locks, plugs and targeting sets), theme changes, imported themes and fonts all enter the draft. Other UI layout, mouse and keybinding changes retain normal persistence. Live picker/slider previews remain transient; finishing a gesture adds one draft history entry. The shared chronological action journal routes undo/redo across draft and layout edits by actual order. Shift+MB4/MB5 now configures history instead of prioritizing the draft. Apply/discard are appearance-category actions; their journal patches preserve the saved-versus-draft lifecycle, without changing unrelated layout or knowledge. Reload drops unapproved drafts, with the browser's unsaved-change prompt where supported. Theme/UI export explicitly exports the candidate theme, even while temporary safe view is active.
 
 Everyday Apply/Discard actions use the compact shared strip below Master Controller, promoted to an attached popover on minimize/close. The emergency recovery dialog and safe-view fallback use a Shadow DOM root attached outside `body`, with independent colors, font, opacity and stacking. Appearance selectors/effects cannot style the emergency layer. Holding Escape for two seconds opens recovery even while typing; an ordinary Escape keeps its normal workspace meaning. Key release, browser blur and tab hiding cancel an incomplete hold. Recovery traps keyboard focus while open.
 
@@ -318,3 +318,11 @@ Master Controller also contains Active context, the shared clickable frame-actio
 panel. It preserves the remote target while invoking search, close, minimize,
 back or descendant expansion. An appearance close/minimize veto must propagate
 `false` through frame actions so pending Apply/Discard/Cancel retains its frame.
+
+## Contextual Master Controller
+
+Explicitly opening Master Controller exposes its general categories. Contextual
+activation is a narrow projection containing only controls relevant to the invoking
+action; it must not open unrelated Visuals/Spatial panels. History is the first
+action projection (`ContextualHistoryController`), sharing `HistoryControls` with
+the full controller. It preserves the active target while the user configures it.

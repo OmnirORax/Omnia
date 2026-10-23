@@ -1804,7 +1804,7 @@ export function UIWorkspace({
             Drag functions, field edges and frame handles to arrange them. Select items and use
             Align to match edges, centers or spacing relative to the window or selection.
             Right-click a frame for its placement mode. Drag its faded background to move contents
-            together. Esc cancels. Shift+MB4/MB5 undo and redo the UI.
+            together. Esc cancels. MB4/MB5 undo and redo using the configured history scope.
           </p>
           <button onClick={() => createFrame(120, 180)}>Create UI frame</button>
           <UIField id="ui:library:find" label="Find a UI function" category="Interface"><label>Find a function<input

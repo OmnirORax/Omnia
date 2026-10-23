@@ -69,7 +69,7 @@ export type WorkspaceSettings = {
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
     buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -118,7 +118,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   const defaults = defaultSettings();
   defaults.appearance.controller = loadController(undefined);
   try {
-    const value = input as Partial<WorkspaceSettings>;
+    let value = input as Partial<WorkspaceSettings>;
     const savedBindings = { ...value.bindings };
     // Removed operations identify the old bundles. Preserve custom assignments;
     // later saves omit the obsolete ID, so explicitly cleared toggles stay clear.
@@ -130,6 +130,9 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
       savedBindings["selector.include"] = "MB1";
     }
     delete savedBindings["selector.exclude"];
+    // Retire the old Shift-side-button UI-only route in favor of history configuration.
+    if (value.mouse?.shiftBackButton === "ui:undo") value = { ...value, mouse: { ...value.mouse, shiftBackButton: "history.configure" } };
+    if (value.mouse?.shiftForwardButton === "ui:redo") value = { ...value, mouse: { ...value.mouse, shiftForwardButton: "history.configure" } };
     // Split the legacy default search into contextual S and global Shift+S.
     // Custom bindings, explicit clears and existing Shift+S assignments survive.
     if (!Object.hasOwn(savedBindings, "context.search") && savedBindings.searchUI === "S" &&
