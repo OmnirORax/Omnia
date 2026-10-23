@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, type RefObject, type CSSProperties } from "react";
 import { useAppearance } from "./Context";
 import { paintSceneSelection, type SceneSelectionPaint } from "./sceneFeedback";
-import { registerPaintVariable } from "./paintVariables";
 import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint } from "./resolve";
 import { type SelectionRule, type VisualPart, type VisualMeasurements, createVisualMeasurements } from "./visualSelection";
-import { selectorPulseSettings, selectorPulseFrames, selectorPulseLevel, type SelectorPulseSettings } from "./selectorFeedback";
+import { selectorPulseSettings, selectorPulseLevel, type SelectorPulseSettings } from "./selectorFeedback";
 import selectorFeedback from "./selectorFeedback.function";
 import { pathEdges, type Point } from "./selectionGeometry";
 
@@ -31,51 +30,37 @@ function SelectionTrace({ mark, tone, paint, preview = false, seam = true }: { m
   </g>;
 }
 const signal = { mix: "--omnium-selector-glyph-mix" };
-/** Retain the animations of unchanged hosts when a hover pattern changes. A
- * category transition must never cancel/recreate the accepted selection's pulse. */
-function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings) {
-  const animations = useRef(new Map<Element, Animation>()), hosts = useRef(elements);
-  hosts.current = elements;
-  const pulse = useRef(settings); pulse.current = settings;
-  const applied = useRef<SelectorPulseSettings | null>(null);
-  const refresh = useRef<() => void>(() => {});
+/** One continuous clock, no React frames, layout reads or browser custom-property
+ * keyframe interpolation. Membership changes only replace this cached host list. */
+function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings, root: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
-    const supported = registerPaintVariable(signal.mix, "<percentage>", false, "82%");
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => {
-      const config = pulse.current;
-      const changed = applied.current !== config;
-      const frames = selectorPulseFrames(signal.mix, config.depth, 82, "%");
-      const wanted = new Set(supported && config.enabled && !reduced.matches && !document.hidden ? hosts.current : []);
-      for (const [element, animation] of animations.current) if (!wanted.has(element)) {
-        animation.cancel(); animations.current.delete(element);
-      }
-      for (const element of wanted) {
-        const existing = animations.current.get(element);
-        if (existing) {
-          if (changed) {
-            (existing.effect as KeyframeEffect).setKeyframes(frames);
-            existing.effect?.updateTiming({ duration: config.duration });
-          }
-          continue;
-        }
-        if (typeof element.animate !== "function") continue;
-        const animation = element.animate(frames, { duration: config.duration, iterations: Infinity });
-        if (document.timeline.currentTime !== null) animation.startTime = 0;
-        animations.current.set(element, animation);
-      }
-      applied.current = config;
+    const surfaces = [...(root.current?.children ?? [])].filter((element): element is SVGSVGElement =>
+      element instanceof SVGSVGElement && !element.classList.contains("visual-selection-seams"));
+    const hosts = elements.filter((element): element is HTMLElement | SVGElement => element instanceof HTMLElement || element instanceof SVGElement);
+    if (!hosts.length && !surfaces.length) return;
+    const previous = hosts.map(element => ({ element, value: element.style.getPropertyValue(signal.mix), priority: element.style.getPropertyPriority(signal.mix) }));
+    let frame = 0;
+    const draw = (time: number) => {
+      frame = 0;
+      const level = settings.enabled && !reduced.matches ? selectorPulseLevel(time / settings.duration, settings.depth) : 1;
+      const weight = `${(82 * level).toFixed(5)}%`;
+      for (const element of hosts) element.style.setProperty(signal.mix, weight);
+      for (const surface of surfaces) surface.style.opacity = String(level);
+      if (settings.enabled && !reduced.matches && !document.hidden) frame = requestAnimationFrame(draw);
     };
-    refresh.current = sync; sync();
-    reduced.addEventListener("change", sync); document.addEventListener("visibilitychange", sync);
+    const resume = () => { cancelAnimationFrame(frame); if (!document.hidden) draw(performance.now()); };
+    resume();
+    reduced.addEventListener("change", resume); document.addEventListener("visibilitychange", resume);
     return () => {
-      refresh.current = () => {};
-      for (const animation of animations.current.values()) animation.cancel();
-      animations.current.clear();
-      reduced.removeEventListener("change", sync); document.removeEventListener("visibilitychange", sync);
+      cancelAnimationFrame(frame);
+      for (const { element, value, priority } of previous) {
+        if (value) element.style.setProperty(signal.mix, value, priority); else element.style.removeProperty(signal.mix);
+      }
+      for (const surface of surfaces) surface.style.removeProperty("opacity");
+      reduced.removeEventListener("change", resume); document.removeEventListener("visibilitychange", resume);
     };
-  }, []);
-  useEffect(() => { refresh.current(); }, [elements, settings]);
+  }, [elements, settings, root]);
 }
 const mix = "var(--omnium-selector-glyph-mix,82%)";
 const feedbackCore = (paint: FeedbackPaint, whiteness = .8) => {
@@ -116,24 +101,21 @@ function usePulseSettings() {
   const key = JSON.stringify(values);
   return useMemo(() => selectorPulseSettings(values), [key]);
 }
-const usePulseStyle = (pulse: SelectorPulseSettings): CSSProperties => useMemo(() => ({
-  "--visual-selection-period": `${pulse.duration}ms`, "--visual-selection-dim": 1 - pulse.depth,
-  "--visual-selection-delay": `-${Number(document.timeline.currentTime ?? 0) % pulse.duration}ms`,
-} as CSSProperties), [pulse.duration, pulse.depth]);
-
 /** A logical feedback target needs a live sample when no scene/UI part is
  * selected. Reuse the actual trace renderer and its existing shared values. */
 export function SelectorFeedbackSample({ targets }: { targets: string[] }) {
   const pulse = usePulseSettings();
-  const pulseStyle = usePulseStyle(pulse);
+  const pulseRoot = useRef<HTMLDivElement>(null);
   const paints = useFeedbackPaints();
   const tones = (Object.keys(SELECTOR_FEEDBACK) as Tone[]).filter(tone => {
     const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
     return !target.hidden && (targets.includes(target.id) || targets.includes(selectorFeedback.consumer.id));
   });
+  const sampleHosts = useMemo<Element[]>(() => [], [tones.join("|")]);
+  useSelectionPulse(sampleHosts, pulse, pulseRoot);
   if (!tones.length) return null;
   const width = tones.length * 128;
-  return <div data-visual-selector data-pulse={pulse.enabled} className="selector-feedback-sample" style={pulseStyle}
+  return <div ref={pulseRoot} data-visual-selector data-pulse={pulse.enabled} className="selector-feedback-sample"
     title="Animation speed controls pulse pace; Effect intensity controls fade depth. Pulse off keeps steady selection feedback.">
     <svg viewBox={`0 0 ${width} 52`} role="img" aria-label="Live selector feedback preview">
       {tones.map((tone, index) => <g key={tone} transform={`translate(${index * 128 + 4},4)`}>
@@ -144,7 +126,7 @@ export function SelectorFeedbackSample({ targets }: { targets: string[] }) {
   </div>;
 }
 
-/** Native paint variables and SVG seams animate feedback; no per-frame DOM discovery or writes. */
+/** Pulse updates cached paint hosts only; SVG seams retain their separate native animation. */
 export function VisualSelectionOverlay({ selected, excluded, preview, candidate, guide, guides, paths = [], measurements }: {
   measurements?: VisualMeasurements;
   selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
@@ -154,7 +136,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
 }) {
   const paints = useFeedbackPaints();
   const pulse = usePulseSettings();
-  const pulseStyle = usePulseStyle(pulse);
+  const pulseRoot = useRef<HTMLDivElement>(null);
   const pendingPaint = useMemo(() => ({ ...paints.included, opacity: paints.included.opacity * .6 }), [paints]);
   const measure = useMemo(() => measurements ?? createVisualMeasurements(), [measurements, selected, excluded, preview]);
   // Membership is app-wide; only feedback in the viewport needs paint, text
@@ -165,8 +147,8 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     return { selected: selected.filter(onScreen), excluded: excluded.filter(onScreen), preview: preview.filter(onScreen) };
   }, [selected, excluded, preview, measure]);
   const pulseHosts = useMemo(() => [...new Set([...visible.selected, ...visible.excluded, ...visible.preview]
-    .filter(part => !part.target.binding?.selection && (part.role === "text" || part.role === "icon" || part.role === "background")).map(part => part.element))], [visible]);
-  useSelectionPulse(pulseHosts, pulse);
+    .filter(part => part.target.binding?.selection?.renderer !== "scene" && (part.role === "text" || part.role === "icon" || part.role === "background")).map(part => part.element))], [visible]);
+  useSelectionPulse(pulseHosts, pulse, pulseRoot);
   useEffect(() => {
     const targets = new Map<string, SceneSelectionPaint>();
     for (const [parts, paint] of [[selected, paints.included], [preview, pendingPaint]] as const)
@@ -294,7 +276,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     };
     return { marks: marksFor(visible.selected), omissions: marksFor(visible.excluded), candidates: marksFor(visible.preview) };
   }, [visible, measure]);
-  return <div data-visual-selector data-pulse={pulse.enabled} className="visual-selection-overlay" style={pulseStyle}>
+  return <div ref={pulseRoot} data-visual-selector data-pulse={pulse.enabled} className="visual-selection-overlay">
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
       glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : pendingPaint)}</style>
     <svg aria-hidden="true" width="100%" height="100%">

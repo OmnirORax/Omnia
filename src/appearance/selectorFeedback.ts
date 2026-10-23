@@ -13,6 +13,3 @@ export type SelectorPulseSettings = ReturnType<typeof selectorPulseSettings>;
 /** Continuous cosine envelope: zero velocity at both extrema and the loop seam. */
 export const selectorPulseLevel = (phase: number, depth: number) =>
   1 - depth * (1 - Math.cos(phase * Math.PI * 2)) / 2;
-export const selectorPulseFrames = (property: string, depth: number, peak = 1, unit = "") =>
-  Array.from({ length: 65 }, (_, index) => ({ offset: index / 64,
-    [property]: `${peak * selectorPulseLevel(index / 64, depth)}${unit}` }));

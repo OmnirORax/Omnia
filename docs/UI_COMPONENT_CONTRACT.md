@@ -122,13 +122,11 @@ groups remain recoverable until explicitly changed.
 
 
 Shared property editors and Master controller roots carry `data-appearance-editor`.
-The visual selector treats those as tool input, preserves the last real feedback
-context on entry, and pauses picking. Selection / Preview controls feedback visibility
-independently of membership through an explicit toggle; entering an editor never
-hides marks. Showing marks again uses current live values.
-Moved property controls carry the same marker. Never freeze the physical pointer,
-create fake native events, persist hover state or reuse held context after clear/
-cancel/resume/dismissal. See VISUAL_SELECTION.md for the transient hold lifecycle.
+The visual selector treats those as tool input. Selection / Preview controls
+feedback independently of membership. MS locking is explicit and rebindable:
+Shift+MB3 parks its symbol, restores normal cursor input, and toggles back to MS.
+Do not automatically retain hover/event context when entering editors. Accepted
+selection and normal property-input previews remain live.
 
 
 Mounted appearance consumers use the shared context `read`/`renderRead` instead of
@@ -139,9 +137,8 @@ geometry rebuilds on every input sample. See APPEARANCE_CONTROLLER.md.
 
 The selector's BG detection toggle defaults off and affects new picks/previews,
 not already accepted membership. It uses the common action catalog. Retargeting
-shares catalog-scoped geometry, viewport-only paint and incremental native pulse
-registration. Contour and geometry seams are one device pixel, moving in their own unfiltered
-layer for both hover previews and accepted selection. Hover remains fainter.
+shares catalog-scoped geometry, viewport-only paint and cached continuous pulse paint. Contour and geometry seams are one device pixel, moving in their own unfiltered
+layer for drawing guides and accepted selection. Hover previews are removed.
 
 Selector feedback sparkles are removed. The MS center dot is saturated cyan without a halo or ring,
 without moving its hotspot. Labeled Selection / Preview and BG controls sit below

@@ -9,7 +9,7 @@ appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
 MB3 toggles the stationary controller at the pointer and the compact aiming
 cursor. The circle is centered on the pointer and clamped near viewport edges.
-The aiming symbol and all its SVG descendants are pointer-transparent. Its white
+The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
 Escape disables the tool and clears selection. Blur/tab hiding cancels an
 unfinished gesture; native color-picker blur keeps the property editor mounted.
@@ -31,14 +31,10 @@ The ring never arms another pointer tool or overrides E.
 There is one selection action: LMB toggles a pattern/individual, or places geometry.
 A fully included target becomes unselected; an unselected target becomes included.
 A mixed category becomes fully included. Clicking the same category/individual
-again reverses it. Preview and commit use the shared `selectionToggleRule`; commit
-rechecks current state rather than replaying a stale hover decision. Before any
-boundary or selection, hover previews appear automatically while aiming. After a
-boundary/selection exists, hold Ctrl to preview. Additions preview in
-green; hovering included patterns previews removal by temporarily hiding their
-green. Releasing Ctrl or leaving restores accepted feedback. A settled pointer
-does not immediately preview the inverse action after committing; moving, pressing
-Ctrl again or a new press resumes preview. Everything not green is unselected. There is no exclude command or +/− pair.
+again reverses it. The shared `selectionToggleRule` resolves membership at click
+time. Hover does not detect or paint candidate targets; Ctrl has no preview role.
+Drawing an axis/path still shows its geometry guide, without including targets.
+Everything not green is unselected; there is no separate exclude command.
 
 Pointed-contour placement starts with an implicit off baseline and includes only its checked ○
 regions. Drawn geometry instead starts neutral (see Drawing versus inclusion). The checked regions also constrain picking. Checking In-frame includes
@@ -66,8 +62,7 @@ Toggle pointed pattern / define geometry. The retired `selector.exclude` command
 is removed. Exact older default bundles migrate to LMB toggle and RMB edit; custom
 assignments and later explicit clears remain intact. RMB, the controller's edit
 button, the platform keyboard context-menu gesture and Master controller provide
-editing. Shortcut metadata and handlers remain shared and rebindable. Ctrl-preview is
-transparent to the selection command's saved pointer binding; exact modified
+editing. Shortcut metadata and handlers remain shared and rebindable. Optional Ctrl is transparent to the selection command's saved pointer binding; exact modified
 commands keep priority. MS consumes owned press/release/click events even when
 no command matches, so underlying controls cannot activate.
 
@@ -76,9 +71,9 @@ no command matches, so underlying controls cannot activate.
 E and the symbol below the circle cycle modes. The ⠒ disclosure also offers direct
 mode buttons, pattern filters/counts and edge toggles. Modes are:
 
-- **Pattern ⠒ (default):** hover an actual part to preview toggling its registered category
+- **Pattern ⠒ (default):** click an actual part to toggle its registered category
   throughout the current working set. Without geometry, the scope is the app.
-  Hovering text previews all registered UI text; clicking toggles that category.
+  Clicking text toggles all registered UI text in the working scope.
   Icon artwork, input contents, backgrounds, contours and indicators retain their
   distinct categories. Pointer-event-transparent nested text is recognized from
   its text-range geometry even when its parent receives the pointer event.
@@ -143,9 +138,8 @@ changes, releases, logical-object picks and clear in one transient timeline. It
 never writes graph/UI/appearance history or browser storage. Ctrl/Cmd+Z,
 Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y are the defaults while configuring/aiming. New
 operations after undo replace its redo branch. Unfinished drawing is not accepted
-on blur/cancel. Hover previews show only matches whose inclusion state would change.
-Additions are green; removals temporarily hide green. Implicit off baselines and
-accepted exclusions have no red paint.
+on blur/cancel. Hover does not preview selection changes. Accepted exclusions
+have no red paint.
 
 The ◎ button opens **Self inventory**, the shared entry for logical/meta targets
 that cannot be picked through their own pointer-transparent graphics. It projects
@@ -195,13 +189,11 @@ manufacturing a DOM-local value or a spatially cropped patch.
 Accepted parts reveal applicable properties in Master controller through the
 shared selected-part editor. Hover candidates do not change that inspector. The
 stationary edit button or platform keyboard context menu opens Selected appearance
-at the pointer. This uses accepted parts even when invoked over a gap. Picking pauses while editing. The last displayed feedback target/hover context
-is held while the controller is used. Selection / Preview independently controls
-its visibility through an explicit toggle. Entering an editor does not hide marks;
-Preview reveals actual paint without deselecting. Feedback keeps reading live values. Continue selecting or the selector toggle releases that context and resumes
-the tool. Entering Master controller or moved shared property controls also holds
-the context without updating the app-side pointer position. Logical targets reveal
-Master controller directly. Unsupported capabilities remain unavailable.
+at the pointer. This uses accepted parts even over a gap. Selection / Preview
+independently controls marks without deselecting. Use explicit MS lock for normal
+cursor control; editor entry does not hold hover context or activate a target.
+Logical targets reveal Master controller directly. Unsupported capabilities remain
+unavailable.
 
 A property change creates/updates local part references in the existing
 controller's instances/values/refined maps, in one transaction for the selection.
@@ -249,14 +241,13 @@ remain follow-up work. No competing appearance editor or property store is added
 ## Selection feedback
 
 Included parts use green neon traces; the boundary stays cyan. Unselected parts
-are unpainted, including accepted exclusions. A soft
-rim and continuous rail show previews; accepted surfaces/contours also have a moving,
-one-device-pixel dashed seam. Pending previews use fainter green ink. The seam
+are unpainted, including accepted exclusions. Accepted surfaces/contours have a soft rim, continuous rail and moving
+one-device-pixel dashed seam. Hover candidate previews are removed. The seam
 travels around the edge without rotating/resizing the selected object. Background
 tints remain translucent. HTML backgrounds use a synchronized native inset tint
 on the actual rounded surface, below its contents and over its background imagery.
 It preserves the original shadows/gradients and leaves text/icon ink separate,
-with no full-surface blur or per-frame JavaScript writes. The former faint SVG
+with no full-surface blur; the pulse updates only cached paint values each frame. The former faint SVG
 surface fill is retained only for non-HTML fallback surfaces. Background and
 contour matches on one element share a trace; geometry/style reads are cached.
 
@@ -308,34 +299,23 @@ covers an old editor's behavior, remove its duplicate controls and routes while
 preserving saved values, IDs, locks, bypass and default restoration.
 
 
-## Holding feedback while editing
+## Explicit MS lock
 
-`interactionHold.ts` retains the last displayed selector target context; it does
-not copy paint values, freeze animation time or write selection/appearance history.
-Opening selected-part editing or entering shared `data-appearance-editor` controls
-captures that context before candidates can be cleared by tool chrome. Selecting a
-logical Self inventory target retains the preceding real scene feedback while its
-properties are inspected; toggling that logical selection off releases it normally.
-Ctrl release and pointer movement over controls cannot replace held membership.
-The existing feedback renderer continues its real 2.6-second pulse and reads the
-current controller values, including native color-picker previews. Surviving target
-references refresh through the existing catalog when scene content changes.
-
-Continue selecting, explicit clear/cancel, selection undo/redo, controller dismissal,
-window blur (except native color-picking), page hiding and unmount release the hold.
-Ordinary controller controls retain pointer/click ownership; the physical cursor and
-Mouse trail remain live. This holds registered selector/hierarchy feedback, not native
-browser `:hover` or arbitrary application events. It does not simulate movement or
-freeze a trail's time. Hierarchy circle feedback can remain active when moving from
-its circle into controller controls, and releases on leaving/defocusing the editor.
-
+`selector.lock` (default Shift+MB3, rebindable in Shortcuts) parks the compact MS
+symbol at its current position and restores the normal cursor. The parked symbol
+is pointer-transparent; clicks, context menus, wheel and property editing work
+normally. Pressing the same command again resumes MS at the current pointer.
+Selections, circle settings and Selection / Preview mode are retained. Escape
+still clears/disables. There is no automatic freeze on entering property editors,
+no retained hover context and no simulated activation. Property-input previews
+and declared renderer-only activity previews are separate existing mechanisms.
 
 ## Feedback appearance and pulse controls
 
 Selector sparkles are removed; the white particle generator, placement work and
 its decorative DOM layers no longer run. Glyphs still light their actual ink;
 backgrounds retain their native tint and contours retain their thin rail/glow.
-Moving one-device-pixel seams now cover hover preview contours, accepted contours,
+Moving one-device-pixel seams cover accepted contours,
 geometry boundaries and axis guides in the same unfiltered SVG. Text-only patterns
 keep glyph feedback rather than receiving rectangular boxes.
 
@@ -390,7 +370,7 @@ setters; see APPEARANCE_CONTROLLER.md for the renderer/editor performance contra
 
 ## BG detection and pattern retargeting
 
-BG is off by default. New pointer/pattern/geometry picks and previews omit owned UI
+BG is off by default. New pointer/pattern/geometry picks omit owned UI
 and scene backgrounds until BG is enabled in the stationary selector. Its command
 `selector.backgrounds` joins shortcut discovery, unbound by default. This is a
 detection option, not a property setter or a deselection command: changing it does
@@ -419,7 +399,9 @@ neutral; explicitly checking a region or clicking a matching pattern includes it
 Native pointer release/click tails remain consumed, so drawing cannot activate
 an underlying control. Pointed-contour clicks retain their explicit region behavior.
 
-Pulse envelopes share a cosine curve across native glyph paint, SVG and scene
-feedback. Native/CSS keyframes interpolate 64 intervals continuously; glyph/SVG
-phase follows the document clock. Scene feedback follows display refresh rather
-than a 30 fps cap. Existing speed, depth, off and reduced-motion settings remain.
+Pulse envelopes share a continuous cosine curve. A requestAnimationFrame adapter
+writes fractional paint weights to cached visible glyph/background hosts and SVG
+opacity; no layout reads or React state updates occur per animation frame. Scene
+feedback uses the same curve. Registered selection adapters must not exclude DOM
+parts from the pulse; only the scene renderer follows the separate scene path.
+Speed, depth, off, hidden-tab suspension and reduced-motion settings remain.

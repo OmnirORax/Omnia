@@ -1,6 +1,6 @@
 import { selectorPulseSettings } from "../src/appearance/selectorFeedback.ts";
 import { applyTextLightningPreset, TEXT_LIGHTNING_PRESET } from "../src/appearance/textLightningPreset.ts";
-import { createInteractionHold, selectionFeedbackVisible } from "../src/appearance/interactionHold.ts";
+import { selectionFeedbackVisible } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { registerHierarchyScene, scenePartAt, paintSceneSelection } from "../src/appearance/sceneFeedback.ts";
@@ -804,28 +804,6 @@ test("shared property dependencies preview inactive gradients and restore them w
 });
 
 
-test("editing holds the last visual target context without freezing live properties or recording selection", () => {
-  const hold = createInteractionHold();
-  const source = { selected: ["background"], preview: ["text"], point: { x: 120, y: 80 } };
-  assert.equal(hold.hold(), null);
-  assert.equal(hold.held, false);
-  hold.remember(source);
-  assert.equal(hold.hold(), source);
-  hold.remember({ selected: [], preview: ["controller-input"], point: { x: 400, y: 90 } });
-  assert.equal(hold.context, source, "controller movement and Ctrl release cannot replace the held context");
-  const appearance = defaultSettings().appearance;
-  const target = controllerTargets(appearance.controller).find(target => target.id === "ui.guides.selector.included");
-  const changed = applyValue(appearance.controller, controllerTargets(appearance.controller), "color", "#ff00ff", target.id);
-  assert.equal(valueFor(appearance, changed, target, "color"), "#ff00ff");
-  assert.equal(hold.context, source, "paint comes from the live controller, not a saved animation frame");
-  assert.equal(hold.hold(), source, "switching between editor controls preserves the same context");
-  hold.release();
-  assert.equal(hold.held, false); assert.equal(hold.context, null);
-  const next = { selected: [], preview: ["next target"], point: { x: 50, y: 40 } };
-  hold.remember(next); assert.equal(hold.context, next, "resuming selection starts from fresh input");
-});
-
-
 test("green text lightning is one shared-property recipe scoped to unlocked connected UI lettering", () => {
   const before = emptyController();
   before.values["text.ui.buttons"] = { font: "serif", textSize: 17, color: "#abcdef" };
@@ -850,16 +828,8 @@ test("green text lightning is one shared-property recipe scoped to unlocked conn
 });
 
 
-test("Selection / Preview changes feedback explicitly without losing held targets", () => {
-  const hold = createInteractionHold();
-  const targets = { selected: ["text", "background"], preview: [] };
-  hold.remember(targets); hold.hold();
-  assert.equal(selectionFeedbackVisible("auto"), true, "editor entry cannot implicitly hide selection marks");
-  for (const view of ["auto", "selection"]) {
-    assert.equal(selectionFeedbackVisible("preview"), false);
-    assert.equal(selectionFeedbackVisible(view), true);
-    assert.equal(hold.context, targets);
-    assert.equal(hold.held, true);
-  }
-  assert.equal(selectionFeedbackVisible("auto"), true, "resuming picking restores feedback");
+test("Selection / Preview changes only feedback visibility", () => {
+  assert.equal(selectionFeedbackVisible("auto"), true);
+  assert.equal(selectionFeedbackVisible("selection"), true);
+  assert.equal(selectionFeedbackVisible("preview"), false);
 });

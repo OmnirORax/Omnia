@@ -100,8 +100,7 @@ Accepted visual-selector selections and selected UI functions bring up Selected
 properties in Master controller. A closed controller is revealed transiently, with
 no UI history/persistence write for inspection. Closing it dismisses that reveal
 until a new selection. Show all controls dismisses the current inspection without
-clearing the selection or changing values. Hover-only candidate previews do not
-replace the accepted selection's properties.
+clearing the selection or changing values. Hover has no candidate-selection preview.
 
 The inspector and contextual Selected appearance dialog share SelectedProperties,
 PropertyTree and PropertyEditor. Exact selected-part capabilities determine the
@@ -109,8 +108,8 @@ available visual controls, and explicit function-to-consumer declarations add
 coupled nonvisual controls (currently the placement radius/clearance functions).
 Edits retain selected-part scope, protections, shared drafts and state-owner
 transactions. Merely inspecting does not create local instances. Inspector controls
-are tool chrome and preserve the active UI selection while being used. Focusing
-them pauses selector picking and holds the last feedback context. Selection / Preview
+are tool chrome and preserve the active UI selection while being used. They do not automatically hold hover state. Use the explicit MS lock to restore
+normal cursor control while retaining the parked symbol and accepted targets. Selection / Preview
 hides feedback only when explicitly toggled to Preview, without deselecting targets.
 Entering an editor preserves the current marks; the toggle shows the selected count.
 Complete selected text hosts use scoped CSS typography; partial runs support exact
@@ -172,13 +171,9 @@ active effect choices, bypass and narrow selected-part scope remain authoritativ
 See SHARED_PROPERTIES.md for extending this contract.
 
 
-Master controller editing now retains the preceding selector hover/feedback context
-instead of canceling its pulse. The shared editor marker covers the main controller,
-selected appearance and moved property controls. Visual target membership and logical
-pointer position are held while ordinary UI input and the animation clock remain
-live. Clear/resume/dismissal and focus-loss cleanup release transient context. See
-VISUAL_SELECTION.md; native browser hover and arbitrary event sources are outside
-this registered-feedback hold.
+MS locking is explicit (`selector.lock`, Shift+MB3 by default). Editor entry does
+not capture hover/event context. Normal property-input previews remain unchanged;
+Selection / Preview toggles feedback independently of accepted membership.
 
 
 ## Green text lightning recipe
@@ -229,8 +224,8 @@ Pattern feedback now shares a lazy geometry snapshot across hit testing, matchin
 and display; layout/discovery revisions invalidate it. Native pulses retain
 unchanged visible hosts instead of restarting the accepted selection on hover
 changes. BG detection is off by default and explicitly enabled through the selector.
-Accepted contours have moving one-device-pixel seams; fainter hover previews do
-not. This distinguishes pending and accepted marks without another color or editor.
+Accepted contours have moving one-device-pixel seams. Hover candidate previews
+are removed; explicit MS lock restores ordinary cursor control.
 
 
 Selector feedback → Pulse now exposes the shared Animation speed and Effect

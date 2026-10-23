@@ -938,7 +938,7 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selection-controller footer { margin-top: 12px; flex-wrap: wrap; }
 .visual-selection-overlay { position: fixed; inset: 0; z-index: 89999; pointer-events: none; color: var(--omnium-accent,#60ddec); overflow: hidden; }
 .visual-selection-overlay > svg { display: block; overflow: hidden; }
-.visual-selection-overlay > svg,.selector-feedback-sample > svg { width: 100%; display: block; animation: visual-selection-envelope var(--visual-selection-period) linear infinite; animation-delay: var(--visual-selection-delay,0ms); will-change: opacity; }
+.visual-selection-overlay > svg,.selector-feedback-sample > svg { width: 100%; display: block; will-change: opacity; }
 .visual-selection-line { stroke: currentColor; stroke-width: var(--visual-selection-hairline,1px); stroke-dasharray: 4 5; opacity: .82; vector-effect: non-scaling-stroke; }
 .visual-selection-line.is-accepted { stroke-width: var(--visual-selection-hairline,1px); opacity: .8; animation: none; }
 .visual-selection-line-end { fill: currentColor; stroke: #07121b; stroke-width: 1; }
@@ -960,76 +960,6 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 .visual-selection-overlay > .visual-selection-seams { position: absolute; inset: 0; animation: visual-selection-seam-travel 2.4s linear infinite; will-change: auto; }
 @keyframes visual-selection-seam-travel { to { stroke-dashoffset: -18; } }
 .visual-selection-overlay[data-pulse="false"] > svg:not(.visual-selection-seams),.selector-feedback-sample[data-pulse="false"] > svg { animation: none; opacity: 1; }
-/* Cosine envelope sampled like selectorPulseFrames; native interpolation stays continuous. */
-@keyframes visual-selection-envelope {
-  0% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.00000000); }
-  1.5625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.00240764); }
-  3.125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.00960736); }
-  4.6875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.02152983); }
-  6.25% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.03806023); }
-  7.8125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.05903937); }
-  9.375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.08426519); }
-  10.9375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.11349477); }
-  12.5% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.14644661); }
-  14.0625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.18280336); }
-  15.625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.22221488); }
-  17.1875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.26430163); }
-  18.75% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.30865828); }
-  20.3125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.35485766); }
-  21.875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.40245484); }
-  23.4375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.45099143); }
-  25% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.50000000); }
-  26.5625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.54900857); }
-  28.125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.59754516); }
-  29.6875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.64514234); }
-  31.25% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.69134172); }
-  32.8125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.73569837); }
-  34.375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.77778512); }
-  35.9375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.81719664); }
-  37.5% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.85355339); }
-  39.0625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.88650523); }
-  40.625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.91573481); }
-  42.1875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.94096063); }
-  43.75% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.96193977); }
-  45.3125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.97847017); }
-  46.875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.99039264); }
-  48.4375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.99759236); }
-  50% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 1.00000000); }
-  51.5625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.99759236); }
-  53.125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.99039264); }
-  54.6875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.97847017); }
-  56.25% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.96193977); }
-  57.8125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.94096063); }
-  59.375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.91573481); }
-  60.9375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.88650523); }
-  62.5% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.85355339); }
-  64.0625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.81719664); }
-  65.625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.77778512); }
-  67.1875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.73569837); }
-  68.75% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.69134172); }
-  70.3125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.64514234); }
-  71.875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.59754516); }
-  73.4375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.54900857); }
-  75% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.50000000); }
-  76.5625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.45099143); }
-  78.125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.40245484); }
-  79.6875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.35485766); }
-  81.25% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.30865828); }
-  82.8125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.26430163); }
-  84.375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.22221488); }
-  85.9375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.18280336); }
-  87.5% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.14644661); }
-  89.0625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.11349477); }
-  90.625% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.08426519); }
-  92.1875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.05903937); }
-  93.75% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.03806023); }
-  95.3125% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.02152983); }
-  96.875% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.00960736); }
-  98.4375% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.00240764); }
-  100% { opacity: calc(1 - (1 - var(--visual-selection-dim,.7)) * 0.00000000); }
-
-}
-
 @media (prefers-reduced-motion: reduce) { .visual-selection-overlay > svg,.visual-selection-overlay > .visual-selection-seams,.selector-feedback-sample > svg,.selector-feedback-sample .visual-selection-seam { animation: none; will-change: auto; } }
 html[data-visual-selecting],html[data-visual-selecting] * { cursor: none !important; }
 .appearance-target:not(.is-disconnected):not(:disabled) { opacity: 1; filter: drop-shadow(0 0 3px currentColor); }

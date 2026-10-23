@@ -300,10 +300,10 @@ send the activity-projected controller to a commit/editor path. Frame × now hid
 custom frames intact; recover saved frames/panels through UI library → Hidden UI.
 See the shared property and UI component contracts for these paths.
 
-Selector feedback now retains its last real target/hover context while Master
-controller or moved shared property editors are used. Picking pauses; paint values
-and time stay live. This is transient and excludes physical mouse/trail input and
-native browser hover. Resume/clear/dismissal releases it; see VISUAL_SELECTION.md.
+Selector hover previews and automatic editor-entry feedback holds are removed.
+`selector.lock` (Shift+MB3 by default) explicitly parks MS and restores the normal
+cursor; pressing again resumes MS. Selection / Preview and accepted membership
+remain independent. See VISUAL_SELECTION.md.
 
 Performance integration: mounted appearance consumers share context `read` /
 `renderRead`; do not build value resolvers per row/icon. Paint-only setters retain
@@ -312,9 +312,9 @@ samples. Target metadata tracks actual captions/ownership, not changing React
 elements. See APPEARANCE_CONTROLLER.md for the shared invalidation contract.
 
 Selector BG detection is off by default; enabling BG permits owned backgrounds in
-new picks/previews without rewriting accepted membership. Current pattern feedback
+new picks without rewriting accepted membership. Current pattern feedback
 uses layout-revision measurement snapshots and incremental visible-host pulses.
-Accepted contours have hairline moving seams; pending hover is fainter. Opening
+Accepted contours have hairline moving seams; drawing guides remain visible. Opening
 editors never automatically hides selection. See VISUAL_SELECTION.md.
 
 Selector sparkles are removed. Both pending and accepted contour/geometry seams

@@ -111,3 +111,8 @@ the circle. Both titles show their live binding or Unassigned. In Shortcuts →
 Visual selector, search **Toggle Selection / Preview** or **Toggle BG / empty space
 detection**. Both remain unassigned by default; saved bindings/explicit clears are
 preserved. BG's label includes both aliases so searching "space" finds it.
+
+MS cursor locking uses `selector.lock` (Shift+MB3 by default). It is a normal
+rebindable catalog action: park MS / use normal cursor, then resume MS. The former
+Hold Ctrl selection-preview gesture is removed; Selection / Preview remains an
+independent feedback visibility toggle.
