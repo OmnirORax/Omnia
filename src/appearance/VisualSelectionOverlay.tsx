@@ -5,7 +5,7 @@ import { registerPaintVariable } from "./paintVariables";
 import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint } from "./resolve";
 import { type SelectionRule, type VisualPart, type VisualMeasurements, createVisualMeasurements } from "./visualSelection";
-import { selectorPulseSettings, type SelectorPulseSettings } from "./selectorFeedback";
+import { selectorPulseSettings, selectorPulseFrames, selectorPulseLevel, type SelectorPulseSettings } from "./selectorFeedback";
 import selectorFeedback from "./selectorFeedback.function";
 import { pathEdges, type Point } from "./selectionGeometry";
 
@@ -45,11 +45,7 @@ function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings)
     const sync = () => {
       const config = pulse.current;
       const changed = applied.current !== config;
-      const frames = [
-        { [signal.mix]: "82%", easing: "ease-in-out" },
-        { [signal.mix]: `${82 * (1 - config.depth)}%`, easing: "ease-in-out" },
-        { [signal.mix]: "82%" },
-      ];
+      const frames = selectorPulseFrames(signal.mix, config.depth, 82, "%");
       const wanted = new Set(supported && config.enabled && !reduced.matches && !document.hidden ? hosts.current : []);
       for (const [element, animation] of animations.current) if (!wanted.has(element)) {
         animation.cancel(); animations.current.delete(element);
@@ -120,14 +116,16 @@ function usePulseSettings() {
   const key = JSON.stringify(values);
   return useMemo(() => selectorPulseSettings(values), [key]);
 }
-const pulseStyle = (pulse: SelectorPulseSettings): CSSProperties => ({
+const usePulseStyle = (pulse: SelectorPulseSettings): CSSProperties => useMemo(() => ({
   "--visual-selection-period": `${pulse.duration}ms`, "--visual-selection-dim": 1 - pulse.depth,
-} as CSSProperties);
+  "--visual-selection-delay": `-${Number(document.timeline.currentTime ?? 0) % pulse.duration}ms`,
+} as CSSProperties), [pulse.duration, pulse.depth]);
 
 /** A logical feedback target needs a live sample when no scene/UI part is
  * selected. Reuse the actual trace renderer and its existing shared values. */
 export function SelectorFeedbackSample({ targets }: { targets: string[] }) {
   const pulse = usePulseSettings();
+  const pulseStyle = usePulseStyle(pulse);
   const paints = useFeedbackPaints();
   const tones = (Object.keys(SELECTOR_FEEDBACK) as Tone[]).filter(tone => {
     const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
@@ -135,7 +133,7 @@ export function SelectorFeedbackSample({ targets }: { targets: string[] }) {
   });
   if (!tones.length) return null;
   const width = tones.length * 128;
-  return <div data-visual-selector data-pulse={pulse.enabled} className="selector-feedback-sample" style={pulseStyle(pulse)}
+  return <div data-visual-selector data-pulse={pulse.enabled} className="selector-feedback-sample" style={pulseStyle}
     title="Animation speed controls pulse pace; Effect intensity controls fade depth. Pulse off keeps steady selection feedback.">
     <svg viewBox={`0 0 ${width} 52`} role="img" aria-label="Live selector feedback preview">
       {tones.map((tone, index) => <g key={tone} transform={`translate(${index * 128 + 4},4)`}>
@@ -156,6 +154,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
 }) {
   const paints = useFeedbackPaints();
   const pulse = usePulseSettings();
+  const pulseStyle = usePulseStyle(pulse);
   const pendingPaint = useMemo(() => ({ ...paints.included, opacity: paints.included.opacity * .6 }), [paints]);
   const measure = useMemo(() => measurements ?? createVisualMeasurements(), [measurements, selected, excluded, preview]);
   // Membership is app-wide; only feedback in the viewport needs paint, text
@@ -175,21 +174,18 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
         targets.set(part.target.id, { color: paint.ink, opacity: paint.opacity });
     if (!targets.size) return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-    let frame = 0, previous = -Infinity;
-    // Scene feedback changes only registered renderer paint, at most 30 fps.
+    let frame = 0;
+    // Only registered scene paint is updated; follow display refresh without a 30 fps step.
     // No DOM or geometry discovery belongs in this animation loop.
     const draw = (time: number) => {
       frame = 0;
       if (document.hidden) return;
-      if (time - previous >= 1000 / 30) {
-        previous = time;
-        paintSceneSelection(targets, reduced.matches || !pulse.enabled ? .82
-          : .82 * (1 - pulse.depth / 2 + pulse.depth / 2 * Math.cos(time * Math.PI * 2 / pulse.duration)));
-      }
+      paintSceneSelection(targets, reduced.matches || !pulse.enabled ? .82
+        : .82 * selectorPulseLevel(time / pulse.duration, pulse.depth));
       if (!reduced.matches && pulse.enabled) frame = requestAnimationFrame(draw);
     };
     const resume = () => {
-      cancelAnimationFrame(frame); previous = -Infinity;
+      cancelAnimationFrame(frame);
       if (document.hidden) paintSceneSelection(new Map(), 0); else draw(performance.now());
     };
     resume(); reduced.addEventListener("change", resume); document.addEventListener("visibilitychange", resume);
@@ -298,7 +294,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     };
     return { marks: marksFor(visible.selected), omissions: marksFor(visible.excluded), candidates: marksFor(visible.preview) };
   }, [visible, measure]);
-  return <div data-visual-selector data-pulse={pulse.enabled} className="visual-selection-overlay" style={pulseStyle(pulse)}>
+  return <div data-visual-selector data-pulse={pulse.enabled} className="visual-selection-overlay" style={pulseStyle}>
     <style>{glyphFeedback("omnium-selector-selected", paints.included) + glyphFeedback("omnium-selector-excluded", paints.excluded) +
       glyphFeedback("omnium-selector-preview", candidate?.include === false ? paints.excluded : pendingPaint)}</style>
     <svg aria-hidden="true" width="100%" height="100%">

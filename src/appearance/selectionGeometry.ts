@@ -19,7 +19,11 @@ export type LineCondition = {
   rotation?: number;
   stopAtPaint?: string;
 };
-export const PATTERN_MODES: PatternMode[] = ["item", "boundary", "pattern", "axis", "direction", "position", "rectangle", "ellipse", "polygon", "freehand"];
+export const PATTERN_MODE_GROUPS: { label: string; modes: PatternMode[] }[] = [
+  { label: "Targets", modes: ["item", "boundary", "pattern"] },
+  { label: "Geometry", modes: ["axis", "direction", "position", "rectangle", "ellipse", "polygon", "freehand"] },
+];
+export const PATTERN_MODES: PatternMode[] = PATTERN_MODE_GROUPS.flatMap(group => group.modes);
 export const PATTERN_SYMBOLS: Record<PatternMode, string> = { item: "·", boundary: "○", pattern: "⠒", axis: "↕", direction: "↑", position: "|", rectangle: "▭", ellipse: "◯", polygon: "⬡", freehand: "〰" };
 export const nextPatternMode = (mode: PatternMode) => PATTERN_MODES[(PATTERN_MODES.indexOf(mode) + 1) % PATTERN_MODES.length];
 export const boxFromPoints = (a: Point, b: Point): Box => ({ left: Math.min(a.x, b.x), right: Math.max(a.x, b.x), top: Math.min(a.y, b.y), bottom: Math.max(a.y, b.y) });

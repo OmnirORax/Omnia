@@ -40,8 +40,8 @@ green. Releasing Ctrl or leaving restores accepted feedback. A settled pointer
 does not immediately preview the inverse action after committing; moving, pressing
 Ctrl again or a new press resumes preview. Everything not green is unselected. There is no exclude command or +/− pair.
 
-Geometry starts with an implicit off baseline and includes only its checked ○
-regions. The checked regions also constrain picking. Checking In-frame includes
+Pointed-contour placement starts with an implicit off baseline and includes only its checked ○
+regions. Drawn geometry instead starts neutral (see Drawing versus inclusion). The checked regions also constrain picking. Checking In-frame includes
 all contents; subsequent clicks toggle matching patterns off or on. Frame includes
 the actual pointed object, independently of its interior/exterior. Outside frame
 includes the exterior without the frame itself or its contents.
@@ -352,7 +352,7 @@ coupling, Self inventory inclusion, shared editors and Controller.values
 serialization. Apply/discard, theme export, locks and bypass remain authoritative.
 No feature-specific editor or parallel values are introduced.
 
-The aiming precision dot is larger with a contrasting halo; its center remains
+The aiming precision dot is solid saturated cyan without a halo or ring; its center remains
 the exact hotspot. The stationary controller displays the same center cue.
 
 
@@ -408,3 +408,18 @@ selected but does not create Highlights/paint animations until brought into view
 Pulse timing/depth are configurable through Selector feedback → Pulse. Hairline
 seams travel in their own SVG for accepted and pending contours/geometry, so dash
 motion does not repaint the halo/rail layer.
+
+### Drawing versus inclusion
+
+Axis, direction, segment, rectangle, ellipse, polygon and freehand tools share
+the Geometry group; Item, pointed contour and Pattern remain target modes.
+Finishing a drawn geometry establishes a neutral working boundary, not a target
+selection. Existing membership is preserved. The three circle regions reset to
+neutral; explicitly checking a region or clicking a matching pattern includes it.
+Native pointer release/click tails remain consumed, so drawing cannot activate
+an underlying control. Pointed-contour clicks retain their explicit region behavior.
+
+Pulse envelopes share a cosine curve across native glyph paint, SVG and scene
+feedback. Native/CSS keyframes interpolate 64 intervals continuously; glyph/SVG
+phase follows the document clock. Scene feedback follows display refresh rather
+than a 30 fps cap. Existing speed, depth, off and reduced-motion settings remain.

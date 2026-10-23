@@ -143,7 +143,7 @@ shares catalog-scoped geometry, viewport-only paint and incremental native pulse
 registration. Contour and geometry seams are one device pixel, moving in their own unfiltered
 layer for both hover previews and accepted selection. Hover remains fainter.
 
-Selector feedback sparkles are removed. The MS center dot has a contrasting halo
+Selector feedback sparkles are removed. The MS center dot is saturated cyan without a halo or ring,
 without moving its hotspot. Labeled Selection / Preview and BG controls sit below
 the clamped circle; their titles show live shortcut bindings. Pulse speed/depth
 and enablement use the discovered shared Pulse consumer, normal serialization and

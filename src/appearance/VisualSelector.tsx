@@ -14,7 +14,7 @@ import { PROPERTY_REGISTRY, TARGETS } from "./registry";
 import { resolvePropertyTarget, selfInventory, type SelfInventoryNode } from "../properties/registry";
 import { DEFAULT_SELECTION_MASK, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, type SelectionMask, type MaskPart } from "./selectionToggle";
 import { selectedPartTarget } from "./selectionCoupling";
-import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODES, PATTERN_SYMBOLS,
+import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODE_GROUPS, PATTERN_SYMBOLS,
   type Point, type PathCondition, type PatternMode, type SelectionSide } from "./selectionGeometry";
 import {
   createVisualMeasurements, boundaryCandidates, boundaryFor, boundaryRect, collectVisualParts, matchingVisualParts,
@@ -164,16 +164,16 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       ...(mode === "pattern" ? { role: config.patternRole ?? part.role } : { part: part.key }) });
     else setPreview(null);
   };
-  const accept = () => {
+  const accept = (geometryOnly = false) => {
     const pick = candidateRef.current;
     if (!pick) return;
     if (pick.definesScope) {
       const { include: _include, backgrounds: _backgrounds, ...constraint } = pick.rule;
-      const mask = { contour: latest.current.configuration.contour, region: latest.current.configuration.region, backgrounds: latest.current.configuration.backgrounds };
+      const mask = { contour: geometryOnly ? false : latest.current.configuration.contour, region: geometryOnly ? null : latest.current.configuration.region, backgrounds: latest.current.configuration.backgrounds };
       const scope = workingGeometry({ ...constraint, geometryId: `geometry-${++geometrySequence.current}` }, mask);
-      record(current => ({ ...current, boundary: scope.boundary, scope, mask, rules: [...current.rules, ...geometryBaseline(scope, mask)], objects: [] }));
+      record(current => ({ ...current, boundary: scope.boundary, scope, mask, rules: geometryOnly ? current.rules : [...current.rules, ...geometryBaseline(scope, mask)], objects: [] }));
       // Geometry remains the working set; the pointer now refines its patterns.
-      setConfiguration(config => ({ ...config, pattern: "pattern" }));
+      setConfiguration(config => ({ ...config, pattern: "pattern", ...(geometryOnly ? { contour: false, region: null } : {}) }));
     } else toggleSelection(pick.rule);
     settledPoint.current = point.current;
     setPreview(null);
@@ -255,7 +255,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       path: { kind: "polygon", points: draft.points.map(p => relativePoint(p, box)), closed: true, rotation: latest.current.configuration.rotation },
       contour: latest.current.configuration.contour, ...(latest.current.configuration.region ? { region: latest.current.configuration.region } : {}),
       ...(latest.current.configuration.patternRole ? { role: latest.current.configuration.patternRole } : {}) } });
-    accept(); polygon.current = null; setDrawing(false);
+    accept(true); polygon.current = null; setDrawing(false);
   };
   const begin = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
@@ -406,7 +406,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         if (draft.mode === "freehand") draft.points.push({ x: event.clientX, y: event.clientY });
         actions.current.previewAt(hit, event.clientX, event.clientY);
         const length = Math.hypot(event.clientX - draft.start.x, event.clientY - draft.start.y);
-        if (isLine(draft.mode) || length >= 4 || draft.mode === "freehand" && draft.points.length > 2) actions.current.accept();
+        if (isLine(draft.mode) || length >= 4 || draft.mode === "freehand" && draft.points.length > 2) actions.current.accept(true);
       }
       gesture.current = null; setDrawing(false); consumedUntil = performance.now() + 1500;
     };
@@ -666,11 +666,14 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       </div>
       <details className="visual-selector-patterns">
         <summary title="Geometry modes, patterns and enabled edges">⠒</summary>
-        <div className="visual-selector-modes" aria-label="Selection geometry modes">
-          {PATTERN_MODES.map(mode => <button type="button" key={mode} aria-label={`Selection mode: ${mode}`} aria-pressed={configuration.pattern === mode}
-            title={mode === "boundary" ? "Use a pointed contour as the working geometry; wheel changes owner depth" : mode}
-            onClick={() => chooseMode(mode)}>{PATTERN_SYMBOLS[mode]}</button>)}
-        </div>
+        {PATTERN_MODE_GROUPS.map(group => <fieldset key={group.label} className="visual-selector-mode-group">
+          <legend>{group.label}</legend>
+          <div className="visual-selector-modes" aria-label={group.label}>
+            {group.modes.map(mode => <button type="button" key={mode} aria-label={`Selection mode: ${mode}`} aria-pressed={configuration.pattern === mode}
+              title={mode === "boundary" ? "Use a pointed contour as the working geometry; wheel changes owner depth" : mode}
+              onClick={() => chooseMode(mode)}>{PATTERN_SYMBOLS[mode]}</button>)}
+          </div>
+        </fieldset>)}
         {patternGroups.map(group => {
           const constraint: SelectionConstraint = { boundary: boundaryFor(document.body), ...(workingScope ? { scope: workingScope } : {}), role: group.role, backgrounds: configuration.backgrounds };
           const rule = selectionToggleRule(catalog, matches.included, constraint, measurements);

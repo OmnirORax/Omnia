@@ -55,7 +55,6 @@ export function SelectorSymbol({ configuration, actions, precision = false, patt
       <text className="selector-mode-symbol" x="140" y="266" textAnchor="middle">{PATTERN_SYMBOLS[pattern]}</text>
     </g>
     {precision && <g className="selector-precision" aria-hidden="true">
-      <circle className="selector-precision-halo" cx={SELECTOR_VIEW.x} cy={SELECTOR_VIEW.y} r={actions ? 10 : 18} />
       <circle className="selector-precision-dot" cx={SELECTOR_VIEW.x} cy={SELECTOR_VIEW.y} r={actions ? 5 : 10} />
     </g>}
   </svg>;
