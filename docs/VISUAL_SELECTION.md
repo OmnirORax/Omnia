@@ -32,7 +32,7 @@ There is one selection action: LMB toggles a pattern/individual, or places geome
 A fully included target becomes unselected; an unselected target becomes included.
 A mixed category becomes fully included. Clicking the same category/individual
 again reverses it. The shared `selectionToggleRule` resolves membership at click
-time. Hover does not detect or paint candidate targets; Ctrl has no preview role.
+time. Hover detects and paints candidate targets while aiming; Ctrl is not required.
 Drawing an axis/path still shows its geometry guide, without including targets.
 Everything not green is unselected; there is no separate exclude command.
 
@@ -138,7 +138,7 @@ changes, releases, logical-object picks and clear in one transient timeline. It
 never writes graph/UI/appearance history or browser storage. Ctrl/Cmd+Z,
 Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y are the defaults while configuring/aiming. New
 operations after undo replace its redo branch. Unfinished drawing is not accepted
-on blur/cancel. Hover does not preview selection changes. Accepted exclusions
+on blur/cancel. Hover previews additions in green and removals by hiding their accepted green. Accepted exclusions
 have no red paint.
 
 The ◎ button opens **Self inventory**, the shared entry for logical/meta targets
@@ -242,7 +242,7 @@ remain follow-up work. No competing appearance editor or property store is added
 
 Included parts use green neon traces; the boundary stays cyan. Unselected parts
 are unpainted, including accepted exclusions. Accepted surfaces/contours have a soft rim, continuous rail and moving
-one-device-pixel dashed seam. Hover candidate previews are removed. The seam
+one-device-pixel dashed seam. Hover candidate previews remain available while aiming. The seam
 travels around the edge without rotating/resizing the selected object. Background
 tints remain translucent. HTML backgrounds use a synchronized native inset tint
 on the actual rounded surface, below its contents and over its background imagery.
@@ -307,7 +307,8 @@ is pointer-transparent; clicks, context menus, wheel and property editing work
 normally. Pressing the same command again resumes MS at the current pointer.
 Selections, circle settings and Selection / Preview mode are retained. Escape
 still clears/disables. There is no automatic freeze on entering property editors,
-no retained hover context and no simulated activation. Property-input previews
+no automatic editor-entry hold and no simulated activation. Explicit locking retains
+the pointed preview while the normal cursor edits properties. Property-input previews
 and declared renderer-only activity previews are separate existing mechanisms.
 
 ## Feedback appearance and pulse controls
@@ -405,3 +406,9 @@ opacity; no layout reads or React state updates occur per animation frame. Scene
 feedback uses the same curve. Registered selection adapters must not exclude DOM
 parts from the pulse; only the scene renderer follows the separate scene path.
 Speed, depth, off, hidden-tab suspension and reduced-motion settings remain.
+
+Hover preview is independent of the Selection / Preview view toggle: aiming shows
+candidate patterns by default. The view toggle hides/restores feedback without
+changing membership. Explicit MS lock retains the current candidate and symbol;
+normal cursor movement does not retarget them. Unlock resumes hover detection.
+No Ctrl requirement or automatic editor-entry freeze is used.

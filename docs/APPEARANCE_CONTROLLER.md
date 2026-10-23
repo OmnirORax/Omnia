@@ -100,7 +100,7 @@ Accepted visual-selector selections and selected UI functions bring up Selected
 properties in Master controller. A closed controller is revealed transiently, with
 no UI history/persistence write for inspection. Closing it dismisses that reveal
 until a new selection. Show all controls dismisses the current inspection without
-clearing the selection or changing values. Hover has no candidate-selection preview.
+clearing the selection or changing values. Hover candidates preview selection changes without changing accepted properties.
 
 The inspector and contextual Selected appearance dialog share SelectedProperties,
 PropertyTree and PropertyEditor. Exact selected-part capabilities determine the
@@ -225,7 +225,7 @@ and display; layout/discovery revisions invalidate it. Native pulses retain
 unchanged visible hosts instead of restarting the accepted selection on hover
 changes. BG detection is off by default and explicitly enabled through the selector.
 Accepted contours have moving one-device-pixel seams. Hover candidate previews
-are removed; explicit MS lock restores ordinary cursor control.
+remain while aiming; explicit MS lock retains the preview and restores ordinary cursor control.
 
 
 Selector feedback → Pulse now exposes the shared Animation speed and Effect

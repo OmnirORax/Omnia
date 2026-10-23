@@ -138,7 +138,7 @@ geometry rebuilds on every input sample. See APPEARANCE_CONTROLLER.md.
 The selector's BG detection toggle defaults off and affects new picks/previews,
 not already accepted membership. It uses the common action catalog. Retargeting
 shares catalog-scoped geometry, viewport-only paint and cached continuous pulse paint. Contour and geometry seams are one device pixel, moving in their own unfiltered
-layer for drawing guides and accepted selection. Hover previews are removed.
+layer for drawing guides and accepted selection. Hover previews remain available while aiming; explicit lock retains the pointed preview.
 
 Selector feedback sparkles are removed. The MS center dot is saturated cyan without a halo or ring,
 without moving its hotspot. Labeled Selection / Preview and BG controls sit below

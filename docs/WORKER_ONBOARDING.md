@@ -300,9 +300,10 @@ send the activity-projected controller to a commit/editor path. Frame × now hid
 custom frames intact; recover saved frames/panels through UI library → Hidden UI.
 See the shared property and UI component contracts for these paths.
 
-Selector hover previews and automatic editor-entry feedback holds are removed.
+Selector hover previews remain enabled while aiming; automatic editor-entry
+feedback holds and Ctrl-preview gating are removed.
 `selector.lock` (Shift+MB3 by default) explicitly parks MS and restores the normal
-cursor; pressing again resumes MS. Selection / Preview and accepted membership
+cursor while retaining its pointed preview; pressing again resumes MS. Selection / Preview and accepted membership
 remain independent. See VISUAL_SELECTION.md.
 
 Performance integration: mounted appearance consumers share context `read` /

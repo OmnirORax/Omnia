@@ -280,7 +280,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         aim(); return;
       }
       const p = phase === "aim" ? inputPosition(input) : point.current ?? position;
-      setLockedPosition(p); cancelDrawing(); setInventoryOpen(false); setPhase("locked");
+      setLockedPosition(p);
+      // Explicit locking retains the pointed preview; normal cursor movement
+      // must not replace it while properties are edited.
+      if (gesture.current || polygon.current) cancelDrawing();
+      setInventoryOpen(false); setPhase("locked");
     } },
     "selector.selfInventory": { enabled: canConfigure, run: () => {
       if (phase !== "configure") { const p = cursorPosition(); setPosition(p); setPhase("configure"); }
@@ -315,6 +319,17 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const matches = useMemo(() => resolveVisualSelection(catalog, selection.boundary, selection.rules, measurements), [catalog, selection, geometry]);
   selectedRef.current = matches.included;
   const editableParts = useMemo(() => describeSelectedParts(matches.included), [matches]);
+  const preview = useMemo(() => {
+    if (!candidate || (phase !== "aim" && phase !== "locked")) return noParts;
+    const changed = matchingVisualParts(catalog, candidate.rule, measurements);
+    const selected = new Set(matches.included.map(part => part.key));
+    return changed.filter(part => candidate.rule.include ? !selected.has(part.key) : selected.has(part.key));
+  }, [catalog, candidate, measurements, matches.included, phase]);
+  const feedbackSelected = useMemo(() => {
+    if (candidate?.rule.include !== false || !preview.length) return matches.included;
+    const removed = new Set(preview.map(part => part.key));
+    return matches.included.filter(part => !removed.has(part.key));
+  }, [candidate, preview, matches.included]);
   const guide = useMemo(() => candidate?.rule.line ? selectionLineGuide(catalog, candidate.rule, measurements) : null, [catalog, candidate, geometry]);
   const guides = useMemo(() => {
     const chain: SelectionConstraint[] = [];
@@ -375,8 +390,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     };
     const move = (event: PointerEvent) => {
       // Parked MS ignores pointer motion; ordinary app input remains live.
-      if (latest.current.phase === "edit" || event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) return;
-      if (latest.current.phase === "locked" || shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element)) return;
+      if (latest.current.phase === "locked" || latest.current.phase === "edit") return;
+      if (event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) { setCandidatePick(null); return; }
+      if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element)) return;
       point.current = { element: event.target, x: event.clientX, y: event.clientY };
       const current = latest.current;
       if (current.phase === "aim" && current.selection.scope && !current.configuration.contour && !current.configuration.region && current.selection.scope.path?.closed && outsideChrome(event)) {
@@ -388,7 +404,6 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         return;
       }
       if (latest.current.phase !== "aim" || !gesture.current && !outsideChrome(event)) return;
-      if (!gesture.current && !polygon.current) return;
       const draft = gesture.current;
       if (draft?.mode === "freehand") {
         const previous = draft.points.at(-1)!;
@@ -508,6 +523,15 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     window.addEventListener("scroll", refresh, true);
     return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", refresh); window.removeEventListener("scroll", refresh, true); };
   }, [active]);
+  // Re-evaluate the pointed preview when resuming or changing the tool, not
+  // when entering an editor. Locked MS retains its last explicit preview.
+  useEffect(() => {
+    if (phase !== "aim") return;
+    const p = point.current;
+    if (!p) return;
+    const element = document.elementFromPoint(p.x, p.y);
+    if (element) actions.current.pickAt(element, p.x, p.y);
+  }, [phase, configuration, catalog, geometry]);
   useEffect(() => {
     document.documentElement.toggleAttribute("data-visual-selecting", phase === "aim");
     return () => document.documentElement.removeAttribute("data-visual-selecting");
@@ -520,7 +544,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (!scope || !mask) return;
     setConfiguration(config => ({ ...config, ...mask, closed: scope.path?.kind === "freehand" ? scope.path.closed : config.closed }));
   }, [selection.scope, selection.mask]);
-  const paths = [...scopeChain(selection.scope), drawing && candidate?.definesScope ? candidate.rule : null].flatMap((constraint, index, constraints) => {
+  const paths = [...scopeChain(selection.scope), (phase === "aim" || phase === "locked") && candidate?.definesScope ? candidate.rule : null].flatMap((constraint, index, constraints) => {
     const box = constraint && boundaryRect(constraint.boundary);
     return constraint?.path && box ? [{ key: `${index}:${constraintKey(constraint)}`, points: pathVertices(constraint.path, box),
       closed: constraint.path.closed, disabledEdges: constraint.path.disabledEdges ?? [], preview: index === constraints.length - 1 && !!candidate?.definesScope,
@@ -541,9 +565,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const activePath = workingScope?.path, activeBox = workingScope && boundaryRect(workingScope.boundary);
   const edges = activePath && activeBox ? pathEdges(pathVertices(activePath, activeBox), activePath.closed) : [];
   const liveFeedback: ComponentProps<typeof VisualSelectionOverlay> = {
-    selected: matches.included, excluded: noParts, preview: noParts, measurements,
-    candidate: null,
-    guide: drawing ? guide : null, guides, paths,
+    selected: feedbackSelected, excluded: noParts, preview: candidate?.rule.include === false ? noParts : preview, measurements,
+    candidate: (phase === "aim" || phase === "locked") && candidate?.rule.include ? candidate.rule : null,
+    guide: phase === "aim" || phase === "locked" ? guide : null, guides, paths,
   };
   return <Context.Provider value={contextValue}>
     {children}
