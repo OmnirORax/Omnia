@@ -1155,7 +1155,7 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .history-controls label { display: flex; flex-direction: row; align-items: center; gap: 5px; margin: 0; font-size: inherit; }
 .history-controls .history-scope select { width: 100%; align-self: center; }
 .history-controls :is(input,select,button) { padding: 3px 5px; min-height: 0; line-height: 1.25; font-size: inherit; }
-.history-controls input[type="number"] { width: 4ch; min-width: 3ch; align-self: center; }
+.history-controls input[type="number"] { field-sizing: fixed; box-sizing: border-box; width: 54px; min-width: 54px; flex: 0 0 54px; align-self: center; }
 .history-controls input[type="checkbox"] { margin: 0; }
 .history-controls fieldset { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; padding: 3px 5px 5px; border: 1px solid var(--omnium-border, #60ddec); }
 .history-controls legend { font-size: inherit; padding: 0 3px; }

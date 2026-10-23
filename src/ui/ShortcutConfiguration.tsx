@@ -54,9 +54,9 @@ export function ShortcutConfiguration({ mouse, bindings }: { mouse: WorkspaceSet
   return <ContextualMasterController title={fn?.label ?? spec?.label ?? id ?? "Configuration"} position={request?.position ?? null} onClose={close}>
     {request && <ConfigurationInteractionBoundary id={request.id} gesture={gesture} close={close} key={`${request.id}:${request.token}`}><div className="action-configuration">
       {fn?.configuration ?? <CoupledActionConfiguration id={id ?? request.id} bindings={bindings} />}
-      <label className="configuration-binding">Shortcut<button onClick={() => ui.captureShortcut?.(buttonShortcutId(id ?? request.id), fn?.label ?? spec?.label ?? id ?? request.id)}>
+      <div className="configuration-binding"><button aria-label="Change shortcut" onClick={() => ui.captureShortcut?.(buttonShortcutId(id ?? request.id), fn?.label ?? spec?.label ?? id ?? request.id)}>
         {functionShortcutBinding(id, ui.shortcutBindings) || "Unassigned"}
-      </button></label>
+      </button></div>
     </div></ConfigurationInteractionBoundary>}
   </ContextualMasterController>;
 }
