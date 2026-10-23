@@ -236,3 +236,11 @@ Native feedback and the live sample use those same inputs; speed/intensity zero 
 Pulse off yields a steady cue. Geometry seam travel remains separate. Selector
 sparkles are removed. Unsupported Animation parent editors stay unavailable while
 their supported parameter children remain accessible in the shared property tree.
+
+Canvas UI effects follow DOM overflow clipping through the shared per-paint
+`createPaintClipReader`. Each effect job clips to every scroll/hidden/clip ancestor
+(and paint containment), respecting axes, client borders/scrollbars and scaling.
+Glyph masks also clip individual text/input/image sources inside nested scrollers.
+Scroll/resize invalidates masks, so hidden content cannot survive in a cached
+raster after scrolling. This applies to shared text effects and exact local parts,
+without changing property coupling or adding another effect renderer.

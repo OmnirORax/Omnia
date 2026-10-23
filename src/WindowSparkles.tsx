@@ -1,3 +1,4 @@
+import { createPaintClipReader, clipCanvas } from "./ui/paintClip";
 import { effectsFor } from "./appearance/resolve";
 import { uiEffectTargets, effectSelector, effectScope, textOwner } from "./appearance/uiEffects";
 import { createElementEffectsResolver } from "./appearance/localEffects";
@@ -57,6 +58,7 @@ export function WindowSparkles({
         electricBudget = 1_200_000;
       const resolver = plan.current;
       let processed = 0;
+      const paintClip = createPaintClipReader(width, height);
       for (const target of uiEffectTargets) {
         const fx = effectsFor(a, target.id),
           hasLocal = resolver.activeLocalBases.has(target.id) || !!(target.hidden && target.parent && resolver.activeLocalBases.has(target.parent));
@@ -90,14 +92,16 @@ export function WindowSparkles({
             r.left > width
           )
             continue;
+          const clip = paintClip(element);
+          if (!clip.width || !clip.height || r.right <= clip.x || r.left >= clip.x + clip.width || r.bottom <= clip.y || r.top >= clip.y + clip.height) continue;
           const localFx = exact ? resolver.localStyle(exact) : resolver.resolve(target, element);
           if (!effectVisible(localFx)) continue;
           context.strokeStyle = context.fillStyle = context.shadowColor = localFx.color ?? a.accent;
           context.shadowBlur = (localFx.glow ?? a.glow) * 12;
           const localTime = phase * localFx.motion;
-          const baseScope = effectScope(target, element);
+          const baseScope = { ...effectScope(target, element), clip: paintClip };
           const scope = exact && target.binding?.text
-            ? { key: exact.id, shape: "glyphs" as const, text: (parent: HTMLElement) => textOwner(parent)?.target.id === target.id,
+            ? { key: exact.id, shape: "glyphs" as const, clip: paintClip, text: (parent: HTMLElement) => textOwner(parent)?.target.id === target.id,
               node: (node: Node) => resolver.nodeOwner(target, node)?.id === exact.id,
               input: (input: HTMLElement) => input === element && resolver.textHostOwner(target, input)?.id === exact.id, icons: false }
             : { ...baseScope, node: (node: Node) => !resolver.nodeOwner(target, node),
@@ -107,6 +111,7 @@ export function WindowSparkles({
           const seed = effectSeed(
             `${target.id}:${element.dataset.uiFunction ?? element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? `${element.className}:${index}`}`,
           );
+          context.save(); clipCanvas(context, clip);
           if (localFx.effect === "electric-text") {
             electricBudget -= drawUIElectricText(
               context,
@@ -119,6 +124,7 @@ export function WindowSparkles({
               electricBudget,
               scope,
             );
+            context.restore();
             continue;
           }
           if (localFx.effect === "lightning") {
@@ -134,6 +140,7 @@ export function WindowSparkles({
               lightningBudget,
               scope,
             );
+            context.restore();
             continue;
           }
           const snow = localFx.effect === "falling-stars";
@@ -178,6 +185,7 @@ export function WindowSparkles({
               context.fill();
             }
           }
+          context.restore();
         }
       }
       context.globalAlpha = 1;
@@ -209,9 +217,10 @@ export function WindowSparkles({
       attributeFilter: ["style", "class", "hidden"],
     });
     document.fonts.addEventListener("loadingdone", fontsLoaded);
-    window.addEventListener("resize", request);
+    const layoutChanged = () => { clearUILightningContours(); request(); };
+    window.addEventListener("resize", layoutChanged);
     document.addEventListener("load", request, true);
-    document.addEventListener("scroll", request, true);
+    document.addEventListener("scroll", layoutChanged, true);
     document.addEventListener("input", request, true);
     document.addEventListener("visibilitychange", resume);
     reduced.addEventListener("change", resume);
@@ -221,9 +230,9 @@ export function WindowSparkles({
       observer.disconnect();
       cancelAnimationFrame(frame);
       if (timer !== undefined) clearTimeout(timer);
-      window.removeEventListener("resize", request);
+      window.removeEventListener("resize", layoutChanged);
       document.removeEventListener("load", request, true);
-      document.removeEventListener("scroll", request, true);
+      document.removeEventListener("scroll", layoutChanged, true);
       document.removeEventListener("input", request, true);
       document.removeEventListener("visibilitychange", resume);
       reduced.removeEventListener("change", resume);
