@@ -1153,7 +1153,11 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .contextual-master-controller > p { margin: 0; }
 .history-controls { width: 100%; max-width: 240px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
 .history-controls label { display: flex; flex-direction: row; align-items: center; gap: 5px; margin: 0; font-size: inherit; }
-.history-controls .history-scope select { width: 100%; align-self: center; }
+.history-controls .history-scope { flex-direction: column; flex-wrap: nowrap; }
+.history-controls .history-scope button { text-align: left; }
+.history-controls .history-step-row { gap: 4px; }
+.history-controls .history-step-row > label { flex: 1; flex-direction: column; align-items: stretch; gap: 2px; }
+.history-controls .history-step-row input[type="number"] { width: 100%; flex: none; }
 .history-controls :is(input,select,button) { padding: 3px 5px; min-height: 0; line-height: 1.25; font-size: inherit; }
 .history-controls input[type="number"] { field-sizing: fixed; box-sizing: border-box; width: 54px; min-width: 54px; flex: 0 0 54px; align-self: center; }
 .history-controls input[type="checkbox"] { margin: 0; }
@@ -1175,7 +1179,6 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .action-configuration { display: flex; flex-direction: column; gap: 5px; max-width: 240px; }
 .action-configuration label { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; margin: 0; font-size: 12px; }
 .action-configuration :is(button,input,select) { padding: 3px 5px; font-size: 12px; min-height: 0; }
-.configuration-binding { border-top: 1px solid var(--omnium-border, #60ddec); padding-top: 4px; }
 .resize-levels { display: flex; flex-direction: column; gap: 3px; }
 .resize-levels button[aria-pressed="true"] { border-color: var(--omnium-accent); box-shadow: inset 2px 0 var(--omnium-accent); }
 .frame-resize-preview { margin: 0; inset: auto; position: fixed; box-sizing: border-box; border: 1px dashed #60ffd0; background: #60ffd00c; pointer-events: none; z-index: 100001; }
