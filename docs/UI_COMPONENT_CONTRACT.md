@@ -266,7 +266,10 @@ commands. Spectrum appearance is coupled under Visual hierarchy → Sliders.
 
 
 Spectrum glyphs use a compact 44px axis with 18px bars in 22px hit targets, plus content-sized
-inline min/max labels. The current value sits directly above the dot. The rail,
+inline min/max labels. The current value sits directly above the dot. The outer
+control reserves the label row plus the full 22px interaction row in normal flow;
+never force its total height to the rail height (global border-box sizing would
+make the slider overflow onto its following sibling). The rail,
 rail uses a soft filled/unfilled split, compact rounded chevrons and a softly lit dot.
 The shared spectrum target uses color ink classified as an indicator for MS; its
 transparent native range is only an input surface, not a separate visible target. Arrow tips meet
