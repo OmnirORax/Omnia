@@ -425,8 +425,10 @@ clear, selection commits and geometry/configuration changes keep their own rules
 ### Shared background tint
 
 `selectorSurface.ts` defines one surface strength for HTML, SVG and the scene:
-paint opacity × pulse strength × 0.2. Peak pulse strength remains 0.82; preview
-opacity keeps its normal 0.6 factor. Scene colors mix in display sRGB and then
+paint opacity × normalized pulse level × configurable background fill strength.
+The Background fill strength consumer defaults to 0.164, preserving the old
+0.2 × 0.82 peak, but can reach 1 for full coverage. Preview opacity keeps its
+normal 0.6 factor. Contour strength is independent and defaults to 1. Scene colors mix in display sRGB and then
 return to Three's linear working space, matching CSS compositing instead of
 producing an unusually bright green background.
 
@@ -439,3 +441,18 @@ pulse loop. Background images are treated as their own painted material rather
 than inferred from arbitrary image pixels. This normalizes highlight strength;
 translucency still preserves differences in original background colors/imagery.
 No appearance values, selection membership or pulse settings are rewritten.
+
+### Independent selector feedback strengths
+
+Self inventory → Selector feedback exposes Background fill strength and Contour
+strength. Each is an automatically discovered appearance-owned function using
+the existing shared Opacity property with independent values; no duplicated setter
+or value store. Background fill strength affects only actual HTML/SVG/scene fill
+paint and accounts for translucent ancestor tint at that same strength. Contour
+strength affects halo, rail, seams and geometry guides, including the live sample.
+Neither changes glyph feedback or the user's tuned pulse settings. Tone Color,
+Brightness and Opacity remain shared tone controls; use the new fill consumer to
+brighten backgrounds without boosting contour highlights. The fill slider reaches
+full coverage at 1 for accepted selection with tone opacity 1 and pulse at peak.
+Rendering uses existing cached hosts and clocks; no additional frame loop, source
+discovery or geometry reads are introduced.

@@ -189,7 +189,7 @@ export default function SpatialWorkspace(props: Props) {
         // CSS color-mix uses display sRGB. Convert both colors before mixing,
         // then restore the scene's linear working space for rendering.
         color.convertLinearToSRGB().lerp(new THREE.Color(paint.color).convertLinearToSRGB(),
-          selectorSurfaceStrength(paint.opacity, strength)).convertSRGBToLinear();
+          selectorSurfaceStrength(paint.opacity, strength, paint.fill)).convertSRGBToLinear();
       } else if (hierarchyBackground !== null) color.lerp(new THREE.Color("white"), hierarchyBackground);
       scene.background = color;
     };

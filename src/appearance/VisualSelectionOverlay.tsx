@@ -5,20 +5,23 @@ import { SELECTOR_FEEDBACK, TARGETS } from "./registry";
 import { brightHex, tint } from "./resolve";
 import { type SelectionRule, type VisualPart, type VisualMeasurements, createVisualMeasurements } from "./visualSelection";
 import { selectorPulseSettings, selectorPulseLevel, type SelectorPulseSettings } from "./selectorFeedback";
-import { SELECTOR_SURFACE_OPACITY, SELECTOR_PAINT_PEAK, selectorSurfaceStrength, remainingSurfaceTint, paintAlpha } from "./selectorSurface";
+import { SELECTOR_PAINT_PEAK, selectorSurfaceStrength, remainingSurfaceTint, paintAlpha } from "./selectorSurface";
 import selectorFeedback from "./selectorFeedback.function";
+import backgroundFill from "./selectorBackgroundFill.function";
+import contourStrength from "./selectorContourStrength.function";
 import { pathEdges, type Point } from "./selectionGeometry";
 
 type Mark = { key: string; x: number; y: number; width: number; height: number; rx: number; ry: number; surface: boolean };
 const rectAttributes = (mark: Mark) => ({ x: mark.x, y: mark.y, width: mark.width, height: mark.height, rx: mark.rx, ry: mark.ry });
 type Tone = keyof typeof SELECTOR_FEEDBACK;
-type FeedbackPaint = { ink: string; hot: string; opacity: number; glow: number };
+type FeedbackPaint = { ink: string; hot: string; opacity: number; glow: number; fill: number; contour: number };
 const feedbackStyle = (paint: FeedbackPaint): CSSProperties => ({
   "--visual-selection-ink": paint.ink, "--visual-selection-core": feedbackCore(paint),
   "--visual-selection-hot": paint.hot, "--visual-selection-opacity": paint.opacity,
   "--visual-selection-hairline": `${1 / Math.max(1, devicePixelRatio)}px`,
   "--visual-selection-glow": paint.glow,
-  "--visual-selection-surface-strength": SELECTOR_SURFACE_OPACITY * SELECTOR_PAINT_PEAK,
+  "--visual-selection-surface-strength": paint.fill,
+  "--visual-selection-contour-strength": paint.contour,
 } as CSSProperties);
 function SelectionTrace({ mark, tone, paint, preview = false, seam = true }: { mark: Mark; tone: Tone; paint: FeedbackPaint; preview?: boolean; seam?: boolean }) {
   const attributes = rectAttributes(mark);
@@ -32,7 +35,7 @@ function SelectionTrace({ mark, tone, paint, preview = false, seam = true }: { m
   </g>;
 }
 const signal = { mix: "--omnium-selector-glyph-mix", surface: "--omnium-selector-surface-mix" };
-type SurfaceHost = { element: HTMLElement; opacity: number; inheritedOpacity: number; transmission: number };
+type SurfaceHost = { element: HTMLElement; opacity: number; inheritedOpacity: number; transmission: number; fill: number };
 type SurfaceSources = { current: SurfaceHost[] };
 /** One continuous clock, no React frames, layout reads or browser custom-property
  * keyframe interpolation. Membership changes only replace this cached host list. */
@@ -53,8 +56,8 @@ function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings,
       const weight = `${(100 * strength).toFixed(5)}%`;
       for (const element of hosts) element.style.setProperty(signal.mix, weight);
       for (const source of sources?.current ?? []) {
-        const inherited = selectorSurfaceStrength(source.inheritedOpacity, strength) * source.transmission;
-        source.element.style.setProperty(signal.surface, `${100 * remainingSurfaceTint(source.opacity, strength, inherited)}%`);
+        const inherited = selectorSurfaceStrength(source.inheritedOpacity, strength, source.fill) * source.transmission;
+        source.element.style.setProperty(signal.surface, `${100 * remainingSurfaceTint(source.opacity, strength, inherited, source.fill)}%`);
       }
       for (const surface of surfaces) surface.style.opacity = String(level);
       if (settings.enabled && !reduced.matches && !document.hidden) frame = requestAnimationFrame(draw);
@@ -89,12 +92,19 @@ const glyphFeedback = (name: string, paint: FeedbackPaint) =>
 
 function useFeedbackPaints() {
   const appearance = useAppearance();
+  const strength = (fn: typeof backgroundFill) => {
+    const target = appearance?.targets.find(target => target.id === fn.consumer.id);
+    return Number(appearance && target && !appearance.safe
+      ? fn.readInputs(property => appearance.read(target, property)).opacity
+      : fn.inputs.opacity.initial);
+  };
+  const fill = strength(backgroundFill), contour = strength(contourStrength);
   const entries = Object.entries(SELECTOR_FEEDBACK).map(([tone, defaults]) => {
     const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
     const get = (property: string) => appearance && !appearance.safe
       ? appearance.read(target, property) : target.defaults![property];
     return [tone, { ink: brightHex(String(get("color") ?? defaults.color), Number(get("brightness"))),
-      hot: brightHex("#ffffff", Number(get("brightness"))), opacity: Number(get("opacity")), glow: Number(get("glow")) }];
+      hot: brightHex("#ffffff", Number(get("brightness"))), opacity: Number(get("opacity")), glow: Number(get("glow")), fill, contour }];
   });
   // Unrelated object paint changes must not tear down/re-measure every feedback
   // host or restart its native animation while a color picker is dragged.
@@ -117,9 +127,10 @@ export function SelectorFeedbackSample({ targets }: { targets: string[] }) {
   const pulse = usePulseSettings();
   const pulseRoot = useRef<HTMLDivElement>(null);
   const paints = useFeedbackPaints();
+  const strengthsSelected = targets.includes(backgroundFill.consumer.id) || targets.includes(contourStrength.consumer.id);
   const tones = (Object.keys(SELECTOR_FEEDBACK) as Tone[]).filter(tone => {
     const target = TARGETS.find(target => target.id === `ui.guides.selector.${tone}`)!;
-    return !target.hidden && (targets.includes(target.id) || targets.includes(selectorFeedback.consumer.id));
+    return !target.hidden && (targets.includes(target.id) || targets.includes(selectorFeedback.consumer.id) || strengthsSelected);
   });
   const sampleHosts = useMemo<Element[]>(() => [], [tones.join("|")]);
   useSelectionPulse(sampleHosts, pulse, pulseRoot);
@@ -163,7 +174,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     const targets = new Map<string, SceneSelectionPaint>();
     for (const [parts, paint] of [[selected, paints.included], [preview, pendingPaint]] as const)
       for (const part of parts) if (part.target.binding?.selection?.renderer === "scene")
-        targets.set(part.target.id, { color: paint.ink, opacity: paint.opacity });
+        targets.set(part.target.id, { color: paint.ink, opacity: paint.opacity, fill: paint.fill });
     if (!targets.size) return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
@@ -242,7 +253,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
           if (current) { ancestor = current; parent = backdrop.feedback; }
         }
       }
-      return { element, opacity: feedback.opacity, inheritedOpacity: parent?.ink === feedback.ink ? parent.opacity : 0, transmission: ancestor ? exposure : 0 };
+      return { element, opacity: feedback.opacity, fill: feedback.fill, inheritedOpacity: parent?.ink === feedback.ink ? parent.opacity : 0, transmission: ancestor ? exposure : 0 };
     });
     const plans = [...paint].map(([element, { glyph, surface }], index) => {
       const computed = getComputedStyle(element, glyph?.pseudo || null);
@@ -263,7 +274,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       if (surface) {
         const original = getComputedStyle(element).boxShadow;
         const shadow = original === "none" ? "" : `${original},`;
-        const weight = `var(${signal.surface},${100 * selectorSurfaceStrength(surface.opacity, SELECTOR_PAINT_PEAK)}%)`;
+        const weight = `var(${signal.surface},${100 * selectorSurfaceStrength(surface.opacity, SELECTOR_PAINT_PEAK, surface.fill)}%)`;
         // An inset tint paints the actual rounded surface below its contents,
         // including image/gradient backgrounds. No blur, wrappers or value writes.
         const tint = `color-mix(in srgb,transparent calc(100% - ${weight}),${surface.ink} ${weight})`;
@@ -337,17 +348,17 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       <defs><marker id="selector-line-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto-start-reverse">
         <path d="M0 0L7 3.5L0 7" fill="none" stroke="context-stroke" />
       </marker></defs>
-      <g style={feedbackStyle(paints.included)} opacity={paints.included.opacity}>{marks.map(mark =>
+      <g style={feedbackStyle(paints.included)} opacity={paints.included.opacity * paints.included.contour}>{marks.map(mark =>
         <rect key={mark.key} {...rectAttributes(mark)} className="visual-selection-seam" />)}</g>
-      <g style={feedbackStyle(paints.excluded)} opacity={paints.excluded.opacity}>{omissions.map(mark =>
+      <g style={feedbackStyle(paints.excluded)} opacity={paints.excluded.opacity * paints.excluded.contour}>{omissions.map(mark =>
         <rect key={mark.key} {...rectAttributes(mark)} className="visual-selection-seam" />)}</g>
-      <g style={feedbackStyle(pendingPaint)} opacity={pendingPaint.opacity}>{candidates.map(mark =>
+      <g style={feedbackStyle(pendingPaint)} opacity={pendingPaint.opacity * pendingPaint.contour}>{candidates.map(mark =>
         <rect key={mark.key} {...rectAttributes(mark)} className="visual-selection-seam" />)}</g>
       {paths.map(path => {
         const edges = pathEdges(path.points, path.closed);
         const stroke = (disabled: boolean) => edges.flatMap(([a, b], index) => path.disabledEdges.includes(index) === disabled
           ? [`M${a.x} ${a.y}L${b.x} ${b.y}`] : []).join(" ");
-        return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(path.preview && path.include !== undefined ? paints.included : paints.boundary) }}>
+        return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(path.preview && path.include !== undefined ? paints.included : paints.boundary), opacity: paints.boundary.contour }}>
           <path className="visual-selection-line" d={stroke(false)} fill="none" />
           <path className="visual-selection-line is-disabled" d={stroke(true)} fill="none" />
           {path.closed && path.points.length > 2 && path.points.length < 24 && path.points.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="2.5" />)}
@@ -357,8 +368,8 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       })}
       {guides.map(({ key, points: [a, b], direction }) => <line key={key} className="visual-selection-line is-accepted"
         x1={a.x} y1={a.y} x2={b.x} y2={b.y} markerEnd={direction ? "url(#selector-line-arrow)" : undefined}
-        style={{ color: feedbackInk(paints.boundary) }} />)}
-      {guide && <g style={{ color: feedbackInk(candidate?.include === false ? paints.excluded : paints.included) }}>
+        style={{ color: feedbackInk(paints.boundary), opacity: paints.boundary.contour }} />)}
+      {guide && <g style={{ color: feedbackInk(candidate?.include === false ? paints.excluded : paints.included), opacity: paints.included.contour }}>
         <line className="visual-selection-line" x1={guide[0].x} y1={guide[0].y} x2={guide[1].x} y2={guide[1].y}
           markerEnd={candidate?.line?.mode === "direction" ? "url(#selector-line-arrow)" : undefined} />
         {guide.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="3" />)}
