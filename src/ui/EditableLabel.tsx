@@ -1,3 +1,4 @@
+import { useCancelValueEdit } from "./ActiveContext";
 import { useEffect, useRef, useState } from "react";
 import { useUI } from "./context";
 import { nameSymbol } from "./nameSymbols";
@@ -32,10 +33,12 @@ export function UINameInput({
   onDone?: () => void;
 }) {
   const [draft, setDraft] = useState(value);
-  const cancelled = useRef(false);
+  const cancelled = useRef(false), input = useRef<HTMLInputElement>(null);
+  useCancelValueEdit(input, () => { cancelled.current = true; setDraft(value); });
   useEffect(() => setDraft(value), [value]);
   return (
     <input
+      ref={input}
       className="ui-name-input"
       aria-label={label}
       value={draft}

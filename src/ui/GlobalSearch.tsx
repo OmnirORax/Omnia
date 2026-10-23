@@ -1,3 +1,4 @@
+import { useActiveLayer } from "./ActiveContext";
 import { transientReveal, type RevealSession } from './transientReveal';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -33,6 +34,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
   const [index] = useState(() => globalControls(ui,appearance?.targets));
   const [query, setQuery] = useState(""), [active, setActive] = useState(-1), [notice, setNotice] = useState("");
   const input = useRef<HTMLInputElement>(null), popup = useRef<HTMLDivElement>(null);
+  useActiveLayer(true, popup, onClose);
   const [position, setPosition] = useState(origin), [dragging, setDragging] = useState(false);
   const drag = useRef<{ pointer: number; offset: Point } | null>(null);
   const clamp = (point: Point) => {
@@ -60,7 +62,7 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
   const close = () => { stopPreview(); callbacks.current.onClose(); };
   useEffect(() => {
     input.current?.focus();
-    const outside = (event: PointerEvent) => { if (!popup.current?.contains(event.target as Node)) close(); };
+    const outside = (event: PointerEvent) => { if (!(event.target instanceof Element && event.target.closest("[data-context-controller]")) && !popup.current?.contains(event.target as Node)) close(); };
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); close(); }
     };

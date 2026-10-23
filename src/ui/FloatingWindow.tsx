@@ -1,3 +1,4 @@
+import { activateFrameContext } from "./ActiveContext";
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
@@ -87,6 +88,7 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, setZ] = useState(nextWindowLayer);
+  useLayoutEffect(() => { if (!saved.closed && !state.collapsed) activateFrameContext(ui, key); }, [id, openingKey]);
   // Mounting a caller-controlled window is an explicit open request. Repair
   // stale closed flags from tab/fallback closes through the same model path.
   useLayoutEffect(() => {
@@ -115,7 +117,7 @@ export function FloatingWindow({
     // Saved coordinate updates during dragging must not recenter it.
   }, [id, openAtCursor, openingKey]);
   const set = (patch: Partial<WindowState>) => {
-    if (patch.collapsed === true && !saved.collapsed && onMinimize?.() === false) return;
+    if (patch.collapsed === true && !saved.collapsed && onMinimize?.() === false) return false;
     ui.update((layout) => ({
       ...layout,
       windows: {
@@ -143,6 +145,7 @@ export function FloatingWindow({
         })(),
       },
     }));
+    return true;
   };
   useEffect(() => {
     const resize = () =>
@@ -196,7 +199,7 @@ export function FloatingWindow({
           setZ(nextWindowLayer());
           onInteract?.();
         }}
-        onDragStop={(_, data) => set({ x: data.x, y: data.y })}
+        onDragStop={(_, data) => { set({ x: data.x, y: data.y }); }}
         onResizeStop={(_, __, ref, ___, position) =>
           set({ width: ref.offsetWidth, height: ref.offsetHeight, ...(owner ? {} : position) })
         }
@@ -233,8 +236,9 @@ export function FloatingWindow({
               onClose
                 ? () => {
                     // A pending-edit guard can veto closing before ownership changes.
-                    if (onClose() === false) return;
+                    if (onClose() === false) return false;
                     if (owner) ui.update((s) => releaseResident(s, key));
+                    return true;
                   }
                 : undefined
             }

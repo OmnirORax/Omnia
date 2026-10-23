@@ -1,4 +1,3 @@
-import { FrameBranchButton } from "./frameExpansion";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState } from "react";
 import { DockFillContext, useUI } from "./context";
@@ -10,7 +9,6 @@ import { FrameSearch, nameFor } from "./FrameSearch";
 import { useIconTint } from "../appearance/Styles";
 import { ShortcutHint } from "./ShortcutHint";
 import { nameSymbol } from "./nameSymbols";
-import { FrameCloseButton } from "./FrameCloseButton";
 
 export function DockLayout({ container }: { container: string }) {
   const ui = useUI(), tree = getContainer(ui.layout, container)?.dockLayout;
@@ -37,11 +35,10 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
             const current = getContainer(layout, container)?.dockLayout;
             return current ? updateContainer(updateContainer(layout, key, { collapsed: false }), container, { dockLayout: updateDockNode(current, path, value => value.kind === "tabs" ? { ...value, active: key } : value) }) : layout;
           })}
-        ><DockTabLabel id={key} title={title} /><ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${key}`]} /></button><FrameCloseButton container={key} title={title} /></span>;
+        ><DockTabLabel id={key} title={title} /><ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${key}`]} /></button></span>;
       })}
     </div>
-    <FrameBranchButton container={node.active} title={nameFor(ui, node.active)} />
-    <FrameSearch container={node.active} title={nameFor(ui, node.active)} expand={() => {}} />
+    <FrameSearch container={node.active} title={nameFor(ui, node.active)} renderToggle={false} expand={() => {}} />
     </div>
     {node.keys.map(key => <div className="ui-dock-tab-body" role="tabpanel" data-ui-dock-content={key} hidden={key !== node.active} key={key} aria-label={nameFor(ui, key)}>
       {key.startsWith("window:")

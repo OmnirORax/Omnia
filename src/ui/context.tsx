@@ -1,3 +1,4 @@
+import type { ActiveContextStore, ContextLayer } from "./activeContextModel";
 import { createContext, useContext, type ReactElement, type ReactNode } from "react";
 import type { UILayout, WindowState, UIResident, FrameLayoutMode } from "./layout";
 import type { PlacementPreview } from "./drag";
@@ -31,15 +32,18 @@ export type UIContextValue = {
   configureControl: (owner: string, control: "collapse" | "pin" | "close" | "branch") => void;
   placementPreview: TransientStore<PlacementPreview | null>;
   defaults: Map<string, WindowState>;
+  activeContext: ActiveContextStore;
+  contextLayers: Map<HTMLElement, ContextLayer>;
   frameActions: Map<
     string,
     {
       title: string;
       label: string;
       state: Pick<WindowState, "collapsed" | "pinned" | "chrome">;
-      onChange: (patch: Partial<WindowState>) => void;
+      onChange: (patch: Partial<WindowState>) => void | boolean;
       onRename?: (value: string) => void;
-      onClose?: () => void;
+      onClose?: () => void | boolean;
+      onSearch?: () => boolean;
       onBranchToggle?: () => boolean;
       closeLabel?: string;
     }

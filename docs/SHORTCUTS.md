@@ -116,3 +116,21 @@ MS cursor locking uses `selector.lock` (Shift+MB3 by default). It is a normal
 rebindable catalog action: park MS / use normal cursor, then resume MS. The former
 Hold Ctrl selection-preview gesture is removed; Selection / Preview remains an
 independent feedback visibility toggle.
+
+## Active UI context
+
+The shared catalog declares Esc (one level back), S (search active frame), X
+(close), M (minimize), D (toggle descendants), and Shift+S (global UI search).
+Master Controller → Active context exposes the same commands as clickable buttons.
+Click/focus activates a field, popup or frame; hovering does not. Esc cancels an
+uncommitted field draft first, then exits its popup/parent, then minimizes the
+frame. Letter shortcuts do not intercept typing. World-axis X remains available
+when no UI frame is active. Legacy default global S migrates to Shift+S only if
+that binding is free; custom bindings and explicit clears survive.
+
+The controller preserves the previous target while its action buttons are used.
+The transient stack in `ActiveContext.tsx` is not saved UI/appearance/history.
+Shared draft editors use `useCancelValueEdit`; popup adapters use `useActiveLayer`
+(or `useOutsideDismiss`). Frame adapters can veto close/minimize by returning
+false, preserving pending appearance Apply/Discard/Cancel behavior. Protected
+hold-Esc recovery stays independent. No website shortcut closes browser tabs.

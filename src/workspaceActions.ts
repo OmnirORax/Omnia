@@ -7,7 +7,7 @@ import { normalizeFont, type FontId } from "./fonts.ts";
 import { FEATURE_ACTIONS } from "./featureActions.ts";
 
 export const ACTIONS = [
-  { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "S" },
+  { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "Shift+S" },
   { id: "ui:devMode", category: "UI editing", label: "UI edit mode", defaultKey: "" },
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
@@ -130,6 +130,11 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
       savedBindings["selector.include"] = "MB1";
     }
     delete savedBindings["selector.exclude"];
+    // Split the legacy default search into contextual S and global Shift+S.
+    // Custom bindings, explicit clears and existing Shift+S assignments survive.
+    if (!Object.hasOwn(savedBindings, "context.search") && savedBindings.searchUI === "S" &&
+        !Object.entries(savedBindings).some(([id, binding]) => id !== "searchUI" && binding === defaults.bindings.searchUI))
+      savedBindings.searchUI = defaults.bindings.searchUI;
     defaults.appearance.controller = loadController(value.appearance?.controller);
     defaults.appearance.font = normalizeFont(value.appearance?.font);
     if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;

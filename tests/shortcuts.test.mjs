@@ -125,3 +125,34 @@ test("shortcut policy catches private hotkeys, aliases and middle-button trigger
   const violations = walk("src").filter(file => /\.[cm]?[jt]sx?$/.test(file)).flatMap(file => privateShortcutLiterals(readFileSync(file, "utf8"), file));
   assert.deepEqual(violations, [], `Register new shortcut actions in the shared catalog and use binding matching:\n${violations.join("\n")}`);
 });
+
+test("active context commands share catalog defaults and preserve saved search choices", () => {
+  const defaults = defaultSettings().bindings;
+  for (const [id, key] of Object.entries({ back: "Esc", search: "S", close: "X", minimize: "M", descendants: "D" }))
+    assert.equal(defaults[`context.${id}`], key);
+  assert.equal(defaults.searchUI, "Shift+S");
+  assert.equal(normalizeSettings({ bindings: { searchUI: "S" } }).bindings.searchUI, "Shift+S");
+  assert.equal(normalizeSettings({ bindings: { searchUI: "Q" } }).bindings.searchUI, "Q");
+  assert.equal(normalizeSettings({ bindings: { searchUI: "" } }).bindings.searchUI, "");
+  const occupied = normalizeSettings({ bindings: { searchUI: "S", "button:custom": "Shift+S" } });
+  assert.equal(occupied.bindings.searchUI, "S");
+  assert.equal(occupied.bindings["button:custom"], "Shift+S");
+  assert.equal(keyConflict(defaults, "context.close", "X"), null);
+});
+
+test("context back removes exactly one field/popup/frame level without mutating its source", async () => {
+  const { activeFrame, parentContext } = await import("../src/ui/activeContextModel.ts");
+  const frame = { kind: "frame", key: "window:theme" };
+  const nested = { kind: "frame", key: "window:properties" };
+  const layer = { kind: "layer", element: {} }, field = { kind: "field", element: {} };
+  const stack = Object.freeze([frame, nested, layer, field]);
+  assert.equal(activeFrame(stack), nested);
+  const step1 = parentContext(stack);
+  assert.deepEqual(step1, [frame, nested, layer]);
+  const step2 = parentContext(step1);
+  assert.deepEqual(step2, [frame, nested]);
+  assert.deepEqual(parentContext(step2), [frame]);
+  assert.deepEqual(parentContext(parentContext(parentContext(step2))), []);
+  assert.equal(stack.length, 4);
+  assert.equal(activeFrame([]), undefined);
+});

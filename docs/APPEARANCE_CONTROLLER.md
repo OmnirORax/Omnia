@@ -313,3 +313,8 @@ explicitly choosing that parent broadens to its matching subtypes within the
 existing geometric work area. Choosing a fully included branch deselects it.
 Counts reuse cached work-area peers and canonical paths, refreshed on selection
 or geometry changes, never by new DOM scans during pointer motion.
+
+Master Controller also contains Active context, the shared clickable frame-action
+panel. It preserves the remote target while invoking search, close, minimize,
+back or descendant expansion. An appearance close/minimize veto must propagate
+`false` through frame actions so pending Apply/Discard/Cancel retains its frame.

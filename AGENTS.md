@@ -105,3 +105,8 @@ organization changes their valid expectations.
 
 GitHack previews must remain self-contained (startup assets previously received
 HTTP 429 when requested separately). Production Pages builds remain code-split.
+
+UI frame commands belong in Master Controller's shared Active context panel and
+the action catalog, not repeated header tools. Activation is click/focus based
+and transient. Draft controls use `useCancelValueEdit`; popups use the shared
+active-layer adapter. Preserve close/minimize vetoes and avoid hover polling.

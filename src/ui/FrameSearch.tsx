@@ -1,3 +1,5 @@
+import { registerFrameSearch } from "./frameSearchActions";
+import { useActiveLayer } from "./ActiveContext";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUI, type UIContextValue } from "./context";
@@ -53,7 +55,7 @@ export function frameControls(ui: UIContextValue, container: string): SearchResu
   return [...results.values()];
 }
 
-export function FrameSearch({ container, title, expand }: { container: string; title: string; expand: () => void }) {
+export function FrameSearch({ container, title, expand, renderToggle = true }: { container: string; title: string; expand: () => void; renderToggle?: boolean }) {
   const ui = useUI(), id = useId();
   const [open, setOpen] = useState(false), [query, setQuery] = useState(""), [active, setActive] = useState(0);
   const [position, setPosition] = useState({ left: 8, top: 8, height: 400 });
@@ -66,15 +68,22 @@ export function FrameSearch({ container, title, expand }: { container: string; t
   const visible = matches.slice(0, 40);
   useEffect(() => { if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: "nearest" }); }, [open, active, query]);
   const close = () => { setOpen(false); setQuery(""); setActive(0); };
+  useActiveLayer(open, popup, close, container);
+  const launch = useRef(expand); launch.current = expand;
+  useEffect(() => registerFrameSearch(container, {
+    available: () => !!rootFor(container)?.getClientRects().length,
+    open: () => { launch.current(); setOpen(true); },
+  }), [container]);
   useLayoutEffect(() => {
     if (!open) return;
     const place = () => {
-      const bounds = toggle.current?.getBoundingClientRect(); if (!bounds) return;
+      const anchor = toggle.current?.getClientRects().length ? toggle.current : rootFor(container)?.querySelector<HTMLElement>("[data-ui-chrome]") ?? rootFor(container);
+      const bounds = anchor?.getBoundingClientRect(); if (!bounds) return;
       const width = Math.min(320, innerWidth - 16), available = innerHeight - bounds.bottom - 8;
       setPosition({ left: Math.max(8, Math.min(bounds.left, innerWidth - width - 8)), top: available >= 150 ? bounds.bottom + 4 : Math.max(8, bounds.top - Math.min(360, bounds.top - 12)), height: Math.max(120, Math.min(360, available >= 150 ? available : bounds.top - 12)) });
     };
     place(); input.current?.focus();
-    const outside = (event: PointerEvent) => { if (!popup.current?.contains(event.target as Node) && !toggle.current?.contains(event.target as Node)) close(); };
+    const outside = (event: PointerEvent) => { if ((event.target as Element).closest?.("[data-context-controller]")) return; if (!popup.current?.contains(event.target as Node) && !toggle.current?.contains(event.target as Node)) close(); };
     document.addEventListener("pointerdown", outside, true); window.addEventListener("resize", place); window.addEventListener("scroll", place, true);
     return () => { document.removeEventListener("pointerdown", outside, true); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
@@ -102,9 +111,9 @@ export function FrameSearch({ container, title, expand }: { container: string; t
     cleanup.current = () => { cancelAnimationFrame(frame); clearTimeout(timer); found?.classList.remove("ui-search-found"); };
   };
   return <>
-    <button ref={toggle} className="ui-frame-search-toggle" data-ui-search aria-label={`Search UI in ${title}`} title={`Search UI in ${title}`} aria-expanded={open} aria-controls={open ? id : undefined} draggable={false} onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (open) close(); else { expand(); setOpen(true); } }}>
+    {renderToggle && <button ref={toggle} className="ui-frame-search-toggle" data-ui-search aria-label={`Search UI in ${title}`} title={`Search UI in ${title}`} aria-expanded={open} aria-controls={open ? id : undefined} draggable={false} onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (open) close(); else { expand(); setOpen(true); } }}>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
-    </button>
+    </button>}
     {open && createPortal(<div ref={popup} className="ui-frame-search-popup" data-ui-search style={{ left: position.left, top: position.top, maxHeight: position.height }} onPointerDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()} onKeyDown={event => {
       event.stopPropagation();
       if (event.key === "Escape") { event.preventDefault(); close(); toggle.current?.focus(); }

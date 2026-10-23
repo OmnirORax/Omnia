@@ -1142,3 +1142,7 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 @media (prefers-reduced-motion: reduce) {
   .appearance-preview-buttons.needs-choice { animation: none; outline: 1px solid currentColor; outline-offset: 3px; }
 }
+
+/* Shared frame actions live in Master Controller, leaving clean frame handles. */
+.ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close),
+.ui-inline-frame-bar > .property-node-name { padding-right: 8px; }

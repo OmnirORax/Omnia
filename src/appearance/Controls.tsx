@@ -1,3 +1,4 @@
+import { useCancelValueEdit } from "../ui/ActiveContext";
 import { useEffect, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
 import { propertyFor, type RegisteredTarget } from "./registry";
@@ -42,6 +43,7 @@ function PropertyInput({
 }) {
   const ctx = useAppearance();
   const p = propertyFor(property)!;
+  const precise = useRef<HTMLInputElement>(null), beforeRange = useRef(value);
   const input = useRef<HTMLInputElement>(null),
     draft = useRef(value),
     editing = useRef(false),
@@ -72,6 +74,18 @@ function PropertyInput({
       node.removeEventListener("blur", commit);
     };
   }, [p.kind]);
+  useCancelValueEdit(precise, () => {
+    if (!typingNumber.current) return;
+    typingNumber.current = false;
+    setNumber(Number(beforeNumber.current)); setNumberText(String(beforeNumber.current));
+    onPreview(beforeNumber.current);
+  }, p.kind);
+  useCancelValueEdit(input, () => {
+    if (!editing.current) return;
+    editing.current = false; draft.current = beforeRange.current;
+    setNumber(Number(beforeRange.current)); setNumberText(String(beforeRange.current));
+    onPreview(beforeRange.current);
+  }, p.kind);
   if (p.kind === "color")
     return (
       <ColorInput
@@ -145,6 +159,7 @@ function PropertyInput({
         value={number}
         onChange={(e) => {
           const next = Number(e.currentTarget.value);
+          if (!editing.current) beforeRange.current = value;
           editing.current = true;
           draft.current = next;
           setNumber(next);
@@ -153,6 +168,7 @@ function PropertyInput({
         }}
       />
       <input
+        ref={precise}
         type="number"
         className="appearance-precise"
         aria-label={`${label ?? p.label} precise value`}

@@ -348,3 +348,12 @@ selection constraint/cache keys; do not classify by current color/font values.
 Pending Master Controller minimize/close queues the requested action and blinks
 the existing Apply / Discard / Cancel choices in place, without a popup/focus jump.
 Apply/Discard completes the queued action; Cancel keeps the draft and controller open.
+
+## Active context actions
+
+Frame tools live once in Master Controller → Active context, with cataloged
+shortcuts. `ActiveContext.tsx` tracks clicks/focus in a transient context stack;
+Esc exits one field/popup/frame level. Controller clicks preserve the target.
+Use shared frame actions, `useCancelValueEdit` for uncommitted drafts and
+`useActiveLayer` for popup levels. Do not restore duplicated header tools or
+track context through pointer polling. See SHORTCUTS.md for bindings/migration.

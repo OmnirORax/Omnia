@@ -1,3 +1,4 @@
+import { ActiveContextControls } from "../ui/ActiveContext";
 import { useFeatureActions } from "../ui/useFeatureActions";
 import { applyTextLightningPreset } from "./textLightningPreset";
 import { ConsumerProperties } from "../properties/ConsumerProperties";
@@ -377,6 +378,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
         const target = targets.find(target => target.id === hovered.current);
         if (target) reveal(target, false);
       }}>
+      <ActiveContextControls />
       <SelectionPreviewToggle />
       {bindings && !inspecting && <CoupledProperties bindings={bindings} />}
       <UISection id="master-category:visual" title="Visuals" defaultExpanded={inspecting} expanded={ctx.location ? true : undefined}>

@@ -25,9 +25,9 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
     binding: (id: FeatureActionFor<Owner>) => shortcutBinding(id, latest.current.ui.shortcutBindings ?? {}),
     matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent, gestureModifiers = true) => {
       const current = latest.current;
-      if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked || event.defaultPrevented || !current.handlers[id].enabled) return false;
-      if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
       const definition = FEATURE_ACTIONS.find(action => action.id === id)!;
+      if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked && !("allowBlocked" in definition && definition.allowBlocked) || event.defaultPrevented || !current.handlers[id].enabled) return false;
+      if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
       if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
       return event instanceof KeyboardEvent
         ? matchesShortcut(id, current.ui.shortcutBindings ?? {}, normalizeKey(event))

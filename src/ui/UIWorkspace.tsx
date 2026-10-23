@@ -1,3 +1,5 @@
+import type { ActiveContextStack } from "./activeContextModel";
+import { ActiveContextSystem } from "./ActiveContext";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { ValueFieldBehavior } from "./ValueFieldBehavior";
 import { residentMovable } from "./rigidity";
@@ -557,6 +559,8 @@ export function UIWorkspace({
   const defaults = useRef(new Map<string, WindowState>()).current;
   const dockProjection = useRef<((key: string, rect: DockRect) => DockRect) | undefined>(undefined);
   const frameActions = useRef<UIContextValue["frameActions"]>(new Map()).current;
+  const activeContext = useRef<UIContextValue["activeContext"]>(createTransientStore<ActiveContextStack>([])).current;
+  const contextLayers = useRef<UIContextValue["contextLayers"]>(new Map()).current;
   const current = useRef({ layout, update, functions });
   current.current = { layout, update, functions };
   const editingUI = !!layout.panels["@devMode"];
@@ -1610,12 +1614,15 @@ export function UIWorkspace({
         placementPreview,
         defaults,
         frameActions,
+        activeContext,
+        contextLayers,
         renderResident,
         selectedFunctions: new Set([...buttonSelection.ids].filter(id => !/^(frame|window):/.test(id))),
         selectingUI: buttonSelection.mode,
         selectionMenu: buttonSelection.openMenu,
       }}
     >
+      <ActiveContextSystem />
       <DockWorkspace projection={dockProjection}>
       <AppearanceProvider bridge={appearance}>
       <AppearanceStyles />

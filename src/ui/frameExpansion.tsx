@@ -1,4 +1,4 @@
-import { useContext, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useLayoutEffect, useRef } from "react";
 import { useUI, UIContainerContext, UIHomeContext, type UIContextValue } from "./context";
 import { getContainer, residentBranch } from "./layout";
 
@@ -38,25 +38,4 @@ export function toggleFrameDescendants(ui: UIContextValue, root: string) {
   });
   for (const adapter of local) adapter.set(expanded);
   return expanded;
-}
-
-export function FrameBranchButton({ container, title }: { container: string; title: string }) {
-  const ui = useUI();
-  const [collapseNext, setCollapseNext] = useState(true);
-  const saved = getContainer(ui.layout, container)?.chrome;
-  const style = saved?.controlStyles?.branch, position = saved?.controls?.branch;
-  const asset = ui.layout.assets.find(asset => asset.id === style?.assetId);
-  return <button type="button" className="ui-frame-branch-toggle" data-ui-id="expand-descendants" data-ui-control="branch" data-ui-control-owner={container}
-    style={position ? { position: "absolute", left: position.x, top: position.y, right: "auto" } : undefined}
-    onContextMenu={event => { event.preventDefault(); event.stopPropagation(); ui.configureControl(container, "branch"); }}
-    aria-label={`Collapse / expand all descendants of ${title}`}
-    title="Collapse all descendants if any are open; otherwise expand all"
-    onPointerDown={event => event.stopPropagation()} onClick={event => {
-      event.stopPropagation(); setCollapseNext(ui.frameActions.get(container)?.onBranchToggle?.() ?? toggleFrameDescendants(ui, container));
-    }}>{style?.mode === "icon" && (asset || style.character)
-      ? asset ? <img src={asset.dataUrl} alt="" /> : style.character
-      : <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.25"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d={collapseNext ? "M2 3L5 6L2 9M10 3L7 6L10 9" : "M5 3L2 6L5 9M7 3L10 6L7 9"} />
-        </svg>}</button>;
 }

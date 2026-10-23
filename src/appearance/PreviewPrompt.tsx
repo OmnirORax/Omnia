@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useActiveLayer } from "../ui/ActiveContext";
+import { useRef } from "react";
 import { UIAction } from "../ui/UIAction";
 import { FunctionControl } from "../ui/UIWorkspace";
 
@@ -8,15 +9,7 @@ export function AppearancePreviewActions({ awaitingChoice = false, onContinue }:
 }) {
   const root = useRef<HTMLDivElement>(null);
   const callback = useRef(onContinue); callback.current = onContinue;
-  useEffect(() => {
-    if (!awaitingChoice) return;
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.repeat) return;
-      event.preventDefault(); event.stopImmediatePropagation(); callback.current();
-    };
-    window.addEventListener("keydown", key, true);
-    return () => window.removeEventListener("keydown", key, true);
-  }, [awaitingChoice]);
+  useActiveLayer(awaitingChoice, root, () => callback.current(), "window:theme");
   return <div ref={root} className={`appearance-preview-buttons${awaitingChoice ? " needs-choice" : ""}`}
     role="group" aria-label={awaitingChoice ? "Unsaved appearance: apply, discard or cancel" : "Appearance preview actions"}
     data-appearance-editor>
