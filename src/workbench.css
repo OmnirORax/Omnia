@@ -1129,7 +1129,9 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .floating-footer { position: absolute; top: calc(100% + 6px); left: 0; width: max-content; max-width: 100%; padding: 0; border: 0; background: transparent; pointer-events: auto; }
 .appearance-preview-buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 
-.ui-frame-branch-toggle { font: inherit; font-size: 10px; line-height: 1; min-width: 20px; min-height: 14px; padding: 1px 2px; }
-.ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close) { padding-right: 54px; }
-.ui-inline-frame-bar > .property-node-name { padding-right: 54px; }
-.ui-frame-branch-toggle img { width: 12px; height: 12px; object-fit: contain; }
+.ui-frame-branch-toggle { display: inline-grid; place-items: center; flex: 0 0 12px; width: 12px; height: 12px; min-width: 12px; min-height: 12px; max-width: 12px; margin: 0; padding: 0; border: 0; border-radius: 2px; background: transparent; box-shadow: none; color: inherit; font: 10px/1 sans-serif; cursor: pointer; pointer-events: auto; }
+.ui-frame-branch-toggle:hover { background: color-mix(in srgb, var(--omnium-accent, #386991) 15%, transparent); }
+.ui-frame-branch-toggle svg { width: 10px; height: 10px; }
+.ui-frame-handle:not(.icon-handle) > button:not(.ui-frame-close) { padding-right: 46px; }
+.ui-inline-frame-bar > .property-node-name { padding-right: 46px; }
+.ui-frame-branch-toggle img { width: 10px; height: 10px; object-fit: contain; }

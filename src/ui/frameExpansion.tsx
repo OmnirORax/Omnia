@@ -53,5 +53,10 @@ export function FrameBranchButton({ container, title }: { container: string; tit
     title="Collapse all descendants if any are open; otherwise expand all"
     onPointerDown={event => event.stopPropagation()} onClick={event => {
       event.stopPropagation(); setCollapseNext(ui.frameActions.get(container)?.onBranchToggle?.() ?? toggleFrameDescendants(ui, container));
-    }}>{style?.mode === "icon" ? asset ? <img src={asset.dataUrl} alt="" /> : style.character || (collapseNext ? "→←" : "←→") : collapseNext ? "→←" : "←→"}</button>;
+    }}>{style?.mode === "icon" && (asset || style.character)
+      ? asset ? <img src={asset.dataUrl} alt="" /> : style.character
+      : <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.25"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d={collapseNext ? "M2 3L5 6L2 9M10 3L7 6L10 9" : "M5 3L2 6L5 9M7 3L10 6L7 9"} />
+        </svg>}</button>;
 }
