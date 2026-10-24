@@ -64,7 +64,14 @@ For cross-cutting performance changes, start with
 [docs/PERFORMANCE_ARCHITECTURE_PLAN.md](docs/PERFORMANCE_ARCHITECTURE_PLAN.md).
 Numeric controls need meaningful consumer/mode ranges and aggregate render budgets;
 editable slider endpoints do not override those constraints. Validate all entry
-paths. Do not claim a performance fix from model tests/cache assertions alone.
+paths. Do not claim a performance fix from model tests/cache assertions alone. Shared
+mode-dependent numeric constraints belong in `numericRange` on the property
+definition, refined by renderer target capabilities; use the same resolver in
+editors, setters and rendering. Reuse `renderBudget.ts` for graphics limits and
+decoration overload handling. New animation/media must have bounded aggregate
+work and yield under load, preserving saved values when rendering degrades.
+See `docs/PERFORMANCE_RESULTS.md` for the local trace, restrictions and unresolved
+latency; do not treat that first pass as a completed performance recovery.
 
 Performance takes priority over maximum configurability/freedom. Prefer bounded
 work and supported combinations; restrict effect complexity, concurrent animated

@@ -1,6 +1,6 @@
 import { unavailableControl } from "./ui/controlAvailability.ts";
 import { clipCanvas, type PaintClip } from "./ui/paintClip.ts";
-import { imageContours, lightningBolts, type Contour } from "./lightning.ts";
+import { alphaContours, lightningBolts, type Contour } from "./lightning.ts";
 import type { SparkleStyle } from "./graph/effects";
 import { createElectricInk } from "./electricInk.ts";
 export type GlyphScope = {
@@ -32,6 +32,7 @@ function cssMask(element: HTMLElement) {
 type Snapshot = {
   empty?: boolean;
   inputValue?: string;
+  readback: boolean;
   paint?: { tile: ElectricTile; revision: number };
   signature: string;
   paths?: Contour[];
@@ -61,12 +62,13 @@ function snapshot(
   rect: DOMRect,
   clip: { x: number; y: number; width: number; height: number },
   scope?: GlyphScope,
+  readback = false,
 ): Snapshot | null {
   const inputValue = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement ? element.value : undefined;
   const cachedScope = scope && scopes.get(scope);
   // React can update a controlled field's value without a DOM mutation/event.
   // Reading its value is cheap and does not require measuring the page.
-  if (cachedScope && cachedScope.inputValue === inputValue) return cachedScope;
+  if (cachedScope && cachedScope.inputValue === inputValue && cachedScope.readback === readback) return cachedScope;
   const inputs = [
     ...element.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
       "input,textarea,select",
@@ -85,6 +87,7 @@ function snapshot(
   const signature = [
     scope?.key,
     scope?.shape,
+    readback,
     ...masked.map(({ image }) => `${image?.src}:${image?.complete}`),
     rect.width,
     rect.height,
@@ -111,7 +114,7 @@ function snapshot(
     scale = Math.min(1.5, 512 / Math.max(clip.width, clip.height));
   canvas.width = Math.max(1, Math.ceil(clip.width * scale));
   canvas.height = Math.max(1, Math.ceil(clip.height * scale));
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { willReadFrequently: readback });
   if (!context) return null;
   context.scale(scale, scale);
   context.translate(-clip.x, -clip.y);
@@ -280,7 +283,7 @@ function snapshot(
   const ink = document.createElement("canvas");
   ink.width = canvas.width;
   ink.height = canvas.height;
-  const result = { signature, mask: canvas, ink, empty: !hasInk, inputValue };
+  const result = { signature, mask: canvas, ink, empty: !hasInk, inputValue, readback };
   masks.set(key, result); cache.set(element, masks);
   if (scope) scopes.set(scope, result);
   return result;
@@ -305,42 +308,44 @@ export function drawUILightning(
     height: Math.min(innerHeight, rect.bottom) - Math.max(0, rect.y),
   };
   if (clip.width <= 0 || clip.height <= 0 || budget <= 0) return 0;
-  const shape = snapshot(element, rect, clip, scope);
+  const shape = snapshot(element, rect, clip, scope, true);
   if (!shape || shape.empty) return 0;
-  const paths = (shape.paths ??= imageContours(shape.mask)),
-    bolts = lightningBolts(paths, seed, seconds, fx.density, fx.boltLength, animated);
+  if (!shape.paths) {
+    try { shape.paths = alphaContours(shape.mask.getContext("2d")!.getImageData(0, 0, shape.mask.width, shape.mask.height).data, shape.mask.width, shape.mask.height); }
+    catch { shape.paths = []; } // Preserve the old safe fallback for unreadable image masks.
+  }
+  const bolts = lightningBolts(shape.paths, seed, seconds, fx.density, fx.boltLength, animated);
   let segments = 0;
-  context.save();
-  context.shadowColor =
-    typeof context.strokeStyle === "string" ? context.strokeStyle : (fx.color ?? "#60ddec");
-  context.lineJoin = "round";
-  context.lineCap = "round";
+  const groups: typeof bolts[] = [[], [], [], []];
   for (const bolt of bolts) {
     if (segments + bolt.points.length > budget) break;
-    context.beginPath();
-    bolt.points.forEach((p, i) => {
-      const x = clip.x + (p.x + 0.5) * clip.width,
-        y = clip.y + (0.5 - p.y) * clip.height;
-      if (i) context.lineTo(x, y);
-      else context.moveTo(x, y);
-    });
-    context.shadowBlur = 5;
-    context.globalAlpha = opacity * fx.intensity * bolt.strength * 0.25;
-    context.lineWidth = 3;
-    context.stroke();
-    context.shadowBlur = 0;
-    context.globalAlpha = opacity * fx.intensity * bolt.strength;
-    context.lineWidth = 0.85;
-    context.stroke();
-    if (bolt.strength > 0.5) {
-      context.strokeStyle = "#ffffff";
-      context.globalAlpha *= 0.65;
-      context.lineWidth = 0.4;
-      context.stroke();
-      context.strokeStyle = context.shadowColor;
-    }
+    groups[Math.min(3, Math.floor(bolt.strength * 4))].push(bolt);
     segments += bolt.points.length;
   }
+  context.save();
+  context.shadowColor = typeof context.strokeStyle === "string" ? context.strokeStyle : (fx.color ?? "#60ddec");
+  context.lineJoin = "round"; context.lineCap = "round";
+  // Batch similar strengths: a halo/core pass per band, rather than several
+  // shadowed canvas draws per individual bolt. Work is bounded across UI jobs.
+  groups.forEach((group, band) => {
+    if (!group.length) return;
+    context.beginPath();
+    for (const bolt of group) bolt.points.forEach((p, i) => {
+      const x = clip.x + (p.x + .5) * clip.width, y = clip.y + (.5 - p.y) * clip.height;
+      if (i) context.lineTo(x, y); else context.moveTo(x, y);
+    });
+    const strength = (band + .5) / groups.length;
+    context.shadowBlur = 5;
+    context.globalAlpha = opacity * fx.intensity * strength * .25;
+    context.lineWidth = 3; context.stroke();
+    context.shadowBlur = 0;
+    context.globalAlpha = opacity * fx.intensity * strength;
+    context.lineWidth = .85; context.stroke();
+    if (band >= 2) {
+      context.strokeStyle = "#ffffff"; context.globalAlpha *= .65;
+      context.lineWidth = .4; context.stroke(); context.strokeStyle = context.shadowColor;
+    }
+  });
   context.restore();
   return segments;
 }

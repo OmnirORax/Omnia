@@ -73,6 +73,6 @@ export function ScopedTextAppearance() {
     };
   }, [targets, ctx?.safe]);
   // Paint-only edits reuse bound ranges and update only their shared stylesheet.
-  useEffect(() => { repaint.current?.(); }, [ctx?.base, ctx?.state, ctx?.targets]);
+  useEffect(() => { repaint.current?.(); }, [ctx?.legacyBase, ctx?.state.values, ctx?.state.disconnected, ctx?.targets]);
   return null;
 }

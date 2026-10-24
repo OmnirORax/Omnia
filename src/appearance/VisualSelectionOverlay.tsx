@@ -1,3 +1,4 @@
+import { createDecorationAllowance } from "../renderBudget";
 import { useEffect, useMemo, useRef, type RefObject, type CSSProperties } from "react";
 import { useAppearance } from "./Context";
 import { paintSceneSelection, type SceneSelectionPaint } from "./sceneFeedback";
@@ -40,6 +41,7 @@ type SurfaceSources = { current: SurfaceHost[] };
 /** One continuous clock, no React frames, layout reads or browser custom-property
  * keyframe interpolation. Membership changes only replace this cached host list. */
 function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings, root: RefObject<HTMLDivElement | null>, sources?: SurfaceSources, revision = "") {
+  const allowance = useRef(createDecorationAllowance(1));
   useEffect(() => {
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const surfaces = [...(root.current?.children ?? [])].filter((element): element is SVGSVGElement =>
@@ -48,10 +50,8 @@ function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings,
     if (!hosts.length && !surfaces.length) return;
     const previous = hosts.flatMap(element => [signal.mix, signal.surface].map(property => ({ element, property,
       value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property) })));
-    let frame = 0;
-    const draw = (time: number) => {
-      frame = 0;
-      const level = settings.enabled && !reduced.matches ? selectorPulseLevel(time / settings.duration, settings.depth) : 1;
+    let frame = 0, last = -Infinity;
+    const paint = (level: number) => {
       const strength = SELECTOR_PAINT_PEAK * level;
       const weight = `${(100 * strength).toFixed(5)}%`;
       for (const element of hosts) element.style.setProperty(signal.mix, weight);
@@ -60,9 +60,17 @@ function useSelectionPulse(elements: Element[], settings: SelectorPulseSettings,
         source.element.style.setProperty(signal.surface, `${100 * remainingSurfaceTint(source.opacity, strength, inherited, source.fill)}%`);
       }
       for (const surface of surfaces) surface.style.opacity = String(level);
-      if (settings.enabled && !reduced.matches && !document.hidden) frame = requestAnimationFrame(draw);
     };
-    const resume = () => { cancelAnimationFrame(frame); if (!document.hidden) draw(performance.now()); };
+    const draw = (time: number) => {
+      frame = 0;
+      if (time - last >= 1000 / 30 - .1) {
+        last = time;
+        paint(allowance.current.sources > 0 && settings.enabled && !reduced.matches ? selectorPulseLevel(time / settings.duration, settings.depth) : 1);
+        if (allowance.current.sources > 0 && allowance.current.sample(time, performance.now() - time)) paint(1);
+      }
+      if (settings.enabled && !reduced.matches && !document.hidden && allowance.current.sources > 0) frame = requestAnimationFrame(draw);
+    };
+    const resume = () => { cancelAnimationFrame(frame); allowance.current.resetTiming(); if (!document.hidden) draw(performance.now()); };
     resume();
     reduced.addEventListener("change", resume); document.addEventListener("visibilitychange", resume);
     return () => {
@@ -174,6 +182,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   const pulseHosts = useMemo(() => [...new Set([...visible.selected, ...visible.excluded, ...visible.preview]
     .filter(part => part.target.binding?.selection?.renderer !== "scene" && (part.role === "text" || part.role === "icon" || part.role === "background")).map(part => part.element))], [visible]);
   const surfaceSources = useRef<SurfaceHost[]>([]);
+  const sceneAllowance = useRef(createDecorationAllowance(1));
   useEffect(() => {
     const targets = new Map<string, SceneSelectionPaint>();
     for (const [parts, paint] of [[selected, paints.included], [preview, pendingPaint]] as const)
@@ -182,17 +191,22 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
     if (!targets.size) return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
-    // Only registered scene paint is updated; follow display refresh without a 30 fps step.
-    // No DOM or geometry discovery belongs in this animation loop.
+    // Scene selection is decorative too. Never keep scheduling costly full-scene
+    // redraws at display refresh when feedback alone overloads the renderer.
+    let last = -Infinity;
     const draw = (time: number) => {
       frame = 0;
       if (document.hidden) return;
-      paintSceneSelection(targets, reduced.matches || !pulse.enabled ? SELECTOR_PAINT_PEAK
-        : SELECTOR_PAINT_PEAK * selectorPulseLevel(time / pulse.duration, pulse.depth));
-      if (!reduced.matches && pulse.enabled) frame = requestAnimationFrame(draw);
+      if (time - last >= 1000 / 30 - .1) {
+        last = time;
+        const animated = !reduced.matches && pulse.enabled && sceneAllowance.current.sources > 0;
+        paintSceneSelection(targets, animated ? SELECTOR_PAINT_PEAK * selectorPulseLevel(time / pulse.duration, pulse.depth) : SELECTOR_PAINT_PEAK);
+        if (animated && sceneAllowance.current.sample(time, performance.now() - time)) paintSceneSelection(targets, SELECTOR_PAINT_PEAK);
+      }
+      if (!reduced.matches && pulse.enabled && sceneAllowance.current.sources > 0) frame = requestAnimationFrame(draw);
     };
     const resume = () => {
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(frame); sceneAllowance.current.resetTiming();
       if (document.hidden) paintSceneSelection(new Map(), 0); else draw(performance.now());
     };
     resume(); reduced.addEventListener("change", resume); document.addEventListener("visibilitychange", resume);

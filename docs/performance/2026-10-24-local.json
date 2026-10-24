@@ -1,0 +1,520 @@
+{
+  "baselineCommit": "a91b7ac1449f6fb04936873f78175e8c7041ef38",
+  "implementation": "Systemic PR 30 pass following baseline commit; non-selector cases measured after overload governor; selector measured again after removing root clock and governing scene feedback.",
+  "node": "v24.19.0",
+  "browser": "Chromium 154.0.8037.57",
+  "environment": "Linux container, SwiftShader software GPU, external requests blocked",
+  "warmup_ms": 7000,
+  "sample_ms": 1800,
+  "browser_before": {
+    "label": "baseline",
+    "url": "http://127.0.0.1:4174",
+    "localTargets": 300,
+    "viewport": "1366x900 DPR1",
+    "gpu": "SwiftShader software rendering; relative local comparison only",
+    "rows": [
+      {
+        "scenario": "off",
+        "frame": {
+          "frames": 19,
+          "p95_ms": 133.3000000000011,
+          "max_ms": 133.3000000000011
+        },
+        "click_to_two_raf_ms": 490.7999999821186,
+        "metrics": {
+          "TaskDuration": 0.5505230000000001,
+          "ScriptDuration": 0.482955,
+          "LayoutDuration": 0.007524,
+          "RecalcStyleDuration": 0.013890000000000001,
+          "LayoutCount": 22,
+          "RecalcStyleCount": 25
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "brightness",
+        "frame": {
+          "frames": 109,
+          "p95_ms": 16.700000000000728,
+          "max_ms": 16.80000000000109
+        },
+        "click_to_two_raf_ms": 563.7000000178814,
+        "metrics": {
+          "TaskDuration": 0.646751,
+          "ScriptDuration": 0.553307,
+          "LayoutDuration": 0.001884,
+          "RecalcStyleDuration": 0.039144,
+          "LayoutCount": 2,
+          "RecalcStyleCount": 116
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "glow",
+        "frame": {
+          "frames": 109,
+          "p95_ms": 16.700000000000728,
+          "max_ms": 16.80000000000109
+        },
+        "click_to_two_raf_ms": 572.2000000178814,
+        "metrics": {
+          "TaskDuration": 0.6525380000000001,
+          "ScriptDuration": 0.564998,
+          "LayoutDuration": 0.001498,
+          "RecalcStyleDuration": 0.041273,
+          "LayoutCount": 2,
+          "RecalcStyleCount": 116
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "electric-text",
+        "frame": {
+          "frames": 16,
+          "p95_ms": 183.39999999999964,
+          "max_ms": 183.39999999999964
+        },
+        "click_to_two_raf_ms": 652.5,
+        "metrics": {
+          "TaskDuration": 0.885818,
+          "ScriptDuration": 0.761281,
+          "LayoutDuration": 0.023423999999999997,
+          "RecalcStyleDuration": 0.017904000000000003,
+          "LayoutCount": 19,
+          "RecalcStyleCount": 23
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "lightning",
+        "frame": {
+          "frames": 8,
+          "p95_ms": 333.2999999999993,
+          "max_ms": 333.2999999999993
+        },
+        "click_to_two_raf_ms": 1653.5,
+        "metrics": {
+          "TaskDuration": 1.7246650000000001,
+          "ScriptDuration": 1.666516,
+          "LayoutDuration": 0.005735,
+          "RecalcStyleDuration": 0.008255,
+          "LayoutCount": 12,
+          "RecalcStyleCount": 16
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "selector",
+        "pointer_ms": 1184,
+        "frame": {
+          "frames": 22,
+          "p95_ms": 100,
+          "max_ms": 100.09999999999854
+        },
+        "click_to_two_raf_ms": 388.59999999403954,
+        "metrics": {
+          "TaskDuration": 0.6232530000000001,
+          "ScriptDuration": 0.380357,
+          "LayoutDuration": 0.015688999999999998,
+          "RecalcStyleDuration": 0.072964,
+          "LayoutCount": 40,
+          "RecalcStyleCount": 65
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1063,
+          "textNodes": 385
+        },
+        "errors": []
+      }
+    ]
+  },
+  "browser_after": {
+    "label": "governed",
+    "url": "http://127.0.0.1:4173",
+    "localTargets": 300,
+    "viewport": "1366x900 DPR1",
+    "gpu": "SwiftShader software rendering; relative local comparison only",
+    "rows": [
+      {
+        "scenario": "off",
+        "frame": {
+          "frames": 13,
+          "p95_ms": 183.20000000000073,
+          "max_ms": 183.20000000000073
+        },
+        "click_to_two_raf_ms": 521.2999999821186,
+        "metrics": {
+          "TaskDuration": 0.48387199999999997,
+          "ScriptDuration": 0.382197,
+          "LayoutDuration": 0.008943,
+          "RecalcStyleDuration": 0.01399,
+          "LayoutCount": 16,
+          "RecalcStyleCount": 19
+        },
+        "rendering": {
+          "uiEffectSources": "24",
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "brightness",
+        "frame": {
+          "frames": 109,
+          "p95_ms": 16.700000000000728,
+          "max_ms": 16.80000000000109
+        },
+        "click_to_two_raf_ms": 288,
+        "metrics": {
+          "TaskDuration": 0.348244,
+          "ScriptDuration": 0.279662,
+          "LayoutDuration": 0.001171,
+          "RecalcStyleDuration": 0.031748,
+          "LayoutCount": 2,
+          "RecalcStyleCount": 116
+        },
+        "rendering": {
+          "uiEffectSources": "24",
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "glow",
+        "frame": {
+          "frames": 109,
+          "p95_ms": 16.799999999999272,
+          "max_ms": 16.80000000000109
+        },
+        "click_to_two_raf_ms": 326.89999997615814,
+        "metrics": {
+          "TaskDuration": 0.391439,
+          "ScriptDuration": 0.315641,
+          "LayoutDuration": 0.001716,
+          "RecalcStyleDuration": 0.033833999999999996,
+          "LayoutCount": 2,
+          "RecalcStyleCount": 115
+        },
+        "rendering": {
+          "uiEffectSources": "24",
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "electric-text",
+        "frame": {
+          "frames": 13,
+          "p95_ms": 183.39999999999964,
+          "max_ms": 183.39999999999964
+        },
+        "click_to_two_raf_ms": 433.59999999403954,
+        "metrics": {
+          "TaskDuration": 0.518343,
+          "ScriptDuration": 0.414758,
+          "LayoutDuration": 0.021856,
+          "RecalcStyleDuration": 0.011434,
+          "LayoutCount": 17,
+          "RecalcStyleCount": 21
+        },
+        "rendering": {
+          "uiEffectSources": "3",
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      },
+      {
+        "scenario": "lightning",
+        "frame": {
+          "frames": 14,
+          "p95_ms": 166.60000000000036,
+          "max_ms": 166.60000000000036
+        },
+        "click_to_two_raf_ms": 387.90000000596046,
+        "metrics": {
+          "TaskDuration": 0.33586499999999997,
+          "ScriptDuration": 0.291238,
+          "LayoutDuration": 0.006458,
+          "RecalcStyleDuration": 0.009344,
+          "LayoutCount": 18,
+          "RecalcStyleCount": 21
+        },
+        "rendering": {
+          "uiEffectSources": "0",
+          "elements": 1758,
+          "textNodes": 483
+        },
+        "errors": []
+      }
+    ]
+  },
+  "shared_before": [
+    {
+      "localTargets": 0,
+      "targets": 83,
+      "hierarchy_ms": 3.712,
+      "policies_ms": 16.187,
+      "noop_apply_ms": 0.165,
+      "noop_reuses_state": false
+    },
+    {
+      "localTargets": 100,
+      "targets": 184,
+      "hierarchy_ms": 5.156,
+      "policies_ms": 39.5,
+      "noop_apply_ms": 0.983,
+      "noop_reuses_state": false
+    },
+    {
+      "localTargets": 500,
+      "targets": 584,
+      "hierarchy_ms": 50.232,
+      "policies_ms": 482.737,
+      "noop_apply_ms": 5.585,
+      "noop_reuses_state": false
+    },
+    {
+      "localTargets": 1000,
+      "targets": 1084,
+      "hierarchy_ms": 274.002,
+      "policies_ms": 2353.222,
+      "noop_apply_ms": 16.746,
+      "noop_reuses_state": false
+    }
+  ],
+  "shared_after": [
+    {
+      "localTargets": 0,
+      "targets": 83,
+      "hierarchy_ms": 0.649,
+      "policies_ms": 1.293,
+      "noop_apply_ms": 0.251,
+      "noop_reuses_state": true
+    },
+    {
+      "localTargets": 100,
+      "targets": 184,
+      "hierarchy_ms": 0.937,
+      "policies_ms": 1.711,
+      "noop_apply_ms": 1.2,
+      "noop_reuses_state": true
+    },
+    {
+      "localTargets": 500,
+      "targets": 584,
+      "hierarchy_ms": 2.642,
+      "policies_ms": 4.186,
+      "noop_apply_ms": 4.157,
+      "noop_reuses_state": true
+    },
+    {
+      "localTargets": 1000,
+      "targets": 1084,
+      "hierarchy_ms": 2.729,
+      "policies_ms": 6.142,
+      "noop_apply_ms": 6.49,
+      "noop_reuses_state": true
+    }
+  ],
+  "selector_final": {
+    "label": "selector-final",
+    "url": "http://127.0.0.1:4173",
+    "localTargets": 300,
+    "viewport": "1366x900 DPR1",
+    "gpu": "SwiftShader software rendering; relative local comparison only",
+    "rows": [
+      {
+        "scenario": "selector",
+        "pointer_ms": 1833,
+        "frame": {
+          "frames": 15,
+          "p95_ms": 166.70000000000073,
+          "max_ms": 166.70000000000073
+        },
+        "click_to_two_raf_ms": 399.10000002384186,
+        "metrics": {
+          "TaskDuration": 0.49471499999999996,
+          "ScriptDuration": 0.27897500000000003,
+          "LayoutDuration": 0.021437,
+          "RecalcStyleDuration": 0.06553600000000001,
+          "LayoutCount": 32,
+          "RecalcStyleCount": 57
+        },
+        "rendering": {
+          "uiEffectSources": "24",
+          "elements": 1063,
+          "textNodes": 385
+        },
+        "errors": []
+      },
+      {
+        "scenario": "selector",
+        "pointer_ms": 1838,
+        "frame": {
+          "frames": 15,
+          "p95_ms": 250,
+          "max_ms": 250
+        },
+        "click_to_two_raf_ms": 405.39999997615814,
+        "metrics": {
+          "TaskDuration": 0.51805,
+          "ScriptDuration": 0.312268,
+          "LayoutDuration": 0.018386000000000003,
+          "RecalcStyleDuration": 0.061637,
+          "LayoutCount": 36,
+          "RecalcStyleCount": 66
+        },
+        "rendering": {
+          "uiEffectSources": "24",
+          "elements": 1063,
+          "textNodes": 385
+        },
+        "errors": []
+      }
+    ]
+  },
+  "selector_baseline_repeat": {
+    "label": "selector-baseline",
+    "url": "http://127.0.0.1:4174",
+    "localTargets": 300,
+    "viewport": "1366x900 DPR1",
+    "gpu": "SwiftShader software rendering; relative local comparison only",
+    "rows": [
+      {
+        "scenario": "selector",
+        "pointer_ms": 1166,
+        "frame": {
+          "frames": 23,
+          "p95_ms": 100.10000000000036,
+          "max_ms": 116.60000000000036
+        },
+        "click_to_two_raf_ms": 375.90000000596046,
+        "metrics": {
+          "TaskDuration": 0.563536,
+          "ScriptDuration": 0.35792999999999997,
+          "LayoutDuration": 0.015633,
+          "RecalcStyleDuration": 0.065873,
+          "LayoutCount": 41,
+          "RecalcStyleCount": 66
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1063,
+          "textNodes": 385
+        },
+        "errors": []
+      },
+      {
+        "scenario": "selector",
+        "pointer_ms": 1536,
+        "frame": {
+          "frames": 20,
+          "p95_ms": 150,
+          "max_ms": 150
+        },
+        "click_to_two_raf_ms": 341.40000000596046,
+        "metrics": {
+          "TaskDuration": 0.684253,
+          "ScriptDuration": 0.370993,
+          "LayoutDuration": 0.030053,
+          "RecalcStyleDuration": 0.088491,
+          "LayoutCount": 38,
+          "RecalcStyleCount": 63
+        },
+        "rendering": {
+          "uiEffectSources": null,
+          "elements": 1063,
+          "textNodes": 385
+        },
+        "errors": []
+      }
+    ]
+  },
+  "selector_root_clock_experiment": {
+    "label": "selector-repeat",
+    "url": "http://127.0.0.1:4173",
+    "localTargets": 300,
+    "viewport": "1366x900 DPR1",
+    "gpu": "SwiftShader software rendering; relative local comparison only",
+    "rows": [
+      {
+        "scenario": "selector",
+        "pointer_ms": 1835,
+        "frame": {
+          "frames": 16,
+          "p95_ms": 166.59999999999854,
+          "max_ms": 166.59999999999854
+        },
+        "click_to_two_raf_ms": 334,
+        "metrics": {
+          "TaskDuration": 2.049705,
+          "ScriptDuration": 0.228143,
+          "LayoutDuration": 0.018247,
+          "RecalcStyleDuration": 0.16178399999999998,
+          "LayoutCount": 40,
+          "RecalcStyleCount": 68
+        },
+        "rendering": {
+          "uiEffectSources": "24",
+          "elements": 1063,
+          "textNodes": 385
+        },
+        "errors": []
+      },
+      {
+        "scenario": "selector",
+        "pointer_ms": 1936,
+        "frame": {
+          "frames": 15,
+          "p95_ms": 183.39999999999964,
+          "max_ms": 183.39999999999964
+        },
+        "click_to_two_raf_ms": 354.69999998807907,
+        "metrics": {
+          "TaskDuration": 0.616167,
+          "ScriptDuration": 0.295865,
+          "LayoutDuration": 0.025932999999999998,
+          "RecalcStyleDuration": 0.144586,
+          "LayoutCount": 40,
+          "RecalcStyleCount": 70
+        },
+        "rendering": {
+          "uiEffectSources": "24",
+          "elements": 1063,
+          "textNodes": 385
+        },
+        "errors": []
+      }
+    ]
+  }
+}

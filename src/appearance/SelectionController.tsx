@@ -19,7 +19,7 @@ export function SelectedProperties({ parts, scope = "selection", selectedPropert
   const available = [...new Set(targets.flatMap(target => target.properties ?? []))];
   const chosenProperty = available.includes(property) ? property : available[0];
   const change = (id: string, value: Value, temporary: boolean) => {
-    const next = applySelectedValue(ctx.state, parts, id, value);
+    const next = applySelectedValue(ctx.state, parts, id, value, { readInput: ctx.read });
     if (temporary) ctx.preview(next); else ctx.commit(next);
   };
   return chosenProperty ? <PropertyTree transient scope={scope} selected={chosenProperty} available={available}

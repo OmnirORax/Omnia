@@ -17,8 +17,9 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min
 };
 /** A shared slider presentation with track-wide dragging and native keyboard support.
  * Local working intervals and jump size never alter property validation bounds. */
-export function RangeControl({ value, min, max, onValueChange, onMinimumChange, onMaximumChange,
+export function RangeControl({ value: storedValue, min, max, onValueChange, onMinimumChange, onMaximumChange,
   hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, ...inputProps }: Props) {
+  const value = Math.max(min, Math.min(max, storedValue));
   const resolution = Number(inputProps.step) || 1;
   const [interval, setInterval] = useState({ min, max }), [jump, setJump] = useState(resolution);
   const [editing, setEditing] = useState<Edit | null>(null), [text, setText] = useState("");

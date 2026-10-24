@@ -379,7 +379,7 @@ per measured scope and separate per-host/per-scope snapshots, so exact and inher
 jobs cannot evict each other's masks. Ordinary DOM edits invalidate affected hosts
 and ancestors; unrelated masks survive. Selector glyph/surface mix variables are
 paint-only and do not invalidate geometry. The scheduler keeps animation/feedback
-redraw requests at the existing 30fps budget; actual edits can request an immediate
+redraw requests at a 20fps decoration budget; actual edits can request an immediate
 paint. UI electric-noise canvases declare frequent CPU pixel readback at creation,
 while the Three.js texture path retains its own canvas configuration. No stored
 appearance values or user effect choices are changed by these optimizations.
@@ -399,3 +399,38 @@ scopes retain materials beyond the small shared palette instead of reallocating
 them each frame. Tile generation computes bends once and submits only wrapped
 segments whose stroke can reach the tile. These are renderer optimizations, not
 changes to stored appearance values or animation choices.
+
+
+The provider also shares `hierarchy` (index, paths and descendants), and retains
+`legacyBase` when only targeting/policy metadata changes. Batch hierarchy/policy
+callers reuse this index. Targeting/rule toggles preserve paint/topology references;
+repeated equal setters return the original snapshot. Live settings normalization
+retains already-validated unchanged branches; imports still receive full validation.
+History/session comparisons skip shared references without serializing resources.
+Local effect ownership resolves ancestor owner keys once per mounted host, rather
+than testing every saved local owner. DOM invalidation refreshes those caches.
+
+`renderBudget.ts` bounds UI effects to 24 visible source jobs, 500 particles,
+800 lightning segments and 400,000 electric pixels per paint; the overlay is at
+most 1 MP at 20fps. Scene rendering is limited to 1.5 MP/DPR 1.25, without MSAA;
+bloom's longest edge is 512px. Lightning uses four strength bands to batch halo/core
+draws. These are deliberate rendering restrictions, not changes to target membership
+or saved appearance. CPU-read outline masks avoid a GPU copy/readback per mask.
+
+UI decoration yields after three consecutive paints costing over 12ms or spaced
+over 160ms apart: halve source allowance, then freeze at the minimum if still slow.
+It does not automatically increase quality and repeatedly stall. Hidden/static
+intervals reset timing. Explicit edits still repaint the frozen result. The
+existing MC effect panel reports allowance/paused state; no second settings store
+is introduced. Selector glyph/surface and scene feedback likewise become steady if display
+frames remain slow; scene feedback also caps its pulse schedule at 30fps. These thresholds are conservative policy, not certified device
+budgets. See [measured limitations](PERFORMANCE_RESULTS.md).
+
+Shared numeric definitions may declare a mode-dependent `numericRange`; target
+metadata refines renderer limits. UI glow/animation glow max at 0.8; UI blur at 8px.
+Density max is 1 except Starfield (4). Shared editors use the intersection for a
+mixed selection, and editable endpoints remain inside that interval. Appearance
+transactions, accepted parts, paste/state adapters and value rendering enforce the
+same policy. Loading/rendering old values never rewrites their stored values or
+history; subsequent explicit edits use supported bounds. The global property pool
+retains its semantic domain and independent scene/meta ranges.

@@ -59,7 +59,11 @@ restrictions instead of allowing combinations that make the app unusable.
 The user still reports severe system-wide lag. See the
 [performance recovery plan](PERFORMANCE_ARCHITECTURE_PLAN.md) for inspected risk
 areas, baseline profiling, renderer-aware ranges, aggregate budgets and staged
-refactoring. Earlier effect/HUD optimizations are not a verified resolution.
+refactoring. The first systemic pass now shares indexes, preserves topology during paint edits,
+adds mode/renderer ranges and bounds/degrades decoration under load. See
+[local measurements](PERFORMANCE_RESULTS.md); remaining input/rendering delays still
+need verification on the user's hardware. Earlier effect/HUD optimizations alone
+were not a verified resolution.
 
 ## Essential distinctions
 

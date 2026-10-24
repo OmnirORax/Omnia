@@ -1,3 +1,4 @@
+import { RENDER_BUDGET, budgetPixelRatio } from "./renderBudget";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -126,7 +127,7 @@ export function createSceneAppearance(
     resize(w: number, h: number) {
       width = w;
       height = h;
-      composer?.setSize(w, h);
+      if (composer) { composer.setPixelRatio(budgetPixelRatio(w, h, 1, RENDER_BUDGET.scenePixels, 1)); composer.setSize(w, h); }
     },
     render() {
       const now = performance.now();
@@ -148,7 +149,7 @@ export function createSceneAppearance(
           if (!composer) {
             const target = new THREE.WebGLRenderTarget(width, height, {
               type: THREE.HalfFloatType,
-              samples: Math.min(4, renderer.capabilities.maxSamples),
+              samples: 0,
             });
             composer = new EffectComposer(renderer, target);
             composer.addPass(new RenderPass(scene, camera));
@@ -157,6 +158,7 @@ export function createSceneAppearance(
             composer.addPass(bloom);
             output = new OutputPass();
             composer.addPass(output);
+            composer.setPixelRatio(budgetPixelRatio(width, height, 1, RENDER_BUDGET.scenePixels, 1));
             composer.setSize(width, height);
           }
           composer.render();

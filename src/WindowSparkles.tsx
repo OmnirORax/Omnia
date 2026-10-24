@@ -1,3 +1,4 @@
+import { RENDER_BUDGET, budgetPixelRatio, createDecorationAllowance, publishUIEffectBudget } from "./renderBudget";
 import { hierarchyTextLevel, subscribeHierarchyTextFeedback } from "./appearance/hierarchyTextFeedback";
 import { effectGeometryStyle } from "./appearance/effectInvalidation";
 import { unavailableControl } from "./ui/controlAvailability";
@@ -33,6 +34,8 @@ export function WindowSparkles({
       context = surface.getContext("2d");
     if (!context) return;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    const allowance = createDecorationAllowance(RENDER_BUDGET.uiEffectHosts);
+    surface.dataset.effectSources = String(allowance.sources);
     let frame = 0,
       timer: ReturnType<typeof setTimeout> | undefined,
       phase = 0,
@@ -54,7 +57,7 @@ export function WindowSparkles({
         const replacedSurfaces = new Set(target.binding?.text ? [] : localJobs.map(job => job.element));
         const candidates: { element: HTMLElement; local?: typeof target }[] = [...localJobs,
           ...[...document.querySelectorAll<HTMLElement>(selector)].filter(element => !replacedSurfaces.has(element)).map(element => ({ element }))];
-        for (let index = 0; index < Math.min(350, candidates.length) && next.length < 350; index++) {
+        for (let index = 0; index < Math.min(350, candidates.length) && next.length < Math.max(1, allowance.sources); index++) {
           const { element, local: exact } = candidates[index];
           if (!element.getClientRects().length || element.closest("[hidden],.ui-drag-source,[data-visual-selector]") || unavailableControl(element) || getComputedStyle(element).visibility === "hidden") continue;
           const rect = element.getBoundingClientRect();
@@ -89,7 +92,7 @@ export function WindowSparkles({
       if (!document.hidden && !reduced.matches)
         phase += Math.min(0.1, previous ? (now - previous) / 1000 : 0);
       previous = now; lastPaint = now;
-      const ratio = Math.min(devicePixelRatio, 1.5),
+      const ratio = budgetPixelRatio(innerWidth, innerHeight, devicePixelRatio, RENDER_BUDGET.overlayPixels, 1),
         width = innerWidth,
         height = innerHeight;
       if (
@@ -104,8 +107,8 @@ export function WindowSparkles({
       if (document.hidden || a.theme !== "neon" || a.opacity === 0) return;
       context.shadowBlur = a.glow * 12;
       let moving = false,
-        lightningBudget = 1800,
-        electricBudget = 1_200_000;
+        lightningBudget = RENDER_BUDGET.lightningSegments as number,
+        electricBudget = RENDER_BUDGET.electricPixels as number, particleBudget = RENDER_BUDGET.particles as number;
       if (dirty || measuredWidth !== width || measuredHeight !== height) {
         jobs = measure(a, width, height); dirty = false;
         measuredWidth = width; measuredHeight = height;
@@ -152,13 +155,14 @@ export function WindowSparkles({
           continue;
         }
         const snow = localFx.effect === "falling-stars";
-        const count = Math.ceil(
+        const count = Math.min(particleBudget, Math.ceil(
           localFx.density *
             Math.min(
               snow ? 40 : 12,
               Math.max(3, snow ? (r.width * r.height) / 1800 : (r.width + r.height) / 90),
             ),
-        );
+        ));
+        particleBudget -= count;
         for (let i = 0; i < count; i++) {
           const falling = fallingStar(seed, i, localTime);
           const p = snow
@@ -197,12 +201,17 @@ export function WindowSparkles({
       }
       context.globalAlpha = 1;
       context.shadowBlur = 0;
-      if (!reduced.matches && moving) request();
+      if (!reduced.matches && moving && !document.hidden && allowance.sources > 0) {
+        if (allowance.sample(now, performance.now() - now)) {
+          dirty = true; surface.dataset.effectSources = String(allowance.sources); publishUIEffectBudget(allowance.sources);
+        }
+        if (allowance.sources > 0) request();
+      } else allowance.resetTiming();
     };
     const request = (urgent = false) => {
       if (urgent && timer !== undefined) { clearTimeout(timer); timer = undefined; }
       if (frame || timer !== undefined) return;
-      const wait = urgent ? 0 : Math.max(0, 1000 / 30 - (performance.now() - lastPaint));
+      const wait = urgent ? 0 : Math.max(0, 1000 / RENDER_BUDGET.effectFps - (performance.now() - lastPaint));
       if (wait > 0) timer = setTimeout(() => { timer = undefined; request(true); }, wait);
       else frame = requestAnimationFrame(draw);
     };
@@ -213,7 +222,7 @@ export function WindowSparkles({
     });
     redraw.current = invalidate;
     const resume = () => {
-      previous = 0;
+      previous = 0; allowance.resetTiming();
       invalidate();
     };
     const fontsLoaded = () => {
@@ -257,7 +266,7 @@ export function WindowSparkles({
     reduced.addEventListener("change", resume);
     request();
     return () => {
-      stopTextFeedback();
+      stopTextFeedback(); publishUIEffectBudget(RENDER_BUDGET.uiEffectHosts);
       document.fonts.removeEventListener("loadingdone", fontsLoaded);
       observer.disconnect(); resized.disconnect();
       cancelAnimationFrame(frame);

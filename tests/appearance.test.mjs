@@ -431,7 +431,7 @@ test("narrow parts inherit broader values independently and never inherit siblin
   state.instances[parent] = { base: a.base, owner: a.owner, label: "whole button", path: a.path };
   state.values[parent] = { color: "#123456", opacity: .65 };
   let next = applySelectedValue(state, [a], "glow", 1.5);
-  assert.deepEqual(next.values[selectedPartId(a)], { glow: 1.5, effectGlow: 1.5 });
+  assert.deepEqual(next.values[selectedPartId(a)], { glow: .8, effectGlow: .8 });
   let target = controllerTargets(next).find(t => t.id === selectedPartId(a));
   const read = createValueResolver(defaultSettings().appearance, next);
   assert.equal(read(target, "color"), "#123456");
@@ -545,7 +545,7 @@ test("property locks are independent and all locks cover future property IDs", (
   state = applyValue(state, targets, "color", "#112233");
   state = applyValue(state, targets, "glow", 1.5);
   assert.equal(state.values["ui.buttons.background"].color, undefined);
-  assert.equal(state.values["ui.buttons.background"].glow, 1.5);
+  assert.equal(state.values["ui.buttons.background"].glow, .8);
   state = toggleRule(state, "locks", "ui.buttons");
   const future = targets.map((t) =>
     t.id === "ui.buttons.background"
@@ -1095,4 +1095,170 @@ test("effect-only scene frames do not rewrite the camera HUD or trigger UI text 
   const beforeSelection = writes;
   updateCameraGuide(element, camera, target, new THREE.Vector3(1, 2, 3));
   assert.ok(writes > beforeSelection, "selected-node coordinates stay live");
+});
+
+test("shared hierarchy indexes preserve order and bulk targeting does not clone unrelated state", async () => {
+  const { createHierarchyIndex, toggleTarget, applyValue } = await import("../src/appearance/model.ts");
+  const state = emptyController(), targets = controllerTargets(state), view = createHierarchyIndex(targets);
+  for (const target of targets) {
+    assert.deepEqual(view.paths.get(target.id), ancestry(targets, target.id));
+    assert.deepEqual(view.descendants.get(target.id).map(item => item.id), targets.filter(item => ancestry(targets, item.id).includes(target.id)).map(item => item.id));
+  }
+  const toggled = toggleTarget(state, targets, "text");
+  for (const key of ["values", "instances", "locks", "disconnected", "refined"]) assert.equal(toggled[key], state[key], `${key} is not a targeting edit`);
+  assert.notEqual(toggled.sets, state.sets);
+  const edited = applyValue(state, targets, "brightness", 1.5, "text");
+  assert.equal(edited.instances, state.instances);
+  assert.equal(edited.refined, state.refined);
+  assert.equal(applyValue(edited, targets, "brightness", 1.5, "text"), edited, "repeating a bulk value returns the same snapshot");
+  assert.equal(state.values["text.ui.buttons"], undefined, "editing does not mutate previous snapshots");
+});
+
+test("live settings validation retains unchanged structure while enforcing invalid input bounds", async () => {
+  const { normalizeLiveSettings } = await import("../src/ui/normalizeLiveSettings.ts");
+  const prior = defaultSettings();
+  const targets = controllerTargets(prior.appearance.controller);
+  const controller = applyValue(prior.appearance.controller, targets, "brightness", 1.5, "text");
+  const source = { ...prior, appearance: { ...prior.appearance, controller } };
+  const checked = normalizeLiveSettings(source, prior);
+  assert.equal(checked.bindings, prior.bindings);
+  for (const key of ["instances", "locks", "disconnected", "refined"]) assert.equal(checked.appearance.controller[key], prior.appearance.controller[key]);
+  assert.equal(checked.appearance.controller.values["text.ui.buttons"].brightness, 1.5);
+  const invalid = normalizeLiveSettings({ ...prior, appearance: { ...prior.appearance, opacity: NaN } }, prior);
+  assert.equal(invalid.appearance.opacity, 1);
+  assert.equal(normalizeLiveSettings({ ...prior, appearance: { ...prior.appearance } }, prior), prior, "equivalent wrappers do not publish another state update");
+});
+
+test("history comparison skips shared resources instead of serializing full state", async () => {
+  const { sameValue } = await import("../src/valueEquality.ts");
+  const { startHistory, recordHistory } = await import("../src/ui/history.ts");
+  const resource = new Proxy({}, { ownKeys() { throw new Error("shared resource was unnecessarily traversed"); } });
+  const before = { resource, settings: { value: 1 } }, after = { resource, settings: { value: 2 } };
+  assert.equal(sameValue(before, after), false);
+  const recorded = recordHistory(startHistory(before), after);
+  assert.equal(recorded.present, after);
+  assert.equal(recordHistory(recorded, { ...after, settings: { value: 2 } }), recorded);
+  assert.equal(sameValue({ a: 1, optional: undefined }, { a: 1 }), true);
+  assert.equal(sameValue([undefined], [null]), true);
+});
+
+
+test("consumer/mode ranges bound edits and rendering while retaining stored choices", async () => {
+  const { numericRange } = await import("../src/properties/numericRange.ts");
+  const { propertyFor } = await import("../src/properties/catalog.ts");
+  const density = propertyFor("density");
+  assert.deepEqual(numericRange(density, () => "lightning"), { min: 0, max: 1 });
+  assert.deepEqual(numericRange(density, () => "starfield"), { min: 0, max: 4 });
+  let { state, targets } = fixture();
+  state = applyValue(state, targets, "effect", "lightning", "text");
+  state = applyValue(state, targets, "density", 4, "text");
+  assert.equal(state.values["text.ui.buttons"].density, 1);
+  state = applyValue(state, targets, "effect", "starfield", "text");
+  state = applyValue(state, targets, "density", 4, "text");
+  assert.equal(state.values["text.ui.buttons"].density, 4);
+  state = applyValue(state, targets, "glow", 2);
+  assert.equal(state.values["text.ui.buttons"].glow, .8);
+  assert.equal(state.values["omnium.nodes.body"].glow, 2, "scene adapters retain their independent supported range");
+  assert.equal(applyValue(state, targets, "glow", NaN), state);
+  const saved = loadController({ ...state, values: { ...state.values, "text.ui.buttons": { glow: 2, effectGlow: 2, effect: "lightning", density: 4 } } });
+  const appearance = { ...defaultSettings().appearance, controller: saved };
+  const read = createValueResolver(appearance, saved);
+  const text = targets.find(target => target.id === "text.ui.buttons");
+  assert.equal(read(text, "glow"), .8);
+  assert.equal(read(text, "effectGlow"), .8);
+  assert.equal(read(text, "density"), 1);
+  assert.equal(saved.values[text.id].glow, 2, "rendering never rewrites imported values or history");
+  assert.equal(saved.values[text.id].density, 4);
+  const legacy = resolveControllerAppearance({ ...appearance, controller: undefined, blur: 20, textGlow: 2, controlGlow: 2 });
+  assert.equal(legacy.blur, 8);
+  assert.equal(legacy.textGlow, .8);
+  assert.equal(legacy.controlGlow, .8);
+  const selected = selectedLabel("range");
+  const local = applySelectedValue(saved, [selected], "glow", 2);
+  assert.equal(local.values[selectedPartId(selected)].glow, .8, "accepted-part edits share the renderer limit");
+});
+
+test("state property bindings enforce mode bounds on direct writes and skip equal writes", async () => {
+  const { bindStateProperties, preparePropertyChanges } = await import("../src/properties/registry.ts");
+  const registry = createPropertyRegistry();
+  registry.define({ id: "mode", label: "Mode", kind: "select", initial: "small", options: [{ id: "small", label: "Small" }, { id: "large", label: "Large" }] });
+  registry.define({ id: "amount", label: "Amount", kind: "number", min: 0, max: 4, step: 1, initial: 1,
+    numericRange: { by: "mode", otherwise: { max: 1 }, cases: { large: { max: 4 } } } });
+  registry.couple({ id: "test", label: "Test", owner: "owner", group: [], properties: [{ property: "mode" }, { property: "amount" }] });
+  let state = { mode: "small", amount: 0 }, writes = 0;
+  const adapters = { test: { channels: Object.fromEntries(["mode", "amount"].map(key => [key, { read: s => s[key], write: (s, value) => { writes++; return { ...s, [key]: value }; } }])) } };
+  const binding = bindStateProperties(registry, "owner", state, adapters, change => { state = change(state); });
+  binding.commit(preparePropertyChanges(registry, "amount", 4, ["test"]));
+  assert.equal(state.amount, 1);
+  binding.commit(preparePropertyChanges(registry, "amount", 4, ["test"]));
+  assert.equal(writes, 1);
+  binding.commit([...preparePropertyChanges(registry, "mode", "large", ["test"]), ...preparePropertyChanges(registry, "amount", 4, ["test"])]);
+  assert.equal(state.amount, 4);
+});
+
+test("render budgets bound resolution with the aspect ratio preserved", async () => {
+  const { RENDER_BUDGET, budgetPixelRatio, bloomSize } = await import("../src/renderBudget.ts");
+  for (const [w, h, dpr] of [[3840, 2160, 2], [1920, 1080, 1], [640, 480, 1]]) {
+    const ratio = budgetPixelRatio(w, h, dpr, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr);
+    assert.ok(w * h * ratio * ratio <= RENDER_BUDGET.scenePixels + .001);
+    assert.ok(ratio <= dpr && ratio <= RENDER_BUDGET.maxSceneDpr);
+    const size = bloomSize(w, h);
+    assert.ok(size.width <= RENDER_BUDGET.bloomEdge && size.height <= RENDER_BUDGET.bloomEdge);
+    assert.ok(Math.abs(size.width / size.height - w / h) < .01);
+  }
+  const { sameValue } = await import("../src/valueEquality.ts");
+  assert.equal(sameValue([,], [1]), false, "sparse arrays must not compare equal to populated arrays");
+  assert.equal(sameValue([,], [null]), true);
+});
+
+
+test("effect ownership ignores unrelated saved locals and preserves ancestor/proxy precedence", () => {
+  const raw = defaultSettings().appearance;
+  const state = emptyController();
+  for (let i = 0; i < 500; i++) {
+    const id = `local-${i}`;
+    state.instances[id] = { base: "text.ui.buttons", owner: `function:owner-${i}`, label: id };
+    state.values[id] = { effect: "sparks" };
+  }
+  state.instances.outer = { base: "text.ui.buttons", owner: "window:test", label: "Outer" };
+  state.values.outer = { effect: "stars" };
+  state.instances.inner = { base: "text.ui.buttons", owner: "function:active", label: "Inner", path: ["window:test"] };
+  state.values.inner = { effect: "lightning" };
+  const appearance = { ...raw, effect: "off", controller: state };
+  const target = controllerTargets(state).find(target => target.id === "text.ui.buttons");
+  const attrs = { "data-ui-function": "active" };
+  let reads = 0;
+  const outer = { parentElement: null, getAttribute: name => name === "data-ui-proxy-for" ? "window:test" : null };
+  const host = { parentElement: outer, getAttribute: name => { reads++; return attrs[name] ?? null; },
+    closest: () => { throw new Error("must not query unrelated saved owners"); } };
+  const plan = createElementEffectsResolver(appearance, resolveControllerAppearance(appearance));
+  const inner = plan.resolve(target, host);
+  assert.equal(inner.effect, "lightning");
+  const firstReads = reads;
+  assert.equal(plan.resolve(target, host), inner);
+  assert.equal(reads, firstReads);
+  delete attrs["data-ui-function"];
+  plan.invalidate();
+  assert.equal(plan.resolve(target, host).effect, "stars", "ownership is refreshed after a real DOM change");
+});
+
+
+test("sustained slow decoration yields, stays bounded, and ignores time spent idle", async () => {
+  const { createDecorationAllowance } = await import("../src/renderBudget.ts");
+  const budget = createDecorationAllowance(4);
+  assert.equal(budget.sample(1000, 15), false);
+  assert.equal(budget.sample(1050, 15), false);
+  assert.equal(budget.sample(1100, 15), true);
+  assert.equal(budget.sources, 2);
+  for (const start of [1150, 1200, 1250]) budget.sample(start, 15);
+  assert.equal(budget.sources, 1);
+  for (const start of [1300, 1350, 1400]) budget.sample(start, 15);
+  assert.equal(budget.sources, 0, "unaffordable animation freezes instead of monopolizing input");
+  assert.equal(budget.sample(1450, 0), false);
+  const timing = createDecorationAllowance(1);
+  timing.sample(1000, 0); timing.resetTiming();
+  timing.sample(10000, 0); timing.sample(10050, 0); timing.sample(10100, 0);
+  assert.equal(timing.sources, 1, "hidden/static intervals are not dropped animation frames");
+  for (const start of [10300, 10500, 10700]) timing.sample(start, 0);
+  assert.equal(timing.sources, 0, "delayed display frames are detected even when JS draw time is low");
 });

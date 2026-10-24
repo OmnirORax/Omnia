@@ -257,3 +257,15 @@ locks through the existing validated commit path; Shift release invokes once
 without persisting temporary choices. See FUNCTION_CONFIGURATION.md for the shared
 interaction adapter contract. Do not duplicate input stores or per-feature Shift
 listeners.
+
+
+Numeric definitions can declare `numericRange: { by, otherwise, cases }` referencing
+another declared input (for example Density depends on Effect). Discovery orders
+that dependency with channel/preview dependencies. `properties/numericRange.ts`
+resolves the intersection of semantic and active-mode bounds; editors and state
+adapters reuse it. Appearance target metadata can narrow a renderer's range without
+creating another property definition. Final writes/rendering enforce the range,
+not only the slider. Imports retain valid values in the semantic domain; a render
+fallback does not rewrite saved state. New numeric consumers must declare meaningful
+bounds and join appropriate aggregate rendering budgets. See PERFORMANCE_RESULTS.md
+for current limits and their calibration limitations.

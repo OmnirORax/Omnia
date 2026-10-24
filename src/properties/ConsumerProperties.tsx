@@ -28,7 +28,7 @@ export function ConsumerProperties({ consumers, selectedProperty, onSelectProper
         const kinds = [...new Set(applicable.flatMap(target => target.effectKinds ?? []))];
         const change = (value: Value, temporary: boolean) => {
           let next = ctx.state;
-          for (const target of editable) next = applyValue(next, ctx.targets, id, value, target.id);
+          for (const target of editable) next = applyValue(next, ctx.targets, id, value, target.id, false, { readInput: ctx.read });
           if (temporary) ctx.preview(next); else ctx.commit(next);
         };
         return <div className="selection-property-editor">

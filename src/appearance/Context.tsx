@@ -1,9 +1,10 @@
+import { boundedNumber } from "../properties/numericRange";
 import type { PropertySnapshot } from "../properties/clipboard";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
 import { ownerOf } from "../ui/layout";
 import {
-  ancestry,
+  createHierarchyIndex,
   ruleHas,
   toggleRule,
   propertyChannels,
@@ -15,6 +16,7 @@ import {
   instanceId,
   TARGETS,
   loadController,
+  validateProperty,
   type RegisteredTarget,
 } from "./registry";
 import { type Appearance, createValueResolver } from "./resolve";
@@ -39,8 +41,10 @@ type ContextValue = AppearanceBridge & {
   copyProperties: (snapshot: PropertySnapshot) => void;
   state: Controller;
   renderBase: Appearance;
+  legacyBase: Appearance;
   activatePreview: (request: ActivityPreview) => () => void;
   targets: RegisteredTarget[];
+  hierarchy: ReturnType<typeof createHierarchyIndex<RegisteredTarget>>;
   /** One indexed reader per appearance snapshot, shared by every editor/icon. */
   read: ReturnType<typeof createValueResolver>;
   renderRead: ReturnType<typeof createValueResolver>;
@@ -123,12 +127,21 @@ export function AppearanceProvider({
       }),
     [state.instances, ui.layout, functionLabels, frameLabels],
   );
-  const read = useMemo(() => createValueResolver(activeBridge.base, state, targets), [activeBridge.base, state, targets]);
+  const hierarchy = useMemo(() => createHierarchyIndex(targets), [targets]);
+  // Target membership/locks are not paint inputs. Keep the legacy defaults and
+  // resolved-value reader stable when only those UI policies change.
+  const priorBase = useRef<Appearance | null>(null);
+  const candidateBase = { ...activeBridge.base }; delete candidateBase.controller;
+  if (!priorBase.current || Object.keys(candidateBase).length !== Object.keys(priorBase.current).length ||
+      (Object.keys(candidateBase) as (keyof Appearance)[]).some(key => candidateBase[key] !== priorBase.current![key])) priorBase.current = candidateBase;
+  const legacyBase = priorBase.current;
+  const read = useMemo(() => createValueResolver(legacyBase, state, targets), [legacyBase, state.values, state.disconnected, targets]);
   const renderRead = useMemo(() => renderBase === activeBridge.base ? read
     : createValueResolver(renderBase, renderBase.controller ?? state), [renderBase, activeBridge.base, read, state]);
-  const freeze = (next: Controller, id: string, property?: string) => {
+  const freeze = (input: Controller, id: string, property?: string) => {
+    const next = { ...input, values: { ...input.values } };
     for (const target of targets) {
-      if (!ancestry(targets, target.id).includes(id)) continue;
+      if (!hierarchy.index.path(target.id).includes(id)) continue;
       for (const p of new Set((target.properties ?? []).map(property => target.couplings?.[property] ?? property))) {
         if (property && !propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel).includes(p)) continue;
         next.values[target.id] = {
@@ -145,7 +158,7 @@ export function AppearanceProvider({
       const available = [
         ...new Set(
           targets
-            .filter((t) => ancestry(targets, t.id).includes(id))
+            .filter((t) => hierarchy.index.path(t.id).includes(id))
             .flatMap((t) => t.properties ?? []),
         ),
       ];
@@ -159,19 +172,17 @@ export function AppearanceProvider({
     owner: string,
     label: string,
     property: string,
-    value: Value,
+    input: Value,
     preview = false,
   ) => {
+    const value = validateProperty(property, input);
+    if (value === undefined) return;
     const id = instanceId(baseId, owner),
-      next = structuredClone(state),
+      next = { ...state, values: { ...state.values }, refined: { ...state.refined } },
       path: string[] = [];
-    let element = [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(
-      (e) => e.dataset.uiResidentRoot === owner,
-    );
+    let element = document.querySelector<HTMLElement>(`[data-ui-resident-root="${CSS.escape(owner)}"]`) ?? undefined;
     if (owner.startsWith("function:"))
-      element = [...document.querySelectorAll<HTMLElement>("[data-ui-function]:not([data-ui-native-hidden])")].find(
-        (e) => e.dataset.uiFunction === owner.slice(9),
-      );
+      element = document.querySelector<HTMLElement>(`[data-ui-function="${CSS.escape(owner.slice(9))}"]:not([data-ui-native-hidden])`) ?? undefined;
     let root = element?.closest<HTMLElement>("[data-ui-resident-root]");
     while (root) {
       path.unshift(root.dataset.uiResidentRoot!);
@@ -181,10 +192,16 @@ export function AppearanceProvider({
       (key) =>
         ui.frameActions.get(key)?.title ?? key.replace(/^(window:panel:|window:|frame:)/, ""),
     );
-    next.instances[id] = { base: baseId, owner, label: label || names.at(-1) || owner, path };
+    const previous = state.instances[id], caption = label || names.at(-1) || owner;
+    if (!previous || previous.label !== caption || previous.base !== baseId || previous.owner !== owner || (previous.path ?? []).join("\0") !== path.join("\0"))
+      next.instances = { ...state.instances, [id]: { base: baseId, owner, label: caption, path } };
+    const base = TARGETS.find(t => t.id === baseId);
+    const target = targets.find(t => t.id === id) ?? (base ? { ...base, id, instance: next.instances[id] } : undefined);
     for (const channel of propertyChannels(property))
-      if (TARGETS.find((t) => t.id === baseId)?.properties?.includes(channel)) {
-        next.values[id] = { ...next.values[id], [channel]: value };
+      if (target?.properties?.includes(channel)) {
+        const spec = target.numberRanges?.[channel];
+        const nextValue = typeof value === "number" && spec ? boundedNumber(spec, value, key => read(target, key)) : value;
+        next.values[id] = { ...next.values[id], [channel]: nextValue };
         next.refined[id] = [...new Set([...(next.refined[id] ?? []), channel])];
       }
     if (preview) activeBridge.preview(next);
@@ -195,8 +212,10 @@ export function AppearanceProvider({
     ...activeBridge,
     state,
     renderBase,
+    legacyBase,
     activatePreview,
     targets,
+    hierarchy,
     read,
     renderRead,
     location: hoverLocation ?? location,

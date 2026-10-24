@@ -1,10 +1,12 @@
+import { RENDER_BUDGET } from "../renderBudget.ts";
+import { boundedNumber } from "../properties/numericRange.ts";
 import type { WorkspaceSettings } from "../workspaceActions";
 import {
   resolveTargetSparkles,
   type AnimationTarget,
   type SparkleStyle,
 } from "../graph/effects.ts";
-import { connected, ruleHas, type Controller, type Value } from "./model.ts";
+import { createTargetIndex, connected, ruleHas, type Controller, type Value } from "./model.ts";
 import { scopeContains } from "./partScope.ts";
 import {
   controllerTargets,
@@ -51,7 +53,7 @@ export function effectsFromValues(get: (property: string) => Value): SparkleStyl
     glow: Number(get("effectGlow")),
     motion: Number(get("speed")),
     intensity: Number(get("intensity")),
-    density: Math.min(effect === "starfield" ? 4 : 1, Number(get("density"))),
+    density: boundedNumber(propertyFor("density")!, Number(get("density")), get),
     starSize: Number(get("size")),
     boltLength: Number(get("length")),
   };
@@ -137,8 +139,11 @@ export function createValueResolver(base: Appearance, state: Controller, targets
   const bases = new Map(TARGETS.map(target => [target.id, target]));
   const paths = new Map<string, string[]>(), parents = new Map<string, RegisteredTarget[]>();
   const locals = new Map<string, RegisteredTarget[]>();
-  for (const target of targets) if (target.instance)
-    locals.set(target.instance.base, [...(locals.get(target.instance.base) ?? []), target]);
+  for (const target of targets) if (target.instance) {
+    let entries = locals.get(target.instance.base);
+    if (!entries) { entries = []; locals.set(target.instance.base, entries); }
+    entries.push(target);
+  }
   const pathFor = (target: RegisteredTarget) => {
     let path = paths.get(target.id);
     if (path) return path;
@@ -185,11 +190,10 @@ export function createValueResolver(base: Appearance, state: Controller, targets
         if (state.values[ancestor.id]?.[property] !== undefined || !isConnected(ancestor, property))
           return resolve(ancestor, property);
     }
-    return (
-      state.values[target.id]?.[property] ??
-      (target.instance ? state.values[target.instance.base]?.[property] : undefined) ??
-      legacyValue(base, fallback, property)
-    );
+    const value = state.values[target.id]?.[property] ??
+      (target.instance ? state.values[target.instance.base]?.[property] : undefined) ?? legacyValue(base, fallback, property);
+    const spec = target.numberRanges?.[property];
+    return typeof value === "number" && spec ? boundedNumber(spec, value, key => resolve(target, key)) : value;
   };
   return resolve;
 }
@@ -215,29 +219,33 @@ export function brightHex(color: string, brightness: number): string {
 }
 export function resolveControllerAppearance(base: Appearance): Appearance {
   const state = base.controller;
-  if (!state) return base;
   const out = {
     ...base,
+    blur: Math.min(base.blur, RENDER_BUDGET.uiBlur),
+    textGlow: Math.min(base.textGlow, RENDER_BUDGET.uiGlow),
+    controlGlow: Math.min(base.controlGlow, RENDER_BUDGET.uiGlow),
     nodes: { ...base.nodes },
     binders: { ...base.binders },
     effectTargets: { ...base.effectTargets },
     surfaceEffects: { ...base.surfaceEffects },
     renderDefaults: {} as Record<string, Record<string, Value>>,
   };
-  const resolve = createValueResolver(base, state);
+  if (!state) return out;
+  const targets = controllerTargets(state), index = createTargetIndex(targets);
+  const resolve = createValueResolver(base, state, targets);
   for (const target of TARGETS.filter((t) => t.properties)) {
     const values: Record<string, Value> = {};
     for (const property of target.properties!)
       values[property] = resolve(target, property);
     out.renderDefaults[target.id] = values;
-    const custom = state.values[target.id] || !connected(state, [...TARGETS], target.id, "color");
+    const custom = state.values[target.id] || !connected(state, targets, target.id, "color", index);
     if (target.id === "workspace.background" && custom)
       out.background = brightHex(values.color as string, values.brightness as number);
     if (target.id === "omnium.nodes.body") {
       out.nodes = {
         ...out.nodes,
         color:
-          state.values[target.id] || !connected(state, [...TARGETS], target.id, "color")
+          state.values[target.id] || !connected(state, targets, target.id, "color", index)
             ? brightHex(values.color as string, values.brightness as number)
             : base.nodes.color,
         opacity: values.opacity as number,
@@ -248,7 +256,7 @@ export function resolveControllerAppearance(base: Appearance): Appearance {
       out.binders = {
         ...out.binders,
         color:
-          state.values[target.id] || !connected(state, [...TARGETS], target.id, "color")
+          state.values[target.id] || !connected(state, targets, target.id, "color", index)
             ? brightHex(values.color as string, values.brightness as number)
             : base.binders.color,
         opacity: values.opacity as number,

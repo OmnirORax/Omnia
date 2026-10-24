@@ -1,4 +1,4 @@
-import { connected } from "./model.ts";
+import { connected, createTargetIndex } from "./model.ts";
 import { controllerTargets, PROPERTY_REGISTRY, type RegisteredTarget } from "./registry.ts";
 import { createValueResolver, type Appearance } from "./resolve.ts";
 
@@ -11,7 +11,7 @@ export function activityPreview(base: Appearance, requests: readonly ActivityPre
   for (const request of requests) for (const target of request.targets) if (!known.has(target.id)) {
     targets.push({ ...target, parent: target.instance?.base ?? target.parent }); known.add(target.id);
   }
-  const read = createValueResolver(base, state, targets);
+  const read = createValueResolver(base, state, targets), index = createTargetIndex(targets);
   let controller: typeof state | undefined;
   for (const request of requests) for (const target of request.targets) {
     const consumer = PROPERTY_REGISTRY.consumer(target.instance?.base ?? target.id);
@@ -19,13 +19,13 @@ export function activityPreview(base: Appearance, requests: readonly ActivityPre
     const activation = consumer?.previewActivation ?? PROPERTY_REGISTRY.property(channel)?.previewActivation;
     // The switch's own Off choice and bypass are authoritative, even during editing.
     if (!activation || request.property === activation.property || !target.properties?.includes(activation.property) || !target.properties?.includes(request.property) ||
-      !connected(state, targets, target.id, request.property) || !connected(state, targets, target.id, activation.property) ||
+      !connected(state, targets, target.id, request.property, index) || !connected(state, targets, target.id, activation.property, index) ||
       read(target, activation.property) !== activation.inactive) continue;
     const activationChannel = target.couplings?.[activation.property] ?? activation.property;
     const choices = consumer?.choices[activationChannel] ?? (activation.property === "effect" ? target.effectKinds : undefined);
     const active = choices && !choices.includes(String(activation.active)) ? choices.find(value => value !== activation.inactive) : activation.active;
     if (active === undefined) continue;
-    controller ??= structuredClone(state);
+    controller ??= { ...state, instances: { ...state.instances }, values: { ...state.values } };
     if (target.instance) controller.instances[target.id] = target.instance;
     controller.values[target.id] = { ...controller.values[target.id], [activationChannel]: active };
   }

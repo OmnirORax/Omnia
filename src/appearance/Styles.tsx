@@ -13,9 +13,9 @@ export function AppearanceStyles() {
   const context = useAppearance();
   const css = useMemo(() => {
     if (!context || context.safe) return "";
-    const { base, state, targets } = context,
+    const { legacyBase: base, state, targets } = context,
       rules: string[] = ["body *{--omnium-custom-shadow:0 0 0 transparent}"];
-    const read = context.read;
+    const read = context.read, index = context.hierarchy.index;
     for (const target of [...targets].sort(
       (a, b) => (a.instance ? scopeDepth(a.instance) : -1) - (b.instance ? scopeDepth(b.instance) : -1),
     )) {
@@ -31,7 +31,7 @@ export function AppearanceStyles() {
             !["effect", "speed", "intensity", "density", "size", "length"].includes(p) &&
             !p.startsWith("effect"),
         )
-        .some((p) => values[p] !== undefined || !connected(state, targets, target.id, p));
+        .some((p) => values[p] !== undefined || !connected(state, targets, target.id, p, index));
       const legacyText = !!binding.text && (base.textColor !== undefined || base.textGlow > 0);
       // Always establish an icon's own ink, even before it has an override.
       // Otherwise currentColor falls through to a styled text container.
@@ -64,7 +64,7 @@ export function AppearanceStyles() {
       const declarations: string[] = [];
       const get = (p: string) => read(target, p);
       const custom = (p: string) =>
-        values[p] !== undefined || !connected(state, targets, target.id, p);
+        values[p] !== undefined || !connected(state, targets, target.id, p, index);
       if (!binding.text || ["color", "brightness", "opacity"].some(custom) || legacyText)
         declarations.push(`${binding.css}:${tint(color, brightness, opacity)} !important`);
       if (icon) {
@@ -127,7 +127,7 @@ export function AppearanceStyles() {
       rules.push(`:root[data-omnium-theme] *{scrollbar-color:${ink(thumb)} ${ink(track)}}`);
     }
     return rules.join("\n");
-  }, [context?.base, context?.state, context?.targets, context?.safe]);
+  }, [context?.legacyBase, context?.state.values, context?.state.disconnected, context?.targets, context?.safe]);
   return <><style data-appearance-registry>{css}</style><ScopedTextAppearance /></>;
 }
 export function useIconTint(owner: string, fallbackOwner?: string) {

@@ -1,9 +1,12 @@
 # Omnia performance recovery plan
 
-Status: investigation/implementation plan, not a completed refactor. The user
-still reports severe lag in the current private PR #30 preview, including when
-stationary. Earlier cache/HUD optimizations and passing model checks did not
-resolve that report. Do not describe responsiveness as fixed on that evidence.
+Status: first systemic implementation and targeted local browser profiling are
+complete for the paths below. This is not a claim that all responsiveness issues
+are resolved. Local software-GPU traces still expose substantial interaction and
+rendering delays; decoration now yields under sustained load instead of continuing
+unbounded. See [measurements and reproduction](PERFORMANCE_RESULTS.md). The user
+explicitly authorized this focused local trace; unrelated browser suites were not
+run.
 
 ## Direction
 
@@ -19,21 +22,18 @@ need to discover destructive settings by maxing sliders. Numeric validation alon
 is not a performance policy. Large blurs/shadows and continuous effects also have
 real hardware costs; architectural improvements cannot make unlimited work free.
 
-## Code findings to investigate
+## Implemented shared-path changes
 
-These patterns are confirmed in source. Their relative contribution to the user's
-lag has NOT been measured in an application/browser performance trace.
-
-| Area | Current evidence | Required distinction/check |
+| Area | Change | Remaining limit |
 | --- | --- | --- |
-| Hierarchy indexing | `model.ts`'s ancestry helper constructs an index per call; included/connected/blocked also construct one when none is supplied. MC builds paths per target and descendants by nested target scans. | Count index construction and target visits per action/render; share one structure index across a transaction/view. |
-| React notification scope | Appearance/UI contexts carry broad state; value resolvers depend on complete state/base snapshots. | Measure committed consumers for one property change; notify only affected slices while keeping one shared owner. |
-| Property transactions | `applyValue` already shares an index and preserves structural references, but traverses consumers/channels and creates value records for a broad adjustment. | Resolve the eligible target set once per stable gesture/rule; batch changed values and avoid writing equal values. O(affected targets) once may be necessary; repeated O(all targets) work is not. |
-| UI history/validation | Session/history paths still serialize whole snapshots for equality; changed settings are normalized and recorded, and persisted by the owning app. | Separate preview from commit; measure normalization, serialization and history separately from render. Avoid paying full-state costs for unchanged data or every drag sample. |
-| MS detection | `collectVisualParts` queries registered selectors, walks text, reads visibility/rectangles; a body observer can rebuild the catalog after relevant mutations. | Separate semantic membership, geometry and paint revisions. Measure catalog rebuilds while idle, hovering, selecting All and editing a value. |
-| Feedback/effects | DOM/mask/texture caches exist, but there are multiple observers, animation clocks, canvas draws and scene postprocessing. | Trace invalidation fan-out across systems, not each cache in isolation. Record actual generation/compositing/frame costs and browser paint/raster work. |
-| Rendering | Text glow uses CSS text-shadow; icons use drop-shadow/filter; the scene has bloom passes. Brightness for ordinary UI ink is calculated into RGB colors. | Distinguish CPU work from style/layout, paint/raster and GPU/compositing. Brightness alone should not be assumed intrinsically expensive; broad glow/blur can be. |
-| Ranges | Shared Density is 0–4, while `effectsFromValues` caps non-Starfield density at 1. Brightness is 0–3, Glow 0–2, Opacity 0–1. Numeric consumer metadata currently has no renderer-specific range equivalent to select choices. | Audit exposed range versus actual renderer behavior and meaningful/cost limits; do not assume these existing global numbers are safe budgets. |
+| Hierarchy and policies | Shared structure index/paths/descendants in the appearance provider; transaction/render callers reuse policy indexes. | The public standalone ancestry helper still constructs an index; never call it per row/property in a batch. |
+| Invalidation | Value readers/styles/text paint depend on values/defaults/bypass rather than targeting/locks; live normalization retains validated topology references. | Broad React contexts remain. Selective subscriptions need a further measured refactor. |
+| Transactions/history | Copy only changed records, skip no-op writes and compare shared JSON-state branches without serializing unchanged assets. | Imports still fully validate; persistence and real commits can still be costly for large snapshots. |
+| Local effects | Index owners once, discover ancestor owner keys per mounted host and resolve only those local candidates. Cache scope selectors and policy indexes. | Relevant DOM changes invalidate ownership/geometry; large actual mounted documents still require discovery. |
+| Feedback | Cached feedback hosts paint at 30fps; slow display frames can freeze feedback at a steady visible strength. | CSS style/paint cost still scales with visible coverage; native seam animations remain separate; scene feedback also yields under load. |
+| Graphics | Bounded overlay/scene resolution, lower bloom resolution, no scene MSAA, batched lightning strength bands and aggregate UI source/particle/pixel/segment budgets. | Lower rendering quality is deliberate. Complex scene animation beyond these pixel limits is not fully budgeted. |
+| Overload | UI decoration decreases its source allowance after sustained expensive/delayed frames, eventually freezing; MC reports reduced/paused animation. | This is a fallback, not an equivalent-quality speedup or a guarantee of 60fps on every device. |
+| Ranges | Shared conditional numeric metadata, consumer-specific UI glow/blur bounds, common mixed-selection interval, writes and rendering use the same bounds. | The full numeric catalog still needs device-specific visual/cost calibration. There is no universal meaningful maximum for all properties. |
 
 ## 1. Capture the baseline before more performance fixes
 
@@ -51,8 +51,8 @@ paint/raster/compositing, effect CPU time, allocations/memory, target/DOM counts
 invalidation causes. Use browser traces for actual interaction claims; add low-cost,
 opt-in local counters/timings for subsystem attribution. Aggregate without React
 updates, storage writes or console output on each sample. Turn instrumentation off
-for final timing comparisons. Do not run a browser suite contrary to the user's
-verification preference; agree the targeted profiling workflow before execution.
+for final timing comparisons. The user authorized a focused local performance trace for this work; unrelated
+browser suites remain outside that request.
 
 Locate the dominant cost and its scaling first. Unit assertions that a cache is
 reused are useful regression checks, not proof of low frame time or low GPU cost.
@@ -137,6 +137,8 @@ universal millisecond assertions in model tests. Document reference scenarios an
 repeat them for cross-cutting features; agreeing budgets without checking them is
 not a safeguard. Builds and existing tests alone never close a performance report.
 
-Current next step: baseline/profile and range audit. No further claim that a
-particular effect or global performance is fixed without reproducing the report
-and measuring the complete application.
+Next acceptance work: verify the private preview on the user's hardware/workspace,
+then profile residual input latency, React notification scope, catalog refreshes
+and graph/media combinations. Keep before/after fixture measurements with future
+cross-cutting changes. Do not close the overall performance report on model tests
+or software-renderer traces alone.

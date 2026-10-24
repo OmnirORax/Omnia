@@ -1,3 +1,4 @@
+import { RENDER_BUDGET } from "../renderBudget.ts";
 import { EFFECT_KINDS } from "../graph/effects.ts";
 import { normalizeFont } from "../fonts.ts";
 import { type Controller, type Target, type Values, normalizeController } from "./model.ts";
@@ -402,7 +403,14 @@ for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner ===
     properties: consumer.properties, couplings: consumer.channels, defaults: consumer.defaults,
     effectKinds: consumer.choices.effect, binding: consumer.locator ? { selector: consumer.locator } : undefined });
 }
+for (const target of entries) if (target.properties) target.numberRanges = Object.fromEntries(target.properties.flatMap(id => {
+  const spec = propertyFor(id);
+  if (spec?.kind !== "number") return [];
+  const max = target.binding?.css ? (id === "glow" || id === "effectGlow" ? Math.min(spec.max!, RENDER_BUDGET.uiGlow) : id === "blur" ? Math.min(spec.max!, RENDER_BUDGET.uiBlur) : spec.max!) : spec.max!;
+  return [[id, max === spec.max ? spec : { ...spec, max }]];
+}));
 export const TARGETS: readonly RegisteredTarget[] = entries;
+const baseTargets = new Map(TARGETS.map(target => [target.id, target]));
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
   ["single", "multi", "search", "number", "select"].map(kind => [
     `ui.fields.${kind}`, [`ui.fields.${kind}.background`, `ui.fields.${kind}.contour`],
@@ -422,7 +430,7 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
   const targets = [...TARGETS];
   const parents = new Set<string>();
   for (const [id, instance] of Object.entries(state.instances)) {
-    const base = TARGETS.find((t) => t.id === instance.base);
+    const base = baseTargets.get(instance.base);
     if (!base) continue;
     const parent = `${base.id}.custom`;
     if (!parents.has(parent)) {
@@ -437,6 +445,7 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
         ? base.properties?.filter(property => GLYPH_PROPERTIES.includes(property)) : base.properties,
       effectKinds: base.effectKinds,
       couplings: base.couplings,
+      numberRanges: base.numberRanges,
       instance,
       binding: instance.part && base.binding ? { ...base.binding,
         selector: partSelector(instance) + (base.id === "text.ui.placeholders" ? "::placeholder" : ""),
