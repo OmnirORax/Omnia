@@ -20,6 +20,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -53,7 +55,7 @@ jobs:
   release:
     needs: checks
     # Dispatch is verification-only. Activation requires an explicit repository
-    # variable AND a new push to master. PRs/other branches never receive deployment secrets.
+    # variable AND a new push to master. Production credentials stay in this job.
     if: >-
       github.ref == 'refs/heads/master' &&
       (github.event_name == 'workflow_dispatch' ||
@@ -100,3 +102,64 @@ jobs:
         run: >-
           "$RUNNER_TEMP/omnia-wrangler/node_modules/.bin/wrangler"
           pages deploy dist --project-name omnia-web --branch master
+
+  preview:
+    needs: checks
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: read
+    environment:
+      name: cloudflare-preview
+      url: https://pr-${{ github.event.number }}.omnia-web-bae.pages.dev
+    env:
+      PREVIEW_BRANCH: pr-${{ github.event.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned Yarn and dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/omnia-yarn" --no-audit --no-fund --package-lock=false @yarnpkg/cli-dist@4.18.1
+          export PATH="$RUNNER_TEMP/omnia-yarn/node_modules/.bin:$PATH"
+          yarn install --immutable
+      - name: Build checked PR head
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          node scripts/cloudflare-build-config.mjs
+          node --run build
+      - name: Verify preview alias and wildcard before upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCESS_EXTRA_HOSTS: ${{ vars.CLOUDFLARE_ACCESS_EXTRA_HOSTS }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export CLOUDFLARE_ACCESS_EXTRA_HOSTS="$CLOUDFLARE_ACCESS_EXTRA_HOSTS $PREVIEW_BRANCH.omnia-web-bae.pages.dev access-probe-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.omnia-web-bae.pages.dev"
+          node scripts/cloudflare-access-check.mjs
+      - name: Install pinned Wrangler
+        run: npm install --prefix "$RUNNER_TEMP/omnia-wrangler" --no-audit --no-fund --package-lock=false wrangler@4.152.0
+      - name: Deploy preview only and verify resulting hosts
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_ACCESS_EXTRA_HOSTS: ${{ vars.CLOUDFLARE_ACCESS_EXTRA_HOSTS }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          test "$PREVIEW_BRANCH" != master
+          "$RUNNER_TEMP/omnia-wrangler/node_modules/.bin/wrangler" pages deploy dist --project-name omnia-web --branch "$PREVIEW_BRANCH"
+          export CLOUDFLARE_ACCESS_EXTRA_HOSTS="$CLOUDFLARE_ACCESS_EXTRA_HOSTS $PREVIEW_BRANCH.omnia-web-bae.pages.dev"
+          node scripts/cloudflare-access-check.mjs
+          echo "Verified private preview: https://$PREVIEW_BRANCH.omnia-web-bae.pages.dev" >> "$GITHUB_STEP_SUMMARY"

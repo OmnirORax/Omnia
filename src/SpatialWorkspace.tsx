@@ -25,11 +25,13 @@ import { normalizeFont, isCustomFont } from "./fonts";
 import { loadFont } from "./fontLibrary";
 import { registerHierarchyScene, type SceneSelectionPaint } from "./appearance/sceneFeedback";
 import { createGraphHierarchyPulse } from "./appearance/graphHighlight";
+import { createWallpaper } from "./scene/wallpaper";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
+  wallpaperURL?: string | null;
   colorPreview?: ColorPreview | null;
   atlas: Atlas;
   document: Document;
@@ -67,6 +69,7 @@ type SceneState = {
   appearance: ReturnType<typeof createSceneAppearance>;
   requestRender: () => void;
   requestPaint: () => void;
+  wallpaper: ReturnType<typeof createWallpaper>;
   focus: (kind: NavigationCommand["kind"], id?: string) => void;
 };
 type Menu = { x: number; y: number; target: ContextTarget };
@@ -178,6 +181,7 @@ export default function SpatialWorkspace(props: Props) {
       });
     };
     const requestRender = () => scheduleRender(true);
+    const wallpaper = createWallpaper(scene, () => scheduleRender(false));
     const hierarchyPulse = createGraphHierarchyPulse();
     let hierarchyBackground: number | null = null;
     let selectedBackground: { paint: SceneSelectionPaint; strength: number } | undefined;
@@ -192,6 +196,10 @@ export default function SpatialWorkspace(props: Props) {
           selectorSurfaceStrength(paint.opacity, strength, paint.fill)).convertSRGBToLinear();
       } else if (hierarchyBackground !== null) color.lerp(new THREE.Color("white"), hierarchyBackground);
       scene.background = color;
+      const strength = selectedBackground
+        ? selectorSurfaceStrength(selectedBackground.paint.opacity, selectedBackground.strength, selectedBackground.paint.fill)
+        : hierarchyBackground ?? 0;
+      wallpaper.feedback(new THREE.Color(selectedBackground?.paint.color ?? 'white'), strength);
     };
     const stopHierarchyHighlight = registerHierarchyScene({
       pulse: (targets, strength) => {
@@ -321,11 +329,12 @@ export default function SpatialWorkspace(props: Props) {
       animate(point, Math.max(4, radius / Math.tan(fov / 2) * 1.5));
       changeFocusContext(contextIds);
     };
-    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, requestPaint: () => scheduleRender(false), focus };
+    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, requestPaint: () => scheduleRender(false), focus, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
       appearance.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
+      wallpaper.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
     };
     const observer = new ResizeObserver(resize); observer.observe(host); resize();
     controls.addEventListener("change", requestRender);
@@ -543,9 +552,11 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.removeEventListener("pointerup", up);
       renderer.domElement.removeEventListener("pointercancel", cancel);
       renderer.domElement.removeEventListener("contextmenu", preventMenu);
-      observer.disconnect(); controls.dispose(); appearance.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
+      observer.disconnect(); controls.dispose(); wallpaper.dispose(); appearance.dispose(); disposeContent(content); renderer.dispose(); renderer.domElement.remove(); stateRef.current = null;
     };
   }, []);
+
+  useEffect(() => { if (ready) void stateRef.current?.wallpaper.setURL(props.wallpaperURL ?? null); }, [ready, props.wallpaperURL]);
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;

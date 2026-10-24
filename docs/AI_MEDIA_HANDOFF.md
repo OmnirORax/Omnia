@@ -6,6 +6,13 @@ It is not a completed feature specification or a backend implementation.
 
 ## Scope and current state
 
+First scene connection is now implemented in this feature branch; see
+[scene generation](SCENE_GENERATION.md) for exact status and setup. It adds one
+saved prompt/input binding, OpenAI image generation behind a server-only enable
+gate, private output storage and a static workspace wallpaper. No literal wires
+are shown. It does not yet implement the broader per-parent/default/edit/music
+design. Earlier strategic scope notes below remain context, not completed work.
+
 The user intends to add AI music and wallpaper generation. Providers, models,
 hosting, credentials, persistence, playback controls and the first deliverable
 have not been selected in this conversation. Responsive wallpapers were discussed;
@@ -18,8 +25,9 @@ server-side function boundary. The schema/function are hosted and public signup
 is disabled. The website is published; the user verified sign-in, owner workspace
 access, a ready private image, and the download action. The atlas itself still saves
 locally. Existing "External AI proposal" accepts reviewed graph changesets; it is
-not a model provider connection. Image/music generation, jobs, audio/video storage,
-playback, and context-to-protocol bindings remain unimplemented.
+not a model provider connection. The first image provider/input path is described
+above; music, durable background workers, audio/video storage, playback and broad
+context-to-protocol bindings remain unimplemented.
 
 The frontend is now live behind Cloudflare Access at `https://omnium.nexus`, with
 automatic deployment from `master`; GitHub Pages hosting is retired. Read

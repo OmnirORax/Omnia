@@ -6,6 +6,20 @@ import { propertyFor, type RegisteredTarget } from "./registry";
 import type { Value } from "./model";
 import { applyValue, adjustmentTargets } from "./model";
 import { useAppearance } from "./Context";
+/** Text inputs share the same property setter and cancellable field draft. */
+function TextPropertyInput({ value, onCommit, disabled, label, maxLength, multiline }: {
+  value: string; onCommit: (value: Value) => void; disabled: boolean; label: string; maxLength: number; multiline?: boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+  const input = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  useEffect(() => setDraft(value), [value]);
+  useCancelValueEdit(input, () => setDraft(value), label);
+  const shared = { 'aria-label': label, value: draft, disabled, maxLength,
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(event.target.value),
+    onBlur: () => { if (draft !== value) onCommit(draft); } };
+  return multiline ? <textarea {...shared} ref={input as React.RefObject<HTMLTextAreaElement>} rows={4} />
+    : <input {...shared} ref={input as React.RefObject<HTMLInputElement>} />;
+}
 /** One editor implementation is shared by the controller, rows and contextual UI. */
 export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { previewTargets?: RegisteredTarget[] }) {
   const ctx = useAppearance();
@@ -78,6 +92,8 @@ function PropertyInput({
     onPreview(beforeRange.current);
   };
   useCancelValueEdit(input, cancelRange, p.kind);
+  if (p.kind === "text") return <TextPropertyInput value={String(value)} onCommit={onCommit} disabled={disabled}
+    label={label ?? p.label} maxLength={p.maxLength ?? 4000} multiline={p.multiline} />;
   if (p.kind === "color")
     return (
       <ColorInput

@@ -148,7 +148,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
           if (key.length > 100) return [];
           const definition = PROPERTY_REGISTRY.property(key);
           const checked = definition ? validateValue(definition, item) : item;
-          return typeof checked === "boolean" || typeof checked === "number" && Number.isFinite(checked) || typeof checked === "string" && checked.length <= 200
+          return typeof checked === "boolean" || typeof checked === "number" && Number.isFinite(checked) || typeof checked === "string" && checked.length <= (definition?.kind === "text" ? definition.maxLength ?? 4000 : 200)
             ? [[key, checked]] : [];
         }));
       }

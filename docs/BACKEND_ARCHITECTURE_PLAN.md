@@ -4,6 +4,12 @@ Status: proposed architecture and implementation sequence; no backend implemente
 Implementation update: the local foundation and initial hosted schema/function deployment are described in [BACKEND.md](BACKEND.md). Hosted public signup is disabled and verified; the website is published and its initial cloud/storage flow was manually verified by the user. Cloud atlas synchronization and other future stages remain proposals.
 Prepared: 2026-10-24. Repository inspected at 98169540ef40128f2d37a09ca8679fc1b8a5e278.
 
+Later implementation: frontend hosting now uses private Cloudflare Pages
+([operations](CLOUDFLARE_DEPLOYMENT.md)). The first saved-prompt/active-node image
+generation slice is described in [scene generation](SCENE_GENERATION.md); its
+bounded attempt ledger does not implement the general durable worker proposed
+below. Initial-checkout facts and recommendations in this plan are historical.
+
 ## 1. Purpose and scope
 
 Build a reusable backend foundation for Omnia. Scene generation is deferred to a future feature agent; it is one consumer of this foundation, not the organizing principle of the entire backend.

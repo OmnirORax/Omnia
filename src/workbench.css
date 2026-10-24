@@ -1227,3 +1227,7 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .range-spectrum .range-end-min { flex-direction: row-reverse; }
 .range-spectrum-input::-webkit-slider-thumb { appearance: none; width: 8px; height: 8px; }
 .range-spectrum-input::-moz-range-thumb { width: 8px; height: 8px; border: 0; }
+.scene-panel { display: grid; gap: 6px; }
+.scene-input-row { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }
+.scene-panel textarea { width: 30ch; max-width: 100%; resize: vertical; }
+.scene-resolved { max-width: 34ch; max-height: 10em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
