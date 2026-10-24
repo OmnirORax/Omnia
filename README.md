@@ -137,4 +137,9 @@ The app enforces a 5 MB JSON import limit, 2,000 identities, 4,000 placements, 1
 
 ## Hosted entry point
 
-`.github/workflows/deploy-pages.yml` builds and deploys `master` to GitHub Pages. The current static entry point is `https://omnirorax.github.io/Omnia/`. Each visitor's atlas remains in that visitor's browser and is not published with the app.
+The private Cloudflare Pages deployment targets `omnia-web` / `omnium.nexus` from
+`master`. Automatic publication is disabled until Access and retired GitHub hosting
+are verified; see [deployment setup and activation](docs/CLOUDFLARE_DEPLOYMENT.md).
+The old GitHub Pages workflow retains build/test checks but no publication steps;
+an administrator must separately unpublish the previously hosted site. Each
+visitor's atlas remains in that visitor's browser and is not published with the app.

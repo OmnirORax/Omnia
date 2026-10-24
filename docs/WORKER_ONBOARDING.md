@@ -302,6 +302,13 @@ work. Do not copy large source dumps or tentative guesses into the shared guide.
 
 ## Context and memory
 
+Hosting migration: private Cloudflare Pages targets `omnia-web` / `omnium.nexus`
+from `master`, gated off pending Access verification. Legacy GitHub Pages build
+checks remain, publication steps are removed; remote hosting must be unpublished
+separately. See [Cloudflare deployment](CLOUDFLARE_DEPLOYMENT.md) for exact activation
+and privacy prerequisites. Backend schema/function are unchanged; its origin
+allowlist now permits the custom domain and existing localhost development origins.
+
 There is no reliable number of turns or tasks after which a worker forgets.
 Inspected code is usable while present in its active context. Long conversations
 may be compacted into summaries that omit details. New chats/workers must not be
