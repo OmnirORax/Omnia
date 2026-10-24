@@ -52,7 +52,9 @@ The user requires features to preserve responsiveness. Flag an approach likely t
 cause significant lag before implementing it, explain the cost and offer practical
 workarounds. Account for selection, pointer movement, live editing and large scenes
 from the outset. Follow the performance rule in `AGENTS.md`; do not rely on the
-user repeatedly discovering regressions. Builds alone do not verify smoothness.
+user repeatedly discovering regressions. Builds alone do not verify smoothness. Performance takes precedence over maximal
+configuration freedom: prefer bounded supported options and explain necessary
+restrictions instead of allowing combinations that make the app unusable.
 
 ## Essential distinctions
 

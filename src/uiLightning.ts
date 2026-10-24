@@ -32,6 +32,7 @@ function cssMask(element: HTMLElement) {
 type Snapshot = {
   empty?: boolean;
   inputValue?: string;
+  paint?: { tile: ElectricTile; revision: number };
   signature: string;
   paths?: Contour[];
   mask: HTMLCanvasElement;
@@ -344,14 +345,13 @@ export function drawUILightning(
   return segments;
 }
 
-const tiles = new Map<
-  string,
-  {
-    noise: ReturnType<typeof createElectricInk>;
-    canvas: HTMLCanvasElement;
-    context: CanvasRenderingContext2D;
-  }
->();
+type Noise = { ink: ReturnType<typeof createElectricInk>; revision: number; pixels?: ImageData };
+type ElectricTile = { noise: Noise; noiseRevision: number; revision: number;
+  canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; pixels: ImageData };
+const noises = new Map<string, Noise>(), tiles = new Map<string, ElectricTile>();
+// Active jobs retain their material even when a many-color page exceeds the
+// small shared palette. This prevents eviction/recreation on every frame.
+const scopeTiles = new WeakMap<GlyphScope, { key: string; tile: ElectricTile }>();
 /** Opaque electric ink replaces glyph interiors; the surrounding surface remains untouched. */
 export function drawUIElectricText(
   context: CanvasRenderingContext2D,
@@ -376,33 +376,47 @@ export function drawUIElectricText(
   const color =
       fx.color ?? (typeof context.strokeStyle === "string" ? context.strokeStyle : "#60ddec"),
     key = `${color}:${fx.density}:${fx.boltLength}:${fx.intensity}:${fx.motion}`;
-  let tile = tiles.get(key);
+  const held = scope && scopeTiles.get(scope);
+  let tile = held?.key === key ? held.tile : tiles.get(key);
   if (!tile) {
-    if (tiles.size >= 8) tiles.delete(tiles.keys().next().value!);
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 128;
-    tile = { noise: createElectricInk(true), canvas, context: canvas.getContext("2d")! };
+    const noiseKey = `${fx.density}:${fx.boltLength}:${fx.motion}:${animated}`;
+    let noise = noises.get(noiseKey);
+    if (!noise) {
+      if (noises.size >= 32) noises.delete(noises.keys().next().value!);
+      noise = { ink: createElectricInk(true), revision: 0 }; noises.set(noiseKey, noise);
+    }
+    if (tiles.size >= 32) tiles.delete(tiles.keys().next().value!);
+    const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
+    const tileContext = canvas.getContext("2d")!;
+    tile = { noise, noiseRevision: -1, revision: 0, canvas, context: tileContext, pixels: tileContext.createImageData(128, 128) };
     tiles.set(key, tile);
   }
-  if (tile.noise.update(animated ? seconds : 0, fx.density, fx.boltLength)) {
-    const noise = tile.noise.canvas.getContext("2d")!.getImageData(0, 0, 128, 128),
-      data = noise.data;
-    const rgb = [1, 3, 5].map((index) => parseInt(color.slice(index, index + 2), 16));
-    for (let i = 0; i < data.length; i += 4) {
-      const flux = data[i] / 255,
-        t = Math.max(0, Math.min(1, (flux - 0.68) / 0.3)),
-        core = t * t * (3 - 2 * t);
-      for (let c = 0; c < 3; c++)
-        data[i + c] = (rgb[c] * (0.16 + flux * 1.25) + core * 230) * (0.35 + fx.intensity * 0.65);
-    }
-    tile.context.putImageData(noise, 0, 0);
+  if (scope) scopeTiles.set(scope, { key, tile });
+  const noise = tile.noise;
+  if (noise.ink.update(animated ? seconds : 0, fx.density, fx.boltLength)) {
+    noise.revision++;
+    noise.pixels = noise.ink.canvas.getContext("2d")!.getImageData(0, 0, 128, 128);
   }
-  const ink = shape.ink.getContext("2d")!;
-  ink.globalCompositeOperation = "copy";
-  ink.drawImage(shape.mask, 0, 0);
-  ink.globalCompositeOperation = "source-in";
-  ink.fillStyle = ink.createPattern(tile.canvas, "repeat")!;
-  ink.fillRect(0, 0, shape.ink.width, shape.ink.height);
+  if (tile.noiseRevision !== noise.revision) {
+    const source = noise.pixels!.data, data = tile.pixels.data;
+    const rgb = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16));
+    for (let i = 0; i < data.length; i += 4) {
+      const flux = source[i] / 255,
+        t = Math.max(0, Math.min(1, (flux - 0.68) / 0.3)), core = t * t * (3 - 2 * t);
+      for (let c = 0; c < 3; c++) data[i + c] = (rgb[c] * (0.16 + flux * 1.25) + core * 230) * (0.35 + fx.intensity * 0.65);
+      data[i + 3] = source[i + 3];
+    }
+    tile.context.putImageData(tile.pixels, 0, 0);
+    tile.noiseRevision = noise.revision; tile.revision++;
+  }
+  if (shape.paint?.tile !== tile || shape.paint.revision !== tile.revision) {
+    const ink = shape.ink.getContext("2d")!;
+    ink.globalCompositeOperation = "copy"; ink.drawImage(shape.mask, 0, 0);
+    ink.globalCompositeOperation = "source-in";
+    ink.fillStyle = ink.createPattern(tile.canvas, "repeat")!;
+    ink.fillRect(0, 0, shape.ink.width, shape.ink.height);
+    shape.paint = { tile, revision: tile.revision };
+  }
   context.save();
   context.globalAlpha = opacity;
   context.shadowBlur = 0;

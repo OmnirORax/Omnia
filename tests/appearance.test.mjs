@@ -1004,3 +1004,95 @@ test("selection pulse ink does not invalidate effect geometry but typography and
   assert.notEqual(effectGeometryStyle(base), effectGeometryStyle(base.replace("2px", "8px")));
   assert.equal(effectGeometryStyle(null), "");
 });
+
+test("electric text shares pattern generation across colors and reuses unchanged composites beyond its palette size", async () => {
+  const { drawUIElectricText, clearUILightningContours } = await import("../src/uiLightning.ts");
+  const names = ["document", "NodeFilter", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement", "getComputedStyle", "innerWidth", "innerHeight"];
+  const saved = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  const counts = { canvases: 0, strokes: 0, segments: 0, reads: 0, copies: 0, uploads: 0 };
+  const colors = [];
+  const pixels = () => ({ data: new Uint8ClampedArray(128 * 128 * 4).fill(128) });
+  try {
+    for (const name of ["HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement"]) globalThis[name] = class {};
+    globalThis.NodeFilter = { SHOW_TEXT: 4 };
+    globalThis.innerWidth = globalThis.innerHeight = 100;
+    globalThis.getComputedStyle = () => ({ font: "12px sans-serif" });
+    globalThis.document = {
+      createTreeWalker: () => ({ nextNode: () => null }),
+      createElement: () => {
+        counts.canvases++;
+        const context = { scale() {}, translate() {}, fillRect() {}, beginPath() {}, moveTo() {},
+          lineTo() { counts.segments++; }, stroke() { counts.strokes++; },
+          createImageData: pixels, getImageData: () => { counts.reads++; return pixels(); },
+          putImageData: image => { counts.uploads++; colors.push([...image.data.slice(0, 3)]); },
+          drawImage() { counts.copies++; }, createPattern: () => ({}) };
+        return { width: 0, height: 0, getContext: () => context };
+      },
+    };
+    const element = { querySelectorAll: () => [], matches: () => false, textContent: "", scrollTop: 0, scrollLeft: 0 };
+    const rect = { x: 0, y: 0, width: 20, height: 10, right: 20, bottom: 10 };
+    const output = { save() {}, restore() {}, drawImage() {} };
+    const fx = { density: .431, boltLength: .387, intensity: .7, motion: .291 };
+    const scope = key => ({ key, shape: "surface", icons: false });
+    const a = scope("shared-red"), b = scope("shared-green");
+    const draw = (owner, color, seconds = 0) => drawUIElectricText(output, element, rect, { ...fx, color }, seconds, 1, true, 1000, owner);
+    clearUILightningContours();
+    draw(a, "#fe0000");
+    const first = { ...counts };
+    assert.ok(first.segments < (6 + Math.ceil(fx.density * 16)) * 12 * 9 / 2, "off-tile copies are culled before canvas path submission");
+    draw(b, "#00fd00");
+    assert.equal(counts.strokes, first.strokes, "a second color reuses the monochrome pattern");
+    assert.equal(counts.reads, 1, "matching colors/settings share one pixel read per noise frame");
+    assert.ok(colors[0][0] > 0 && colors[0][1] === 0 && colors[1][0] === 0 && colors[1][1] > 0, "tinting does not mutate the shared monochrome source");
+    const warm = { ...counts };
+    for (let i = 0; i < 60; i++) { draw(a, "#fe0000"); draw(b, "#00fd00"); }
+    assert.deepEqual(counts, warm, "unchanged noise frames neither regenerate nor recomposite masks");
+    draw(a, "#fe0000", .1); draw(b, "#00fd00", .1);
+    assert.equal(counts.reads, 2, "the next noise frame is generated/read once for both colors");
+    const palette = Array.from({ length: 64 }, (_, i) => ({ owner: scope(`palette-${i}`), color: `#${i.toString(16).padStart(6, "0")}` }));
+    palette.forEach(item => draw(item.owner, item.color, .1));
+    const large = { ...counts };
+    palette.forEach(item => draw(item.owner, item.color, .1));
+    assert.deepEqual(counts, large, "active scopes prevent material eviction churn on many-color pages");
+  } finally {
+    clearUILightningContours();
+    for (const name of names) { const descriptor = saved.get(name); if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
+  }
+});
+
+test("effect-only scene frames do not rewrite the camera HUD or trigger UI text invalidation", async () => {
+  const THREE = await import("three");
+  const { updateCameraGuide } = await import("../src/cameraGuideState.ts");
+  let queries = 0, writes = 0;
+  const text = () => {
+    let value = "";
+    return { get textContent() { return value; }, set textContent(next) { value = next; writes++; } };
+  };
+  const attributeNode = () => {
+    const values = new Map();
+    return { getAttribute: name => values.get(name) ?? null, setAttribute: (name, value) => { values.set(name, value); writes++; } };
+  };
+  const nodes = new Map(["zoom", "direction", "position", "target", "node"].map(name => [`[data-camera="${name}"]`, text()]));
+  for (const axis of ["x", "y", "z"]) for (const sign of [-1, 1]) {
+    const line = attributeNode(), label = attributeNode();
+    let opacity = "";
+    const style = { get opacity() { return opacity; }, set opacity(next) { opacity = next; writes++; } };
+    nodes.set(`[data-compass="${axis}:${sign}"]`, { style, querySelector: name => { queries++; return name === "line" ? line : label; } });
+  }
+  const element = { querySelector: selector => { queries++; return nodes.get(selector); } };
+  const camera = new THREE.PerspectiveCamera(55, 1, .1, 100);
+  camera.position.set(7, 5, 9); camera.lookAt(0, 0, 0);
+  const target = new THREE.Vector3();
+  updateCameraGuide(element, camera, target);
+  const first = { queries, writes };
+  assert.ok(writes > 0);
+  for (let frame = 0; frame < 60; frame++) updateCameraGuide(element, camera, target);
+  assert.deepEqual({ queries, writes }, first, "stationary animation frames do zero HUD DOM work");
+  camera.position.x += .000001; updateCameraGuide(element, camera, target);
+  assert.equal(writes, first.writes, "rounded display values are not replaced for sub-display camera changes");
+  camera.position.x += 1; updateCameraGuide(element, camera, target);
+  assert.ok(writes > first.writes, "actual camera changes still update the display");
+  const beforeSelection = writes;
+  updateCameraGuide(element, camera, target, new THREE.Vector3(1, 2, 3));
+  assert.ok(writes > beforeSelection, "selected-node coordinates stay live");
+});

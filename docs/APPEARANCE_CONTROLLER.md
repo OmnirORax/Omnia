@@ -383,3 +383,19 @@ redraw requests at the existing 30fps budget; actual edits can request an immedi
 paint. UI electric-noise canvases declare frequent CPU pixel readback at creation,
 while the Three.js texture path retains its own canvas configuration. No stored
 appearance values or user effect choices are changed by these optimizations.
+
+
+Animated scene draws must not rewrite unchanged HUD DOM. `cameraGuideState.ts`
+skips stationary camera/target/selected-node snapshots and writes text/SVG values
+only when their displayed result changes. `SpatialWorkspace` likewise leaves
+unchanged option-bar styles alone. Replacing the same camera text every animation
+tick wakes UI discovery and invalidates glyph masks, defeating all frame caches
+and making both text animation modes scale badly across the interface.
+
+Electric ink shares monochrome generation/readback across matching geometry/speed
+settings regardless of color; each colored material has an independent reusable
+pixel buffer. Unchanged noise frames reuse their glyph composites, and active
+scopes retain materials beyond the small shared palette instead of reallocating
+them each frame. Tile generation computes bends once and submits only wrapped
+segments whose stroke can reach the tile. These are renderer optimizations, not
+changes to stored appearance values or animation choices.

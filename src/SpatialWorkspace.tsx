@@ -166,12 +166,15 @@ export default function SpatialWorkspace(props: Props) {
         const anchorElement = (element: HTMLElement | undefined | null, id: string, below = false) => {
           if (!element) return;
           const item = textScene.current?.nodes.get(id);
-          if (!item || !item.sprite.visible) { element.style.visibility = "hidden"; return; }
+          if (!item || !item.sprite.visible) { if (element.style.visibility !== "hidden") element.style.visibility = "hidden"; return; }
           const p = item.group.position.clone().project(camera);
-          element.style.visibility = p.z > -1 && p.z < 1 ? "visible" : "hidden";
-          element.style.left = `${(p.x + 1) * host.clientWidth / 2}px`;
+          const visibility = p.z > -1 && p.z < 1 ? "visible" : "hidden";
+          const left = `${(p.x + 1) * host.clientWidth / 2}px`;
+          if (element.style.visibility !== visibility) element.style.visibility = visibility;
+          if (element.style.left !== left) element.style.left = left;
           const labelHeight = screenBounds(item.sprite, camera, host.clientWidth, host.clientHeight).height;
-          element.style.top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
+          const top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
+          if (element.style.top !== top) element.style.top = top;
         };
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
         const selected = worldCoordinates.current.get(callbacks.current.selectedId ?? "");

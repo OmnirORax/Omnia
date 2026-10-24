@@ -60,6 +60,13 @@ fields. See the UI component contract for its left/right-click semantics.
 
 # Responsiveness is a product requirement
 
+Performance takes priority over maximum configurability/freedom. Prefer bounded
+work and supported combinations; restrict effect complexity, concurrent animated
+sources or costly options when necessary instead of allowing settings that make
+the app unusable. Explain material restrictions and preserve stored user choices
+when applying a temporary rendering fallback. This is an explicit user preference,
+not a request to add unlimited options and optimize only after regressions.
+
 Every feature and fix must preserve interactive responsiveness. Before implementing
 an approach likely to cause substantial lag, tell the user what could become slow
 and suggest practical alternatives (for example bounded work, caching, incremental
