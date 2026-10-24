@@ -7,6 +7,13 @@ the project from source or chat history for every task; inspect the affected cod
 after loading the shared model. Keep this brief and the relevant subsystem docs
 current when changing a cross-cutting contract or its implementation status.
 
+For hosting, CI, domains or release work, read
+[docs/CLOUDFLARE_DEPLOYMENT.md](docs/CLOUDFLARE_DEPLOYMENT.md). Production is private
+Cloudflare Pages at `omnium.nexus`, deployed from `master`; automatic deployment is
+enabled. A merge to `master` can publish after checks pass. Preserve Access on
+production/preview hosts and the release preflight; never restore public GitHub
+Pages publication. Manual workflow dispatch verifies only and does not deploy.
+
 For backend work, read [docs/BACKEND.md](docs/BACKEND.md). Reuse workspace
 authorization, private asset lifecycles, and portable contracts; keep credentials
 server-side. Cloud atlas synchronization is not implemented. Read the backend guide

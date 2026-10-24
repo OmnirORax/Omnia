@@ -21,6 +21,16 @@ locally. Existing "External AI proposal" accepts reviewed graph changesets; it i
 not a model provider connection. Image/music generation, jobs, audio/video storage,
 playback, and context-to-protocol bindings remain unimplemented.
 
+The frontend is now live behind Cloudflare Access at `https://omnium.nexus`, with
+automatic deployment from `master`; GitHub Pages hosting is retired. Read
+[deployment operations](CLOUDFLARE_DEPLOYMENT.md) before adding provider callbacks,
+external media endpoints or preview hosts. Access is separate from Supabase user
+authentication and workspace authorization. Keep provider credentials server-side
+and preserve exact backend origins; do not bypass Access or add wildcard origins
+to make media generation work. Atlas/UI browser storage does not transfer between
+origins automatically. This hosting work did not implement signup/entry screens or
+any image/music provider integration.
+
 Backend work was deferred in the earlier media conversation; the user subsequently
 implemented and deployed the foundation in the backend task. Reuse the actual
 backend contracts rather than assuming there is no service or building a parallel

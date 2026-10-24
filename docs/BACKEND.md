@@ -1,6 +1,6 @@
 # Backend foundation
 
-Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScript Edge Function. The core schema and backend function are deployed to project tqjjcabekjjmmspttbli. Public signup is disabled and verified through both administrative and public Auth settings. The user previously verified hosted sign-in, owner workspace access, a ready private image, and download through the GitHub Pages frontend. Hosting is now migrating to private Cloudflare Pages with publication gated off; see [migration and activation](CLOUDFLARE_DEPLOYMENT.md). The broader [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) includes future systems that are not implemented here.
+Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScript Edge Function. The core schema and backend function are deployed to project tqjjcabekjjmmspttbli. Public signup is disabled and verified through both administrative and public Auth settings. The user previously verified hosted sign-in, owner workspace access, a ready private image, and download through the GitHub Pages frontend. The frontend is now live on private Cloudflare Pages at omnium.nexus with automatic deployment from master; see [deployment operations](CLOUDFLARE_DEPLOYMENT.md). Only the browser origin allowlist changed during that hosting migration; schema, Auth, storage, permissions and deployed backend function code were unchanged. The broader [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) includes future systems that are not implemented here.
 
 ## What exists
 
@@ -115,7 +115,7 @@ Built frontend output was checked for absence of the local privileged keys.
 That local validation preceded hosted deployment. The user subsequently created
 the hosted project and authorized deployment with a project-scoped token.
 
-The separate backend CI workflow uses a temporary local stack and synthetic identities, without hosted secrets or deployments. Frontend hosting is migrating to private Cloudflare Pages; see [deployment setup](CLOUDFLARE_DEPLOYMENT.md). Do not add privileged deployment credentials to pull-request workflows.
+The separate backend CI workflow uses a temporary local stack and synthetic identities, without hosted secrets or deployments. Frontend hosting uses private Cloudflare Pages; its release checks also run the local backend permission suite. See [deployment operations](CLOUDFLARE_DEPLOYMENT.md). Do not add privileged deployment credentials to pull-request workflows.
 
 ## Hosted deployment and recovery
 
@@ -150,11 +150,12 @@ account identifiers or credentials are recorded in this handoff.
 
 The user configured the PUBLIC GitHub repository Actions variables
 VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to the hosted project values.
-The Pages build now reads those variables; deployment tokens and service keys must
+The Cloudflare Pages build reads those variables; deployment tokens and service keys must
 never be supplied to that build. Future code changes use the repository's normal
 review/merge flow. Environment snapshots do not push code to GitHub or update
-Pages. If both variables are absent, the optional cloud controls
-remain unconfigured and local editing still works. The real owner created a
+Pages. In a local build with both variables absent, the optional cloud controls
+remain unconfigured and local editing still works; the production release guard
+requires valid public configuration and refuses an unconfigured build. The real owner created a
 separate hosted account through Supabase Authentication administration; local
 account passwords are not hosted credentials, and smoke-test accounts are deleted.
 

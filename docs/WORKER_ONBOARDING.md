@@ -84,6 +84,7 @@ target hierarchy or current selection. They answer different questions.
 | Symbolic visual selector and accepted-part appearance editing | Implemented for registered UI parts; not arbitrary pixel understanding | [Visual selection](VISUAL_SELECTION.md) |
 | Universal function/property registry, compatible automatic coupling, generated categories and target inclusion after coupling | Implemented shared core; migration underway (visual targets, mouse trail and placement settings) | [Shared properties and coupling](SHARED_PROPERTIES.md) |
 | Backend foundation | Local foundation and hosted schema/function deployed; hosted signup disabled and verified; 10 hosted smoke checks passed; website published and user-verified for sign-in, owner access and private image download; atlas remains local | [Backend guide](BACKEND.md), [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) |
+| Private frontend hosting | Cloudflare Pages `omnia-web` at `omnium.nexus`; automatic deployment from `master` enabled; GitHub Pages retired; deployment and post-deployment Access preflight passed | [Deployment operations and evidence](CLOUDFLARE_DEPLOYMENT.md) |
 
 AI music/wallpaper generation is planned, not implemented. Before working on
 generation services, playback or reactive wallpapers, read
@@ -302,12 +303,15 @@ work. Do not copy large source dumps or tentative guesses into the shared guide.
 
 ## Context and memory
 
-Hosting migration: private Cloudflare Pages targets `omnia-web` / `omnium.nexus`
-from `master`, gated off pending Access verification. Legacy GitHub Pages build
-checks remain, publication steps are removed; remote hosting must be unpublished
-separately. See [Cloudflare deployment](CLOUDFLARE_DEPLOYMENT.md) for exact activation
-and privacy prerequisites. Backend schema/function are unchanged; its origin
-allowlist now permits the custom domain and existing localhost development origins.
+Hosting is live on private Cloudflare Pages `omnia-web` / `omnium.nexus` from
+`master`. Automatic deployment is enabled: a merge can publish after checks and
+Access preflight pass. Manual dispatch verifies only. GitHub Pages hosting and
+its domain binding were removed; legacy model/build checks remain. See
+[Cloudflare deployment](CLOUDFLARE_DEPLOYMENT.md) for release operations, evidence,
+privacy requirements and pause/recovery. The Supabase origin allowlist permits
+the custom domain and existing localhost development origins; backend
+schema/function/Auth were unchanged by the hosting migration. Access login and
+Supabase login are separate; the atlas remains browser-local and origin-specific.
 
 There is no reliable number of turns or tasks after which a worker forgets.
 Inspected code is usable while present in its active context. Long conversations
