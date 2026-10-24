@@ -1,6 +1,6 @@
 # Backend foundation
 
-Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScript Edge Function. The core schema and backend function are deployed to project tqjjcabekjjmmspttbli. Public signup is disabled and verified through both administrative and public Auth settings. Publishing the changed frontend to the actual website is pending. The broader [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) includes future systems that are not implemented here.
+Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScript Edge Function. The core schema and backend function are deployed to project tqjjcabekjjmmspttbli. Public signup is disabled and verified through both administrative and public Auth settings. The updated frontend is published on GitHub Pages, and the user verified hosted sign-in, owner workspace access, a ready private image, and the download action in the browser. The broader [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) includes future systems that are not implemented here.
 
 ## What exists
 
@@ -103,14 +103,14 @@ There is no automatic scheduled orphan sweeper in this foundation. Operators sho
 - yarn typecheck and yarn build: frontend typecheck, property contracts, production output.
 - yarn build:preview: the required self-contained preview output.
 
-Browser interaction suites remain user-driven. Backend checks do not establish that the settings UI has been interactively tested. The user explicitly authorized adding/running backend permission checks for this task.
+Browser interaction suites remain user-driven. The user manually verified the live Cloud connection flow; no automated browser suite was run. The user explicitly authorized adding/running backend permission checks for this task.
 
 Local evidence on 2026-10-24: fresh database reset reapplied both migrations;
-18 backend checks and all 141 existing model checks passed; frozen-lock Edge
+18 backend checks and all 141 then-existing model checks passed; frozen-lock Edge
 typecheck, frontend typecheck, production build, and self-contained preview build
 passed. The stack was stopped/restarted with data retained and the backend checks
 passed again. Browser-style multipart upload is covered through the SDK's Blob
-route. Frontend HTTP/module checks passed, but browser interaction was not tested.
+route. Frontend HTTP/module checks passed; the later manual browser verification is recorded below.
 Built frontend output was checked for absence of the local privileged keys.
 That local validation preceded hosted deployment. The user subsequently created
 the hosted project and authorized deployment with a project-scoped token.
@@ -138,15 +138,25 @@ Providers. Fresh administrative GET /config/auth and public /auth/v1/settings
 both confirmed disable_signup=true on 2026-10-24. Other authorized deployment work
 was completed independently. No broader token was requested for this setting.
 
-To connect the published website, set the PUBLIC GitHub repository Actions variables
+After [PR #25](https://github.com/OmnirORax/Omnia/pull/25) merged, GitHub Pages
+successfully deployed commit 0aa38b51165ed465dfb12bd08a83493e79d7b3be. The
+post-merge backend CI also passed. On 2026-10-24, the user's live-site screenshot
+showed a signed-in account, the selected Omnia workspace with owner access, a
+ready private image, and the File downloaded status. This verifies the initial
+browser connection/storage flow; it does not add atlas sync or media generation.
+The latest master integration also passed all 172 current model checks and the
+self-contained preview build before the implementation PR merged. No personal
+account identifiers or credentials are recorded in this handoff.
+
+The user configured the PUBLIC GitHub repository Actions variables
 VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to the hosted project values.
 The Pages build now reads those variables; deployment tokens and service keys must
-never be supplied to that build. The code changes still need publishing through
-the repository's normal review/merge flow. Environment snapshots do not push code
-to GitHub or update Pages. If both variables are absent, the optional cloud controls
-remain unconfigured and local editing still works. Create the actual owner's
-hosted account through Supabase Authentication administration; local account
-passwords are not hosted credentials, and smoke-test accounts are deleted.
+never be supplied to that build. Future code changes use the repository's normal
+review/merge flow. Environment snapshots do not push code to GitHub or update
+Pages. If both variables are absent, the optional cloud controls
+remain unconfigured and local editing still works. The real owner created a
+separate hosted account through Supabase Authentication administration; local
+account passwords are not hosted credentials, and smoke-test accounts are deleted.
 
 For project-scoped/proxy-backed tokens, use the explicit Management API helper:
 NODE_USE_ENV_PROXY=1 node scripts/backend-hosted.mjs plan <project-ref>, then the
