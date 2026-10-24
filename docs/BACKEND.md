@@ -1,6 +1,6 @@
 # Backend foundation
 
-Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScript Edge Function. The core schema and backend function are deployed to project tqjjcabekjjmmspttbli. Public signup is disabled and verified through both administrative and public Auth settings. The updated frontend is published on GitHub Pages, and the user verified hosted sign-in, owner workspace access, a ready private image, and the download action in the browser. The broader [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) includes future systems that are not implemented here.
+Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScript Edge Function. The core schema and backend function are deployed to project tqjjcabekjjmmspttbli. Public signup is disabled and verified through both administrative and public Auth settings. The user previously verified hosted sign-in, owner workspace access, a ready private image, and download through the GitHub Pages frontend. Hosting is now migrating to private Cloudflare Pages with publication gated off; see [migration and activation](CLOUDFLARE_DEPLOYMENT.md). The broader [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) includes future systems that are not implemented here.
 
 ## What exists
 
@@ -115,7 +115,7 @@ Built frontend output was checked for absence of the local privileged keys.
 That local validation preceded hosted deployment. The user subsequently created
 the hosted project and authorized deployment with a project-scoped token.
 
-The separate backend CI workflow uses a temporary local stack and synthetic identities, without hosted secrets or deployments. Existing Pages deployment remains intact. Do not add privileged deployment credentials to pull-request workflows.
+The separate backend CI workflow uses a temporary local stack and synthetic identities, without hosted secrets or deployments. Frontend hosting is migrating to private Cloudflare Pages; see [deployment setup](CLOUDFLARE_DEPLOYMENT.md). Do not add privileged deployment credentials to pull-request workflows.
 
 ## Hosted deployment and recovery
 

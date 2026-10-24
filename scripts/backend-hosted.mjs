@@ -60,7 +60,7 @@ try {
   signupNeedsDashboard = true;
   console.log('Auth settings require additional project permission. Disable public signup in the dashboard; continuing independent deployment.');
 }
-await management('/secrets', 'POST', [{ name: 'OMNIA_ALLOWED_ORIGINS', value: 'https://omnirorax.github.io,http://127.0.0.1:5173,http://localhost:5173' }]);
+await management('/secrets', 'POST', [{ name: 'OMNIA_ALLOWED_ORIGINS', value: 'https://omnium.nexus,http://127.0.0.1:5173,http://localhost:5173' }]);
 console.log('Backend browser origins configured.');
 // Direct Management API supports project-scoped/proxy-backed tokens that the
 // CLI's legacy token-format validator rejects. Never fall back to broader tokens.
