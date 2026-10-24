@@ -133,17 +133,22 @@ export function normalizeController(
     result.activeSet = input.activeSet;
   return result;
 }
+/** A transaction/render owns one target snapshot; never rebuild this map per row
+ * or per property channel. No global cache: callers may build a new structure. */
+export function createTargetIndex(targets: Target[]) {
+  const byId = new Map(targets.map(target => [target.id, target])), paths = new Map<string, string[]>();
+  const path = (id: string) => {
+    const cached = paths.get(id); if (cached) return cached;
+    const result: string[] = [], seen = new Set<string>();
+    for (let key: string | undefined = id; key && !seen.has(key); key = byId.get(key)?.parent) {
+      seen.add(key); result.unshift(key);
+    }
+    paths.set(id, result); return result;
+  };
+  return { byId, path };
+}
 export function ancestry(targets: Target[], id: string): string[] {
-  const byId = new Map(targets.map((t) => [t.id, t])),
-    path: string[] = [],
-    seen = new Set<string>();
-  let key: string | undefined = id;
-  while (key && !seen.has(key)) {
-    seen.add(key);
-    path.unshift(key);
-    key = byId.get(key)?.parent;
-  }
-  return path;
+  return createTargetIndex(targets).path(id);
 }
 export const inside = (targets: Target[], child: string, parent: string) =>
   ancestry(targets, child).includes(parent);
@@ -155,26 +160,27 @@ export function blocked(
   id: string,
   property: string,
   origin?: string,
+  index = createTargetIndex(targets),
 ): boolean {
-  const path = ancestry(targets, id),
+  const path = index.path(id),
     from = origin ? path.indexOf(origin) : -1;
   // A deliberate edit at a locked row is allowed. Propagation stops at lower locks.
   const family = Object.keys(companions).find((key) => companions[key] === property) ??
-    Object.entries(targets.find(target => target.id === id)?.couplings ?? {}).find(([source, channel]) => source !== channel && channel === property)?.[0];
+    Object.entries(index.byId.get(id)?.couplings ?? {}).find(([source, channel]) => source !== channel && channel === property)?.[0];
   return path.some(
     (key, index) =>
       index > from &&
       (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))),
   );
 }
-export const connected = (state: Controller, targets: Target[], id: string, property: string) => {
-  const channel = targets.find(target => target.id === id)?.couplings?.[property] ?? property;
-  return !ancestry(targets, id).some(key => ruleHas(state.disconnected[key], property) || ruleHas(state.disconnected[key], channel));
+export const connected = (state: Controller, targets: Target[], id: string, property: string, index = createTargetIndex(targets)) => {
+  const channel = index.byId.get(id)?.couplings?.[property] ?? property;
+  return !index.path(id).some(key => ruleHas(state.disconnected[key], property) || ruleHas(state.disconnected[key], channel));
 };
-export function included(set: AppearanceSet, targets: Target[], id: string): boolean {
-  if (set.only && !inside(targets, id, set.only)) return false;
+export function included(set: AppearanceSet, targets: Target[], id: string, index = createTargetIndex(targets)): boolean {
+  const path = index.path(id);
+  if (set.only && !path.includes(set.only)) return false;
   let on = true;
-  const path = ancestry(targets, id);
   const relevant = set.only ? path.slice(path.indexOf(set.only) + 1) : path;
   for (const key of relevant) if (Object.hasOwn(set.selection, key)) on = set.selection[key];
   return on;
@@ -235,6 +241,13 @@ export function toggleRule(
   }
   return next;
 }
+/** Shared applicability for setter headings and their actual editor controls. */
+export function adjustmentTargets(state: Controller, targets: Target[], property: string, origin?: string, index = createTargetIndex(targets)) {
+  const set = state.sets.find(item => item.id === state.activeSet) ?? state.sets[0];
+  return targets.filter(target => target.properties?.includes(property) &&
+    (origin ? index.path(target.id).includes(origin) : included(set, targets, target.id, index)) &&
+    !blocked(state, targets, target.id, property, origin ?? set.only ?? "all", index) && connected(state, targets, target.id, property, index));
+}
 export function applyValue(
   state: Controller,
   targets: Target[],
@@ -242,22 +255,24 @@ export function applyValue(
   value: Value,
   origin?: string,
   local = false,
+  options: { skipBypassed?: boolean; exact?: boolean } = {},
 ): Controller {
-  const next = structuredClone(state),
+  // Paint changes do not change target structure. Preserve instance/rule identity
+  // so previewing a slider cannot rebuild every scoped selector and text binding.
+  const next = { ...state, values: { ...state.values }, refined: { ...state.refined } },
     set = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
-  if (!origin) {
-    const active = next.sets.find((s) => s.id === next.activeSet) ?? next.sets[0];
-    active.adjustments = { ...active.adjustments, [property]: value };
-  }
+  if (!origin) next.sets = state.sets.map(active => active === set
+    ? { ...active, adjustments: { ...active.adjustments, [property]: value } } : active);
+  const index = createTargetIndex(targets);
   for (const target of targets) {
     if (!target.properties?.includes(property)) continue;
     if (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value)))
       continue;
-    if (origin ? !inside(targets, target.id, origin) : !included(set, targets, target.id)) continue;
+    if (origin ? !index.path(target.id).includes(origin) : !included(set, targets, target.id, index)) continue;
     // Global adjustment originates at the nearest included category; direct row edits bypass its own lock.
     const root = origin ?? set.only ?? "all";
-    for (const channel of new Set(propertyChannels(property).map(channel => target.couplings?.[channel] ?? channel))) {
-      if (!target.properties.includes(channel) || blocked(state, targets, target.id, channel, root))
+    for (const channel of new Set((options.exact ? [property] : propertyChannels(property)).map(channel => target.couplings?.[channel] ?? channel))) {
+      if (!target.properties.includes(channel) || options.skipBypassed && !connected(state, targets, target.id, channel, index) || blocked(state, targets, target.id, channel, root, index))
         continue;
       next.values[target.id] = { ...next.values[target.id], [channel]: value };
       next.refined[target.id] =

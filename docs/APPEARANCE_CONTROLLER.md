@@ -63,9 +63,9 @@ Appearance adjusters are UI nodes, separate from both the target hierarchy and t
 
 Numeric adjusters offer a slider and bounded precise input, committed on Enter/blur. Empty or invalid numeric input restores its prior value. Effect and font choices are visible child choices rather than another property dropdown; effects include Off, and gradient has an on/off switch. Additional styles are registered once with supported renderer adapters: UI contour width/style, rounding, gradient second color/direction, shadow strength/spread/offset, UI text size/weight/spacing and UI icon saturation. Binder path thickness uses its existing Three.js line material; UI pixel sizing is not applied to 3D text or canonical geometry. Native graph assets retain their authored colors.
 
-`src/appearance/session.ts` separates committed interface history from a recoverable appearance draft. Controller changes (including local UI instances, locks, plugs and targeting sets), theme changes, imported themes and fonts all enter the draft. Other UI layout, mouse and keybinding changes retain normal persistence. Live picker/slider previews remain transient; finishing a gesture adds one draft history entry. Shift+MB4/MB5 undo/redo the pending draft while it is open, including Alt's existing five-step variant. Apply records the complete appearance as one ordinary UI history step; discard restores the last applied appearance without changing layout or knowledge. Reload drops unapproved drafts, with the browser's unsaved-change prompt where supported. Theme/UI export explicitly exports the candidate theme, even while temporary safe view is active.
+`src/appearance/session.ts` separates committed interface history from a recoverable appearance draft. Controller changes (including local UI instances, locks, plugs and targeting sets), theme changes, imported themes and fonts all enter the draft. Other UI layout, mouse and keybinding changes retain normal persistence. Live picker/slider previews remain transient; finishing a gesture adds one draft history entry. The shared chronological action journal routes undo/redo across draft and layout edits by actual order. Shift+MB4/MB5 now configures history instead of prioritizing the draft. Apply/discard are appearance-category actions; their journal patches preserve the saved-versus-draft lifecycle, without changing unrelated layout or knowledge. Reload drops unapproved drafts, with the browser's unsaved-change prompt where supported. Theme/UI export explicitly exports the candidate theme, even while temporary safe view is active.
 
-The fixed Apply/recovery bar and emergency dialog use a Shadow DOM root attached outside `body`, with independent colors, font, opacity and stacking. Appearance selectors/effects cannot style them. Holding Escape for two seconds opens recovery even while typing; an ordinary Escape keeps its normal workspace meaning. Key release, browser blur and tab hiding cancel an incomplete hold. Recovery traps keyboard focus while open.
+Everyday Apply/Discard actions use the compact shared strip below Master Controller, promoted to an attached popover on minimize/close. The emergency recovery dialog and safe-view fallback use a Shadow DOM root attached outside `body`, with independent colors, font, opacity and stacking. Appearance selectors/effects cannot style the emergency layer. Holding Escape for two seconds opens recovery even while typing; an ordinary Escape keeps its normal workspace meaning. Key release, browser blur and tab hiding cancel an incomplete hold. Recovery traps keyboard focus while open.
 
 Recovery actions:
 
@@ -100,8 +100,7 @@ Accepted visual-selector selections and selected UI functions bring up Selected
 properties in Master controller. A closed controller is revealed transiently, with
 no UI history/persistence write for inspection. Closing it dismisses that reveal
 until a new selection. Show all controls dismisses the current inspection without
-clearing the selection or changing values. Hover-only candidate previews do not
-replace the accepted selection's properties.
+clearing the selection or changing values. Hover candidates preview selection changes without changing accepted properties.
 
 The inspector and contextual Selected appearance dialog share SelectedProperties,
 PropertyTree and PropertyEditor. Exact selected-part capabilities determine the
@@ -109,9 +108,10 @@ available visual controls, and explicit function-to-consumer declarations add
 coupled nonvisual controls (currently the placement radius/clearance functions).
 Edits retain selected-part scope, protections, shared drafts and state-owner
 transactions. Merely inspecting does not create local instances. Inspector controls
-are tool chrome and preserve the active UI selection while being used. Focusing
-them pauses selector picking and holds the last feedback context while its pulse
-and live paint values continue updating.
+are tool chrome and preserve the active UI selection while being used. They do not automatically hold hover state. Use the explicit MS lock to restore
+normal cursor control while retaining the parked symbol and accepted targets. Selection / Preview
+hides feedback only when explicitly toggled to Preview, without deselecting targets.
+Entering an editor preserves the current marks; the toggle shows the selected count.
 Complete selected text hosts use scoped CSS typography; partial runs support exact
 paint and text-node effects, while unsupported partial typography stays unavailable.
 Color edits do not reset fonts, and typography-only edits preserve unrelated paint.
@@ -171,10 +171,191 @@ active effect choices, bypass and narrow selected-part scope remain authoritativ
 See SHARED_PROPERTIES.md for extending this contract.
 
 
-Master controller editing now retains the preceding selector hover/feedback context
-instead of canceling its pulse. The shared editor marker covers the main controller,
-selected appearance and moved property controls. Visual target membership and logical
-pointer position are held while ordinary UI input and the animation clock remain
-live. Clear/resume/dismissal and focus-loss cleanup release transient context. See
-VISUAL_SELECTION.md; native browser hover and arbitrary event sources are outside
-this registered-feedback hold.
+MS locking is explicit (`selector.lock`, Ctrl+MB3 by default). Editor entry does
+not capture hover/event context. Normal property-input previews remain unchanged;
+Selection / Preview toggles feedback independently of accepted membership.
+
+
+## Green text lightning recipe
+
+Visuals → Apply green text lightning applies an optional recipe for the existing
+`electric-text` renderer. It sets only UI lettering's animation channels: green
+`#08ff48`, brightness 1.15, opacity .94, intensity .85, density .38, length .62 and
+speed .8. Its actual ink texture supplies the white cores. Typography, ordinary
+text paint, graph text, surfaces and other effects retain their values. The recipe
+uses shared properties/setters, locks and bypass, in one appearance
+draft commit. Existing Apply/discard/undo and theme export remain authoritative.
+Its command is in the shared action catalog and shortcut search, unbound by default.
+There is no new shader, copied effect renderer or parallel configuration store.
+
+
+Selection / Preview is transient selector view state, independent of appearance
+and membership. It appears in the main and contextual inspectors and stationary
+selector. Entering an editor does not change the view. Choose Preview explicitly
+to expose actual paint, and Selection to restore marks. Choices last until
+clear/resume. See VISUAL_SELECTION.md.
+
+
+## Preview performance contract
+
+AppearanceProvider creates one indexed `read` per appearance/target snapshot for
+all controls, contextual editors, icons and selector feedback. `renderRead` uses
+the renderer-only activity projection; edits always read the original state.
+`valueFor` remains a standalone convenience, not a per-row/per-icon loop API.
+Pure multi-target adjustments share `createTargetIndex` for ancestry/policy checks.
+
+Paint setters copy only changed value/refinement records and the active adjuster
+metadata. They preserve unchanged instances, locks and selection sets. Target
+metadata depends on instance structure, UI ownership and actual captions, not
+changing function React elements or every color value. Exact-text bindings and
+CSS Highlight ranges rebuild on structure/ownership changes; color samples only
+update the existing paint stylesheet. Protection checks examine explicitly
+locked/bypassed instances, rather than all unprotected siblings.
+
+Selection hit tests cache catalog relationships, never stale screen coordinates.
+Matching the same category against unchanged selection/catalog reuses its candidate.
+Layout/DOM refreshes replace the catalog; resuming picking rediscovers it after
+editing. Feedback geometry and native animations survive unrelated property edits;
+its actual paint changes remain live. Do not fix lag by disabling live previews or
+reducing picker updates to commits only.
+
+
+Pattern feedback now shares a lazy geometry snapshot across hit testing, matching
+and display; layout/discovery revisions invalidate it. Native pulses retain
+unchanged visible hosts instead of restarting the accepted selection on hover
+changes. BG detection is off by default and explicitly enabled through the selector.
+Accepted contours have moving one-device-pixel seams. Hover candidate previews
+remain while aiming; explicit MS lock retains the preview and restores ordinary cursor control.
+
+
+Selector feedback → Pulse now exposes the shared Animation speed and Effect
+intensity (fade depth), plus Pulse on/off. Its co-located function declaration
+adds the consumer and reusable toggle to automatic coupling/discovery. All three
+use Controller.values, existing draft/Apply, theme export, protections and bypass.
+Native feedback and the live sample use those same inputs; speed/intensity zero or
+Pulse off yields a steady cue. Geometry seam travel remains separate. Selector
+sparkles are removed. Unsupported Animation parent editors stay unavailable while
+their supported parameter children remain accessible in the shared property tree.
+
+Canvas UI effects follow DOM overflow clipping through the shared per-paint
+`createPaintClipReader`. Each effect job clips to every scroll/hidden/clip ancestor
+(and paint containment), respecting axes, client borders/scrollbars and scaling.
+Glyph masks also clip individual text/input/image sources inside nested scrollers.
+Scroll/resize invalidates masks, so hidden content cannot survive in a cached
+raster after scrolling. This applies to shared text effects and exact local parts,
+without changing property coupling or adding another effect renderer.
+
+Setter headings and AppearanceAdjustment share `adjustmentTargets`: applicable,
+included, connected targets not blocked by inherited locks. Selected-part and
+logical-consumer trees pass their corresponding policy-derived editable properties.
+Capabilities and current editability determine which setters are visible;
+unavailable headings and editors are omitted. Parent branches with editable
+descendants retain expansion access without exposing an unavailable parent setter. Do not infer heading availability
+by inspecting mounted/expanded DOM editors.
+
+Hierarchy text hover uses concrete, continuous Custom Highlight paint with priority
+above selection/custom-part ink. Animated text also receives the same transient
+wave through `hierarchyTextFeedback.ts`, keyed by existing effect-scope IDs and
+source elements. WindowSparkles modulates only matched text-effect jobs; lettering
+remains readable, unrelated surfaces/icons stay unchanged, and stopping hover
+restores normal drawing. No appearance values or history are written. The bridge
+requests canvas repaint at its existing scene-feedback cadence, with no per-frame
+source discovery, geometry queries or React updates.
+
+Hierarchy matching must use an individual part's actual `partSelector` when
+checking whether it owns a source. Reusing the categorical selector there makes
+one customized text part suppress all ordinary text in that category. Keep
+matches per target identity and resolve text-node ownership by existing scope
+depth: a customized word overrides only that node, while unchanged siblings and
+other controls remain categorical matches. Whole-host parts use the registered
+text role rather than requiring their DOM host to equal the broader effect owner.
+This ownership work belongs to hover preparation and uses cached text-node lookups.
+
+Hierarchy feedback runs only while the pointer hovers the row's inclusion circle.
+Leaving that circle immediately clears the hover target and stops all text,
+surface, scene and transient reveal feedback. Focus and movement into another
+Master Controller editor must never retain or restart that feedback.
+
+Everyday appearance preview actions are just three shared buttons (Apply, Discard,
+Recovery) attached below Master Controller, with no status field or enclosing
+panel. They reuse registered actions as contextual mirrors, retaining styling and
+action identity even if residents were moved. Discard acts directly; it never
+opens another confirmation. Minimizing/closing with pending edits queues the
+requested action and blinks the existing Apply / Discard / Cancel choices in
+place. No popup opens and focus does not jump. Cancel (or Escape) clears the
+request without changing the draft; Apply/Discard completes the queued action. No
+separate window, backdrop, enclosing field or outside-click listener is used.
+Clicks elsewhere, pointer exit and browser chrome are not leave commands. The
+protected emergency recovery dialog remains available via Recovery/long Escape.
+
+### Selected editing scope and Properties
+
+Master Controller's Properties frame contains the existing shared setters. An
+active visual/UI/self-inventory selection becomes the exclusive temporary editing
+scope: matching hierarchy branches alone are included. Branch switches filter
+those selected items, not every item in the matching category. The chosen property
+is shared between scoped setters and hierarchy feedback/applicability. Hover
+feedback is likewise restricted to selected items. Scoped policy changes address
+selected part/consumer IDs; ordinary selection/filtering never modifies targeting
+sets, appearance values or instances. Part instances are created only on explicit
+customization/policy edits. Deselecting, or Show all controls, restores the existing
+global targeting setup. Individual rows still follow Show individuals and actual
+customization rules. The scope-to-branch index is rebuilt for membership/structure
+changes, rather than rediscovering DOM sources during property dragging.
+
+Properties and the shared frame header offer the same descendant expand/collapse
+action, including transient selected-property trees. Expansion changes UI view
+state only, retaining property values, lock/bypass state and current selection.
+
+A pointed pattern selects its registered leaf subtype, not all peers sharing a
+visual role. Hierarchy circles show partial parents as hollow (`aria-pressed=mixed`);
+explicitly choosing that parent broadens to its matching subtypes within the
+existing geometric work area. Choosing a fully included branch deselects it.
+Counts reuse cached work-area peers and canonical paths, refreshed on selection
+or geometry changes, never by new DOM scans during pointer motion.
+
+Master Controller also contains Active context, the shared clickable frame-action
+panel. It preserves the remote target while invoking search, close, minimize,
+back or descendant expansion. An appearance close/minimize veto must propagate
+`false` through frame actions so pending Apply/Discard/Cancel retains its frame.
+
+## Contextual Master Controller
+
+Explicitly opening Master Controller exposes its general categories. Contextual
+activation is a narrow projection containing only controls relevant to the invoking
+action; it must not open unrelated Visuals/Spatial panels. History is the first
+action projection (`ContextualHistoryController`), sharing `HistoryControls` with
+the full controller. It preserves the active target while the user configures it.
+
+
+### Copy and paste applicable properties
+
+Properties contains cataloged Copy properties and Paste applicable properties
+commands. The transient clipboard holds resolved values under shared property IDs,
+never source identities, targeting masks, locks or bypass policies. Copy uses the
+current selected/filtered editing scope (or ordinary targeting when unselected).
+Mixed values have no single source value and are omitted with feedback. Clipboard
+values remain available after switching the selected type/part.
+Paste uses the destination capabilities, supported choices and existing state-owner
+setters. Unsupported, locked and bypassed properties are skipped; accepted exact
+part addresses stay narrow. Appearance paste commits one draft update; nonvisual
+consumer changes use their ordinary owner commit. Separate state owners retain
+their existing history entries. Source and destination values remain independent.
+No native text copy/paste binding is replaced; the actions are unassigned by default.
+
+Global search distinguishes hover revelation from an accepted result. Clicking or
+navigating to a result retains its expansion and appearance location; pointer exit
+only cancels unaccepted hover previews. Property destinations carry their appearance
+location whether already mounted or not. Accepted property headers are focused,
+not toggled closed by a synthetic click after revelation.
+
+
+Copy properties now opens its compact contextual MC picker. It snapshots the
+source values once on opening and initially checks every unambiguous property.
+Checkboxes and All/None choose the channels; Copy accepts, Escape cancels without
+replacing the existing clipboard. Mixed values remain visible but unavailable.
+Shift-configured invocation uses the same picker and copies on release; repeated
+presses toggle All/None. Paste applies exactly the checked channels: ordinary
+setter companion behavior (such as Color also changing animation color) is disabled
+for clipboard application only. Ordinary direct property editing retains its
+established companion behavior.

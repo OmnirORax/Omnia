@@ -21,6 +21,7 @@ export type FrameLayoutSnapshot = {
   dockLayout?: DockNode;
 };
 type FrameLayoutState = {
+  viewport?: { x: number; y: number; width: number; height: number; full?: boolean };
   layoutMode?: FrameLayoutMode;
   layoutMemory?: Partial<Record<FrameLayoutMode, FrameLayoutSnapshot>>;
 };
@@ -58,8 +59,8 @@ export type UIResident = {
 export type FrameChrome = {
   style?: FunctionStyle;
   handle?: Cell;
-  controls?: Partial<Record<"collapse" | "pin" | "close", Cell>>;
-  controlStyles?: Partial<Record<"collapse" | "pin" | "close", FunctionStyle>>;
+  controls?: Partial<Record<"collapse" | "pin" | "close" | "branch", Cell>>;
+  controlStyles?: Partial<Record<"collapse" | "pin" | "close" | "branch", FunctionStyle>>;
 };
 export type FunctionStyle = {
   mode: "text" | "icon";
@@ -352,6 +353,10 @@ export function validateUILayout(value: unknown): UILayout {
         if (memory.dockLayout) validateDockNode(memory.dockLayout, new Set(memory.order));
       }
     }
+    if (container.viewport !== undefined && (!record(container.viewport) ||
+        ![container.viewport.x, container.viewport.y, container.viewport.width, container.viewport.height].every(numeric) ||
+        container.viewport.width < 1 || container.viewport.height < 1 ||
+        container.viewport.full !== undefined && typeof container.viewport.full !== "boolean")) throw new Error("Invalid frame viewport.");
     if (container.closed !== undefined && typeof container.closed !== "boolean") throw new Error("Invalid frame visibility.");
     if (container.floatingOverflow !== undefined && typeof container.floatingOverflow !== "boolean") throw new Error("Invalid floating placement.");
     if (container.dockLayout) validateDockNode(container.dockLayout, new Set((container.members ?? []).map(residentKey)));
@@ -386,14 +391,14 @@ export function validateUILayout(value: unknown): UILayout {
         throw new Error("Invalid frame control position.");
       if (
         chrome.controls &&
-        Object.keys(chrome.controls).some((k) => !["collapse", "pin", "close"].includes(k))
+        Object.keys(chrome.controls).some((k) => !["collapse", "pin", "close", "branch"].includes(k))
       )
         throw new Error("Invalid frame control.");
       if (chrome.style) validateStyle(chrome.style, layout);
       if (chrome.controlStyles) {
         if (
           !record(chrome.controlStyles) ||
-          Object.keys(chrome.controlStyles).some((k) => !["collapse", "pin", "close"].includes(k))
+          Object.keys(chrome.controlStyles).some((k) => !["collapse", "pin", "close", "branch"].includes(k))
         )
           throw new Error("Invalid frame control styles.");
         Object.values(chrome.controlStyles).forEach((style) => validateStyle(style, layout));
@@ -520,18 +525,29 @@ export function containers(layout: UILayout): [string, UIFrame | WindowState][] 
 }
 /** UI-only traversal follows actual ownership, including embedded native homes. */
 export function residentBranch(layout: UILayout, root: string): string[] {
-  return containers(layout)
-    .map(([key]) => key)
-    .filter((key) => {
-      const seen = new Set<string>();
-      let parent: string | undefined = key;
-      while (parent && !seen.has(parent)) {
-        if (parent === root) return true;
-        seen.add(parent);
-        parent = ownerOf(layout, parent);
-      }
-      return false;
-    });
+  const entries = containers(layout), parents = new Map<string, string>();
+  for (const [key, value] of entries) {
+    if (key.startsWith("window:") && "inline" in value && value.inline && !value.inline.detached && value.inline.parent !== "workspace")
+      parents.set(key, value.inline.parent);
+  }
+  // Explicit membership takes precedence over native inline homes, as ownerOf does.
+  const explicit = new Set<string>();
+  for (const [key, value] of entries) for (const member of value.members ?? []) {
+    const child = residentKey(member);
+    if (!explicit.has(child)) { parents.set(child, key); explicit.add(child); }
+  }
+  const children = new Map<string, string[]>();
+  for (const [child, parent] of parents) {
+    const siblings = children.get(parent);
+    if (siblings) siblings.push(child); else children.set(parent, [child]);
+  }
+  const found = new Set<string>(), pending = [root];
+  while (pending.length) {
+    const key = pending.pop()!;
+    if (found.has(key)) continue;
+    found.add(key); pending.push(...(children.get(key) ?? []));
+  }
+  return entries.map(([key]) => key).filter(key => found.has(key));
 }
 export function collapseResidentBranch(
   layout: UILayout,
@@ -668,16 +684,16 @@ export function releaseResident(layout: UILayout, key: string): UILayout {
       });
   return next;
 }
-/** Hide a frame without deleting its controls. Release explicit docking so closed
+/** Close a frame without deleting its controls. Release explicit docking so closed
  * tabs do not leave empty panes; an embedded group's native home is preserved. */
 export function closeContainer(layout: UILayout, key: string): UILayout {
   const state = key.startsWith("window:") ? layout.windows[key.slice(7)] : undefined;
   const released = state?.inline && !state.inline.detached ? layout : releaseResident(layout, key);
   return pruneEmptyDockGroups(updateContainer(released, key, { closed: true }));
 }
-/** Restore the saved object and reveal its enclosing UI without resetting it. */
+/** Normal open path: clear saved close/collapse flags, reveal enclosing UI and
+ * activate the dock tab. Closing never requires a separate unhide operation. */
 export function reopenContainer(layout: UILayout, key: string): UILayout {
-  if (!getContainer(layout, key)) return layout;
   let next = layout, current: string | undefined = key;
   const state = getContainer(layout, key);
   if (state && "dockEdge" in state && state.dockEdge && layout.frames.some(frame =>
@@ -686,6 +702,9 @@ export function reopenContainer(layout: UILayout, key: string): UILayout {
   const seen = new Set<string>();
   while (current && !seen.has(current)) {
     seen.add(current);
+    const flag = current === "window:theme" ? "@theme" : current === "window:settings" ? "@settings"
+      : current === "window:shortcuts" ? "@shortcuts" : current === "window:function-library" ? "@library" : undefined;
+    if (flag && !next.panels[flag]) next = { ...next, panels: { ...next.panels, [flag]: true } };
     next = updateContainer(next, current, { closed: false, collapsed: false });
     current = ownerOf(next, current);
   }
@@ -772,8 +791,9 @@ export function dockResident(
 export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
   if (residentContextScope(layout, key) || key.startsWith("window:context:")) return layout;
   if (residentPinned(layout, key)) return layout;
-  const next = releaseResident(layout, key),
-    m = readResident(key);
+  const released = releaseResident(layout, key);
+  const next = key.startsWith("window:panel:") ? { ...released, panels: { ...released.panels, [key.slice("window:panel:".length)]: true } } : released;
+  const m = readResident(key);
   if (m.kind === "function")
     return validateUILayout({
       ...next,

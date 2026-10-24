@@ -1,7 +1,8 @@
+import { activateFrameContext } from "./ActiveContext";
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
-import { fitWindow, getContainer, ownerOf, releaseResident, type WindowState } from "./layout";
+import { fitWindow, getContainer, ownerOf, releaseResident, reopenContainer, type WindowState } from "./layout";
 import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
@@ -19,7 +20,9 @@ export function FloatingWindow({
   label = title,
   children,
   residentArea,
+  footer,
   onClose,
+  onMinimize,
   closeLabel = `Close ${label}`,
   width = 420,
   height = 560,
@@ -38,7 +41,11 @@ export function FloatingWindow({
   children: ReactNode;
   /** Collections can supply their existing resident renderer, keeping one payload per member. */
   residentArea?: ReactNode;
-  onClose?: () => void;
+  /** Non-scrolling actions beneath the window body, using the same theme/ownership. */
+  footer?: ReactNode;
+  onClose?: () => void | boolean;
+  /** Return false to keep the window expanded until pending work is resolved. */
+  onMinimize?: () => void | boolean;
   closeLabel?: string;
   width?: number;
   height?: number;
@@ -81,6 +88,12 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, setZ] = useState(nextWindowLayer);
+  useLayoutEffect(() => { if (!saved.closed && !state.collapsed) activateFrameContext(ui, key); }, [id, openingKey]);
+  // Mounting a caller-controlled window is an explicit open request. Repair
+  // stale closed flags from tab/fallback closes through the same model path.
+  useLayoutEffect(() => {
+    if (onClose) ui.update(layout => layout.windows[id]?.closed ? reopenContainer(layout, key) : layout);
+  }, [id, openingKey]);
   useLayoutEffect(() => {
     if (!openAtCursor) {
       // Reveal a persistent controller without moving it or writing its geometry.
@@ -103,7 +116,8 @@ export function FloatingWindow({
     // Opening a new target also repositions an editor that is already mounted.
     // Saved coordinate updates during dragging must not recenter it.
   }, [id, openAtCursor, openingKey]);
-  const set = (patch: Partial<WindowState>) =>
+  const set = (patch: Partial<WindowState>) => {
+    if (patch.collapsed === true && !saved.collapsed && onMinimize?.() === false) return false;
     ui.update((layout) => ({
       ...layout,
       windows: {
@@ -131,6 +145,8 @@ export function FloatingWindow({
         })(),
       },
     }));
+    return true;
+  };
   useEffect(() => {
     const resize = () =>
       ui.update((layout) => ({
@@ -172,7 +188,7 @@ export function FloatingWindow({
         dragHandleClassName="floating-title"
         cancel="button,input,select,a"
         disableDragging
-        enableResizing={!dockFill && !stacked && ui.canMove(key) && !state.collapsed}
+        enableResizing={!state.viewport && !dockFill && !stacked && ui.canMove(key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
         onMouseDown={(event) => {
@@ -183,7 +199,7 @@ export function FloatingWindow({
           setZ(nextWindowLayer());
           onInteract?.();
         }}
-        onDragStop={(_, data) => set({ x: data.x, y: data.y })}
+        onDragStop={(_, data) => { set({ x: data.x, y: data.y }); }}
         onResizeStop={(_, __, ref, ___, position) =>
           set({ width: ref.offsetWidth, height: ref.offsetHeight, ...(owner ? {} : position) })
         }
@@ -219,8 +235,10 @@ export function FloatingWindow({
             onClose={
               onClose
                 ? () => {
+                    // A pending-edit guard can veto closing before ownership changes.
+                    if (onClose() === false) return false;
                     if (owner) ui.update((s) => releaseResident(s, key));
-                    onClose();
+                    return true;
                   }
                 : undefined
             }
@@ -234,6 +252,13 @@ export function FloatingWindow({
               </UIContainerContext.Provider></UIPathContext.Provider>
             </UIHomeContext.Provider>
           </div>
+          {footer && !state.collapsed && <div className="floating-footer" data-appearance-editor>
+            <UIHomeContext.Provider value={key}>
+              <UIPathContext.Provider value={[key]}><UIContainerContext.Provider value={key}>
+                {footer}
+              </UIContainerContext.Provider></UIPathContext.Provider>
+            </UIHomeContext.Provider>
+          </div>}
         </div>
       </Rnd>
     </>,

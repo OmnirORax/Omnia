@@ -1,0 +1,42 @@
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type WheelEvent } from "react";
+import { createPortal } from "react-dom";
+import { useActiveLayer } from "./ActiveContext";
+
+/** Transient contextual projection: reuse the caller's controls, never open or
+ * persist unrelated controller categories just to invoke a common operation. */
+export function ContextualMasterController({ title, hint, position, onClose, onWheel, children }: {
+  title: string; hint?: string; position: { x: number; y: number } | null;
+  onClose: () => void; onWheel?: (event: WheelEvent) => void; children: ReactNode;
+}) {
+  const root = useRef<HTMLDivElement>(null);
+  useActiveLayer(!!position, root, onClose);
+  useLayoutEffect(() => {
+    const node = root.current; if (!node || !position) return;
+    node.setAttribute("popover", "manual"); node.showPopover();
+    return () => { node.hidePopover(); node.removeAttribute("popover"); };
+  }, [!!position]);
+  useLayoutEffect(() => {
+    const node = root.current; if (!node || !position) return;
+    const fit = () => {
+      const bounds = node.getBoundingClientRect();
+      node.style.left = `${Math.max(8, Math.min(position.x, innerWidth - bounds.width - 8))}px`;
+      node.style.top = `${Math.max(8, Math.min(position.y, innerHeight - bounds.height - 8))}px`;
+    };
+    const observer = new ResizeObserver(fit); observer.observe(node); fit();
+    window.addEventListener("resize", fit);
+    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
+  }, [position?.x, position?.y]);
+  useEffect(() => {
+    const node = root.current; if (!node) return;
+    const preventScroll = (event: globalThis.WheelEvent) => {
+      if (onWheel || event.target instanceof Element && event.target.closest("[data-scroll-configuration]")) event.preventDefault();
+    };
+    node.addEventListener("wheel", preventScroll, { passive: false });
+    return () => node.removeEventListener("wheel", preventScroll);
+  }, [!!position, !!onWheel]);
+  return position && createPortal(<div ref={root} className="contextual-master-controller ui-frame-search-popup" data-context-controller data-ui-search data-ui-name-ignore
+    role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
+    style={{ left: Math.max(8, Math.min(position.x, innerWidth - 252)), top: Math.max(8, Math.min(position.y, innerHeight - 240)) }}>
+    <strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}{children}
+  </div>, document.body);
+}

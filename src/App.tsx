@@ -1,9 +1,18 @@
+import { functionShortcutBinding } from "./workspaceActions";
+import { invokeCatalogAction } from "./workspaceActions";
+import { SearchController } from "./ui/SearchController";
+import { ShortcutConfiguration } from "./ui/ShortcutConfiguration";
+import { FrameResizeController } from "./ui/FrameResize";
+import { FrameViewportSystem } from "./ui/FrameViewport";
+import { createActionHistory } from "./ui/actionHistory";
+import { HistoryActionBridge, HistoryControls } from "./ui/ContextualHistoryController";
 import { settingsPropertyBindings } from "./properties/settingsAdapter";
 import { CoupledField } from "./properties/CoupledProperties";
 import { EmbeddedGroup } from "./ui/EmbeddedGroup";
 import { stableUIHash } from "./ui/identity";
 import { UISection } from "./ui/UISection";
 import { CloudPanel } from "./backend/CloudPanel";
+import { AppearancePreviewActions } from "./appearance/PreviewPrompt";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
 import { sameAppearance } from "./appearance/session";
@@ -13,7 +22,7 @@ import { applyValue, type Controller } from "./appearance/model";
 import { controllerTargets, PROPERTIES, appearanceFonts } from "./appearance/registry";
 import { AppearanceAdjustment } from "./appearance/Controls";
 import { LEGACY_CONTROLS } from "./appearance/legacy";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useLayoutEffect, useEffect, useMemo, useRef, useState } from "react";
 import "./workbench.css";
 import { descendants, newId, parseAtlas } from "./graph/model";
 import type { Atlas, AtlasNode } from "./graph/model";
@@ -56,7 +65,7 @@ import { UIFrameStrip } from "./ui/UIFrameStrip";
 import { WorkspaceBoundary } from "./WorkspaceBoundary";
 import type { UICommand } from "./ui/context";
 import { FloatingWindow } from "./ui/FloatingWindow";
-import { loadUILayout, ownerOf, updateContainer, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
+import { loadUILayout, ownerOf, reopenContainer, releaseResident, validateUILayout, UI_LAYOUT_KEY } from "./ui/layout";
 import type { UIFunction } from "./ui/context";
 import { UI_FIELD_CATALOG } from './ui/catalog';
 import websiteTemplate from "./ui/default-template.json";
@@ -89,7 +98,19 @@ function loadInitial(): { atlas: AtlasDocument; error: string } {
 function Workbench() {
   const [initial] = useState(loadInitial);
   const [document, setDocument] = useState(initial.atlas);
-  const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text));
+  const [actionHistory] = useState(() => {
+    try { return createActionHistory(JSON.parse(localStorage.getItem("omnium-history-options-v1") ?? "null") ?? undefined); }
+    catch { return createActionHistory(); }
+  });
+  useEffect(() => {
+    let previous = JSON.stringify(actionHistory.options);
+    return actionHistory.subscribe(() => {
+      const next = JSON.stringify(actionHistory.options); if (next === previous) return; previous = next;
+      try { localStorage.setItem("omnium-history-options-v1", next); } catch { /* Optional preferences; history remains usable. */ }
+    });
+  }, [actionHistory]);
+  const documentRef = useRef(document); documentRef.current = document;
+  const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text), actionHistory);
   const { layout: savedUILayout, update: updateUI, savedSettings, setSettings } = ui;
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchReveal, setSearchReveal] = useState<SearchReveal | null>(null);
@@ -110,6 +131,7 @@ function Workbench() {
   const [activityRequests, setActivityRequests] = useState<ActivityPreview[]>([]);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [appearanceExit, setAppearanceExit] = useState<"close" | "minimize" | null>(null);
   const [safeView, setSafeView] = useState(() => new URLSearchParams(window.location.search).get("safe-ui") === "1");
   const [checkpoints, setCheckpoints] = useState(loadCheckpoints);
   const [recoveryError, setRecoveryError] = useState("");
@@ -175,7 +197,10 @@ function Workbench() {
   const [uiCommand, setUICommand] = useState<UICommand | null>(null);
   const [binderPopup, setBinderPopup] = useState<{ x: number; y: number } | null>(null);
   const shortcutsPinned = uiLayout.panels["@shortcuts"] ?? false;
-  const setShortcutsPinned = (value: boolean | ((current: boolean) => boolean)) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@shortcuts": typeof value === "function" ? value(layout.panels["@shortcuts"] ?? false) : value } }));
+  const setShortcutsPinned = (value: boolean | ((current: boolean) => boolean)) => updateUI(layout => {
+    const open = typeof value === "function" ? value(layout.panels["@shortcuts"] ?? false) : value;
+    return open ? reopenContainer(layout, "window:shortcuts") : { ...layout, panels: { ...layout.panels, "@shortcuts": false } };
+  });
   const [shortcutsHovered, setShortcutsHovered] = useState(false);
   useEffect(() => {
     if (selection?.kind === "node") setSelectedIds((current) => current.has(selection.id) ? current : new Set([selection.id]));
@@ -189,8 +214,10 @@ function Workbench() {
   const [autosave, setAutosave] = useState(!initial.error);
   const [saveStatus, setSaveStatus] = useState(initial.error ? "Autosave paused" : "Saved locally");
   const [revision, setRevision] = useState(0);
-  const [past, setPast] = useState<AtlasDocument[]>([]);
-  const [future, setFuture] = useState<AtlasDocument[]>([]);
+  actionHistory.register("omnium", { read: () => ({ ...documentRef.current, revision: 0 }), write: value => {
+    const checked = validateDocument({ ...value, revision: documentRef.current.revision + 1 });
+    documentRef.current = checked; setDocument(checked); setSelection(null); setBinderPopup(null); setRevision(r => r + 1);
+  } });
   const [proposalText, setProposalText] = useState("");
   const [proposalPreview, setProposalPreview] = useState<Preview | null>(null);
   const [frameQuestion, setFrameQuestion] = useState("");
@@ -199,11 +226,17 @@ function Workbench() {
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
-  const setSettingsOpen = (value: boolean) => updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@settings": value } }));
+  const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : { ...layout, panels: { ...layout.panels, "@settings": false } });
   const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
-  const setThemeOpen = (value: boolean) => {
+  const setThemeOpen = (value: boolean, confirmed = false) => {
+    if (!value && appearancePending && !confirmed) { setAppearanceExit("close"); return false; }
     if (!value) setDismissedInspection(masterInspection);
-    updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@theme": value } }));
+    updateUI(layout => {
+      if (value) return reopenContainer(layout, "window:theme");
+      const released = releaseResident(layout, "window:theme");
+      return { ...released, panels: { ...released.panels, "@theme": false } };
+    });
+    return true;
   };
   const [layoutRule, setLayoutRule] = useState<"manual" | "hierarchy" | "compact" | "flow">("hierarchy");
   const [flowOrder, setFlowOrder] = useState({ typeId: "", fromRoleId: "", toRoleId: "" });
@@ -235,8 +268,8 @@ function Workbench() {
     try {
       const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
       const validated = validateDocument({ ...synced, revision: document.revision + 1 });
-      setPast((p) => [...p.slice(-49), document]);
-      setFuture([]);
+      actionHistory.record("omnium", { ...documentRef.current, revision: 0 }, { ...validated, revision: 0 }, ["omnium"], ["omnium"]);
+      documentRef.current = validated;
       setDocument(validated);
       setProposalPreview(null);
       setRevision((r) => r + 1);
@@ -318,27 +351,13 @@ function Workbench() {
     });
     setSelection({ kind: "relationship", id });
   }
-  function undo(steps = 1) {
-    setBinderPopup(null);
-    const count = Math.min(past.length, Math.max(1, Math.floor(steps)));
-    const restored = past.slice(-count);
-    const previous = count ? restored[0] : undefined;
-    if (!previous) return;
-    setFuture((f) => [...restored.slice(1), document, ...f].slice(0, 50));
-    setPast((p) => p.slice(0, -count));
-    setDocument({ ...previous, revision: document.revision + 1 });
-    setSelection(null);
-    setRevision((r) => r + 1);
+  function undo(steps?: number) {
+    setAppearancePreview(null);
+    actionHistory.travel("undo", { ...actionHistory.options, ...(steps === undefined ? {} : { steps }) });
   }
-  function redo(steps = 1) {
-    setBinderPopup(null);
-    if (!future[0]) return;
-    const count = Math.min(future.length, Math.max(1, Math.floor(steps)));
-    setPast((p) => [...p, document, ...future.slice(0, count - 1)].slice(-50));
-    setDocument({ ...future[count - 1], revision: document.revision + 1 });
-    setFuture((f) => f.slice(count));
-    setSelection(null);
-    setRevision((r) => r + 1);
+  function redo(steps?: number) {
+    setAppearancePreview(null);
+    actionHistory.travel("redo", { ...actionHistory.options, ...(steps === undefined ? {} : { steps }) });
   }
   function exportJSON() {
     const url = URL.createObjectURL(
@@ -775,21 +794,31 @@ function Workbench() {
       return false;
     }
   }
+  function finishAppearanceExit() {
+    if (appearanceExit === "close") setThemeOpen(false, true);
+    if (appearanceExit === "minimize") updateUI(layout => ({ ...layout, windows: { ...layout.windows,
+      theme: { ...(layout.windows.theme ?? { x: Math.max(8, window.innerWidth - 374), y: 90, width: 350, height: 600, pinned: false }), collapsed: true },
+    } }));
+    setAppearanceExit(null);
+  }
   function applyAppearance() {
     const next = normalizeSettings({ ...savedSettings, appearance: previewAppearance });
     const previous = checkpoints.length ? checkpoints : appendCheckpoint([], savedSettings.appearance, "Before first appearance change");
-    if (!storeCheckpoints(appendCheckpoint(previous, next.appearance))) return;
+    if (!storeCheckpoints(appendCheckpoint(previous, next.appearance))) return false;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); }
-    catch { setRecoveryError("Appearance could not be saved. Your preview is still open; export a theme backup."); setRecoveryOpen(true); return; }
+    catch { setRecoveryError("Appearance could not be saved. Your preview is still open; export a theme backup."); setRecoveryOpen(true); return false; }
     ui.applyAppearance(next.appearance);
     setAppearancePreview(null);
     setRecoveryError("");
+    finishAppearanceExit();
+    return true;
   }
   function discardAppearance() {
     setAppearancePreview(null);
     ui.discardAppearance();
     setRecoveryError("");
     setRecoveryOpen(false);
+    finishAppearanceExit();
   }
   function restoreAppearance(appearance: WorkspaceSettings["appearance"]) {
     setAppearancePreview(null);
@@ -858,14 +887,13 @@ function Workbench() {
     updateUI(layout => {
       const key = `window:panel:${id}`;
       const saved = layout.windows[`panel:${id}`] ?? { x: 320, y: 140, width: 400, height: 560, collapsed: false, pinned: false };
-      let next: typeof layout = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: { ...saved, collapsed: false } } };
-      let owner = ownerOf(next, key);
-      while (owner) { next = updateContainer(next, owner, { collapsed: false }); owner = ownerOf(next, owner); }
-      return next;
+      const next = { ...layout, windows: { ...layout.windows, [`panel:${id}`]: saved } };
+      return reopenContainer(next, key);
     });
     requestAnimationFrame(() => window.document.querySelector(`[data-ui-resident-root="window:panel:${id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
   }
   function invokeContextShortcut(id: string): boolean {
+    if (invokeCatalogAction(id, action => runAction(action))) return true;
     const nodeAction = ["createChild", "insertExisting", "connect", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
     if (nodeAction && selectedNode) {
       contextAction(nodeAction as ContextAction, { kind: "node", id: selectedNode.id });
@@ -915,14 +943,14 @@ function Workbench() {
       case "settings": setSettingsOpen(true); break;
     }
   }
-  function runAction(action: ActionId, steps = 1) {
+  function runAction(action: ActionId, steps?: number) {
     if (isFeatureAction(action)) { featureActionRuntime.invoke(action); return; }
     switch (action) {
       case "searchUI": setSearchOpen(true); break;
-      case "ui:undo": setAppearancePreview(null); ui.undo(steps); break;
+      case "ui:undo": setAppearancePreview(null); actionHistory.travel("undo", { ...actionHistory.options, mode: "selective", categories: ["ui"], ...(steps ? { steps } : {}) }); break;
       case "theme": setSettings(old => ({ ...old, appearance: { ...old.appearance, theme: old.appearance.theme === "neon" ? "classic" : "neon" } })); break;
       case "appearance": setThemeOpen(true); break;
-      case "ui:redo": setAppearancePreview(null); ui.redo(steps); break;
+      case "ui:redo": setAppearancePreview(null); actionHistory.travel("redo", { ...actionHistory.options, mode: "selective", categories: ["ui"], ...(steps ? { steps } : {}) }); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
@@ -959,9 +987,10 @@ function Workbench() {
       case "settings": setSettingsOpen(true); break;
     }
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
     const assignBinding = (key: string) => {
       if (!capturing) return;
+      if (key.split("+").includes("Shift")) { setError("Shift opens a function’s Master Controller configuration. Choose a shortcut without Shift."); return; }
       const conflict = keyConflict(settings.bindings, capturing, key);
       if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label ?? settings.buttonLabels[conflict] ?? conflict}.`); return; }
       setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key }, buttonLabels: capturing.startsWith("button:") ? { ...old.buttonLabels, [capturing]: captureLabel.current || old.buttonLabels[capturing] || capturing.slice(7) } : old.buttonLabels }));
@@ -999,7 +1028,7 @@ function Workbench() {
       }
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault(); event.stopImmediatePropagation();
-      runAction(event.shiftKey ? event.button === 3 ? settings.mouse.shiftBackButton : settings.mouse.shiftForwardButton : event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton, event.altKey ? 5 : 1);
+      runAction(event.button === 3 ? settings.mouse.backButton : settings.mouse.forwardButton);
     };
     const preventMouseNavigation = (event: MouseEvent) => {
       if (event.isTrusted && event.button === consumedShortcutPress.current) {
@@ -1054,7 +1083,7 @@ function Workbench() {
   for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
-  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row" title={FEATURE_ACTIONS.find(feature => feature.id === action.id)?.description}><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a key or mouse button" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key or mouse button…':settings.bindings[action.id]||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
+  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row" title={FEATURE_ACTIONS.find(feature => feature.id === action.id)?.description}><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a key or mouse button" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key or mouse button…':functionShortcutBinding(action.id, settings.bindings)||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
   for (const [id, key] of Object.entries(settings.bindings).filter(([id]) => id.startsWith("button:"))) {
     const label = settings.buttonLabels[id] ?? id.slice(7);
     replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></div>, true);
@@ -1063,7 +1092,7 @@ function Workbench() {
 
   replaceFunction("ui:devMode", "UI edit mode", <button aria-pressed={!!savedUILayout.panels["@devMode"]} onClick={() => runAction("ui:devMode")}>UI edit mode</button>);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
-  for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"], ["shiftBackButton", "Shift + MB4 (UI Undo)"], ["shiftForwardButton", "Shift + MB5 (UI Redo)"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
+  for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
   for (const key of ["leftEmpty", "rightEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
@@ -1079,9 +1108,9 @@ function Workbench() {
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => setSettings(old=>({...old,appearance:{...old.appearance,theme:event.target.value as WorkspaceSettings["appearance"]["theme"]}}))}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>,true);
   replaceFunction("ui:appearance:importFont", "Import font", <button disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
   replaceFunction("ui:resetAppearance", "Preview default appearance", <button onClick={()=>restoreAppearance(defaultSettings().appearance)}>Preview default appearance</button>);
-  replaceFunction("ui:appearance:apply", "Apply appearance", <button disabled={!appearancePending} onClick={applyAppearance}>Apply appearance</button>);
-  replaceFunction("ui:appearance:discard", "Discard appearance preview", <button disabled={!appearancePending} onClick={()=>setRecoveryOpen(true)}>Discard preview…</button>);
-  replaceFunction("ui:appearance:recovery", "Appearance recovery / checkpoints", <button onClick={()=>setRecoveryOpen(true)}>Recovery / checkpoints (hold Esc 2s)</button>);
+  replaceFunction("ui:appearance:apply", "Apply appearance", <button disabled={!appearancePending} onClick={applyAppearance}>Apply</button>);
+  replaceFunction("ui:appearance:discard", "Discard appearance preview", <button disabled={!appearancePending} onClick={discardAppearance}>Discard</button>);
+  replaceFunction("ui:appearance:recovery", "Appearance recovery / checkpoints", <button onClick={()=>setRecoveryOpen(true)}>Recovery</button>);
   replaceFunction("ui:themePreset:name", "Theme template name", <label>Template name<input aria-label="Theme template name" maxLength={80} value={themePresetName} onChange={event => setThemePresetName(event.target.value)} /></label>, true);
   replaceFunction("ui:themePreset:select", "Saved themes", <label>Saved themes<select aria-label="Saved themes" value={selectedThemePreset} onChange={event => { setSelectedThemePreset(event.target.value); setThemePresetName(event.target.value || "My theme"); }}><option value="">Choose a saved theme</option>{themePresets.map(preset => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select></label>, true);
   replaceFunction("ui:themePreset:save", "Save theme template", <button onClick={saveThemePreset}>Save / update theme</button>);
@@ -1095,8 +1124,8 @@ function Workbench() {
     else if (fn.id.startsWith("ui:appearance:") || fn.id.startsWith("ui:themePreset:") || ["ui:glow", "ui:resetAppearance", "appearance", "theme"].includes(fn.id)) fn.category = "Appearance";
   }
   replaceFunction("shortcuts", "Shortcuts", <button aria-label="Toggle shortcut display" aria-pressed={shortcutsPinned} title="Hover to view functions; click to pin the editable shortcut display" onMouseEnter={() => setShortcutsHovered(true)} onClick={() => { setShortcutsPinned((v) => !v); setShortcutsHovered(false); }}>Shortcuts</button>);
-  replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!past.length}>Undo</button>);
-  replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!future.length}>Redo</button>);
+  replaceFunction("undo", "Undo", <button onClick={() => undo()} disabled={!actionHistory.candidates("undo").length}>Undo</button>);
+  replaceFunction("redo", "Redo", <button onClick={() => redo()} disabled={!actionHistory.candidates("redo").length}>Redo</button>);
   replaceFunction("zoom100", "Reset zoom to 100%", <button title="Reset zoom to 100% at the current orbit target" onClick={() => runAction("zoom100")}>100%</button>);
   replaceFunction("cameraOrigin", "Go to world origin", <button onClick={() => runAction("cameraOrigin")}>Origin</button>);
   replaceFunction("rollLeft", "Roll view left 90°", <button onClick={() => runAction("rollLeft")}>↶ 90°</button>);
@@ -1123,9 +1152,13 @@ function Workbench() {
   replaceFunction("ui:flowFrom", "View upstream role", flowType ? <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
+  for (const fn of uiFunctions) {
+    const metadata = ACTIONS.find(action => action.id === fn.id);
+    if (metadata && "configuration" in metadata && metadata.configuration === "history") fn.configuration = <HistoryControls history={actionHistory} />;
+  }
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench">
+    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(controller ? { ...ui.settings.appearance, controller } : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -2093,11 +2126,14 @@ function Workbench() {
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
-      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)}>
-        <MasterController bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
+      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} onMinimize={() => {
+        if (appearancePending) { setAppearanceExit("minimize"); return false; }
+        return true;
+      }} footer={appearancePending ? <AppearancePreviewActions awaitingChoice={!!appearanceExit} onContinue={() => setAppearanceExit(null)} /> : undefined}>
+        <MasterController history={actionHistory} bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
         {/* Keep the original theme subsection identities when nesting them in Visuals. */}
         <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-utilities`} title="Theme utilities" className="ui-section" nativeTag="transparent">
-          {["ui:appearance:apply", "ui:appearance:discard", "ui:appearance:recovery", "ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:appearance:theme", "ui:appearance:importFont", "ui:resetAppearance"].map(id => <FunctionControl key={id} id={id} />)}
         </EmbeddedGroup>
         <EmbeddedGroup id={`section:${stableUIHash("window:theme")}:theme-templates`} title="Theme templates" className="ui-section" nativeTag="transparent">
           <p>Save colors, window appearance and animations together.</p>
@@ -2108,6 +2144,7 @@ function Workbench() {
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
         <CloudPanel />
+        <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
           {["ui:sphereDiameter", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>
@@ -2115,7 +2152,7 @@ function Workbench() {
           <FunctionControl id="ui:subtreeModifier" />
           {(["leftEmpty", "rightEmpty"] as const).map(key => <FunctionControl key={key} id={`ui:camera:${key}`} />)}
           {["selectionModifier", "nestModifier", "subtreeModifier"].map(key => <FunctionControl key={key} id={`ui:gesture:${key}`} />)}
-          {["backButton", "forwardButton", "shiftBackButton", "shiftForwardButton"].map(key => <FunctionControl key={key} id={`ui:mouse:${key}`} />)}
+          {["backButton", "forwardButton"].map(key => <FunctionControl key={key} id={`ui:mouse:${key}`} />)}
         </UISection>
         <UISection id="keyboard-actions" title="Shortcuts & gestures">
           {ACTIONS.some(action => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}

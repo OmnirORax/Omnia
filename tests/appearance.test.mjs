@@ -1,5 +1,5 @@
-import { laserSparkles, SELECTOR_SPARKLE_BUDGET } from "../src/appearance/selectorLaser.ts";
-import { createInteractionHold } from "../src/appearance/interactionHold.ts";
+import { selectorPulseSettings } from "../src/appearance/selectorFeedback.ts";
+import { selectionFeedbackVisible } from "../src/appearance/interactionHold.ts";
 import { activityPreview } from "../src/appearance/activityPreview.ts";
 import { createPropertyRegistry, selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { registerHierarchyScene, scenePartAt, paintSceneSelection } from "../src/appearance/sceneFeedback.ts";
@@ -22,7 +22,7 @@ import { parseThemeTemplate, themeTemplate } from "../src/themeTemplates.ts";
 import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, selectedPartTarget } from "../src/appearance/selectionCoupling.ts";
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
 import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints, selectionWheelRotation } from "../src/appearance/selectionGeometry.ts";
-import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule } from "../src/appearance/selectionToggle.ts";
+import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule } from "../src/appearance/selectionToggle.ts";
 import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide, roleFor, partPaint } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
@@ -179,15 +179,25 @@ test("Mouse and Selector feedback inventory entries edit their existing independ
   const inventory = selfInventory(PROPERTY_REGISTRY, consumer => !targets.find(target => target.id === consumer.id)?.hidden);
   assert.deepEqual(inventory.find(node => node.id === "ui.mouse").consumers, ["ui.mouse.trail"]);
   const feedback = inventory.find(node => node.id === "ui.guides.selector");
-  assert.deepEqual(feedback.children.map(node => node.id), ["ui.guides.selector.included", "ui.guides.selector.boundary"]);
+  assert.deepEqual(feedback.children.map(node => node.id), ["ui.guides.selector.backgroundFill", "ui.guides.selector.contourStrength", "ui.guides.selector.pulse", "ui.guides.selector.included", "ui.guides.selector.excluded", "ui.guides.selector.boundary"]);
   for (const node of inventory) assert.ok(resolvePropertyTarget(PROPERTY_REGISTRY, node.id).consumers.length);
   const state = emptyController();
-  const next = applyValue(state, targets, "color", "#aabbcc", feedback.children[0].id);
+  const next = applyValue(state, targets, "color", "#aabbcc", "ui.guides.selector.included");
   assert.equal(next.values["ui.guides.selector.included"].color, "#aabbcc");
   assert.equal(next.values["ui.guides.selector.boundary"], undefined);
   assert.equal(next.values["ui.mouse.trail"], undefined);
   assert.deepEqual(next.instances, {});
   assert.equal(PROPERTY_REGISTRY.definitions.length, definitions);
+  let tuned = applyValue(next, targets, "speed", .5, "ui.guides.selector.pulse");
+  tuned = applyValue(tuned, targets, "intensity", .7, "ui.guides.selector.pulse");
+  tuned = applyValue(tuned, targets, "pulse", false, "ui.guides.selector.pulse");
+  const restored = loadController(JSON.parse(JSON.stringify(tuned)));
+  const pulse = selectorPulseSettings(restored.values["ui.guides.selector.pulse"]);
+  assert.equal(pulse.enabled, false);
+  assert.equal(pulse.duration, 1300);
+  assert.equal(pulse.depth, .7);
+  assert.deepEqual(restored.values["ui.guides.selector.included"], next.values["ui.guides.selector.included"]);
+  assert.equal(restored.values["ui.mouse.trail"], undefined);
 });
 
 test("sampled-color termination stops each side at the nearest different peer, not a gap", () => {
@@ -239,6 +249,30 @@ test("geometric selection uses all touched roles, exact text lines, live boundar
   assert.deepEqual(matchingVisualParts(parts, { ...rule, line: { ...line, mode: "axis" } }).map(p => p.key), ["label", "icon", "button"]);
   assert.deepEqual(matchingVisualParts(parts, { ...rule, region: "outside", line: { ...line, mode: "axis" } }).map(p => p.key), ["outside"]);
   const appBoundary = { element: app, key: "app" };
+  const typed = [
+    { ...a, key: "title", target: { id: "text.ui.titles" } },
+    { ...a, key: "label", target: { id: "text.ui.buttons" } },
+    { ...c, key: "window-fill", target: { id: "ui.windows.background" } },
+    { ...c, key: "button-fill", target: { id: "ui.buttons.background" } },
+  ];
+  const targetRule = target => ({ boundary, include: true, target });
+  assert.deepEqual(matchingVisualParts(typed, targetRule("text.ui.titles")).map(part => part.key), ["title"], "hovered text subtype excludes sibling text types");
+  assert.deepEqual(matchingVisualParts(typed, targetRule("ui.buttons.background")).map(part => part.key), ["button-fill"], "the same subtype rule applies to backgrounds");
+  assert.deepEqual(matchingVisualParts(typed, targetRule("text.ui")).map(part => part.key), ["title", "label"], "an explicitly chosen parent includes its subtypes");
+  const widened = selectionToggleRule(typed, [typed[0]], targetRule("text.ui"));
+  assert.equal(widened.include, true, "a partially selected parent broadens rather than clearing its selected child");
+  assert.equal(selectionToggleRule(typed, typed.slice(0, 2), targetRule("text.ui")).include, false, "a fully selected parent toggles off");
+  assert.deepEqual(matchingVisualParts(typed, { ...targetRule("text.ui"), scope: { boundary: appBoundary, region: "outside" } }), [], "parent widening retains geometric constraints");
+  const removeText = selectionRemovalRule(parts, [a, b], a, { boundary, role: "text" });
+  assert.equal(removeText.include, false, "right-click removal cannot turn a mixed pattern on");
+  const start = [{ boundary, part: a.key, include: true }, { boundary, part: b.key, include: true }];
+  assert.deepEqual(resolveVisualSelection(parts, boundary, [...start, removeText]).included.map(part => part.key), [b.key]);
+  assert.equal(selectionRemovalRule(parts, [a, b], c, { boundary, role: "background" }), null, "an unselected hovered target requests clear-all");
+  assert.equal(selectionRemovalRule(parts, [a, b], undefined, { boundary }), null, "empty space requests clear-all");
+  const individualRemoval = selectionRemovalRule(parts, [a, b], a, { boundary, part: b.key });
+  assert.equal(individualRemoval.part, a.key, "nonmatching geometry falls back to the pointed selected part");
+  const axisRemoval = selectionRemovalRule(parts, [a, b, outside], a, rule);
+  assert.deepEqual(resolveVisualSelection(parts, appBoundary, [{ boundary: appBoundary, include: true }, axisRemoval]).included.map(part => part.key), [gap.key, outside.key], "axis removal follows its existing mathematical intersection");
   const outline = { boundary, path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true } };
   const defaultMask = { contour: true, region: null };
   let work = workingGeometry(outline, defaultMask);
@@ -692,6 +726,18 @@ test("appearance previews never enter saved settings; Apply is one undo step", (
   assert.equal(travelSession(travelSession(applied, "undo"), "redo").saved.present.settings.appearance.accent, "#000000");
 });
 
+test("layout-only actions preserve the existing settings and appearance renderer identities", () => {
+  const initial = { layout: emptyUILayout(), settings: defaultSettings() };
+  const session = editSession(startSession(initial), {
+    ...initial, layout: { ...initial.layout, panels: { "@theme": true } },
+  });
+  assert.equal(session.draft, null, "opening a frame does not start an appearance investigation");
+  assert.equal(currentState(session).settings, initial.settings);
+  assert.equal(currentState(session).settings.appearance, initial.settings.appearance);
+  assert.equal(session.saved.past.length, 1);
+  assert.equal(travelSession(session, "undo").saved.present, initial);
+});
+
 test("layout and controls save independently; discard preserves them and prior appearance", () => {
   const initial = { layout: emptyUILayout(), settings: defaultSettings() };
   let session = startSession(initial);
@@ -793,50 +839,83 @@ test("shared property dependencies preview inactive gradients and restore them w
 });
 
 
-test("editing holds the last visual target context without freezing live properties or recording selection", () => {
-  const hold = createInteractionHold();
-  const source = { selected: ["background"], preview: ["text"], point: { x: 120, y: 80 } };
-  assert.equal(hold.hold(), null);
-  assert.equal(hold.held, false);
-  hold.remember(source);
-  assert.equal(hold.hold(), source);
-  hold.remember({ selected: [], preview: ["controller-input"], point: { x: 400, y: 90 } });
-  assert.equal(hold.context, source, "controller movement and Ctrl release cannot replace the held context");
-  const appearance = defaultSettings().appearance;
-  const target = controllerTargets(appearance.controller).find(target => target.id === "ui.guides.selector.included");
-  const changed = applyValue(appearance.controller, controllerTargets(appearance.controller), "color", "#ff00ff", target.id);
-  assert.equal(valueFor(appearance, changed, target, "color"), "#ff00ff");
-  assert.equal(hold.context, source, "paint comes from the live controller, not a saved animation frame");
-  assert.equal(hold.hold(), source, "switching between editor controls preserves the same context");
-  hold.release();
-  assert.equal(hold.held, false); assert.equal(hold.context, null);
-  const next = { selected: [], preview: ["next target"], point: { x: 50, y: 40 } };
-  hold.remember(next); assert.equal(hold.context, next, "resuming selection starts from fresh input");
+test("Selection / Preview changes only feedback visibility", () => {
+  assert.equal(selectionFeedbackVisible("auto"), true);
+  assert.equal(selectionFeedbackVisible("selection"), true);
+  assert.equal(selectionFeedbackVisible("preview"), false);
 });
 
-
-test("laser feedback sparkle geometry is stable across paint edits, bounded and respects tiny/rounded targets", () => {
-  const box = { key: "frame:sample", x: 20, y: 40, width: 260, height: 90, rx: 18, ry: 18 };
-  const points = laserSparkles(box, SELECTOR_SPARKLE_BUDGET);
-  assert.ok(points.length > 0 && points.length <= 8);
-  assert.deepEqual(laserSparkles(box, SELECTOR_SPARKLE_BUDGET), points, "color/glow rerenders must not shuffle particles");
-  assert.deepEqual(laserSparkles(box, 0), []);
-  assert.deepEqual(laserSparkles({ ...box, width: 0 }, 4), []);
-  assert.deepEqual(laserSparkles({ ...box, height: 3 }, 4), []);
-  for (const point of points) {
-    assert.ok(point.x >= box.x && point.x <= box.x + box.width);
-    assert.ok(point.y >= box.y && point.y <= box.y + box.height);
-    assert.ok(point.delay <= 0 && point.delay >= -3.7);
-    if (point.y === box.y + 1 || point.y === box.y + box.height - 1)
-      assert.ok(point.x >= box.x + box.rx && point.x <= box.x + box.width - box.rx);
-    else assert.ok(point.y >= box.y + box.ry && point.y <= box.y + box.height - box.ry);
-  }
-  const moved = laserSparkles({ ...box, x: box.x + 50, y: box.y - 20 }, SELECTOR_SPARKLE_BUDGET);
-  moved.forEach((point, index) => {
-    assert.ok(Math.abs(point.x - points[index].x - 50) < 1e-9);
-    assert.ok(Math.abs(point.y - points[index].y + 20) < 1e-9);
-    assert.equal(point.scale, points[index].scale); assert.equal(point.delay, points[index].delay);
+test("invocation-only coupled inputs preserve independent defaults and restore after nesting/errors", async () => {
+  const { bindStateProperties } = await import("../src/properties/registry.ts");
+  const { withFunctionInputs } = await import("../src/properties/runtimeInputs.ts");
+  const registry = createPropertyRegistry();
+  registry.define({ id: "level", label: "Level", kind: "number", min: 0, max: 10, step: 1, initial: 1 });
+  registry.define({ id: "enabled", label: "Enabled", kind: "toggle", initial: true });
+  for (const id of ["a", "b"]) registry.couple({ id, label: id, owner: "settings", group: [], properties: [{ property: "level" }, { property: "enabled" }] });
+  const state = { a: { level: 3, enabled: true }, b: { level: 7, enabled: true } };
+  let writes = 0;
+  const adapters = Object.fromEntries(["a", "b"].map(id => [id, { channels: Object.fromEntries(["level", "enabled"].map(property => [property, {
+    read: current => current[id][property], write: (current, value) => ({ ...current, [id]: { ...current[id], [property]: value } }),
+  }])) }]));
+  const bindings = bindStateProperties(registry, "settings", state, adapters, () => { writes++; });
+  withFunctionInputs([{ consumer: "a", property: "level", value: 0 }, { consumer: "a", property: "enabled", value: false }], () => {
+    assert.equal(bindings.values.a.level, 0); assert.equal(bindings.values.a.enabled, false);
+    assert.equal(bindings.values.b.level, 7);
+    assert.throws(() => withFunctionInputs([{ consumer: "a", property: "level", value: 9 }], () => {
+      assert.equal(bindings.values.a.level, 9); assert.equal(bindings.values.a.enabled, false); throw Error("stop");
+    }), /stop/);
+    assert.equal(bindings.values.a.level, 0);
   });
-  assert.equal(laserSparkles(box, 1).length, 1);
-  assert.equal(laserSparkles(box, 4, true).length, 4, "scene surfaces share the same bounded generator");
+  assert.deepEqual(bindings.values, state); assert.equal(writes, 0);
+  bindings.commit([{ consumer: "a", property: "level", value: 4 }]); assert.equal(writes, 1, "locking still uses the shared setter");
+});
+
+test("property clipboard captures shared values, omits mixed/unknown values and retains independent sources", async () => {
+  const { copyPropertyValues } = await import("../src/properties/clipboard.ts");
+  const registry = createPropertyRegistry();
+  registry.define({ id: "color", label: "Color", kind: "color", initial: "#000000" });
+  registry.define({ id: "opacity", label: "Opacity", kind: "number", min: 0, max: 1, step: .05, initial: 1 });
+  const a = { color: "#00ff00", opacity: .7 }, b = { color: "#ff0000", opacity: .7 };
+  const snapshot = copyPropertyValues(registry, [a, b].map(values => ({ properties: ["color", "opacity", "unknown"], read: property => values[property] })));
+  assert.deepEqual(snapshot.values, { opacity: .7 }); assert.deepEqual(snapshot.mixed, ["color"]);
+  const one = copyPropertyValues(registry, [{ properties: ["color", "opacity"], read: property => a[property] }]);
+  a.color = "#ffffff"; assert.equal(one.values.color, "#00ff00", "clipboard holds values, not a live source link");
+  registry.define({ id: "font", label: "Font", kind: "select", initial: "system", options: [{ id: "system", label: "System" }] });
+  assert.equal(copyPropertyValues(registry, [{ properties: ["font"], read: () => "imported-font" }]).values.font, "imported-font", "runtime font choices survive copying");
+});
+
+test("clipboard application skips bypassed and locked destinations without widening applicability", () => {
+  const targets = [{ id: "all", label: "All" },
+    { id: "a", label: "A", parent: "all", properties: ["color", "font"] },
+    { id: "b", label: "B", parent: "all", properties: ["color"] },
+    { id: "c", label: "C", parent: "all", properties: ["color"] },
+    { id: "d", label: "D", parent: "all", properties: ["color"] }];
+  let state = emptyController(); state.disconnected.b = { properties: ["color"] }; state.locks.c = { all: true };
+  const before = JSON.stringify(state);
+  state = applyValue(state, targets, "color", "#00ff00", undefined, false, { skipBypassed: true });
+  state = applyValue(state, targets, "font", "serif", undefined, false, { skipBypassed: true });
+  assert.equal(state.values.a.color, "#00ff00"); assert.equal(state.values.d.color, "#00ff00");
+  assert.equal(state.values.a.font, "serif"); assert.equal(state.values.b?.color, undefined);
+  assert.equal(state.values.c?.color, undefined); assert.equal(state.values.d.font, undefined);
+  assert.notEqual(JSON.stringify(state), before); assert.deepEqual(state.instances, {});
+});
+
+test("selectable property copies retain only checked values, including zero and false", async () => {
+  const { selectPropertyValues } = await import("../src/properties/clipboard.ts");
+  const snapshot = { values: { color: "#00ff00", opacity: 0, pulse: false, font: "serif" }, mixed: ["glow"] };
+  const selected = selectPropertyValues(snapshot, new Set(["opacity", "pulse", "unknown"]));
+  assert.deepEqual(selected.values, { opacity: 0, pulse: false });
+  assert.deepEqual(selectPropertyValues(snapshot, new Set()).values, {});
+  assert.equal(Object.keys(snapshot.values).length, 4);
+});
+
+test("selective paste does not rewrite unchecked companion properties", () => {
+  const targets = [{ id: "all", label: "All" }, { id: "text", label: "Text", parent: "all", properties: ["color", "effectColor", "opacity"] }];
+  const state = emptyController(); state.values.text = { effectColor: "#0000ff", opacity: .4 };
+  const next = applyValue(state, targets, "color", "#00ff00", undefined, false, { skipBypassed: true, exact: true });
+  assert.deepEqual(next.values.text, { color: "#00ff00", effectColor: "#0000ff", opacity: .4 });
+  const part = { base: "text.ui.buttons", owner: "window:theme", label: "Text", part: { steps: [{ tag: "button", index: 0 }] } };
+  const selected = applySelectedValue(emptyController(), [part], "color", "#00ff00", { exact: true });
+  assert.equal(selected.values[selectedPartId(part)].color, "#00ff00");
+  assert.equal(selected.values[selectedPartId(part)].effectColor, undefined);
 });

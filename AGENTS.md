@@ -10,7 +10,60 @@ current when changing a cross-cutting contract or its implementation status.
 For backend work, read [docs/BACKEND.md](docs/BACKEND.md). Reuse workspace
 authorization, private asset lifecycles, and portable contracts; keep credentials
 server-side. Cloud atlas synchronization is not implemented. Read the backend guide
-for current hosted deployment status and remaining Auth/frontend configuration.
+for current hosted deployment status and remaining frontend configuration.
+
+For AI music/wallpaper generation, playback or media services, also read
+[docs/AI_MEDIA_HANDOFF.md](docs/AI_MEDIA_HANDOFF.md). It records current backend/asset
+limitations, state ownership and performance constraints; it is not a feature spec.
+
+# Universal Master Controller signature
+
+**Shift + any configured shortcut opens that function's adaptive Master Controller
+configuration. Repeated presses cycle choices; releasing Shift executes the choice
+once. Right-click an MC option applies and locks its future default; left-click
+resets to priority 1. Temporary cycling never overwrites the locked default.**
+This applies to keyboard/mouse commands, existing and future. Shift is reserved for
+configuration, not an alternate executable shortcut. Preserve ordinary text entry
+and protected recovery. Read [docs/FUNCTION_CONFIGURATION.md](docs/FUNCTION_CONFIGURATION.md).
+
+Use the single router in `ShortcutConfiguration.tsx`; do not add per-feature Shift
+listeners, modifier conditionals or separate configuration windows. A feature's
+normal action remains in the action catalog. Declare settable inputs once through
+`*.function.ts`; matching consumers/controls automatically supply generic editors.
+A specialized configuration/preview may attach to the existing function/action
+metadata (`configuration`), reusing its inputs and setters. No second settings store
+or per-shortcut registry. Contextual MC shows only relevant controls; explicit MC
+shows general categories. Keep previews transient and configuration compact.
+
+# Compactness is a product requirement
+
+Every new or changed UI feature must use the smallest practical layout that fits
+its controls neatly and readably. Size containers to content, use tight consistent
+spacing, group related controls in rows, and avoid large minimum dimensions,
+full-width fields, redundant headings, decorative padding and empty space.
+Put secondary explanations in accessible tooltips instead of permanent paragraphs.
+Contextual Master Controller projections show only relevant controls. Preserve
+readable labels, keyboard access and usable pointer targets; enlarge a surface
+only when its actual interaction or content needs the space. Apply this by default,
+not only after the user requests a compactness pass.
+
+Numeric slider controls use `ui/RangeControl.tsx`, the shared spectrum widget.
+Reuse it instead of adding private ranges, arrow steppers or duplicate min/max
+fields. See the UI component contract for its left/right-click semantics.
+
+# Responsiveness is a product requirement
+
+Every feature and fix must preserve interactive responsiveness. Before implementing
+an approach likely to cause substantial lag, tell the user what could become slow
+and suggest practical alternatives (for example bounded work, caching, incremental
+updates or an explicit expensive operation). Prefer the responsive approach within
+the authorized scope; do not silently ship a costly design and wait for the user
+to discover it. Consider pointer movement, selection, live property/color dragging,
+large documents and concurrent effects. Keep full-app scans, layout reads, expensive
+matching and broad React updates out of per-pointer/per-frame hot paths. Assess
+cost as part of implementation and report unresolved performance risks honestly;
+a successful build is not evidence of smooth interaction. Respect the user's
+preference to perform browser testing themselves; do not add unsolicited suites.
 
 Essential invariants for every worker:
 
@@ -59,6 +112,13 @@ component presentation or their editors.
   registry. Target identity, selection boundary, visual role and property are
   separate concepts. HTML, SVG, canvas and 3D may need distinct adapters, but must
   share property IDs, applicability and editing rules.
+- Mounted appearance editors/renderers share `useAppearance().read` (or `renderRead`
+  for renderer-only activity projections). Never rebuild `createValueResolver` or
+  call standalone `valueFor` once per row/icon/property in a render loop. Pure batch
+  transactions share a `createTargetIndex`; paint-only setters preserve unchanged
+  instance/policy references. Text binding discovery and feedback geometry must not
+  rebuild for every color sample. See the performance contract in
+  `docs/APPEARANCE_CONTROLLER.md`.
 - The existing master controller and `PropertyEditor`/`PropertyTree` supply property
   editing. Local actions should target/reveal the shared editor rather than copy
   its controls. Registered capabilities determine which properties are applicable.
@@ -89,3 +149,18 @@ organization changes their valid expectations.
 
 GitHack previews must remain self-contained (startup assets previously received
 HTTP 429 when requested separately). Production Pages builds remain code-split.
+
+UI frame commands belong in Master Controller's shared Active context panel and
+the action catalog, not repeated header tools. Activation is click/focus based
+and transient. Draft controls use `useCancelValueEdit`; popups use the shared
+active-layer adapter. Preserve close/minimize vetoes and avoid hover polling.
+
+Committed state owners must integrate with `ui/actionHistory.ts` for chronological
+Undo/Redo; keep previews and selection timelines transient. Reuse owner adapters
+and patch conflict checks. Contextual Master Controller activation exposes only
+relevant controls; explicit activation exposes the general controller.
+
+Before publishing follow-up work or linking a PR, verify its live GitHub state.
+A merged PR does not include commits pushed to its head branch afterward. Put
+post-merge work in a new open PR against the current default branch; do not keep
+updating the merged PR description as if it were the active review.

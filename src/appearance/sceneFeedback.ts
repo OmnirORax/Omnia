@@ -1,6 +1,6 @@
 /** Renderer adapters share one registration for hierarchy and selector feedback.
  * These transient paints never become appearance values or history entries. */
-export type SceneSelectionPaint = { color: string; opacity: number };
+export type SceneSelectionPaint = { color: string; opacity: number; fill?: number };
 export type HierarchyScenePulse = {
   pulse: (targets: ReadonlyMap<string, boolean>, strength: number) => void;
   clear: () => void;

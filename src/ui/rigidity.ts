@@ -2,7 +2,7 @@ import { Children, isValidElement, type ReactNode } from "react";
 import { ancestry, type Target } from "../appearance/model";
 import { TARGETS, type RegisteredTarget } from "../appearance/registry";
 import type { UIFunction } from "./context";
-import { ownerOf, residentPinned, type UILayout } from "./layout";
+import { getContainer, ownerOf, residentPinned, type UILayout } from "./layout";
 
 export const UI_RIGIDITY_PROPERTY = "uiRigidity";
 const prefix = "ui-rigidity:";
@@ -62,6 +62,7 @@ export function residentRigid(layout: UILayout, key: string, functions: Function
 }
 /** One layout permission shared by pointer/native dragging, resizing and arrangement commands. */
 export function residentMovable(layout: UILayout, key: string, functions: Functions): boolean {
+  if (getContainer(layout, key)?.viewport) return false;
   if (!layout.panels["@devMode"] && !layout.uiRigidity) return false;
   return !!key && !residentPath(layout, key, functions).some(owner => residentPinned(layout, owner)) &&
     (!!layout.panels["@devMode"] || !residentRigid(layout, key, functions));

@@ -36,11 +36,11 @@ export type Binding = {
 export type RegisteredTarget = Target & { self?: boolean; binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
 export const SELECTOR_FEEDBACK = {
   included: { label: "Included", color: "#28ff62" },
-  excluded: { label: "Excluded", color: "#ff6c73" },
+  excluded: { label: "Removal preview", color: "#ff6c73" },
   boundary: { label: "Boundary", color: "#60ddec" },
 } as const;
 /** Inline artwork has its own ink; it never inherits a text target's color. */
-export const UI_INLINE_ICON_SELECTOR = 'button svg,[role="button"] svg,button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
+export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]),[role="button"] svg:not([data-range-glyph]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];
@@ -194,8 +194,13 @@ part("ui.toggles.indicator", "ui.toggles", "Selection indicator", {
 });
 branch("ui.sliders", "ui.fields", "Sliders");
 part("ui.sliders.fill", "ui.sliders", "Filled track / thumb", {
-  selector: 'input[type="range"],progress,meter',
+  selector: 'input[type="range"]:not(.range-spectrum-input),progress,meter',
   css: "accent-color",
+  legacy: "accent",
+});
+part("ui.sliders.spectrum", "ui.sliders", "Spectrum / arrows", {
+  selector: '.range-spectrum',
+  css: "color",
   legacy: "accent",
 });
 part("ui.swatches", "ui.fields", "Color swatch contours", {
@@ -263,7 +268,7 @@ branch("ui.guides.selector", "ui.guides", "Selector feedback", true);
 for (const [tone, defaults] of Object.entries(SELECTOR_FEEDBACK))
   entries.push({
     id: `ui.guides.selector.${tone}`, parent: "ui.guides.selector", label: defaults.label,
-    properties: [...surface], hidden: tone === "excluded", defaults: { color: defaults.color, brightness: 1, opacity: 1, glow: 1 },
+    properties: [...surface], defaults: { color: defaults.color, brightness: 1, opacity: 1, glow: 1 },
     // The feedback adapter paints SVG edges, glyph ranges and icons together.
     binding: { selector: `.visual-selection-trace.is-${tone}` },
   });

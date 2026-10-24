@@ -1,3 +1,4 @@
+import { selectorSurfaceStrength } from "./appearance/selectorSurface";
 import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -185,7 +186,10 @@ export default function SpatialWorkspace(props: Props) {
       const color = new THREE.Color(theme.theme === "neon" ? theme.background : 0x101927);
       if (selectedBackground) {
         const { paint, strength } = selectedBackground;
-        color.lerp(new THREE.Color(paint.color), Math.max(0, Math.min(1, paint.opacity * .3 * (.08 + .87 * strength))));
+        // CSS color-mix uses display sRGB. Convert both colors before mixing,
+        // then restore the scene's linear working space for rendering.
+        color.convertLinearToSRGB().lerp(new THREE.Color(paint.color).convertLinearToSRGB(),
+          selectorSurfaceStrength(paint.opacity, strength, paint.fill)).convertSRGBToLinear();
       } else if (hierarchyBackground !== null) color.lerp(new THREE.Color("white"), hierarchyBackground);
       scene.background = color;
     };

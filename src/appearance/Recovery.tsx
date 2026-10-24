@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Checkpoint } from "./checkpoints";
@@ -90,13 +91,13 @@ export function AppearanceRecovery(props: Props) {
     };
     window.addEventListener("keydown", down, true);
     window.addEventListener("keyup", up, true);
-    window.addEventListener("blur", clear);
+    window.addEventListener(PAGE_INPUT_SUSPEND, clear);
     document.addEventListener("visibilitychange", visibility);
     return () => {
       clear();
       window.removeEventListener("keydown", down, true);
       window.removeEventListener("keyup", up, true);
-      window.removeEventListener("blur", clear);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, clear);
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [root]);
@@ -122,19 +123,11 @@ export function AppearanceRecovery(props: Props) {
     <>
       <style>{CSS}</style>
       <div className="shell">
-        {!props.open && (props.pending || props.safe) && (
+        {!props.open && props.safe && (
           <aside className="bar" aria-label="Appearance preview">
             <span>
-              {props.pending
-                ? "Appearance preview · not saved"
-                : "Safe view · saved appearance unchanged"}
+              Safe view · saved appearance unchanged
             </span>
-            {props.pending && (
-              <>
-                <button onClick={props.onApply}>Apply</button>
-                <button onClick={() => props.onOpen(true)}>Discard…</button>
-              </>
-            )}
             {props.safe && (
               <button onClick={() => props.onSafe(false)}>Show custom appearance</button>
             )}

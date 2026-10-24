@@ -1,3 +1,5 @@
+import { searchFrame } from "./frameSearchActions";
+import { toggleFrameDescendants } from "./frameExpansion";
 import { useIconTint } from "../appearance/Styles";
 import { useLayoutEffect, type MouseEvent } from "react";
 import { ShortcutHint } from "./ShortcutHint";
@@ -7,7 +9,6 @@ import type { WindowState } from "./layout";
 import { FrameSearch } from "./FrameSearch";
 import { useUILabel } from "./EditableLabel";
 import { nameSymbol } from "./nameSymbols";
-import { FrameCloseButton } from "./FrameCloseButton";
 import { closeContainer } from "./layout";
 
 export function FrameChrome({
@@ -21,6 +22,7 @@ export function FrameChrome({
   onClose,
   closeLabel,
   className = "",
+  disabled = false,
   fixed = false,
   inline = false,
   legacyHandleId,
@@ -32,11 +34,12 @@ export function FrameChrome({
   label?: string;
   tooltip?: string;
   state: Pick<WindowState, "collapsed" | "pinned" | "chrome">;
-  onChange: (patch: Partial<WindowState>) => void;
+  onChange: (patch: Partial<WindowState>) => void | boolean;
   onRename?: (value: string) => void;
-  onClose?: () => void;
+  onClose?: () => void | boolean;
   closeLabel?: string;
   className?: string;
+  disabled?: boolean;
   fixed?: boolean;
   inline?: boolean;
   legacyHandleId?: string;
@@ -57,24 +60,16 @@ export function FrameChrome({
   const close = onClose ?? (() => ui.update(layout => closeContainer({
     ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows },
   }, container)));
-  const closeButton = <FrameCloseButton container={container} title={title} onClose={close} label={closeLabel} />;
-  const operators = (
-    <span className="ui-frame-operators">
-      {!inline && <FrameSearch
-        container={container}
-        title={title}
-        expand={() => { if (state.collapsed && !fixed) onChange({ collapsed: false }); }}
-      />}
-      {closeButton}
-    </span>
-  );
+  // Search remains a shared contextual renderer; tools live once in Master Controller.
+  const operators = <FrameSearch container={container} title={title} renderToggle={false}
+    expand={() => { if (state.collapsed && !fixed) onChange({ collapsed: false }); }} />;
   const openFrameMenu = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     ui.frameMenu(container, event.clientX, event.clientY);
   };
   useLayoutEffect(() => {
-    const actions = { title, label: label ?? title, state, onChange, onRename, onClose: close, closeLabel };
+    const actions = { title, label: label ?? title, state, onChange, onRename, onClose: close, closeLabel, onSearch: () => searchFrame(container), onBranchToggle: () => toggleFrameDescendants(ui, container) };
     ui.frameActions.set(container, actions);
     return () => {
       if (ui.frameActions.get(container) === actions) ui.frameActions.delete(container);
@@ -92,6 +87,8 @@ export function FrameChrome({
           data-ui-inline-handle
           data-ui-drag={container}
           draggable={ui.canMove(container)}
+          disabled={disabled}
+          aria-disabled={disabled}
           aria-expanded={!state.collapsed}
           aria-pressed={selected}
           aria-label={title}

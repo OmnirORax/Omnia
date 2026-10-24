@@ -1,3 +1,5 @@
+import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
+import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createTransientStore } from "./transientStore";
 import {
@@ -192,7 +194,7 @@ export function useButtonSelection({
       const next = groupResidents(current.current.layout, boxes.map(box => selectionResident(box.id)), bounds.x, bounds.y);
       current.current.update(() => next);
       select(new Set()); setMenu(null);
-      setMessage("Selection grouped in a frame. Shift+MB4 undoes it.");
+      setMessage("Selection grouped in a frame. Undo reverses it.");
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   };
   const obstacles = (excluded: Set<string>, target?: string): PositionedBox[] => {
@@ -272,7 +274,7 @@ export function useButtonSelection({
       }
       state.update(() => next);
       setMenu(null);
-      setMessage("Selected UI compacted. Shift+MB4 undoes it.");
+      setMessage("Selected UI compacted. Undo reverses it.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
@@ -343,7 +345,7 @@ export function useButtonSelection({
       }
       state.update(() => next);
       setMenu(null);
-      setMessage(`UI ${operation.startsWith("distribute") ? "distributed" : "aligned"}. Shift+MB4 undoes it.`);
+      setMessage(`UI ${operation.startsWith("distribute") ? "distributed" : "aligned"}. Undo reverses it.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   };
   const resolve = (g: Gesture, x: number, y: number): Proposal => {
@@ -364,6 +366,13 @@ export function useButtonSelection({
         .map((el) => el.closest<HTMLElement>("[data-ui-drop-zone]"))
         .find((el): el is HTMLElement => !!el);
       target = zone?.dataset.uiDropZone;
+    }
+    if (!target) {
+      const surface = pointedDropSurface(elements), key = surface?.dataset.uiResidentRoot;
+      const interiorZone = key ? zoneFor(key) : undefined;
+      const intent = frameInteriorDrop(state.layout, g.boxes.map(box => selectionResident(box.id)), key, !!interiorZone?.getClientRects().length);
+      if (intent === "blocked") return { boxes: [], message: "This frame cannot accept these items here; placement is unchanged." };
+      if (intent === "dock") { zone = interiorZone; target = key; }
     }
     if (!target) {
       const owners = new Set(g.boxes.map((b) => ownerOf(state.layout, selectionResident(b.id))));
@@ -633,7 +642,7 @@ export function useButtonSelection({
         current.current.update((s) =>
           placeButtons({ ...s, windows: { ...current.current.layout.windows, ...s.windows } }, proposal.boxes, proposal.target, proposal.baseline, proposal.index),
         );
-        setMessage("UI selection moved. Shift+MB4 undoes it.");
+        setMessage("UI selection moved. Undo reverses it.");
       }
     };
     const cancel = () => {
@@ -694,7 +703,7 @@ export function useButtonSelection({
     window.addEventListener("pointercancel", pointerCancel, true);
     window.addEventListener("contextmenu", preventContext, true);
     window.addEventListener("dragstart", preventNative, true);
-    window.addEventListener("blur", cancel);
+    window.addEventListener(PAGE_INPUT_SUSPEND, cancel);
     window.addEventListener("keydown", key, true);
     return () => {
       cancelMove();
@@ -705,7 +714,7 @@ export function useButtonSelection({
       window.removeEventListener("pointercancel", pointerCancel, true);
       window.removeEventListener("contextmenu", preventContext, true);
       window.removeEventListener("dragstart", preventNative, true);
-      window.removeEventListener("blur", cancel);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, cancel);
       window.removeEventListener("keydown", key, true);
     };
   }, [suppress]);

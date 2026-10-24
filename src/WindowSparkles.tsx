@@ -1,3 +1,6 @@
+import { hierarchyTextLevel, subscribeHierarchyTextFeedback } from "./appearance/hierarchyTextFeedback";
+import { unavailableControl } from "./ui/controlAvailability";
+import { createPaintClipReader, clipCanvas } from "./ui/paintClip";
 import { effectsFor } from "./appearance/resolve";
 import { uiEffectTargets, effectSelector, effectScope, textOwner } from "./appearance/uiEffects";
 import { createElementEffectsResolver } from "./appearance/localEffects";
@@ -57,6 +60,7 @@ export function WindowSparkles({
         electricBudget = 1_200_000;
       const resolver = plan.current;
       let processed = 0;
+      const paintClip = createPaintClipReader(width, height);
       for (const target of uiEffectTargets) {
         const fx = effectsFor(a, target.id),
           hasLocal = resolver.activeLocalBases.has(target.id) || !!(target.hidden && target.parent && resolver.activeLocalBases.has(target.parent));
@@ -76,7 +80,7 @@ export function WindowSparkles({
           const { element, local: exact } = candidates[index];
           if (
             !element.getClientRects().length ||
-            element.closest("[hidden],.ui-drag-source,[data-visual-selector]") ||
+            element.closest("[hidden],.ui-drag-source,[data-visual-selector]") || unavailableControl(element) ||
             getComputedStyle(element).visibility === "hidden"
           )
             continue;
@@ -90,23 +94,28 @@ export function WindowSparkles({
             r.left > width
           )
             continue;
+          const clip = paintClip(element);
+          if (!clip.width || !clip.height || r.right <= clip.x || r.left >= clip.x + clip.width || r.bottom <= clip.y || r.top >= clip.y + clip.height) continue;
           const localFx = exact ? resolver.localStyle(exact) : resolver.resolve(target, element);
           if (!effectVisible(localFx)) continue;
           context.strokeStyle = context.fillStyle = context.shadowColor = localFx.color ?? a.accent;
           context.shadowBlur = (localFx.glow ?? a.glow) * 12;
           const localTime = phase * localFx.motion;
-          const baseScope = effectScope(target, element);
+          const baseScope = { ...effectScope(target, element), clip: paintClip };
           const scope = exact && target.binding?.text
-            ? { key: exact.id, shape: "glyphs" as const, text: (parent: HTMLElement) => textOwner(parent)?.target.id === target.id,
+            ? { key: exact.id, shape: "glyphs" as const, clip: paintClip, text: (parent: HTMLElement) => textOwner(parent)?.target.id === target.id,
               node: (node: Node) => resolver.nodeOwner(target, node)?.id === exact.id,
               input: (input: HTMLElement) => input === element && resolver.textHostOwner(target, input)?.id === exact.id, icons: false }
             : { ...baseScope, node: (node: Node) => !resolver.nodeOwner(target, node),
               input: (input: HTMLElement) => (!baseScope.input || baseScope.input(input)) && !resolver.textHostOwner(target, input) };
+          const hover = target.binding?.text ? hierarchyTextLevel(scope.key, element) : undefined;
+          const hoverOpacity = hover === undefined ? 1 : .25 + .75 * hover;
           processed++;
           moving ||= localFx.motion > 0;
           const seed = effectSeed(
             `${target.id}:${element.dataset.uiFunction ?? element.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot ?? `${element.className}:${index}`}`,
           );
+          context.save(); clipCanvas(context, clip);
           if (localFx.effect === "electric-text") {
             electricBudget -= drawUIElectricText(
               context,
@@ -114,11 +123,12 @@ export function WindowSparkles({
               r,
               localFx,
               localTime,
-              a.opacity * (localFx.opacity ?? 1),
+              a.opacity * (localFx.opacity ?? 1) * hoverOpacity,
               !reduced.matches && localFx.motion > 0,
               electricBudget,
               scope,
             );
+            context.restore();
             continue;
           }
           if (localFx.effect === "lightning") {
@@ -129,11 +139,12 @@ export function WindowSparkles({
               localFx,
               localTime,
               seed,
-              a.opacity * (localFx.opacity ?? 1),
+              a.opacity * (localFx.opacity ?? 1) * hoverOpacity,
               !reduced.matches && localFx.motion > 0,
               lightningBudget,
               scope,
             );
+            context.restore();
             continue;
           }
           const snow = localFx.effect === "falling-stars";
@@ -178,6 +189,7 @@ export function WindowSparkles({
               context.fill();
             }
           }
+          context.restore();
         }
       }
       context.globalAlpha = 1;
@@ -187,6 +199,9 @@ export function WindowSparkles({
     const request = () => {
       if (!frame) frame = requestAnimationFrame(draw);
     };
+    const stopTextFeedback = subscribeHierarchyTextFeedback(() => {
+      if (uiEffectTargets.some(target => effectVisible(effectsFor(current.current, target.id))) || plan.current.activeLocalBases.size) request();
+    });
     redraw.current = request;
     const resume = () => {
       previous = 0;
@@ -199,6 +214,8 @@ export function WindowSparkles({
     const observer = new MutationObserver(records => {
       const relevant = records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest("[data-visual-selector],style,script,canvas"));
       if (!relevant) return;
+      if (records.some(record => record.attributeName === "disabled" || record.attributeName === "aria-disabled" ||
+          record.attributeName === "class" && record.target instanceof Element && record.target.classList.contains("property-node"))) clearUILightningContours();
       plan.current.invalidate();
       if (uiEffectTargets.some(target => effectVisible(effectsFor(current.current, target.id))) || plan.current.activeLocalBases.size) request();
     });
@@ -206,24 +223,26 @@ export function WindowSparkles({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["style", "class", "hidden"],
+      attributeFilter: ["style", "class", "hidden", "disabled", "aria-disabled"],
     });
     document.fonts.addEventListener("loadingdone", fontsLoaded);
-    window.addEventListener("resize", request);
+    const layoutChanged = () => { clearUILightningContours(); request(); };
+    window.addEventListener("resize", layoutChanged);
     document.addEventListener("load", request, true);
-    document.addEventListener("scroll", request, true);
+    document.addEventListener("scroll", layoutChanged, true);
     document.addEventListener("input", request, true);
     document.addEventListener("visibilitychange", resume);
     reduced.addEventListener("change", resume);
     request();
     return () => {
+      stopTextFeedback();
       document.fonts.removeEventListener("loadingdone", fontsLoaded);
       observer.disconnect();
       cancelAnimationFrame(frame);
       if (timer !== undefined) clearTimeout(timer);
-      window.removeEventListener("resize", request);
+      window.removeEventListener("resize", layoutChanged);
       document.removeEventListener("load", request, true);
-      document.removeEventListener("scroll", request, true);
+      document.removeEventListener("scroll", layoutChanged, true);
       document.removeEventListener("input", request, true);
       document.removeEventListener("visibilitychange", resume);
       reduced.removeEventListener("change", resume);
