@@ -1,28 +1,29 @@
-import { loadController } from "./appearance/registry.ts";
+import { validateValue } from "./properties/registry.ts";
+import { PROPERTY_REGISTRY, loadController } from "./appearance/registry.ts";
 import type { Controller, Value } from "./appearance/model";
 import { DEFAULT_SPATIAL_SETTINGS, type GridSpacing, type SpatialSettings } from "./graph/layout3d.ts";
 import { ANIMATION_TARGETS, EFFECT_KINDS, MAX_STAR_DENSITY, MAX_STAR_SIZE, normalizeSparkleOverrides, type AnimationTarget, type SurfaceTarget, type SparkleStyle, type EffectKind } from "./graph/effects.ts";
 import type { StyleDefaults } from "./graph/appearance.ts";
 import { normalizeFont, type FontId } from "./fonts.ts";
-import { FEATURE_ACTIONS } from "./featureActions.ts";
+import { FEATURE_ACTIONS, featureActionRuntime } from "./featureActions.ts";
 
 export const ACTIONS = [
-  { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "S" },
+  { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "Ctrl+Alt+S" },
   { id: "ui:devMode", category: "UI editing", label: "UI edit mode", defaultKey: "" },
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
   { id: "ui:reset", category: "Workspace", label: "Reset to default", defaultKey: "" },
-  { id: "ui:undo", category: "UI history", label: "Undo UI", defaultKey: "" },
-  { id: "ui:redo", category: "UI history", label: "Redo UI", defaultKey: "" },
+  { id: "ui:undo", configuration: "history", category: "UI history", label: "Undo UI", defaultKey: "" },
+  { id: "ui:redo", configuration: "history", category: "UI history", label: "Redo UI", defaultKey: "" },
   { id: "ui:select", category: "UI editing", label: "Select UI buttons", defaultKey: "" },
   { id: "ui:compact", category: "UI editing", label: "Compact selected UI", defaultKey: "" },
   { id: "ui:align", category: "UI editing", label: "Align UI", defaultKey: "" },
   { id: "selectAll", category: "Selection", label: "Select visible nodes", defaultKey: "Ctrl+A" },
   { id: "deleteSelected", category: "Selection", label: "Delete selected concepts and subnodes", defaultKey: "Delete" },
-  { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Shift+?" },
+  { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Ctrl+/" },
   { id: "focus", category: "Navigation", label: "Focus selected", defaultKey: "F" },
   { id: "isolateFocus", category: "Navigation", label: "Focus context only", defaultKey: "" },
-  { id: "fitLocal", category: "Navigation", label: "Fit local system", defaultKey: "Shift+F" },
+  { id: "fitLocal", category: "Navigation", label: "Fit local system", defaultKey: "Ctrl+Alt+F" },
   { id: "fitAll", category: "Navigation", label: "Fit entire atlas", defaultKey: "" },
   { id: "back", category: "Navigation", label: "Back to previous focus", defaultKey: "" },
   { id: "zoom100", category: "Navigation", label: "Reset zoom to 100%", defaultKey: "" },
@@ -30,10 +31,10 @@ export const ACTIONS = [
   { id: "rollLeft", category: "Navigation", label: "Roll view left 90°", defaultKey: "" },
   { id: "rollRight", category: "Navigation", label: "Roll view right 90°", defaultKey: "" },
   { id: "newNode", category: "Structure creation", label: "New node", defaultKey: "N" },
-  { id: "newChild", category: "Structure creation", label: "New child", defaultKey: "Shift+N" },
+  { id: "newChild", category: "Structure creation", label: "New child", defaultKey: "Ctrl+Alt+N" },
   { id: "connect", category: "Relationships", label: "Connect from selected", defaultKey: "L" },
   { id: "expand", category: "Expansion", label: "Expand or collapse selected", defaultKey: "E" },
-  { id: "expandAll", category: "Expansion", label: "Expand or collapse entire subtree", defaultKey: "Shift+E" },
+  { id: "expandAll", category: "Expansion", label: "Expand or collapse entire subtree", defaultKey: "Ctrl+Alt+E" },
   { id: "toggleSnap", category: "Spatial editing", label: "Toggle snapping", defaultKey: "G" },
   { id: "nudgeLeft", category: "Spatial editing", label: "Move selected node left", defaultKey: "ArrowLeft" },
   { id: "nudgeRight", category: "Spatial editing", label: "Move selected node right", defaultKey: "ArrowRight" },
@@ -45,8 +46,8 @@ export const ACTIONS = [
   { id: "compactSelected", category: "Spatial editing", label: "Compact selected subsystem", defaultKey: "" },
   { id: "compactFrame", category: "Spatial editing", label: "Compact current frame", defaultKey: "" },
   { id: "compactAll", category: "Spatial editing", label: "Compact selected / all", defaultKey: "" },
-  { id: "undo", category: "History", label: "Undo", defaultKey: "Ctrl+Z" },
-  { id: "redo", category: "History", label: "Redo", defaultKey: "Ctrl+Shift+Z" },
+  { id: "undo", configuration: "history", category: "History", label: "Undo", defaultKey: "Ctrl+Z" },
+  { id: "redo", configuration: "history", category: "History", label: "Redo", defaultKey: "Ctrl+Y" },
   { id: "cancel", category: "Workspace", label: "Cancel or close menu", defaultKey: "Esc" },
   { id: "settings", category: "Workspace", label: "Workspace settings", defaultKey: "" },
   { id: "theme", category: "Workspace", label: "Toggle neon appearance", defaultKey: "" },
@@ -57,6 +58,15 @@ export const NUDGE_ACTIONS = ["nudgeLeft", "nudgeRight", "nudgeUp", "nudgeDown"]
 export type NudgeActionId = (typeof NUDGE_ACTIONS)[number];
 export const isNudgeAction = (id: string): id is NudgeActionId => NUDGE_ACTIONS.some(action => action === id);
 export type ActionId = (typeof ACTIONS)[number]["id"];
+/** Shared programmatic dispatch must not depend on a mounted button runner or
+ * a separately assigned button: binding. Feature availability stays authoritative. */
+export function invokeCatalogAction(id: string, invokeBase: (id: ActionId) => void): boolean {
+  const action = ACTIONS.find(action => action.id === id);
+  if (!action) return false;
+  if (FEATURE_ACTIONS.some(feature => feature.id === id)) return featureActionRuntime.invoke(id);
+  invokeBase(action.id); return true;
+}
+
 export type MouseAction = "pan" | "rotate" | "none";
 export type SubtreeModifier = "shift" | "alt" | "ctrl" | "none";
 export type WorkspaceSettings = {
@@ -64,13 +74,14 @@ export type WorkspaceSettings = {
   isolateFocus: boolean;
   appearance: { controller?: Controller; renderDefaults?: Record<string, Record<string, Value>>; font: FontId; textGlow: number; textColor?: string; controlGlow: number; theme: "neon" | "classic"; accent: string; background: string; opacity: number; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effectColor?: string; effect: EffectKind; effectTargets: Record<AnimationTarget, boolean>; surfaceEffects: Partial<Record<SurfaceTarget, Partial<SparkleStyle>>>; effectIntensity: number; lightningLength: number; starSize: number; density: number; motion: number; windowOpacity: number; blur: number };
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
+  functionValues: Record<string, Record<string, Value>>;
   bindings: Record<string, string>;
   buttonLabels: Record<string, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" },
-    buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
+    functionValues: {}, buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
 }
 export function normalizeKey(event: KeyboardEvent): string {
   const key = event.key === "Escape" ? "Esc" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
@@ -87,6 +98,16 @@ export function actionScope(id: string): string {
 }
 export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
 export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
+/** Resolve overlapping feature keys by active scope, never listener mount order.
+ * An active selector owns its commands before UI frames, then global actions. */
+export function preferredFeatureKey(bindings: Record<string, string>, key: string, available: (id: string) => boolean, typing = false, blocked = false): string | null {
+  if (!key) return null;
+  const rank = (scope: string) => scope === "visualSelector" ? 2 : scope === "uiContext" ? 1 : 0;
+  const candidates = FEATURE_ACTIONS.filter(action => shortcutBinding(action.id, bindings) === key && available(action.id) &&
+    (!typing || "allowTyping" in action && action.allowTyping) && (!blocked || "allowBlocked" in action && action.allowBlocked));
+  candidates.sort((a, b) => rank(b.scope) - rank(a.scope));
+  return candidates[0]?.id ?? null;
+}
 export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;
 /** Native pointer gesture modifiers may accompany a saved command. Exact
  * bindings are dispatched first; fallback never revives cleared/rebound inputs. */
@@ -118,8 +139,20 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   const defaults = defaultSettings();
   defaults.appearance.controller = loadController(undefined);
   try {
-    const value = input as Partial<WorkspaceSettings>;
+    let value = input as Partial<WorkspaceSettings>;
     const savedBindings = { ...value.bindings };
+    if (value.functionValues && typeof value.functionValues === "object") {
+      for (const [consumer, fields] of Object.entries(value.functionValues).slice(0, 200)) {
+        if (!consumer || ["__proto__", "prototype", "constructor"].includes(consumer) || consumer.length > 200 || !fields || typeof fields !== "object") continue;
+        defaults.functionValues[consumer] = Object.fromEntries(Object.entries(fields).slice(0, 100).flatMap(([key, item]) => {
+          if (key.length > 100) return [];
+          const definition = PROPERTY_REGISTRY.property(key);
+          const checked = definition ? validateValue(definition, item) : item;
+          return typeof checked === "boolean" || typeof checked === "number" && Number.isFinite(checked) || typeof checked === "string" && checked.length <= 200
+            ? [[key, checked]] : [];
+        }));
+      }
+    }
     // Removed operations identify the old bundles. Preserve custom assignments;
     // later saves omit the obsolete ID, so explicitly cleared toggles stay clear.
     const legacyExclude = savedBindings["selector.exclude"];
@@ -129,7 +162,22 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     } else if (savedBindings["selector.include"] === "" && legacyExclude === "" && savedBindings["selector.edit"] === "MB2") {
       savedBindings["selector.include"] = "MB1";
     }
+    // RMB now removes selection. Migrate the retired default edit binding once;
+    // explicit clears/custom bindings in newer saves stay unchanged.
+    if (!Object.hasOwn(savedBindings, "selector.deselect") && savedBindings["selector.edit"] === "MB2") {
+      if (savedBindings["selector.open"] === "MB3" && !Object.entries(savedBindings).some(([id, binding]) => id !== "selector.open" && binding === "Q" && actionScope(id) === "global")) savedBindings["selector.open"] = "Q";
+      savedBindings["selector.edit"] = ""; savedBindings["selector.deselect"] = "MB2";
+    }
     delete savedBindings["selector.exclude"];
+    if (savedBindings["selector.redo"] === "Ctrl+Shift+Z" && savedBindings["selector.redoAlternate"] === "Ctrl+Y") savedBindings["selector.redoAlternate"] = "";
+    // Retire the old Shift-side-button UI-only route in favor of history configuration.
+    if (value.mouse?.shiftBackButton === "ui:undo") value = { ...value, mouse: { ...value.mouse, shiftBackButton: "history.configure" } };
+    if (value.mouse?.shiftForwardButton === "ui:redo") value = { ...value, mouse: { ...value.mouse, shiftForwardButton: "history.configure" } };
+    // Split the legacy default global S into contextual S and the new global binding.
+    // Preserve deliberate clears and avoid taking another saved binding.
+    if (!Object.hasOwn(savedBindings, "context.search") && savedBindings.searchUI === "S" &&
+        !Object.entries(savedBindings).some(([id, binding]) => id !== "searchUI" && binding === defaults.bindings.searchUI))
+      savedBindings.searchUI = defaults.bindings.searchUI;
     defaults.appearance.controller = loadController(value.appearance?.controller);
     defaults.appearance.font = normalizeFont(value.appearance?.font);
     if (typeof value.isolateFocus === "boolean") defaults.isolateFocus = value.isolateFocus;
@@ -163,13 +211,22 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     if (["pan", "rotate", "none"].includes(value.mouse?.rightEmpty ?? "")) defaults.mouse.rightEmpty = value.mouse!.rightEmpty;
     if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.subtreeModifier ?? "")) defaults.mouse.subtreeModifier = value.mouse!.subtreeModifier;
     for (const field of ["selectionModifier", "nestModifier"] as const) if (["shift", "alt", "ctrl", "none"].includes(value.mouse?.[field] ?? "")) defaults.mouse[field] = value.mouse![field];
-    for (const field of ["backButton", "forwardButton", "shiftBackButton", "shiftForwardButton"] as const) if (ACTIONS.some((a) => a.id === value.mouse?.[field])) defaults.mouse[field] = value.mouse![field];
+    for (const field of ["backButton", "forwardButton"] as const) if (ACTIONS.some((a) => a.id === value.mouse?.[field])) defaults.mouse[field] = value.mouse![field];
     for (const action of ACTIONS) if (typeof savedBindings?.[action.id] === "string" && savedBindings[action.id].length <= 32) defaults.bindings[action.id] = savedBindings[action.id];
     for (const [id, key] of Object.entries(savedBindings ?? {})) {
       if (!id.startsWith("button:") || id.length > 300 || typeof key !== "string" || key.length > 32) continue;
       defaults.bindings[id] = key;
       const label = value.buttonLabels?.[id];
       defaults.buttonLabels[id] = typeof label === "string" ? label.slice(0, 200) : id.slice(7);
+    }
+    // Shift is now the universal configuration modifier. Migrate displaced
+    // assignments to free non-Shift defaults, preserving deliberate clears.
+    for (const [id, binding] of Object.entries(defaults.bindings)) {
+      if (!binding.split("+").includes("Shift")) continue;
+      const metadata = ACTIONS.find(action => action.id === id);
+      const proposed = metadata?.defaultKey && !metadata.defaultKey.split("+").includes("Shift") ? metadata.defaultKey :
+        ["Ctrl", "Alt", ...binding.split("+").filter(part => !["Ctrl", "Alt", "Shift"].includes(part))].join("+");
+      defaults.bindings[id] = proposed && !keyConflict(defaults.bindings, id, proposed) ? proposed : "";
     }
     // New defaults must not take keys already assigned in an existing saved configuration.
     for (const action of ACTIONS) {
@@ -188,7 +245,12 @@ export const buttonShortcutId = (id: string) => ACTIONS.some(action => action.id
 export function functionShortcutBinding(functionId: string | undefined, bindings: Record<string, string> = {}): string {
   if (!functionId) return "";
   const id = functionId.startsWith("shortcut:") ? functionId.slice("shortcut:".length) : functionId;
-  return shortcutBinding(id.startsWith("button:") ? id : buttonShortcutId(id), bindings);
+  const binding = shortcutBinding(id.startsWith("button:") ? id : buttonShortcutId(id), bindings);
+  if (binding) return binding;
+  const source = ACTIONS.find(action => "configurationAction" in action && action.configurationAction === id);
+  const base = source && shortcutBinding(source.id, bindings);
+  if (!base) return "";
+  const parts = base.split("+"); parts.splice(parts.length - 1, 0, "Shift"); return parts.join("+");
 }
 export type ButtonShortcuts = {
   bindings: Record<string, string>;

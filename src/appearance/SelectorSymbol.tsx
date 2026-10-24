@@ -15,7 +15,6 @@ type Actions = {
   contour: () => void;
   pattern: () => void;
   region: (region: SelectionSide) => void;
-  previewRegion: (region: SelectionSide | null) => void;
 };
 /** One circle configures path, inside and outside independently of geometry mode. */
 export function SelectorSymbol({ configuration, actions, precision = false, patternBinding, include = true }: { include?: boolean; configuration: SelectorConfiguration; actions?: Actions; precision?: boolean; patternBinding?: string }) {
@@ -27,19 +26,15 @@ export function SelectorSymbol({ configuration, actions, precision = false, patt
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); action(); }
     },
   } : { "data-active": pressed };
-  const preview = (side: SelectionSide) => actions ? {
-    onPointerEnter: () => actions.previewRegion(side), onPointerLeave: () => actions.previewRegion(null),
-    onFocus: () => actions.previewRegion(side), onBlur: () => actions.previewRegion(null),
-  } : {};
   return <svg className={`visual-selector-symbol operation-${include ? "include" : "exclude"}`} viewBox="0 0 320 300"
     aria-label={actions ? "Contour, inside, outside and selection geometry" : undefined} aria-hidden={actions ? undefined : true}>
-    <g className="selector-outside" {...button("⏺ Outside frame", region === "outside" || region === "both", () => actions?.region("outside"))} {...preview("outside")}>
+    <g className="selector-outside" {...button("⏺ Outside frame", region === "outside" || region === "both", () => actions?.region("outside"))}>
       {actions && <title>Outside frame: include everything outside the boundary. Independent of In-frame and Frame.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="119" fill="none" strokeWidth="34" />}
       <circle className="selector-region-mark" cx="140" cy="136" r="119" fill="none" strokeWidth="30" />
       <circle className="selector-outside-edge" cx="140" cy="136" r="133" fill="none" strokeWidth="1.5" />
     </g>
-    <g className="selector-inside" {...button("◉ In-frame", region === "inside" || region === "both", () => actions?.region("inside"))} {...preview("inside")}>
+    <g className="selector-inside" {...button("◉ In-frame", region === "inside" || region === "both", () => actions?.region("inside"))}>
       {actions && <title>In-frame: include everything inside the boundary, excluding the frame itself.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="68" />}
       <circle className="selector-region-mark" cx="140" cy="136" r="65" />
@@ -54,6 +49,8 @@ export function SelectorSymbol({ configuration, actions, precision = false, patt
       {actions && <rect className="selector-hit" x="97" y="228" width="88" height="46" />}
       <text className="selector-mode-symbol" x="140" y="266" textAnchor="middle">{PATTERN_SYMBOLS[pattern]}</text>
     </g>
-    {precision && <circle className="selector-precision-dot" cx={SELECTOR_VIEW.x} cy={SELECTOR_VIEW.y} r="5" />}
+    {precision && <g className="selector-precision" aria-hidden="true">
+      <circle className="selector-precision-dot" cx={SELECTOR_VIEW.x} cy={SELECTOR_VIEW.y} r={actions ? 5 : 10} />
+    </g>}
   </svg>;
 }

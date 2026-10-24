@@ -15,7 +15,7 @@ export type InterfaceSession = {
   draft: History<Appearance> | null;
 };
 export const sameAppearance = (a: Appearance, b: Appearance) =>
-  JSON.stringify(a) === JSON.stringify(b);
+  a === b || JSON.stringify(a) === JSON.stringify(b);
 export const startSession = (state: InterfaceState): InterfaceSession => ({
   saved: startHistory(state),
   draft: null,
@@ -40,7 +40,7 @@ export function editSession(
   return {
     saved: recordHistory(
       session.saved,
-      { ...next, settings: { ...next.settings, appearance: saved.settings.appearance } },
+      { ...next, settings: next.settings.appearance === saved.settings.appearance ? next.settings : { ...next.settings, appearance: saved.settings.appearance } },
       group,
     ),
     draft,

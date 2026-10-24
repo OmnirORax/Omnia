@@ -1,10 +1,11 @@
+import { RangeControl } from "../ui/RangeControl";
+import { useCancelValueEdit } from "../ui/ActiveContext";
 import { useEffect, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
 import { propertyFor, type RegisteredTarget } from "./registry";
 import type { Value } from "./model";
-import { applyValue, included, blocked, connected } from "./model";
+import { applyValue, adjustmentTargets } from "./model";
 import { useAppearance } from "./Context";
-import { valueFor } from "./resolve";
 /** One editor implementation is shared by the controller, rows and contextual UI. */
 export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { previewTargets?: RegisteredTarget[] }) {
   const ctx = useAppearance();
@@ -16,17 +17,6 @@ export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { pr
     if ((!hover && !focus) || props.disabled || ctx?.safe || !targets.current?.length) return;
     return activate?.({ property: props.property, targets: targets.current });
   }, [hover, focus, props.disabled, ctx?.safe, props.property, scope, activate]);
-  useEffect(() => {
-    if (!hover && !focus) return;
-    const clear = () => { setHover(false); setFocus(false); };
-    const visibility = () => { if (document.hidden) clear(); };
-    const blur = () => {
-      // A native color picker may own the OS window while its input retains focus.
-      if (!(document.activeElement instanceof HTMLInputElement && document.activeElement.type === "color")) clear();
-    };
-    window.addEventListener("blur", blur); document.addEventListener("visibilitychange", visibility);
-    return () => { window.removeEventListener("blur", blur); document.removeEventListener("visibilitychange", visibility); };
-  }, [hover, focus]);
   return <span data-appearance-editor data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
     onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
     onFocusCapture={() => setFocus(true)} onBlurCapture={event => {
@@ -54,19 +44,16 @@ function PropertyInput({
 }) {
   const ctx = useAppearance();
   const p = propertyFor(property)!;
+  const beforeRange = useRef(value);
   const input = useRef<HTMLInputElement>(null),
     draft = useRef(value),
     editing = useRef(false),
     callbacks = useRef({ onCommit });
   callbacks.current = { onCommit };
   const [number, setNumber] = useState(Number(value));
-  const [numberText, setNumberText] = useState(String(value));
-  const typingNumber = useRef(false),
-    beforeNumber = useRef(value);
   useEffect(() => {
     draft.current = value;
     setNumber(Number(value));
-    if (!typingNumber.current) setNumberText(String(value));
   }, [value]);
   useEffect(() => {
     if (p.kind !== "number") return;
@@ -84,6 +71,13 @@ function PropertyInput({
       node.removeEventListener("blur", commit);
     };
   }, [p.kind]);
+  const cancelRange = () => {
+    if (!editing.current) return;
+    editing.current = false; draft.current = beforeRange.current;
+    setNumber(Number(beforeRange.current));
+    onPreview(beforeRange.current);
+  };
+  useCancelValueEdit(input, cancelRange, p.kind);
   if (p.kind === "color")
     return (
       <ColorInput
@@ -133,79 +127,16 @@ function PropertyInput({
       </div>
     );
   }
-  const finishNumber = () => {
-    if (!typingNumber.current) return;
-    typingNumber.current = false;
-    const n = numberText.trim() ? Number(numberText) : NaN;
-    const next = Number.isFinite(n)
-      ? Math.max(p.min!, Math.min(p.max!, n))
-      : Number(beforeNumber.current);
-    setNumber(next);
-    setNumberText(String(next));
-    onCommit(next);
-  };
-  return (
-    <span className="appearance-number">
-      <input
-        ref={input}
-        aria-label={label ?? p.label}
-        disabled={disabled}
-        type="range"
-        min={p.min}
-        max={p.max}
-        step={p.step}
-        value={number}
-        onChange={(e) => {
-          const next = Number(e.currentTarget.value);
-          editing.current = true;
-          draft.current = next;
-          setNumber(next);
-          setNumberText(String(next));
-          onPreview(next);
-        }}
-      />
-      <input
-        type="number"
-        className="appearance-precise"
-        aria-label={`${label ?? p.label} precise value`}
-        min={p.min}
-        max={p.max}
-        step={p.step}
-        disabled={disabled}
-        value={numberText}
-        onFocus={() => {
-          typingNumber.current = true;
-          beforeNumber.current = value;
-        }}
-        onChange={(event) => {
-          setNumberText(event.target.value);
-          const n = event.target.value.trim() ? Number(event.target.value) : NaN;
-          if (Number.isFinite(n)) {
-            const next = Math.max(p.min!, Math.min(p.max!, n));
-            setNumber(next);
-            onPreview(next);
-          }
-        }}
-        onBlur={finishNumber}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            event.stopPropagation();
-            event.currentTarget.blur();
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            typingNumber.current = false;
-            setNumber(Number(beforeNumber.current));
-            setNumberText(String(beforeNumber.current));
-            onPreview(beforeNumber.current);
-            event.currentTarget.blur();
-          }
-        }}
-      />
-    </span>
-  );
+  return <RangeControl
+    inputRef={input} aria-label={label ?? p.label} disabled={disabled}
+    min={p.min!} max={p.max!} step={p.step} value={number}
+    onValueChange={next => {
+      if (!editing.current) beforeRange.current = value;
+      editing.current = true; draft.current = next; setNumber(next); onPreview(next);
+    }}
+    onValueCancel={cancelRange}
+    onValueCommit={next => { editing.current = false; draft.current = next; onCommit(next); }}
+  />;
 }
 /** Also registered as normal UI functions, so shared adjusters can be moved or found. */
 export function AppearanceAdjustment({ property, target }: { property: string; target?: string }) {
@@ -213,14 +144,11 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
   if (!ctx) return null;
   const { state, targets } = ctx,
     active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
-  const chosen = targets.find(
-    (t) =>
-      t.properties?.includes(property) &&
-      (target ? t.id === target || t.id.startsWith(target + ".") : included(active, targets, t.id)),
-  );
+  const editable = adjustmentTargets(state, targets, property, target);
+  const chosen = editable[0];
   const current =
     (!target ? active.adjustments?.[property] : undefined) ??
-    (chosen ? valueFor(ctx.base, state, chosen, property) : propertyFor(property)!.initial);
+    (chosen ? ctx.read(chosen, property) : propertyFor(property)!.initial);
   const change = (v: Value, preview = false) => {
     const next = applyValue(state, targets, property, v, target);
     if (preview) ctx.preview(next);
@@ -230,10 +158,8 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
     <PropertyEditor
       property={property}
       label={`Adjust selected ${property}`}
-      previewTargets={targets.filter(t => t.properties?.includes(property) &&
-        (target ? t.id === target || t.id.startsWith(target + ".") : included(active, targets, t.id)) &&
-        !blocked(state, targets, t.id, property, target ?? "all") && connected(state, targets, t.id, property))}
-      disabled={!chosen}
+      previewTargets={editable}
+      disabled={ctx.safe || !chosen}
       value={current}
       onPreview={(v) => change(v, true)}
       onCommit={(v) => change(v)}

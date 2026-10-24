@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { useActiveLayer } from "./ActiveContext";
 
 const listeners = new Set<(event: PointerEvent) => void>();
 const outsidePress = (event: PointerEvent) => {
@@ -12,12 +13,15 @@ export function useOutsideDismiss(
   roots: () => (Element | null)[],
   dismiss: () => void,
 ) {
+  const layer = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => { layer.current = roots().findLast((root): root is HTMLElement => root instanceof HTMLElement && !root.matches("button")) ?? null; });
+  useActiveLayer(open, layer, dismiss);
   const current = useRef({ open, roots, dismiss });
   useLayoutEffect(() => { current.current = { open, roots, dismiss }; });
   useLayoutEffect(() => {
     const listener = (event: PointerEvent) => {
       const { open, roots, dismiss } = current.current;
-      if (!open) return;
+      if (!open || event.target instanceof Element && event.target.closest("[data-context-controller]")) return;
       const path = event.composedPath();
       if (!roots().some(root => root && (path.includes(root) || root.contains(event.target as Node))))
         dismiss();

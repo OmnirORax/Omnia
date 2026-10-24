@@ -1,3 +1,4 @@
+import { RangeControl } from "./ui/RangeControl";
 import { UISection } from "./ui/UISection";
 import { DEFAULT_SPHERE_DIAMETER } from "./graph/assets";
 import { useEffect, useRef, useState } from "react";
@@ -276,14 +277,13 @@ export function VisualControls({
       >
         <label>
           Visual size
-          <input
+          <RangeControl
             aria-label={`${label} visual size`}
-            type="range"
-            min="0.1"
-            max="5"
-            step="0.1"
+            min={0.1}
+            max={5}
+            step={0.1}
             value={value.size ?? (value.assetId || value.character ? 1.4 : label === "Node" ? sphereDiameter : 1)}
-            onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
+            onValueChange={size => onChange({ ...value, size })}
           />
         </label>
       </UIField>

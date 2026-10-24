@@ -1,3 +1,4 @@
+import { RangeControl } from "./ui/RangeControl";
 import { UISection } from "./ui/UISection";
 import type { Appearance, BinderPresentation } from "./graph/structural";
 import { ColorInput } from "./ui/ColorInput";
@@ -41,19 +42,18 @@ export function AppearanceControls({
       >
         <label>
           Opacity: {Math.round(current.opacity * 100)}%
-          <input
+          <RangeControl
             aria-label={`${label} opacity`}
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
+            min={0}
+            max={1}
+            step={0.05}
             value={current.opacity}
-            onChange={(event) => onChange({ ...current, glow: value?.glow, opacity: Number(event.target.value) })}
+            onValueChange={opacity => onChange({ ...current, glow: value?.glow, opacity })}
           />
         </label>
       </UIField>
       <UIField id={`appearance:${label}:glow`} label={`${label} glow`} category={label === "Binder" ? "Relationships" : "Nodes"}>
-        <label>Glow: {Math.round(current.glow * 100)}%<input aria-label={`${label} glow`} type="range" min="0" max="2" step="0.05" value={current.glow} onChange={event => onChange({ ...current, glow: Number(event.target.value) })} /></label>
+        <label>Glow: {Math.round(current.glow * 100)}%<RangeControl aria-label={`${label} glow`} min={0} max={2} step={0.05} value={current.glow} onValueChange={glow => onChange({ ...current, glow })} /></label>
       </UIField>
       <button onClick={() => onChange(undefined)}>Use theme defaults</button>
     </UISection>

@@ -1,3 +1,4 @@
+import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState } from "react";
 import { DockFillContext, useUI } from "./context";
 import { getContainer, updateContainer } from "./layout";
@@ -8,7 +9,6 @@ import { FrameSearch, nameFor } from "./FrameSearch";
 import { useIconTint } from "../appearance/Styles";
 import { ShortcutHint } from "./ShortcutHint";
 import { nameSymbol } from "./nameSymbols";
-import { FrameCloseButton } from "./FrameCloseButton";
 
 export function DockLayout({ container }: { container: string }) {
   const ui = useUI(), tree = getContainer(ui.layout, container)?.dockLayout;
@@ -35,10 +35,10 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
             const current = getContainer(layout, container)?.dockLayout;
             return current ? updateContainer(updateContainer(layout, key, { collapsed: false }), container, { dockLayout: updateDockNode(current, path, value => value.kind === "tabs" ? { ...value, active: key } : value) }) : layout;
           })}
-        ><DockTabLabel id={key} title={title} /><ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${key}`]} /></button><FrameCloseButton container={key} title={title} /></span>;
+        ><DockTabLabel id={key} title={title} /><ShortcutHint binding={ui.shortcutBindings?.[`button:@frame:${key}`]} /></button></span>;
       })}
     </div>
-    <FrameSearch container={node.active} title={nameFor(ui, node.active)} expand={() => {}} />
+    <FrameSearch container={node.active} title={nameFor(ui, node.active)} renderToggle={false} expand={() => {}} />
     </div>
     {node.keys.map(key => <div className="ui-dock-tab-body" role="tabpanel" data-ui-dock-content={key} hidden={key !== node.active} key={key} aria-label={nameFor(ui, key)}>
       {key.startsWith("window:")
@@ -88,11 +88,11 @@ function DockSplit({ node, path, container }: { node: Extract<DockNode, { kind: 
     const key = (event: KeyboardEvent) => { if (event.key === "Escape" && gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); cancel(); } };
     const cancelled = (event: PointerEvent) => { if (gesture.current?.pointer === event.pointerId) cancel(); };
     window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", up, true);
-    window.addEventListener("pointercancel", cancelled, true); window.addEventListener("keydown", key, true); window.addEventListener("blur", cancel);
+    window.addEventListener("pointercancel", cancelled, true); window.addEventListener("keydown", key, true); window.addEventListener(PAGE_INPUT_SUSPEND, cancel);
     return () => {
       gesture.current?.release(); gesture.current = null;
       window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true);
-      window.removeEventListener("pointercancel", cancelled, true); window.removeEventListener("keydown", key, true); window.removeEventListener("blur", cancel);
+      window.removeEventListener("pointercancel", cancelled, true); window.removeEventListener("keydown", key, true); window.removeEventListener(PAGE_INPUT_SUSPEND, cancel);
     };
   }, []);
   const ratio = draft ?? node.ratio, horizontal = node.axis === "horizontal";

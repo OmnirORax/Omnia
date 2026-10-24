@@ -1,3 +1,4 @@
+import { useFrameExpansion } from "../ui/frameExpansion";
 import { useState, type ReactNode } from "react";
 import { collapseResidentBranch, ownerOf } from "../ui/layout";
 import { EmbeddedGroup } from "../ui/EmbeddedGroup";
@@ -11,6 +12,7 @@ export function PropertyTree({
   selected,
   onSelect,
   available,
+  editable,
   renderEditor,
   scope = "master",
   extraProperties = [],
@@ -20,6 +22,7 @@ export function PropertyTree({
   selected: string;
   onSelect: (id: string) => void;
   available?: string[];
+  editable?: string[];
   renderEditor: (id: string) => ReactNode;
   scope?: string;
   extraProperties?: PropertyNode[];
@@ -35,9 +38,18 @@ export function PropertyTree({
     !available ||
     (!!node.property && available.includes(node.property)) ||
     (node.children ?? []).some(supported);
+  const canEdit = (node: PropertyNode): boolean =>
+    (!!node.property && (!available || available.includes(node.property)) && (!editable || editable.includes(node.property))) ||
+    (node.children ?? []).some(canEdit);
+  const allNodes = [...PROPERTY_TREE, ...extraProperties];
+  const expansionIds = (nodes: PropertyNode[]): string[] => nodes.flatMap(node => supported(node) && canEdit(node) ? [node.id, ...expansionIds(node.children ?? [])] : []);
+  useFrameExpansion(true, transient && expansionIds(allNodes).some(id => localOpen.has(id)), expanded => {
+    ctx?.locate(null, true);
+    if (transient) setLocalOpen(new Set(expanded ? expansionIds(allNodes) : []));
+  });
   const groupId = (id: string) => `property:${scope}:${id}`;
   const reveal = new Set<string>();
-  if (ctx?.location) {
+  if (ctx?.location?.property) {
     const path = propertyPath(ctx.location.property);
     let key: string | undefined = `window:${groupId(path.at(-1) ?? ctx.location.property)}`;
     const effective = {
@@ -77,16 +89,20 @@ export function PropertyTree({
     });
   };
   const row = (node: PropertyNode): ReactNode => {
-    if (!supported(node)) return null;
+    if (!supported(node) || !canEdit(node)) return null;
+    // A branch may exist only to expose supported descendants. Its own property
+    // then remains unavailable even though the branch can still be expanded.
+    const property = node.property && (!available || available.includes(node.property)) && (!editable || editable.includes(node.property)) ? node.property : undefined;
     const expanded = open(node),
-      children = (node.children ?? []).filter(supported),
-      p = node.property && propertyFor(node.property);
-    if (transient) return <div key={node.id} className={`property-node ${selected === node.property ? "is-selected" : ""}`}>
-      <button type="button" aria-expanded={expanded} aria-pressed={selected === node.property} onClick={event => {
-        if (node.property) onSelect(node.property);
+      children = (node.children ?? []).filter(child => supported(child) && canEdit(child)),
+      p = property && propertyFor(property),
+      isSelected = !!property && selected === property;
+    if (transient) return <div key={node.id} className={`property-node ${isSelected ? "is-selected" : ""}`}>
+      <button type="button" aria-expanded={expanded} aria-pressed={isSelected} onClick={event => {
+        if (property) onSelect(property);
         toggle(node, subtreeGesture(event.nativeEvent, ctx?.subtreeModifier ?? "shift"));
       }}>{node.label}</button>
-      {p && node.property && expanded && <div data-appearance-editor className="property-node-editor">{renderEditor(node.property)}</div>}
+      {p && property && expanded && <div data-appearance-editor className="property-node-editor">{renderEditor(property)}</div>}
       {expanded && children.length > 0 && <div className="property-node-children">{children.map(row)}</div>}
     </div>;
     return (
@@ -94,10 +110,10 @@ export function PropertyTree({
         key={node.id}
         id={groupId(node.id)}
         title={node.label}
-        tooltip={node.tooltip}
+        tooltip={node.property && !property ? "Expand for supported child properties." : node.tooltip}
         expanded={expanded}
-        selected={selected === node.property}
-        className={`property-node ${selected === node.property ? "is-selected" : ""}`}
+        selected={isSelected}
+        className={`property-node ${isSelected ? "is-selected" : ""}`}
         nodeId={node.id}
         onToggle={(event) => {
           if (event.detail > 1) return;
@@ -105,21 +121,21 @@ export function PropertyTree({
             toggle(node, true);
             return;
           }
-          if (node.property) onSelect(node.property);
+          if (property) onSelect(property);
           toggle(node);
         }}
       >
-        {(p || extraProperties.some(extra => extra.property === node.property)) && node.property && (
+        {(p || extraProperties.some(extra => extra.property === property)) && property && (
           <div
             data-appearance-editor className="property-node-editor"
             onFocusCapture={() => {
-              if (node.property && node.property !== selected) onSelect(node.property);
+              if (property !== selected) onSelect(property);
             }}
             onPointerDownCapture={() => {
-              if (node.property && node.property !== selected) onSelect(node.property);
+              if (property !== selected) onSelect(property);
             }}
           >
-            {renderEditor(node.property)}
+            {renderEditor(property)}
           </div>
         )}
         {children.length > 0 && <div className="property-node-children">{children.map(row)}</div>}

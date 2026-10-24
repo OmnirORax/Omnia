@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useUI } from "./context";
-import { ownerOf } from "./layout";
+import { containers, residentKey, type UILayout } from "./layout";
 import { stableUIHash } from "./identity";
 import { useAppearance } from "../appearance/Context";
 import { iconTintFor } from "../appearance/Styles";
@@ -116,6 +116,19 @@ export function NativeActions() {
   const appearance = useAppearance(), ink = useRef(appearance);
   ink.current = appearance;
   const entries = useRef(new Map<HTMLButtonElement, Entry>());
+  const ownership = useRef<{ layout: UILayout; owners: Set<string> } | null>(null);
+  const isOwned = (layout: UILayout, id: string) => {
+    if (ownership.current?.layout !== layout) ownership.current = {
+      layout, owners: new Set(containers(layout).flatMap(([, container]) => (container.members ?? []).map(residentKey))),
+    };
+    return ownership.current.owners.has(`function:${id}`);
+  };
+  const attribute = (element: HTMLElement, name: string, value: string) => {
+    if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+  };
+  const styleValue = (element: HTMLElement, name: string, value: string) => {
+    if (element.style.getPropertyValue(name) !== value) element.style.setProperty(name, value);
+  };
   const apply = (entry: Entry) => {
     const { element, id } = entry,
       { layout, shortcutBindings } = latest.current;
@@ -125,12 +138,13 @@ export function NativeActions() {
       element.dataset.uiNameFallback = element.title.split(/\s*·\s*|;\s*/)[0];
     // Unknown expandable buttons are not complete movable groups. Their declared
     // container must provide the payload; never hide/move a header on its own.
-    element.draggable = !element.hasAttribute("aria-expanded") && latest.current.canMove(`function:${id}`);
+    const draggable = !element.hasAttribute("aria-expanded") && latest.current.canMove(`function:${id}`);
+    if (element.draggable !== draggable) element.draggable = draggable;
     const renamed = layout.labels?.[`function:${id}`];
     if (renamed) {
-      element.dataset.uiCaption = renamed;
-      element.dataset.uiName = renamed;
-      element.setAttribute("aria-label", renamed);
+      attribute(element, "data-ui-caption", renamed);
+      attribute(element, "data-ui-name", renamed);
+      attribute(element, "aria-label", renamed);
     } else if (element.hasAttribute("data-ui-caption")) {
       delete element.dataset.uiCaption;
       if (entry.originalName === null) delete element.dataset.uiName; else element.dataset.uiName = entry.originalName;
@@ -138,31 +152,31 @@ export function NativeActions() {
     }
     const title = element.hasAttribute("data-ui-preserve-title") ? element.title : layout.hideNames ? renamed ?? entry.label : "";
     if (element.title !== title) element.title = title;
-    element.dataset.uiNativeTitle = "true";
+    attribute(element, "data-ui-native-title", "true");
     element.toggleAttribute(
       "data-ui-native-hidden",
-      !!ownerOf(layout, `function:${id}`) || (!!item && (!item.home || !!item.anchorId)),
+      isOwned(layout, id) || (!!item && (!item.home || !!item.anchorId)),
     );
     element.toggleAttribute("data-ui-native-icon", style?.mode === "icon");
     if (style?.mode === "icon") {
       if (!element.hasAttribute("aria-label") || element.dataset.uiNativeLabel) {
         if (element.getAttribute("aria-label") !== entry.label)
           element.setAttribute("aria-label", entry.label);
-        element.dataset.uiNativeLabel = "true";
+        attribute(element, "data-ui-native-label", "true");
       }
-      element.dataset.uiNativeGeometry = style.geometry;
-      element.style.setProperty("--ui-native-width", `${item?.size?.width ?? 44}px`);
-      element.style.setProperty("--ui-native-height", `${item?.size?.height ?? 44}px`);
+      attribute(element, "data-ui-native-geometry", style.geometry);
+      styleValue(element, "--ui-native-width", `${item?.size?.width ?? 44}px`);
+      styleValue(element, "--ui-native-height", `${item?.size?.height ?? 44}px`);
       const asset = layout.assets.find((asset) => asset.id === style.assetId);
       const tint = iconTintFor(ink.current, `function:${id}`);
-      element.style.setProperty("--ui-native-ink", tint.color ?? tint.glyphColor ?? "var(--omnium-accent,#233348)");
-      element.style.setProperty("--ui-native-filter", tint.style?.filter ?? "none");
-      element.style.setProperty("--ui-native-opacity", String(tint.style?.opacity ?? 1));
-      element.style.setProperty(
+      styleValue(element, "--ui-native-ink", tint.color ?? tint.glyphColor ?? "var(--omnium-accent,#233348)");
+      styleValue(element, "--ui-native-filter", tint.style?.filter ?? "none");
+      styleValue(element, "--ui-native-opacity", String(tint.style?.opacity ?? 1));
+      styleValue(element,
         "--ui-native-character",
         JSON.stringify(asset ? "" : style.character || "○"),
       );
-      element.style.setProperty(
+      styleValue(element,
         "--ui-native-image",
         asset ? `url(${JSON.stringify(asset.dataUrl)})` : "none",
       );
@@ -174,13 +188,13 @@ export function NativeActions() {
       }
     }
     const shortcut = shortcutBindings?.[`button:${id}`];
-    element.style.setProperty("--ui-caption-shortcut", JSON.stringify(shortcut ? ` (${shortcut})` : ""));
-    if (shortcut) element.dataset.uiNativeShortcut = shortcut;
+    styleValue(element, "--ui-caption-shortcut", JSON.stringify(shortcut ? ` (${shortcut})` : ""));
+    if (shortcut) attribute(element, "data-ui-native-shortcut", shortcut);
     else delete element.dataset.uiNativeShortcut;
   };
   useLayoutEffect(() => {
     entries.current.forEach(apply);
-  }, [ui.layout, ui.shortcutBindings, appearance]);
+  }, [ui.layout, ui.shortcutBindings, appearance?.read, appearance?.state, appearance?.targets, appearance?.safe]);
   useEffect(() => {
     let frame = 0;
     const dirty = new Set<HTMLButtonElement>();

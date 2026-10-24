@@ -24,6 +24,36 @@ should inherit shared behavior rather than arrive as a fixed, isolated widget.
 Stable identity, stored values and user customization must survive rearrangement,
 renaming, renderer changes and upgrades.
 
+## Core interface signature: Shift configures the function
+
+Shift plus any configured keyboard/mouse shortcut opens only that function's
+adaptive Master Controller configuration. Repeat the shortcut while holding Shift
+to cycle options; release Shift to execute once. Right-click an MC option applies
+and locks it as the future default; left-click resets to priority 1. Temporary
+choices leave the locked default intact. The base shortcut uses retained settings. This is a global
+interface contract for every future feature. Do not create per-feature Shift
+handlers. The shared router uses action metadata and discovered property couplings;
+specialized adapters provide only their real configuration/preview content. Read
+[the implementation contract](FUNCTION_CONFIGURATION.md) before adding an action.
+
+## Compactness
+
+Compactness is a standing product rule for every feature: fit the controls to
+content, minimize unused space, keep related controls on the same row, and put
+secondary instructions in tooltips. Avoid oversized defaults, redundant headings
+and forced full-width fields. Keep labels readable and controls usable. Contextual
+Master Controller projections expose only relevant controls; reuse its compact
+shell rather than opening the whole general panel. See AGENTS.md and the UI
+component contract before choosing a new layout.
+
+## Responsiveness
+
+The user requires features to preserve responsiveness. Flag an approach likely to
+cause significant lag before implementing it, explain the cost and offer practical
+workarounds. Account for selection, pointer movement, live editing and large scenes
+from the outset. Follow the performance rule in `AGENTS.md`; do not rely on the
+user repeatedly discovering regressions. Builds alone do not verify smoothness.
+
 ## Essential distinctions
 
 | Concept | Meaning and boundary |
@@ -53,6 +83,11 @@ target hierarchy or current selection. They answer different questions.
 | Shared appearance properties, editors, target capabilities, draft/recovery and local refinements | Implemented for registered visual targets | [Appearance controller](APPEARANCE_CONTROLLER.md) |
 | Symbolic visual selector and accepted-part appearance editing | Implemented for registered UI parts; not arbitrary pixel understanding | [Visual selection](VISUAL_SELECTION.md) |
 | Universal function/property registry, compatible automatic coupling, generated categories and target inclusion after coupling | Implemented shared core; migration underway (visual targets, mouse trail and placement settings) | [Shared properties and coupling](SHARED_PROPERTIES.md) |
+
+AI music/wallpaper generation is planned, not implemented. Before working on
+generation services, playback or reactive wallpapers, read
+[AI/media handoff](AI_MEDIA_HANDOFF.md) for current asset/backend limitations,
+shared integration paths and unresolved scope.
 
 Automatic native-button discovery is not automatic property detection. An action
 being searchable or movable does not establish its property capabilities. The
@@ -180,10 +215,12 @@ inspector includes a live sample using the actual renderer. See SHARED_PROPERTIE
 ## Visual selector and feedback
 
 The stationary meta-selector configures the tool; the compact aiming symbol is
-pointer-transparent. MB3 is the current default toggle between these states.
+pointer-transparent. Q is the current default toggle between these states.
 The circle controls 🞅 Frame, ◉ In-frame and ⏺ Outside frame independently;
 it never blocks the geometry mode. Each includes its region; In-frame leaves the
-frame itself out. One LMB action toggles membership; RMB opens editing. With all
+frame itself out. One LMB action toggles membership; RMB removes the pointed selected pattern or
+clears all if its target is unselected. Shift + the selector shortcut (Shift+Q)
+opens selected-property editing. With all
 three off, a click establishes a neutral frame, then pattern detection follows
 the pointer inside or outside it without changing inclusion. Previews are automatic
 before a boundary/selection; then hold Ctrl: additions green, removal preview hides
@@ -205,7 +242,8 @@ feedback changes only the background and shares the existing scene registration.
 Accepted selection, hover preview and property edits remain separate. Editing
 uses the controller's edit action, native keyboard context gesture or Master
 controller. Focusing its selected-properties controls pauses picking and holds the
-last feedback context while its pulse and live property values keep updating. Complete text hosts support typography; partial text
+last feedback context. Selection / Preview hides marks only through its explicit
+toggle, without deselecting; entering an editor leaves the view alone. Complete text hosts support typography; partial text
 runs keep exact-node paint/effect scope and do not advertise unsupported fonts.
 Effect plans cache local ownership/styles and skip inactive paint-only edits.
 Current limitations include arbitrary negative-space patterns, general
@@ -296,10 +334,110 @@ short entry rules, durable decisions and appropriate automated checks work toget
 Recent integration: shared property controls have renderer-only activity previews
 for inactive effect/gradient parameters and declared inactive consumers. Never
 send the activity-projected controller to a commit/editor path. Frame × now hides
-custom frames intact; recover saved frames/panels through UI library → Hidden UI.
+custom frames intact. Normal launchers reopen closed panels directly through
+`reopenContainer`; custom frames also appear under UI library → Closed frames
+and panels. Closing and minimizing are separate.
 See the shared property and UI component contracts for these paths.
 
-Selector feedback now retains its last real target/hover context while Master
-controller or moved shared property editors are used. Picking pauses; paint values
-and time stay live. This is transient and excludes physical mouse/trail input and
-native browser hover. Resume/clear/dismissal releases it; see VISUAL_SELECTION.md.
+Selector hover previews remain enabled while aiming; automatic editor-entry
+feedback holds and Ctrl-preview gating are removed.
+`selector.lock` (Ctrl+MB3 by default) explicitly parks MS and restores the normal
+cursor while retaining its pointed preview; pressing again resumes MS. Selection / Preview and accepted membership
+remain independent. See VISUAL_SELECTION.md.
+
+Performance integration: mounted appearance consumers share context `read` /
+`renderRead`; do not build value resolvers per row/icon. Paint-only setters retain
+instance/policy structure so exact text ranges and overlay bounds survive picker
+samples. Target metadata tracks actual captions/ownership, not changing React
+elements. See APPEARANCE_CONTROLLER.md for the shared invalidation contract.
+
+Selector BG detection is off by default; enabling BG permits owned backgrounds in
+new picks without rewriting accepted membership. Current pattern feedback
+uses layout-revision measurement snapshots and incremental visible-host pulses.
+Accepted contours have hairline moving seams; drawing guides remain visible. Opening
+editors never automatically hides selection. See VISUAL_SELECTION.md.
+
+Selector sparkles are removed. Both pending and accepted contour/geometry seams
+are hairlines. Selection / Preview and BG now have visible labels below the
+stationary circle and live shortcut hints; the commands remain unassigned by
+default. Selector feedback → Pulse uses discovered shared inputs for speed,
+intensity/depth and on/off, saved through existing Controller.values/Apply/export.
+
+Selected items temporarily become Master Controller's exclusive editing scope;
+Visual hierarchy switches refine that scope and Properties hosts the shared
+setters. Preserve the saved global targeting set when selecting/deselecting.
+Shared frame headers support descendant expand/collapse through the existing
+ownership graph, with local expansion adapters for transient trees; do not add
+per-feature bulk controls or per-render graph scans.
+
+Pointed pattern selection defaults to the registered subtype in every visual
+hierarchy, not the broad text/background/etc. role. Parent selection is explicit
+in Master Controller and retains the active work area. Keep subtype identity in
+selection constraint/cache keys; do not classify by current color/font values.
+Pending Master Controller minimize/close queues the requested action and blinks
+the existing Apply / Discard / Cancel choices in place, without a popup/focus jump.
+Apply/Discard completes the queued action; Cancel keeps the draft and controller open.
+
+## Active context actions
+
+Frame tools live once in Master Controller → Active context, with cataloged
+shortcuts. `ActiveContext.tsx` tracks clicks/focus in a transient context stack;
+Esc exits one field/popup/frame level. Controller clicks preserve the target.
+Use shared frame actions, `useCancelValueEdit` for uncommitted drafts and
+`useActiveLayer` for popup levels. Do not restore duplicated header tools or
+track context through pointer polling. See SHORTCUTS.md for bindings/migration.
+
+## Cross-system undo/redo and contextual projections
+
+`ui/actionHistory.ts` is the app's chronological history router. Omnium and
+interface state owners register read/write adapters and record actual commits,
+not previews. Interface state retains draft/saved lifecycle but does not retain
+a second active undo stack when the journal is supplied. Categories and affected
+frame keys allow filtering; overlapping patch conflicts stop safely. New committed
+state owners must register with this router rather than install private undo
+priority rules. UI/graph/appearance remain distinct data owners.
+
+Master Controller is also the universal contextual menu: explicit opening gives
+general categories; contextual invocation projects only relevant controls. History
+is available in both through the same controls. Reuse the transient
+`ContextualMasterController` shell for future narrow action projections. Hold Shift + base Undo/Redo mouse
+trigger to configure/cycle; release Shift to execute the choice. See SHORTCUTS.md and UI_LAYOUT.md.
+
+
+Shared numeric sliders use `ui/RangeControl.tsx`: horizontal spectrum, endpoint bars,
+nudge arrows and a current-value dot. Left-click bars selects limits; right-click
+bars edits limits, dot types the value, arrows edits the click jump. Native drag/
+keyboard semantics remain intact. Existing property, appearance and visual-size
+sliders and history steps share this widget. See UI_COMPONENT_CONTRACT.md.
+
+After selection, entering MC/shared property editors automatically ends MS aiming
+and restores the normal cursor while preserving accepted selection and feedback.
+Resume selection explicitly with its shortcut. Do not interrupt an unfinished
+geometry drag or implement per-frame editor checks. See VISUAL_SELECTION.md.
+
+
+MC Properties now has shared copy/paste actions: snapshots contain resolved common
+values only; paste filters by destination capability and policy through existing
+setters. Clipboard values are transient and independent of their source.
+S uses progressive scope (nearest frame → parents → All UI); Shift+S configures it
+through the shared gesture, then release to focus search and type. Clicked global
+search destinations retain their reveal after pointer exit. Sidebar float arrows
+live once in MC Active context. See the relevant subsystem contracts.
+
+Copy opens a contextual MC property checklist (All/None, checked channels only).
+Paste preserves unchecked companion channels. Shared programmatic command dispatch
+uses `invokeCatalogAction`; catalog actions never depend on a separate button
+binding/hidden runner. This is required for S/Shift+S global search and every new
+configured command. See FUNCTION_CONFIGURATION.md and APPEARANCE_CONTROLLER.md.
+
+Keyboard feature conflicts use shared active-scope priority (MS before UI context
+before global), including Shift configuration. Escape clears active MS/selection
+before minimizing a window. Reuse preferredFeatureKey; do not add private Escape
+branches or assume capture-listener mount order. See SHORTCUTS.md.
+
+
+Selector's Shift configuration now delegates to its existing contextual edit
+action through declarative `configurationAction` metadata. RMB is removal-only,
+respecting the current pattern/geometry, with empty/unselected hits clearing all.
+Selection removal still uses the transient timeline, never UI/appearance history.
+See VISUAL_SELECTION.md and FUNCTION_CONFIGURATION.md for migration and routing.

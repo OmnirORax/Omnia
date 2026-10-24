@@ -1,19 +1,20 @@
+import { SelectionPreviewToggle } from "./VisualSelector";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppearance } from "./Context";
 import { PropertyEditor } from "./Controls";
 import { PropertyTree } from "./PropertyTree";
-import { createValueResolver } from "./resolve";
 import { applySelectedValue, selectedPartPolicy, resetSelectedParts, selectedPartTarget, type SelectedPart } from "./selectionCoupling";
 import type { Value } from "./model";
 
 /** The main controller and contextual popup share this exact selected-part editor. */
-export function SelectedProperties({ parts, scope = "selection" }: { parts: SelectedPart[]; scope?: string }) {
+export function SelectedProperties({ parts, scope = "selection", selectedProperty, onSelectProperty }: { parts: SelectedPart[]; scope?: string; selectedProperty?: string; onSelectProperty?: (id: string) => void }) {
   const ctx = useAppearance()!;
   const preview = useRef(ctx.preview); preview.current = ctx.preview;
   useEffect(() => () => preview.current(null), []);
-  const [property, setProperty] = useState("color");
+  const [localProperty, setProperty] = useState("color");
+  const property = selectedProperty ?? localProperty;
   const editablePart = useMemo(() => selectedPartPolicy(ctx.state), [ctx.state]);
-  const read = useMemo(() => createValueResolver(ctx.base, ctx.state, ctx.targets), [ctx.base, ctx.state, ctx.targets]);
+  const read = ctx.read;
   const targets = parts.map(selectedPartTarget);
   const available = [...new Set(targets.flatMap(target => target.properties ?? []))];
   const chosenProperty = available.includes(property) ? property : available[0];
@@ -22,7 +23,8 @@ export function SelectedProperties({ parts, scope = "selection" }: { parts: Sele
     if (temporary) ctx.preview(next); else ctx.commit(next);
   };
   return chosenProperty ? <PropertyTree transient scope={scope} selected={chosenProperty} available={available}
-      onSelect={id => { ctx.preview(null); setProperty(id); }} renderEditor={id => {
+      editable={available.filter(id => !ctx.safe && parts.some(part => editablePart(part, id)))}
+      onSelect={id => { ctx.preview(null); setProperty(id); onSelectProperty?.(id); }} renderEditor={id => {
         const applicable = targets.filter(target => target.properties?.includes(id));
         const editable = parts.filter(part => editablePart(part, id));
         const values = applicable.map(target => read(target, id));
@@ -56,6 +58,7 @@ export function SelectionController({ parts, position, onClose, onResume }: {
     style={{ left: Math.max(8, Math.min(position.x, innerWidth - 440)), top, maxHeight: Math.max(0, innerHeight - top - 8) }}
     onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}>
     <header><strong>Selected appearance</strong><button type="button" aria-label="Close selected appearance" onClick={onClose}>×</button></header>
+    <SelectionPreviewToggle />
     <p>{parts.length} selected visual parts</p>
     <SelectedProperties parts={parts} />
     <footer><button type="button" onClick={() => {

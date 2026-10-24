@@ -26,6 +26,16 @@ Version-3 `omnium-ui-template` files contain `layout` and optional normalized wo
 
 `src/ui/default-template.json` is the website default for browsers without a saved UI layout. Replace it with the user's exported version-3 template when they provide one; optional settings become defaults only when the browser has no saved settings. Existing browser customizations take precedence. `Reset UI arrangement` returns to the original empty arrangement and does not delete graph data or change keybindings.
 
-`useInterfaceState` keeps layout and workspace settings in a separate 50-entry session history. Completed drags are atomic; consecutive text input is coalesced, and importing a template restores layout/settings together. Undoing then editing clears redo. Shift+MB4/MB5 default to UI undo/redo; ordinary MB4/MB5 retain graph actions. All four mouse assignments can be changed in Shortcuts. Neither history survives reload; layout/settings themselves autosave. Hover previews never enter history. A source-bound ephemeral editor must still be opened from its normal action if its context is absent; reopening restores its saved docking configuration.
+`useInterfaceState` owns layout/settings and appearance draft lifecycle. The app's
+shared action journal (`ui/actionHistory.ts`) owns chronological undo/redo across
+Omnium, UI arrangement, appearance and settings, retaining at most 100 actions.
+Completed drags are atomic and typing coalesces. MB4/MB5 execute using configured
+scope/steps; hold Shift with either base trigger to open contextual history controls,
+repeat to cycle and release Shift to execute the chosen option. Right-click an
+option applies and locks its default; left-click resets to priority 1. Legacy Shift-side-button UI-history
+assignments migrate to configuration. Explicit category actions remain available.
+History is transient; committed layout/settings autosave. Scope/step preferences
+persist separately without adding undo entries. Hover previews never enter history.
+A source-bound ephemeral editor still requires its normal source context.
 
 Unknown function IDs are retained and shown as unavailable rather than silently discarded. Add future global controls to the function registry and render them with `FunctionControl`; entity-bound editing remains inside its owning panel/menu. New node-option categories still require developer changes. None of this changes Omnic semantics or the version-2 structural schema.

@@ -2,6 +2,13 @@
 
 Visual-hierarchy targeting uses a binary inherited edit mask: parents set the subtree baseline, and later child toggles create exceptions. Toggling a parent in either direction clears prior exceptions in that subtree. Excluding a target does not change its rendered appearance; the existing plug separately bypasses/restores saved styling. Current editors use `toggleTarget`; old isolate selections remain readable and become equivalent inherited masks on the first binary edit. The targeting/power controls use square hit areas and symmetric SVG geometry, with no isolate state in the UI.
 
+Compactness applies to every new or changed feature. Prefer content-sized surfaces,
+tight consistent spacing and compact rows of related controls. Avoid unused space,
+redundant headings, permanent explanatory paragraphs and arbitrary large minimum
+sizes. Use accessible tooltips for secondary instructions. Preserve readable text,
+keyboard navigation and usable pointer targets. Contextual projections must fit
+only their relevant controls, with category-specific rows appearing when needed.
+
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
@@ -106,24 +113,200 @@ Mouse command remains rebindable; a separate mouse-only UI path is replaced by
 inventory access. Ordinary input controls and selected-property editors stay shared.
 
 
-## Hiding and restoration
+## Closing and reopening
 
-The frame × hides a custom frame intact through `closeContainer`, preserving its
-members, values and customization. It must not delete the frame or release all its
-contents. Ordinary panels preserve their floating/home preference when closed.
-UI library has a nonclosable **Hidden UI** recovery section for saved frames and
-windows; **Restore hidden UI** in the workspace context menu opens it. Restoration
-reveals enclosing UI and activates the relevant tab without a global reset. Hidden
-workspace-edge groups reserve no space and do not accept new docking. If their
-former edge has since been occupied, restoration floats the retained frame rather
-than overlapping two edge allocations. Transient dialogs continue to reopen through
-their normal actions. UI history owns hide/restore operations; empty hidden dock
-groups remain recoverable until explicitly changed.
+The frame × closes its content through the normal window/panel close action. It
+is separate from collapse/minimize and never deletes members or customizations.
+Normal open buttons use `reopenContainer`: clear saved closed/collapsed state,
+reveal containing frames, activate its dock tab and enable the corresponding
+window visibility flag. This applies to Master controller, settings, shortcuts,
+sidebar panels and the UI library, including old saved closed flags. Explicitly
+mounting a caller-controlled FloatingWindow also clears stale closed state.
+
+Custom frames without a dedicated launcher are available under UI library →
+**Closed frames and panels**, with ordinary **Open** actions. No separate unhide
+step is required before a normal panel launcher can work. Closed workspace-edge
+groups reserve no space or docking targets; reopening floats them if their former
+edge is occupied. UI history owns closing/reopening. Stable recovery control IDs
+are retained for saved customization and bindings.
 
 
 Shared property editors and Master controller roots carry `data-appearance-editor`.
-The visual selector treats those as tool input, preserves the last real feedback
-context on entry, and pauses picking without stopping its animation or live values.
-Moved property controls carry the same marker. Never freeze the physical pointer,
-create fake native events, persist hover state or reuse held context after clear/
-cancel/resume/dismissal. See VISUAL_SELECTION.md for the transient hold lifecycle.
+The visual selector treats those as tool input. Selection / Preview controls
+feedback independently of membership. MS locking is explicit and rebindable:
+Ctrl+MB3 parks its symbol, restores normal cursor input, and toggles back to MS.
+Do not automatically retain hover/event context when entering editors. Accepted
+selection and normal property-input previews remain live.
+
+
+Mounted appearance consumers use the shared context `read`/`renderRead` instead of
+building a resolver per icon/control. Value-only previews preserve target structure
+and policy identity; new controls must not trigger glyph discovery or selector
+geometry rebuilds on every input sample. See APPEARANCE_CONTROLLER.md.
+
+
+The selector's BG detection toggle defaults off and affects new picks/previews,
+not already accepted membership. It uses the common action catalog. Retargeting
+shares catalog-scoped geometry, viewport-only paint and cached continuous pulse paint. Contour and geometry seams are one device pixel, moving in their own unfiltered
+layer for drawing guides and accepted selection. Hover previews remain available while aiming; explicit lock retains the pointed preview.
+
+Selector feedback sparkles are removed. The MS center dot is saturated cyan without a halo or ring,
+without moving its hotspot. Labeled Selection / Preview and BG controls sit below
+the clamped circle; their titles show live shortcut bindings. Pulse speed/depth
+and enablement use the discovered shared Pulse consumer, normal serialization and
+property editors; unsupported parent properties never render an editor merely
+because supported children are present.
+
+Selector background feedback uses the shared `selectorSurface.ts` source-over
+strength and display-sRGB blend in DOM/SVG/scene adapters. Native inset tint stays
+below content; cached transparency compensation prevents full-strength tint from
+stacking through nested selected surfaces or transparent windows over the scene.
+Preserve underlying paint and configured pulse values; do not add independent
+renderer-specific strength multipliers or per-frame geometry queries.
+
+Workspace settings exposes the existing Master controller action even when its
+normal resident was moved or closed; it invokes the shared function, not another
+controller. Global search indexes window/frame destinations independently of their
+mounted contents. Direct label matches rank before ancestor-heading matches and
+before the first-100 limit. Choosing a window keeps its reveal path instead of
+clicking its first control (which could collapse it).
+
+Property hierarchy stems use a 2px, 65%-accent line with short child connectors.
+The shared PropertyTree receives editability separately from supported properties.
+Unavailable setters are omitted, including their headings and editors. Branches
+with editable descendants remain as navigation, with no unavailable parent editor.
+Supported descendants/operators retain their normal paint.
+Native and canvas text effects omit disabled controls so animation cannot make an
+unavailable setter appear active.
+
+Browser chrome is outside application input. `pageInputBoundary.ts`, installed
+before mounting React, blocks external blur/focusout from reaching UI action and
+commit handlers. Never implement semantic actions on window blur. Held-input
+owners use `PAGE_INPUT_SUSPEND` only to release unfinished presses/drags; it must
+not clear selections, close editors, commit drafts or create history. Visibility
+listeners may pause rendering clocks without changing application state.
+
+`FloatingWindow.footer` provides a compact strip of shared actions attached
+below the window, outside its scroll body, with the same scope/theme. An `onClose` returning false vetoes closing
+before releasing dock ownership. `onMinimize` can similarly veto collapsing
+until pending work is resolved. `FunctionControl mirror` renders an existing
+action contextually with its shared styling, without relocating its resident or
+creating another registry/action definition.
+
+Master Controller → Active context exposes the shared descendant expansion action.
+Repeated close/search/descendant header and dock-tab tools are no longer rendered.
+At click time it follows actual saved/inline ownership, excludes the owning frame
+from collapse, and collapses all descendants if any are open; otherwise expands
+all. The parent stays expanded. One indexed ownership traversal and one batched
+UI update preserve a single undo entry; never scan the graph per frame render or
+pointer move. Closed flags, docking, placement, pins and appearance values remain
+unchanged. Native inline homes follow code regrouping only while not explicitly
+docked/detached. Local expansion adapters in `frameExpansion.tsx` let transient
+property trees and hierarchy chevrons participate without persisting their state.
+Legacy frame-control configuration remains readable for compatibility; new commands
+use the shared action catalog, with no private hotkeys or second expansion store.
+
+An expanded frame's visible interior is a drop destination even where its resident
+allocation is smaller than the window. `dropSurface.ts` supplies the shared
+single/multi-item rule: use the containing frame's live zone, reject incompatible
+interiors without detaching, and keep sidebar-strip/collapsed-handle rules intact.
+Explicit pointed destinations take priority over the source owner's proximity.
+The final release refreshes only pointed destination/ancestor geometry and their
+slots, so scrolling/reflow between movement and release cannot use stale origins.
+
+`EmbeddedGroup`/`UISection` accept a transient `reveal` projection for inspection:
+it shows a saved-closed group without changing its persisted closed flag. Clearing
+the inspection restores ordinary visibility. Keep this separate from reopening
+a resident through an explicit user layout action.
+
+Window merge/tab/split guides initially activate only when a dragged frame header
+points at another frame header or tab strip. Body centers, body edges and native
+strip borders do not activate merging. Once opened, the existing guide cross and
+its travel gaps remain usable for choosing any side. Workspace-edge docking is a
+separate explicit target. Ordinary interior drops still use resident placement.
+
+## Universal adaptive function configuration
+
+Shift plus any configured shortcut opens only that function's compact Master
+Controller configuration. Repeated presses cycle choices; releasing Shift executes
+once. Right-click an option applies and locks its future default; left-click
+resets to priority 1. Temporary choices do not overwrite locked defaults. This applies to every new
+feature. Use the single `ShortcutConfiguration` router and existing action/input
+metadata, not per-feature modifier handlers. Primary clicks inside configuration
+remain ordinary controls while Shift is held. Read FUNCTION_CONFIGURATION.md.
+
+Resize/restore is a shared active-frame action (W). Its viewport projection retains
+the actual resident, ownership and original geometry; undo/redo uses UI history.
+Hovering detected resize levels is only a preview outline. Enlarged frames must
+be restored before ordinary dragging/resizing, so dock ownership cannot change
+beneath a projection. Pinned residents and ancestors reject the action.
+
+
+## Shared spectrum slider
+
+`ui/RangeControl.tsx` is the shared numeric slider, including PropertyEditor,
+legacy appearance/visual-size controls and history steps. Use it for new slider
+features rather than introducing another implementation. The horizontal spectrum
+shows maximum on the right, minimum on the left and the current value beside the
+dot. Press anywhere along the track to select and drag the value, including
+outside the track after capture. Track bounds are measured once per gesture;
+release commits once, while Escape/capture loss cancels the draft. Left-click an endpoint
+bar selects that limit. Left-click an arrow nudges by the configured jump.
+Right-click the dot types the value; right-click a bar types its bound; right-click
+either arrow types their shared jump size. Enter/blur accepts, Escape cancels.
+Native range focus and keyboard support remain; no per-pointer layout scans.
+
+The component retains existing input preview/commit/cancel semantics. Property
+validation limits are authoritative. Owners can supply real min/max setters
+(history does); otherwise endpoint edits narrow a transient working interval
+inside the allowed bounds. Working intervals and jump size are widget-local and
+reset on remount; they are not duplicated property definitions or saved defaults.
+Widget internals are one `data-ui-control`, not separately movable/discoverable
+commands. Spectrum appearance is coupled under Visual hierarchy → Sliders.
+
+
+Spectrum glyphs use a compact 44px axis with 18px bars in 22px hit targets, plus content-sized
+inline min/max labels. The current value sits directly above the dot. The outer
+control reserves the label row plus the full 22px interaction row in normal flow;
+never force its total height to the rail height (global border-box sizing would
+make the slider overflow onto its following sibling). The rail,
+rail uses a soft filled/unfilled split, compact rounded chevrons and a softly lit dot.
+The shared spectrum target uses color ink classified as an indicator for MS; its
+transparent native range is only an input surface, not a separate visible target. Arrow tips meet
+the end bars. Internal glyph buttons have no button background/border/shadow/filter;
+shared slider color still applies through the existing spectrum target. These are
+one compound widget, not independent movable button surfaces.
+Native sidebar ↗ float buttons are removed. MC Active context → Float active frame
+uses the shared floatResident transaction, including the native panel's floating
+projection flag. The live contents, ownership constraints and pins remain intact.
+
+
+A registered active popup layer takes precedence over a `data-ui-resident-root`
+on the same element. Resident IDs support search/ownership, but must not erase a
+popup's close handler from the active stack. Shared contextStackFromScopes builds
+field → popup → parent-frame Escape order, including portalled search dialogs.
+Do not register such popups as ordinary frames without close/minimize adapters.
+
+
+Search indexes visual hierarchy destinations once, rather than every target ×
+property combination. Direct name/shortcut matches take precedence over results
+that match only an ancestor breadcrumb. A category query (for example `slider`)
+opens that branch without forcing a property; a contextual query (`slider color`)
+materializes only the matching applicable setters. Bare property queries use the
+shared property command. Normalize the catalog once per snapshot; hover must not
+rebuild or re-sort it. Global search renders at most 24 results and invites a more
+specific query beyond that. Hover revelation waits 180ms and cancels on exit, so
+crossing result rows does not repeatedly mount/reveal the controller. Clicking or
+keyboard navigation remains immediate. Frame searches do not rescan DOM per keystroke.
+
+
+Ordinary UI commits preserve unchanged settings/layout references. Validate and
+normalize a branch only when that branch changes; a frame toggle must not rebuild
+appearance settings and invalidate every renderer. Session storage preserves the
+original settings reference for layout-only edits. NativeActions depends on actual
+appearance inputs rather than the context wrapper, indexes explicit ownership once
+per layout snapshot and skips unchanged DOM attributes/styles. UIWorkspace shares
+one default-window projection per render/input snapshot for permission checks;
+never clone all window defaults once per button. These paths run before paint and
+must stay bounded even with many discovered controls. Graph node single-click versus
+double-click arbitration remains a separate 320ms interaction, unchanged here.

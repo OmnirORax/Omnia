@@ -63,10 +63,10 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 
 ## Visual selector integration
 
-The selector command group includes configuration/aiming (MB3), geometry modes
-(E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), edit
-(RMB/MB2), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
-unassigned commands for contour, inside/outside, releasing geometry, closing paths,
+The selector command group includes configuration/aiming (Q), geometry modes
+(E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), deselect pointed pattern or all (RMB/MB2), selected-property editing
+(Shift + selector shortcut, default Shift+Q), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
+unassigned commands for BG detection, Selection / Preview, contour, inside/outside, releasing geometry, closing paths,
 finite bounds, color stops, Self inventory and logical Mouse selection. The separate exclude
 command is retired. Exact untouched older pointer bundles migrate to these
 single-toggle defaults; custom bindings and later clears remain intact.
@@ -104,3 +104,105 @@ The normal model suite checks catalog/default integration, saved-key precedence,
 scope conflicts, cleared/rebound mouse and keyboard matching, future-owner runtime
 availability/cleanup and the private-hotkey architecture rule. Browser interaction
 testing remains user-driven unless requested.
+
+
+The stationary selector exposes labeled Selection / Preview and BG buttons below
+the circle. Both titles show their live binding or Unassigned. In Shortcuts →
+Visual selector, search **Toggle Selection / Preview** or **Toggle BG / empty space
+detection**. Both remain unassigned by default; saved bindings/explicit clears are
+preserved. BG's label includes both aliases so searching "space" finds it.
+
+MS cursor locking uses `selector.lock` (Ctrl+MB3 by default). It is a normal
+rebindable catalog action: park MS / use normal cursor, then resume MS. The former
+Hold Ctrl selection-preview gesture is removed; Selection / Preview remains an
+independent feedback visibility toggle.
+
+## Active UI context
+
+The shared catalog declares Esc (one level back), S (search active frame), X
+(close), M (minimize), D (toggle descendants), and Ctrl+Alt+S (global UI search).
+Master Controller → Active context exposes the same commands as clickable buttons.
+Click/focus activates a field, popup or frame; hovering does not. Esc cancels an
+uncommitted field draft first, then exits its popup/parent, then minimizes the
+frame. Letter shortcuts do not intercept typing. World-axis X remains available
+when no UI frame is active. Legacy default global S migrates to Ctrl+Alt+S only if
+that binding is free; custom bindings and explicit clears survive.
+
+The controller preserves the previous target while its action buttons are used.
+The transient stack in `ActiveContext.tsx` is not saved UI/appearance/history.
+Shared draft editors use `useCancelValueEdit`; popup adapters use `useActiveLayer`
+(or `useOutsideDismiss`). Frame adapters can veto close/minimize by returning
+false, preserving pending appearance Apply/Discard/Cancel behavior. Protected
+hold-Esc recovery stays independent. No website shortcut closes browser tabs.
+
+## Shared action history
+
+MB4/MB5 default to Undo/Redo using the retained settings. Hold Shift and press
+either configured base undo/redo mouse trigger to open Master Controller's compact
+history projection; repeat the trigger to cycle scopes and release Shift to execute
+the chosen history operation once.
+Wheel cycles: most recent action (default), active context, selective categories.
+Over category controls it cycles categories; checkboxes permit multiple categories.
+Over the step spectrum it changes the current count. Left-click its bars selects
+min/max; right-click the bars edits those limits. Right-click the dot types a count;
+left-click arrows nudges, right-click arrows edits their jump size. The hard maximum
+is 10; chosen bounds stay fixed until explicitly edited.
+Ctrl+Z / Ctrl+Y route through the same general history commands; the visual
+selector still has its explicit transient selection timeline and scoped shortcuts.
+
+The obsolete Shift-side-button UI-only defaults migrate to `history.configure`.
+Legacy explicit UI undo/redo commands remain category-filtered commands.
+`actionHistory.ts` records per-owner patches, categories and affected contexts.
+Global undo uses commit order, not whichever subsystem has an open draft. Selective
+undo preserves unrelated paths and refuses overlapping newer changes with feedback.
+Arrays are atomic patches, so some dependent edits must be undone in reverse order.
+After undo, a new edit clears the redo branch. A multi-step request stops at the
+first unavailable/conflicting action. No pointer-move scans or persisted snapshots.
+
+## Universal configuration signature (supersedes feature-specific Shift routes)
+
+Shift is reserved for configuring the function behind any assigned shortcut.
+Hold Shift, press its normal trigger, configure only that function's adaptive
+controls. Repeat the shortcut to cycle options, then release Shift to execute
+the chosen option once. Right-click an MC option applies and locks its future
+default; left-click resets to priority 1. Temporary choices preserve locked
+defaults. The opening press does not execute. This
+single router replaces history's private Shift route and applies to future actions
+without per-feature input handlers. Native gestures which are not shortcuts (such
+as Shift+wheel geometry rotation) retain their normal mechanics.
+
+Executable shifted bindings migrate to non-Shift alternatives. Current defaults
+are Ctrl+Alt+S global search, Ctrl+Y redo, Ctrl+MB3 MS lock, Ctrl+Alt+N new child,
+Ctrl+Alt+E subtree expansion, Ctrl+Alt+F local fit and Ctrl+/ shortcuts. Shortcut
+capture explains why Shift cannot be assigned to an executable command. Explicit
+clears remain cleared; migrations never steal another assigned combination.
+
+W resizes/restores the active frame; Shift+W shows its detected levels. Hover/focus
+previews a level; scrolling/cycling changes the temporary choice. Right-click
+applies and locks a level; left-click restores priority 1. Read
+[FUNCTION_CONFIGURATION.md](FUNCTION_CONFIGURATION.md) for the shared architecture.
+
+
+S now uses the retained progressive search scope. Shift+S configures nearest frame,
+parents or All UI; repeat to cycle and release Shift to focus the chosen search
+before typing. All UI is available even without an active frame. Ctrl+Alt+S remains
+a compatible direct global alias. Copy properties/Paste applicable properties are
+cataloged MC actions, unassigned by default, preserving native text copy/paste.
+Float active frame is also a shared MC Active context action, replacing repeated
+sidebar ↗ buttons; existing movement/pin restrictions and UI history apply.
+
+
+When feature bindings overlap, keyboard routing uses active scope priority:
+Visual selector → active UI context → global. Active MS or its accepted selection
+therefore owns Escape before the active window; clearing MS yields subsequent
+Escape to the normal field/popup/window stack. Cleared/rebound bindings, typing,
+availability, capture and protected recovery rules remain authoritative. Shift
+configuration resolves the same priority. Do not rely on listener mount order.
+
+
+The selector action declares `configurationAction: selector.edit`: universal Shift
+routing opens the existing selected-property MC instead of its old generic Shift
+configuration. This follows the live base binding and uses shared catalog dispatch;
+there is no private Shift+Q listener or executable Shift binding. Shortcut search
+shows the derived editing gesture. Q is the new selector default; legacy default
+MB3/RMB-edit settings migrate when Q is free, preserving other custom assignments.

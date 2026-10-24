@@ -13,7 +13,7 @@ test("feature commands automatically join the catalog, defaults and saved settin
     assert.equal(defaults.bindings[feature.id], feature.defaultKey);
     assert.ok(feature.label && feature.category && feature.scope && feature.description);
   }
-  assert.equal(defaults.bindings["selector.open"], "MB3");
+  assert.equal(defaults.bindings["selector.open"], "Q");
   assert.equal(defaults.bindings["selector.pattern"], "E");
   assert.equal(keyConflict(defaults.bindings, "selector.pattern", "E"), null, "contextual E coexists with global expand");
   assert.equal(actionForKey(defaults.bindings, "E"), "expand", "inactive selector never steals global E");
@@ -32,7 +32,7 @@ test("selector single-toggle defaults migrate retired operation bundles without 
   const dual = { bindings: { "selector.edit": "", "selector.include": "MB2", "selector.exclude": "MB1", "selector.finishGeometry": "Enter" } };
   const migrated = normalizeSettings(dual);
   assert.equal(migrated.bindings["selector.include"], "MB1");
-  assert.equal(migrated.bindings["selector.edit"], "MB2");
+  assert.equal(migrated.bindings["selector.edit"], "");
   assert.equal(Object.hasOwn(migrated.bindings, "selector.exclude"), false);
   assert.equal(FEATURE_ACTIONS.some(action => action.id === "selector.exclude"), false);
   assert.equal(dual.bindings["selector.edit"], "", "loading does not mutate saved input");
@@ -81,10 +81,10 @@ test("pointer gesture modifiers preserve selector picking and explicit bindings 
 test("shortcut search resolves live bindings for commands, rows and customized functions", () => {
   const bindings = defaultSettings().bindings;
   for (const id of ["selector.open", "shortcut:selector.open"])
-    assert.equal(functionShortcutBinding(id, bindings), "MB3");
+    assert.equal(functionShortcutBinding(id, bindings), "Q");
   const rebound = { ...bindings, "selector.open": "Ctrl+P", "button:custom-action": "Shift+MB3" };
   for (const id of ["selector.open", "shortcut:selector.open"])
-    assert.equal(functionShortcutBinding(id, rebound), "Ctrl+P", "old MB3 must disappear from search metadata");
+    assert.equal(functionShortcutBinding(id, rebound), "Ctrl+P", "old Q must disappear from search metadata");
   for (const id of ["custom-action", "button:custom-action", "shortcut:button:custom-action"])
     assert.equal(functionShortcutBinding(id, rebound), "Shift+MB3");
   assert.equal(functionShortcutBinding("shortcut:selector.open", { ...rebound, "selector.open": "" }), "");
@@ -124,4 +124,270 @@ test("shortcut policy catches private hotkeys, aliases and middle-button trigger
   const walk = directory => readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(`${directory}/${entry.name}`) : [`${directory}/${entry.name}`]);
   const violations = walk("src").filter(file => /\.[cm]?[jt]sx?$/.test(file)).flatMap(file => privateShortcutLiterals(readFileSync(file, "utf8"), file));
   assert.deepEqual(violations, [], `Register new shortcut actions in the shared catalog and use binding matching:\n${violations.join("\n")}`);
+});
+
+test("active context commands share catalog defaults and preserve saved search choices", () => {
+  const defaults = defaultSettings().bindings;
+  for (const [id, key] of Object.entries({ back: "Esc", search: "S", close: "X", minimize: "M", descendants: "D" }))
+    assert.equal(defaults[`context.${id}`], key);
+  assert.equal(defaults.searchUI, "Ctrl+Alt+S");
+  assert.equal(normalizeSettings({ bindings: { searchUI: "S" } }).bindings.searchUI, "Ctrl+Alt+S");
+  assert.equal(normalizeSettings({ bindings: { searchUI: "Q" } }).bindings.searchUI, "Q");
+  assert.equal(normalizeSettings({ bindings: { searchUI: "" } }).bindings.searchUI, "");
+  const occupied = normalizeSettings({ bindings: { searchUI: "S", "button:custom": "Shift+S" } });
+  assert.equal(occupied.bindings.searchUI, "Ctrl+Alt+S");
+  assert.equal(occupied.bindings["button:custom"], "");
+  assert.equal(keyConflict(defaults, "context.close", "X"), null);
+});
+
+test("context back removes exactly one field/popup/frame level without mutating its source", async () => {
+  const { activeFrame, parentContext } = await import("../src/ui/activeContextModel.ts");
+  const frame = { kind: "frame", key: "window:theme" };
+  const nested = { kind: "frame", key: "window:properties" };
+  const layer = { kind: "layer", element: {} }, field = { kind: "field", element: {} };
+  const stack = Object.freeze([frame, nested, layer, field]);
+  assert.equal(activeFrame(stack), nested);
+  const step1 = parentContext(stack);
+  assert.deepEqual(step1, [frame, nested, layer]);
+  const step2 = parentContext(step1);
+  assert.deepEqual(step2, [frame, nested]);
+  assert.deepEqual(parentContext(step2), [frame]);
+  assert.deepEqual(parentContext(parentContext(parentContext(step2))), []);
+  assert.equal(stack.length, 4);
+  assert.equal(activeFrame([]), undefined);
+});
+
+test("history configuration replaces legacy Shift side-button UI routing", () => {
+  assert.equal(defaultSettings().mouse.backButton, "undo");
+  assert.equal(defaultSettings().mouse.forwardButton, "redo");
+  assert.equal(defaultSettings().mouse.shiftBackButton, "history.configure");
+  const migrated = normalizeSettings({ mouse: { shiftBackButton: "ui:undo", shiftForwardButton: "ui:redo" } });
+  assert.equal(migrated.mouse.shiftBackButton, "history.configure");
+  assert.equal(migrated.mouse.shiftForwardButton, "history.configure");
+});
+
+test("chronological undo crosses owners and selective undo preserves unrelated edits", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const history = createActionHistory();
+  let ui = { color: "blue", x: 0 }, graph = { label: "A" };
+  history.register("ui", { read: () => ui, write: value => { ui = value; } });
+  history.register("graph", { read: () => graph, write: value => { graph = value; } });
+  const edit = (next, category) => { history.record("ui", ui, next, [category], ["window:theme"]); ui = next; };
+  edit({ ...ui, color: "red" }, "appearance");
+  edit({ ...ui, x: 5 }, "ui");
+  history.travel("undo"); assert.deepEqual(ui, { color: "red", x: 0 });
+  history.travel("redo"); assert.equal(ui.x, 5);
+  history.configure({ mode: "selective", categories: ["appearance"] });
+  history.travel("undo"); assert.deepEqual(ui, { color: "blue", x: 5 });
+  history.travel("redo"); assert.deepEqual(ui, { color: "red", x: 5 });
+  history.record("graph", graph, { label: "B" }, ["omnium"], ["omnium"]); graph = { label: "B" };
+  history.configure({ mode: "recent", steps: 2 });
+  assert.equal(history.travel("undo"), 2);
+  assert.equal(graph.label, "A"); assert.deepEqual(ui, { color: "red", x: 0 });
+  assert.equal(history.travel("redo"), 2); assert.equal(graph.label, "B"); assert.equal(ui.x, 5);
+});
+
+test("history scopes, locked step cap, overlap protection and branching are safe", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const h = createActionHistory(); let value = { x: 0 };
+  h.register("ui", { read: () => value, write: next => { value = next; } });
+  const edit = (x, category, context) => { h.record("ui", value, { x }, [category], [context]); value = { x }; };
+  edit(1, "ui", "window:a"); edit(2, "settings", "window:b");
+  h.activeContext = "window:a"; h.configure({ mode: "context", steps: 100, limit: 3 });
+  assert.equal(h.options.steps, 3); assert.equal(h.options.limit, 3);
+  assert.equal(h.travel("undo"), 0); assert.match(h.message, /overlaps/); assert.equal(value.x, 2);
+  h.configure({ mode: "recent", steps: 1 }); h.travel("undo"); assert.equal(value.x, 1);
+  h.configure({ mode: "context" }); h.travel("undo"); assert.equal(value.x, 0);
+  edit(9, "ui", "window:a"); assert.equal(h.candidates("redo").length, 0);
+  h.configure({ steps: 10 }); assert.equal(h.options.steps, 3);
+  h.configure({ limit: 1 }); assert.equal(h.options.steps, 1);
+});
+
+test("coalesced history handles new object branches and creates one reversible gesture", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const h = createActionHistory(); let value = {};
+  h.register("ui", { read: () => value, write: next => { value = next; } });
+  for (const next of [{ color: { red: 1 } }, { color: { red: 2 } }]) { h.record("ui", value, next, ["appearance"], ["window:a"], "gesture"); value = next; }
+  assert.equal(h.candidates("undo").length, 1); h.travel("undo"); assert.deepEqual(value, {});
+  h.travel("redo"); assert.deepEqual(value, { color: { red: 2 } });
+});
+
+test("Shift universally resolves the base action, scoped commands, custom buttons and pointer assignments", async () => {
+  const { configurationTarget } = await import("../src/ui/shortcutConfiguration.ts");
+  const bindings = defaultSettings().bindings;
+  assert.equal(configurationTarget(bindings, "Shift+W", id => id === "context.resize"), "context.resize");
+  assert.equal(configurationTarget(bindings, "Shift+Ctrl+Z", () => false), "undo");
+  assert.equal(configurationTarget(bindings, "Ctrl+Shift+Z", id => id === "selector.undo"), "selector.undo");
+  assert.equal(configurationTarget(bindings, "Shift+S", id => id === "context.search"), "context.search");
+  assert.equal(configurationTarget(bindings, "Shift+MB4", () => false, { MB4: "undo" }), "undo");
+  assert.equal(configurationTarget({ ...bindings, "button:custom": "P" }, "Shift+P", () => false), "button:custom");
+  assert.equal(configurationTarget({ ...bindings, undo: "" }, "Ctrl+Shift+Z", () => false), null, "cleared bindings never revive");
+  assert.equal(configurationTarget(bindings, "W", () => true), null, "normal presses execute rather than configure");
+});
+
+test("Shift executable bindings migrate without stealing keys or reviving clears", () => {
+  const defaults = defaultSettings();
+  assert.ok(Object.values(defaults.bindings).every(binding => !binding.split("+").includes("Shift")));
+  const migrated = normalizeSettings({ bindings: { searchUI: "Shift+S", redo: "Ctrl+Shift+Z", "selector.lock": "Shift+MB3", newChild: "", "button:custom": "Shift+P" } });
+  assert.equal(migrated.bindings.searchUI, "Ctrl+Alt+S");
+  assert.equal(migrated.bindings.redo, "Ctrl+Y");
+  assert.equal(migrated.bindings["selector.lock"], "Ctrl+MB3");
+  assert.equal(migrated.bindings["button:custom"], "Ctrl+Alt+P");
+  assert.equal(migrated.bindings.newChild, "");
+  const occupied = normalizeSettings({ bindings: { redo: "Ctrl+Shift+Z", "button:owned": "Ctrl+Y" } });
+  assert.equal(occupied.bindings.redo, ""); assert.equal(occupied.bindings["button:owned"], "Ctrl+Y");
+  assert.deepEqual(normalizeSettings(migrated).bindings, migrated.bindings, "migration is idempotent");
+});
+
+test("new function settings serialize with typed property validation and safe defaults", () => {
+  const settings = normalizeSettings({ functionValues: { "ui.frame.resize": { "operation.level": 500, invalid: Infinity }, future: { flag: true, count: 2, text: "value" } } });
+  assert.equal(settings.functionValues["ui.frame.resize"]["operation.level"], 10);
+  assert.equal(Object.hasOwn(settings.functionValues["ui.frame.resize"], "invalid"), false);
+  assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(settings))).functionValues, settings.functionValues);
+  assert.deepEqual(normalizeSettings({ functionValues: { "ui.frame.resize": { "operation.level": "invalid" } } }).functionValues["ui.frame.resize"], {});
+});
+
+test("the shared configuration gesture cycles repeated presses and applies exactly once on release", async () => {
+  const { createConfigurationGesture } = await import("../src/ui/configurationGesture.ts");
+  const invoked = [], gesture = createConfigurationGesture(id => invoked.push(id));
+  let selected = 1, applied = 0;
+  assert.equal(gesture.begin("resize"), "open");
+  gesture.register({ cycle: () => { selected = selected % 3 + 1; }, apply: () => { applied = selected; } });
+  assert.equal(gesture.begin("resize"), "cycle"); assert.equal(selected, 2);
+  gesture.begin("resize"); assert.equal(selected, 3); gesture.begin("resize"); assert.equal(selected, 1);
+  assert.equal(gesture.finish(), true); assert.equal(applied, 1);
+  assert.equal(gesture.finish(), false); assert.deepEqual(invoked, []);
+  gesture.begin("undo"); gesture.finish(); assert.deepEqual(invoked, ["undo"]);
+  gesture.begin("resize"); gesture.cancel(); assert.equal(gesture.finish(), false);
+  gesture.begin("resize", false); assert.equal(gesture.finish(), false, "opening configuration by a button does not arm a release action");
+});
+
+test("MC option reset and lock preserve defaults and never double execute", async () => {
+  const { createConfigurationGesture } = await import("../src/ui/configurationGesture.ts");
+  const calls = [], gesture = createConfigurationGesture(id => calls.push(id));
+  let choice = 2, locked = 2;
+  const register = () => gesture.register({ cycle: () => { choice = choice % 3 + 1; }, select: index => { choice = index + 1; },
+    reset: () => { choice = locked = 1; }, lock: () => { locked = choice; calls.push("lock"); }, apply: () => calls.push(choice) });
+  gesture.begin("resize"); register(); gesture.begin("resize");
+  assert.equal(choice, 3); gesture.finish(); assert.equal(locked, 2); assert.deepEqual(calls, [3]);
+  gesture.begin("resize"); register(); gesture.reset(); assert.equal(locked, 1); assert.deepEqual(calls, [3]);
+  gesture.finish(); assert.deepEqual(calls, [3, 1]);
+  gesture.begin("resize"); register(); gesture.select(2); gesture.lock();
+  assert.equal(locked, 3); assert.deepEqual(calls, [3, 1, "lock", 3]);
+  assert.equal(gesture.finish(), false);
+  gesture.begin("resize"); register(); gesture.begin("other"); gesture.finish();
+  assert.equal(calls.at(-1), "other", "switching actions discards the old adapter");
+});
+
+test("history spectrum bounds clamp steps and remain valid after shrinking the maximum", async () => {
+  const { createActionHistory } = await import("../src/ui/actionHistory.ts");
+  const h = createActionHistory();
+  h.configure({ minimum: 3, limit: 8, steps: 1 }); assert.equal(h.options.steps, 3);
+  h.configure({ steps: 100 }); assert.equal(h.options.steps, 8);
+  h.configure({ limit: 2 }); assert.equal(h.options.minimum, 2); assert.equal(h.options.steps, 2);
+  const restored = createActionHistory({ minimum: -100, limit: 100, steps: -1 });
+  assert.equal(restored.options.minimum, 1); assert.equal(restored.options.limit, 10); assert.equal(restored.options.steps, 1);
+});
+
+test("shared spectrum stepping clamps and quantizes without decimal drift", async () => {
+  const { rangeValue } = await import("../src/ui/rangeMath.ts");
+  assert.equal(rangeValue(.1 + .2, 0, 1, .05), .3);
+  assert.equal(rangeValue(30, 1, 10, 1), 10);
+  assert.equal(rangeValue(-30, 1, 10, 1), 1);
+  assert.equal(rangeValue(.26, .1, 5, .1), .3);
+  assert.equal(rangeValue(1, 1, 1, 1), 1);
+});
+
+test("search scope progresses through nearest ancestors and keeps a locked global choice global", async () => {
+  const { searchScopes, searchScope } = await import("../src/ui/searchScopes.ts");
+  assert.deepEqual(searchScopes(["window:theme", "window:properties"]), [
+    { key: "window:properties", level: 1 }, { key: "window:theme", level: 2 }, { key: "workspace", level: 10 },
+  ]);
+  assert.equal(searchScope([], 1).key, "workspace");
+  assert.equal(searchScope(["window:other"], 10).key, "workspace");
+  assert.equal(searchScope(["window:theme", "window:properties"], 2).key, "window:theme");
+});
+
+test("programmatic catalog dispatch executes search without a button binding or DOM runner", async () => {
+  const { invokeCatalogAction } = await import("../src/workspaceActions.ts");
+  const { featureActionRuntime } = await import("../src/featureActions.ts");
+  const calls = [], base = id => calls.push(id);
+  assert.equal(invokeCatalogAction("searchUI", base), true); assert.deepEqual(calls, ["searchUI"]);
+  let enabled = true;
+  const stop = featureActionRuntime.register("context.search", { enabled: () => enabled, run: () => calls.push("context.search") });
+  try {
+    assert.equal(invokeCatalogAction("context.search", base), true); assert.equal(calls.at(-1), "context.search");
+    enabled = false; assert.equal(invokeCatalogAction("context.search", base), false);
+    assert.equal(invokeCatalogAction("unknown", base), false); assert.equal(calls.length, 2);
+  } finally { stop(); }
+});
+
+test("active MS owns Escape before window actions, then yields once selection is cleared", async () => {
+  const { preferredFeatureKey } = await import("../src/workspaceActions.ts");
+  const bindings = defaultSettings().bindings;
+  const active = new Set(["selector.cancel", "context.back"]);
+  assert.equal(preferredFeatureKey(bindings, "", () => true), null);
+  assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id)), "selector.cancel");
+  assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id), true, true), "selector.cancel");
+  active.delete("selector.cancel");
+  assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id)), "context.back");
+  assert.equal(preferredFeatureKey({ ...bindings, "selector.cancel": "" }, "Esc", () => true), "context.back");
+  assert.equal(preferredFeatureKey({ ...bindings, "selector.cancel": "P" }, "P", id => id === "selector.cancel"), "selector.cancel");
+});
+
+
+test("Shift configuration preserves the same selector-before-window priority", async () => {
+  const { configurationTarget } = await import("../src/ui/shortcutConfiguration.ts");
+  assert.equal(configurationTarget(defaultSettings().bindings, "Shift+Esc", id => id === "selector.cancel" || id === "context.back"), "selector.cancel");
+});
+
+test("a searchable popup resident retains its dismissal layer after field focus", async () => {
+  const { contextStackFromScopes, parentContext } = await import("../src/ui/activeContextModel.ts");
+  const popup = { id: "search" }, input = { id: "query" }, owner = { id: "mc" };
+  let closed = 0;
+  const layer = { parent: "window:theme", close: () => closed++ };
+  const framesFor = key => [{ kind: "frame", key, element: owner }];
+  let stack = contextStackFromScopes([{ element: popup, frame: "window:global-ui-search", layer }], framesFor, input);
+  assert.deepEqual(stack.map(entry => entry.kind), ["frame", "layer", "field"]);
+  assert.equal(stack[0].key, "window:theme");
+  stack = parentContext(stack); assert.equal(stack.at(-1).kind, "layer");
+  assert.equal(stack.at(-1).element, popup); layer.close(); stack = parentContext(stack);
+  assert.equal(closed, 1); assert.equal(stack.at(-1).key, "window:theme");
+  const nested = contextStackFromScopes([{ element: owner, frame: "window:theme" }, { element: popup, frame: "window:global-ui-search", layer }], framesFor);
+  assert.deepEqual(nested.map(entry => entry.kind), ["frame", "layer"], "DOM nesting and portals preserve the same dismissal order");
+});
+
+test("RMB edit migrates to deselection and Shift-selector delegates to selected-property editing", async () => {
+  const settings = normalizeSettings({ bindings: { "selector.open": "MB3", "selector.edit": "MB2" } });
+  assert.equal(settings.bindings["selector.open"], "Q");
+  assert.equal(settings.bindings["selector.edit"], ""); assert.equal(settings.bindings["selector.deselect"], "MB2");
+  const modern = normalizeSettings({ bindings: { "selector.deselect": "", "selector.edit": "Ctrl+P", "selector.open": "K" } });
+  assert.equal(modern.bindings["selector.deselect"], ""); assert.equal(modern.bindings["selector.edit"], "Ctrl+P");
+  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Q", "selector.edit": "" }), "Shift+Q");
+  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Ctrl+P", "selector.edit": "" }), "Ctrl+Shift+P");
+  assert.equal(FEATURE_ACTIONS.find(action => action.id === "selector.open").configurationAction, "selector.edit");
+});
+
+
+test("search returns a category instead of its property cross-product, retaining explicit setter queries", async () => {
+  const { prepareSearchResults, matchSearchResults } = await import("../src/ui/searchMatching.ts");
+  const entries = [
+    { key: "sliders", label: "Sliders", appearance: { target: "ui.sliders" } },
+    { key: "spectrum", label: "Spectrum / arrows", heading: "Controls › Sliders", appearance: { target: "ui.sliders.spectrum" }, appearanceProperties: [{ id: "color", label: "Color" }, { id: "opacity", label: "Opacity" }] },
+    { key: "fill", label: "Filled track / thumb", heading: "Controls › Sliders", appearance: { target: "ui.sliders.fill" }, appearanceProperties: [{ id: "color", label: "Color" }] },
+    { key: "color", label: "Color", heading: "Properties" },
+    { key: "search", label: "Search", heading: "Workspace" },
+    { key: "accent", label: "Éclairage", heading: "Visuals" },
+  ];
+  const index = prepareSearchResults(entries, entry => entry.key === "search" ? "Ctrl+K" : "");
+  assert.deepEqual(matchSearchResults(index, "slider").map(entry => entry.key), ["sliders"]);
+  assert.deepEqual(matchSearchResults(index, "color").map(entry => entry.key), ["color"]);
+  const specific = matchSearchResults(index, "slider color");
+  assert.equal(specific.length, 2);
+  assert.ok(specific.every(entry => entry.appearance.property === "color"));
+  assert.deepEqual(matchSearchResults(index, "spectrum opacity").map(entry => entry.appearance), [{ target: "ui.sliders.spectrum", property: "opacity" }]);
+  assert.equal(matchSearchResults(index, "ctrl+k")[0].key, "search");
+  assert.equal(matchSearchResults(index, "eclairage")[0].key, "accent");
+  assert.equal(matchSearchResults(index, "no-such-control").length, 0);
+  assert.equal(entries[1].appearance.property, undefined, "specific queries do not mutate branch destinations");
 });

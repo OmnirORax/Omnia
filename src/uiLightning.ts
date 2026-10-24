@@ -1,3 +1,5 @@
+import { unavailableControl } from "./ui/controlAvailability";
+import { clipCanvas, type PaintClip } from "./ui/paintClip";
 import { imageContours, lightningBolts, type Contour } from "./lightning";
 import type { SparkleStyle } from "./graph/effects";
 import { createElectricInk } from "./electricInk";
@@ -8,6 +10,7 @@ export type GlyphScope = {
   node?: (node: Node) => boolean;
   input?: (input: HTMLElement) => boolean;
   icons?: boolean;
+  clip?: (element: HTMLElement, contents?: boolean) => PaintClip;
 };
 const maskImages = new Map<string, HTMLImageElement>();
 function cssMask(element: HTMLElement) {
@@ -90,7 +93,7 @@ function snapshot(
   context.fillStyle = "white";
   const visible = (el: Element) =>
     !!el.getClientRects().length &&
-    !el.closest("[hidden],.ui-drag-source") &&
+    !el.closest("[hidden],.ui-drag-source") && !unavailableControl(el) &&
     getComputedStyle(el).visibility !== "hidden";
   const overlaps = (r: DOMRect) =>
     r.right >= clip.x &&
@@ -98,8 +101,10 @@ function snapshot(
     r.bottom >= clip.y &&
     r.top <= clip.y + clip.height;
   let hasInk = false;
-  const text = (value: string, r: DOMRect, style: CSSStyleDeclaration) => {
+  const text = (value: string, r: DOMRect, style: CSSStyleDeclaration, owner: HTMLElement) => {
     if (!value.trim() || !overlaps(r)) return;
+    context.save();
+    if (scope?.clip) clipCanvas(context, scope.clip(owner, true));
     hasInk = true;
     context.font = style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     context.textBaseline = "alphabetic";
@@ -107,6 +112,7 @@ function snapshot(
       ascent = metric.fontBoundingBoxAscent || parseFloat(style.fontSize) * 0.8,
       descent = metric.fontBoundingBoxDescent || parseFloat(style.fontSize) * 0.2;
     context.fillText(value, r.left, r.top + (r.height - ascent - descent) / 2 + ascent);
+    context.restore();
   };
   if (scope?.shape === "surface" || scope?.shape === "contour") {
     hasInk = true;
@@ -146,7 +152,7 @@ function snapshot(
       style = getComputedStyle(node.parentElement);
     if (!rects.some(overlaps)) continue;
     if (rects.length === 1) {
-      text(value.replace(/\s+/g, " "), rects[0], style);
+      text(value.replace(/\s+/g, " "), rects[0], style, node.parentElement);
       characters += value.length;
     } else
       for (let i = 0; i < value.length && characters < 900; i++, characters++) {
@@ -154,7 +160,7 @@ function snapshot(
         range.setStart(node, i);
         range.setEnd(node, i + 1);
         const r = range.getBoundingClientRect();
-        text(value[i], r, style);
+        text(value[i], r, style, node.parentElement);
       }
   }
   for (const input of inputs.slice(0, 30)) {
@@ -199,6 +205,7 @@ function snapshot(
           input instanceof HTMLTextAreaElement ? lineHeight : r.height,
         ),
         style,
+        input,
       );
     context.restore();
   }
@@ -220,6 +227,8 @@ function snapshot(
     const width = fit === "contain" ? image.naturalWidth * factor : r.width,
       height = fit === "contain" ? image.naturalHeight * factor : r.height;
     try {
+      context.save();
+      if (scope?.clip) clipCanvas(context, scope.clip(image));
       hasInk = true;
       context.drawImage(
         image,
@@ -230,15 +239,18 @@ function snapshot(
       );
     } catch {
       /* A loading icon retries on its load event. */
-    }
+    } finally { context.restore(); }
   }
   if (!scope?.shape || scope.shape === "glyphs")
     for (const { element: owner, image } of masked) {
       if (!image?.complete || !image.naturalWidth || !visible(owner)) continue;
       const r = owner.getBoundingClientRect();
       if (!overlaps(r)) continue;
+      context.save();
+      if (scope?.clip) clipCanvas(context, scope.clip(owner));
       hasInk = true;
       context.drawImage(image, r.x, r.y, r.width, r.height);
+      context.restore();
     }
   const ink = document.createElement("canvas");
   ink.width = canvas.width;

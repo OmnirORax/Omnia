@@ -1,3 +1,12 @@
+import { CopyPropertiesConfiguration } from "../properties/CopyPropertiesConfiguration";
+import { openActionConfiguration } from "../ui/shortcutConfiguration";
+import type { PropertySnapshot } from "../properties/clipboard";
+import { copyPropertyValues, type PropertySource } from "../properties/clipboard";
+import { preparePropertyChanges, validateValue, type PropertyChange } from "../properties/registry";
+import { useFeatureActions } from "../ui/useFeatureActions";
+import { HistoryControls } from "../ui/ContextualHistoryController";
+import type { ActionHistory } from "../ui/actionHistory";
+import { ActiveContextControls } from "../ui/ActiveContext";
 import { ConsumerProperties } from "../properties/ConsumerProperties";
 import { resolvePropertyTarget } from "../properties/registry";
 import { CoupledProperties, type PropertyBindings } from "../properties/CoupledProperties";
@@ -5,16 +14,15 @@ import { transientReveal, type RevealSession } from "../ui/transientReveal";
 import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAppearance } from "./Context";
 import { nativeContextMenuKey } from "../featureActions";
-import { ancestry, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
+import { ancestry, propertyChannels, adjustmentTargets, createTargetIndex, applyValue, toggleTarget, included, blocked, connected, ruleHas, type Value } from "./model";
 import { type RegisteredTarget } from "./registry";
-import { valueFor } from "./resolve";
 import { PropertyTree } from "./PropertyTree";
 import { SelectedProperties } from "./SelectionController";
 import { SelectorFeedbackSample } from "./VisualSelectionOverlay";
-import { useVisualSelection } from "./VisualSelector";
+import { useVisualSelection, SelectionPreviewToggle } from "./VisualSelector";
 import { describeSelectedParts } from "./selectedParts";
 import { collectVisualParts } from "./visualSelection";
-import { selectedPartId } from "./selectionCoupling";
+import { applySelectedValue, selectedPartTarget, selectedPartPolicy, selectedPartId } from "./selectionCoupling";
 import { PROPERTY_REGISTRY } from "./registry";
 import { PropertyEditor } from "./Controls";
 import { LockControl } from "./LockControl";
@@ -30,11 +38,11 @@ import { UIAction } from "../ui/UIAction";
 import { useUI, UIContainerContext, UIHomeContext } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTargets, toggleRigidity } from "../ui/rigidity";
-import { APPEARANCE_EDITOR } from "./interactionHold";
 import { highlightHierarchy } from "./highlight";
+import { useFrameExpansion } from "../ui/frameExpansion";
 import { residentPinned } from "../ui/layout";
 
-export function MasterController({ bindings, visualStatus, children: visualTools }: { bindings?: PropertyBindings; visualStatus?: ReactNode; children?: ReactNode }) {
+export function MasterController({ bindings, visualStatus, history, children: visualTools }: { bindings?: PropertyBindings; visualStatus?: ReactNode; history?: ActionHistory; children?: ReactNode }) {
   const ctx = useAppearance()!;
   const ui = useUI();
   const visualSelection = useVisualSelection();
@@ -59,7 +67,16 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   const inspecting = !!scopeKey && dismissedScope !== scopeKey;
   useEffect(() => { if (!scopeKey) dismissScope(null); }, [scopeKey]);
   const originalParent = useContext(UIContainerContext), originalHome = useContext(UIHomeContext);
-  const hierarchyOpen = !!ctx.location || !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false);
+  const selectionKey = visualSelection?.inspectionKey ?? "";
+  const [selectionHierarchy, setSelectionHierarchy] = useState<{ key: string; open: boolean } | null>(null);
+  useEffect(() => {
+    setSelectionHierarchy(selectionKey ? { key: selectionKey, open: true } : null);
+  }, [selectionKey]);
+  // Selection reveals the existing hierarchy without writing layout or history.
+  // A manual collapse applies only to this selection; the next one reveals it again.
+  const hierarchyOpen = !!ctx.location || (selectionKey
+    ? selectionHierarchy?.key !== selectionKey || selectionHierarchy.open
+    : !(ui.layout.windows[APPEARANCE_HIERARCHY_ID]?.collapsed ?? false));
   const { state } = ctx;
   const [selectedProperty, setProperty] = useState("color"),
     [expanded, setExpanded] = useState<Set<string>>(() => new Set(["all", "ui", "text", "omnium"]));
@@ -68,6 +85,12 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   const showIndividuals = !!ui.layout.panels["@appearanceShowIndividuals"];
   const effectiveLayout = { ...ui.layout, windows: { ...Object.fromEntries(ui.defaults), ...ui.layout.windows } };
   const targets = rigidity ? rigidityTargets(ctx.targets, effectiveLayout, ui.functions, ui.frameActions) : ctx.targets;
+  const editableProperties = useMemo(() => {
+    if (ctx.safe) return [];
+    const index = createTargetIndex(ctx.targets);
+    return [...new Set(ctx.targets.flatMap(target => target.properties ?? []))]
+      .filter(id => adjustmentTargets(state, ctx.targets, id, undefined, index).length > 0);
+  }, [state, ctx.targets, ctx.safe]);
   const active = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
   const structureKey = JSON.stringify(
     targets.map((t) => [t.id, t.parent, t.label, t.properties, t.instance]),
@@ -98,6 +121,73 @@ export function MasterController({ bindings, visualStatus, children: visualTools
     }
     return map;
   }, [structureKey, rigidity, showIndividuals, ctx.targets, ui.layout.uiRigidity]);
+  const [scopeExclusions, setScopeExclusions] = useState<{ key: string; ids: Set<string> }>({ key: "", ids: new Set() });
+  const excludedItems = scopeExclusions.key === scopeKey ? scopeExclusions.ids : new Set<string>();
+  const scopeItems = useMemo(() => {
+    const items = selectedParts.map(part => {
+      const target = selectedPartTarget(part);
+      return { id: target.id, target, part, path: paths.get(target.id) ?? [...(paths.get(part.base) ?? []), target.id] };
+    });
+    return [...items, ...selectedConsumers.filter(id => !items.some(item => item.id === id)).map(id => ({
+      id, target: targets.find(target => target.id === id), part: undefined,
+      path: paths.get(id) ?? [],
+    }))];
+  }, [selectedParts, selectedConsumers.join("|"), structureKey]);
+  const editingParts = selectedParts.filter(part => !excludedItems.has(selectedPartId(part)));
+  const editingConsumers = selectedConsumers.filter(id => !excludedItems.has(id));
+  const scopeBranches = useMemo(() => {
+    const branches = new Map<string, typeof scopeItems>();
+    for (const item of scopeItems) for (const id of item.path) {
+      const items = branches.get(id);
+      if (items) items.push(item); else branches.set(id, [item]);
+    }
+    return branches;
+  }, [scopeItems]);
+  const inBranch = (id: string) => scopeBranches.get(id) ?? [];
+  useEffect(() => {
+    if (!inspecting) return;
+    setExpanded(previous => new Set([...previous, ...scopeBranches.keys()]));
+  }, [scopeKey, inspecting]);
+  const toggleScopeBranch = (id: string) => {
+    // Explicitly choosing a parent can broaden the live pattern selection within
+    // its existing work area. Logical/individual scopes retain their local mask.
+    if (!selectingObject && visualSelection?.boundary && visualSelection.targetSelection.has(id)) {
+      ctx.preview(null); visualSelection.selectTarget(id); return;
+    }
+    const items = inBranch(id), exclude = items.some(item => !excludedItems.has(item.id));
+    ctx.preview(null);
+    setScopeExclusions(previous => {
+      const ids = new Set(previous.key === scopeKey ? previous.ids : []);
+      for (const item of items) { if (exclude) ids.add(item.id); else ids.delete(item.id); }
+      return { key: scopeKey, ids };
+    });
+  };
+  const scopedPolicy = (id: string, field: "locks" | "disconnected", selectedProperty?: string) => {
+    const items = inBranch(id).filter(item => item.target && !excludedItems.has(item.id));
+    if (!items.length) return;
+    const next = { ...state, instances: { ...state.instances }, values: { ...state.values }, [field]: { ...state[field] } };
+    const enable = items.some(item => !ruleHas(state[field][item.id], selectedProperty ?? "color"));
+    for (const item of items) {
+      if (item.part && item.id !== item.part.base && !next.instances[item.id]) next.instances[item.id] = item.part;
+      const old = next[field][item.id];
+      if (!selectedProperty) {
+        if (enable) next[field][item.id] = { all: true }; else delete next[field][item.id];
+      } else {
+        const properties = new Set(old?.all ? item.target!.properties ?? [] : old?.properties ?? []);
+        if (enable) properties.add(selectedProperty); else properties.delete(selectedProperty);
+        next[field][item.id] = { properties: [...properties] };
+      }
+      if (field === "locks" && enable) {
+        const properties = selectedProperty ? propertyChannels(selectedProperty) : item.target!.properties ?? [];
+        next.values[item.id] = { ...next.values[item.id], ...Object.fromEntries(properties.map(property => [property, ctx.read(item.target!, property)])) };
+      }
+    }
+    ctx.commit(next);
+  };
+  useFrameExpansion(true, expanded.size > 0, expand => {
+    ctx.locate(null, true);
+    setExpanded(new Set(expand ? targets.filter(target => children.has(target.id)).map(target => target.id) : []));
+  }, `window:${APPEARANCE_HIERARCHY_ID}`);
   const currentEffect = active.adjustments?.effect ?? "off";
   const applicable = (t: RegisteredTarget): boolean =>
     (descendants.get(t.id) ?? []).some(
@@ -108,7 +198,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
           child.effectKinds.includes(String(currentEffect))),
     );
   const change = (value: Value, preview = false, origin?: string) => {
-    const next = applyValue(
+    let next = inspecting ? applySelectedValue(state, editingParts.filter(part => !origin || inBranch(origin).some(item => item.id === selectedPartId(part))), property, value) : applyValue(
       state,
       targets,
       property,
@@ -116,24 +206,88 @@ export function MasterController({ bindings, visualStatus, children: visualTools
       origin,
       !!targets.find((t) => t.id === origin)?.instance,
     );
+    if (inspecting) for (const id of appearanceConsumers.filter(id => editingConsumers.includes(id) && (!origin || inBranch(origin).some(item => item.id === id))))
+      next = applyValue(next, targets, property, value, id);
     if (preview) ctx.preview(next);
     else ctx.commit(next);
   };
+  const [clipboardNotice, setClipboardNotice] = useState("");
+  const readCopyProperties = () => {
+    const sources: PropertySource[] = [];
+    if (inspecting) {
+      for (const part of editingParts) {
+        const target = selectedPartTarget(part);
+        sources.push({ properties: target.properties ?? [], read: property => ctx.read(target, property) });
+      }
+      for (const id of editingConsumers) {
+        const consumer = PROPERTY_REGISTRY.consumer(id); if (!consumer) continue;
+        const target = targets.find(target => target.id === id);
+        if (consumer.owner === "appearance" && target) {
+          sources.push({ properties: target.properties ?? [], read: property => ctx.read(target, property) });
+        } else if (consumer.owner !== "appearance" && bindings) {
+          sources.push({ properties: consumer.properties, read: property => bindings.values[id][consumer.channels[property]] });
+        }
+      }
+    } else {
+      const index = createTargetIndex(targets), properties = new Map<string, Set<string>>();
+      for (const property of editableProperties) for (const target of adjustmentTargets(state, targets, property, undefined, index)) {
+        const set = properties.get(target.id) ?? new Set<string>(); set.add(property); properties.set(target.id, set);
+      }
+      for (const target of targets) if (properties.has(target.id)) sources.push({ properties: [...properties.get(target.id)!], read: property => ctx.read(target, property) });
+    }
+    return copyPropertyValues(PROPERTY_REGISTRY, sources);
+  };
+  const copyProperties = (snapshot: PropertySnapshot) => {
+    ctx.copyProperties(snapshot);
+    setClipboardNotice(`Copied ${Object.keys(snapshot.values).length}${snapshot.mixed.length ? ` · ${snapshot.mixed.length} mixed omitted` : ""}`);
+  };
+  const pasteProperties = () => {
+    if (!ctx.propertyClipboard || ctx.safe) return;
+    let next = state;
+    const changes: PropertyChange[] = [];
+    // Effect kind first; its channels then restore the exact copied tuning.
+    const entries = Object.entries(ctx.propertyClipboard.values).sort(([a], [b]) => Number(b === "effect") - Number(a === "effect"));
+    for (const [property, value] of entries) {
+      if (inspecting) {
+        next = applySelectedValue(next, editingParts, property, value, { exact: true });
+        for (const id of appearanceConsumers.filter(id => editingConsumers.includes(id)))
+          if (!blocked(next, targets, id, property, "all") && connected(next, targets, id, property)) next = applyValue(next, targets, property, value, id, false, { skipBypassed: true, exact: true });
+        if (bindings) for (const id of editingConsumers) {
+          const consumer = PROPERTY_REGISTRY.consumer(id), channel = consumer?.channels[property];
+          const definition = PROPERTY_REGISTRY.property(property);
+          if (!consumer || consumer.owner === "appearance" || !channel || !definition || validateValue(definition, value) !== value ||
+            consumer.choices[channel] && !consumer.choices[channel].includes(String(value))) continue;
+          changes.push(...preparePropertyChanges(PROPERTY_REGISTRY, property, value, [id]));
+        }
+      } else if (editableProperties.includes(property)) next = applyValue(next, targets, property, value, undefined, false, { skipBypassed: true, exact: true });
+    }
+    ctx.preview(null); if (next !== state) ctx.commit(next); if (changes.length) bindings?.commit(changes);
+    setClipboardNotice("Pasted applicable properties");
+  };
+  useFeatureActions("propertyClipboard", {
+    "properties.copy": { enabled: !ctx.safe && (inspecting ? editingParts.length + editingConsumers.length > 0 : editableProperties.length > 0), run: () => openActionConfiguration("properties.copy"),
+      configuration: <CopyPropertiesConfiguration read={readCopyProperties} onCopy={copyProperties} /> },
+    "properties.paste": { enabled: !ctx.safe && !!ctx.propertyClipboard && Object.keys(ctx.propertyClipboard.values).length > 0, run: pasteProperties },
+  });
   const revealSession = useRef<RevealSession | null>(null);
   const highlighted = useRef<ReturnType<typeof highlightHierarchy> | null>(null),
     hovered = useRef<string | null>(null);
   const highlight = (id: string) => {
     highlighted.current?.stop();
-    const eligible = (descendants.get(id) ?? []).filter(target => !target.aggregate && target.properties?.includes(property) &&
+    const sources = inspecting ? inBranch(id).filter(item => item.target && !excludedItems.has(item.id)).map(item => item.target!) : descendants.get(id) ?? [];
+    const eligible = sources.filter(target => !target.aggregate && target.properties?.includes(property) &&
       (property !== "effect" || !target.effectKinds || target.effectKinds.includes(String(currentEffect))));
+    const partPolicy = inspecting ? selectedPartPolicy(state) : null;
     highlighted.current = eligible.length ? highlightHierarchy(eligible.map(target => ({ target,
       active: rigidity ? !target.instance || !residentPinned(effectiveLayout, target.instance.owner)
-        : !ctx.safe && included(active, targets, target.id) && !blocked(state, targets, target.id, property, active.only ?? "all") && connected(state, targets, target.id, property),
+        : inspecting && scopeItems.find(item => item.id === target.id)?.part
+          ? !ctx.safe && partPolicy!(scopeItems.find(item => item.id === target.id)!.part!, property)
+          : !ctx.safe && (inspecting ? true : included(active, targets, target.id)) && !blocked(state, targets, target.id, property, active.only ?? "all") && connected(state, targets, target.id, property),
     })), targets, property) : null;
   };
   useEffect(() => {
     if (hovered.current) highlight(hovered.current);
-  }, [property, currentEffect, state, structureKey, ctx.safe, ui.layout.uiRigidity]);
+  }, [property, currentEffect, state, structureKey, ctx.safe, ui.layout.uiRigidity, scopeKey, scopeExclusions, inspecting]);
   useEffect(() => () => { revealSession.current?.stop(); highlighted.current?.stop(); }, []);
   useEffect(() => {
     if (!hierarchyOpen) {
@@ -175,15 +329,23 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   };
 
   const row = (target: RegisteredTarget, depth: number): React.ReactNode => {
+    const count = inspecting && !selectingObject && visualSelection?.boundary ? visualSelection.targetSelection.get(target.id) : undefined;
+    const partial = !!count && count.included > 0 && count.included < count.total;
     const nested = children.get(target.id) ?? [],
-      can = applicable(target),
-      lit = rigidity ? rigidityIncluded(effectiveLayout, targets, target.id, ui.functions) : included(active, targets, target.id);
-    const locks = state.locks[target.id],
+      can = applicable(target) && (!inspecting || !!count?.total || inBranch(target.id).some(item => item.target?.properties?.includes(property))),
+      lit = rigidity ? rigidityIncluded(effectiveLayout, targets, target.id, ui.functions) : inspecting
+        ? count ? count.included === count.total : inBranch(target.id).some(item => !excludedItems.has(item.id)) : included(active, targets, target.id);
+    const branchItems = inspecting ? inBranch(target.id).filter(item => !excludedItems.has(item.id)) : [];
+    const scopedLocks = branchItems.map(item => state.locks[item.id]);
+    const locks = inspecting ? (scopedLocks.some(Boolean) ? {
+      all: scopedLocks.length > 0 && scopedLocks.every(rule => rule?.all),
+      properties: [...new Set(scopedLocks.flatMap(rule => rule?.properties ?? []))],
+    } : undefined) : state.locks[target.id],
       ancestorLock = paths
         .get(target.id)!
         .slice(0, -1)
         .some((id) => ruleHas(state.locks[id], property));
-    const off = !rigidity && !connected(state, targets, target.id, property);
+    const off = !rigidity && (inspecting ? branchItems.length > 0 && branchItems.every(item => !connected(state, targets, item.id, property)) : !connected(state, targets, target.id, property));
     const refined = state.refined[target.id]?.includes(property),
       open =
         expanded.has(target.id) ||
@@ -194,7 +356,7 @@ export function MasterController({ bindings, visualStatus, children: visualTools
     return (
       <div key={target.id} className="appearance-branch" data-appearance-target={target.id}>
         <div
-          className={`appearance-row ${lit ? "is-included" : "is-excluded"} ${can ? "" : "not-applicable"}`}
+          className={`appearance-row ${partial ? "is-partial" : lit ? "is-included" : "is-excluded"} ${can ? "" : "not-applicable"}`}
           style={{ paddingLeft: depth * 12 }}
         >
           <button
@@ -215,34 +377,29 @@ export function MasterController({ bindings, visualStatus, children: visualTools
           <button
             className={`appearance-target ${off ? "is-disconnected" : ""}`}
             data-ui-preserve-title
-            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `${target.label}: ${lit ? "included" : "excluded"}, ${off ? "bypassed" : "connected"}`}
+            aria-label={rigidity ? `${target.label}: ${lit ? "fixed" : "movable"} outside UI edit mode` : `${target.label}: ${partial ? "partially included" : lit ? "included" : "excluded"}, ${off ? "bypassed" : "connected"}`}
             title={rigidity ? `${lit ? "Allow moving" : "Fix"} ${target.label} outside UI edit mode` : `Left-click: ${lit ? "exclude" : "include"} ${target.label}. Right-click: toggle saved appearance bypass. Filled / hollow = included / excluded; bright / dark = connected / bypassed. Parent bypasses also apply. Shift+F10 toggles bypass with the keyboard.`}
-            aria-pressed={lit}
+            aria-pressed={partial ? "mixed" : lit}
             aria-keyshortcuts={rigidity ? undefined : "Shift+F10"}
             disabled={!can}
             onMouseEnter={() => reveal(target, true)}
-            onMouseLeave={event => {
-              if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR))) reveal(target, false);
-            }}
-            onFocus={() => reveal(target, true)}
-            onBlur={event => {
-              if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR))) reveal(target, false);
-            }}
+            // Feedback belongs only to pointer hover on this circle, never focus or editor activity.
+            onMouseLeave={() => reveal(target, false)}
             onContextMenuCapture={event => {
               if (rigidity || !can) return;
               event.preventDefault();
               event.stopPropagation();
-              ctx.plug(target.id);
+              if (inspecting) scopedPolicy(target.id, "disconnected"); else ctx.plug(target.id);
             }}
             onKeyDown={event => {
               if (rigidity || !can || !nativeContextMenuKey(event)) return;
               event.preventDefault();
               event.stopPropagation();
-              ctx.plug(target.id);
+              if (inspecting) scopedPolicy(target.id, "disconnected"); else ctx.plug(target.id);
             }}
             onClick={() => rigidity
               ? ui.update(layout => toggleRigidity({ ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows } }, targets, target.id, ui.functions))
-              : ctx.commit(toggleTarget(state, targets, target.id))}
+              : inspecting ? toggleScopeBranch(target.id) : ctx.commit(toggleTarget(state, targets, target.id))}
           >
             <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
               <circle cx="8" cy="8" r="6" fill={lit ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" />
@@ -259,23 +416,23 @@ export function MasterController({ bindings, visualStatus, children: visualTools
               </span>
             )}
           </span>
-          {!rigidity && target.properties?.includes(property) && (
+          {!rigidity && !inspecting && target.properties?.includes(property) && (
             <UIField id={`ui:appearance:target:${stableUIHash(target.id)}:${property}`} label={`${target.label} ${property}`} category="Appearance"><PropertyEditor
               property={property}
               previewTargets={[target]}
               effectKinds={target.effectKinds}
               label={`${target.label} ${property}`}
-              value={valueFor(ctx.base, state, target, property)}
+              value={ctx.read(target, property)}
               onPreview={(v) => change(v, true, target.id)}
               onCommit={(v) => change(v, false, target.id)}
             /></UIField>
           )}
-          {!rigidity && <LockControl
+          {!rigidity && (!inspecting || branchItems.length > 0) && <LockControl
             label={target.label}
             rule={locks}
             properties={properties}
             inherited={ancestorLock}
-            onToggle={(p) => ctx.lock(target.id, p)}
+            onToggle={(p) => inspecting ? scopedPolicy(target.id, "locks", p) : ctx.lock(target.id, p)}
           />}
         </div>
         {open && nested.map((child) => row(child, depth + 1))}
@@ -284,30 +441,17 @@ export function MasterController({ bindings, visualStatus, children: visualTools
   };
   return (
     <section data-appearance-editor className="appearance-controller" aria-label="Master controller"
-      onPointerLeave={event => {
-        if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR)) && !event.currentTarget.contains(document.activeElement) && hovered.current) {
-          const target = targets.find(target => target.id === hovered.current);
-          if (target) reveal(target, false);
-        }
-      }} onBlurCapture={event => {
-        if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest(APPEARANCE_EDITOR)) && !event.currentTarget.matches(":hover") && hovered.current) {
-          const target = targets.find(target => target.id === hovered.current);
-          if (target) reveal(target, false);
-        }
+      onPointerLeave={() => {
+        const target = targets.find(target => target.id === hovered.current);
+        if (target) reveal(target, false);
       }}>
-      {inspecting && <div data-visual-selector data-selection-editor className="ui-selection-tools"><UISection id="master-selection" title={selectingObject ? logicalTargets.map(target => target.label).join(" · ") : "Selected properties"} expanded>
-        <div>
-          <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />
-          {selectedParts.length > 0 && <SelectedProperties parts={selectedParts} scope="master-selection" />}
-          {appearanceConsumers.length > 0 && <><SelectorFeedbackSample targets={appearanceConsumers} /><ConsumerProperties consumers={appearanceConsumers} /></>}
-          {bindings && selectedConsumers.length > 0 && <CoupledProperties bindings={bindings} selectedConsumers={selectedConsumers} scope="inspection" />}
-          {!selectedParts.length && !selectedConsumers.length && <p>Include registered parts to show their settable properties.</p>}
-        </div>
-      </UISection></div>}
-      {bindings && <CoupledProperties bindings={bindings} />}
-      <UISection id="master-category:visual" title="Visuals" defaultExpanded={false} expanded={ctx.location ? true : undefined}>
+      <ActiveContextControls />
+      {history && <UISection id="history-controls" title="History"><HistoryControls history={history} /></UISection>}
+      <SelectionPreviewToggle />
+      {bindings && !inspecting && <CoupledProperties bindings={bindings} />}
+      <UISection id="master-category:visual" title="Visuals" reveal={inspecting} defaultExpanded={inspecting} expanded={ctx.location || inspecting ? true : undefined}>
       {visualStatus}
-      {bindings && <CoupledProperties bindings={bindings} category="visual" />}
+
       <EmbeddedGroup id={`section:${stableUIHash(originalParent ?? originalHome)}:appearance-targeting-sets`} title="Appearance targeting sets" className="ui-section" nativeTag="transparent">
         <div className="appearance-sets">
           <UIField id="ui:appearance:activeSet" label="Active targeting set" category="Appearance">
@@ -332,8 +476,24 @@ export function MasterController({ bindings, visualStatus, children: visualTools
         </div>
       </EmbeddedGroup>
       <NameVisibilityControl />
+      <UISection id="master-properties" title="Properties">
+      <div className="property-clipboard-tools" data-context-controller>
+        <FunctionControl id="properties.copy" mirror /><FunctionControl id="properties.paste" mirror />
+        {clipboardNotice && <small role="status">{clipboardNotice}</small>}
+      </div>
+      {inspecting ? <div data-visual-selector data-selection-editor>
+        <UIAction id="ui:controller:showAll" label="Show all controls" category="Master controller" onClick={() => dismissScope(scopeKey)} />
+        {editingParts.length > 0 && <SelectedProperties parts={editingParts} scope="master-selection" selectedProperty={property}
+          onSelectProperty={id => { ctx.preview(null); ctx.locate(null, true); setProperty(id); }} />}
+        {appearanceConsumers.some(id => editingConsumers.includes(id)) && <><SelectorFeedbackSample targets={appearanceConsumers.filter(id => editingConsumers.includes(id))} />
+          <ConsumerProperties consumers={appearanceConsumers.filter(id => editingConsumers.includes(id))} selectedProperty={property}
+            onSelectProperty={id => { ctx.preview(null); ctx.locate(null, true); setProperty(id); }} /></>}
+        {bindings && editingConsumers.length > 0 && <CoupledProperties bindings={bindings} selectedConsumers={editingConsumers} scope="inspection" />}
+      </div> : <>
+      {bindings && <CoupledProperties bindings={bindings} category="visual" />}
       <PropertyTree
         available={[...new Set(targets.flatMap(target => target.properties ?? [])), UI_RIGIDITY_PROPERTY]}
+        editable={[...editableProperties, UI_RIGIDITY_PROPERTY]}
         extraProperties={[{ id: UI_RIGIDITY_PROPERTY, property: UI_RIGIDITY_PROPERTY, label: "UI rigidity",
           tooltip: "Included parts stay fixed outside UI edit mode. Exclude a branch or individual item to let it move freely. Normal clicks and field editing stay available.",
         }]}
@@ -348,13 +508,17 @@ export function MasterController({ bindings, visualStatus, children: visualTools
             category="Interface" onClick={() => ui.update(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } }))} />
         </> : <FunctionControl id={`ui:master:${id}`} />}
       />
+      </>}
+      </UISection>
       <EmbeddedGroup
         id={APPEARANCE_HIERARCHY_ID}
         title="Visual hierarchy"
         className="appearance-hierarchy"
+        reveal={!!selectionKey || !!ctx.location}
         expanded={hierarchyOpen}
         onToggle={() => {
           ctx.locate(null, true);
+          if (selectionKey) { setSelectionHierarchy({ key: selectionKey, open: !hierarchyOpen }); return; }
           ui.update(layout => {
             const windows = { ...Object.fromEntries(ui.defaults), ...layout.windows };
             return { ...layout, windows: {
