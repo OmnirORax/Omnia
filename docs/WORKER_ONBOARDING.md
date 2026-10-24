@@ -84,6 +84,11 @@ target hierarchy or current selection. They answer different questions.
 | Symbolic visual selector and accepted-part appearance editing | Implemented for registered UI parts; not arbitrary pixel understanding | [Visual selection](VISUAL_SELECTION.md) |
 | Universal function/property registry, compatible automatic coupling, generated categories and target inclusion after coupling | Implemented shared core; migration underway (visual targets, mouse trail and placement settings) | [Shared properties and coupling](SHARED_PROPERTIES.md) |
 
+AI music/wallpaper generation is planned, not implemented. Before working on
+generation services, playback or reactive wallpapers, read
+[AI/media handoff](AI_MEDIA_HANDOFF.md) for current asset/backend limitations,
+shared integration paths and unresolved scope.
+
 Automatic native-button discovery is not automatic property detection. An action
 being searchable or movable does not establish its property capabilities. The
 shared property registry now connects initial appearance and nonvisual consumers;

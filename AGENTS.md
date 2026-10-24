@@ -7,6 +7,10 @@ the project from source or chat history for every task; inspect the affected cod
 after loading the shared model. Keep this brief and the relevant subsystem docs
 current when changing a cross-cutting contract or its implementation status.
 
+For AI music/wallpaper generation, playback or media services, also read
+[docs/AI_MEDIA_HANDOFF.md](docs/AI_MEDIA_HANDOFF.md). It records current backend/asset
+limitations, state ownership and performance constraints; it is not a feature spec.
+
 # Universal Master Controller signature
 
 **Shift + any configured shortcut opens that function's adaptive Master Controller
