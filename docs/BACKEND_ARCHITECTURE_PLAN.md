@@ -1,7 +1,7 @@
 # Omnia backend architecture plan
 
 Status: proposed architecture and implementation sequence; no backend implemented by this document.
-Implementation update: the local foundation and initial hosted schema/function deployment are described in [BACKEND.md](BACKEND.md). Hosted public signup is disabled and verified; website publication remains pending. Cloud atlas synchronization and other future stages remain proposals.
+Implementation update: the local foundation and initial hosted schema/function deployment are described in [BACKEND.md](BACKEND.md). Hosted public signup is disabled and verified; the website is published and its initial cloud/storage flow was manually verified by the user. Cloud atlas synchronization and other future stages remain proposals.
 Prepared: 2026-10-24. Repository inspected at 98169540ef40128f2d37a09ca8679fc1b8a5e278.
 
 ## 1. Purpose and scope

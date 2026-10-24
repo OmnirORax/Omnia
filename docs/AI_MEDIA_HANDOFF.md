@@ -15,7 +15,8 @@ not an agreed requirement to implement a Wallpaper Engine clone.
 The current integration includes the Supabase backend foundation described in
 [BACKEND.md](BACKEND.md): Auth, workspace roles, private image storage, and a
 server-side function boundary. The schema/function are hosted and public signup
-is disabled. Website publication remains pending. The atlas itself still saves
+is disabled. The website is published; the user verified sign-in, owner workspace
+access, a ready private image, and the download action. The atlas itself still saves
 locally. Existing "External AI proposal" accepts reviewed graph changesets; it is
 not a model provider connection. Image/music generation, jobs, audio/video storage,
 playback, and context-to-protocol bindings remain unimplemented.
