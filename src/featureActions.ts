@@ -1,6 +1,14 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "backend.signIn", owner: "backend", scope: "global", category: "Cloud", label: "Sign in to cloud", defaultKey: "", description: "Sign in with an existing account. Local atlas data is not uploaded." },
+  { id: "backend.signOut", owner: "backend", scope: "global", category: "Cloud", label: "Sign out of cloud", defaultKey: "", description: "Sign out in this browser and clear the cloud panel. Keeps the local atlas." },
+  { id: "backend.refresh", owner: "backend", scope: "global", category: "Cloud", label: "Refresh cloud files", defaultKey: "", description: "Reload authorized workspaces and files." },
+  { id: "backend.createWorkspace", owner: "backend", scope: "global", category: "Cloud", label: "Create private workspace", defaultKey: "", description: "Create a private cloud workspace. Does not upload the current atlas." },
+  { id: "backend.upload", owner: "backend", scope: "global", category: "Cloud", label: "Upload private image", defaultKey: "", description: "Store a PNG, JPEG or WebP image in the selected workspace." },
+  { id: "backend.download", owner: "backend", scope: "global", category: "Cloud", label: "Download selected cloud file", defaultKey: "", description: "Download a ready file using your current permissions." },
+  { id: "backend.finalize", owner: "backend", scope: "global", category: "Cloud", label: "Finish pending upload", defaultKey: "", description: "Validate a previously uploaded pending image. Missing uploads can be deleted." },
+  { id: "backend.delete", owner: "backend", scope: "global", category: "Cloud", label: "Delete selected cloud file", defaultKey: "", description: "Delete the selected cloud file. Failed deletions can be retried." },
   { id: "history.configure", owner: "historyController", scope: "global", category: "History", label: "Configure undo / redo", defaultKey: "", description: "Hold Shift and press your Undo/Redo mouse binding. Repeat or scroll to choose scope; release Shift to execute. Right-click an option applies and locks; left-click resets to 1. Shows only contextual history controls in Master Controller." },
   { id: "context.resize", owner: "frameResize", scope: "uiContext", category: "Active context", label: "Resize / restore active frame", defaultKey: "W", description: "Resize the active frame to the configured surrounding-edge level, or restore it. Shift opens its adaptive configuration; hover a level to preview." },
   { id: "context.back", owner: "activeContext", scope: "uiContext", allowBlocked: true, category: "Active context", label: "Step back / minimize active context", defaultKey: "Esc", allowTyping: true, description: "Leave one value field or popup level; minimize the active frame at frame level. Pending appearance choices remain protected." },

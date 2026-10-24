@@ -83,6 +83,7 @@ target hierarchy or current selection. They answer different questions.
 | Shared appearance properties, editors, target capabilities, draft/recovery and local refinements | Implemented for registered visual targets | [Appearance controller](APPEARANCE_CONTROLLER.md) |
 | Symbolic visual selector and accepted-part appearance editing | Implemented for registered UI parts; not arbitrary pixel understanding | [Visual selection](VISUAL_SELECTION.md) |
 | Universal function/property registry, compatible automatic coupling, generated categories and target inclusion after coupling | Implemented shared core; migration underway (visual targets, mouse trail and placement settings) | [Shared properties and coupling](SHARED_PROPERTIES.md) |
+| Backend foundation | Local foundation and hosted schema/function deployed; hosted signup disabled and verified; 10 hosted smoke checks passed; website publication is pending; atlas remains local | [Backend guide](BACKEND.md), [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) |
 
 AI music/wallpaper generation is planned, not implemented. Before working on
 generation services, playback or reactive wallpapers, read

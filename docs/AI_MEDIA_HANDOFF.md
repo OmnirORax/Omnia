@@ -12,13 +12,18 @@ have not been selected in this conversation. Responsive wallpapers were discusse
 static images/video first and an isolated reactive renderer were recommendations,
 not an agreed requirement to implement a Wallpaper Engine clone.
 
-The checked starting point is a Vite/React/Three.js client with browser-local
-persistence and static deployment. There is no generation API, server-side secret
-store, account system or implemented music/video asset pipeline. Existing
-"External AI proposal" accepts reviewed graph change-set JSON; it is not a model
-provider connection. Earlier backend/GitHub-defaults work was explicitly deferred
-and discarded by the user; do not treat it as an unfinished requirement of this task.
-No backend hosting platform has been selected.
+The current integration includes the Supabase backend foundation described in
+[BACKEND.md](BACKEND.md): Auth, workspace roles, private image storage, and a
+server-side function boundary. The schema/function are hosted and public signup
+is disabled. Website publication remains pending. The atlas itself still saves
+locally. Existing "External AI proposal" accepts reviewed graph changesets; it is
+not a model provider connection. Image/music generation, jobs, audio/video storage,
+playback, and context-to-protocol bindings remain unimplemented.
+
+Backend work was deferred in the earlier media conversation; the user subsequently
+implemented and deployed the foundation in the backend task. Reuse the actual
+backend contracts rather than assuming there is no service or building a parallel
+identity/storage system. This does not settle the media feature specification.
 
 Use a separate feature branch/PR from the latest agreed integration base. If
 sharing an environment, commit before switching branches; a separate chat does

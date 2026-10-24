@@ -37,10 +37,61 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@deno/darwin-arm64@npm:2.9.6":
+  version: 2.9.6
+  resolution: "@deno/darwin-arm64@npm:2.9.6"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@deno/darwin-x64@npm:2.9.6":
+  version: 2.9.6
+  resolution: "@deno/darwin-x64@npm:2.9.6"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@deno/linux-arm64-glibc@npm:2.9.6":
+  version: 2.9.6
+  resolution: "@deno/linux-arm64-glibc@npm:2.9.6"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@deno/linux-x64-glibc@npm:2.9.6":
+  version: 2.9.6
+  resolution: "@deno/linux-x64-glibc@npm:2.9.6"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@deno/win32-arm64@npm:2.9.6":
+  version: 2.9.6
+  resolution: "@deno/win32-arm64@npm:2.9.6"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@deno/win32-x64@npm:2.9.6":
+  version: 2.9.6
+  resolution: "@deno/win32-x64@npm:2.9.6"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
 "@dimforge/rapier3d-compat@npm:~0.12.0":
   version: 0.12.0
   resolution: "@dimforge/rapier3d-compat@npm:0.12.0"
   checksum: 10c0/c66c24f90649c0fc870679c12e7fec1a111080d44450169b57561f957d7b6b284ad8a3ceeba95533e213176ea171351acebd3dd43885fafb33f18bfbd9d507db
+  languageName: node
+  linkType: hard
+
+"@ecies/ciphers@npm:^0.2.6":
+  version: 0.2.6
+  resolution: "@ecies/ciphers@npm:0.2.6"
+  peerDependencies:
+    "@noble/ciphers": ^1.0.0
+  checksum: 10c0/31cbfbaedae690e12344e49eb1b7fd0697f36cf4d03100df52b925e1f19d02a6f445834938ecdd1cd74154496a74fa9147cdda6209255512220e45eb9c693ca0
   languageName: node
   linkType: hard
 
@@ -173,6 +224,29 @@ __metadata:
   peerDependencies:
     react: ^19.2.0
   checksum: 10c0/3c6e579398d15533260983a92d7cc13009811c9acd99a641b81af9a7def3e5f073311915be317a37b3de19ba04fff5377116ffb10ab0745391642abef7a2c174
+  languageName: node
+  linkType: hard
+
+"@noble/ciphers@npm:^1.3.0":
+  version: 1.3.0
+  resolution: "@noble/ciphers@npm:1.3.0"
+  checksum: 10c0/3ba6da645ce45e2f35e3b2e5c87ceba86b21dfa62b9466ede9edfb397f8116dae284f06652c0cd81d99445a2262b606632e868103d54ecc99fd946ae1af8cd37
+  languageName: node
+  linkType: hard
+
+"@noble/curves@npm:^1.9.7":
+  version: 1.9.7
+  resolution: "@noble/curves@npm:1.9.7"
+  dependencies:
+    "@noble/hashes": "npm:1.8.0"
+  checksum: 10c0/150014751ebe8ca06a8654ca2525108452ea9ee0be23430332769f06808cddabfe84f248b6dbf836916bc869c27c2092957eec62c7506d68a1ed0a624017c2a3
+  languageName: node
+  linkType: hard
+
+"@noble/hashes@npm:1.8.0, @noble/hashes@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@noble/hashes@npm:1.8.0"
+  checksum: 10c0/06a0b52c81a6fa7f04d67762e08b2c476a00285858150caeaaff4037356dd5e119f45b2a530f638b77a5eeca013168ec1b655db41bae3236cb2e9d511484fc77
   languageName: node
   linkType: hard
 
@@ -545,6 +619,134 @@ __metadata:
   version: 1.0.0-rc.7
   resolution: "@rolldown/pluginutils@npm:1.0.0-rc.7"
   checksum: 10c0/9d5490b5805b25bcd1720ca01c4c032b55a0ef953dab36a8dd42c568e82214576baa464f3027cd5dff3fabcfbe3bf3db2251d12b60220f5d1cd2ffde5ee37082
+  languageName: node
+  linkType: hard
+
+"@supabase/auth-js@npm:2.118.0":
+  version: 2.118.0
+  resolution: "@supabase/auth-js@npm:2.118.0"
+  dependencies:
+    tslib: "npm:2.8.1"
+  checksum: 10c0/df0349732f296365bcb49b59adc267025bec2872be9fbd07a8d768c89456308b68719a23f5ee2ab3d53a6558282a04d614ba3c5c8093c11ae3ee3f332eab02f1
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-darwin-arm64@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-darwin-arm64@npm:2.122.0"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-darwin-x64@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-darwin-x64@npm:2.122.0"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-linux-arm64-musl@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-linux-arm64-musl@npm:2.122.0"
+  conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-linux-arm64@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-linux-arm64@npm:2.122.0"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-linux-x64-musl@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-linux-x64-musl@npm:2.122.0"
+  conditions: os=linux & cpu=x64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-linux-x64@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-linux-x64@npm:2.122.0"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-windows-arm64@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-windows-arm64@npm:2.122.0"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@supabase/cli-windows-x64@npm:2.122.0":
+  version: 2.122.0
+  resolution: "@supabase/cli-windows-x64@npm:2.122.0"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@supabase/functions-js@npm:2.118.0":
+  version: 2.118.0
+  resolution: "@supabase/functions-js@npm:2.118.0"
+  dependencies:
+    tslib: "npm:2.8.1"
+  checksum: 10c0/0a6140381b4d3ac49d12f81f4b04655ad6c037bc45151794bd62ac3328fc22bca1a67a98e531f8414d75cab1a4bf52febc2adc089271cbe935113e7dd54e32ee
+  languageName: node
+  linkType: hard
+
+"@supabase/phoenix@npm:0.4.5":
+  version: 0.4.5
+  resolution: "@supabase/phoenix@npm:0.4.5"
+  checksum: 10c0/33be3994c870eb3a5f89d3bf6d57783a14f49f710b15e852f85c9750b45f3db5a637b30f7046474fa88f40cce50620e3bce18a27d9819ae16be792776bbfeb9c
+  languageName: node
+  linkType: hard
+
+"@supabase/postgrest-js@npm:2.118.0":
+  version: 2.118.0
+  resolution: "@supabase/postgrest-js@npm:2.118.0"
+  dependencies:
+    tslib: "npm:2.8.1"
+  checksum: 10c0/1992cd552fe2b4046bd871ebca1cce91ef644dbd0686d4a49ae0d19ba938bdbffbb468f653a7c242a70807111ef52610928f1d85f24685e91b5d08b9d9a5ce1a
+  languageName: node
+  linkType: hard
+
+"@supabase/realtime-js@npm:2.118.0":
+  version: 2.118.0
+  resolution: "@supabase/realtime-js@npm:2.118.0"
+  dependencies:
+    "@supabase/phoenix": "npm:0.4.5"
+    tslib: "npm:2.8.1"
+  checksum: 10c0/f4653916a249c9783ce9b51ceebf58e5c91939920d8c0b6834e7220c57741759a0fc4e20ea2213806c71b4fb84b6692b16aa43aec94c7c0902b127c284569694
+  languageName: node
+  linkType: hard
+
+"@supabase/storage-js@npm:2.118.0":
+  version: 2.118.0
+  resolution: "@supabase/storage-js@npm:2.118.0"
+  dependencies:
+    iceberg-js: "npm:^0.8.1"
+    tslib: "npm:2.8.1"
+  checksum: 10c0/e1f4cca459e561d84116c2ca643600dac71efd9f14f8852fff9fa5cd37bccf6e89b736b841b8a56415912f85811eaff456cb29c2d522d2bf84d8ce32f44a2339
+  languageName: node
+  linkType: hard
+
+"@supabase/supabase-js@npm:2.118.0":
+  version: 2.118.0
+  resolution: "@supabase/supabase-js@npm:2.118.0"
+  dependencies:
+    "@supabase/auth-js": "npm:2.118.0"
+    "@supabase/functions-js": "npm:2.118.0"
+    "@supabase/postgrest-js": "npm:2.118.0"
+    "@supabase/realtime-js": "npm:2.118.0"
+    "@supabase/storage-js": "npm:2.118.0"
+  peerDependencies:
+    "@opentelemetry/api": ">=1.0.0"
+  peerDependenciesMeta:
+    "@opentelemetry/api":
+      optional: true
+  checksum: 10c0/b504d6649afc215b7a78eb8fb20048f78291662fc3298f39696f3b307acac0f9f66d044df657ff7cb31cefa89b2de37dc5e71c1c52da751192e37f6107e93968
   languageName: node
   linkType: hard
 
@@ -1225,6 +1427,35 @@ __metadata:
   languageName: node
   linkType: hard
 
+"deno@npm:2.9.6":
+  version: 2.9.6
+  resolution: "deno@npm:2.9.6"
+  dependencies:
+    "@deno/darwin-arm64": "npm:2.9.6"
+    "@deno/darwin-x64": "npm:2.9.6"
+    "@deno/linux-arm64-glibc": "npm:2.9.6"
+    "@deno/linux-x64-glibc": "npm:2.9.6"
+    "@deno/win32-arm64": "npm:2.9.6"
+    "@deno/win32-x64": "npm:2.9.6"
+  dependenciesMeta:
+    "@deno/darwin-arm64":
+      optional: true
+    "@deno/darwin-x64":
+      optional: true
+    "@deno/linux-arm64-glibc":
+      optional: true
+    "@deno/linux-x64-glibc":
+      optional: true
+    "@deno/win32-arm64":
+      optional: true
+    "@deno/win32-x64":
+      optional: true
+  bin:
+    deno: bin.cjs
+  checksum: 10c0/24e36cebc01d88646ba971ff61a28a3df70c37cd1134c9f97316dc7ce0df1650c5fb554310b1f992301aa08cce39e11db5314d723433605416131533002c3064
+  languageName: node
+  linkType: hard
+
 "dequal@npm:^2.0.3":
   version: 2.0.3
   resolution: "dequal@npm:2.0.3"
@@ -1257,6 +1488,18 @@ __metadata:
   version: 0.2.0
   resolution: "eastasianwidth@npm:0.2.0"
   checksum: 10c0/26f364ebcdb6395f95124fda411f63137a4bfb5d3a06453f7f23dfe52502905bd84e0488172e0f9ec295fdc45f05c23d5d91baf16bd26f0fe9acd777a188dc39
+  languageName: node
+  linkType: hard
+
+"eciesjs@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "eciesjs@npm:0.5.0"
+  dependencies:
+    "@ecies/ciphers": "npm:^0.2.6"
+    "@noble/ciphers": "npm:^1.3.0"
+    "@noble/curves": "npm:^1.9.7"
+    "@noble/hashes": "npm:^1.8.0"
+  checksum: 10c0/a80ee11f20f03df522ddb53d19c8cb36b957b471c5a515315d94dadc2ed00672354c339250ded8fb9bd39f6b66961ab86e4463597cbb03023bfc5a606ac5e242
   languageName: node
   linkType: hard
 
@@ -1456,6 +1699,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"iceberg-js@npm:^0.8.1":
+  version: 0.8.1
+  resolution: "iceberg-js@npm:0.8.1"
+  checksum: 10c0/e504da64cc26e8ad7c5344353a7203c671a740c14eb6086f20505f5e9739cab774493e616032530c962df97f2a855115cc2e89a47dd81581df5917b21a69ec48
+  languageName: node
+  linkType: hard
+
 "iconv-lite@npm:^0.6.2":
   version: 0.6.3
   resolution: "iconv-lite@npm:0.6.3"
@@ -1524,6 +1774,13 @@ __metadata:
     "@pkgjs/parseargs":
       optional: true
   checksum: 10c0/f01d8f972d894cd7638bc338e9ef5ddb86f7b208ce177a36d718eac96ec86638a6efa17d0221b10073e64b45edc2ce15340db9380b1f5d5c5d000cbc517dc111
+  languageName: node
+  linkType: hard
+
+"jose@npm:^6.2.10":
+  version: 6.2.13
+  resolution: "jose@npm:6.2.13"
+  checksum: 10c0/a7a175057fd42e129200026320d535deba5c869e764bdb130d4aecb7cc2a22c07eab2bf9fc848188b45b89d95f8e0ba4ce01a8259a4fa45c84bec34f66f2918e
   languageName: node
   linkType: hard
 
@@ -2601,6 +2858,43 @@ __metadata:
   languageName: node
   linkType: hard
 
+"supabase@npm:2.122.0":
+  version: 2.122.0
+  resolution: "supabase@npm:2.122.0"
+  dependencies:
+    "@supabase/cli-darwin-arm64": "npm:2.122.0"
+    "@supabase/cli-darwin-x64": "npm:2.122.0"
+    "@supabase/cli-linux-arm64": "npm:2.122.0"
+    "@supabase/cli-linux-arm64-musl": "npm:2.122.0"
+    "@supabase/cli-linux-x64": "npm:2.122.0"
+    "@supabase/cli-linux-x64-musl": "npm:2.122.0"
+    "@supabase/cli-windows-arm64": "npm:2.122.0"
+    "@supabase/cli-windows-x64": "npm:2.122.0"
+    eciesjs: "npm:^0.5.0"
+    jose: "npm:^6.2.10"
+  dependenciesMeta:
+    "@supabase/cli-darwin-arm64":
+      optional: true
+    "@supabase/cli-darwin-x64":
+      optional: true
+    "@supabase/cli-linux-arm64":
+      optional: true
+    "@supabase/cli-linux-arm64-musl":
+      optional: true
+    "@supabase/cli-linux-x64":
+      optional: true
+    "@supabase/cli-linux-x64-musl":
+      optional: true
+    "@supabase/cli-windows-arm64":
+      optional: true
+    "@supabase/cli-windows-x64":
+      optional: true
+  bin:
+    supabase: dist/supabase.js
+  checksum: 10c0/9ecc03cc0c15d3c10a42e09bb0820d6f765f1202e0cc976bdf1c0454a8aed1df1d19185b7c48a19bb28a8d187f2b0ab6919c127b9ce084ba06686f3e665bb811
+  languageName: node
+  linkType: hard
+
 "tabbable@npm:^6.0.0":
   version: 6.2.0
   resolution: "tabbable@npm:6.2.0"
@@ -2695,6 +2989,13 @@ __metadata:
   version: 2.6.2
   resolution: "tslib@npm:2.6.2"
   checksum: 10c0/e03a8a4271152c8b26604ed45535954c0a45296e32445b4b87f8a5abdb2421f40b59b4ca437c4346af0f28179780d604094eb64546bee2019d903d01c6c19bdb
+  languageName: node
+  linkType: hard
+
+"tslib@npm:2.8.1":
+  version: 2.8.1
+  resolution: "tslib@npm:2.8.1"
+  checksum: 10c0/9c4759110a19c53f992d9aae23aac5ced636e99887b51b9e61def52611732872ff7668757d4e4c61f19691e36f4da981cd9485e869b4a7408d689f6bf1f14e62
   languageName: node
   linkType: hard
 
@@ -2797,10 +3098,12 @@ __metadata:
     "@iconify-json/lucide": "npm:1.2.146"
     "@mantine/core": "npm:9.7.2"
     "@mantine/hooks": "npm:9.7.2"
+    "@supabase/supabase-js": "npm:2.118.0"
     "@types/react": "npm:^19.2.14"
     "@types/react-dom": "npm:^19.2.3"
     "@types/three": "npm:^0.186.0"
     "@vitejs/plugin-react": "npm:^6.0.1"
+    deno: "npm:2.9.6"
     playwright-core: "npm:1.61.1"
     postcss: "npm:^8.5.8"
     postcss-preset-mantine: "npm:1.18.0"
@@ -2808,6 +3111,7 @@ __metadata:
     react: "npm:^19.2.4"
     react-dom: "npm:^19.2.4"
     react-rnd: "npm:10.5.3"
+    supabase: "npm:2.122.0"
     three: "npm:^0.186.1"
     typescript: "npm:6.0.2"
     vite: "catalog:"
