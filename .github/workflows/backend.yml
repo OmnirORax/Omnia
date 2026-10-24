@@ -1,0 +1,39 @@
+name: Backend foundation
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/omnia-yarn" --no-audit --no-fund --package-lock=false @yarnpkg/cli-dist@4.18.1
+          export PATH="$RUNNER_TEMP/omnia-yarn/node_modules/.bin:$PATH"
+          yarn install --immutable
+      - name: Check Edge Function types and frozen dependencies
+        run: node --run backend:check
+      - name: Start isolated local backend
+        run: node --run backend:start > "$RUNNER_TEMP/omnia-backend-start.log" 2>&1
+      - name: Serve functions and verify readiness
+        run: |
+          node --run backend:serve > "$RUNNER_TEMP/omnia-backend-functions.log" 2>&1 &
+          node --run backend:ready
+      - name: Verify backend permissions and file lifecycle
+        run: node --run test:backend
+      - name: Stop local services
+        if: always()
+        run: node --run backend:stop

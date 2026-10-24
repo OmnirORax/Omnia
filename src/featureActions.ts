@@ -1,6 +1,14 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "backend.signIn", owner: "backend", scope: "global", category: "Cloud", label: "Sign in to cloud", defaultKey: "", description: "Sign in with an existing account. Local atlas data is not uploaded." },
+  { id: "backend.signOut", owner: "backend", scope: "global", category: "Cloud", label: "Sign out of cloud", defaultKey: "", description: "Sign out in this browser and clear the cloud panel. Keeps the local atlas." },
+  { id: "backend.refresh", owner: "backend", scope: "global", category: "Cloud", label: "Refresh cloud files", defaultKey: "", description: "Reload authorized workspaces and files." },
+  { id: "backend.createWorkspace", owner: "backend", scope: "global", category: "Cloud", label: "Create private workspace", defaultKey: "", description: "Create a private cloud workspace. Does not upload the current atlas." },
+  { id: "backend.upload", owner: "backend", scope: "global", category: "Cloud", label: "Upload private image", defaultKey: "", description: "Store a PNG, JPEG or WebP image in the selected workspace." },
+  { id: "backend.download", owner: "backend", scope: "global", category: "Cloud", label: "Download selected cloud file", defaultKey: "", description: "Download a ready file using your current permissions." },
+  { id: "backend.finalize", owner: "backend", scope: "global", category: "Cloud", label: "Finish pending upload", defaultKey: "", description: "Validate a previously uploaded pending image. Missing uploads can be deleted." },
+  { id: "backend.delete", owner: "backend", scope: "global", category: "Cloud", label: "Delete selected cloud file", defaultKey: "", description: "Delete the selected cloud file. Failed deletions can be retried." },
   { id: "selector.open", owner: "visualSelector", scope: "global", category: "Visual selector", label: "⦲ Toggle visual selector controller", defaultKey: "MB3", description: "Open configuration at the pointer; press again to resume selection. Preserves selection and configuration." },
   { id: "selector.selfInventory", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Toggle Self inventory", defaultKey: "", description: "Select logical meta targets such as Mouse or Selector feedback; their existing coupled properties appear in Master controller." },
   { id: "selector.selectMouse", owner: "visualSelector", scope: "visualSelector", category: "Visual selector", label: "Toggle Mouse selection", defaultKey: "", description: "Select or deselect the logical mouse target; Master controller shows its coupled properties, including Mouse trail, while selected." },

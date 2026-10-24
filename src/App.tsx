@@ -3,6 +3,7 @@ import { CoupledField } from "./properties/CoupledProperties";
 import { EmbeddedGroup } from "./ui/EmbeddedGroup";
 import { stableUIHash } from "./ui/identity";
 import { UISection } from "./ui/UISection";
+import { CloudPanel } from "./backend/CloudPanel";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
 import { sameAppearance } from "./appearance/session";
@@ -2106,6 +2107,7 @@ function Workbench() {
         </MasterController>
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
+        <CloudPanel />
         <UISection id="spatial-settings" title="Spatial settings">
           {["ui:sphereDiameter", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>

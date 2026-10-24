@@ -11,6 +11,10 @@ documented in [Shared properties](docs/SHARED_PROPERTIES.md).
 
 ## Run and verify
 
+The optional backend foundation provides private workspaces and image storage;
+the atlas continues saving locally. Start with [the backend guide](docs/BACKEND.md)
+for local setup, security contracts, and hosted deployment prerequisites.
+
 Use Node 24 and Yarn 4.18.1, then run `yarn install --immutable` and `yarn dev`. In the prepared Codex cloud environment, Yarn is at `/workspace/.tools/yarn/node_modules/.bin/yarn`; existing dependencies are installed. Verify with `yarn test`, `yarn typecheck`, `yarn build`, `yarn test:browser`, and `yarn test:3d`. Browser checks require the dev server and Chromium (default `/usr/bin/chromium`; override with `CHROMIUM_PATH`).
 
 For GitHack previews, run `yarn build:preview` and publish **dist-preview**, rather than the production `dist` directory. Its `index.html` embeds the application, styles, built-in font, icon catalog and dynamic modules in one response, avoiding the preview host's per-asset rate limiting. Normal GitHub Pages builds retain code splitting. A failed 3D module/render now shows a reload panel inside the canvas while the surrounding editor stays mounted; it does not reset saved data.

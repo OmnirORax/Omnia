@@ -7,6 +7,11 @@ the project from source or chat history for every task; inspect the affected cod
 after loading the shared model. Keep this brief and the relevant subsystem docs
 current when changing a cross-cutting contract or its implementation status.
 
+For backend work, read [docs/BACKEND.md](docs/BACKEND.md). Reuse workspace
+authorization, private asset lifecycles, and portable contracts; keep credentials
+server-side. Cloud atlas synchronization is not implemented. Read the backend guide
+for current hosted deployment status and remaining Auth/frontend configuration.
+
 Essential invariants for every worker:
 
 - Knowledge identity/relationships, visual placements and UI organization are
