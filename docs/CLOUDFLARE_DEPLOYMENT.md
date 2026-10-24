@@ -42,9 +42,9 @@ Automatic deployment is **off unless** repository variable
 or unresolved privacy incident, leave it unset/false until verification passes.
 Pull requests and pushes to `master` run model tests, the production build, backend
 type checks and isolated local backend permission/lifecycle tests. Only a push
-to `master` with passing checks and the activation variable can publish. Manual
+to `master` with passing checks and the activation variable can publish production. Manual
 dispatch on `master` runs checks and a read-only release preflight, **never deploys**.
-There are no automatic preview deployments in this workflow.
+Trusted same-repository PRs use a separate automatic preview job; see the preview section below.
 
 Rerunning an old **push** event can also publish when the flag is enabled. Verify
 its SHA matches the intended reviewed `master` revision before rerunning; do not
