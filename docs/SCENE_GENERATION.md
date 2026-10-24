@@ -51,10 +51,14 @@ not a second feature-specific setter/editor system.
 
 ## Backend contract
 
-At implementation handoff, the additive migration and updated function have been
-validated locally; the hosted read-only plan reports the new migration pending.
-Hosted secret metadata confirms neither the OpenAI key nor scene enable flag is
-configured. No hosted scene rollout or real paid generation has been performed.
+After the user verified prompt binding and persistence in the private preview,
+the additive migration and compatible backend function were deployed to the
+existing Supabase project. Thirteen hosted checks passed, including disabled
+scene readiness, workspace isolation and unauthorized generation rejection.
+Temporary test identities/resources and the verification endpoint/secret were
+removed. OpenAI credentials/enabling remain unconfigured; no paid request ran.
+The exact PR preview origin still needs explicit CORS approval before testing
+generation there; do not enable wildcard preview origins.
 
 Migration `20261024000300_scene_generation.sql` adds `scene_generations` and a
 service-only atomic claim RPC. Existing workspace membership and image storage
