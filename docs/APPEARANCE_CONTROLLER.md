@@ -368,3 +368,18 @@ Setter capability filtering remains authoritative when applying values; inspecte
 selections still limit which branches can be targeted. Hovering a branch with no
 compatible current-property paint uses its existing color bindings for feedback,
 without changing the chosen property, creating values or widening selection scope.
+
+
+UI animation performance: `WindowSparkles` measures a bounded visible job list
+only on appearance/layout/content invalidation. Animation-only frames reuse those
+bounds, clipping readers, ownership scopes and styles instead of querying/measuring
+the page again. Resize observation, scrolling, input, font/image loads, text and
+relevant DOM changes invalidate the measured jobs. Glyph masks have a fast cache
+per measured scope and separate per-host/per-scope snapshots, so exact and inherited
+jobs cannot evict each other's masks. Ordinary DOM edits invalidate affected hosts
+and ancestors; unrelated masks survive. Selector glyph/surface mix variables are
+paint-only and do not invalidate geometry. The scheduler keeps animation/feedback
+redraw requests at the existing 30fps budget; actual edits can request an immediate
+paint. UI electric-noise canvases declare frequent CPU pixel readback at creation,
+while the Three.js texture path retains its own canvas configuration. No stored
+appearance values or user effect choices are changed by these optimizations.

@@ -1,7 +1,7 @@
 /** Small reusable, seamless electric ink tile. Glyph masks clip it to actual lettering. */
-export function createElectricInk() {
+export function createElectricInk(readback = false) {
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
-  const context = canvas.getContext("2d")!;
+  const context = canvas.getContext("2d", { willReadFrequently: readback })!;
   let previous = "";
   const random = (n: number) => { const value = Math.sin(n * 127.1 + 311.7) * 43758.5453; return value - Math.floor(value); };
   return {

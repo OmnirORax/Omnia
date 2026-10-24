@@ -940,3 +940,67 @@ test("hierarchy targeting is independent of setter compatibility without widenin
   assert.equal(hierarchyInteraction([glyph], "effect", "snow").feedbackProperty, "color");
   assert.equal(hierarchyInteraction([], "font", "off").selectable, false);
 });
+
+test("electric text reuses measured scope masks and keeps local and inherited masks separate", async () => {
+  const { drawUIElectricText, clearUILightningContours, invalidateUILightningContours } = await import("../src/uiLightning.ts");
+  const { createElectricInk } = await import("../src/electricInk.ts");
+  const names = ["document", "NodeFilter", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement", "getComputedStyle", "innerWidth", "innerHeight"];
+  const saved = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  let queries = 0, styles = 0, canvases = 0;
+  const contexts = [];
+  const context = { scale() {}, translate() {} };
+  try {
+    for (const name of ["HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement"]) globalThis[name] = class {};
+    globalThis.NodeFilter = { SHOW_TEXT: 4 };
+    globalThis.innerWidth = globalThis.innerHeight = 100;
+    globalThis.getComputedStyle = () => { styles++; return { font: "12px sans-serif" }; };
+    globalThis.document = {
+      createElement: tag => { assert.equal(tag, "canvas"); canvases++; return { width: 0, height: 0, getContext: (_kind, options) => { contexts.push(options); return context; } }; },
+      createTreeWalker: () => ({ nextNode: () => null }),
+    };
+    const element = { querySelectorAll: () => { queries++; return []; }, matches: () => false, textContent: "", scrollTop: 0, scrollLeft: 0 };
+    const rect = { x: 0, y: 0, width: 20, height: 10, right: 20, bottom: 10 };
+    const scopes = [{ key: "inherited", shape: "glyphs", icons: false }, { key: "local", shape: "glyphs", icons: false }];
+    const draw = scope => drawUIElectricText({}, element, rect, {}, 0, 1, false, 1000, scope);
+    clearUILightningContours();
+    scopes.forEach(draw);
+    const warm = { queries, styles, canvases };
+    for (let frame = 0; frame < 60; frame++) scopes.forEach(draw);
+    assert.deepEqual({ queries, styles, canvases }, warm, "animation-only frames do no mask DOM/style work or canvas allocation");
+    draw({ ...scopes[0] });
+    assert.equal(canvases, warm.canvases, "a rebuilt job reuses its inherited mask after an exact local scope used the same host");
+    clearUILightningContours(); draw(scopes[0]);
+    assert.equal(canvases, warm.canvases + 2, "real invalidation rebuilds the mask and compositing surface");
+    const sibling = { ...element }, siblingScope = { ...scopes[0], key: "sibling" };
+    const drawSibling = () => drawUIElectricText({}, sibling, rect, {}, 0, 1, false, 1000, siblingScope);
+    drawSibling();
+    const beforeEdit = canvases;
+    invalidateUILightningContours([element]); drawSibling();
+    assert.equal(canvases, beforeEdit, "editing one host preserves an unrelated host's mask");
+    draw(scopes[0]);
+    assert.equal(canvases, beforeEdit + 2, "the edited host rebuilds its own mask");
+    const field = Object.assign(new globalThis.HTMLInputElement(), element, { value: "first", type: "text", matches: () => true });
+    const fieldScope = { key: "field", shape: "glyphs", icons: false, input: () => false };
+    const drawField = () => drawUIElectricText({}, field, rect, {}, 0, 1, false, 1000, fieldScope);
+    drawField(); const beforeValue = canvases;
+    field.value = "updated without input event"; drawField();
+    assert.equal(canvases, beforeValue + 2, "controlled field values refresh without a DOM mutation event");
+    createElectricInk(true);
+    assert.equal(contexts.at(-1).willReadFrequently, true, "CPU ink readback is declared when creating its context");
+  } finally {
+    clearUILightningContours();
+    for (const name of names) {
+      const descriptor = saved.get(name);
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
+    }
+  }
+});
+
+test("selection pulse ink does not invalidate effect geometry but typography and movement do", async () => {
+  const { effectGeometryStyle } = await import("../src/appearance/effectInvalidation.ts");
+  const base = "font-size: 14px; transform: translate(2px, 3px);";
+  assert.equal(effectGeometryStyle(base), effectGeometryStyle(`${base} --omnium-selector-glyph-mix: 20%; --omnium-selector-surface-mix: 50%;`));
+  assert.notEqual(effectGeometryStyle(base), effectGeometryStyle(base.replace("14px", "18px")));
+  assert.notEqual(effectGeometryStyle(base), effectGeometryStyle(base.replace("2px", "8px")));
+  assert.equal(effectGeometryStyle(null), "");
+});

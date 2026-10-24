@@ -1,8 +1,8 @@
-import { unavailableControl } from "./ui/controlAvailability";
-import { clipCanvas, type PaintClip } from "./ui/paintClip";
-import { imageContours, lightningBolts, type Contour } from "./lightning";
+import { unavailableControl } from "./ui/controlAvailability.ts";
+import { clipCanvas, type PaintClip } from "./ui/paintClip.ts";
+import { imageContours, lightningBolts, type Contour } from "./lightning.ts";
 import type { SparkleStyle } from "./graph/effects";
-import { createElectricInk } from "./electricInk";
+import { createElectricInk } from "./electricInk.ts";
 export type GlyphScope = {
   key: string;
   shape?: "surface" | "contour" | "glyphs";
@@ -31,15 +31,29 @@ function cssMask(element: HTMLElement) {
 }
 type Snapshot = {
   empty?: boolean;
+  inputValue?: string;
   signature: string;
   paths?: Contour[];
   mask: HTMLCanvasElement;
   ink: HTMLCanvasElement;
 };
-let cache = new WeakMap<HTMLElement, Snapshot>();
+let cache = new WeakMap<HTMLElement, Map<string, Snapshot>>();
+// A measured job retains its scope between animation frames. Check this before
+// any DOM queries/signature reads; local and inherited masks may share a host.
+let scopes = new WeakMap<GlyphScope, Snapshot>();
 export const clearUILightningContours = () => {
   cache = new WeakMap();
+  scopes = new WeakMap();
 };
+/** Content/style edits invalidate affected hosts and their ancestors, not every
+ * unrelated text mask. Rebuilt jobs receive new scopes after this notification. */
+export function invalidateUILightningContours(elements: Iterable<Element>) {
+  scopes = new WeakMap();
+  const seen = new Set<Element>();
+  for (const element of elements) for (let host: Element | null = element; host && !seen.has(host); host = host.parentElement) {
+    seen.add(host); cache.delete(host as HTMLElement);
+  }
+}
 /** Rasterize only displayed lettering and icons, omitting panel/button backgrounds. */
 function snapshot(
   element: HTMLElement,
@@ -47,6 +61,11 @@ function snapshot(
   clip: { x: number; y: number; width: number; height: number },
   scope?: GlyphScope,
 ): Snapshot | null {
+  const inputValue = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement ? element.value : undefined;
+  const cachedScope = scope && scopes.get(scope);
+  // React can update a controlled field's value without a DOM mutation/event.
+  // Reading its value is cheap and does not require measuring the page.
+  if (cachedScope && cachedScope.inputValue === inputValue) return cachedScope;
   const inputs = [
     ...element.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
       "input,textarea,select",
@@ -80,8 +99,13 @@ function snapshot(
       (el) => `${el.scrollTop}:${el.scrollLeft}`,
     ),
   ].join("|");
-  const previous = cache.get(element);
-  if (previous?.signature === signature) return previous;
+  const key = scope?.key ?? "";
+  const masks = cache.get(element) ?? new Map<string, Snapshot>();
+  const previous = masks.get(key);
+  if (previous?.signature === signature) {
+    if (scope) scopes.set(scope, previous);
+    return previous;
+  }
   const canvas = document.createElement("canvas"),
     scale = Math.min(1.5, 512 / Math.max(clip.width, clip.height));
   canvas.width = Math.max(1, Math.ceil(clip.width * scale));
@@ -255,8 +279,9 @@ function snapshot(
   const ink = document.createElement("canvas");
   ink.width = canvas.width;
   ink.height = canvas.height;
-  const result = { signature, mask: canvas, ink, empty: !hasInk };
-  cache.set(element, result);
+  const result = { signature, mask: canvas, ink, empty: !hasInk, inputValue };
+  masks.set(key, result); cache.set(element, masks);
+  if (scope) scopes.set(scope, result);
   return result;
 }
 /** Draws narrow colored halos and white-hot cores, without capturing pointer input. */
@@ -356,7 +381,7 @@ export function drawUIElectricText(
     if (tiles.size >= 8) tiles.delete(tiles.keys().next().value!);
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 128;
-    tile = { noise: createElectricInk(), canvas, context: canvas.getContext("2d")! };
+    tile = { noise: createElectricInk(true), canvas, context: canvas.getContext("2d")! };
     tiles.set(key, tile);
   }
   if (tile.noise.update(animated ? seconds : 0, fx.density, fx.boltLength)) {
