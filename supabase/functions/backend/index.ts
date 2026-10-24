@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { ASSET_BUCKET, MAX_ASSET_BYTES, imageSignatureMatches, parseBackendRequest, type Asset, type ErrorCode } from '../_shared/contracts.ts';
+import { ASSET_BUCKET, MAX_ASSET_BYTES, imageSignatureMatches, parseBackendRequest, resolveScenePrompt, type Asset, type ErrorCode } from '../_shared/contracts.ts';
+import { generateSceneImage, SceneProviderFailure } from './scene-provider.ts';
 
 class Failure extends Error {
   constructor(readonly code: ErrorCode, readonly status: number, message: string) { super(message); }
@@ -78,6 +79,54 @@ Deno.serve(async request => {
       const result = await user.rpc('create_workspace', { p_name: input.name, p_request_id: input.requestId });
       databaseError(result.error);
       return respond({ data: result.data, requestId });
+    }
+    if (input.operation === 'scene.capabilities') {
+      const membership = await user.from('workspace_members').select('role').eq('workspace_id', input.workspaceId).eq('user_id', identity.data.user.id).maybeSingle();
+      databaseError(membership.error);
+      if (!membership.data) throw new Failure('forbidden', 403, 'Workspace access is required.');
+      return respond({ data: { enabled: ['owner', 'editor'].includes(membership.data.role) &&
+        Deno.env.get('OMNIA_SCENE_GENERATION_ENABLED') === 'true' && !!Deno.env.get('OPENAI_API_KEY') && !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') }, requestId });
+    }
+    if (input.operation === 'scene.generate') {
+      const membership = await user.from('workspace_members').select('role').eq('workspace_id', input.workspaceId).eq('user_id', identity.data.user.id).maybeSingle();
+      databaseError(membership.error);
+      if (!['owner', 'editor'].includes(membership.data?.role ?? '')) throw new Failure('forbidden', 403, 'Workspace editing access is required to generate scenes.');
+      const providerKey = Deno.env.get('OPENAI_API_KEY');
+      const elevatedKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (Deno.env.get('OMNIA_SCENE_GENERATION_ENABLED') !== 'true' || !providerKey || !elevatedKey)
+        throw new Failure('dependency_unavailable', 503, 'Scene generation is not enabled on the server.');
+      const service = createClient(url, elevatedKey, { ...options, global: { ...options.global, headers: {} } });
+      const claim = await service.rpc('claim_scene_generation', { p_id: input.requestId, p_workspace: input.workspaceId,
+        p_actor: identity.data.user.id, p_input: input });
+      databaseError(claim.error);
+      // Repeating this identity returns the existing attempt, never a second paid submission.
+      if (!claim.data.claimed) return respond({ data: claim.data.generation, requestId });
+      try {
+        const prompt = resolveScenePrompt(input.prompt, input.variable, input.source, input.node);
+        const bytes = await generateSceneImage(prompt, providerKey, Deno.env.get('OMNIA_SCENE_MODEL') ?? 'chatgpt-image-latest');
+        // reserve_asset revalidates the user's current role before accepting output.
+        const reserved = await user.rpc('reserve_asset', { p_id: input.requestId, p_workspace_id: input.workspaceId,
+          p_name: `${input.node.label.slice(0, 160) || 'Scene'}.webp`, p_media_type: 'image/webp', p_byte_size: bytes.length });
+        databaseError(reserved.error);
+        const asset = reserved.data as Asset;
+        const linked = await service.from('scene_generations').update({ asset_id: asset.id }).eq('id', input.requestId);
+        databaseError(linked.error);
+        const uploaded = await service.storage.from(ASSET_BUCKET).upload(asset.object_key, bytes, { contentType: 'image/webp', upsert: false });
+        if (uploaded.error) throw new Failure('dependency_unavailable', 503, 'Generated image could not be stored.');
+        const finalized = await service.rpc('complete_asset', { p_id: asset.id, p_actor: identity.data.user.id,
+          p_byte_size: bytes.length, p_media_type: 'image/webp' });
+        databaseError(finalized.error);
+        const saved = await service.from('scene_generations').update({ state: 'ready', updated_at: new Date().toISOString() })
+          .eq('id', input.requestId).select('*').single();
+        databaseError(saved.error);
+        return respond({ data: saved.data, requestId });
+      } catch (error) {
+        // A timeout/process disconnect can leave provider billing ambiguous. No automatic resubmission.
+        const definiteFailure = error instanceof SceneProviderFailure && error.status < 500;
+        const saved = await service.from('scene_generations').update({ state: definiteFailure ? 'failed' : 'uncertain', updated_at: new Date().toISOString() }).eq('id', input.requestId);
+        databaseError(saved.error);
+        throw new Failure('dependency_unavailable', 503, definiteFailure ? error.message : 'Generation did not finish safely. Check its saved status before starting another paid request.');
+      }
     }
     // Membership is enforced by RLS before any service-credential operation.
     const selected = await user.from('assets').select('*').eq('id', input.assetId).maybeSingle();

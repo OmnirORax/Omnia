@@ -9,9 +9,9 @@ Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScrip
 - Private PNG/JPEG/WebP uploads, server-side signature/size/type validation, download, and retryable deletion.
 - Database grants and row-level policies; no ordinary client can change membership or finalize a file by writing table rows.
 - Optional frontend connection in Workspace settings → Cloud connection, using the existing shared UI section, fields, and action catalog.
-- Local-only tooling and an isolated backend permission suite. No public signup, cloud atlas synchronization, AI generation, durable job runner, collaboration, quest system, or GitHub publishing integration.
+- Local-only tooling and an isolated backend permission suite. A first bounded OpenAI scene generation operation and private attempt ledger are described in [scene generation](SCENE_GENERATION.md); paid generation is gated off until configured. No public signup, cloud atlas synchronization, durable job runner, collaboration, quest system, or GitHub publishing integration.
 
-The atlas still autosaves to the existing browser storage. Signing in creates no cloud copy. Cloud assets are a separate resource and are not inserted into the atlas or applied as backgrounds.
+The atlas still autosaves to the existing browser storage. Signing in creates no cloud copy. Cloud assets are separate resources and are not inserted into the atlas. The scene feature can explicitly apply a generated private image as the workspace background; uploading an ordinary file does not automatically apply it.
 
 ## Local setup
 
@@ -67,6 +67,8 @@ POST /functions/v1/backend accepts:
 | workspace.create | name, requestId (UUID) | Workspace and requestId |
 | asset.finalize | assetId (UUID) | Ready asset and requestId |
 | asset.delete | assetId (UUID) | Deleted asset ID and requestId |
+| scene.generate | workspaceId, requestId, prompt, variable, source, bounded node snapshot | Persisted generation attempt; ready private asset on success |
+| scene.capabilities | workspaceId | Role-aware server generation readiness; no provider call |
 
 Send the user access token as Bearer authorization and the project's public key as apikey. The handler validates tokens with Auth itself; gateway verify_jwt is disabled for this handler to support its explicit verification, not to allow unauthenticated writes. JSON bodies are bounded to 16 KiB, unknown operation fields are rejected, and database/network calls have timeouts.
 

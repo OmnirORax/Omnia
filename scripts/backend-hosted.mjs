@@ -66,7 +66,7 @@ console.log('Backend browser origins configured.');
 // CLI's legacy token-format validator rejects. Never fall back to broader tokens.
 const form = new FormData();
 form.append('metadata', JSON.stringify({ entrypoint_path: 'backend/index.ts', import_map_path: 'backend/deno.json', name: 'backend', verify_jwt: false }));
-for (const path of ['backend/index.ts', 'backend/deno.json', 'backend/deno.lock', '_shared/contracts.ts'])
+for (const path of ['backend/index.ts', 'backend/scene-provider.ts', 'backend/deno.json', 'backend/deno.lock', '_shared/contracts.ts'])
   form.append('file', new Blob([readFileSync(new URL(`../supabase/functions/${path}`, import.meta.url))]), path);
 const response = await fetch(base + '/functions/deploy?slug=backend', {
   method: 'POST', headers: { Authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}` }, body: form, signal: AbortSignal.timeout(180000),
