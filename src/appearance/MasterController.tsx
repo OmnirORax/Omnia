@@ -39,6 +39,7 @@ import { useUI, UIContainerContext, UIHomeContext } from "../ui/context";
 import { APPEARANCE_HIERARCHY_ID } from "./propertyTree";
 import { UI_RIGIDITY_PROPERTY, rigidityIncluded, rigidityRowVisible, rigidityTargets, toggleRigidity } from "../ui/rigidity";
 import { highlightHierarchy } from "./highlight";
+import { hierarchyInteraction, hierarchyTargetable } from "./hierarchyInteraction";
 import { useFrameExpansion } from "../ui/frameExpansion";
 import { residentPinned } from "../ui/layout";
 
@@ -189,14 +190,6 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     setExpanded(new Set(expand ? targets.filter(target => children.has(target.id)).map(target => target.id) : []));
   }, `window:${APPEARANCE_HIERARCHY_ID}`);
   const currentEffect = active.adjustments?.effect ?? "off";
-  const applicable = (t: RegisteredTarget): boolean =>
-    (descendants.get(t.id) ?? []).some(
-      (child) =>
-        child.properties?.includes(property) &&
-        (property !== "effect" ||
-          !child.effectKinds ||
-          child.effectKinds.includes(String(currentEffect))),
-    );
   const change = (value: Value, preview = false, origin?: string) => {
     let next = inspecting ? applySelectedValue(state, editingParts.filter(part => !origin || inBranch(origin).some(item => item.id === selectedPartId(part))), property, value) : applyValue(
       state,
@@ -275,15 +268,14 @@ export function MasterController({ bindings, visualStatus, history, children: vi
   const highlight = (id: string) => {
     highlighted.current?.stop();
     const sources = inspecting ? inBranch(id).filter(item => item.target && !excludedItems.has(item.id)).map(item => item.target!) : descendants.get(id) ?? [];
-    const eligible = sources.filter(target => !target.aggregate && target.properties?.includes(property) &&
-      (property !== "effect" || !target.effectKinds || target.effectKinds.includes(String(currentEffect))));
+    const { feedbackProperty, feedbackTargets: eligible } = hierarchyInteraction(sources, property, String(currentEffect));
     const partPolicy = inspecting ? selectedPartPolicy(state) : null;
     highlighted.current = eligible.length ? highlightHierarchy(eligible.map(target => ({ target,
       active: rigidity ? !target.instance || !residentPinned(effectiveLayout, target.instance.owner)
         : inspecting && scopeItems.find(item => item.id === target.id)?.part
-          ? !ctx.safe && partPolicy!(scopeItems.find(item => item.id === target.id)!.part!, property)
-          : !ctx.safe && (inspecting ? true : included(active, targets, target.id)) && !blocked(state, targets, target.id, property, active.only ?? "all") && connected(state, targets, target.id, property),
-    })), targets, property) : null;
+          ? !ctx.safe && partPolicy!(scopeItems.find(item => item.id === target.id)!.part!, feedbackProperty)
+          : !ctx.safe && (inspecting ? true : included(active, targets, target.id)) && !blocked(state, targets, target.id, feedbackProperty, active.only ?? "all") && connected(state, targets, target.id, feedbackProperty),
+    })), targets, feedbackProperty) : null;
   };
   useEffect(() => {
     if (hovered.current) highlight(hovered.current);
@@ -310,7 +302,7 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     highlighted.current = null;
     hovered.current = on ? target.id : null;
     if (on) highlight(target.id);
-    if (on && target.instance && applicable(target))
+    if (on && target.instance && hierarchyTargetable(descendants.get(target.id) ?? []))
       revealSession.current = transientReveal({
         highlight: false,
         path: target.instance.path ?? [],
@@ -332,7 +324,8 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     const count = inspecting && !selectingObject && visualSelection?.boundary ? visualSelection.targetSelection.get(target.id) : undefined;
     const partial = !!count && count.included > 0 && count.included < count.total;
     const nested = children.get(target.id) ?? [],
-      can = applicable(target) && (!inspecting || !!count?.total || inBranch(target.id).some(item => item.target?.properties?.includes(property))),
+      can = hierarchyTargetable(descendants.get(target.id) ?? [],
+        !inspecting || !!count?.total || inBranch(target.id).length > 0),
       lit = rigidity ? rigidityIncluded(effectiveLayout, targets, target.id, ui.functions) : inspecting
         ? count ? count.included === count.total : inBranch(target.id).some(item => !excludedItems.has(item.id)) : included(active, targets, target.id);
     const branchItems = inspecting ? inBranch(target.id).filter(item => !excludedItems.has(item.id)) : [];

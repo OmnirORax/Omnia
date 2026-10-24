@@ -1,6 +1,6 @@
 # Shared appearance controller
 
-Open **Master controller → Visuals**. Choose a property above the tree; branches that support it light up. All color inputs are round swatches.
+Open **Master controller → Visuals**. Choose a property above the tree; setters follow the targets’ supported capabilities. Target circles remain usable independently of that property. All color inputs are round swatches.
 
 **Animation is an adjuster, like Color.** There is no VFX target branch. Choose **Animation**, target Text, Icons, window surfaces, nodes, binders or the workspace background, then choose an effect. **Lightning text / icons** fills glyphs with moving electric ink; **Lightning outlines** traces their contours. Glyph-only effects exclude incompatible surface targets. Animation speed, density, intensity and color use the same hierarchy, selections and locks.
 
@@ -359,3 +359,12 @@ presses toggle All/None. Paste applies exactly the checked channels: ordinary
 setter companion behavior (such as Color also changing animation color) is disabled
 for clipboard application only. Ordinary direct property editing retains its
 established companion behavior.
+
+
+Hierarchy target circles remain usable independently of the currently selected
+property. For example, selecting Font must not disable Windows / frames / controls:
+users may select that category before choosing Color or another supported setter.
+Setter capability filtering remains authoritative when applying values; inspected
+selections still limit which branches can be targeted. Hovering a branch with no
+compatible current-property paint uses its existing color bindings for feedback,
+without changing the chosen property, creating values or widening selection scope.

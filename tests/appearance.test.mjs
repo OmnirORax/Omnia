@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyController,
+  ancestry,
   applyValue,
   cycleTarget,
   included,
@@ -918,4 +919,24 @@ test("selective paste does not rewrite unchecked companion properties", () => {
   const selected = applySelectedValue(emptyController(), [part], "color", "#00ff00", { exact: true });
   assert.equal(selected.values[selectedPartId(part)].color, "#00ff00");
   assert.equal(selected.values[selectedPartId(part)].effectColor, undefined);
+});
+
+
+test("hierarchy targeting is independent of setter compatibility without widening selected scopes", async () => {
+  const { hierarchyInteraction } = await import("../src/appearance/hierarchyInteraction.ts");
+  const targets = controllerTargets(emptyController());
+  const windows = targets.filter(target => target.id === "ui" || ancestry(targets, target.id).includes("ui"));
+  const feedback = hierarchyInteraction(windows, "font", "off");
+  assert.equal(feedback.selectable, true, "Windows stays targetable while Font is active");
+  assert.equal(feedback.feedbackProperty, "color", "unsupported Font uses existing surface ink for hover feedback");
+  assert.ok(feedback.feedbackTargets.length > 0);
+  assert.ok(feedback.feedbackTargets.every(target => target.properties.includes("color")));
+  assert.equal(hierarchyInteraction(windows, "font", "off", false).selectable, false, "unrelated branches remain outside an inspected selection");
+  const lettering = targets.filter(target => target.binding?.text);
+  const font = hierarchyInteraction(lettering, "font", "off");
+  assert.equal(font.feedbackProperty, "font", "compatible setters keep their usual feedback");
+  const glyph = { id: "glyph", label: "Glyph", properties: ["color", "effect"], effectKinds: ["electric-text"] };
+  assert.equal(hierarchyInteraction([glyph], "effect", "snow").selectable, true);
+  assert.equal(hierarchyInteraction([glyph], "effect", "snow").feedbackProperty, "color");
+  assert.equal(hierarchyInteraction([], "font", "off").selectable, false);
 });
