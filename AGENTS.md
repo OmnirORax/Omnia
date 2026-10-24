@@ -154,3 +154,8 @@ Committed state owners must integrate with `ui/actionHistory.ts` for chronologic
 Undo/Redo; keep previews and selection timelines transient. Reuse owner adapters
 and patch conflict checks. Contextual Master Controller activation exposes only
 relevant controls; explicit activation exposes the general controller.
+
+Before publishing follow-up work or linking a PR, verify its live GitHub state.
+A merged PR does not include commits pushed to its head branch afterward. Put
+post-merge work in a new open PR against the current default branch; do not keep
+updating the merged PR description as if it were the active review.
