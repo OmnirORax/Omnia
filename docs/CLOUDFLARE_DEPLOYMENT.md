@@ -230,3 +230,23 @@ migrations or function deployment were performed for the frontend rollout.
 - Merges to `master`, including documentation-only merges, can publish. Preserve
   existing workflows, required checks, environments and permissions. For follow-up
   changes use a new branch/PR from current `master`; PR #27 is already merged.
+
+## Automatic private PR previews
+
+Same-repository PRs authored by OWNER/MEMBER/COLLABORATOR run the existing checks
+against the exact PR head SHA, then build that SHA again in a separate `preview`
+job/environment (`cloudflare-preview`). Forks and other author associations skip
+this credential-bearing job; `pull_request_target` is not used. Maintain restricted
+repository write access and configure required reviewers on the preview environment
+when accepting code from anyone not trusted with deployment credentials.
+
+Wrangler deploys to the existing `omnia-web` project with branch `pr-<number>`;
+production branch remains `master`. PR #29's alias is
+`https://pr-29.omnia-web-bae.pages.dev`. Before uploading content, the Access checker
+requires login redirects on that alias and a fresh wildcard probe hostname, plus
+all existing inventoried hosts. Unavailable/unprotected aliases fail closed. After
+upload it enumerates/checks the new deployment hosts again. No deployment occurs
+if the preflight fails. Production conditions and activation variable are separate.
+No Supabase origins or backend settings change: cloud operations remain restricted
+to the production/development origins documented above. PR UI/prompt preview works;
+API generation still needs its own backend rollout/credentials.
