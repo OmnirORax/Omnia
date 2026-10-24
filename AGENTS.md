@@ -60,6 +60,12 @@ fields. See the UI component contract for its left/right-click semantics.
 
 # Responsiveness is a product requirement
 
+For cross-cutting performance changes, start with
+[docs/PERFORMANCE_ARCHITECTURE_PLAN.md](docs/PERFORMANCE_ARCHITECTURE_PLAN.md).
+Numeric controls need meaningful consumer/mode ranges and aggregate render budgets;
+editable slider endpoints do not override those constraints. Validate all entry
+paths. Do not claim a performance fix from model tests/cache assertions alone.
+
 Performance takes priority over maximum configurability/freedom. Prefer bounded
 work and supported combinations; restrict effect complexity, concurrent animated
 sources or costly options when necessary instead of allowing settings that make

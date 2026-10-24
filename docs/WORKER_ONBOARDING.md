@@ -56,6 +56,11 @@ user repeatedly discovering regressions. Builds alone do not verify smoothness. 
 configuration freedom: prefer bounded supported options and explain necessary
 restrictions instead of allowing combinations that make the app unusable.
 
+The user still reports severe system-wide lag. See the
+[performance recovery plan](PERFORMANCE_ARCHITECTURE_PLAN.md) for inspected risk
+areas, baseline profiling, renderer-aware ranges, aggregate budgets and staged
+refactoring. Earlier effect/HUD optimizations are not a verified resolution.
+
 ## Essential distinctions
 
 | Concept | Meaning and boundary |
