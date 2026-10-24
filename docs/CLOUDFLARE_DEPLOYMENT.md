@@ -6,15 +6,53 @@ domain `https://omnium.nexus`. The reported production Pages hostname is
 attached domains, deployment URLs and preview aliases through Cloudflare's API.
 No project, domain, Access policy or branch is created by the workflow.
 
-## Current safety state
+## Live status and handoff (2026-10-24)
+
+Production is live at **https://omnium.nexus**. The user completed the Access
+policy/browser checks, authorized activation, and set repository variable
+`CLOUDFLARE_DEPLOY_ENABLED=true`. Automatic production deployment from **`master`**
+is enabled; do not rename the branch to `main` or repeat initial provisioning.
+GitHub Pages' custom-domain binding was removed and hosting disabled; its API
+returned HTTP 404. The existing Cloudflare project was retained.
+
+Evidence for deployed commit `3c4945de09f92a38654fac70f0b41b2ca30b507d`:
+
+- Configuration merged through [PR #27](https://github.com/OmnirORax/Omnia/pull/27).
+- [Pre-activation verification](https://github.com/OmnirORax/Omnia/actions/runs/40112405965)
+  passed after the account ID formatting was corrected and GitHub Pages retired.
+- [Production push workflow, attempt 2](https://github.com/OmnirORax/Omnia/actions/runs/40112335371)
+  passed and deployed with Wrangler. This reran the reviewed commit's original
+  push event after the user enabled the activation variable; no empty commit or
+  backend deployment was needed.
+- [Post-deployment verification](https://github.com/OmnirORax/Omnia/actions/runs/40115743541)
+  passed, covering the newly inventoried deployment hostname as well as production
+  hosts. This was manual dispatch and did not publish a second deployment.
+
+Automated evidence proves the inventoried hosts required Access authentication on
+the checked paths. Unauthorized signed-in identity denial and future preview
+policy coverage were **reported checked by the user**; the agent did not inspect
+those policies or perform authenticated browser tests. This is a dated baseline,
+not a permanent guarantee after policy/domain changes. Reverify when changing
+Access, domains, aliases, previews, routes or deployment configuration.
+
+## Release behavior
 
 Automatic deployment is **off unless** repository variable
-`CLOUDFLARE_DEPLOY_ENABLED` is exactly `true`. Leave it unset during setup.
+`CLOUDFLARE_DEPLOY_ENABLED` is exactly `true` (currently enabled). For a new setup
+or unresolved privacy incident, leave it unset/false until verification passes.
 Pull requests and pushes to `master` run model tests, the production build, backend
 type checks and isolated local backend permission/lifecycle tests. Only a push
 to `master` with passing checks and the activation variable can publish. Manual
 dispatch on `master` runs checks and a read-only release preflight, **never deploys**.
 There are no automatic preview deployments in this workflow.
+
+Rerunning an old **push** event can also publish when the flag is enabled. Verify
+its SHA matches the intended reviewed `master` revision before rerunning; do not
+use an old push run as a harmless test. For verification without publication use
+`gh workflow run cloudflare-pages.yml --ref master --repo OmnirORax/Omnia`.
+The built-in Access preflight runs **before** publication. A new deployment URL
+is inventoried on the next verification run; post-deployment verification is a
+separate manual dispatch, not an automatic second job in the push workflow.
 
 Release uses Node 24, immutable Yarn 4.18.1 dependencies, the existing `build`
 command, and pinned Wrangler 4.152.0:
@@ -35,11 +73,11 @@ Repository Settings → Secrets and variables → Actions:
 | Kind | Name | Value/purpose |
 | --- | --- | --- |
 | Secret | `CLOUDFLARE_API_TOKEN` | Account-scoped Cloudflare Pages Edit token for the account containing `omnia-web`; no DNS/Access administrative permission needed |
-| Variable | `CLOUDFLARE_ACCOUNT_ID` | The existing project's 32-character Cloudflare account ID |
+| Variable | `CLOUDFLARE_ACCOUNT_ID` | Exactly the existing project's 32 hexadecimal characters, one line, no whitespace |
 | Variable | `VITE_SUPABASE_URL` | Existing Supabase HTTPS project URL |
 | Variable | `VITE_SUPABASE_PUBLISHABLE_KEY` | Existing public publishable key, never a privileged key |
 | Variable, optional | `CLOUDFLARE_ACCESS_EXTRA_HOSTS` | Whitespace/comma-separated additional HTTPS hostnames discovered during the DNS/routing audit |
-| Variable, activation only | `CLOUDFLARE_DEPLOY_ENABLED` | Leave unset until the entire checklist below passes; then set `true` |
+| Variable, activation | `CLOUDFLARE_DEPLOY_ENABLED` | Currently `true`; remove/set false to pause future publication |
 
 Create environment **`cloudflare-production`** in Settings → Environments. Restrict
 deployment branches to `master`. Configure required reviewers and prevent
@@ -49,9 +87,12 @@ If required reviewers are unavailable, retain the disabled flag until the
 independent verification is completed. Review branch protection/rulesets to require
 the new `checks` job; preserve existing required checks and protections.
 
-Repository variables/secrets could not be inspected with the current integration
-(HTTP 403). Their existence and values have not been verified. Environment settings
-and branch protections are not silently created or changed by this patch.
+The user configured credentials/variables and reported the environment setup
+completed. Successful live release/verification proves the required credentials
+were usable. Direct variable/secret inspection and updates through this coding
+integration returned HTTP 403, as did deleting GitHub Pages hosting; the user made
+those administrative changes in the dashboard. Do not request broader credentials
+or claim to have independently audited branch protections/reviewer settings.
 
 ## Retire GitHub Pages before enabling Cloudflare
 
@@ -59,10 +100,13 @@ The old `deploy-pages.yml` retains its model/build checks but has no configure,
 upload or deploy steps. Existing backend workflow and its permissions are unchanged.
 Removing publication steps **does not unpublish an existing site**.
 
-The GitHub Pages API still reported `cname: omnium.nexus` during inspection.
-Unpublishing via this integration returned HTTP 403. A repository administrator
-must open **Settings → Pages → Unpublish site** (confirm removal of the old custom
-domain binding). Remove any obsolete DNS records pointing at GitHub Pages; retain
+Retirement is complete. For future recovery/reference: the Pages settings page
+had no Unpublish button. The user clicked **Remove** beside the custom domain,
+then changed **Source → Deploy from a branch → Branch: None → Save**. Removing
+only the domain binding left the Pages configuration present; selecting None
+disabled hosting and made the API return 404. An API 200 with an empty status
+does not by itself prove that content is still being served.
+Remove any obsolete DNS records pointing at GitHub Pages; retain
 the records Cloudflare Pages requires. Do not delete the repository or change
 other Actions permissions. Confirm the Pages API now returns HTTP 404 and
 `https://omnirorax.github.io/Omnia/` returns HTTP 404/410 without a redirect.
@@ -70,10 +114,14 @@ The release preflight independently requires both conditions.
 
 ## Cloudflare configuration and privacy verification
 
-1. Set the existing Pages project's production branch to **`master`**. Disable any
+This checklist was completed for activation; reuse it when changing infrastructure.
+
+1. Keep the existing Pages project's production branch at **`master`**. Disable any
    native Cloudflare Git integration automatic production/preview builds so they
    cannot bypass the Actions checks or disabled flag. Preserve the existing project
    and its custom domain.
+   A Direct Upload project may have no native Git automatic-build settings; do
+   not create a second project or connect Git just to obtain those settings.
 2. Review DNS, Pages domains/aliases, redirects and any Workers/routes for other
    paths to this site. Add any host not returned by the Pages API to
    `CLOUDFLARE_ACCESS_EXTRA_HOSTS`. Review old deployment URLs as well as the two
@@ -103,8 +151,10 @@ The release preflight independently requires both conditions.
 
 Outbound requests to both production hosts and the legacy GitHub hostname were
 blocked by this development environment's network proxy (CONNECT HTTP 403).
-**Access protection has not been independently verified here.** Run the check
-from GitHub Actions or an allowed independent network before activation.
+This was not an Access denial and was not treated as proof of protection.
+Independent unauthenticated checks subsequently passed **from GitHub Actions**,
+including the post-deployment run linked above. Use Actions or an allowed network
+when the coding workspace cannot reach those hosts; do not bypass its proxy.
 
 ## Backend origin compatibility
 
@@ -154,4 +204,29 @@ does not change runtime code. Browser suites and local backend lifecycle tests
 were not rerun for this configuration change; the existing lifecycle suite is
 required by the new CI job. Cloudflare credentials are not present in this coding
 environment, so its live account/project settings have not been inspected here.
-No Cloudflare deployment was performed.
+Those were the initial implementation checks. Subsequently, GitHub CI passed the
+full local backend lifecycle suite and the live deployment/verification runs
+above. No browser suite was run by the agent, and no additional hosted backend
+migrations or function deployment were performed for the frontend rollout.
+
+## Troubleshooting and future changes
+
+- `Cloudflare token/account configuration is missing or invalid`: check secret
+  presence and the account variable's exact single-line format. Trailing blank
+  lines caused the observed failure; the user corrected the variable. Do not paste
+  tokens into chat or print environment values while diagnosing.
+- The Node 20 action-runtime deprecation and Ubuntu runner migration annotations
+  were warnings, not the failed preflight's cause. Expand the red failed step to
+  see the actual message. A local-backend startup failure passed on retry; do not
+  remove the permission suite to get a green deployment.
+- This coding environment could read Actions status but log downloads were blocked
+  at the results-storage domain; jobs API requests also intermittently returned
+  HTTP 502. A dashboard error message may be needed if those limits recur. Do not
+  interpret a failed status request as a failed deployment.
+- No public signup/website entry flow or AI provider integration was added by
+  this hosting work. Keep the existing Supabase authorization boundary. New auth
+  redirects, provider callbacks or external integrations need their own explicit
+  design compatible with Access; never weaken Access/CORS to make them work.
+- Merges to `master`, including documentation-only merges, can publish. Preserve
+  existing workflows, required checks, environments and permissions. For follow-up
+  changes use a new branch/PR from current `master`; PR #27 is already merged.

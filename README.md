@@ -137,9 +137,10 @@ The app enforces a 5 MB JSON import limit, 2,000 identities, 4,000 placements, 1
 
 ## Hosted entry point
 
-The private Cloudflare Pages deployment targets `omnia-web` / `omnium.nexus` from
-`master`. Automatic publication is disabled until Access and retired GitHub hosting
-are verified; see [deployment setup and activation](docs/CLOUDFLARE_DEPLOYMENT.md).
-The old GitHub Pages workflow retains build/test checks but no publication steps;
-an administrator must separately unpublish the previously hosted site. Each
-visitor's atlas remains in that visitor's browser and is not published with the app.
+The website is live at [omnium.nexus](https://omnium.nexus), protected by Cloudflare
+Access. GitHub Actions automatically deploys `master` to Cloudflare Pages project
+`omnia-web` after tests, build and Access preflight pass. Manual workflow runs
+verify only. GitHub Pages hosting is disabled; its old workflow retains build/test
+checks. See [deployment operations and verification](docs/CLOUDFLARE_DEPLOYMENT.md).
+Each visitor's atlas remains in that visitor's browser and is not published with
+the app; local data does not automatically transfer between hosting origins.
