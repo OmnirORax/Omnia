@@ -726,6 +726,18 @@ test("appearance previews never enter saved settings; Apply is one undo step", (
   assert.equal(travelSession(travelSession(applied, "undo"), "redo").saved.present.settings.appearance.accent, "#000000");
 });
 
+test("layout-only actions preserve the existing settings and appearance renderer identities", () => {
+  const initial = { layout: emptyUILayout(), settings: defaultSettings() };
+  const session = editSession(startSession(initial), {
+    ...initial, layout: { ...initial.layout, panels: { "@theme": true } },
+  });
+  assert.equal(session.draft, null, "opening a frame does not start an appearance investigation");
+  assert.equal(currentState(session).settings, initial.settings);
+  assert.equal(currentState(session).settings.appearance, initial.settings.appearance);
+  assert.equal(session.saved.past.length, 1);
+  assert.equal(travelSession(session, "undo").saved.present, initial);
+});
+
 test("layout and controls save independently; discard preserves them and prior appearance", () => {
   const initial = { layout: emptyUILayout(), settings: defaultSettings() };
   let session = startSession(initial);

@@ -47,7 +47,7 @@ export function useInterfaceState(
     const a = snapshot(before), b = snapshot(after), categories: HistoryCategory[] = [];
     if (a.layout !== b.layout && JSON.stringify(a.layout) !== JSON.stringify(b.layout)) categories.push("ui");
     if (!sameAppearance(a.settings.appearance, b.settings.appearance) || !sameAppearance(a.savedAppearance, b.savedAppearance)) categories.push("appearance");
-    if (JSON.stringify({ ...a.settings, appearance: null }) !== JSON.stringify({ ...b.settings, appearance: null })) categories.push("settings");
+    if (a.settings !== b.settings && JSON.stringify({ ...a.settings, appearance: null }) !== JSON.stringify({ ...b.settings, appearance: null })) categories.push("settings");
     const contexts = new Set([...journal.contextPath, journal.activeContext]);
     for (const key of new Set([...Object.keys(a.layout.windows), ...Object.keys(b.layout.windows)]))
       if (a.layout.windows[key] !== b.layout.windows[key] && JSON.stringify(a.layout.windows[key]) !== JSON.stringify(b.layout.windows[key])) contexts.add(`window:${key}`);
@@ -56,10 +56,14 @@ export function useInterfaceState(
   const commit = useCallback(
     (change: (s: InterfaceState) => InterfaceState, group?: string) => {
       try {
-        const next = change(currentState(ref.current));
+        const current = currentState(ref.current);
+        const next = change(current);
+        if (next.layout === current.layout && next.settings === current.settings) return;
+        // Normalization is an ingress boundary, not a reason to rebuild unrelated
+        // appearance/layout branches on every ordinary button press.
         const checked = {
-          layout: validateUILayout(next.layout),
-          settings: normalizeSettings(next.settings),
+          layout: next.layout === current.layout ? current.layout : validateUILayout(next.layout),
+          settings: next.settings === current.settings ? current.settings : normalizeSettings(next.settings),
         };
         const active = document.activeElement as HTMLElement | null;
         const event = window.event;

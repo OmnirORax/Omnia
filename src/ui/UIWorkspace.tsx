@@ -633,11 +633,17 @@ export function UIWorkspace({
     update(layout => createUIFrame(layout, x, y, mode));
     setCreatingFrame(null);
   };
-  const ensure = (s: UILayout) => ({
-    ...s,
-    windows: Object.fromEntries([...new Set([...defaults.keys(), ...Object.keys(s.windows)])].map(id => [id, { ...defaults.get(id), ...s.windows[id] }])),
-  });
-  const canMove = (key: string) => residentMovable(ensure(layout), key, functions);
+  // One default-window projection per input snapshot, shared by all permission
+  // checks in this render/gesture. Never rebuild it once per discovered button.
+  let ensured: { source: UILayout; defaultsSize: number; value: UILayout } | undefined;
+  const ensure = (s: UILayout) => {
+    if (!ensured || ensured.source !== s || ensured.defaultsSize !== defaults.size) ensured = {
+      source: s, defaultsSize: defaults.size,
+      value: { ...s, windows: Object.fromEntries([...new Set([...defaults.keys(), ...Object.keys(s.windows)])].map(id => [id, { ...defaults.get(id), ...s.windows[id] }])) },
+    };
+    return ensured.value;
+  };
+  const canMove = (key: string) => !layout.panels["@devMode"] && !layout.uiRigidity ? false : residentMovable(ensure(layout), key, functions);
   const buttonSelection = useButtonSelection({
     layout: ensure(layout),
     update,

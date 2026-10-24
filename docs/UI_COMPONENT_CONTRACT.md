@@ -298,3 +298,15 @@ rebuild or re-sort it. Global search renders at most 24 results and invites a mo
 specific query beyond that. Hover revelation waits 180ms and cancels on exit, so
 crossing result rows does not repeatedly mount/reveal the controller. Clicking or
 keyboard navigation remains immediate. Frame searches do not rescan DOM per keystroke.
+
+
+Ordinary UI commits preserve unchanged settings/layout references. Validate and
+normalize a branch only when that branch changes; a frame toggle must not rebuild
+appearance settings and invalidate every renderer. Session storage preserves the
+original settings reference for layout-only edits. NativeActions depends on actual
+appearance inputs rather than the context wrapper, indexes explicit ownership once
+per layout snapshot and skips unchanged DOM attributes/styles. UIWorkspace shares
+one default-window projection per render/input snapshot for permission checks;
+never clone all window defaults once per button. These paths run before paint and
+must stay bounded even with many discovered controls. Graph node single-click versus
+double-click arbitration remains a separate 320ms interaction, unchanged here.
