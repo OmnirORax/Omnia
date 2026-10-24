@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { ASSET_BUCKET, MAX_ASSET_BYTES, isImageType, type Asset, type BackendRequest, type Workspace } from '../../supabase/functions/_shared/contracts.ts';
+import { ASSET_BUCKET, MAX_ASSET_BYTES, isImageType, type Asset, type BackendRequest, type Workspace, type SceneGenerateInput, type SceneGeneration } from '../../supabase/functions/_shared/contracts.ts';
 export type { Asset, Workspace, WorkspaceMember } from '../../supabase/functions/_shared/contracts.ts';
 
 type Configuration = { kind: 'local' } | { kind: 'invalid'; message: string } | { kind: 'cloud'; client: SupabaseClient };
@@ -39,6 +39,13 @@ async function operation<T>(client: SupabaseClient, body: BackendRequest): Promi
   return data.data as T;
 }
 export const cloud = {
+  sceneCapabilities: (client: SupabaseClient, workspaceId: string) => operation<{ enabled: boolean }>(client, { operation: 'scene.capabilities', workspaceId }),
+  generateScene: (client: SupabaseClient, input: SceneGenerateInput) => operation<SceneGeneration>(client, input),
+  async sceneGenerations(client: SupabaseClient, workspace: string): Promise<SceneGeneration[]> {
+    const result = await client.from('scene_generations').select('*').eq('workspace_id', workspace).order('created_at', { ascending: false }).limit(20);
+    if (result.error) throw new Error('Scene history is unavailable. The scene backend migration may not be installed.');
+    return result.data;
+  },
   async workspaces(client: SupabaseClient): Promise<Workspace[]> {
     const result = await client.from('workspaces').select('*').order('created_at').limit(200);
     if (result.error) throw new Error('Workspaces could not be loaded.');

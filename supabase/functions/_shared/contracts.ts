@@ -11,7 +11,35 @@ export type Asset = {
 };
 export type BackendRequest =
   | { operation: 'workspace.create'; name: string; requestId: string }
+  | { operation: 'scene.capabilities'; workspaceId: string }
+  | SceneGenerateInput
   | { operation: 'asset.finalize' | 'asset.delete'; assetId: string };
+export const SCENE_SOURCES = ['label', 'notes', 'label-and-notes'] as const;
+export type SceneSource = typeof SCENE_SOURCES[number];
+export type SceneNode = { id: string; label: string; notes: string };
+export type SceneGenerateInput = { operation: 'scene.generate'; workspaceId: string; requestId: string;
+  prompt: string; variable: string; source: SceneSource; node: SceneNode };
+export type SceneGeneration = { id: string; workspace_id: string; created_by: string;
+  state: 'running' | 'ready' | 'failed' | 'uncertain'; asset_id: string | null;
+  input: SceneGenerateInput; created_at: string; updated_at: string };
+export const DEFAULT_SCENE_PROMPT = 'Create a detailed landscape scene inspired by {{subject}}. Atmospheric, coherent lighting, suitable as a workspace wallpaper. No labels or interface elements.';
+/** Literal, single-pass substitution. Node content is data, never executable template code. */
+export function resolveScenePrompt(prompt: string, variable: string, source: SceneSource, node: SceneNode): string {
+  if (!/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(variable) || !SCENE_SOURCES.includes(source) ||
+      !prompt.trim() || prompt.length > 4000 || !node.id || node.id.length > 200 ||
+      node.label.length > 500) throw new Error('Invalid prompt, variable name or node label.');
+  if (source !== 'label' && node.notes.length > 3000) throw new Error('Node notes exceed 3,000 characters. Choose Label or shorten the notes.');
+  const value = source === 'label' ? node.label : source === 'notes' ? node.notes : [node.label, node.notes].filter(Boolean).join('\n');
+  if (!value.trim()) throw new Error('The active node has no text for this input.');
+  let found = false;
+  const result = prompt.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_match, name: string) => {
+    if (name !== variable) throw new Error(`Unconnected prompt variable: ${name}`);
+    found = true; return value;
+  });
+  if (!found) throw new Error(`Add {{${variable}}} to the prompt.`);
+  if (result.length > 12000) throw new Error('Resolved prompt is too long.');
+  return result;
+}
 export type ErrorCode = 'unauthenticated' | 'forbidden' | 'invalid_input' | 'not_found' | 'conflict'
   | 'rate_limited' | 'dependency_unavailable' | 'internal_error';
 export type BackendError = { error: { code: ErrorCode; message: string; requestId: string } };
@@ -21,6 +49,22 @@ export const isImageType = (value: string): value is ImageType => (IMAGE_TYPES a
 export function parseBackendRequest(value: unknown): BackendRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_input');
   const input = value as Record<string, unknown>;
+  if (input.operation === 'scene.capabilities' && isUuid(input.workspaceId) &&
+      Object.keys(input).every(key => ['operation', 'workspaceId'].includes(key)))
+    return { operation: input.operation, workspaceId: input.workspaceId };
+  if (input.operation === 'scene.generate' && isUuid(input.workspaceId) && isUuid(input.requestId) &&
+      typeof input.prompt === 'string' && typeof input.variable === 'string' &&
+      typeof input.source === 'string' && SCENE_SOURCES.includes(input.source as SceneSource) &&
+      input.node && typeof input.node === 'object' && !Array.isArray(input.node) &&
+      Object.keys(input).every(key => ['operation', 'workspaceId', 'requestId', 'prompt', 'variable', 'source', 'node'].includes(key))) {
+    const node = input.node as Record<string, unknown>;
+    if (typeof node.id === 'string' && typeof node.label === 'string' && typeof node.notes === 'string' && node.notes.length <= 3000 &&
+        Object.keys(node).every(key => ['id', 'label', 'notes'].includes(key))) {
+      const result = input as SceneGenerateInput;
+      resolveScenePrompt(result.prompt, result.variable, result.source, result.node);
+      return result;
+    }
+  }
   if (input.operation === 'workspace.create' && typeof input.name === 'string' &&
     input.name.trim().length > 0 && input.name.trim().length <= 100 && isUuid(input.requestId) &&
     Object.keys(input).every(key => ['operation', 'name', 'requestId'].includes(key)))

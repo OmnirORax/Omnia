@@ -53,6 +53,12 @@ identity should appear consistently in discovery, editing and serialization.
 
 ## Implementation constraints
 
+Bounded text inputs are supported through the shared `text` property kind with
+`maxLength` and optional `multiline`, including the scene prompt. The generic
+editor keeps a cancellable draft and commits on blur; normalization preserves
+registered text lengths instead of dropping values above the legacy 200-character
+unknown-field limit. Reuse this editor/validation for future text consumers.
+
 The following remain the integration contract. The first implementation uses
 explicit property declarations and canonical IDs; a user-facing category/coupling
 authoring UI and broader inference remain future work:

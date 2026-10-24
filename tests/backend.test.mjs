@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { parseBackendRequest, imageSignatureMatches, ASSET_BUCKET } from '../supabase/functions/_shared/contracts.ts';
+import { parseBackendRequest, imageSignatureMatches, ASSET_BUCKET, resolveScenePrompt } from '../supabase/functions/_shared/contracts.ts';
+import { generateSceneImage } from '../supabase/functions/backend/scene-provider.ts';
 import { localBackendStatus } from '../scripts/backend-status.mjs';
 
 test('backend operation contracts reject unsupported or ambiguous inputs', () => {
@@ -12,6 +13,40 @@ test('backend operation contracts reject unsupported or ambiguous inputs', () =>
   assert.throws(() => parseBackendRequest({ operation: 'asset.finalize', assetId: 'not-an-id' }));
   assert.equal(parseBackendRequest({ operation: 'workspace.create', name: ' Test ', requestId: randomUUID() }).name, 'Test');
   assert.equal(imageSignatureMatches(new TextEncoder().encode('<html>not a PNG</html>'), 'image/png'), false);
+});
+
+test('scene prompt binding substitutes literal node data and rejects unconnected or privileged inputs', () => {
+  const node = { id: 'placement-1', label: 'Forest $& {{other}}', notes: 'Green canopy' };
+  assert.equal(resolveScenePrompt('Paint {{subject}}', 'subject', 'label', node), 'Paint Forest $& {{other}}');
+  assert.throws(() => resolveScenePrompt('Paint {{unknown}}', 'subject', 'label', node));
+  assert.throws(() => resolveScenePrompt('No input', 'subject', 'label', node));
+  const input = { operation: 'scene.generate', workspaceId: randomUUID(), requestId: randomUUID(),
+    prompt: 'Paint {{subject}}', variable: 'subject', source: 'label', node };
+  assert.deepEqual(parseBackendRequest(input), input);
+  assert.throws(() => parseBackendRequest({ ...input, apiKey: 'not-allowed' }));
+  assert.throws(() => parseBackendRequest({ ...input, node: { ...node, notes: 'x'.repeat(3001) } }));
+});
+
+test('image provider adapter makes one bounded submission and never accepts a remote download URL', async () => {
+  let calls = 0;
+  const webp = Buffer.from('RIFFtestWEBPtest');
+  webp.writeUInt32LE(webp.length - 8, 4); // Signature fixture; this helper is not a codec decoder.
+  const image = await generateSceneImage('Forest', 'test-key', 'chatgpt-image-latest', async (url, options) => {
+    calls++;
+    assert.equal(url, 'https://api.openai.com/v1/images/generations');
+    assert.equal(options.redirect, 'error');
+    assert.equal(JSON.parse(options.body).n, 1);
+    return Response.json({ data: [{ b64_json: webp.toString('base64') }] });
+  });
+  assert.deepEqual(Buffer.from(image), webp); assert.equal(calls, 1);
+  await assert.rejects(generateSceneImage('Forest', 'test-key', 'chatgpt-image-latest', async () => {
+    calls++; return new Response('private provider detail', { status: 429 });
+  }), /HTTP 429/);
+  assert.equal(calls, 2, 'Rejected paid requests are never automatically retried.');
+  await assert.rejects(generateSceneImage('Forest', 'test-key', 'chatgpt-image-latest', async () =>
+    Response.json({ data: [{ url: 'https://untrusted.example/image' }] })), /invalid image/);
+  await assert.rejects(generateSceneImage('Forest', 'test-key', 'chatgpt-image-latest', async () =>
+    Response.json({ data: [{ b64_json: Buffer.from('<html>not an image</html>').toString('base64') }] })), /unsupported image/);
 });
 
 test('local backend enforces identity, workspace roles, file integrity, and object isolation', { timeout: 120000 }, async t => {
@@ -64,6 +99,35 @@ test('local backend enforces identity, workspace roles, file integrity, and obje
       await operation(alice, { operation: 'workspace.create', name: 'Changed', requestId }, 409);
     });
     assert.ok(workspace, 'Workspace creation is required for the remaining permission checks.');
+    await t.test('generation is gated, service-only claims are idempotent, and other workspaces cannot read attempts', async () => {
+      const input = { operation: 'scene.generate', workspaceId: workspace.id, requestId: randomUUID(),
+        prompt: 'Paint {{subject}}', variable: 'subject', source: 'label', node: { id: 'node-1', label: 'Forest', notes: '' } };
+      await operation(bob, input, 403);
+      await operation(bob, { operation: 'scene.capabilities', workspaceId: workspace.id }, 403);
+      assert.equal((await operation(alice, { operation: 'scene.capabilities', workspaceId: workspace.id })).data.enabled, false);
+      await operation(alice, input, 503); // CI has no provider key/enabling secret: no paid calls.
+      const args = { p_id: input.requestId, p_workspace: workspace.id, p_actor: alice.id, p_input: input };
+      assert.ok((await alice.client.rpc('claim_scene_generation', args)).error);
+      const first = ok(await service.rpc('claim_scene_generation', args)); assert.equal(first.claimed, true);
+      const repeated = ok(await service.rpc('claim_scene_generation', args)); assert.equal(repeated.claimed, false);
+      assert.ok((await service.rpc('claim_scene_generation', { ...args, p_input: { ...input, prompt: 'Different {{subject}}' } })).error);
+      assert.deepEqual(ok(await bob.client.from('scene_generations').select('*').eq('id', input.requestId)), []);
+      assert.ok((await alice.client.from('scene_generations').update({ state: 'ready' }).eq('id', input.requestId)).error);
+      ok(await alice.client.rpc('set_workspace_member', { p_workspace_id: workspace.id, p_user_id: bob.id, p_role: 'viewer' }));
+      await operation(bob, input, 403);
+      assert.ok((await service.rpc('claim_scene_generation', { ...args, p_id: randomUUID(), p_actor: bob.id })).error);
+      ok(await alice.client.rpc('set_workspace_member', { p_workspace_id: workspace.id, p_user_id: bob.id, p_role: null }));
+      const second = await service.rpc('claim_scene_generation', { ...args, p_id: randomUUID() });
+      assert.ok(second.error, 'Only one running attempt per workspace may be submitted.');
+      ok(await service.from('scene_generations').update({ state: 'failed' }).eq('id', input.requestId));
+      for (let count = 1; count < 5; count++) {
+        const id = randomUUID();
+        assert.equal(ok(await service.rpc('claim_scene_generation', { ...args, p_id: id, p_input: { ...input, requestId: id } })).claimed, true);
+        ok(await service.from('scene_generations').update({ state: 'failed' }).eq('id', id));
+      }
+      assert.ok((await service.rpc('claim_scene_generation', { ...args, p_id: randomUUID() })).error,
+        'The per-actor daily submission limit is enforced before calling the provider.');
+    });
     await t.test('unsupported inputs and untrusted browser origins are rejected', async () => {
       await operation(alice, { operation: 'anything' }, 400);
       await operation(alice, { operation: 'workspace.create', name: 'Other', requestId: randomUUID() }, 403, 'https://untrusted.example');
@@ -169,6 +233,7 @@ test('local backend enforces identity, workspace roles, file integrity, and obje
   } finally {
     if (objects.length) ok(await service.storage.from(ASSET_BUCKET).remove(objects));
     for (const id of workspaceIds) {
+      ok(await service.from('scene_generations').delete().eq('workspace_id', id));
       ok(await service.from('assets').delete().eq('workspace_id', id));
       ok(await service.from('workspace_members').delete().eq('workspace_id', id));
       ok(await service.from('workspaces').delete().eq('id', id));

@@ -1,6 +1,10 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "scene.generate", owner: "scene", scope: "global", category: "Scene", label: "Generate & apply", defaultKey: "", description: "Generate one image from the saved prompt and active node input, store it privately and apply it as the background. Uses paid API credit when configured." },
+  { id: "scene.apply", owner: "scene", scope: "global", category: "Scene", label: "Apply saved image", defaultKey: "", description: "Apply a completed image from this workspace without generating or paying again." },
+  { id: "scene.clear", owner: "scene", scope: "global", category: "Scene", label: "Clear scene", defaultKey: "", description: "Return to the theme background. Keeps the private image; Undo restores its reference." },
+  { id: "scene.refresh", owner: "scene", scope: "global", category: "Scene", label: "Refresh scene status", defaultKey: "", description: "Reload saved generation attempts without submitting a paid request." },
   { id: "backend.signIn", owner: "backend", scope: "global", category: "Cloud", label: "Sign in to cloud", defaultKey: "", description: "Sign in with an existing account. Local atlas data is not uploaded." },
   { id: "backend.signOut", owner: "backend", scope: "global", category: "Cloud", label: "Sign out of cloud", defaultKey: "", description: "Sign out in this browser and clear the cloud panel. Keeps the local atlas." },
   { id: "backend.refresh", owner: "backend", scope: "global", category: "Cloud", label: "Refresh cloud files", defaultKey: "", description: "Reload authorized workspaces and files." },

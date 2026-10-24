@@ -12,6 +12,8 @@ import { EmbeddedGroup } from "./ui/EmbeddedGroup";
 import { stableUIHash } from "./ui/identity";
 import { UISection } from "./ui/UISection";
 import { CloudPanel } from "./backend/CloudPanel";
+import { ScenePanel } from "./scene/ScenePanel";
+import { useSceneBackground } from "./scene/background";
 import { AppearancePreviewActions } from "./appearance/PreviewPrompt";
 import { AppearanceRecovery } from "./appearance/Recovery";
 import { appendCheckpoint, CHECKPOINTS_KEY, loadCheckpoints, safeAppearance, type Checkpoint } from "./appearance/checkpoints";
@@ -110,6 +112,7 @@ function Workbench() {
     });
   }, [actionHistory]);
   const documentRef = useRef(document); documentRef.current = document;
+  const sceneBackground = useSceneBackground(actionHistory);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text), actionHistory);
   const { layout: savedUILayout, update: updateUI, savedSettings, setSettings } = ui;
   const [searchOpen, setSearchOpen] = useState(false);
@@ -2062,6 +2065,11 @@ function Workbench() {
               </ul>
             </UIPanel>
           }
+          <UIPanel id="scene" title="Scene">
+            <ScenePanel node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
+              revision={document.revision} bindings={propertyBindings} onApply={sceneBackground.apply}
+              hasBackground={!!sceneBackground.reference} backgroundError={sceneBackground.error} backgroundKey={sceneBackground.reference?.asset.id} />
+          </UIPanel>
           <UIPanel id="help" title="Workspace help" className="help">
             <p>
               Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a name to move it. Shift-drag it onto another name to nest. Click a binder to edit its operators and appearance.
@@ -2078,6 +2086,7 @@ function Workbench() {
         <div className="canvas" aria-label="Atlas canvas">
           <WorkspaceBoundary><Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
             <SpatialWorkspace
+              wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
               document={document}
               selectedId={selection?.kind === "node" ? selection.id : null}

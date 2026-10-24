@@ -4,7 +4,8 @@ export type PropertyValue = string | number | boolean;
 export type PreviewActivation = { property: string; inactive: PropertyValue; active: PropertyValue };
 export type Category = { id: string; label: string };
 export type PropertyDefinition = {
-  id: string; label: string; kind: "color" | "number" | "select" | "toggle";
+  id: string; label: string; kind: "color" | "number" | "select" | "toggle" | "text";
+  maxLength?: number; multiline?: boolean;
   min?: number; max?: number; step?: number; initial: PropertyValue; neutral?: PropertyValue;
   options?: readonly { id: string; label: string }[];
   category?: Category; unit?: string;
@@ -27,13 +28,14 @@ export type CoupledConsumer = Omit<ConsumerDefinition, "properties"> & {
   choices: Record<string, readonly string[]>;
 };
 export function validateValue(property: PropertyDefinition, value: unknown): PropertyValue | undefined {
+  if (property.kind === "text") return typeof value === "string" && value.length <= (property.maxLength ?? 4000) ? value : undefined;
   if (property.kind === "toggle") return typeof value === "boolean" ? value : undefined;
   if (property.kind === "color") return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
   if (property.kind === "number") return typeof value === "number" && Number.isFinite(value)
     ? Math.max(property.min!, Math.min(property.max!, value)) : undefined;
   return property.options?.some(option => option.id === value) ? value as string : undefined;
 }
-const contract = (property: PropertyDefinition) => JSON.stringify({ kind: property.kind, unit: property.unit,
+const contract = (property: PropertyDefinition) => JSON.stringify({ kind: property.kind, unit: property.unit, maxLength: property.maxLength, multiline: property.multiline,
   min: property.min, max: property.max, step: property.step, channelOf: property.channelOf, previewActivation: property.previewActivation,
   options: property.options?.map(option => option.id).sort() });
 export function createPropertyRegistry() {
