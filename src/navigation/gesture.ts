@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { moveTrackball, trackballPoint, type Trackball } from "./trackball.ts";
 import type { Document, XYZ } from "../graph/structural";
 import { worldPositions } from "../graph/coordinates.ts";
 import { navigateCamera, navigationRotation, type CameraPose } from "./model.ts";
@@ -81,7 +82,7 @@ export function createNavigationGesture(env: Environment) {
   const describe = (options: NavigationOptions, ids: string[], pivot: THREE.Vector3) => {
     const camera = options.mode === "orbit" || options.mode === "look" || options.mode === "walk" || options.mode === "pan";
     const limits = env.distanceLimits?.();
-    const axis = navigationConstraint(options) + (options.mode === "orbit" && limits ? ` · radius ${limits.min}–${limits.max}` : "");
+    const axis = ((options.mode === "orient" || options.mode === "layout") && options.axis === "free" ? "trackball · center tilts / edge spins" : navigationConstraint(options)) + (options.mode === "orbit" && limits ? ` · radius ${limits.min}–${limits.max}` : "");
     const where = options.mode === "orient" ? "each node center (marker: first node)" : options.mode === "look" || options.mode === "walk" || options.mode === "pan" ? `camera position ${coords(pivot)}` : `${options.pivot} pivot ${coords(pivot)}`;
     return `${MODES.find(mode => mode.id === options.mode)?.label} · ${camera ? "camera" : `${ids.length} nodes${options.descendants ? " incl. descendants" : " only"}`} · ${where} · ${axis}`;
   };
@@ -90,7 +91,7 @@ export function createNavigationGesture(env: Environment) {
     marker.position.copy(pivot); marker.scale.setScalar(Math.max(.02, env.camera.position.distanceTo(pivot) * .035)); env.request();
   };
   type Gesture = { pointer: number; button: number; start: { x: number; y: number }; pose: CameraPose; before: CameraPose; fit: boolean; fitIds: string[]; blocked?: boolean; options: NavigationOptions; ids: string[]; pivot: THREE.Vector3;
-    originals: { id: string; position: THREE.Vector3; rotation: THREE.Quaternion; host?: Host }[]; rotation: THREE.Quaternion; dragged: boolean };
+    originals: { id: string; position: THREE.Vector3; rotation: THREE.Quaternion; host?: Host }[]; rotation: THREE.Quaternion; dragged: boolean; trackball?: Trackball };
   let gesture: Gesture | null = null;
   const restore = (current: Gesture) => {
     env.camera.position.copy(current.before.position); env.camera.up.copy(current.before.up); env.target().copy(current.before.target); env.camera.lookAt(env.target());
@@ -116,6 +117,22 @@ export function createNavigationGesture(env: Environment) {
         const placements = new Map(ids.length ? snapshot.doc.placements.map(p => [p.id, p] as const) : []);
         gesture = { pointer: event.pointerId, button: event.button, start, pose: cameraPose(), before: cameraPose(), fit, fitIds: fit ? transformTargets(snapshot.doc, [...new Set([...snapshot.selection, anchor(snapshot)].filter((id): id is string => !!id))], true, Infinity) : [], options: { ...options }, ids, pivot, rotation: new THREE.Quaternion(), dragged: false,
           originals: ids.map(id => { const orientation = placements.get(id)?.orientation ?? identityRotation(); return { id, position: vector(snapshot.worlds.get(id)!), rotation: new THREE.Quaternion(orientation.x, orientation.y, orientation.z, orientation.w), host: env.nodes()?.get(id) }; }) };
+        if ((options.mode === "orient" || options.mode === "layout") && options.axis === "free") {
+          const rect = env.canvas.getBoundingClientRect?.();
+          if (rect && rect.width > 0 && rect.height > 0) {
+            env.camera.updateMatrixWorld();
+            const projected = pivot.clone().project(env.camera);
+            const center = { x: rect.left + (projected.x + 1) * rect.width / 2, y: rect.top + (1 - projected.y) * rect.height / 2 };
+            const box = new THREE.Box3();
+            for (const original of gesture.originals) if (original.host) box.union(new THREE.Box3().setFromObject(original.host.group));
+            let radius = 24;
+            if (!box.isEmpty()) for (const x of [box.min.x,box.max.x]) for (const y of [box.min.y,box.max.y]) for (const z of [box.min.z,box.max.z]) {
+              const corner = new THREE.Vector3(x,y,z).project(env.camera);
+              radius = Math.max(radius, Math.max(Math.abs((corner.x-projected.x)*rect.width/2),Math.abs((corner.y-projected.y)*rect.height/2)));
+            }
+            if (Number.isFinite(radius) && Number.isFinite(center.x) && Number.isFinite(center.y)) gesture.trackball = { center, radius, frame: env.camera.quaternion.clone(), previous: trackballPoint(center,radius,start), rotation: new THREE.Quaternion() };
+          }
+        }
         env.enabled(false); env.canvas.setPointerCapture(event.pointerId); env.feedback(describe(options, ids, pivot)); show(options, pivot); return true;
       } catch (error) { env.feedback(error instanceof Error ? error.message : String(error)); return false; }
     },
@@ -146,7 +163,7 @@ export function createNavigationGesture(env: Environment) {
       gesture.dragged = true;
       const { pose, options, pivot } = gesture;
       if (options.mode === "orient" || options.mode === "layout") {
-        gesture.rotation.copy(navigationRotation(pose, options, dx, dy, pivot));
+        gesture.rotation.copy(gesture.trackball ? moveTrackball(gesture.trackball, { x: event.clientX, y: event.clientY }, options.speed) : navigationRotation(pose, options, dx, dy, pivot));
         for (const original of gesture.originals) if (original.host) {
           if (options.mode === "orient") original.host.group.quaternion.copy(gesture.rotation).multiply(original.rotation).normalize();
           else original.host.anchor.copy(original.position).sub(pivot).applyQuaternion(gesture.rotation).add(pivot);

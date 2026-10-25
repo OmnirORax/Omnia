@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { navigateCamera, navigationRotation } from '../src/navigation/model.ts';
 import { NAV_DEFAULTS as CONTEXT_DEFAULTS } from '../src/navigation/options.ts';
 import { transformTargets, transformPlacements } from '../src/navigation/transforms.ts';
+import { moveTrackball, trackballPoint } from '../src/navigation/trackball.ts';
 import { createNavigationGesture } from '../src/navigation/gesture.ts';
 import { emptyDocument, parseDocument, validateDocument } from '../src/graph/structural.ts';
 import { createActionHistory } from '../src/ui/actionHistory.ts';
@@ -190,12 +191,12 @@ function contextualHarness(selected = [], branch = null, pointed = undefined) {
     group.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial()));
     return [id, {group, anchor: new THREE.Vector3(p.x,p.y,p.z)}];
   }));
-  let hit = pointed, commits = [], inventories = 0;
-  const engine = createNavigationGesture({camera, scene:new THREE.Scene(), canvas:{setPointerCapture(){},hasPointerCapture(){return false;},releasePointerCapture(){}},
+  let hit = pointed, commits = [], inventories = 0, measurements = 0;
+  const engine = createNavigationGesture({camera, scene:new THREE.Scene(), canvas:{getBoundingClientRect(){measurements++;return {left:0,top:0,width:400,height:400};},setPointerCapture(){},hasPointerCapture(){return false;},releasePointerCapture(){}},
     target:()=>target, nodes:()=>{inventories++;return hosts;}, document:()=>doc, selection:()=>new Set(selected), branch:()=>branch,
     pointed:()=>hit, request(){},enabled(){},rebind(){},feedback(){},commit:(...args)=>commits.push(args),remember(){}});
   const down = {pointerId:1,button:2,clientX:0,clientY:0};
-  return {camera,target,hosts,engine,down,commits,setHit:id=>hit=id, inventoryCount:()=>inventories};
+  return {camera,target,hosts,engine,down,commits,setHit:id=>hit=id, inventoryCount:()=>inventories, measurementCount:()=>measurements};
 }
 
 test('context rotation turns the pointed object and freezes that target for the drag', () => {
@@ -237,4 +238,36 @@ test('graph fitting moves outward once without moving the branch pivot and cance
   h.hosts.get('b').group.position.x=500;
   h.engine.move({...h.down,clientX:40});near(h.camera.position.distanceTo(h.target),radius);
   h.engine.finish(true);vectorNear(h.camera.position,start);vectorNear(h.target,new THREE.Vector3());h.engine.dispose();
+});
+
+function ball(start) {
+  const center={x:0,y:0},radius=100;
+  return {center,radius,frame:new THREE.Quaternion(),previous:trackballPoint(center,radius,start),rotation:new THREE.Quaternion()};
+}
+test('trackball grab position controls tilt versus rim spin and transports through rolled camera frame', () => {
+  const center=ball({x:0,y:0}), edge=ball({x:100,y:0});
+  const tilt=moveTrackball(center,{x:0,y:-30},1).clone();
+  assert.ok(Math.abs(tilt.x)>.1);near(tilt.z,0);
+  const spin=moveTrackball(edge,{x:100,y:-30},1).clone();
+  assert.ok(Math.abs(spin.z)>.1);near(spin.x,0);near(spin.y,0);
+  const rolled=ball({x:0,y:0});rolled.frame.setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);
+  const rotated=moveTrackball(rolled,{x:0,y:-30},1);near(rotated.x,0);near(Math.abs(rotated.y),Math.abs(tilt.x));
+});
+test('trackball supports repeated full rim turns and reversed drags without a polar limit', () => {
+  const state=ball({x:100,y:0});
+  for(let i=1;i<=48;i++) moveTrackball(state,{x:100*Math.cos(i*Math.PI/12),y:-100*Math.sin(i*Math.PI/12)},1);
+  near(state.rotation.angleTo(new THREE.Quaternion()),0);
+  const start=ball({x:20,y:10});moveTrackball(start,{x:60,y:-30},1);moveTrackball(start,{x:20,y:10},1);
+  near(start.rotation.angleTo(new THREE.Quaternion()),0);
+});
+
+test('object gesture snapshots trackball geometry once and cancellation restores object and camera', () => {
+  const h=contextualHarness(['a'],'a','a'), before=h.hosts.get('a').group.quaternion.clone(), camera=h.camera.position.clone();
+  h.engine.begin(h.down,CONTEXT_DEFAULTS);assert.equal(h.measurementCount(),1);
+  const scans=h.inventoryCount();
+  h.engine.move({...h.down,clientX:30});h.engine.move({...h.down,clientX:60,clientY:25});
+  assert.ok(h.hosts.get('a').group.quaternion.angleTo(before)>.01);
+  assert.equal(h.measurementCount(),1);assert.equal(h.inventoryCount(),scans);
+  h.engine.finish(true);near(h.hosts.get('a').group.quaternion.angleTo(before),0);
+  vectorNear(h.camera.position,camera);assert.equal(h.commits.length,0);h.engine.dispose();
 });

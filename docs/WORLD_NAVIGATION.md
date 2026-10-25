@@ -19,6 +19,14 @@ Default rotation resolves at pointer-down:
 Camera / Object overrides what moves for that target context. Camera on a node
 orbits it; Object over a selected graph rotates selected positions about the
 branch anchor. With no object selected or pointed, the camera turns itself.
+Free object rotation uses a virtual trackball centered on its pivot. Grabbing near
+its center tilts/turns; dragging tangentially near its rim spins about the view axis.
+The camera frame, projected center and size are measured once at pointer-down.
+Incremental quaternions permit repeated turns; explicit X/Y/Z constraints retain
+axis-only dragging. This applies to node facing and selected-layout rotation,
+with the existing pivot, target limits, cancellation and one-commit history path.
+No DOM geometry reads or bounds scans occur during trackball movement.
+
 Target, pivot and fit membership freeze at pointer-down; moving over another node
 never retargets an active drag. The optional descendant expansion remains explicit.
 
