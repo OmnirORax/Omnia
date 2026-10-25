@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { moveTrackball, trackballPoint, type Trackball } from "./trackball.ts";
+import { constrainDrag, moveTrackball, trackballPoint, type DragConstraint, type Trackball } from "./trackball.ts";
 import type { Document, XYZ } from "../graph/structural";
 import { worldPositions } from "../graph/coordinates.ts";
 import { navigateCamera, navigationRotation, type CameraPose } from "./model.ts";
@@ -91,7 +91,7 @@ export function createNavigationGesture(env: Environment) {
     marker.position.copy(pivot); marker.scale.setScalar(Math.max(.02, env.camera.position.distanceTo(pivot) * .035)); env.request();
   };
   type Gesture = { pointer: number; button: number; start: { x: number; y: number }; pose: CameraPose; before: CameraPose; fit: boolean; fitIds: string[]; blocked?: boolean; options: NavigationOptions; ids: string[]; pivot: THREE.Vector3;
-    originals: { id: string; position: THREE.Vector3; rotation: THREE.Quaternion; host?: Host }[]; rotation: THREE.Quaternion; dragged: boolean; trackball?: Trackball };
+    originals: { id: string; position: THREE.Vector3; rotation: THREE.Quaternion; host?: Host }[]; rotation: THREE.Quaternion; dragged: boolean; trackball?: Trackball; constraint: DragConstraint };
   let gesture: Gesture | null = null;
   const restore = (current: Gesture) => {
     env.camera.position.copy(current.before.position); env.camera.up.copy(current.before.up); env.target().copy(current.before.target); env.camera.lookAt(env.target());
@@ -115,7 +115,7 @@ export function createNavigationGesture(env: Environment) {
         options = contextual(options, snapshot);
         const { ids, pivot } = resolve(options, snapshot, fit);
         const placements = new Map(ids.length ? snapshot.doc.placements.map(p => [p.id, p] as const) : []);
-        gesture = { pointer: event.pointerId, button: event.button, start, pose: cameraPose(), before: cameraPose(), fit, fitIds: fit ? transformTargets(snapshot.doc, [...new Set([...snapshot.selection, anchor(snapshot)].filter((id): id is string => !!id))], true, Infinity) : [], options: { ...options }, ids, pivot, rotation: new THREE.Quaternion(), dragged: false,
+        gesture = { pointer: event.pointerId, button: event.button, start, pose: cameraPose(), before: cameraPose(), fit, fitIds: fit ? transformTargets(snapshot.doc, [...new Set([...snapshot.selection, anchor(snapshot)].filter((id): id is string => !!id))], true, Infinity) : [], options: { ...options }, ids, pivot, rotation: new THREE.Quaternion(), dragged: false, constraint: {raw:{...start},point:{...start}},
           originals: ids.map(id => { const orientation = placements.get(id)?.orientation ?? identityRotation(); return { id, position: vector(snapshot.worlds.get(id)!), rotation: new THREE.Quaternion(orientation.x, orientation.y, orientation.z, orientation.w), host: env.nodes()?.get(id) }; }) };
         if ((options.mode === "orient" || options.mode === "layout") && options.axis === "free") {
           const rect = env.canvas.getBoundingClientRect?.();
@@ -139,8 +139,9 @@ export function createNavigationGesture(env: Environment) {
     move(event: PointerEvent) {
       if (!gesture || event.pointerId !== gesture.pointer) return false;
       if (gesture.blocked) return true;
-      const dx = event.clientX - gesture.start.x, dy = event.clientY - gesture.start.y;
-      if (Math.hypot(dx, dy) < 5 && !gesture.dragged) return true;
+      if (Math.hypot(event.clientX - gesture.start.x, event.clientY - gesture.start.y) < 5 && !gesture.dragged) return true;
+      const point = constrainDrag(gesture.constraint, {x:event.clientX,y:event.clientY}, !!event.ctrlKey);
+      const dx = point.x - gesture.start.x, dy = point.y - gesture.start.y;
       if (!gesture.dragged && gesture.fit) {
         const box = new THREE.Box3();
         for (const id of gesture.fitIds) {
@@ -163,7 +164,7 @@ export function createNavigationGesture(env: Environment) {
       gesture.dragged = true;
       const { pose, options, pivot } = gesture;
       if (options.mode === "orient" || options.mode === "layout") {
-        gesture.rotation.copy(gesture.trackball ? moveTrackball(gesture.trackball, { x: event.clientX, y: event.clientY }, options.speed) : navigationRotation(pose, options, dx, dy, pivot));
+        gesture.rotation.copy(gesture.trackball ? moveTrackball(gesture.trackball, point, options.speed, !!event.ctrlKey) : navigationRotation(pose, options, dx, dy, pivot));
         for (const original of gesture.originals) if (original.host) {
           if (options.mode === "orient") original.host.group.quaternion.copy(gesture.rotation).multiply(original.rotation).normalize();
           else original.host.anchor.copy(original.position).sub(pivot).applyQuaternion(gesture.rotation).add(pivot);

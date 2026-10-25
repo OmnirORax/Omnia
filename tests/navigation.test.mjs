@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { navigateCamera, navigationRotation } from '../src/navigation/model.ts';
 import { NAV_DEFAULTS as CONTEXT_DEFAULTS } from '../src/navigation/options.ts';
 import { transformTargets, transformPlacements } from '../src/navigation/transforms.ts';
-import { moveTrackball, trackballPoint } from '../src/navigation/trackball.ts';
+import { constrainDrag, moveTrackball, trackballPoint } from '../src/navigation/trackball.ts';
 import { createNavigationGesture } from '../src/navigation/gesture.ts';
 import { emptyDocument, parseDocument, validateDocument } from '../src/graph/structural.ts';
 import { createActionHistory } from '../src/ui/actionHistory.ts';
@@ -248,7 +248,7 @@ test('trackball grab position controls tilt versus rim spin and transports throu
   const center=ball({x:0,y:0}), edge=ball({x:100,y:0});
   const tilt=moveTrackball(center,{x:0,y:-30},1).clone();
   assert.ok(Math.abs(tilt.x)>.1);near(tilt.z,0);
-  const spin=moveTrackball(edge,{x:100,y:-30},1).clone();
+  const spin=moveTrackball(edge,{x:100*Math.cos(.3),y:-100*Math.sin(.3)},1).clone();
   assert.ok(Math.abs(spin.z)>.1);near(spin.x,0);near(spin.y,0);
   const rolled=ball({x:0,y:0});rolled.frame.setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);
   const rotated=moveTrackball(rolled,{x:0,y:-30},1);near(rotated.x,0);near(Math.abs(rotated.y),Math.abs(tilt.x));
@@ -270,4 +270,40 @@ test('object gesture snapshots trackball geometry once and cancellation restores
   assert.equal(h.measurementCount(),1);assert.equal(h.inventoryCount(),scans);
   h.engine.finish(true);near(h.hosts.get('a').group.quaternion.angleTo(before),0);
   vectorNear(h.camera.position,camera);assert.equal(h.commits.length,0);h.engine.dispose();
+});
+
+test('trackball vertical motion continues beyond both rims through repeated full turns', () => {
+  const state=ball({x:0,y:0});
+  for(let i=1;i<=80;i++) {
+    moveTrackball(state,{x:0,y:i*10},1);
+    if(i===15 || i===25 || i===55) assert.ok(state.rotation.angleTo(new THREE.Quaternion())>.5,'turn continues past the old rim');
+  }
+  near(state.rotation.angleTo(new THREE.Quaternion()),0);
+});
+test('Ctrl freezes initial direction despite orthogonal jitter and releases without a jump', () => {
+  const state={raw:{x:0,y:0},point:{x:0,y:0}};
+  assert.deepEqual(constrainDrag(state,{x:1,y:1},true),{x:0,y:0});
+  assert.deepEqual(constrainDrag(state,{x:2,y:10},true),{x:0,y:10});
+  assert.deepEqual(constrainDrag(state,{x:40,y:50},true),{x:0,y:50});
+  assert.deepEqual(constrainDrag(state,{x:40,y:50},false),{x:0,y:50});
+  assert.deepEqual(constrainDrag(state,{x:45,y:55},false),{x:5,y:55});
+});
+test('Ctrl trackball holds one world axis for an off-center grab and ignores sideways jitter', () => {
+  const start={x:30,y:20}, a=ball(start), b=ball(start);
+  const dragA={raw:{...start},point:{...start}},dragB={raw:{...start},point:{...start}};
+  for(let i=1;i<=60;i++) {
+    moveTrackball(a,constrainDrag(dragA,{x:30,y:20+i*5},true),1,true);
+    moveTrackball(b,constrainDrag(dragB,{x:30+(i===1?1:40*Math.sin(i)),y:20+i*5},true),1,true);
+  }
+  near(a.rotation.angleTo(b.rotation),0);
+  const qaxis=new THREE.Vector3(a.rotation.x,a.rotation.y,a.rotation.z).normalize();
+  near(Math.abs(qaxis.dot(a.lockedAxis)),1);
+});
+test('Ctrl navigation uses the saved pointer binding and does not revive cleared bindings', async () => {
+  const {matchesPointerShortcut}=await import('../src/workspaceActions.ts');
+  const event={button:2,ctrlKey:true,metaKey:false,altKey:false,shiftKey:false};
+  assert.equal(matchesPointerShortcut('world.navigate',{},event),true);
+  assert.equal(matchesPointerShortcut('world.navigate',{'world.navigate':''},event),false);
+  assert.equal(matchesPointerShortcut('world.navigate',{'world.navigate':'MB1'},event),false);
+  assert.equal(matchesPointerShortcut('world.navigate',{'world.navigate':'MB1'},{...event,button:0}),true);
 });

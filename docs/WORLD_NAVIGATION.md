@@ -22,6 +22,12 @@ branch anchor. With no object selected or pointed, the camera turns itself.
 Free object rotation uses a virtual trackball centered on its pivot. Grabbing near
 its center tilts/turns; dragging tangentially near its rim spins about the view axis.
 The camera frame, projected center and size are measured once at pointer-down.
+The virtual sphere continues over its back hemisphere instead of flattening at
+the rim, so straight vertical/horizontal drags permit repeated full turns.
+Hold Ctrl during navigation to choose horizontal/vertical motion from the first
+clear drag and freeze its rotation axis, ignoring perpendicular jitter. Release
+Ctrl to resume free movement without a jump; a new Ctrl hold chooses a fresh axis.
+This is native gesture metadata on the existing action, not a separate shortcut.
 Incremental quaternions permit repeated turns; explicit X/Y/Z constraints retain
 axis-only dragging. This applies to node facing and selected-layout rotation,
 with the existing pivot, target limits, cancellation and one-commit history path.
