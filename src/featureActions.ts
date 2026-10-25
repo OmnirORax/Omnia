@@ -1,6 +1,12 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "scene.copyPrompt", owner: "scene", scope: "global", category: "Scene", label: "Copy resolved prompt", defaultKey: "", description: "Copy the prompt with active-node values for use in ChatGPT. Remembers this node for the returned image." },
+  { id: "scene.chooseImage", owner: "scene", scope: "global", category: "Scene", label: "Choose image", defaultKey: "", description: "Import a PNG, JPEG or WebP, save it in this browser and apply it to the chosen node." },
+  { id: "scene.pasteImage", owner: "scene", scope: "global", category: "Scene", label: "Paste image", defaultKey: "", description: "Read an image from the clipboard, save it in this browser and apply it to the chosen node. Choose image works if clipboard access is unavailable." },
+  { id: "scene.applyLocal", owner: "scene", scope: "global", category: "Scene", label: "Apply imported image", defaultKey: "", description: "Use the selected local image as this node's saved scene, without generating." },
+  { id: "scene.downloadLocal", owner: "scene", scope: "global", category: "Scene", label: "Download image", defaultKey: "", description: "Download the selected original image for backup or transfer to another website address." },
+  { id: "scene.deleteLocal", owner: "scene", scope: "global", category: "Scene", label: "Delete imported image", defaultKey: "", description: "Permanently remove this image from browser storage and clear its node assignments. Image deletion cannot be undone." },
   { id: "scene.generate", owner: "scene", scope: "global", category: "Scene", label: "Generate & apply", defaultKey: "", description: "Generate one image from the saved prompt and active node input, store it privately and apply it as the background. Uses paid API credit when configured." },
   { id: "scene.apply", owner: "scene", scope: "global", category: "Scene", label: "Apply saved image", defaultKey: "", description: "Apply a completed image from this workspace without generating or paying again." },
   { id: "scene.clear", owner: "scene", scope: "global", category: "Scene", label: "Clear scene", defaultKey: "", description: "Return to the theme background. Keeps the private image; Undo restores its reference." },

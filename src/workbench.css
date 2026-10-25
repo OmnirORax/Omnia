@@ -386,7 +386,8 @@ textarea:focus-visible {
   right: 14px;
   top: 14px;
 }
-.spatial-workspace canvas { display: block; touch-action: none; }
+/* Drawing-buffer resolution is budgeted independently of the visible viewport. */
+.spatial-workspace > canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 .spatial-controls { position: absolute; top: 14px; right: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; max-width: 410px; }
 .spatial-controls button { background: #eaf1fae8; }
 .camera-guide-home { position: absolute; left: 14px; bottom: 14px; max-width: min(260px, calc(100% - 28px)); }
@@ -1229,5 +1230,6 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .range-spectrum-input::-moz-range-thumb { width: 8px; height: 8px; border: 0; }
 .scene-panel { display: grid; gap: 6px; }
 .scene-input-row { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }
+.scene-panel select { max-width: min(36ch, 100%); }
 .scene-panel textarea { width: 30ch; max-width: 100%; resize: vertical; }
 .scene-resolved { max-width: 34ch; max-height: 10em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
