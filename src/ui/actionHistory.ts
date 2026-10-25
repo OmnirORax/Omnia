@@ -2,7 +2,7 @@ import { sameValue } from "../valueEquality.ts";
 import { createTransientStore } from "./transientStore.ts";
 
 export type HistoryMode = "recent" | "context" | "selective";
-export type HistoryCategory = "omnium" | "ui" | "appearance" | "settings";
+export type HistoryCategory = "omnium" | "ui" | "appearance" | "settings" | "camera";
 export type HistoryOptions = { mode: HistoryMode; categories: HistoryCategory[]; steps: number; limit: number; minimum: number };
 type Patch = { path: string[]; before: unknown; after: unknown };
 type Adapter = { read: () => unknown; write: (value: any) => void };
@@ -89,7 +89,7 @@ export function createActionHistory(initial?: Partial<HistoryOptions>): ActionHi
   };
   if (initial) api.configure({
     ...(initial.mode && ["recent", "context", "selective"].includes(initial.mode) ? { mode: initial.mode } : {}),
-    ...(Array.isArray(initial.categories) ? { categories: initial.categories.filter(id => ["omnium", "ui", "appearance", "settings"].includes(id)) } : {}),
+    ...(Array.isArray(initial.categories) ? { categories: initial.categories.filter(id => ["omnium", "ui", "appearance", "settings", "camera"].includes(id)) } : {}),
     steps: initial.steps ?? 1, limit: initial.limit ?? 10, minimum: initial.minimum ?? 1,
   });
   return api;

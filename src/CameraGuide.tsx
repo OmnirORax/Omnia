@@ -22,7 +22,7 @@ export function CameraGuide({ attach }: { attach: RefCallback<HTMLDivElement> })
         <div><strong>World origin</strong><div>0, 0, 0</div><small>Y up · XY text plane</small></div>
       </div>
       <dl><dt>Looking</dt><dd data-camera="direction" /><dt>Camera</dt><dd data-camera="position" /><dt>Orbit target</dt><dd data-camera="target" /><dt>Node world XYZ</dt><dd data-camera="node">Select a node</dd></dl>
-      <div className="camera-guide-actions"><FunctionControl id="cameraOrigin" /><FunctionControl id="rollLeft" /><FunctionControl id="rollRight" /></div>
+      <div className="camera-guide-actions"><FunctionControl id="world.navigate" /><FunctionControl id="cameraOrigin" /><FunctionControl id="rollLeft" /><FunctionControl id="rollRight" /></div>
     </div>
   </UIField>;
 }

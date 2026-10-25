@@ -473,3 +473,12 @@ action through declarative `configurationAction` metadata. RMB is removal-only,
 respecting the current pattern/geometry, with empty/unselected hits clearing all.
 Selection removal still uses the transient timeline, never UI/appearance history.
 See VISUAL_SELECTION.md and FUNCTION_CONFIGURATION.md for migration and routing.
+
+
+World navigation now uses the same contextual configuration signature, with
+explicit camera, node-facing and layout modes, targets, pivots and world-axis
+constraints. See [WORLD_NAVIGATION.md](WORLD_NAVIGATION.md) for gesture, storage,
+history and performance contracts. New pointer actions can declare `gestureSurface`
+in the shared action catalog; the single Shift router honors that surface and
+keeps the active configuration callable while interacting with its popup. Native
+option right-clicks reach the shared lock/apply path even while Shift is held.

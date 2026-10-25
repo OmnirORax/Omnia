@@ -1,6 +1,7 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "world.navigate", owner: "worldNavigation", scope: "world", gestureSurface: ".spatial-workspace > canvas", category: "World navigation", label: "World navigation", defaultKey: "MB2", description: "Drag using the active explicit movement mode. Shift opens mode, target, pivot and axis configuration." },
   { id: "scene.generate", owner: "scene", scope: "global", category: "Scene", label: "Generate & apply", defaultKey: "", description: "Generate one image from the saved prompt and active node input, store it privately and apply it as the background. Uses paid API credit when configured." },
   { id: "scene.apply", owner: "scene", scope: "global", category: "Scene", label: "Apply saved image", defaultKey: "", description: "Apply a completed image from this workspace without generating or paying again." },
   { id: "scene.clear", owner: "scene", scope: "global", category: "Scene", label: "Clear scene", defaultKey: "", description: "Return to the theme background. Keeps the private image; Undo restores its reference." },

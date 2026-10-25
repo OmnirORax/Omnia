@@ -1,3 +1,4 @@
+import { transformPlacements } from "./navigation/transforms";
 import { functionShortcutBinding } from "./workspaceActions";
 import { invokeCatalogAction } from "./workspaceActions";
 import { SearchController } from "./ui/SearchController";
@@ -1096,7 +1097,8 @@ function Workbench() {
   replaceFunction("ui:devMode", "UI edit mode", <button aria-pressed={!!savedUILayout.panels["@devMode"]} onClick={() => runAction("ui:devMode")}>UI edit mode</button>);
   for (const [key, label] of [["selectionModifier", "Drag selection / click to add"], ["nestModifier", "Drag node to nest"], ["subtreeModifier", "Click to toggle entire subtree"]] as const) replaceFunction(`ui:gesture:${key}`, label, <label>{label}<select aria-label={label} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["ctrl", "shift", "alt", "none"].map((m) => <option key={m} value={m}>{m === "ctrl" ? "Ctrl / Cmd" : m}</option>)}</select></label>, true);
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
-  for (const key of ["leftEmpty", "rightEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
+  for (const key of ["leftEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
+  replaceFunction("ui:camera:rightEmpty", "World navigation", <FunctionControl id="world.navigate" mirror />, true);
   replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
   replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
@@ -2086,6 +2088,9 @@ function Workbench() {
         <div className="canvas" aria-label="Atlas canvas">
           <WorkspaceBoundary><Suspense fallback={<div className="spatial-loading">Opening 3D workspace…</div>}>
             <SpatialWorkspace
+              bindings={propertyBindings}
+              history={actionHistory}
+              onTransformNodes={(ids, rotation, pivot, layout) => commitDocument(transformPlacements(document, ids, rotation, pivot, layout))}
               wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
               document={document}

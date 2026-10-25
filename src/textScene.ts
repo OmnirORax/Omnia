@@ -170,6 +170,7 @@ export function buildTextScene(
     const style = resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", appearance);
     style.opacity *= theme.opacity;
     const group = new THREE.Group();
+    if (placement?.orientation) group.quaternion.set(placement.orientation.x, placement.orientation.y, placement.orientation.z, placement.orientation.w);
     group.userData.glowIntensity = style.glow;
     group.position.set(node.world.x, node.world.y, node.world.z);
     const selected = selectedId === node.id || selectedIds.has(node.id);
@@ -412,7 +413,7 @@ export function buildTextScene(
       const footprint = item.sprite.scale;
       const radius = Math.max(0.65, Math.hypot(footprint.x, footprint.y) / 2 + 0.12);
       // Screen-facing interaction overlay; the represented structure keeps its world orientation.
-      ring.quaternion.copy(camera.quaternion);
+      ring.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
       ring.scale.setScalar(radius * (item.selected ? 1 + pulse * 0.1 : 1));
       ring.material.opacity = item.opacity * Number(ring.userData.opacity??1) * (item.selected ? 0.45 + pulse * 0.4 : 0.45);
     }

@@ -20,6 +20,9 @@ export function ConfigurationInteractionBoundary({ id, gesture, close, children 
       if (!option) return;
       event.preventDefault(); event.stopPropagation();
       if (option.dataset.configurationOption !== undefined) gesture.select(Number(option.dataset.configurationOption));
+      // Secondary shared select choices must take the pointed value before
+      // locking, just as the primary configuration options do.
+      if (option.dataset.configurationOption === undefined) (event.target as Element).closest<HTMLElement>("[data-property-choice]")?.click();
       gesture.lock(); close();
     }}>{children}</div>
   </ConfigurationInteractionContext.Provider>;
