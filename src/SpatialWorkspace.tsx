@@ -143,18 +143,20 @@ export default function SpatialWorkspace(props: Props) {
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const navigationEngine = useRef<ReturnType<typeof createNavigationGesture> | null>(null);
-  const armedNavigation = useRef<NavigationOptions | null>(null);
+  const navigationContexts = useRef(new Map<string, NavigationOptions>());
+  const navigationKey = (point: { x: number; y: number }) => JSON.stringify([callbacks.current.focusContextIds ?? [], navigationEngine.current?.contextKind(point) ?? "space"]);
+  const rememberedNavigation = (point: { x: number; y: number }) => navigationContexts.current.get(navigationKey(point)) ?? navigationOptions(callbacks.current.settings);
   const [activeNavigation, setActiveNavigation] = useState(() => navigationOptions(settings));
   const navigationShortcuts = useFeatureActions("worldNavigation", { "world.navigate": { enabled: ready,
-    configuration: <NavigationConfiguration bindings={props.bindings} apply={options => { armedNavigation.current = options; setActiveNavigation(options); }}
+    configuration: <NavigationConfiguration bindings={props.bindings} initial={rememberedNavigation} apply={(options, point) => { navigationContexts.current.set(navigationKey(point), { ...options }); setActiveNavigation(options); }}
       preview={(options, point) => navigationEngine.current?.preview(options, point) ?? "Opening 3D workspace…"} />,
     run: input => {
-      if (input instanceof PointerEvent) navigationEngine.current?.begin(input, armedNavigation.current ?? navigationOptions(callbacks.current.settings));
+      if (input instanceof PointerEvent) { const options = rememberedNavigation({ x: input.clientX, y: input.clientY }); setActiveNavigation(options); navigationEngine.current?.begin(input, options); }
       else openActionConfiguration("world.navigate");
     },
   } });
   useEffect(() => { if (navigationEngine.current?.active) navigationEngine.current.finish(true); }, [doc, props.selectedIds]);
-  useEffect(() => { armedNavigation.current = null; setActiveNavigation(navigationOptions(settings)); }, [settings.functionValues["world.navigation"]]);
+  useEffect(() => { setActiveNavigation(navigationOptions(settings)); }, [settings.functionValues["world.navigation"]]);
 
   useEffect(() => {
     const host = hostRef.current; if (!host) return;
@@ -538,7 +540,7 @@ export default function SpatialWorkspace(props: Props) {
       if (uiPointerActive) return;
       if (navigation.acceptsRelease(event)) {
         const dragged = navigation.finish();
-        if (dragged) { rightDown = null; armedNavigation.current = null; setActiveNavigation(navigationOptions(callbacks.current.settings)); return; }
+        if (dragged) { rightDown = null; return; }
       }
       if (event.button === 3 || event.button === 4) { event.preventDefault(); return; }
       if (selecting && event.button === 0) {

@@ -83,6 +83,7 @@ export function createNavigationGesture(env: Environment) {
   };
   return {
     get active() { return !!gesture; },
+    contextKind(point: { x: number; y: number }) { return env.pointed({ clientX: point.x, clientY: point.y }) ? "nodes" : "space"; },
     acceptsRelease(event: PointerEvent) { return !!gesture && event.pointerId === gesture.pointer && event.button === gesture.button; },
     preview(options: NavigationOptions | null, point: { x: number; y: number }) {
       if (!options) { if (!gesture) { marker.visible = false; env.request(); } return ""; }

@@ -5,17 +5,17 @@ import { PROPERTY_REGISTRY } from "../appearance/registry";
 import { preparePropertyChanges } from "../properties/registry";
 import type { PropertyBindings } from "../properties/CoupledProperties";
 import { useConfigurationInteraction } from "../ui/ConfigurationInteraction";
-import { MODES, NAVIGATION_ID, NAV_DEFAULTS, NAV_KEYS, type NavigationOptions } from "./options";
-export function NavigationConfiguration({ bindings, apply, preview }: { bindings: PropertyBindings; apply: (options: NavigationOptions) => void; preview: (options: NavigationOptions | null, point: { x: number; y: number }) => string }) {
+import { MODES, NAVIGATION_ID, NAV_KEYS, type NavigationOptions } from "./options";
+export function NavigationConfiguration({ bindings, apply, preview, initial }: { initial: (point: { x: number; y: number }) => NavigationOptions; bindings: PropertyBindings; apply: (options: NavigationOptions, point: { x: number; y: number }) => void; preview: (options: NavigationOptions | null, point: { x: number; y: number }) => string }) {
   const point = useRef(cursorPosition());
-  const [options, setOptions] = useState<NavigationOptions>(() => Object.fromEntries(Object.entries(NAV_DEFAULTS).map(([key, value]) => [key, bindings.values[NAVIGATION_ID]?.[NAV_KEYS[key as keyof NavigationOptions]] ?? value])) as NavigationOptions);
+  const [options, setOptions] = useState<NavigationOptions>(() => initial(point.current));
   const current = useRef(options); current.current = options;
   const [summary, setSummary] = useState("");
   const select = (index: number) => { const next = { ...current.current, mode: MODES[index]?.id ?? "orbit" }; current.current = next; setOptions(next); };
   const change = (key: keyof NavigationOptions, value: string | number | boolean) => { const next = { ...current.current, [key]: value }; current.current = next; setOptions(next); };
   const save = (next: NavigationOptions) => bindings.commit(Object.entries(next).flatMap(([key, value]) => preparePropertyChanges(PROPERTY_REGISTRY, NAV_KEYS[key as keyof NavigationOptions], value, [NAVIGATION_ID])));
   useConfigurationInteraction({ cycle: () => select((MODES.findIndex(mode => mode.id === current.current.mode) + 1) % MODES.length), select,
-    apply: () => apply(current.current), lock: () => save(current.current), reset: () => { select(0); bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, NAV_KEYS.mode, "orbit", [NAVIGATION_ID])); },
+    apply: () => apply(current.current, point.current), lock: () => save(current.current), reset: () => { select(0); bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, NAV_KEYS.mode, "orbit", [NAVIGATION_ID])); },
   });
   useEffect(() => { setSummary(preview(options, point.current)); return () => { preview(null, point.current); }; }, [options]);
   const camera = ["orbit", "look", "walk", "pan"].includes(options.mode);

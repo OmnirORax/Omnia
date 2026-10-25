@@ -2,7 +2,7 @@
 
 `world.navigate` defaults to MB2 on the world canvas. Shift plus its configured
 binding opens only World navigation in the contextual MC. Repeat/scroll cycles
-modes; release Shift arms one drag with the draft. Right-click a mode or shared
+modes; release Shift applies the draft to the current navigation context. Right-click a mode or shared
 parameter choice applies and locks the configuration. Left-click a mode restores
 priority 1 (Orbit); other draft parameters remain independent. The camera guide
 and existing mouse-settings resident expose the same command for clickable use.
@@ -19,7 +19,7 @@ priority while aiming. No per-feature Shift listener exists.
 | Turn nodes | Node presentation orientation | Each target's own center |
 | Rotate layout | Target positions | The chosen pivot; node facing stays fixed |
 
-Node targets explicitly choose Selected or Pointed. Include descendants expands
+Navigation retains separate session choices for nodes and empty space in each focus context. Reopening configuration or dragging again restores that context’s options; global locked defaults remain the fallback for a new context. Node targets explicitly choose Selected or Pointed. Include descendants expands
 that set once, including hidden descendants, with stable placement IDs. Selected-
 only layout rotation holds unselected children's world positions fixed by adjusting
 their local offsets. No identity, relationship, composition or visual-parent edges
