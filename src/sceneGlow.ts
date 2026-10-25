@@ -1,3 +1,4 @@
+import { sceneEdgeAA } from "./sceneEdgeAA";
 import { bloomSize } from "./renderBudget";
 import * as THREE from "three";
 import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
@@ -10,9 +11,9 @@ export class SceneGlow extends Pass {
   private bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.22, 0, 0);
   private cache = new Map<THREE.Material, THREE.Material>();
   private mix = new THREE.ShaderMaterial({
-    uniforms: { base: { value: null }, glow: { value: this.bloom.renderTargetsHorizontal[0].texture } },
+    uniforms: { texel: { value: new THREE.Vector2(1, 1) }, base: { value: null }, glow: { value: this.bloom.renderTargetsHorizontal[0].texture } },
     vertexShader: 'varying vec2 uv0; void main(){uv0=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: 'uniform sampler2D base; uniform sampler2D glow; varying vec2 uv0; void main(){vec4 b=texture2D(base,uv0);gl_FragColor=vec4(b.rgb+texture2D(glow,uv0).rgb,b.a);}',
+    fragmentShader: `uniform sampler2D base; uniform sampler2D glow; varying vec2 uv0; ${sceneEdgeAA} void main(){vec4 center=texture2D(base,uv0);gl_FragColor=vec4(edgeColor(base,uv0,center.rgb)+texture2D(glow,uv0).rgb,center.a);}`,
     depthTest: false, depthWrite: false,
   });
   private quad = new FullScreenQuad(this.mix);
@@ -61,6 +62,6 @@ export class SceneGlow extends Pass {
     this.mix.uniforms.base.value = read.texture;
     renderer.setRenderTarget(this.renderToScreen ? null : write); this.quad.render(renderer);
   }
-  override setSize(width: number, height: number) { const size = bloomSize(width, height); this.target.setSize(size.width, size.height); this.bloom.setSize(size.width, size.height); }
+  override setSize(width: number, height: number) { this.mix.uniforms.texel.value.set(1 / Math.max(1, width), 1 / Math.max(1, height)); const size = bloomSize(width, height); this.target.setSize(size.width, size.height); this.bloom.setSize(size.width, size.height); }
   override dispose() { this.target.dispose(); this.bloom.dispose(); this.mix.dispose(); this.quad.dispose(); for (const material of this.cache.values()) material.dispose(); this.cache.clear(); }
 }
