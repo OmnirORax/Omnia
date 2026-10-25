@@ -87,7 +87,9 @@ without generating again. Existing backend permissions/quotas are unchanged.
 - `src/scene/wallpaper.ts` draws one static screen-space texture in the existing
   Three.js scene with cover cropping, selection feedback and disposal. It is not
   pickable. Theme background remains the fallback; safe UI mode hides wallpaper.
-  No animated inference, per-pointer scans or progress ticks in the app root.
+  The direct WebGL canvas has CSS width/height 100%; its budgeted drawing-buffer
+  resolution must never determine its visible size. No animated inference,
+  per-pointer scans or progress ticks in the app root.
 - Scene assignment currently uses the selected placement, not semantic parent,
   camera focus or zoom. Ancestor defaults/inheritance, semantic environment/mood/
   scale rules, multiple bindings, image editing, music and animated scenes remain
