@@ -120,17 +120,19 @@ export function createNavigationGesture(env: Environment) {
     finish(cancelled = false) {
       if (!gesture) return false;
       const current = gesture; gesture = null;
+      let rememberView = false;
       try {
       if (cancelled) restore(current);
       else if (current.dragged) {
         if (current.options.mode === "orient" || current.options.mode === "layout") {
           if (Math.hypot(current.rotation.x, current.rotation.y, current.rotation.z) > 1e-8) env.commit(current.ids, qvalue(current.rotation), xyz(current.pivot), current.options.mode === "layout");
-        } else if (current.pose.position.distanceToSquared(env.camera.position) + current.pose.target.distanceToSquared(env.target()) + current.pose.up.distanceToSquared(env.camera.up) > 1e-10) env.remember(current.pose);
+        } else if (current.pose.position.distanceToSquared(env.camera.position) + current.pose.target.distanceToSquared(env.target()) + current.pose.up.distanceToSquared(env.camera.up) > 1e-10) rememberView = true;
       }
       } finally {
       if (env.canvas.hasPointerCapture(current.pointer)) env.canvas.releasePointerCapture(current.pointer);
       marker.visible = false; env.enabled(true); env.rebind(); env.feedback(""); env.request();
       }
+      if (rememberView) env.remember(current.pose);
       return current.dragged;
     },
     dispose() { if (gesture) restore(gesture); gesture = null; env.scene.remove(marker); marker.geometry.dispose(); for (const material of Array.isArray(marker.material) ? marker.material : [marker.material]) material.dispose(); },

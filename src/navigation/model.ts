@@ -5,16 +5,14 @@ export type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; up: T
 export function navigationRotation(pose: CameraPose, options: NavigationOptions, dx: number, dy: number, pivot: THREE.Vector3) {
   const yaw = -dx * .005 * options.speed, pitch = -dy * .005 * options.speed;
   if (options.axis !== "free") return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Number(options.axis === "x"), Number(options.axis === "y"), Number(options.axis === "z")), yaw - pitch);
-  const direction = (options.mode === "orbit" ? pose.position.clone().sub(pivot) : pose.target.clone().sub(pose.position));
-  if (options.upright && (options.mode === "orbit" || options.mode === "look") && direction.lengthSq() > 1e-10) {
-    const sphere = new THREE.Spherical().setFromVector3(direction);
-    sphere.theta += yaw; sphere.phi = Math.max(.01, Math.min(Math.PI - .01, sphere.phi + (options.mode === "look" ? -pitch : pitch)));
-    return new THREE.Quaternion().setFromUnitVectors(direction.normalize(), new THREE.Vector3().setFromSpherical(sphere).normalize());
-  }
-  const forward = pose.target.clone().sub(pose.position).normalize();
+  // Transport the complete camera frame through the poles. One axis-angle
+  // delta also makes a reversed diagonal drag exactly undo its rotation.
+  const forward = (options.mode === "orbit" ? pivot.clone().sub(pose.position) : pose.target.clone().sub(pose.position)).normalize();
   const right = forward.clone().cross(pose.up).normalize();
-  return new THREE.Quaternion().setFromAxisAngle(pose.up.clone().normalize(), yaw)
-    .multiply(new THREE.Quaternion().setFromAxisAngle(right, pitch));
+  const up = right.clone().cross(forward).normalize();
+  const angular = up.multiplyScalar(yaw).addScaledVector(right, pitch);
+  const angle = angular.length();
+  return angle > 0 ? new THREE.Quaternion().setFromAxisAngle(angular.divideScalar(angle), angle) : new THREE.Quaternion();
 }
 export function navigateCamera(pose: CameraPose, options: NavigationOptions, dx: number, dy: number, pivot: THREE.Vector3): CameraPose {
   const next = { position: pose.position.clone(), target: pose.target.clone(), up: pose.up.clone() };
@@ -34,6 +32,6 @@ export function navigateCamera(pose: CameraPose, options: NavigationOptions, dx:
   const rotation = navigationRotation(pose, options, dx, dy, pivot);
   if (options.mode === "orbit") { next.position.sub(pivot).applyQuaternion(rotation).add(pivot); next.target.copy(pivot); }
   else { next.target.sub(pose.position).applyQuaternion(rotation).add(pose.position); }
-  if (options.upright && options.axis === "free") next.up.set(0, 1, 0); else next.up.applyQuaternion(rotation).normalize();
+  next.up.applyQuaternion(rotation).normalize();
   return next;
 }

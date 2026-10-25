@@ -10,7 +10,7 @@ const definitions: Record<string, PropertyDefinition | undefined> = {
   pivot: select("pivot", "Pivot", [{ id: "focus", label: "Current focus point" }, { id: "selection", label: "Selection center" }, { id: "pointed", label: "Pointed node center" }, { id: "origin", label: "World origin" }]),
   target: select("target", "Node targets", [{ id: "selection", label: "Selected nodes" }, { id: "pointed", label: "Pointed node" }]),
   axis: select("axis", "World axis", [{ id: "free", label: "Free" }, ...["x", "y", "z"].map(id => ({ id, label: `${id.toUpperCase()} only` }))]),
-  upright: { id: NAV_KEYS.upright, label: "Keep camera upright", kind: "toggle", initial: true, category },
+  upright: { id: NAV_KEYS.upright, label: "Ground-plane walking", kind: "toggle", initial: true, category },
   descendants: { id: NAV_KEYS.descendants, label: "Include descendants", kind: "toggle", initial: false, category },
 };
 export default defineFunction<WorkspaceSettings>({ id: NAVIGATION_ID, label: "World navigation", owner: "settings", controls: ["world.navigate"],

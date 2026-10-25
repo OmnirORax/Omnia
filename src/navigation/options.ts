@@ -22,6 +22,5 @@ export function navigationConstraint(options: NavigationOptions) {
   if (options.axis !== "free") return `world ${options.axis.toUpperCase()} axis`;
   if (options.mode === "pan") return "camera view plane";
   if (options.mode === "walk") return options.upright ? "ground plane · fixed height" : "camera plane";
-  if ((options.mode === "orbit" || options.mode === "look") && options.upright) return "upright · pitch ±89.4°";
-  return "free · camera up/right";
+  return "free · camera up/right · full turns";
 }

@@ -19,7 +19,7 @@ export function NavigationConfiguration({ bindings, apply, preview }: { bindings
   });
   useEffect(() => { setSummary(preview(options, point.current)); return () => { preview(null, point.current); }; }, [options]);
   const camera = ["orbit", "look", "walk", "pan"].includes(options.mode);
-  const fields: (keyof NavigationOptions)[] = [...(options.mode === "orbit" || options.mode === "layout" ? ["pivot" as const] : []), ...(!camera ? ["target" as const, "descendants" as const] : []), "axis", ...(camera && options.mode !== "pan" && options.axis === "free" ? ["upright" as const] : []), "speed"];
+  const fields: (keyof NavigationOptions)[] = [...(options.mode === "orbit" || options.mode === "layout" ? ["pivot" as const] : []), ...(!camera ? ["target" as const, "descendants" as const] : []), "axis", ...(options.mode === "walk" && options.axis === "free" ? ["upright" as const] : []), "speed"];
   return <div className="world-navigation-configuration">
     <div className="configuration-options" role="group" aria-label="World navigation mode" onWheel={event => { event.preventDefault(); select((MODES.findIndex(mode => mode.id === current.current.mode) + (event.deltaY > 0 ? 1 : MODES.length - 1)) % MODES.length); }}>
       {MODES.map((mode, index) => <button key={mode.id} data-configuration-option={index} aria-pressed={options.mode === mode.id} title={mode.description} onPointerEnter={() => setSummary(preview({ ...current.current, mode: mode.id }, point.current))} onPointerLeave={() => setSummary(preview(current.current, point.current))}>{mode.label}</button>)}

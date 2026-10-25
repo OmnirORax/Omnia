@@ -1,3 +1,4 @@
+import { rebindOrbitControls } from "./navigation/orbit";
 import type { ActionHistory } from "./ui/actionHistory";
 import type { PropertyBindings } from "./properties/CoupledProperties";
 import { useFeatureActions } from "./ui/useFeatureActions";
@@ -266,15 +267,12 @@ export default function SpatialWorkspace(props: Props) {
     // OrbitControls caches its up-axis basis on construction. Rebind through its
     // public API after a discrete roll, without touching private engine fields.
     const rebindOrbit = () => {
-      const previous = controls, target = previous.target.clone();
-      previous.removeEventListener("change", requestRender); previous.removeEventListener("start", nativeStart); previous.removeEventListener("end", nativeEnd); previous.dispose();
-      controls = new OrbitControls(camera, renderer.domElement);
-      controls.target.copy(target); controls.enableDamping = false;
-      controls.minDistance = previous.minDistance; controls.maxDistance = previous.maxDistance;
-      controls.mouseButtons = { ...previous.mouseButtons }; controls.enabled = previous.enabled;
+      const previous = controls;
+      previous.removeEventListener("change", requestRender); previous.removeEventListener("start", nativeStart); previous.removeEventListener("end", nativeEnd);
+      controls = rebindOrbitControls(camera, renderer.domElement, previous);
       controls.addEventListener("change", requestRender); controls.addEventListener("start", nativeStart); controls.addEventListener("end", nativeEnd);
       if (stateRef.current) stateRef.current.controls = controls;
-      controls.update();
+      requestRender();
     };
     const clicks = nodeClicks((id) => callbacks.current.onNodeClick(id), (id) => callbacks.current.onNodeDoubleClick(id));
     const animate = (target: THREE.Vector3, distance: number, remember = true, facing?: THREE.Vector3) => {

@@ -26,8 +26,10 @@ their local offsets. No identity, relationship, composition or visual-parent edg
 change. Plain spheres are rotationally symmetric; their facing is still stored.
 
 All modes expose Free or a world X/Y/Z axis and shared Drag sensitivity (0.1–2).
-Upright camera rotation uses world Y and clamps pitch to ±89.4°; free rotation can
-follow camera up, and explicit world axes permit roll. Orbit reports/enforces the
+Camera rotation transports its up/right frame continuously through the poles,
+with unrestricted full turns and reversible diagonal drags. The former upright
+pitch clamp is removed; the retained `navigation.upright` flag now controls only
+ground-plane walking. Explicit world axes permit axis-constrained turns. Orbit reports/enforces the
 actual OrbitControls radius limits (1.2–100,000 world units), instead of silently
 jumping to a clamped radius. Walk has explicit ground/fixed-height or free-forward
 translation; An explicit world axis overrides the plane restriction, including vertical movement. Pivots and axes are marked in the

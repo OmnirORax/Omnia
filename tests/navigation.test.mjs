@@ -25,18 +25,16 @@ test('orbit changes camera position around the explicit pivot, preserving radius
   vectorNear(after.target, pivot); vectorNear(before.position, copy);
   assert.ok(after.position.distanceTo(before.position) > 1);
 });
-test('look rotates at camera origin; upright limits pitch and free world-axis rotation can roll', () => {
+test('look rotates at camera origin with transported up and world-axis roll', () => {
   const before = pose();
-  const after = navigateCamera(before, { ...NAV_DEFAULTS, mode:'look' }, 150, 90000, new THREE.Vector3());
+  const after = navigateCamera(before, { ...NAV_DEFAULTS, mode:'look' }, 0, 30, new THREE.Vector3());
   vectorNear(after.position, before.position);
   near(after.position.distanceTo(after.target), before.position.distanceTo(before.target));
-  vectorNear(after.up, new THREE.Vector3(0,1,0));
+  near(after.up.length(), 1);
   const direction = after.target.clone().sub(after.position).normalize();
-  assert.ok(Math.abs(direction.y) < 1);
   assert.ok(direction.y < before.target.clone().sub(before.position).normalize().y, 'mouse down looks down');
   const roll = navigateCamera(before, { ...NAV_DEFAULTS, mode:'look', axis:'z' }, 100, 0, new THREE.Vector3());
-  vectorNear(roll.position, before.position);
-  assert.ok(roll.up.distanceTo(before.up) > .1);
+  vectorNear(roll.position, before.position); assert.ok(roll.up.distanceTo(before.up) > .1);
 });
 test('walk translates position and target together, with explicit ground or vertical-axis constraints', () => {
   const before = pose(), after = navigateCamera(before, { ...NAV_DEFAULTS, mode:'walk' }, 100, -100, new THREE.Vector3());
@@ -135,4 +133,50 @@ test('camera poses participate in chronological and selective Camera undo withou
   history.configure({mode:'selective',categories:['camera']});
   assert.equal(history.travel('undo'),1); vectorNear(camera.position,start); vectorNear(target,new THREE.Vector3());
   assert.equal(history.travel('redo'),1); vectorNear(target,after.target);
+});
+
+
+test('vertical orbit and look pass both poles and complete repeated full turns even with old upright settings', () => {
+  const start={position:new THREE.Vector3(0,0,8),target:new THREE.Vector3(),up:new THREE.Vector3(0,1,0)};
+  for (const mode of ['orbit','look']) for (const angle of [-4*Math.PI,-Math.PI-.1,-Math.PI/2-.01,-Math.PI/2+.01,Math.PI/2-.01,Math.PI/2+.01,Math.PI+.1,4*Math.PI]) {
+    const options={...NAV_DEFAULTS,mode,upright:true};
+    const next=navigateCamera(start,options,0,angle/.005,new THREE.Vector3());
+    const rotation=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-angle);
+    vectorNear(next.up,start.up.clone().applyQuaternion(rotation));
+    vectorNear(mode==='orbit'?next.position:next.target.clone().sub(next.position),(mode==='orbit'?start.position:start.target.clone().sub(start.position)).clone().applyQuaternion(rotation));
+  }
+});
+test('diagonal camera drag and its reverse restore the complete frame across gestures', () => {
+  for (const mode of ['orbit','look']) {
+    const start=pose(), options={...NAV_DEFAULTS,mode};
+    const moved=navigateCamera(start,options,740,480,new THREE.Vector3());
+    const restored=navigateCamera(moved,options,-740,-480,new THREE.Vector3());
+    vectorNear(restored.position,start.position);vectorNear(restored.target,start.target);vectorNear(restored.up,start.up);
+  }
+});
+
+test('releasing orbit/look beyond a pole preserves the complete view through real control replacement', async () => {
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+  const { rebindOrbitControls } = await import('../src/navigation/orbit.ts');
+  const root=new EventTarget(), canvas=new EventTarget(); canvas.style={}; canvas.ownerDocument=root; canvas.getRootNode=()=>root;
+  for (const mode of ['orbit','look']) for (const angle of [Math.PI/2-.00001,Math.PI/2,Math.PI/2+.00001,Math.PI,3*Math.PI/2,2*Math.PI]) {
+    const start={position:new THREE.Vector3(0,0,8),target:new THREE.Vector3(),up:new THREE.Vector3(0,1,0)}, camera=new THREE.PerspectiveCamera();
+    camera.position.copy(start.position);camera.lookAt(start.target);
+    const old=new OrbitControls(camera,canvas);old.minDistance=1.2;old.maxDistance=100000;
+    const expected=navigateCamera(start,{...NAV_DEFAULTS,mode},0,angle/.005,new THREE.Vector3());
+    camera.position.copy(expected.position);camera.up.copy(expected.up);old.target.copy(expected.target);
+    const controls=rebindOrbitControls(camera,canvas,old);
+    vectorNear(camera.position,expected.position);vectorNear(camera.up,expected.up);vectorNear(controls.target,expected.target);
+    vectorNear(camera.getWorldDirection(new THREE.Vector3()),expected.target.clone().sub(expected.position).normalize());
+    controls.dispose();
+  }
+});
+test('camera history receives the final released pose after control rebinding', () => {
+  const camera=new THREE.PerspectiveCamera();camera.position.set(0,2,8);const target=new THREE.Vector3();camera.lookAt(target);
+  let rebound=false, remembered=false;
+  const engine=createNavigationGesture({camera,scene:new THREE.Scene(),canvas:{setPointerCapture(){},hasPointerCapture(){return false;},releasePointerCapture(){}},
+    target:()=>target,nodes:()=>undefined,document:()=>fixture(),selection:()=>new Set(),pointed:()=>undefined,request(){},enabled(){},feedback(){},commit(){},
+    rebind(){rebound=true;},remember(){assert.equal(rebound,true);remembered=true;}});
+  engine.begin({pointerId:1,button:2,clientX:0,clientY:0},NAV_DEFAULTS);engine.move({pointerId:1,clientX:0,clientY:400});engine.finish();
+  assert.equal(remembered,true);engine.dispose();
 });
