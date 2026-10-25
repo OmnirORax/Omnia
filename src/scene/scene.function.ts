@@ -9,7 +9,7 @@ export function sceneInput(settings: WorkspaceSettings, id: string, initial: str
 const write = (settings: WorkspaceSettings, id: string, value: string) => ({ ...settings,
   functionValues: { ...settings.functionValues, [SCENE_FUNCTION]: { ...settings.functionValues[SCENE_FUNCTION], [id]: value } } });
 export default defineFunction<WorkspaceSettings>({
-  id: SCENE_FUNCTION, label: 'Scene generation', owner: 'settings', controls: ['scene.generate', 'scene.prompt', 'scene.variable', 'scene.source'],
+  id: SCENE_FUNCTION, label: 'Scene generation', owner: 'settings', controls: ['scene.copyPrompt', 'scene.generate', 'scene.prompt', 'scene.variable', 'scene.source'],
   group: [{ id: 'scene', label: 'Scene' }], inputs: {
     'scene.prompt': {
       definition: { id: 'scene.prompt', label: 'Image prompt', kind: 'text', maxLength: 4000, multiline: true, initial: DEFAULT_SCENE_PROMPT, category: { id: 'scene', label: 'Scene' } },

@@ -97,10 +97,12 @@ target hierarchy or current selection. They answer different questions.
 | Backend foundation | Local foundation and hosted schema/function deployed; hosted signup disabled and verified; 10 hosted smoke checks passed; website published and user-verified for sign-in, owner access and private image download; atlas remains local | [Backend guide](BACKEND.md), [architecture plan](BACKEND_ARCHITECTURE_PLAN.md) |
 | Private frontend hosting | Cloudflare Pages `omnia-web` at `omnium.nexus`; automatic deployment from `master` enabled; GitHub Pages retired; deployment and post-deployment Access preflight passed | [Deployment operations and evidence](CLOUDFLARE_DEPLOYMENT.md) |
 
-The first saved-prompt/active-node image generation and static wallpaper path is
-implemented behind a server-only configuration gate; see [scene generation](SCENE_GENERATION.md).
-Real provider access and browser rendering still require deployment/configuration
-and user verification. Broader scene inheritance/editing and music remain planned. Before working on
+The first saved-prompt/active-node scene path supports manual prompt copy to
+external ChatGPT, image paste/file import, a bounded browser library and saved
+backgrounds per selected node; see [scene generation](SCENE_GENERATION.md). Manual
+use needs no API setup. Optional API generation stays server-gated; real provider
+access is unverified. Clipboard/rendering require user browser verification.
+Broader semantic parent inheritance/editing and music remain planned. Before working on
 generation services, playback or reactive wallpapers, read
 [AI/media handoff](AI_MEDIA_HANDOFF.md) for current asset/backend limitations,
 shared integration paths and unresolved scope.

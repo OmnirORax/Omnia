@@ -8,14 +8,16 @@ It is not a completed feature specification or a backend implementation.
 
 First scene connection is now implemented in this feature branch; see
 [scene generation](SCENE_GENERATION.md) for exact status and setup. It adds one
-saved prompt/input binding, OpenAI image generation behind a server-only enable
-gate, private output storage and a static workspace wallpaper. No literal wires
-are shown. It does not yet implement the broader per-parent/default/edit/music
-design. Earlier strategic scope notes below remain context, not completed work.
+saved prompt/input binding, manual prompt copy → external ChatGPT → image paste/file
+import, a bounded browser image library and saved static scenes per selected node.
+Manual use needs no API configuration or cloud login. The optional OpenAI API path
+remains behind its server-only enable gate with private cloud output storage. No
+literal wires are shown. Semantic parent inheritance, editing and music remain
+future work. Earlier strategic scope notes below remain context, not completed work.
 
-The user intends to add AI music and wallpaper generation. Providers, models,
-hosting, credentials, persistence, playback controls and the first deliverable
-have not been selected in this conversation. Responsive wallpapers were discussed;
+The user intends to add AI music and wallpaper generation. The first image deliverable now uses external ChatGPT manually; API integration is
+optional and deferred. Music providers, playback and broader context rules are
+not yet selected. Responsive wallpapers were discussed;
 static images/video first and an isolated reactive renderer were recommendations,
 not an agreed requirement to implement a Wallpaper Engine clone.
 
