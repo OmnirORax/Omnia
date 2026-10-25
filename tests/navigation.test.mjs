@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { navigateCamera, navigationRotation } from '../src/navigation/model.ts';
-import { NAV_DEFAULTS } from '../src/navigation/options.ts';
+import { NAV_DEFAULTS as CONTEXT_DEFAULTS } from '../src/navigation/options.ts';
 import { transformTargets, transformPlacements } from '../src/navigation/transforms.ts';
 import { createNavigationGesture } from '../src/navigation/gesture.ts';
 import { emptyDocument, parseDocument, validateDocument } from '../src/graph/structural.ts';
 import { createActionHistory } from '../src/ui/actionHistory.ts';
 import { worldPositions } from '../src/graph/coordinates.ts';
+const NAV_DEFAULTS = { ...CONTEXT_DEFAULTS, mode: "orbit" };
 const near = (a, b) => assert.ok(Math.abs(a-b) < 1e-7, `${a} ≠ ${b}`);
 const vectorNear = (a, b) => ['x','y','z'].forEach(key => near(a[key], b[key]));
 const pose = () => ({ position: new THREE.Vector3(0, 2, 8), target: new THREE.Vector3(), up: new THREE.Vector3(0,1,0) });
@@ -179,4 +180,61 @@ test('camera history receives the final released pose after control rebinding', 
     rebind(){rebound=true;},remember(){assert.equal(rebound,true);remembered=true;}});
   engine.begin({pointerId:1,button:2,clientX:0,clientY:0},NAV_DEFAULTS);engine.move({pointerId:1,clientX:0,clientY:400});engine.finish();
   assert.equal(remembered,true);engine.dispose();
+});
+
+function contextualHarness(selected = [], branch = null, pointed = undefined) {
+  const doc = fixture(), camera = new THREE.PerspectiveCamera(50, 1, .01, 1000), target = new THREE.Vector3();
+  camera.position.set(0,2,8); camera.lookAt(target);
+  const hosts = new Map([...worldPositions(doc)].map(([id, p]) => {
+    const group = new THREE.Group(); group.position.copy(p);
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial()));
+    return [id, {group, anchor: new THREE.Vector3(p.x,p.y,p.z)}];
+  }));
+  let hit = pointed, commits = [], inventories = 0;
+  const engine = createNavigationGesture({camera, scene:new THREE.Scene(), canvas:{setPointerCapture(){},hasPointerCapture(){return false;},releasePointerCapture(){}},
+    target:()=>target, nodes:()=>{inventories++;return hosts;}, document:()=>doc, selection:()=>new Set(selected), branch:()=>branch,
+    pointed:()=>hit, request(){},enabled(){},rebind(){},feedback(){},commit:(...args)=>commits.push(args),remember(){}});
+  const down = {pointerId:1,button:2,clientX:0,clientY:0};
+  return {camera,target,hosts,engine,down,commits,setHit:id=>hit=id, inventoryCount:()=>inventories};
+}
+
+test('context rotation turns the pointed object and freezes that target for the drag', () => {
+  const h = contextualHarness(['a'], 'a', 'b'), start = h.camera.position.clone();
+  assert.equal(h.engine.begin(h.down,CONTEXT_DEFAULTS),true);
+  h.setHit('a'); h.engine.move({...h.down,clientX:80}); h.engine.finish();
+  assert.deepEqual(h.commits[0][0],['b']); assert.equal(h.commits[0][3],false);
+  vectorNear(h.camera.position,start); h.engine.dispose();
+});
+
+test('empty-space orbit keeps the active parent or child center rather than averaging selection', () => {
+  for (const [branch,x] of [['a',2],['b',3]]) {
+    const h = contextualHarness(['a','b'], branch), options = {...CONTEXT_DEFAULTS,actor:'camera'};
+    assert.equal(h.engine.begin(h.down,options),true);
+    h.engine.move({...h.down,clientX:40}); vectorNear(h.target,new THREE.Vector3(x,0,0));
+    const radius=h.camera.position.distanceTo(h.target), scans=h.inventoryCount();
+    h.engine.move({...h.down,clientX:80}); near(h.camera.position.distanceTo(h.target),radius);
+    assert.equal(h.inventoryCount(),scans,'fit inventory is not rescanned during dragging');
+    h.engine.finish(); assert.equal(h.commits.length,0); h.engine.dispose();
+  }
+});
+
+test('empty space without selection looks from camera position; Camera overrides direct object rotation', () => {
+  const world = contextualHarness(), start = world.camera.position.clone();
+  world.engine.begin(world.down,CONTEXT_DEFAULTS); world.engine.move({...world.down,clientX:80});
+  vectorNear(world.camera.position,start); assert.equal(world.inventoryCount(),0); world.engine.finish(); world.engine.dispose();
+  const node = contextualHarness(['a'],'a','b'), before = node.camera.position.clone();
+  node.engine.begin(node.down,{...CONTEXT_DEFAULTS,actor:'camera'});node.engine.move({...node.down,clientX:80});node.engine.finish();
+  vectorNear(node.target,new THREE.Vector3(3,0,0)); assert.ok(node.camera.position.distanceTo(before)>.1);
+  assert.equal(node.commits.length,0);node.engine.dispose();
+});
+
+test('graph fitting moves outward once without moving the branch pivot and cancels completely', () => {
+  const h=contextualHarness(['a'],'a'), start=h.camera.position.clone();
+  h.hosts.get('b').group.position.x=100;
+  h.engine.begin(h.down,CONTEXT_DEFAULTS); h.engine.move({...h.down,clientX:20});
+  vectorNear(h.target,new THREE.Vector3(2,0,0));
+  const radius=h.camera.position.distanceTo(h.target); assert.ok(radius>100);
+  h.hosts.get('b').group.position.x=500;
+  h.engine.move({...h.down,clientX:40});near(h.camera.position.distanceTo(h.target),radius);
+  h.engine.finish(true);vectorNear(h.camera.position,start);vectorNear(h.target,new THREE.Vector3());h.engine.dispose();
 });

@@ -1,6 +1,7 @@
 import type { WorkspaceSettings } from "../workspaceActions";
 export const NAVIGATION_ID = "world.navigation";
 export const MODES = [
+  { id: "auto", label: "Context rotation", description: "Drag a node to turn it; empty space orbits the selected branch, or looks around with no selection." },
   { id: "orbit", label: "Orbit pivot", description: "Camera moves around the chosen pivot; nodes stay fixed." },
   { id: "look", label: "Look around", description: "Camera turns at its own position; nodes stay fixed." },
   { id: "pan", label: "Pan view", description: "Camera translates; Free follows its view plane. Facing stays fixed." },
@@ -9,9 +10,9 @@ export const MODES = [
   { id: "layout", label: "Rotate layout", description: "Rotate target positions around the pivot; node facing stays fixed." },
 ] as const;
 export type NavigationMode = typeof MODES[number]["id"];
-export type NavigationOptions = { mode: NavigationMode; pivot: "focus" | "selection" | "pointed" | "origin"; target: "selection" | "pointed"; axis: "free" | "x" | "y" | "z"; upright: boolean; descendants: boolean; speed: number };
-export const NAV_DEFAULTS: NavigationOptions = { mode: "orbit", pivot: "focus", target: "selection", axis: "free", upright: true, descendants: false, speed: 1 };
-export const NAV_KEYS = { mode: "navigation.mode", pivot: "navigation.pivot", target: "navigation.target", axis: "navigation.axis", upright: "navigation.upright", descendants: "navigation.descendants", speed: "input.sensitivity" } as const;
+export type NavigationOptions = { mode: NavigationMode; actor: "auto" | "camera" | "object"; pivot: "focus" | "selection" | "pointed" | "origin"; target: "selection" | "pointed"; axis: "free" | "x" | "y" | "z"; upright: boolean; descendants: boolean; speed: number };
+export const NAV_DEFAULTS: NavigationOptions = { mode: "auto", actor: "auto", pivot: "focus", target: "selection", axis: "free", upright: true, descendants: false, speed: 1 };
+export const NAV_KEYS = { mode: "navigation.mode", actor: "navigation.actor", pivot: "navigation.pivot", target: "navigation.target", axis: "navigation.axis", upright: "navigation.upright", descendants: "navigation.descendants", speed: "input.sensitivity" } as const;
 export const MAX_TRANSFORM_TARGETS = 256;
 export function navigationOptions(settings: WorkspaceSettings): NavigationOptions {
   const fields = settings.functionValues[NAVIGATION_ID] ?? {};

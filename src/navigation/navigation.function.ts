@@ -6,8 +6,9 @@ const category = { id: "spatial", label: "Spatial" };
 const select = (key: keyof NavigationOptions, label: string, options: readonly { id: string; label: string }[]): PropertyDefinition => ({ id: NAV_KEYS[key], label, kind: "select", initial: NAV_DEFAULTS[key], options, category });
 const definitions: Record<string, PropertyDefinition | undefined> = {
   speed: { id: NAV_KEYS.speed, label: "Drag sensitivity", kind: "number", min: .1, max: 2, step: .05, initial: 1, unit: "multiplier", category },
+  actor: select("actor", "Rotate", [{ id: "auto", label: "From target context" }, { id: "camera", label: "Camera" }, { id: "object", label: "Object" }]),
   mode: select("mode", "Movement mode", MODES),
-  pivot: select("pivot", "Pivot", [{ id: "focus", label: "Current focus point" }, { id: "selection", label: "Selection center" }, { id: "pointed", label: "Pointed node center" }, { id: "origin", label: "World origin" }]),
+  pivot: select("pivot", "Pivot", [{ id: "focus", label: "Current focus point" }, { id: "selection", label: "Current branch center" }, { id: "pointed", label: "Pointed node center" }, { id: "origin", label: "World origin" }]),
   target: select("target", "Node targets", [{ id: "selection", label: "Selected nodes" }, { id: "pointed", label: "Pointed node" }]),
   axis: select("axis", "World axis", [{ id: "free", label: "Free" }, ...["x", "y", "z"].map(id => ({ id, label: `${id.toUpperCase()} only` }))]),
   upright: { id: NAV_KEYS.upright, label: "Ground-plane walking", kind: "toggle", initial: true, category },

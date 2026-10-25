@@ -144,14 +144,18 @@ export default function SpatialWorkspace(props: Props) {
 
   const navigationEngine = useRef<ReturnType<typeof createNavigationGesture> | null>(null);
   const navigationContexts = useRef(new Map<string, NavigationOptions>());
-  const navigationKey = (point: { x: number; y: number }) => JSON.stringify([callbacks.current.focusContextIds ?? [], navigationEngine.current?.contextKind(point) ?? "space"]);
-  const rememberedNavigation = (point: { x: number; y: number }) => navigationContexts.current.get(navigationKey(point)) ?? navigationOptions(callbacks.current.settings);
+  const navigationKey = (point: { x: number; y: number }) => JSON.stringify([...(callbacks.current.focusContextIds ?? []).slice().sort(), navigationEngine.current?.contextBranch(point), navigationEngine.current?.contextKind(point) ?? "space"]);
+  const rememberedNavigation = (point: { x: number; y: number }) => {
+    const remembered = navigationContexts.current.get(navigationKey(point)); if (remembered) return remembered;
+    const saved = navigationOptions(callbacks.current.settings), kind = navigationEngine.current?.contextKind(point);
+    return { ...saved, mode: saved.mode === "walk" || saved.mode === "pan" ? saved.mode : "auto" as const, actor: saved.actor === "auto" ? kind === "nodes" ? "object" as const : "camera" as const : saved.actor };
+  };
   const [activeNavigation, setActiveNavigation] = useState(() => navigationOptions(settings));
   const navigationShortcuts = useFeatureActions("worldNavigation", { "world.navigate": { enabled: ready,
     configuration: <NavigationConfiguration bindings={props.bindings} initial={rememberedNavigation} apply={(options, point) => { navigationContexts.current.set(navigationKey(point), { ...options }); setActiveNavigation(options); }}
       preview={(options, point) => navigationEngine.current?.preview(options, point) ?? "Opening 3D workspace…"} />,
     run: input => {
-      if (input instanceof PointerEvent) { const options = rememberedNavigation({ x: input.clientX, y: input.clientY }); setActiveNavigation(options); navigationEngine.current?.begin(input, options); }
+      if (input instanceof PointerEvent) { const options = rememberedNavigation({ x: input.clientX, y: input.clientY }); setActiveNavigation(options); if (navigationEngine.current?.begin(input, options)) navigationContexts.current.set(navigationKey({ x: input.clientX, y: input.clientY }), { ...options }); }
       else openActionConfiguration("world.navigate");
     },
   } });
@@ -420,6 +424,7 @@ export default function SpatialWorkspace(props: Props) {
     };
     const navigation = createNavigationGesture({ camera, scene, canvas: renderer.domElement,
       target: () => controls.target, nodes: () => textScene.current?.nodes,
+      branch: () => callbacks.current.selectedId && callbacks.current.selectedIds.has(callbacks.current.selectedId) ? callbacks.current.selectedId : callbacks.current.focusContextIds?.[0] ?? null,
       document: () => callbacks.current.document, selection: () => callbacks.current.selectedIds,
       pointed: point => hits(point)[0]?.object.userData.nodeId,
       request: requestRender, enabled: value => { if (!value) stopAnimation(); controls.enabled = value && !uiPointerActive && !drag && !selecting; },
@@ -683,7 +688,7 @@ export default function SpatialWorkspace(props: Props) {
   const menuItems = menu?.target.kind === "selection" ? selectionMenu : menu?.target.kind === "node" ? nodeMenu : spaceMenu;
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
-    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
+    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "auto" ? "node: object center · selected branch: orbit · no selection: look" : activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
     {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
       {NODE_OPTIONS.map((option) => <div className="node-option" key={option.id}>
         <button aria-expanded={props.expandedVariants.has(props.optionNodeId!)} onClick={() => props.onToggleVariants(props.optionNodeId!)}>{option.label}</button>
