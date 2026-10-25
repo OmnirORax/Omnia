@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { guardCameraPointer } from "./cameraPointer";
-import { orbitCamera } from "./cameraOrbit";
 import type { Atlas } from "./graph/model";
 import { isolateSpatialContext, projectSpatial, type XYZ } from "./graph/spatial";
 import { disposeVisual } from "./visualScene";
@@ -232,10 +231,9 @@ export default function SpatialWorkspace(props: Props) {
     // OrbitControls caches its up-axis basis on construction. Rebind through its
     // public API after a discrete roll, without touching private engine fields.
     const rebindOrbit = () => {
-      const previous = controls, target = previous.target.clone(), position = camera.position.clone();
+      const previous = controls, target = previous.target.clone();
       previous.removeEventListener("change", requestRender); previous.removeEventListener("start", stopAnimation); previous.dispose();
       controls = new OrbitControls(camera, renderer.domElement);
-      camera.position.copy(position);
       controls.target.copy(target); controls.enableDamping = false;
       controls.minDistance = previous.minDistance; controls.maxDistance = previous.maxDistance;
       controls.mouseButtons = { ...previous.mouseButtons }; controls.enabled = previous.enabled;
@@ -263,7 +261,6 @@ export default function SpatialWorkspace(props: Props) {
       animation = requestAnimationFrame(tick);
     };
     const focus = (kind: NavigationCommand["kind"], requestedId?: string) => {
-      finishOrbit();
       if (isNudgeAction(kind)) {
         const node = graphRef.current.nodes.find(node => node.visible && node.id === (requestedId ?? callbacks.current.selectedId));
         if (!node || drag) return;
@@ -367,24 +364,6 @@ export default function SpatialWorkspace(props: Props) {
     let rightDown: { x: number; y: number; id: string | null; world: XYZ } | null = null;
     let binderDown: { id: string; kind: "composition" | "relationship" | "variant" | "visual"; x: number; y: number } | null = null;
     let selecting: { x: number; y: number; clientX: number; clientY: number; id?: string; additive: boolean } | null = null;
-    let orbit: { pointerId: number; button: number; x: number; y: number } | null = null;
-    const beginOrbit = (event: PointerEvent) => {
-      if (event.pointerType === 'touch') return;
-      const action = event.button === 0 ? controls.mouseButtons.LEFT : event.button === 2 ? controls.mouseButtons.RIGHT : null;
-      const modified = event.ctrlKey || event.metaKey || event.shiftKey;
-      if (!(action === THREE.MOUSE.ROTATE && !modified || action === THREE.MOUSE.PAN && modified)) return;
-      orbit = { pointerId: event.pointerId, button: event.button, x: event.clientX, y: event.clientY };
-      controls.enabled = false;
-      renderer.domElement.setPointerCapture(event.pointerId);
-      event.preventDefault(); event.stopImmediatePropagation();
-    };
-    const finishOrbit = () => {
-      if (!orbit) return;
-      const pointerId = orbit.pointerId; orbit = null;
-      controls.enabled = !uiPointerActive;
-      rebindOrbit();
-      if (renderer.domElement.hasPointerCapture(pointerId)) renderer.domElement.releasePointerCapture(pointerId);
-    };
     let uiPointerActive = false;
     raycaster.params.Line.threshold = 0.08;
     let hovered: LabelMesh | null = null;
@@ -422,7 +401,7 @@ export default function SpatialWorkspace(props: Props) {
         callbacks.current.onDismissOptions();
         const hit = hits(event)[0]?.object;
         rightDown = { x: event.clientX, y: event.clientY, id: hit?.userData.nodeId ?? null, world: cursorWorld(event) };
-        beginOrbit(event); return;
+        return;
       }
       if (event.button !== 0) return;
       const hit = hits(event)[0];
@@ -431,7 +410,7 @@ export default function SpatialWorkspace(props: Props) {
         callbacks.current.onDismissOptions();
         const binder = raycaster.intersectObjects(textScene.current?.binderHits.filter((object) => object.visible) ?? [], false)[0]?.object;
         if (binder && ["composition", "relationship", "variant", "visual"].includes(binder.userData.binderKind)) binderDown = { id: binder.userData.binderId, kind: binder.userData.binderKind, x: event.clientX, y: event.clientY };
-        beginOrbit(event); return;
+        return;
       }
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), group.position);
@@ -447,11 +426,6 @@ export default function SpatialWorkspace(props: Props) {
     };
     const move = (event: PointerEvent) => {
       if (uiPointerActive || (event.buttons !== 0 && !pointerOwner.owns(event))) return;
-      if (orbit && event.pointerId === orbit.pointerId) {
-        orbitCamera(camera, controls.target, event.clientX - orbit.x, event.clientY - orbit.y, renderer.domElement.clientHeight);
-        orbit.x = event.clientX; orbit.y = event.clientY;
-        requestRender(); return;
-      }
       if (selecting) {
         const rect = host.getBoundingClientRect(), x = event.clientX - rect.left, y = event.clientY - rect.top;
         setSelectionRect({ x: Math.min(x, selecting.x), y: Math.min(y, selecting.y), width: Math.abs(x - selecting.x), height: Math.abs(y - selecting.y) }); return;
@@ -510,7 +484,6 @@ export default function SpatialWorkspace(props: Props) {
     };
     const up = (event: PointerEvent) => {
       if (uiPointerActive) return;
-      if (orbit && event.pointerId === orbit.pointerId && event.button === orbit.button) finishOrbit();
       if (event.button === 3 || event.button === 4) { event.preventDefault(); return; }
       if (selecting && event.button === 0) {
         const start = selecting; selecting = null; controls.enabled = !uiPointerActive; setSelectionRect(null);
@@ -547,14 +520,14 @@ export default function SpatialWorkspace(props: Props) {
       }
       if (event.button === 0) finishDrag(event);
     };
-    const cancel = (event: PointerEvent) => { finishOrbit(); selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
+    const cancel = (event: PointerEvent) => { selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
     const pointerOwner = guardCameraPointer(renderer.domElement, (active) => {
       uiPointerActive = active;
-      controls.enabled = !active && !drag && !selecting && !orbit;
+      controls.enabled = !active && !drag && !selecting;
       if (active) stopAnimation();
     }, () => {
       clicks.cancel(); stopAnimation();
-      orbit = null; selecting = null; rightDown = null; binderDown = null; setSelectionRect(null);
+      selecting = null; rightDown = null; binderDown = null; setSelectionRect(null);
       if (drag) {
         const marker = drag.marker; drag = null;
         scene.remove(marker); marker.geometry.dispose(); (marker.material as THREE.Material).dispose();
