@@ -7,20 +7,31 @@ import { UISection } from '../ui/UISection';
 import { FunctionControl } from '../ui/UIWorkspace';
 import { useFeatureActions } from '../ui/useFeatureActions';
 import type { SceneReference } from './background';
+import { deleteLocalScene, downloadScene, importLocalScene, listLocalScenes, loadCopiedPrompt, localSceneBlob, saveCopiedPrompt, type LocalScene, type ScenePromptSnapshot } from './library';
 
-export function ScenePanel({ node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey }: {
+export function ScenePanel({ node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists }: {
   node: SceneNode | null; revision: number; bindings: PropertyBindings;
-  onApply: (value: SceneReference | null) => void; hasBackground: boolean; backgroundError: string; backgroundKey?: string;
+  onApply: (value: SceneReference | null, targetNodeId?: string | null) => void;
+  onForgetLocal: (id: string) => void; nodeExists: (id: string) => boolean; hasBackground: boolean; backgroundError: string; backgroundKey?: string;
 }) {
   const configuration = backendConfiguration(), client = configuration.kind === 'cloud' ? configuration.client : null;
   const [userId, setUserId] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]), [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [workspace, setWorkspace] = useState(''), [jobs, setJobs] = useState<SceneGeneration[]>([]), [jobId, setJobId] = useState('');
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false), [apiError, setAPIError] = useState(''), [notice, setNotice] = useState('');
   const [generationEnabled, setGenerationEnabled] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const epoch = useRef(0), live = useRef(true), pending = useRef(false);
   const applied = useRef(0);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState<ScenePromptSnapshot | null>(loadCopiedPrompt);
+  const [imageTarget, setImageTarget] = useState<'copied' | 'active'>(() => loadCopiedPrompt() ? 'copied' : 'active');
+  const [localImages, setLocalImages] = useState<LocalScene[]>([]), [localId, setLocalId] = useState('');
+  const [localBusy, setLocalBusy] = useState(false), [localError, setLocalError] = useState('');
+  const localPending = useRef(false);
+  type ImportContext = { target: string; input: ScenePromptSnapshot | null; backgroundVersion: number; background: string | undefined };
+  const fileContext = useRef<ImportContext | null>(null);
+  const localSelected = localImages.find(item => item.id === localId);
   const prompt = String(bindings.values['scene.generate']['scene.prompt']);
   const variable = String(bindings.values['scene.generate']['scene.variable']);
   const source = String(bindings.values['scene.generate']['scene.source']) as SceneSource;
@@ -36,13 +47,76 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
     return () => { live.current = false; epoch.current++; };
   }, []);
   useEffect(() => {
+    let mounted = true;
+    void listLocalScenes().then(items => { if (mounted) { setLocalImages(items); setLocalId(items[0]?.id ?? ''); } })
+      .catch(failure => { if (mounted) setLocalError(failure.message); });
+    return () => { mounted = false; };
+  }, []);
+  const snapshot = (): ScenePromptSnapshot | null => {
+    if (!node) return null;
+    // Read shared getters at invocation so temporary Master Controller inputs apply.
+    const inputs = bindings.values['scene.generate'];
+    const prompt = String(inputs['scene.prompt']), variable = String(inputs['scene.variable']), source = String(inputs['scene.source']) as SceneSource;
+    try {
+      return { prompt, variable, source, node: { ...node, notes: source === 'label' ? '' : node.notes },
+        resolved: resolveScenePrompt(prompt, variable, source, node), copiedAt: new Date().toISOString() };
+    } catch { return null; }
+  };
+  const targetNode = imageTarget === 'copied' ? copied?.node : node;
+  function importContext(): ImportContext | null {
+    if (!targetNode || !nodeExists(targetNode.id)) { setLocalError('Select an existing node as the image destination.'); return null; }
+    return { target: targetNode.id, input: imageTarget === 'copied' ? copied : snapshot(), backgroundVersion: applied.current, background: backgroundKey };
+  }
+  async function copyPrompt() {
+    const input = snapshot(); if (!input) { setLocalError('The prompt or active-node input is invalid. Check Resolved prompt.'); return; }
+    try {
+      await navigator.clipboard.writeText(input.resolved);
+      if (!live.current) return;
+      saveCopiedPrompt(input); setCopied(input); setImageTarget('copied'); setLocalError('');
+      setNotice(`Prompt copied for ${input.node.label || 'Untitled'}. Generate in ChatGPT, then paste or choose the returned image.`);
+    } catch { if (live.current) setLocalError('Could not copy/save the prompt. Select the text under Resolved prompt and copy it manually; choose Active node as the image destination.'); }
+  }
+  async function receiveImage(file: File, context: ImportContext) {
+    const item = await importLocalScene(file, context.input);
+    if (!live.current) return;
+    setLocalImages(items => [item, ...items]); setLocalId(item.id);
+    // The explicit destination may differ from the currently selected node. Do not
+    // overwrite a replacement/clear made while decoding, or apply to a removed node.
+    if (nodeExists(context.target) && applied.current === context.backgroundVersion && backgroundNow.current === context.background) {
+      applied.current++; applyCurrent.current({ localId: item.id }, context.target);
+      setNotice(`Image saved and assigned to ${context.input?.node.label || 'the chosen node'}. Select that node to see its scene.`);
+    } else setNotice('Image saved in Imported images. The background changed or the destination was removed; apply it explicitly when ready.');
+  }
+  const backgroundNow = useRef(backgroundKey); backgroundNow.current = backgroundKey;
+  async function importFile(file: File, context: ImportContext | null) {
+    if (!context || localPending.current) return;
+    localPending.current = true; setLocalBusy(true); setLocalError('');
+    try { await receiveImage(file, context); }
+    catch (failure) { if (live.current) setLocalError(failure instanceof Error ? failure.message : 'Image import failed.'); }
+    finally { localPending.current = false; if (live.current) setLocalBusy(false); }
+  }
+  async function pasteImage() {
+    const context = importContext(); if (!context || localPending.current) return;
+    localPending.current = true; setLocalBusy(true); setLocalError('');
+    try {
+      if (!navigator.clipboard?.read) throw new Error('Clipboard image access is unavailable. Save the image from ChatGPT and use Choose image.');
+      const clipboard = await navigator.clipboard.read();
+      const item = clipboard.find(item => item.types.some(type => ['image/png', 'image/jpeg', 'image/webp'].includes(type)));
+      const type = item?.types.find(type => ['image/png', 'image/jpeg', 'image/webp'].includes(type));
+      if (!item || !type) throw new Error('No image on the clipboard. Copy the image itself, or save it and use Choose image.');
+      const blob = await item.getType(type);
+      if (live.current) await receiveImage(new File([blob], `ChatGPT scene.${type.split('/')[1]}`, { type }), context);
+    } catch (failure) { if (live.current) setLocalError(failure instanceof Error ? failure.message : 'Clipboard access was denied. Use Choose image instead.'); }
+    finally { localPending.current = false; if (live.current) setLocalBusy(false); }
+  }
+  useEffect(() => {
     if (!client) return;
     let mounted = true, observed = false, previous: string | null | undefined;
     const setIdentity = (id: string | null) => {
       if (!mounted || previous === id) return;
       previous = id; epoch.current++; pending.current = false;
       setGenerationEnabled(false);
-      setUserId(id); setBusy(false); setJobs([]); setWorkspaces([]); setMembers([]); setWorkspace(''); setJobId(''); setError(''); setNotice('');
+      setUserId(id); setBusy(false); setJobs([]); setWorkspaces([]); setMembers([]); setWorkspace(''); setJobId(''); setAPIError(''); setNotice('');
     };
     const { data } = client.auth.onAuthStateChange((_event, session) => { observed = true; setIdentity(session?.user.id ?? null); });
     void client.auth.getSession().then(result => { if (!observed) setIdentity(result.data.session?.user.id ?? null); });
@@ -55,7 +129,7 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
       if (!mounted) return;
       if (membership.error) throw new Error('Workspace access could not be loaded.');
       setWorkspaces(list); setMembers(membership.data); setWorkspace(old => list.some(item => item.id === old) ? old : list[0]?.id ?? '');
-    }).catch(() => { if (mounted) setError('Workspace access could not be loaded. Sign in through Cloud connection.'); });
+    }).catch(() => { if (mounted) setAPIError('Workspace access could not be loaded. Sign in through Cloud connection.'); });
     return () => { mounted = false; };
   }, [client, userId, refresh]);
   useEffect(() => {
@@ -66,7 +140,7 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
       if (!mounted) return;
       setGenerationEnabled(capabilities.enabled);
       setJobs(items); setJobId(old => items.some(item => item.id === old) ? old : items[0]?.id ?? '');
-    }).catch(failure => { if (mounted) setError(failure.message); });
+    }).catch(failure => { if (mounted) setAPIError(failure.message); });
     return () => { mounted = false; };
   }, [client, userId, workspace, refresh]);
   const running = jobs.some(job => job.state === 'running' && Date.now() - Date.parse(job.created_at) < 180000);
@@ -88,12 +162,13 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
   async function generate() {
     if (!client || !userId || !node || pending.current || bindingError || !canWrite || !generationEnabled) return;
     const start = fingerprint, generationEpoch = epoch.current, backgroundVersion = applied.current;
-    const input: SceneGenerateInput = { operation: 'scene.generate', workspaceId: workspace, requestId: crypto.randomUUID(), prompt, variable, source,
-      node: { ...node, notes: source === 'label' ? '' : node.notes } };
-    if (new TextEncoder().encode(JSON.stringify(input)).length > 16384) { setError('Prompt and node input exceed 16 KiB. Shorten the prompt or choose Label only.'); return; }
+    const captured = snapshot(); if (!captured) { setAPIError('The prompt or active-node input is invalid.'); return; }
+    const input: SceneGenerateInput = { operation: 'scene.generate', workspaceId: workspace, requestId: crypto.randomUUID(),
+      prompt: captured.prompt, variable: captured.variable, source: captured.source, node: captured.node };
+    if (new TextEncoder().encode(JSON.stringify(input)).length > 16384) { setAPIError('Prompt and node input exceed 16 KiB. Shorten the prompt or choose Label only.'); return; }
     if (jobs.some(job => job.state === 'uncertain' || job.state === 'running' && Date.now() - Date.parse(job.created_at) >= 180000) &&
       !window.confirm('A previous generation has an uncertain outcome and may have used API credit. Start a new paid attempt?')) return;
-    pending.current = true; setBusy(true); setError(''); setNotice('Generating one image…');
+    pending.current = true; setBusy(true); setAPIError(''); setNotice('Generating one image…');
     const currentIdentity = () => live.current && epoch.current === generationEpoch;
     const sameContext = () => currentIdentity() && latest.current === start && applied.current === backgroundVersion;
     try {
@@ -104,20 +179,45 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
         if (await applyJob(job, userId, sameContext)) setNotice('Scene generated and applied.');
       } else setNotice('Result saved for its original input. Select it and apply when ready.');
     } catch (failure) {
-      if (currentIdentity()) { setError(failure instanceof Error ? failure.message : 'Generation failed.'); setNotice('Check saved status before starting another paid request.'); }
+      if (currentIdentity()) { setAPIError(failure instanceof Error ? failure.message : 'Generation failed.'); setNotice('Check saved status before starting another paid request.'); }
     } finally {
       if (currentIdentity()) { pending.current = false; setBusy(false); setRefresh(value => value + 1); }
     }
   }
   useFeatureActions('scene', {
-    'scene.generate': { enabled: generationEnabled && !!userId && canWrite && !!resolved && !bindingError && !busy && !running, run: () => void generate() },
-    'scene.refresh': { enabled: !!userId && !busy, run: () => { setError(''); setRefresh(value => value + 1); } },
-    'scene.clear': { enabled: hasBackground, run: () => { applied.current++; onApply(null); } },
-    'scene.apply': { enabled: !!userId && selected?.state === 'ready' && !!selected.asset_id && !busy, run: () => {
+    'scene.copyPrompt': { enabled: !!resolved && !bindingError && !localBusy, run: () => void copyPrompt() },
+    'scene.chooseImage': { enabled: !!targetNode && nodeExists(targetNode.id) && !localBusy && !busy, run: () => {
+      fileContext.current = importContext(); if (fileContext.current) fileInput.current?.click();
+    } },
+    'scene.pasteImage': { enabled: !!targetNode && nodeExists(targetNode.id) && !localBusy && !busy, run: () => void pasteImage() },
+    'scene.applyLocal': { enabled: !!localSelected && !!node && !localBusy && !busy, run: () => {
+      try { applied.current++; onApply({ localId: localSelected!.id }); setNotice('Imported scene applied to this node.'); setLocalError(''); }
+      catch { setLocalError('The scene assignment could not be saved in this browser.'); }
+    } },
+    'scene.downloadLocal': { enabled: !!localSelected && !localBusy, run: () => {
+      void localSceneBlob(localSelected!.id).then(blob => downloadScene(blob, localSelected!.name)).catch(failure => { if (live.current) setLocalError(failure.message); });
+    } },
+    'scene.deleteLocal': { enabled: !!localSelected && !localBusy && !busy, run: () => {
+      const item = localSelected!;
+      if (!window.confirm(`Permanently delete “${item.name}” from this browser? Its scenes will be cleared. Image deletion cannot be undone. Download it first to keep a backup.`)) return;
+      localPending.current = true; setLocalBusy(true); setLocalError('');
+      // Resource deletion is explicit and irreversible, unlike applying/clearing a scene.
+      try { applied.current++; onForgetLocal(item.id); }
+      catch { localPending.current = false; setLocalBusy(false); setLocalError('Could not clear scene assignments; the image was not deleted.'); return; }
+      void deleteLocalScene(item.id).then(() => {
+        if (!live.current) return;
+        setLocalImages(items => items.filter(image => image.id !== item.id)); setLocalId(''); setNotice('Image deleted from this browser.');
+      }).catch(failure => { if (live.current) setLocalError(failure.message); })
+        .finally(() => { localPending.current = false; if (live.current) setLocalBusy(false); });
+    } },
+    'scene.generate': { enabled: generationEnabled && !!userId && canWrite && !!resolved && !bindingError && !busy && !running && !localBusy, run: () => void generate() },
+    'scene.refresh': { enabled: !!userId && !busy, run: () => { setAPIError(''); setRefresh(value => value + 1); } },
+    'scene.clear': { enabled: hasBackground, run: () => { try { applied.current++; onApply(null); setNotice('Scene cleared for this node.'); } catch { setLocalError('Scene assignment could not be saved.'); } } },
+    'scene.apply': { enabled: !!userId && selected?.state === 'ready' && !!selected.asset_id && !!node && !busy && !localBusy, run: () => {
       const before = epoch.current, context = fingerprint, backgroundVersion = applied.current;
       void applyJob(selected!, userId!, () => live.current && epoch.current === before && latest.current === context && applied.current === backgroundVersion)
         .then(applied => { if (applied) setNotice('Saved scene applied.'); })
-        .catch(failure => { if (live.current && epoch.current === before) setError(failure.message); });
+        .catch(failure => { if (live.current && epoch.current === before) setAPIError(failure.message); });
     } },
   });
   return <div className="scene-panel">
@@ -129,19 +229,45 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
     <small role="status">Active node: {node?.label || 'None'} · {'{{'}{variable}{'}}'}</small>
     {bindingError && <small>{bindingError}</small>}
     <UISection id="scene-resolved-prompt" title="Resolved prompt" defaultExpanded={false}><pre className="scene-resolved">{resolved || 'No resolved input.'}</pre></UISection>
-    {!userId ? <small>Sign in through Workspace settings → Cloud connection to generate.</small> :
-      <UIField id="scene.workspace" label="Scene workspace" category="Scene"><label>Workspace<select value={workspace} onChange={event => { setWorkspace(event.target.value); setJobs([]); setJobId(''); }}>
-        <option value="">Choose workspace</option>{workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-      </select></label></UIField>}
-    <div className="scene-input-row"><FunctionControl id="scene.generate" /><FunctionControl id="scene.clear" /></div>
-    {userId && canWrite && !generationEnabled && !error && <small>Image generation needs server API setup. A ChatGPT subscription does not include API credits.</small>}
-    <div role="status" aria-live="polite">{notice}</div>
-    {(error || backgroundError) && <small role="alert">{error || backgroundError}</small>}
-    {userId && <UISection id="scene-saved-results" title="Saved results" defaultExpanded={false}>
-      <UIField id="scene.result" label="Saved generation" category="Scene"><label>Generation<select value={jobId} onChange={event => setJobId(event.target.value)}>
-        <option value="">No generation selected</option>{jobs.map(job => <option key={job.id} value={job.id}>{job.input.node.label || 'Untitled'} · {job.state === 'running' && Date.now() - Date.parse(job.created_at) >= 180000 ? 'outcome uncertain' : job.state} · {new Date(job.created_at).toLocaleTimeString()}</option>)}
-      </select></label></UIField>
-      <div className="scene-input-row"><FunctionControl id="scene.apply" /><FunctionControl id="scene.refresh" /></div>
+    <div className="scene-input-row"><FunctionControl id="scene.copyPrompt" /><FunctionControl id="scene.clear" /></div>
+    <UIField id="scene.imageTarget" label="Image destination" category="Scene"><label>Image belongs to<select value={imageTarget} onChange={event => setImageTarget(event.target.value as 'copied' | 'active')}>
+      <option value="active">Active node{node ? `: ${node.label || 'Untitled'}` : ' (select one)'}</option>
+      <option value="copied" disabled={!copied}>Copied prompt{copied ? `: ${copied.node.label || 'Untitled'}` : ' (copy one first)'}</option>
+    </select></label></UIField>
+    <div className="scene-input-row"><FunctionControl id="scene.pasteImage" /><FunctionControl id="scene.chooseImage" /></div>
+    <input ref={fileInput} type="file" hidden accept="image/png,image/jpeg,image/webp" onChange={event => {
+      const file = event.target.files?.[0], context = fileContext.current;
+      event.target.value = ''; if (file) void importFile(file, context);
+    }} />
+    <small title="Saved in this browser for this website address, separate from atlas/settings exports. Download originals to back them up or transfer them. No image is uploaded to the cloud.">Images stay in this browser · scenes restore per node.</small>
+    <div role="status" aria-live="polite">{localBusy ? 'Saving image…' : notice}</div>
+    {(localError || backgroundError) && <small role="alert">{localError || backgroundError}</small>}
+    {copied && <UISection id="scene-copied-prompt" title="Last copied prompt" defaultExpanded={false}>
+      <small>{copied.node.label || 'Untitled'} · {new Date(copied.copiedAt).toLocaleString()}</small>
+      <pre className="scene-resolved">{copied.resolved}</pre>
     </UISection>}
+    <UISection id="scene-imported-images" title="Imported images" defaultExpanded={false}>
+      <UIField id="scene.localImage" label="Imported scene image" category="Scene"><label>Image<select value={localId} onChange={event => setLocalId(event.target.value)}>
+        <option value="">Choose saved image</option>{localImages.map(item => <option key={item.id} value={item.id}>{item.input?.node.label || item.name} · {new Date(item.createdAt).toLocaleString()}</option>)}
+      </select></label></UIField>
+      {localSelected && <small>{localSelected.name} · {localSelected.width}×{localSelected.height}</small>}
+      <div className="scene-input-row"><FunctionControl id="scene.applyLocal" /><FunctionControl id="scene.downloadLocal" /><FunctionControl id="scene.deleteLocal" /></div>
+      {localSelected?.input && <pre className="scene-resolved" title="Prompt saved with this import">{localSelected.input.resolved}</pre>}
+    </UISection>
+    <UISection id="scene-api" title="API generation (optional)" defaultExpanded={false}>
+      {!userId ? <small>Sign in through Workspace settings → Cloud connection to use API generation.</small> :
+        <UIField id="scene.workspace" label="Scene workspace" category="Scene"><label>Workspace<select value={workspace} onChange={event => { setWorkspace(event.target.value); setJobs([]); setJobId(''); }}>
+          <option value="">Choose workspace</option>{workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select></label></UIField>}
+      <FunctionControl id="scene.generate" />
+      {userId && canWrite && !generationEnabled && !apiError && <small>API generation is disabled until server setup is complete. Manual import works without it.</small>}
+      {apiError && <small role="alert">{apiError}</small>}
+      {userId && <UISection id="scene-saved-results" title="Saved API results" defaultExpanded={false}>
+        <UIField id="scene.result" label="Saved generation" category="Scene"><label>Generation<select value={jobId} onChange={event => setJobId(event.target.value)}>
+          <option value="">No generation selected</option>{jobs.map(job => <option key={job.id} value={job.id}>{job.input.node.label || 'Untitled'} · {job.state === 'running' && Date.now() - Date.parse(job.created_at) >= 180000 ? 'outcome uncertain' : job.state} · {new Date(job.created_at).toLocaleTimeString()}</option>)}
+        </select></label></UIField>
+        <div className="scene-input-row"><FunctionControl id="scene.apply" /><FunctionControl id="scene.refresh" /></div>
+      </UISection>}
+    </UISection>
   </div>;
 }

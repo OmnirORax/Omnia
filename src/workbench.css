@@ -1229,5 +1229,6 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .range-spectrum-input::-moz-range-thumb { width: 8px; height: 8px; border: 0; }
 .scene-panel { display: grid; gap: 6px; }
 .scene-input-row { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }
+.scene-panel select { max-width: min(36ch, 100%); }
 .scene-panel textarea { width: 30ch; max-width: 100%; resize: vertical; }
 .scene-resolved { max-width: 34ch; max-height: 10em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
