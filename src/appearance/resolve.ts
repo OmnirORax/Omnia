@@ -137,27 +137,16 @@ export function valueFor(
 export function createValueResolver(base: Appearance, state: Controller, targets = controllerTargets(state)) {
   const byId = new Map(targets.map(target => [target.id, target]));
   const bases = new Map(TARGETS.map(target => [target.id, target]));
-  const paths = new Map<string, string[]>(), parents = new Map<string, RegisteredTarget[]>();
+  const policyIndex = createTargetIndex(targets);
+  const parents = new Map<string, RegisteredTarget[]>();
   const locals = new Map<string, RegisteredTarget[]>();
   for (const target of targets) if (target.instance) {
     let entries = locals.get(target.instance.base);
     if (!entries) { entries = []; locals.set(target.instance.base, entries); }
     entries.push(target);
   }
-  const pathFor = (target: RegisteredTarget) => {
-    let path = paths.get(target.id);
-    if (path) return path;
-    path = [];
-    const seen = new Set<string>();
-    let current: RegisteredTarget | undefined = target;
-    if (target.instance && !byId.has(target.id)) {
-      path.push(target.id); current = bases.get(target.instance.base);
-    }
-    while (current && !seen.has(current.id)) {
-      seen.add(current.id); path.unshift(current.id); current = current.parent ? byId.get(current.parent) : undefined;
-    }
-    paths.set(target.id, path); return path;
-  };
+  const pathFor = (target: RegisteredTarget) => byId.has(target.id) ? policyIndex.path(target.id)
+    : [...policyIndex.path(target.instance?.base ?? target.id), target.id];
   const isConnected = (target: RegisteredTarget, property: string) =>
     !pathFor(target).some(id => ruleHas(state.disconnected[id], property));
   const resolve = (target: RegisteredTarget, property: string): Value => {

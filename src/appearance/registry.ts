@@ -1,3 +1,4 @@
+import { groupVisualRoles } from "./roleHierarchy.ts";
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import { EFFECT_KINDS } from "../graph/effects.ts";
 import { normalizeFont } from "../fonts.ts";
@@ -18,6 +19,8 @@ export const loadController = (value: unknown) =>
     EFFECT_PROPERTIES,
   ), LEGACY_FIELD_BRANCHES);
 export type Binding = {
+  /** Non-CSS adapters expose their actual paint role here. */
+  role?: import("./visualRole.ts").VisualRole;
   /** Non-DOM paint exposes its screen hit surface separately from CSS styling.
    * Target addressing edits the existing renderer consumer, not a DOM instance. */
   selection?: { selector: string; role: "background"; renderer: "scene"; address: "target" };
@@ -340,19 +343,23 @@ part("omnium.nodes.body", "omnium.nodes", "Sphere / geometric body", {
   animation: { kind: "surface", source: "nodes" },
 });
 part("omnium.nodes.background", "omnium.nodes", "Label background", {
+  role: "background",
   legacy: "background",
   animation: { kind: "surface" },
 });
 part("omnium.nodes.contour", "omnium.nodes", "Label contour", {
+  role: "contour",
   legacy: "nodes.color",
   animation: { kind: "surface" },
 });
 branch("omnium.binders", "omnium", "Binders");
 part("omnium.binders.path", "omnium.binders", "Connection path", {
+  role: "contour",
   legacy: "binders.color",
   animation: { kind: "surface", source: "binders" },
 });
 part("omnium.binders.background", "omnium.binders", "Label background", {
+  role: "background",
   legacy: "background",
   animation: { kind: "surface" },
 });
@@ -401,7 +408,7 @@ for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner ===
   }
   entries.push({ id: consumer.id, label: consumer.label, parent,
     properties: consumer.properties, couplings: consumer.channels, defaults: consumer.defaults,
-    effectKinds: consumer.choices.effect, binding: consumer.locator ? { selector: consumer.locator } : undefined });
+    effectKinds: consumer.choices.effect, binding: consumer.locator ? { selector: consumer.locator, ...consumer.visual } : undefined });
 }
 for (const target of entries) if (target.properties) target.numberRanges = Object.fromEntries(target.properties.flatMap(id => {
   const spec = propertyFor(id);
@@ -409,7 +416,7 @@ for (const target of entries) if (target.properties) target.numberRanges = Objec
   const max = target.binding?.css ? (id === "glow" || id === "effectGlow" ? Math.min(spec.max!, RENDER_BUDGET.uiGlow) : id === "blur" ? Math.min(spec.max!, RENDER_BUDGET.uiBlur) : spec.max!) : spec.max!;
   return [[id, max === spec.max ? spec : { ...spec, max }]];
 }));
-export const TARGETS: readonly RegisteredTarget[] = entries;
+export const TARGETS: readonly RegisteredTarget[] = groupVisualRoles(entries);
 const baseTargets = new Map(TARGETS.map(target => [target.id, target]));
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
   ["single", "multi", "search", "number", "select"].map(kind => [

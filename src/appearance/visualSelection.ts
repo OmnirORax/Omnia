@@ -1,3 +1,5 @@
+import { roleFor, type VisualRole } from "./visualRole.ts";
+export { roleFor, type VisualRole } from "./visualRole.ts";
 import { createTargetIndex } from "./model.ts";
 import { TARGETS, type RegisteredTarget } from "./registry.ts";
 import { scenePartAt, scenePartPaint } from "./sceneFeedback.ts";
@@ -5,7 +7,6 @@ import { effectScope } from "./uiEffects.ts";
 import { absolutePoint, boxFromPoints, boxesTouch, conditionPoints, intersectBoxes, lineBoxInterval, lineDomain, paintStopDomain,
   regionAllows, pathTouchesBox, pathVertices, type PathCondition, type Box, type LineCondition, type Point, type SelectionRegion } from "./selectionGeometry.ts";
 
-export type VisualRole = "text" | "background" | "contour" | "icon" | "indicator";
 export type VisualPart = {
   key: string;
   element: HTMLElement | SVGElement;
@@ -52,14 +53,6 @@ const keyFor = (node: Node) => {
   if (!key) { key = ++sequence; ids.set(node, key); }
   return key;
 };
-export function roleFor(target: RegisteredTarget): VisualRole | undefined {
-  if (target.binding?.selection) return target.binding.selection.role;
-  if (target.binding?.text) return "text";
-  if (target.binding?.animation?.kind === "icons") return "icon";
-  return ({ "background-color": "background", "border-color": "contour", "accent-color": "indicator", "color": "indicator" } as const)[
-    target.binding?.css as "background-color" | "border-color" | "accent-color" | "color"
-  ];
-}
 const visible = (element: Element) => !element.closest(ignored) && !!element.getClientRects().length &&
   getComputedStyle(element).visibility !== "hidden";
 

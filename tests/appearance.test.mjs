@@ -646,9 +646,9 @@ test("animations are properties of real branches, with independent text and surf
   ])
     assert.ok(targets.find((t) => t.id === id).properties.includes("effect"));
   for (const [id, parent] of [
-    ["text.nodes", "omnium.nodes"], ["text.binders", "omnium.binders"],
-    ["symbols.nodes", "omnium.nodes"], ["symbols.binders", "omnium.binders"],
-    ["symbols.ui", "ui"], ["workspace.background", "all"],
+    ["text.nodes", "visual.role.text.omnium"], ["text.binders", "visual.role.text.omnium"],
+    ["symbols.nodes", "visual.role.icons.omnium"], ["symbols.binders", "visual.role.icons.omnium"],
+    ["symbols.ui", "visual.role.icons.ui"], ["workspace.background", "visual.role.backgrounds"],
   ]) assert.equal(targets.find(t => t.id === id).parent, parent);
   assert.ok(!targets.some(t => t.id === "symbols" || t.id === "workspace"));
   state = applyValue(state, targets, "effect", "electric-text", "text");
@@ -1261,4 +1261,57 @@ test("sustained slow decoration yields, stays bounded, and ignores time spent id
   assert.equal(timing.sources, 1, "hidden/static intervals are not dropped animation frames");
   for (const start of [10300, 10500, 10700]) timing.sample(start, 0);
   assert.equal(timing.sources, 0, "delayed display frames are detected even when JS draw time is low");
+});
+
+
+test("discovered paint roles generate functional groups for unseen component types", async () => {
+  const { groupVisualRoles } = await import("../src/appearance/roleHierarchy.ts");
+  const { createTargetIndex, blocked, toggleTarget } = await import("../src/appearance/model.ts");
+  const discovered = groupVisualRoles([
+    { id: "all", label: "Everything" }, { id: "future", parent: "all", label: "Future system" },
+    { id: "new-widget", parent: "future", label: "Unseen widget" },
+    { id: "new-edge", parent: "new-widget", label: "Contour", properties: ["color"], binding: { css: "border-color" } },
+    { id: "new-fill", parent: "new-widget", label: "Background", properties: ["color"], binding: { css: "background-color" } },
+  ]);
+  const index = createTargetIndex(discovered);
+  assert.ok(index.path("new-edge").includes("visual.role.contours"));
+  assert.ok(index.path("new-fill").includes("visual.role.backgrounds"));
+  assert.ok(!index.path("new-edge").includes("visual.role.backgrounds"));
+  let state = emptyController(); state.sets[0].selection = { all: false, "new-widget": true };
+  assert.equal(included(state.sets[0], discovered, "new-edge", index), true, "saved type masks retain scope");
+  state = toggleTarget(state, discovered, "visual.role.contours");
+  state = toggleTarget(state, discovered, "visual.role.contours");
+  assert.equal(included(state.sets[0], discovered, "new-edge", index), false);
+  assert.equal(included(state.sets[0], discovered, "new-fill", index), true);
+  state.locks["new-widget"] = { all: true };
+  assert.equal(blocked(state, discovered, "new-edge", "color", "visual.role.contours", index), true);
+  assert.equal(blocked(state, discovered, "new-edge", "color", "new-edge", index), false);
+  state.disconnected["new-widget"] = { all: true };
+  assert.equal(connected(state, discovered, "new-edge", "color", index), false);
+});
+
+test("generated role branches select/edit real targets and preserve legacy renderer bypass", () => {
+  let { state, targets } = fixture();
+  state.sets[0].selection = { all: false, "visual.role.contours": true };
+  state = applyValue(state, targets, "color", "#fedcba");
+  assert.equal(state.values["ui.buttons.contour"].color, "#fedcba");
+  assert.equal(state.values["ui.buttons.background"], undefined);
+  state.disconnected["ui.buttons"] = { all: true };
+  const read = createValueResolver(defaultSettings().appearance, state);
+  assert.notEqual(read(targets.find(t => t.id === "ui.buttons.contour"), "color"), "#fedcba");
+  const leaf = targets.find(t => t.id === "ui.buttons.contour");
+  assert.equal(roleFor(leaf), "contour");
+  assert.ok(ancestry(targets, leaf.id).includes("visual.role.contours"));
+});
+
+
+test("new Text role spans systems while saved legacy Text targeting keeps its old scope", () => {
+  const { state, targets } = fixture();
+  state.sets[0].selection = { all: false, text: true };
+  assert.equal(included(state.sets[0], targets, "text.ui.buttons"), true);
+  assert.equal(included(state.sets[0], targets, "text.nodes"), false);
+  const allText = applyValue(state, targets, "brightness", 2, "visual.role.text");
+  assert.equal(allText.values["text.ui.buttons"].brightness, 2);
+  assert.equal(allText.values["text.nodes"].brightness, 2);
+  assert.equal(allText.values["ui.buttons.background"], undefined);
 });

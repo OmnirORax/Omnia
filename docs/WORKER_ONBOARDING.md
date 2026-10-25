@@ -198,6 +198,12 @@ surfaces are distinct; text styling must not accidentally recolor icon artwork.
 Graph assets retain source palettes unless the supported path explicitly changes
 them. Authored graph presentation can override theme defaults.
 
+Visual hierarchy now groups detected renderer roles first: Backgrounds, Contours,
+Text, Icons and Indicators, with systems/types underneath. `visualRole.ts` serves
+both MS detection and registry grouping; new renderer bindings inherit categories.
+Old type IDs remain compatibility policy ancestors, preserving saved masks/locks/
+bypass without a competing value store. See SHARED_PROPERTIES.md.
+
 The property tree organizes adjusters; the target tree organizes what an adjuster
 can affect. Do not reproduce Color, Opacity or another existing property definition,
 editor or independent settings store for each new consumer.

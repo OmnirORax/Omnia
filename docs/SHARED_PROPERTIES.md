@@ -269,3 +269,24 @@ not only the slider. Imports retain valid values in the semantic domain; a rende
 fallback does not rewrite saved state. New numeric consumers must declare meaningful
 bounds and join appropriate aggregate rendering budgets. See PERFORMANCE_RESULTS.md
 for current limits and their calibration limitations.
+
+
+Visual-role grouping is generated, not a maintained component/category list.
+`appearance/visualRole.ts` is the shared semantic detector used by MS discovery
+and `roleHierarchy.ts`. Registered background fills and contour/edge bindings
+enter Backgrounds/Contours/Text/Icons/Indicators → detected system → type
+automatically. Existing Text subtypes keep their established IDs. CSS adapters
+supply that meaning through their actual paint channel; non-CSS adapters expose
+`binding.role`. New DOM function consumers can expose their real adapter through
+`visual` + `locator` in their existing function declaration. A selector or Color
+capability alone does not prove that something is a background or contour.
+Do not add per-component grouping exceptions or another target inventory.
+The build contract checks every classified visible target's generated membership.
+
+Stable leaf IDs/values remain unchanged. Old component branches are retained as
+compatibility policy ancestry, including selection, locks, bypass and saved MS
+patterns. New role selections override old type baselines; explicit leaf rules
+remain narrower, and toggling a role clears its descendant exceptions. Old type
+locks continue protecting their members from role-wide edits. The value resolver,
+policy index and MS pattern index share this ancestry. Grouping compiles from the
+registry at initialization, with no new DOM/pointer scans or animation work.

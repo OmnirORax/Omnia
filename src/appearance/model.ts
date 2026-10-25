@@ -24,6 +24,8 @@ export type Target = {
   properties?: string[];
   effectKinds?: readonly string[];
   numberRanges?: Record<string, NumericSpec>;
+  /** Compatibility policy ancestry retained when discovery regroups a target. */
+  legacyAncestors?: string[];
   instance?: Instance;
 };
 export type AppearanceSet = {
@@ -145,7 +147,9 @@ export function createTargetIndex(targets: Target[]) {
     for (let key: string | undefined = id; key && !seen.has(key); key = byId.get(key)?.parent) {
       seen.add(key); result.unshift(key);
     }
-    paths.set(id, result); return result;
+    const legacy = result.flatMap(key => byId.get(key)?.legacyAncestors ?? []);
+    const combined = [...new Set([...legacy, ...result])];
+    paths.set(id, combined); return combined;
   };
   return { byId, path };
 }
@@ -179,7 +183,10 @@ export function blocked(
   // A deliberate edit at a locked row is allowed. Propagation stops at lower locks.
   const family = Object.keys(companions).find((key) => companions[key] === property) ??
     Object.entries(index.byId.get(id)?.couplings ?? {}).find(([source, channel]) => source !== channel && channel === property)?.[0];
-  return path.some(
+  const originPath = origin ? index.path(origin) : [];
+  const legacyLocks = path.flatMap(key => index.byId.get(key)?.legacyAncestors ?? [])
+    .some(key => !originPath.includes(key) && (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))));
+  return legacyLocks || path.some(
     (key, index) =>
       index > from &&
       (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))),

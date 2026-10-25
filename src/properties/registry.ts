@@ -20,6 +20,8 @@ export type ConsumerGroup = Category & { self?: boolean };
 export type ConsumerDefinition = {
   id: string; label: string; owner: string;
   locator?: string;
+  /** Actual DOM paint adapter; discovery derives grouping from this contract. */
+  visual?: { css: "background-color" | "border-color" | "color" | "accent-color"; text?: boolean };
   /** Render-only activation while inspecting parameters; never a saved value. */
   previewActivation?: PreviewActivation;
   controls?: readonly string[];
@@ -80,6 +82,9 @@ export function createPropertyRegistry() {
     definitions.push(next); byId.set(next.id, next); return next;
   };
   const couple = (definition: ConsumerDefinition): CoupledConsumer => {
+    if (definition.visual && (definition.owner !== "appearance" || !definition.locator ||
+      !["background-color", "border-color", "color", "accent-color"].includes(definition.visual.css) ||
+      definition.visual.text && definition.visual.css !== "color")) throw new Error(`Invalid visual adapter: ${definition.id}`);
     if (!definition.label || !definition.owner) throw new Error("Consumers need a label and a state owner.");
     const path = new Set([definition.id]);
     for (const group of definition.group) {

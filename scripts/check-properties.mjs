@@ -1,3 +1,5 @@
+import { visualRoleGroup } from "../src/appearance/roleHierarchy.ts";
+import { createTargetIndex } from "../src/appearance/model.ts";
 import { selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
 import { PROPERTY_REGISTRY, PROPERTIES, TARGETS } from "../src/appearance/registry.ts";
 import { PROPERTY_TREE } from "../src/appearance/propertyTree.ts";
@@ -35,3 +37,10 @@ const checkSelf = node => {
 };
 selfInventory(PROPERTY_REGISTRY).forEach(checkSelf);
 console.log(`Property contract: ${PROPERTIES.length} shared definitions, ${PROPERTY_REGISTRY.consumers.length} coupled consumers.`);
+
+const visualIndex = createTargetIndex([...TARGETS]);
+for (const target of TARGETS) {
+  const group = visualRoleGroup(target);
+  if (target.properties && !target.hidden && group && !visualIndex.path(target.id).includes(group.id))
+    throw new Error(`Detected paint role absent from generated group: ${target.id}/${group.id}`);
+}
