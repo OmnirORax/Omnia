@@ -1,3 +1,4 @@
+import { sameValue } from "../valueEquality.ts";
 import { normalizeSettings, type WorkspaceSettings } from "../workspaceActions.ts";
 import type { UILayout } from "../ui/layout.ts";
 import {
@@ -15,7 +16,7 @@ export type InterfaceSession = {
   draft: History<Appearance> | null;
 };
 export const sameAppearance = (a: Appearance, b: Appearance) =>
-  a === b || JSON.stringify(a) === JSON.stringify(b);
+  sameValue(a, b);
 export const startSession = (state: InterfaceState): InterfaceSession => ({
   saved: startHistory(state),
   draft: null,

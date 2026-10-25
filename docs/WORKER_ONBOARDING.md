@@ -52,7 +52,18 @@ The user requires features to preserve responsiveness. Flag an approach likely t
 cause significant lag before implementing it, explain the cost and offer practical
 workarounds. Account for selection, pointer movement, live editing and large scenes
 from the outset. Follow the performance rule in `AGENTS.md`; do not rely on the
-user repeatedly discovering regressions. Builds alone do not verify smoothness.
+user repeatedly discovering regressions. Builds alone do not verify smoothness. Performance takes precedence over maximal
+configuration freedom: prefer bounded supported options and explain necessary
+restrictions instead of allowing combinations that make the app unusable.
+
+The user still reports severe system-wide lag. See the
+[performance recovery plan](PERFORMANCE_ARCHITECTURE_PLAN.md) for inspected risk
+areas, baseline profiling, renderer-aware ranges, aggregate budgets and staged
+refactoring. The first systemic pass now shares indexes, preserves topology during paint edits,
+adds mode/renderer ranges and bounds/degrades decoration under load. See
+[local measurements](PERFORMANCE_RESULTS.md); remaining input/rendering delays still
+need verification on the user's hardware. Earlier effect/HUD optimizations alone
+were not a verified resolution.
 
 ## Essential distinctions
 
@@ -186,6 +197,12 @@ properties their adapters actually support. General paint, glyph ink, icons and
 surfaces are distinct; text styling must not accidentally recolor icon artwork.
 Graph assets retain source palettes unless the supported path explicitly changes
 them. Authored graph presentation can override theme defaults.
+
+Visual hierarchy now groups detected renderer roles first: Backgrounds, Contours,
+Text, Icons and Indicators, with systems/types underneath. `visualRole.ts` serves
+both MS detection and registry grouping; new renderer bindings inherit categories.
+Old type IDs remain compatibility policy ancestors, preserving saved masks/locks/
+bypass without a competing value store. See SHARED_PROPERTIES.md.
 
 The property tree organizes adjusters; the target tree organizes what an adjuster
 can affect. Do not reproduce Color, Opacity or another existing property definition,

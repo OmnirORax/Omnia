@@ -1,6 +1,6 @@
 # Shared appearance controller
 
-Open **Master controller → Visuals**. Choose a property above the tree; branches that support it light up. All color inputs are round swatches.
+Open **Master controller → Visuals**. Choose a property above the tree; setters follow the targets’ supported capabilities. Target circles remain usable independently of that property. All color inputs are round swatches.
 
 **Animation is an adjuster, like Color.** There is no VFX target branch. Choose **Animation**, target Text, Icons, window surfaces, nodes, binders or the workspace background, then choose an effect. **Lightning text / icons** fills glyphs with moving electric ink; **Lightning outlines** traces their contours. Glyph-only effects exclude incompatible surface targets. Animation speed, density, intensity and color use the same hierarchy, selections and locks.
 
@@ -359,3 +359,99 @@ presses toggle All/None. Paste applies exactly the checked channels: ordinary
 setter companion behavior (such as Color also changing animation color) is disabled
 for clipboard application only. Ordinary direct property editing retains its
 established companion behavior.
+
+
+Hierarchy target circles remain usable independently of the currently selected
+property. For example, selecting Font must not disable Windows / frames / controls:
+users may select that category before choosing Color or another supported setter.
+Setter capability filtering remains authoritative when applying values; inspected
+selections still limit which branches can be targeted. Hovering a branch with no
+compatible current-property paint uses its existing color bindings for feedback,
+without changing the chosen property, creating values or widening selection scope.
+
+
+UI animation performance: `WindowSparkles` measures a bounded visible job list
+only on appearance/layout/content invalidation. Animation-only frames reuse those
+bounds, clipping readers, ownership scopes and styles instead of querying/measuring
+the page again. Resize observation, scrolling, input, font/image loads, text and
+relevant DOM changes invalidate the measured jobs. Glyph masks have a fast cache
+per measured scope and separate per-host/per-scope snapshots, so exact and inherited
+jobs cannot evict each other's masks. Ordinary DOM edits invalidate affected hosts
+and ancestors; unrelated masks survive. Selector glyph/surface mix variables are
+paint-only and do not invalidate geometry. The scheduler keeps animation/feedback
+redraw requests at a 20fps decoration budget; actual edits can request an immediate
+paint. UI electric-noise canvases declare frequent CPU pixel readback at creation,
+while the Three.js texture path retains its own canvas configuration. No stored
+appearance values or user effect choices are changed by these optimizations.
+
+
+Animated scene draws must not rewrite unchanged HUD DOM. `cameraGuideState.ts`
+skips stationary camera/target/selected-node snapshots and writes text/SVG values
+only when their displayed result changes. `SpatialWorkspace` likewise leaves
+unchanged option-bar styles alone. Replacing the same camera text every animation
+tick wakes UI discovery and invalidates glyph masks, defeating all frame caches
+and making both text animation modes scale badly across the interface.
+
+Electric ink shares monochrome generation/readback across matching geometry/speed
+settings regardless of color; each colored material has an independent reusable
+pixel buffer. Unchanged noise frames reuse their glyph composites, and active
+scopes retain materials beyond the small shared palette instead of reallocating
+them each frame. Tile generation computes bends once and submits only wrapped
+segments whose stroke can reach the tile. These are renderer optimizations, not
+changes to stored appearance values or animation choices.
+
+
+The provider also shares `hierarchy` (index, paths and descendants), and retains
+`legacyBase` when only targeting/policy metadata changes. Batch hierarchy/policy
+callers reuse this index. Targeting/rule toggles preserve paint/topology references;
+repeated equal setters return the original snapshot. Live settings normalization
+retains already-validated unchanged branches; imports still receive full validation.
+History/session comparisons skip shared references without serializing resources.
+Local effect ownership resolves ancestor owner keys once per mounted host, rather
+than testing every saved local owner. DOM invalidation refreshes those caches.
+
+`renderBudget.ts` bounds UI effects to 24 visible source jobs, 500 particles,
+800 lightning segments and 400,000 electric pixels per paint; the overlay is at
+most 1 MP at 20fps. Scene rendering is limited to 1.5 MP/DPR 1.25, without MSAA;
+bloom's longest edge is 512px. Lightning uses four strength bands to batch halo/core
+draws. These are deliberate rendering restrictions, not changes to target membership
+or saved appearance. CPU-read outline masks avoid a GPU copy/readback per mask.
+
+UI decoration yields after three consecutive paints costing over 12ms or spaced
+over 160ms apart: halve source allowance, then freeze at the minimum if still slow.
+It does not automatically increase quality and repeatedly stall. Hidden/static
+intervals reset timing. Explicit edits still repaint the frozen result. The
+existing MC effect panel reports allowance/paused state; no second settings store
+is introduced. Selector glyph/surface and scene feedback likewise become steady if display
+frames remain slow; scene feedback also caps its pulse schedule at 30fps. These thresholds are conservative policy, not certified device
+budgets. See [measured limitations](PERFORMANCE_RESULTS.md).
+
+Shared numeric definitions may declare a mode-dependent `numericRange`; target
+metadata refines renderer limits. UI glow/animation glow max at 0.8; UI blur at 8px.
+Density max is 1 except Starfield (4). Shared editors use the intersection for a
+mixed selection, and editable endpoints remain inside that interval. Appearance
+transactions, accepted parts, paste/state adapters and value rendering enforce the
+same policy. Loading/rendering old values never rewrites their stored values or
+history; subsequent explicit edits use supported bounds. The global property pool
+retains its semantic domain and independent scene/meta ranges.
+
+
+Visual-role grouping is generated, not a maintained component/category list.
+`appearance/visualRole.ts` is the shared semantic detector used by MS discovery
+and `roleHierarchy.ts`. Registered background fills and contour/edge bindings
+enter Backgrounds/Contours/Text/Icons/Indicators → detected system → type
+automatically. Existing Text subtypes keep their established IDs. CSS adapters
+supply that meaning through their actual paint channel; non-CSS adapters expose
+`binding.role`. New DOM function consumers can expose their real adapter through
+`visual` + `locator` in their existing function declaration. A selector or Color
+capability alone does not prove that something is a background or contour.
+Do not add per-component grouping exceptions or another target inventory.
+The build contract checks every classified visible target's generated membership.
+
+Stable leaf IDs/values remain unchanged. Old component branches are retained as
+compatibility policy ancestry, including selection, locks, bypass and saved MS
+patterns. New role selections override old type baselines; explicit leaf rules
+remain narrower, and toggling a role clears its descendant exceptions. Old type
+locks continue protecting their members from role-wide edits. The value resolver,
+policy index and MS pattern index share this ancestry. Grouping compiles from the
+registry at initialization, with no new DOM/pointer scans or animation work.

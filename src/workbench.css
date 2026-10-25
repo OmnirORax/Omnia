@@ -42,7 +42,7 @@
 .floating-body { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 14px; overflow-wrap: anywhere; }
 .floating-body[hidden] { display: none; }
 .floating-window.is-collapsed { pointer-events: none; }
-.floating-window.is-collapsed .floating-window-content { background: transparent; border: 0; box-shadow: none; pointer-events: none; }
+:root body :is(.floating-window.is-collapsed > .floating-window-content,.function-frame.collapsed > .ui-frame-root) { background: none !important; border: 0 !important; box-shadow: none !important; backdrop-filter: none !important; filter: none !important; pointer-events: none; }
 .floating-body :is(input:not([type=checkbox]):not([type=color]):not([type=range]), select) { max-width: 100%; min-width: 0; width: auto; field-sizing: content; box-sizing: border-box; }
 .floating-body textarea { max-width: 100%; min-width: 0; width: 100%; box-sizing: border-box; }
 .floating-body :is(button, label, p, span, code, strong) { white-space: normal; overflow-wrap: anywhere; min-width: 0; }

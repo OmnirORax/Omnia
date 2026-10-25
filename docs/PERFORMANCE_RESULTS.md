@@ -1,0 +1,131 @@
+# Systemic performance pass: local evidence
+
+Date: 2026-10-24. Baseline: `a91b7ac1449f6fb04936873f78175e8c7041ef38`.
+Implementation: the subsequent shared-path/range/budget changes in PR #30.
+Raw aggregate measurements: [JSON](performance/2026-10-24-local.json).
+
+This pass removes measured quadratic policy/index work, reduces unnecessary state
+and local-ownership work, adds shared numeric constraints and bounds decoration.
+It does **not** close the user's system-wide lag report. Software-renderer traces
+still show long input reactions and poor frame pacing, including effects-off and
+selector cases. User hardware/workspace verification and residual profiling remain
+necessary. There is no measured guarantee of sub-50ms input or 60fps.
+
+## Measurement method and limits
+
+The user explicitly authorized a focused local trace. No browser suite was run.
+Node 24.19.0; Chromium 154.0.8037.57; Linux container with **SwiftShader software GPU**;
+1366×900, DPR 1. Local production builds, external requests blocked, no credentials,
+provider calls or user data. Both builds used the same profiler/fixture: 12 graph
+nodes, 300 saved unmounted local text customizations, default UI template with MC
+Visuals open. Most scenarios had 1,758 DOM elements/483 text nodes after the click.
+Fresh context per case; 7-second warmup; 1.8-second RAF sample; CPU sampling enabled.
+Baseline ran after the implementation trace, one browser at a time.
+
+The click metric is a programmatic hierarchy-circle click followed by two RAFs,
+**not physical input-to-presented-paint**. Script time covers the RAF sample and that
+reaction (plus pointer moves in the selector case). Samples are single runs and
+show variance; do not extrapolate ratios to the whole application. Earlier
+intermediate runs varied considerably. Capture profiles and repeat on reference
+hardware before setting regression thresholds.
+
+Quality differs deliberately: broad glow input 2 is effectively capped at 0.8 for
+UI text; effect resolution/source/detail budgets and overload fallback apply only
+to the new build. This is a combined architectural change and quality restriction,
+not an equivalent-quality animation speedup. Saved values are retained.
+
+## Application trace
+
+| Text scenario | Hierarchy click + two RAFs, before → after (ms) | Script time before → after (ms) | RAF p95 gap before → after (ms) |
+| --- | --- | --- | --- |
+| Effects off | 491 → 521 | 483 → 382 | 133 → 183 |
+| Brightness 3 | 564 → 288 | 553 → 280 | 16.7 → 16.7 |
+| Glow 2 / supported UI cap | 572 → 327 | 565 → 316 | 16.7 → 16.8 |
+| Electric text | 653 → 434 | 761 → 415 | 183 → 183 |
+| Lightning outlines | 1,654 → 388 | 1,667 → 291 | 333 → 167 |
+
+Electric-text allowance had reduced from 24 to 3 visible UI jobs in this run;
+lightning had frozen to a static result (allowance 0). These fallbacks preserve
+stored choices. Even frozen lightning/effects-off cases had poor software-GPU frame
+pacing: source limits do not prove the remaining rendering bottleneck is solved.
+The effects-off click did not improve in this sample.
+
+Selector pointer movement remains a separate acceptance concern. A document-root
+pulse experiment reduced script work but increased style work/pointer wall time;
+it was removed. The final renderer retains cached hosts, caps pulse updates to
+30fps and can make feedback steady after sustained slow frames. Follow-up selector
+measurements are recorded separately in the JSON artifact. Protocol-driven mouse
+wall time is not a physical pointer latency percentile. The repeated final
+selector cases took 1,833/1,838ms for 12 protocol mouse moves; repeated baseline
+cases are retained in the artifact. This remains a regression/acceptance concern
+in the software-renderer environment, not a claimed selector improvement. Cached
+host feedback brought style time back down after the root-clock experiment, but
+did not resolve the remaining frame/pointer delay.
+
+## CPU scaling check
+
+`scripts/perf-shared-paths.mjs` isolates hierarchy projection, a batch of inclusion/
+connection checks and one repeated brightness edit. Cold snapshots, not browser FPS.
+
+| Targets (including locals) | Hierarchy before → after (ms) | Policy batch before → after (ms) |
+| --- | --- | --- |
+| 83 | 3.712 → 0.649 | 16.187 → 1.293 |
+| 184 | 5.156 → 0.937 | 39.500 → 1.711 |
+| 584 | 50.232 → 2.642 | 482.737 → 4.186 |
+| 1,084 | 274.002 → 2.729 | 2,353.222 → 6.142 |
+
+Repeated equal edits now return the existing state snapshot. Local effects also
+share a policy index, group locals by owner and discover ancestor owner keys per
+mounted host instead of calling `closest` for every saved owner. Value/stylesheet
+projections do not rebuild for targeting-only changes. Structural JSON equality
+skips shared resources; live validation retains unchanged validated branches.
+
+## Supported limits and fallback
+
+- Shared Density domain remains 0–4; active range is 0–1 except Starfield (0–4).
+- UI Glow/animation Glow: 0–0.8; UI Blur: 0–8px. These are conservative footprint
+  policies, not a universally optimal visual maximum. Other scene/meta consumers
+  retain their own ranges. Shared mixed-selection controls use their common range.
+- Editing/typed values, accepted parts, local editors, paste, state bindings and
+  final value resolution share the constraints. Imported semantic values/history
+  are preserved; the renderer caps effective output without rewriting them.
+- UI effects: 24 visible source jobs, 500 particles, 800 lightning segments,
+  400,000 electric pixels per paint, 1 MP overlay, 20fps maximum cadence.
+- After three consecutive paints costing >12ms or spaced >160ms apart, halve the
+  UI source allowance; eventually freeze animation if one source remains too slow.
+  Quality does not grow back during that session. Static/hidden intervals reset
+  timing. Explicit edits repaint; MC displays reduced sources or paused animation.
+- Selector glyph/surface and scene feedback use the same overload rule and become
+  steady; scene pulses cap at 30fps. Native seam animations remain separate.
+- Scene: 1.5 MP, DPR ≤1.25, no MSAA; bloom longest edge ≤512px. Motion/scene geometry
+  complexity is not comprehensively governed by this pixel budget.
+
+These limits intentionally reduce rendering freedom/detail to protect usability.
+They do not make arbitrary combinations or arbitrarily large documents affordable.
+
+## Reproduce and continue
+
+Run `node scripts/perf-shared-paths.mjs --output=/tmp/shared.json`.
+`--legacy` selects the old indexing pattern for comparison. For the browser trace,
+run a production preview locally, then:
+
+```sh
+node scripts/profile-workspace.mjs --url=http://127.0.0.1:4173 --warmup=7000 --out=/tmp/omnia-profile
+```
+
+It saves CPU profiles and aggregate JSON outside the repository. `--scenarios`,
+`--targets`, `--url` and `--out` allow controlled comparisons. To profile an old
+checkout, copy the same profiler into its `scripts` directory and build/serve that
+checkout separately; do not compare different fixture generators accidentally.
+
+Required model suite and production build pass. Regression coverage checks index
+semantics, no-op/reference preservation, live validation, history/resource equality,
+mode/consumer bounds, legacy rendering without a controller, accepted-part bounds,
+state adapter writes, ownership/proxy precedence, resolution and overload yielding.
+
+Next priorities: reproduce residual click delay on reference hardware; attribute
+React context/commit work and catalog/layout invalidation; measure MS All and live
+slider gestures with large mounted fixtures; cover combined graph/media workloads.
+Keep hardware paint/raster/compositing evidence distinct from JS sampling. Broader
+context subscriptions, large-document discovery and scene/media budgets remain
+incomplete; passing tests or these local gains do not close those tasks.

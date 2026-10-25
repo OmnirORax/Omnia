@@ -194,7 +194,7 @@ export function NativeActions() {
   };
   useLayoutEffect(() => {
     entries.current.forEach(apply);
-  }, [ui.layout, ui.shortcutBindings, appearance?.read, appearance?.state, appearance?.targets, appearance?.safe]);
+  }, [ui.layout, ui.shortcutBindings, appearance?.read, appearance?.state.values, appearance?.state.disconnected, appearance?.targets, appearance?.safe]);
   useEffect(() => {
     let frame = 0;
     const dirty = new Set<HTMLButtonElement>();

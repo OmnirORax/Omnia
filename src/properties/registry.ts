@@ -1,3 +1,4 @@
+import { boundedNumber, type NumericRangeRule } from "./numericRange.ts";
 import { functionInputValue } from "./runtimeInputs.ts";
 /** Property definitions and couplings contain no renderer, DOM or persistence assumptions. */
 export type PropertyValue = string | number | boolean;
@@ -6,6 +7,7 @@ export type Category = { id: string; label: string };
 export type PropertyDefinition = {
   id: string; label: string; kind: "color" | "number" | "select" | "toggle" | "text";
   maxLength?: number; multiline?: boolean;
+  numericRange?: NumericRangeRule;
   min?: number; max?: number; step?: number; initial: PropertyValue; neutral?: PropertyValue;
   options?: readonly { id: string; label: string }[];
   category?: Category; unit?: string;
@@ -18,6 +20,8 @@ export type ConsumerGroup = Category & { self?: boolean };
 export type ConsumerDefinition = {
   id: string; label: string; owner: string;
   locator?: string;
+  /** Actual DOM paint adapter; discovery derives grouping from this contract. */
+  visual?: { css: "background-color" | "border-color" | "color" | "accent-color"; text?: boolean };
   /** Render-only activation while inspecting parameters; never a saved value. */
   previewActivation?: PreviewActivation;
   controls?: readonly string[];
@@ -35,7 +39,7 @@ export function validateValue(property: PropertyDefinition, value: unknown): Pro
     ? Math.max(property.min!, Math.min(property.max!, value)) : undefined;
   return property.options?.some(option => option.id === value) ? value as string : undefined;
 }
-const contract = (property: PropertyDefinition) => JSON.stringify({ kind: property.kind, unit: property.unit, maxLength: property.maxLength, multiline: property.multiline,
+const contract = (property: PropertyDefinition) => JSON.stringify({ numericRange: property.numericRange, kind: property.kind, unit: property.unit, maxLength: property.maxLength, multiline: property.multiline,
   min: property.min, max: property.max, step: property.step, channelOf: property.channelOf, previewActivation: property.previewActivation,
   options: property.options?.map(option => option.id).sort() });
 export function createPropertyRegistry() {
@@ -56,6 +60,13 @@ export function createPropertyRegistry() {
     if (!definition.id || !definition.label) throw new Error("Properties need stable IDs and labels.");
     if (definition.kind === "number" && (!Number.isFinite(definition.min) || !Number.isFinite(definition.max) ||
       definition.min! > definition.max! || !(definition.step! > 0))) throw new Error(`Invalid numeric property: ${definition.id}`);
+    if (definition.numericRange) {
+      const rule = definition.numericRange;
+      if (definition.kind !== "number" || !byId.has(rule.by) || [rule.otherwise, ...Object.values(rule.cases)].some(range =>
+        range.min !== undefined && (!Number.isFinite(range.min) || range.min < definition.min!) ||
+        range.max !== undefined && (!Number.isFinite(range.max) || range.max > definition.max!) ||
+        (range.min ?? definition.min!) > (range.max ?? definition.max!))) throw new Error(`Invalid numeric range: ${definition.id}`);
+    }
     if (definition.channelOf && !byId.has(definition.channelOf)) throw new Error(`Unknown base property: ${definition.channelOf}`);
     if (validateValue(definition, definition.initial) !== definition.initial) throw new Error(`Invalid initial value: ${definition.id}`);
     if (definition.neutral !== undefined && validateValue(definition, definition.neutral) !== definition.neutral)
@@ -71,6 +82,9 @@ export function createPropertyRegistry() {
     definitions.push(next); byId.set(next.id, next); return next;
   };
   const couple = (definition: ConsumerDefinition): CoupledConsumer => {
+    if (definition.visual && (definition.owner !== "appearance" || !definition.locator ||
+      !["background-color", "border-color", "color", "accent-color"].includes(definition.visual.css) ||
+      definition.visual.text && definition.visual.css !== "color")) throw new Error(`Invalid visual adapter: ${definition.id}`);
     if (!definition.label || !definition.owner) throw new Error("Consumers need a label and a state owner.");
     const path = new Set([definition.id]);
     for (const group of definition.group) {
@@ -166,9 +180,12 @@ export function bindStateProperties<State>(registry: PropertyRegistry, owner: st
         validateValue(property, change.value) !== change.value ||
         (consumer.choices[change.property] && !consumer.choices[change.property].includes(String(change.value))))
         throw new Error(`Invalid state coupling write: ${change.consumer}/${change.property}`);
-      return { adapter, value: change.value };
+      return { adapter, value: change.value, spec: property, consumer };
     });
-    if (writes.length) update(current => writes.reduce((next, write) => write.adapter.write(next, write.value), current));
+    if (writes.length) update(current => writes.reduce((next, write) => {
+      const value = typeof write.value === "number" ? boundedNumber(write.spec, write.value, key => adapters[write.consumer.id]?.channels[write.consumer.channels[key] ?? key]?.read(next)) : write.value;
+      return write.adapter.read(next) === value ? next : write.adapter.write(next, value);
+    }, current));
   } };
 }
 

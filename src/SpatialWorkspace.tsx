@@ -1,3 +1,4 @@
+import { RENDER_BUDGET, budgetPixelRatio } from "./renderBudget";
 import { selectorSurfaceStrength } from "./appearance/selectorSurface";
 import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -132,9 +133,9 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     const host = hostRef.current; if (!host) return;
     let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+    try { renderer = new THREE.WebGLRenderer({ antialias: false }); }
     catch { setError("3D rendering is unavailable in this browser."); return; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr));
     renderer.setClearColor(0x101927);
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0x101927);
@@ -166,12 +167,15 @@ export default function SpatialWorkspace(props: Props) {
         const anchorElement = (element: HTMLElement | undefined | null, id: string, below = false) => {
           if (!element) return;
           const item = textScene.current?.nodes.get(id);
-          if (!item || !item.sprite.visible) { element.style.visibility = "hidden"; return; }
+          if (!item || !item.sprite.visible) { if (element.style.visibility !== "hidden") element.style.visibility = "hidden"; return; }
           const p = item.group.position.clone().project(camera);
-          element.style.visibility = p.z > -1 && p.z < 1 ? "visible" : "hidden";
-          element.style.left = `${(p.x + 1) * host.clientWidth / 2}px`;
+          const visibility = p.z > -1 && p.z < 1 ? "visible" : "hidden";
+          const left = `${(p.x + 1) * host.clientWidth / 2}px`;
+          if (element.style.visibility !== visibility) element.style.visibility = visibility;
+          if (element.style.left !== left) element.style.left = left;
           const labelHeight = screenBounds(item.sprite, camera, host.clientWidth, host.clientHeight).height;
-          element.style.top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
+          const top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
+          if (element.style.top !== top) element.style.top = top;
         };
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
         const selected = worldCoordinates.current.get(callbacks.current.selectedId ?? "");
@@ -332,7 +336,7 @@ export default function SpatialWorkspace(props: Props) {
     stateRef.current = { camera, controls, renderer, content, appearance, requestRender, requestPaint: () => scheduleRender(false), focus, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
-      camera.updateProjectionMatrix(); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
+      camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
       appearance.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
       wallpaper.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
     };

@@ -1,6 +1,7 @@
+import { numericRange } from "../properties/numericRange";
 import { RangeControl } from "../ui/RangeControl";
 import { useCancelValueEdit } from "../ui/ActiveContext";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
 import { propertyFor, type RegisteredTarget } from "./registry";
 import type { Value } from "./model";
@@ -31,11 +32,18 @@ export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { pr
     if ((!hover && !focus) || props.disabled || ctx?.safe || !targets.current?.length) return;
     return activate?.({ property: props.property, targets: targets.current });
   }, [hover, focus, props.disabled, ctx?.safe, props.property, scope, activate]);
+  const spec = propertyFor(props.property)!;
+  const limits = useMemo(() => {
+    if (spec.kind !== "number") return undefined;
+    const candidates = props.previewTargets ?? (ctx ? adjustmentTargets(ctx.state, ctx.targets, props.property, undefined, ctx.hierarchy.index) : []);
+    const ranges = candidates.map(target => numericRange(target.numberRanges?.[props.property] ?? spec, key => ctx?.read(target, key)));
+    return { min: Math.max(spec.min!, ...ranges.map(range => range.min)), max: Math.min(spec.max!, ...(ranges.length ? ranges.map(range => range.max) : [numericRange(spec).max])) };
+  }, [spec, props.previewTargets, ctx?.hierarchy, ctx?.state.sets, ctx?.state.locks, ctx?.state.disconnected, spec.numericRange ? ctx?.read : null]);
   return <span data-appearance-editor data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
     onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
     onFocusCapture={() => setFocus(true)} onBlurCapture={event => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocus(false);
-    }}><PropertyInput {...props} /></span>;
+    }}><PropertyInput {...props} limits={limits} /></span>;
 }
 function PropertyInput({
   property,
@@ -46,6 +54,7 @@ function PropertyInput({
   label,
   effectKinds,
   choices,
+  limits,
 }: {
   property: string;
   value: Value;
@@ -55,6 +64,7 @@ function PropertyInput({
   label?: string;
   effectKinds?: readonly string[];
   choices?: readonly string[];
+  limits?: { min: number; max: number };
 }) {
   const ctx = useAppearance();
   const p = propertyFor(property)!;
@@ -145,7 +155,7 @@ function PropertyInput({
   }
   return <RangeControl
     inputRef={input} aria-label={label ?? p.label} disabled={disabled}
-    min={p.min!} max={p.max!} step={p.step} value={number}
+    min={limits?.min ?? p.min!} max={limits?.max ?? p.max!} title={limits ? `Supported in the current mode: ${limits.min}–${limits.max}` : undefined} step={p.step} value={number}
     onValueChange={next => {
       if (!editing.current) beforeRange.current = value;
       editing.current = true; draft.current = next; setNumber(next); onPreview(next);
@@ -166,7 +176,7 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
     (!target ? active.adjustments?.[property] : undefined) ??
     (chosen ? ctx.read(chosen, property) : propertyFor(property)!.initial);
   const change = (v: Value, preview = false) => {
-    const next = applyValue(state, targets, property, v, target);
+    const next = applyValue(state, targets, property, v, target, false, { readInput: ctx.read });
     if (preview) ctx.preview(next);
     else ctx.commit(next);
   };

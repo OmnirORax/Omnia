@@ -1,3 +1,4 @@
+import { sameValue } from "../valueEquality.ts";
 import { createTransientStore } from "./transientStore.ts";
 
 export type HistoryMode = "recent" | "context" | "selective";
@@ -6,7 +7,7 @@ export type HistoryOptions = { mode: HistoryMode; categories: HistoryCategory[];
 type Patch = { path: string[]; before: unknown; after: unknown };
 type Adapter = { read: () => unknown; write: (value: any) => void };
 type Entry = { id: number; owner: string; categories: HistoryCategory[]; contexts: string[]; patches: Patch[]; undone: boolean; group?: string; at: number };
-const equal = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
+const equal = (a: unknown, b: unknown) => sameValue(a, b);
 function diff(before: any, after: any, path: string[] = [], out: Patch[] = []): Patch[] {
   if (before === after) return out;
   if (before && after && typeof before === "object" && typeof after === "object" && !Array.isArray(before) && !Array.isArray(after)) {

@@ -1,8 +1,8 @@
-import { unavailableControl } from "./ui/controlAvailability";
-import { clipCanvas, type PaintClip } from "./ui/paintClip";
-import { imageContours, lightningBolts, type Contour } from "./lightning";
+import { unavailableControl } from "./ui/controlAvailability.ts";
+import { clipCanvas, type PaintClip } from "./ui/paintClip.ts";
+import { alphaContours, lightningBolts, type Contour } from "./lightning.ts";
 import type { SparkleStyle } from "./graph/effects";
-import { createElectricInk } from "./electricInk";
+import { createElectricInk } from "./electricInk.ts";
 export type GlyphScope = {
   key: string;
   shape?: "surface" | "contour" | "glyphs";
@@ -31,22 +31,44 @@ function cssMask(element: HTMLElement) {
 }
 type Snapshot = {
   empty?: boolean;
+  inputValue?: string;
+  readback: boolean;
+  paint?: { tile: ElectricTile; revision: number };
   signature: string;
   paths?: Contour[];
   mask: HTMLCanvasElement;
   ink: HTMLCanvasElement;
 };
-let cache = new WeakMap<HTMLElement, Snapshot>();
+let cache = new WeakMap<HTMLElement, Map<string, Snapshot>>();
+// A measured job retains its scope between animation frames. Check this before
+// any DOM queries/signature reads; local and inherited masks may share a host.
+let scopes = new WeakMap<GlyphScope, Snapshot>();
 export const clearUILightningContours = () => {
   cache = new WeakMap();
+  scopes = new WeakMap();
 };
+/** Content/style edits invalidate affected hosts and their ancestors, not every
+ * unrelated text mask. Rebuilt jobs receive new scopes after this notification. */
+export function invalidateUILightningContours(elements: Iterable<Element>) {
+  scopes = new WeakMap();
+  const seen = new Set<Element>();
+  for (const element of elements) for (let host: Element | null = element; host && !seen.has(host); host = host.parentElement) {
+    seen.add(host); cache.delete(host as HTMLElement);
+  }
+}
 /** Rasterize only displayed lettering and icons, omitting panel/button backgrounds. */
 function snapshot(
   element: HTMLElement,
   rect: DOMRect,
   clip: { x: number; y: number; width: number; height: number },
   scope?: GlyphScope,
+  readback = false,
 ): Snapshot | null {
+  const inputValue = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement ? element.value : undefined;
+  const cachedScope = scope && scopes.get(scope);
+  // React can update a controlled field's value without a DOM mutation/event.
+  // Reading its value is cheap and does not require measuring the page.
+  if (cachedScope && cachedScope.inputValue === inputValue && cachedScope.readback === readback) return cachedScope;
   const inputs = [
     ...element.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
       "input,textarea,select",
@@ -65,6 +87,7 @@ function snapshot(
   const signature = [
     scope?.key,
     scope?.shape,
+    readback,
     ...masked.map(({ image }) => `${image?.src}:${image?.complete}`),
     rect.width,
     rect.height,
@@ -80,13 +103,18 @@ function snapshot(
       (el) => `${el.scrollTop}:${el.scrollLeft}`,
     ),
   ].join("|");
-  const previous = cache.get(element);
-  if (previous?.signature === signature) return previous;
+  const key = scope?.key ?? "";
+  const masks = cache.get(element) ?? new Map<string, Snapshot>();
+  const previous = masks.get(key);
+  if (previous?.signature === signature) {
+    if (scope) scopes.set(scope, previous);
+    return previous;
+  }
   const canvas = document.createElement("canvas"),
     scale = Math.min(1.5, 512 / Math.max(clip.width, clip.height));
   canvas.width = Math.max(1, Math.ceil(clip.width * scale));
   canvas.height = Math.max(1, Math.ceil(clip.height * scale));
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { willReadFrequently: readback });
   if (!context) return null;
   context.scale(scale, scale);
   context.translate(-clip.x, -clip.y);
@@ -255,8 +283,9 @@ function snapshot(
   const ink = document.createElement("canvas");
   ink.width = canvas.width;
   ink.height = canvas.height;
-  const result = { signature, mask: canvas, ink, empty: !hasInk };
-  cache.set(element, result);
+  const result = { signature, mask: canvas, ink, empty: !hasInk, inputValue, readback };
+  masks.set(key, result); cache.set(element, masks);
+  if (scope) scopes.set(scope, result);
   return result;
 }
 /** Draws narrow colored halos and white-hot cores, without capturing pointer input. */
@@ -279,54 +308,55 @@ export function drawUILightning(
     height: Math.min(innerHeight, rect.bottom) - Math.max(0, rect.y),
   };
   if (clip.width <= 0 || clip.height <= 0 || budget <= 0) return 0;
-  const shape = snapshot(element, rect, clip, scope);
+  const shape = snapshot(element, rect, clip, scope, true);
   if (!shape || shape.empty) return 0;
-  const paths = (shape.paths ??= imageContours(shape.mask)),
-    bolts = lightningBolts(paths, seed, seconds, fx.density, fx.boltLength, animated);
+  if (!shape.paths) {
+    try { shape.paths = alphaContours(shape.mask.getContext("2d")!.getImageData(0, 0, shape.mask.width, shape.mask.height).data, shape.mask.width, shape.mask.height); }
+    catch { shape.paths = []; } // Preserve the old safe fallback for unreadable image masks.
+  }
+  const bolts = lightningBolts(shape.paths, seed, seconds, fx.density, fx.boltLength, animated);
   let segments = 0;
-  context.save();
-  context.shadowColor =
-    typeof context.strokeStyle === "string" ? context.strokeStyle : (fx.color ?? "#60ddec");
-  context.lineJoin = "round";
-  context.lineCap = "round";
+  const groups: typeof bolts[] = [[], [], [], []];
   for (const bolt of bolts) {
     if (segments + bolt.points.length > budget) break;
-    context.beginPath();
-    bolt.points.forEach((p, i) => {
-      const x = clip.x + (p.x + 0.5) * clip.width,
-        y = clip.y + (0.5 - p.y) * clip.height;
-      if (i) context.lineTo(x, y);
-      else context.moveTo(x, y);
-    });
-    context.shadowBlur = 5;
-    context.globalAlpha = opacity * fx.intensity * bolt.strength * 0.25;
-    context.lineWidth = 3;
-    context.stroke();
-    context.shadowBlur = 0;
-    context.globalAlpha = opacity * fx.intensity * bolt.strength;
-    context.lineWidth = 0.85;
-    context.stroke();
-    if (bolt.strength > 0.5) {
-      context.strokeStyle = "#ffffff";
-      context.globalAlpha *= 0.65;
-      context.lineWidth = 0.4;
-      context.stroke();
-      context.strokeStyle = context.shadowColor;
-    }
+    groups[Math.min(3, Math.floor(bolt.strength * 4))].push(bolt);
     segments += bolt.points.length;
   }
+  context.save();
+  context.shadowColor = typeof context.strokeStyle === "string" ? context.strokeStyle : (fx.color ?? "#60ddec");
+  context.lineJoin = "round"; context.lineCap = "round";
+  // Batch similar strengths: a halo/core pass per band, rather than several
+  // shadowed canvas draws per individual bolt. Work is bounded across UI jobs.
+  groups.forEach((group, band) => {
+    if (!group.length) return;
+    context.beginPath();
+    for (const bolt of group) bolt.points.forEach((p, i) => {
+      const x = clip.x + (p.x + .5) * clip.width, y = clip.y + (.5 - p.y) * clip.height;
+      if (i) context.lineTo(x, y); else context.moveTo(x, y);
+    });
+    const strength = (band + .5) / groups.length;
+    context.shadowBlur = 5;
+    context.globalAlpha = opacity * fx.intensity * strength * .25;
+    context.lineWidth = 3; context.stroke();
+    context.shadowBlur = 0;
+    context.globalAlpha = opacity * fx.intensity * strength;
+    context.lineWidth = .85; context.stroke();
+    if (band >= 2) {
+      context.strokeStyle = "#ffffff"; context.globalAlpha *= .65;
+      context.lineWidth = .4; context.stroke(); context.strokeStyle = context.shadowColor;
+    }
+  });
   context.restore();
   return segments;
 }
 
-const tiles = new Map<
-  string,
-  {
-    noise: ReturnType<typeof createElectricInk>;
-    canvas: HTMLCanvasElement;
-    context: CanvasRenderingContext2D;
-  }
->();
+type Noise = { ink: ReturnType<typeof createElectricInk>; revision: number; pixels?: ImageData };
+type ElectricTile = { noise: Noise; noiseRevision: number; revision: number;
+  canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; pixels: ImageData };
+const noises = new Map<string, Noise>(), tiles = new Map<string, ElectricTile>();
+// Active jobs retain their material even when a many-color page exceeds the
+// small shared palette. This prevents eviction/recreation on every frame.
+const scopeTiles = new WeakMap<GlyphScope, { key: string; tile: ElectricTile }>();
 /** Opaque electric ink replaces glyph interiors; the surrounding surface remains untouched. */
 export function drawUIElectricText(
   context: CanvasRenderingContext2D,
@@ -351,33 +381,47 @@ export function drawUIElectricText(
   const color =
       fx.color ?? (typeof context.strokeStyle === "string" ? context.strokeStyle : "#60ddec"),
     key = `${color}:${fx.density}:${fx.boltLength}:${fx.intensity}:${fx.motion}`;
-  let tile = tiles.get(key);
+  const held = scope && scopeTiles.get(scope);
+  let tile = held?.key === key ? held.tile : tiles.get(key);
   if (!tile) {
-    if (tiles.size >= 8) tiles.delete(tiles.keys().next().value!);
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 128;
-    tile = { noise: createElectricInk(), canvas, context: canvas.getContext("2d")! };
+    const noiseKey = `${fx.density}:${fx.boltLength}:${fx.motion}:${animated}`;
+    let noise = noises.get(noiseKey);
+    if (!noise) {
+      if (noises.size >= 32) noises.delete(noises.keys().next().value!);
+      noise = { ink: createElectricInk(true), revision: 0 }; noises.set(noiseKey, noise);
+    }
+    if (tiles.size >= 32) tiles.delete(tiles.keys().next().value!);
+    const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
+    const tileContext = canvas.getContext("2d")!;
+    tile = { noise, noiseRevision: -1, revision: 0, canvas, context: tileContext, pixels: tileContext.createImageData(128, 128) };
     tiles.set(key, tile);
   }
-  if (tile.noise.update(animated ? seconds : 0, fx.density, fx.boltLength)) {
-    const noise = tile.noise.canvas.getContext("2d")!.getImageData(0, 0, 128, 128),
-      data = noise.data;
-    const rgb = [1, 3, 5].map((index) => parseInt(color.slice(index, index + 2), 16));
-    for (let i = 0; i < data.length; i += 4) {
-      const flux = data[i] / 255,
-        t = Math.max(0, Math.min(1, (flux - 0.68) / 0.3)),
-        core = t * t * (3 - 2 * t);
-      for (let c = 0; c < 3; c++)
-        data[i + c] = (rgb[c] * (0.16 + flux * 1.25) + core * 230) * (0.35 + fx.intensity * 0.65);
-    }
-    tile.context.putImageData(noise, 0, 0);
+  if (scope) scopeTiles.set(scope, { key, tile });
+  const noise = tile.noise;
+  if (noise.ink.update(animated ? seconds : 0, fx.density, fx.boltLength)) {
+    noise.revision++;
+    noise.pixels = noise.ink.canvas.getContext("2d")!.getImageData(0, 0, 128, 128);
   }
-  const ink = shape.ink.getContext("2d")!;
-  ink.globalCompositeOperation = "copy";
-  ink.drawImage(shape.mask, 0, 0);
-  ink.globalCompositeOperation = "source-in";
-  ink.fillStyle = ink.createPattern(tile.canvas, "repeat")!;
-  ink.fillRect(0, 0, shape.ink.width, shape.ink.height);
+  if (tile.noiseRevision !== noise.revision) {
+    const source = noise.pixels!.data, data = tile.pixels.data;
+    const rgb = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16));
+    for (let i = 0; i < data.length; i += 4) {
+      const flux = source[i] / 255,
+        t = Math.max(0, Math.min(1, (flux - 0.68) / 0.3)), core = t * t * (3 - 2 * t);
+      for (let c = 0; c < 3; c++) data[i + c] = (rgb[c] * (0.16 + flux * 1.25) + core * 230) * (0.35 + fx.intensity * 0.65);
+      data[i + 3] = source[i + 3];
+    }
+    tile.context.putImageData(tile.pixels, 0, 0);
+    tile.noiseRevision = noise.revision; tile.revision++;
+  }
+  if (shape.paint?.tile !== tile || shape.paint.revision !== tile.revision) {
+    const ink = shape.ink.getContext("2d")!;
+    ink.globalCompositeOperation = "copy"; ink.drawImage(shape.mask, 0, 0);
+    ink.globalCompositeOperation = "source-in";
+    ink.fillStyle = ink.createPattern(tile.canvas, "repeat")!;
+    ink.fillRect(0, 0, shape.ink.width, shape.ink.height);
+    shape.paint = { tile, revision: tile.revision };
+  }
   context.save();
   context.globalAlpha = opacity;
   context.shadowBlur = 0;

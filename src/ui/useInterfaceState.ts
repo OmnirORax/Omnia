@@ -1,3 +1,5 @@
+import { normalizeLiveSettings } from "./normalizeLiveSettings";
+import { sameValue } from "../valueEquality.ts";
 import type { ActionHistory, HistoryCategory } from "./actionHistory";
 import { useCallback, useRef, useState, type SetStateAction } from "react";
 import { validateUILayout, type UILayout } from "./layout";
@@ -45,12 +47,12 @@ export function useInterfaceState(
   const record = (before: InterfaceSession, after: InterfaceSession, group?: string) => {
     if (!journal) return;
     const a = snapshot(before), b = snapshot(after), categories: HistoryCategory[] = [];
-    if (a.layout !== b.layout && JSON.stringify(a.layout) !== JSON.stringify(b.layout)) categories.push("ui");
+    if (a.layout !== b.layout && !sameValue(a.layout, b.layout)) categories.push("ui");
     if (!sameAppearance(a.settings.appearance, b.settings.appearance) || !sameAppearance(a.savedAppearance, b.savedAppearance)) categories.push("appearance");
-    if (a.settings !== b.settings && JSON.stringify({ ...a.settings, appearance: null }) !== JSON.stringify({ ...b.settings, appearance: null })) categories.push("settings");
+    if (a.settings !== b.settings && !sameValue({ ...a.settings, appearance: null }, { ...b.settings, appearance: null })) categories.push("settings");
     const contexts = new Set([...journal.contextPath, journal.activeContext]);
     for (const key of new Set([...Object.keys(a.layout.windows), ...Object.keys(b.layout.windows)]))
-      if (a.layout.windows[key] !== b.layout.windows[key] && JSON.stringify(a.layout.windows[key]) !== JSON.stringify(b.layout.windows[key])) contexts.add(`window:${key}`);
+      if (a.layout.windows[key] !== b.layout.windows[key] && !sameValue(a.layout.windows[key], b.layout.windows[key])) contexts.add(`window:${key}`);
     journal.record("interface", a, b, categories, [...contexts], group);
   };
   const commit = useCallback(
@@ -63,8 +65,9 @@ export function useInterfaceState(
         // appearance/layout branches on every ordinary button press.
         const checked = {
           layout: next.layout === current.layout ? current.layout : validateUILayout(next.layout),
-          settings: next.settings === current.settings ? current.settings : normalizeSettings(next.settings),
+          settings: normalizeLiveSettings(next.settings, current.settings),
         };
+        if (checked.layout === current.layout && checked.settings === current.settings) return;
         const active = document.activeElement as HTMLElement | null;
         const event = window.event;
         const typing =

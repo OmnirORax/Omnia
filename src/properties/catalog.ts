@@ -70,6 +70,7 @@ const builtins: Property[] = [
   },
   {
     id: "density",
+    numericRange: { by: "effect", otherwise: { max: 1 }, cases: { starfield: { max: 4 } } },
     label: "Density",
     kind: "number",
     min: 0,

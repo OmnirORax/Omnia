@@ -1,3 +1,4 @@
+import { bloomSize } from "./renderBudget";
 import * as THREE from "three";
 import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -15,7 +16,7 @@ export class SceneGlow extends Pass {
     depthTest: false, depthWrite: false,
   });
   private quad = new FullScreenQuad(this.mix);
-  constructor(private scene: THREE.Scene, private camera: THREE.Camera, samples: number) { super(); this.target.samples = Math.min(4, samples); }
+  constructor(private scene: THREE.Scene, private camera: THREE.Camera, _samples: number) { super(); this.target.samples = 0; }
   configure(strength: number, spread: number) {
     this.bloom.strength = strength;
     // Keep only the close blur scales. Broad, low-resolution layers create haze.
@@ -60,6 +61,6 @@ export class SceneGlow extends Pass {
     this.mix.uniforms.base.value = read.texture;
     renderer.setRenderTarget(this.renderToScreen ? null : write); this.quad.render(renderer);
   }
-  override setSize(width: number, height: number) { this.target.setSize(width, height); this.bloom.setSize(width, height); }
+  override setSize(width: number, height: number) { const size = bloomSize(width, height); this.target.setSize(size.width, size.height); this.bloom.setSize(size.width, size.height); }
   override dispose() { this.target.dispose(); this.bloom.dispose(); this.mix.dispose(); this.quad.dispose(); for (const material of this.cache.values()) material.dispose(); this.cache.clear(); }
 }

@@ -1,3 +1,4 @@
+import { boundedNumber } from "../properties/numericRange.ts";
 import { stableUIHash } from "../ui/identity.ts";
 import { blocked, connected, createTargetIndex, propertyChannels, ruleHas, type Controller, type Instance, type Value } from "./model.ts";
 import { GLYPH_PROPERTIES, scopeContains } from "./partScope.ts";
@@ -42,7 +43,7 @@ export function selectedPartPolicy(state: Controller) {
 }
 export const partEditable = (state: Controller, part: SelectedPart, property: string) => selectedPartPolicy(state)(part, property);
 /** One transaction in the existing controller; inspection never calls this. */
-export function applySelectedValue(state: Controller, parts: SelectedPart[], property: string, input: Value, options: { exact?: boolean } = {}): Controller {
+export function applySelectedValue(state: Controller, parts: SelectedPart[], property: string, input: Value, options: { exact?: boolean; readInput?: (target: ReturnType<typeof selectedPartTarget>, property: string) => Value } = {}): Controller {
   const value = validateProperty(property, input);
   if (value === undefined) return state;
   const next = { ...state, values: { ...state.values }, refined: { ...state.refined } };
@@ -61,16 +62,18 @@ export function applySelectedValue(state: Controller, parts: SelectedPart[], pro
     const equivalentRuns = part.part.text === undefined ? runs.get(hostKey(part)) ?? [] : [];
     for (const channel of new Set((options.exact ? [property] : propertyChannels(property)).map(channel => target.couplings?.[channel] ?? channel))) {
       if (!editable(part, channel)) continue;
-      if (next.values[id]?.[channel] === value) continue;
+      const spec = target.numberRanges?.[channel];
+      const nextValue = typeof value === "number" && spec ? boundedNumber(spec, value, key => state.values[id]?.[key] ?? state.values[part.base]?.[key] ?? options.readInput?.(target, key)) : value;
+      if (next.values[id]?.[channel] === nextValue) continue;
       if (!directTarget(part) && next.instances[id] !== part) {
         if (next.instances === state.instances) next.instances = { ...state.instances };
         next.instances[id] = part;
       }
-      next.values[id] = { ...next.values[id], [channel]: value };
+      next.values[id] = { ...next.values[id], [channel]: nextValue };
       next.refined[id] = directTarget(part) ? (next.refined[id] ?? []).filter(property => property !== channel)
         : [...new Set([...(next.refined[id] ?? []), channel])];
       for (const [oldId, instance] of equivalentRuns) if (state.values[oldId]?.[channel] !== undefined && editable(instance as SelectedPart, channel))
-        next.values[oldId] = { ...next.values[oldId], [channel]: value };
+        next.values[oldId] = { ...next.values[oldId], [channel]: nextValue };
       changed = true;
     }
   }

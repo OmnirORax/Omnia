@@ -1,3 +1,4 @@
+import { sameValue } from "../valueEquality.ts";
 /** UI snapshots never contain atlas knowledge. Each completed drag is one entry. */
 export type History<T> = { present: T; past: T[]; future: T[]; group?: string; at?: number };
 export const startHistory = <T>(present: T): History<T> => ({ present, past: [], future: [] });
@@ -7,7 +8,7 @@ export function recordHistory<T>(
   group?: string,
   now = Date.now(),
 ): History<T> {
-  if (JSON.stringify(history.present) === JSON.stringify(next)) return history;
+  if (sameValue(history.present, next)) return history;
   const coalesce = !!group && group === history.group && now - (history.at ?? 0) < 700;
   return {
     present: next,

@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyController,
+  ancestry,
   applyValue,
   cycleTarget,
   included,
@@ -430,7 +431,7 @@ test("narrow parts inherit broader values independently and never inherit siblin
   state.instances[parent] = { base: a.base, owner: a.owner, label: "whole button", path: a.path };
   state.values[parent] = { color: "#123456", opacity: .65 };
   let next = applySelectedValue(state, [a], "glow", 1.5);
-  assert.deepEqual(next.values[selectedPartId(a)], { glow: 1.5, effectGlow: 1.5 });
+  assert.deepEqual(next.values[selectedPartId(a)], { glow: .8, effectGlow: .8 });
   let target = controllerTargets(next).find(t => t.id === selectedPartId(a));
   const read = createValueResolver(defaultSettings().appearance, next);
   assert.equal(read(target, "color"), "#123456");
@@ -544,7 +545,7 @@ test("property locks are independent and all locks cover future property IDs", (
   state = applyValue(state, targets, "color", "#112233");
   state = applyValue(state, targets, "glow", 1.5);
   assert.equal(state.values["ui.buttons.background"].color, undefined);
-  assert.equal(state.values["ui.buttons.background"].glow, 1.5);
+  assert.equal(state.values["ui.buttons.background"].glow, .8);
   state = toggleRule(state, "locks", "ui.buttons");
   const future = targets.map((t) =>
     t.id === "ui.buttons.background"
@@ -645,9 +646,9 @@ test("animations are properties of real branches, with independent text and surf
   ])
     assert.ok(targets.find((t) => t.id === id).properties.includes("effect"));
   for (const [id, parent] of [
-    ["text.nodes", "omnium.nodes"], ["text.binders", "omnium.binders"],
-    ["symbols.nodes", "omnium.nodes"], ["symbols.binders", "omnium.binders"],
-    ["symbols.ui", "ui"], ["workspace.background", "all"],
+    ["text.nodes", "visual.role.text.omnium"], ["text.binders", "visual.role.text.omnium"],
+    ["symbols.nodes", "visual.role.icons.omnium"], ["symbols.binders", "visual.role.icons.omnium"],
+    ["symbols.ui", "visual.role.icons.ui"], ["workspace.background", "visual.role.backgrounds"],
   ]) assert.equal(targets.find(t => t.id === id).parent, parent);
   assert.ok(!targets.some(t => t.id === "symbols" || t.id === "workspace"));
   state = applyValue(state, targets, "effect", "electric-text", "text");
@@ -918,4 +919,399 @@ test("selective paste does not rewrite unchecked companion properties", () => {
   const selected = applySelectedValue(emptyController(), [part], "color", "#00ff00", { exact: true });
   assert.equal(selected.values[selectedPartId(part)].color, "#00ff00");
   assert.equal(selected.values[selectedPartId(part)].effectColor, undefined);
+});
+
+
+test("hierarchy targeting is independent of setter compatibility without widening selected scopes", async () => {
+  const { hierarchyInteraction } = await import("../src/appearance/hierarchyInteraction.ts");
+  const targets = controllerTargets(emptyController());
+  const windows = targets.filter(target => target.id === "ui" || ancestry(targets, target.id).includes("ui"));
+  const feedback = hierarchyInteraction(windows, "font", "off");
+  assert.equal(feedback.selectable, true, "Windows stays targetable while Font is active");
+  assert.equal(feedback.feedbackProperty, "color", "unsupported Font uses existing surface ink for hover feedback");
+  assert.ok(feedback.feedbackTargets.length > 0);
+  assert.ok(feedback.feedbackTargets.every(target => target.properties.includes("color")));
+  assert.equal(hierarchyInteraction(windows, "font", "off", false).selectable, false, "unrelated branches remain outside an inspected selection");
+  const lettering = targets.filter(target => target.binding?.text);
+  const font = hierarchyInteraction(lettering, "font", "off");
+  assert.equal(font.feedbackProperty, "font", "compatible setters keep their usual feedback");
+  const glyph = { id: "glyph", label: "Glyph", properties: ["color", "effect"], effectKinds: ["electric-text"] };
+  assert.equal(hierarchyInteraction([glyph], "effect", "snow").selectable, true);
+  assert.equal(hierarchyInteraction([glyph], "effect", "snow").feedbackProperty, "color");
+  assert.equal(hierarchyInteraction([], "font", "off").selectable, false);
+});
+
+test("electric text reuses measured scope masks and keeps local and inherited masks separate", async () => {
+  const { drawUIElectricText, clearUILightningContours, invalidateUILightningContours } = await import("../src/uiLightning.ts");
+  const { createElectricInk } = await import("../src/electricInk.ts");
+  const names = ["document", "NodeFilter", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement", "getComputedStyle", "innerWidth", "innerHeight"];
+  const saved = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  let queries = 0, styles = 0, canvases = 0;
+  const contexts = [];
+  const context = { scale() {}, translate() {} };
+  try {
+    for (const name of ["HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement"]) globalThis[name] = class {};
+    globalThis.NodeFilter = { SHOW_TEXT: 4 };
+    globalThis.innerWidth = globalThis.innerHeight = 100;
+    globalThis.getComputedStyle = () => { styles++; return { font: "12px sans-serif" }; };
+    globalThis.document = {
+      createElement: tag => { assert.equal(tag, "canvas"); canvases++; return { width: 0, height: 0, getContext: (_kind, options) => { contexts.push(options); return context; } }; },
+      createTreeWalker: () => ({ nextNode: () => null }),
+    };
+    const element = { querySelectorAll: () => { queries++; return []; }, matches: () => false, textContent: "", scrollTop: 0, scrollLeft: 0 };
+    const rect = { x: 0, y: 0, width: 20, height: 10, right: 20, bottom: 10 };
+    const scopes = [{ key: "inherited", shape: "glyphs", icons: false }, { key: "local", shape: "glyphs", icons: false }];
+    const draw = scope => drawUIElectricText({}, element, rect, {}, 0, 1, false, 1000, scope);
+    clearUILightningContours();
+    scopes.forEach(draw);
+    const warm = { queries, styles, canvases };
+    for (let frame = 0; frame < 60; frame++) scopes.forEach(draw);
+    assert.deepEqual({ queries, styles, canvases }, warm, "animation-only frames do no mask DOM/style work or canvas allocation");
+    draw({ ...scopes[0] });
+    assert.equal(canvases, warm.canvases, "a rebuilt job reuses its inherited mask after an exact local scope used the same host");
+    clearUILightningContours(); draw(scopes[0]);
+    assert.equal(canvases, warm.canvases + 2, "real invalidation rebuilds the mask and compositing surface");
+    const sibling = { ...element }, siblingScope = { ...scopes[0], key: "sibling" };
+    const drawSibling = () => drawUIElectricText({}, sibling, rect, {}, 0, 1, false, 1000, siblingScope);
+    drawSibling();
+    const beforeEdit = canvases;
+    invalidateUILightningContours([element]); drawSibling();
+    assert.equal(canvases, beforeEdit, "editing one host preserves an unrelated host's mask");
+    draw(scopes[0]);
+    assert.equal(canvases, beforeEdit + 2, "the edited host rebuilds its own mask");
+    const field = Object.assign(new globalThis.HTMLInputElement(), element, { value: "first", type: "text", matches: () => true });
+    const fieldScope = { key: "field", shape: "glyphs", icons: false, input: () => false };
+    const drawField = () => drawUIElectricText({}, field, rect, {}, 0, 1, false, 1000, fieldScope);
+    drawField(); const beforeValue = canvases;
+    field.value = "updated without input event"; drawField();
+    assert.equal(canvases, beforeValue + 2, "controlled field values refresh without a DOM mutation event");
+    createElectricInk(true);
+    assert.equal(contexts.at(-1).willReadFrequently, true, "CPU ink readback is declared when creating its context");
+  } finally {
+    clearUILightningContours();
+    for (const name of names) {
+      const descriptor = saved.get(name);
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
+    }
+  }
+});
+
+test("selection pulse ink does not invalidate effect geometry but typography and movement do", async () => {
+  const { effectGeometryStyle } = await import("../src/appearance/effectInvalidation.ts");
+  const base = "font-size: 14px; transform: translate(2px, 3px);";
+  assert.equal(effectGeometryStyle(base), effectGeometryStyle(`${base} --omnium-selector-glyph-mix: 20%; --omnium-selector-surface-mix: 50%;`));
+  assert.notEqual(effectGeometryStyle(base), effectGeometryStyle(base.replace("14px", "18px")));
+  assert.notEqual(effectGeometryStyle(base), effectGeometryStyle(base.replace("2px", "8px")));
+  assert.equal(effectGeometryStyle(null), "");
+});
+
+test("electric text shares pattern generation across colors and reuses unchanged composites beyond its palette size", async () => {
+  const { drawUIElectricText, clearUILightningContours } = await import("../src/uiLightning.ts");
+  const names = ["document", "NodeFilter", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement", "getComputedStyle", "innerWidth", "innerHeight"];
+  const saved = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  const counts = { canvases: 0, strokes: 0, segments: 0, reads: 0, copies: 0, uploads: 0 };
+  const colors = [];
+  const pixels = () => ({ data: new Uint8ClampedArray(128 * 128 * 4).fill(128) });
+  try {
+    for (const name of ["HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "HTMLImageElement"]) globalThis[name] = class {};
+    globalThis.NodeFilter = { SHOW_TEXT: 4 };
+    globalThis.innerWidth = globalThis.innerHeight = 100;
+    globalThis.getComputedStyle = () => ({ font: "12px sans-serif" });
+    globalThis.document = {
+      createTreeWalker: () => ({ nextNode: () => null }),
+      createElement: () => {
+        counts.canvases++;
+        const context = { scale() {}, translate() {}, fillRect() {}, beginPath() {}, moveTo() {},
+          lineTo() { counts.segments++; }, stroke() { counts.strokes++; },
+          createImageData: pixels, getImageData: () => { counts.reads++; return pixels(); },
+          putImageData: image => { counts.uploads++; colors.push([...image.data.slice(0, 3)]); },
+          drawImage() { counts.copies++; }, createPattern: () => ({}) };
+        return { width: 0, height: 0, getContext: () => context };
+      },
+    };
+    const element = { querySelectorAll: () => [], matches: () => false, textContent: "", scrollTop: 0, scrollLeft: 0 };
+    const rect = { x: 0, y: 0, width: 20, height: 10, right: 20, bottom: 10 };
+    const output = { save() {}, restore() {}, drawImage() {} };
+    const fx = { density: .431, boltLength: .387, intensity: .7, motion: .291 };
+    const scope = key => ({ key, shape: "surface", icons: false });
+    const a = scope("shared-red"), b = scope("shared-green");
+    const draw = (owner, color, seconds = 0) => drawUIElectricText(output, element, rect, { ...fx, color }, seconds, 1, true, 1000, owner);
+    clearUILightningContours();
+    draw(a, "#fe0000");
+    const first = { ...counts };
+    assert.ok(first.segments < (6 + Math.ceil(fx.density * 16)) * 12 * 9 / 2, "off-tile copies are culled before canvas path submission");
+    draw(b, "#00fd00");
+    assert.equal(counts.strokes, first.strokes, "a second color reuses the monochrome pattern");
+    assert.equal(counts.reads, 1, "matching colors/settings share one pixel read per noise frame");
+    assert.ok(colors[0][0] > 0 && colors[0][1] === 0 && colors[1][0] === 0 && colors[1][1] > 0, "tinting does not mutate the shared monochrome source");
+    const warm = { ...counts };
+    for (let i = 0; i < 60; i++) { draw(a, "#fe0000"); draw(b, "#00fd00"); }
+    assert.deepEqual(counts, warm, "unchanged noise frames neither regenerate nor recomposite masks");
+    draw(a, "#fe0000", .1); draw(b, "#00fd00", .1);
+    assert.equal(counts.reads, 2, "the next noise frame is generated/read once for both colors");
+    const palette = Array.from({ length: 64 }, (_, i) => ({ owner: scope(`palette-${i}`), color: `#${i.toString(16).padStart(6, "0")}` }));
+    palette.forEach(item => draw(item.owner, item.color, .1));
+    const large = { ...counts };
+    palette.forEach(item => draw(item.owner, item.color, .1));
+    assert.deepEqual(counts, large, "active scopes prevent material eviction churn on many-color pages");
+  } finally {
+    clearUILightningContours();
+    for (const name of names) { const descriptor = saved.get(name); if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
+  }
+});
+
+test("effect-only scene frames do not rewrite the camera HUD or trigger UI text invalidation", async () => {
+  const THREE = await import("three");
+  const { updateCameraGuide } = await import("../src/cameraGuideState.ts");
+  let queries = 0, writes = 0;
+  const text = () => {
+    let value = "";
+    return { get textContent() { return value; }, set textContent(next) { value = next; writes++; } };
+  };
+  const attributeNode = () => {
+    const values = new Map();
+    return { getAttribute: name => values.get(name) ?? null, setAttribute: (name, value) => { values.set(name, value); writes++; } };
+  };
+  const nodes = new Map(["zoom", "direction", "position", "target", "node"].map(name => [`[data-camera="${name}"]`, text()]));
+  for (const axis of ["x", "y", "z"]) for (const sign of [-1, 1]) {
+    const line = attributeNode(), label = attributeNode();
+    let opacity = "";
+    const style = { get opacity() { return opacity; }, set opacity(next) { opacity = next; writes++; } };
+    nodes.set(`[data-compass="${axis}:${sign}"]`, { style, querySelector: name => { queries++; return name === "line" ? line : label; } });
+  }
+  const element = { querySelector: selector => { queries++; return nodes.get(selector); } };
+  const camera = new THREE.PerspectiveCamera(55, 1, .1, 100);
+  camera.position.set(7, 5, 9); camera.lookAt(0, 0, 0);
+  const target = new THREE.Vector3();
+  updateCameraGuide(element, camera, target);
+  const first = { queries, writes };
+  assert.ok(writes > 0);
+  for (let frame = 0; frame < 60; frame++) updateCameraGuide(element, camera, target);
+  assert.deepEqual({ queries, writes }, first, "stationary animation frames do zero HUD DOM work");
+  camera.position.x += .000001; updateCameraGuide(element, camera, target);
+  assert.equal(writes, first.writes, "rounded display values are not replaced for sub-display camera changes");
+  camera.position.x += 1; updateCameraGuide(element, camera, target);
+  assert.ok(writes > first.writes, "actual camera changes still update the display");
+  const beforeSelection = writes;
+  updateCameraGuide(element, camera, target, new THREE.Vector3(1, 2, 3));
+  assert.ok(writes > beforeSelection, "selected-node coordinates stay live");
+});
+
+test("shared hierarchy indexes preserve order and bulk targeting does not clone unrelated state", async () => {
+  const { createHierarchyIndex, toggleTarget, applyValue } = await import("../src/appearance/model.ts");
+  const state = emptyController(), targets = controllerTargets(state), view = createHierarchyIndex(targets);
+  for (const target of targets) {
+    assert.deepEqual(view.paths.get(target.id), ancestry(targets, target.id));
+    assert.deepEqual(view.descendants.get(target.id).map(item => item.id), targets.filter(item => ancestry(targets, item.id).includes(target.id)).map(item => item.id));
+  }
+  const toggled = toggleTarget(state, targets, "text");
+  for (const key of ["values", "instances", "locks", "disconnected", "refined"]) assert.equal(toggled[key], state[key], `${key} is not a targeting edit`);
+  assert.notEqual(toggled.sets, state.sets);
+  const edited = applyValue(state, targets, "brightness", 1.5, "text");
+  assert.equal(edited.instances, state.instances);
+  assert.equal(edited.refined, state.refined);
+  assert.equal(applyValue(edited, targets, "brightness", 1.5, "text"), edited, "repeating a bulk value returns the same snapshot");
+  assert.equal(state.values["text.ui.buttons"], undefined, "editing does not mutate previous snapshots");
+});
+
+test("live settings validation retains unchanged structure while enforcing invalid input bounds", async () => {
+  const { normalizeLiveSettings } = await import("../src/ui/normalizeLiveSettings.ts");
+  const prior = defaultSettings();
+  const targets = controllerTargets(prior.appearance.controller);
+  const controller = applyValue(prior.appearance.controller, targets, "brightness", 1.5, "text");
+  const source = { ...prior, appearance: { ...prior.appearance, controller } };
+  const checked = normalizeLiveSettings(source, prior);
+  assert.equal(checked.bindings, prior.bindings);
+  for (const key of ["instances", "locks", "disconnected", "refined"]) assert.equal(checked.appearance.controller[key], prior.appearance.controller[key]);
+  assert.equal(checked.appearance.controller.values["text.ui.buttons"].brightness, 1.5);
+  const invalid = normalizeLiveSettings({ ...prior, appearance: { ...prior.appearance, opacity: NaN } }, prior);
+  assert.equal(invalid.appearance.opacity, 1);
+  assert.equal(normalizeLiveSettings({ ...prior, appearance: { ...prior.appearance } }, prior), prior, "equivalent wrappers do not publish another state update");
+});
+
+test("history comparison skips shared resources instead of serializing full state", async () => {
+  const { sameValue } = await import("../src/valueEquality.ts");
+  const { startHistory, recordHistory } = await import("../src/ui/history.ts");
+  const resource = new Proxy({}, { ownKeys() { throw new Error("shared resource was unnecessarily traversed"); } });
+  const before = { resource, settings: { value: 1 } }, after = { resource, settings: { value: 2 } };
+  assert.equal(sameValue(before, after), false);
+  const recorded = recordHistory(startHistory(before), after);
+  assert.equal(recorded.present, after);
+  assert.equal(recordHistory(recorded, { ...after, settings: { value: 2 } }), recorded);
+  assert.equal(sameValue({ a: 1, optional: undefined }, { a: 1 }), true);
+  assert.equal(sameValue([undefined], [null]), true);
+});
+
+
+test("consumer/mode ranges bound edits and rendering while retaining stored choices", async () => {
+  const { numericRange } = await import("../src/properties/numericRange.ts");
+  const { propertyFor } = await import("../src/properties/catalog.ts");
+  const density = propertyFor("density");
+  assert.deepEqual(numericRange(density, () => "lightning"), { min: 0, max: 1 });
+  assert.deepEqual(numericRange(density, () => "starfield"), { min: 0, max: 4 });
+  let { state, targets } = fixture();
+  state = applyValue(state, targets, "effect", "lightning", "text");
+  state = applyValue(state, targets, "density", 4, "text");
+  assert.equal(state.values["text.ui.buttons"].density, 1);
+  state = applyValue(state, targets, "effect", "starfield", "text");
+  state = applyValue(state, targets, "density", 4, "text");
+  assert.equal(state.values["text.ui.buttons"].density, 4);
+  state = applyValue(state, targets, "glow", 2);
+  assert.equal(state.values["text.ui.buttons"].glow, .8);
+  assert.equal(state.values["omnium.nodes.body"].glow, 2, "scene adapters retain their independent supported range");
+  assert.equal(applyValue(state, targets, "glow", NaN), state);
+  const saved = loadController({ ...state, values: { ...state.values, "text.ui.buttons": { glow: 2, effectGlow: 2, effect: "lightning", density: 4 } } });
+  const appearance = { ...defaultSettings().appearance, controller: saved };
+  const read = createValueResolver(appearance, saved);
+  const text = targets.find(target => target.id === "text.ui.buttons");
+  assert.equal(read(text, "glow"), .8);
+  assert.equal(read(text, "effectGlow"), .8);
+  assert.equal(read(text, "density"), 1);
+  assert.equal(saved.values[text.id].glow, 2, "rendering never rewrites imported values or history");
+  assert.equal(saved.values[text.id].density, 4);
+  const legacy = resolveControllerAppearance({ ...appearance, controller: undefined, blur: 20, textGlow: 2, controlGlow: 2 });
+  assert.equal(legacy.blur, 8);
+  assert.equal(legacy.textGlow, .8);
+  assert.equal(legacy.controlGlow, .8);
+  const selected = selectedLabel("range");
+  const local = applySelectedValue(saved, [selected], "glow", 2);
+  assert.equal(local.values[selectedPartId(selected)].glow, .8, "accepted-part edits share the renderer limit");
+});
+
+test("state property bindings enforce mode bounds on direct writes and skip equal writes", async () => {
+  const { bindStateProperties, preparePropertyChanges } = await import("../src/properties/registry.ts");
+  const registry = createPropertyRegistry();
+  registry.define({ id: "mode", label: "Mode", kind: "select", initial: "small", options: [{ id: "small", label: "Small" }, { id: "large", label: "Large" }] });
+  registry.define({ id: "amount", label: "Amount", kind: "number", min: 0, max: 4, step: 1, initial: 1,
+    numericRange: { by: "mode", otherwise: { max: 1 }, cases: { large: { max: 4 } } } });
+  registry.couple({ id: "test", label: "Test", owner: "owner", group: [], properties: [{ property: "mode" }, { property: "amount" }] });
+  let state = { mode: "small", amount: 0 }, writes = 0;
+  const adapters = { test: { channels: Object.fromEntries(["mode", "amount"].map(key => [key, { read: s => s[key], write: (s, value) => { writes++; return { ...s, [key]: value }; } }])) } };
+  const binding = bindStateProperties(registry, "owner", state, adapters, change => { state = change(state); });
+  binding.commit(preparePropertyChanges(registry, "amount", 4, ["test"]));
+  assert.equal(state.amount, 1);
+  binding.commit(preparePropertyChanges(registry, "amount", 4, ["test"]));
+  assert.equal(writes, 1);
+  binding.commit([...preparePropertyChanges(registry, "mode", "large", ["test"]), ...preparePropertyChanges(registry, "amount", 4, ["test"])]);
+  assert.equal(state.amount, 4);
+});
+
+test("render budgets bound resolution with the aspect ratio preserved", async () => {
+  const { RENDER_BUDGET, budgetPixelRatio, bloomSize } = await import("../src/renderBudget.ts");
+  for (const [w, h, dpr] of [[3840, 2160, 2], [1920, 1080, 1], [640, 480, 1]]) {
+    const ratio = budgetPixelRatio(w, h, dpr, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr);
+    assert.ok(w * h * ratio * ratio <= RENDER_BUDGET.scenePixels + .001);
+    assert.ok(ratio <= dpr && ratio <= RENDER_BUDGET.maxSceneDpr);
+    const size = bloomSize(w, h);
+    assert.ok(size.width <= RENDER_BUDGET.bloomEdge && size.height <= RENDER_BUDGET.bloomEdge);
+    assert.ok(Math.abs(size.width / size.height - w / h) < .01);
+  }
+  const { sameValue } = await import("../src/valueEquality.ts");
+  assert.equal(sameValue([,], [1]), false, "sparse arrays must not compare equal to populated arrays");
+  assert.equal(sameValue([,], [null]), true);
+});
+
+
+test("effect ownership ignores unrelated saved locals and preserves ancestor/proxy precedence", () => {
+  const raw = defaultSettings().appearance;
+  const state = emptyController();
+  for (let i = 0; i < 500; i++) {
+    const id = `local-${i}`;
+    state.instances[id] = { base: "text.ui.buttons", owner: `function:owner-${i}`, label: id };
+    state.values[id] = { effect: "sparks" };
+  }
+  state.instances.outer = { base: "text.ui.buttons", owner: "window:test", label: "Outer" };
+  state.values.outer = { effect: "stars" };
+  state.instances.inner = { base: "text.ui.buttons", owner: "function:active", label: "Inner", path: ["window:test"] };
+  state.values.inner = { effect: "lightning" };
+  const appearance = { ...raw, effect: "off", controller: state };
+  const target = controllerTargets(state).find(target => target.id === "text.ui.buttons");
+  const attrs = { "data-ui-function": "active" };
+  let reads = 0;
+  const outer = { parentElement: null, getAttribute: name => name === "data-ui-proxy-for" ? "window:test" : null };
+  const host = { parentElement: outer, getAttribute: name => { reads++; return attrs[name] ?? null; },
+    closest: () => { throw new Error("must not query unrelated saved owners"); } };
+  const plan = createElementEffectsResolver(appearance, resolveControllerAppearance(appearance));
+  const inner = plan.resolve(target, host);
+  assert.equal(inner.effect, "lightning");
+  const firstReads = reads;
+  assert.equal(plan.resolve(target, host), inner);
+  assert.equal(reads, firstReads);
+  delete attrs["data-ui-function"];
+  plan.invalidate();
+  assert.equal(plan.resolve(target, host).effect, "stars", "ownership is refreshed after a real DOM change");
+});
+
+
+test("sustained slow decoration yields, stays bounded, and ignores time spent idle", async () => {
+  const { createDecorationAllowance } = await import("../src/renderBudget.ts");
+  const budget = createDecorationAllowance(4);
+  assert.equal(budget.sample(1000, 15), false);
+  assert.equal(budget.sample(1050, 15), false);
+  assert.equal(budget.sample(1100, 15), true);
+  assert.equal(budget.sources, 2);
+  for (const start of [1150, 1200, 1250]) budget.sample(start, 15);
+  assert.equal(budget.sources, 1);
+  for (const start of [1300, 1350, 1400]) budget.sample(start, 15);
+  assert.equal(budget.sources, 0, "unaffordable animation freezes instead of monopolizing input");
+  assert.equal(budget.sample(1450, 0), false);
+  const timing = createDecorationAllowance(1);
+  timing.sample(1000, 0); timing.resetTiming();
+  timing.sample(10000, 0); timing.sample(10050, 0); timing.sample(10100, 0);
+  assert.equal(timing.sources, 1, "hidden/static intervals are not dropped animation frames");
+  for (const start of [10300, 10500, 10700]) timing.sample(start, 0);
+  assert.equal(timing.sources, 0, "delayed display frames are detected even when JS draw time is low");
+});
+
+
+test("discovered paint roles generate functional groups for unseen component types", async () => {
+  const { groupVisualRoles } = await import("../src/appearance/roleHierarchy.ts");
+  const { createTargetIndex, blocked, toggleTarget } = await import("../src/appearance/model.ts");
+  const discovered = groupVisualRoles([
+    { id: "all", label: "Everything" }, { id: "future", parent: "all", label: "Future system" },
+    { id: "new-widget", parent: "future", label: "Unseen widget" },
+    { id: "new-edge", parent: "new-widget", label: "Contour", properties: ["color"], binding: { css: "border-color" } },
+    { id: "new-fill", parent: "new-widget", label: "Background", properties: ["color"], binding: { css: "background-color" } },
+  ]);
+  const index = createTargetIndex(discovered);
+  assert.ok(index.path("new-edge").includes("visual.role.contours"));
+  assert.ok(index.path("new-fill").includes("visual.role.backgrounds"));
+  assert.ok(!index.path("new-edge").includes("visual.role.backgrounds"));
+  let state = emptyController(); state.sets[0].selection = { all: false, "new-widget": true };
+  assert.equal(included(state.sets[0], discovered, "new-edge", index), true, "saved type masks retain scope");
+  state = toggleTarget(state, discovered, "visual.role.contours");
+  state = toggleTarget(state, discovered, "visual.role.contours");
+  assert.equal(included(state.sets[0], discovered, "new-edge", index), false);
+  assert.equal(included(state.sets[0], discovered, "new-fill", index), true);
+  state.locks["new-widget"] = { all: true };
+  assert.equal(blocked(state, discovered, "new-edge", "color", "visual.role.contours", index), true);
+  assert.equal(blocked(state, discovered, "new-edge", "color", "new-edge", index), false);
+  state.disconnected["new-widget"] = { all: true };
+  assert.equal(connected(state, discovered, "new-edge", "color", index), false);
+});
+
+test("generated role branches select/edit real targets and preserve legacy renderer bypass", () => {
+  let { state, targets } = fixture();
+  state.sets[0].selection = { all: false, "visual.role.contours": true };
+  state = applyValue(state, targets, "color", "#fedcba");
+  assert.equal(state.values["ui.buttons.contour"].color, "#fedcba");
+  assert.equal(state.values["ui.buttons.background"], undefined);
+  state.disconnected["ui.buttons"] = { all: true };
+  const read = createValueResolver(defaultSettings().appearance, state);
+  assert.notEqual(read(targets.find(t => t.id === "ui.buttons.contour"), "color"), "#fedcba");
+  const leaf = targets.find(t => t.id === "ui.buttons.contour");
+  assert.equal(roleFor(leaf), "contour");
+  assert.ok(ancestry(targets, leaf.id).includes("visual.role.contours"));
+});
+
+
+test("new Text role spans systems while saved legacy Text targeting keeps its old scope", () => {
+  const { state, targets } = fixture();
+  state.sets[0].selection = { all: false, text: true };
+  assert.equal(included(state.sets[0], targets, "text.ui.buttons"), true);
+  assert.equal(included(state.sets[0], targets, "text.nodes"), false);
+  const allText = applyValue(state, targets, "brightness", 2, "visual.role.text");
+  assert.equal(allText.values["text.ui.buttons"].brightness, 2);
+  assert.equal(allText.values["text.nodes"].brightness, 2);
+  assert.equal(allText.values["ui.buttons.background"], undefined);
 });

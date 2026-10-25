@@ -1,3 +1,4 @@
+import { boundedNumber, type NumericSpec } from "../properties/numericRange.ts";
 import { normalizePartScope, type PartScope } from "./partScope.ts";
 /** Stable appearance references belong to presentation settings, never graph identity. */
 export type Value = string | number | boolean;
@@ -22,6 +23,9 @@ export type Target = {
   couplings?: Record<string, string>;
   properties?: string[];
   effectKinds?: readonly string[];
+  numberRanges?: Record<string, NumericSpec>;
+  /** Compatibility policy ancestry retained when discovery regroups a target. */
+  legacyAncestors?: string[];
   instance?: Instance;
 };
 export type AppearanceSet = {
@@ -143,9 +147,21 @@ export function createTargetIndex(targets: Target[]) {
     for (let key: string | undefined = id; key && !seen.has(key); key = byId.get(key)?.parent) {
       seen.add(key); result.unshift(key);
     }
-    paths.set(id, result); return result;
+    const legacy = result.flatMap(key => byId.get(key)?.legacyAncestors ?? []);
+    const combined = [...new Set([...legacy, ...result])];
+    paths.set(id, combined); return combined;
   };
   return { byId, path };
+}
+/** Build hierarchy projections in O(targets × depth), once per structure revision. */
+export function createHierarchyIndex<T extends Target>(targets: T[]) {
+  const index = createTargetIndex(targets), paths = new Map<string, string[]>();
+  const descendants = new Map<string, T[]>(targets.map(target => [target.id, []]));
+  for (const target of targets) {
+    const path = index.path(target.id); paths.set(target.id, path);
+    for (const id of path) descendants.get(id)?.push(target);
+  }
+  return { index, paths, descendants };
 }
 export function ancestry(targets: Target[], id: string): string[] {
   return createTargetIndex(targets).path(id);
@@ -167,7 +183,10 @@ export function blocked(
   // A deliberate edit at a locked row is allowed. Propagation stops at lower locks.
   const family = Object.keys(companions).find((key) => companions[key] === property) ??
     Object.entries(index.byId.get(id)?.couplings ?? {}).find(([source, channel]) => source !== channel && channel === property)?.[0];
-  return path.some(
+  const originPath = origin ? index.path(origin) : [];
+  const legacyLocks = path.flatMap(key => index.byId.get(key)?.legacyAncestors ?? [])
+    .some(key => !originPath.includes(key) && (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))));
+  return legacyLocks || path.some(
     (key, index) =>
       index > from &&
       (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))),
@@ -187,25 +206,29 @@ export function included(set: AppearanceSet, targets: Target[], id: string, inde
 }
 /** Legacy isolate-cycle compatibility. Current editors use toggleTarget. */
 export function cycleTarget(state: Controller, targets: Target[], id: string): Controller {
-  const next = structuredClone(state),
-    set = next.sets.find((s) => s.id === next.activeSet)!;
+  const index = createTargetIndex(targets);
+  const active = state.sets.find(set => set.id === state.activeSet)!;
+  const set = { ...active, selection: { ...active.selection } };
+  const next = { ...state, sets: state.sets.map(item => item === active ? set : item) };
   if (set.only === id) {
     delete set.only;
     set.selection[id] = true;
-  } else if (!included(set, targets, id)) set.only = id;
+  } else if (!included(set, targets, id, index)) set.only = id;
   else {
     set.selection[id] = false;
     // Turning a branch off excludes all descendants; existing detail remains recoverable via undo.
     for (const key of Object.keys(set.selection))
-      if (key !== id && inside(targets, key, id)) delete set.selection[key];
+      if (key !== id && index.path(key).includes(id)) delete set.selection[key];
   }
   return next;
 }
 /** Binary branch selection: a parent sets the baseline, descendants may then
  * override it. Toggling a branch deliberately resets its existing exceptions. */
 export function toggleTarget(state: Controller, targets: Target[], id: string): Controller {
-  const next = structuredClone(state),
-    set = next.sets.find((s) => s.id === next.activeSet) ?? next.sets[0];
+  const index = createTargetIndex(targets);
+  const active = state.sets.find(set => set.id === state.activeSet) ?? state.sets[0];
+  const set = { ...active, selection: { ...active.selection } };
+  const next = { ...state, sets: state.sets.map(item => item === active ? set : item) };
   if (set.only) {
     // Preserve the effective mask of older isolate-mode saves using ordinary
     // inherited on/off rules before making the first binary edit.
@@ -213,13 +236,13 @@ export function toggleTarget(state: Controller, targets: Target[], id: string): 
     for (const target of targets) if (!target.parent) selection[target.id] = false;
     selection[only] = true;
     for (const [key, value] of Object.entries(set.selection))
-      if (key !== only && inside(targets, key, only)) selection[key] = value;
+      if (key !== only && index.path(key).includes(only)) selection[key] = value;
     set.selection = selection;
     delete set.only;
   }
-  set.selection[id] = !included(set, targets, id);
+  set.selection[id] = !included(set, targets, id, index);
   for (const key of Object.keys(set.selection))
-    if (key !== id && inside(targets, key, id)) delete set.selection[key];
+    if (key !== id && index.path(key).includes(id)) delete set.selection[key];
   return next;
 }
 export function toggleRule(
@@ -228,8 +251,7 @@ export function toggleRule(
   id: string,
   property?: string,
 ): Controller {
-  const next = structuredClone(state),
-    old = next[field][id];
+  const next = { ...state, [field]: { ...state[field] } }, old = state[field][id];
   if (!property) {
     if (old?.all) delete next[field][id];
     else next[field][id] = { all: true };
@@ -255,30 +277,44 @@ export function applyValue(
   value: Value,
   origin?: string,
   local = false,
-  options: { skipBypassed?: boolean; exact?: boolean } = {},
+  options: { skipBypassed?: boolean; exact?: boolean; readInput?: (target: Target, property: string) => Value } = {},
 ): Controller {
-  // Paint changes do not change target structure. Preserve instance/rule identity
-  // so previewing a slider cannot rebuild every scoped selector and text binding.
-  const next = { ...state, values: { ...state.values }, refined: { ...state.refined } },
-    set = state.sets.find((s) => s.id === state.activeSet) ?? state.sets[0];
-  if (!origin) next.sets = state.sets.map(active => active === set
-    ? { ...active, adjustments: { ...active.adjustments, [property]: value } } : active);
+  if (typeof value === "number" && !Number.isFinite(value)) return state;
+  const set = state.sets.find(s => s.id === state.activeSet) ?? state.sets[0];
+  let next = state;
+  const writable = () => {
+    if (next === state) next = { ...state };
+  };
+  if (!origin && set.adjustments?.[property] !== value) {
+    writable();
+    next.sets = state.sets.map(active => active === set
+      ? { ...active, adjustments: { ...active.adjustments, [property]: value } } : active);
+  }
   const index = createTargetIndex(targets);
   for (const target of targets) {
     if (!target.properties?.includes(property)) continue;
-    if (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value)))
-      continue;
+    if (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value))) continue;
     if (origin ? !index.path(target.id).includes(origin) : !included(set, targets, target.id, index)) continue;
-    // Global adjustment originates at the nearest included category; direct row edits bypass its own lock.
     const root = origin ?? set.only ?? "all";
     for (const channel of new Set((options.exact ? [property] : propertyChannels(property)).map(channel => target.couplings?.[channel] ?? channel))) {
-      if (!target.properties.includes(channel) || options.skipBypassed && !connected(state, targets, target.id, channel, index) || blocked(state, targets, target.id, channel, root, index))
-        continue;
-      next.values[target.id] = { ...next.values[target.id], [channel]: value };
-      next.refined[target.id] =
-        local && target.instance
-          ? [...new Set([...(next.refined[target.id] ?? []), channel])]
-          : (next.refined[target.id] ?? []).filter((p) => p !== channel);
+      if (!target.properties.includes(channel) || options.skipBypassed && !connected(state, targets, target.id, channel, index) || blocked(state, targets, target.id, channel, root, index)) continue;
+      const spec = target.numberRanges?.[channel];
+      const nextValue = typeof value === "number" && spec ? boundedNumber(spec, value, key => {
+        const input = target.couplings?.[key] ?? key;
+        return state.values[target.id]?.[input] ?? (target.instance ? state.values[target.instance.base]?.[input] : undefined) ?? options.readInput?.(target, input);
+      }) : value;
+      const refined = next.refined[target.id] ?? [], mark = !!(local && target.instance);
+      if (next.values[target.id]?.[channel] === nextValue && refined.includes(channel) === mark) continue;
+      writable();
+      if (next.values[target.id]?.[channel] !== nextValue) {
+        if (next.values === state.values) next.values = { ...state.values };
+        if (next.values[target.id] === state.values[target.id]) next.values[target.id] = { ...state.values[target.id] };
+        next.values[target.id][channel] = nextValue;
+      }
+      if (refined.includes(channel) !== mark) {
+        if (next.refined === state.refined) next.refined = { ...state.refined };
+        next.refined[target.id] = mark ? [...refined, channel] : refined.filter(p => p !== channel);
+      }
     }
   }
   return next;
