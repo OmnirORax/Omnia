@@ -53,12 +53,15 @@ export function AppearanceStyles() {
         ? `${partSelector(target.instance)}:is(:where(*),${baseSelector ?? "*"})${target.instance.base === "text.ui.placeholders" ? "::placeholder" : ""}` : scope
         ? `:is(${scope}:is(${binding.selector}),${scope} :is(${binding.selector}))`
         : `:is(${binding.selector})`;
-      const rawSelector = target.instance?.part ? selector : binding.selector.includes("::")
+      const paintSelector = target.instance?.part ? selector : binding.selector.includes("::")
         ? binding.selector
             .split(",")
             .map((part) => (scope ? `${scope} ${part}` : part))
             .join(",")
         : selector;
+      // A collapsed frame retains its expanded coordinate space for header
+      // placement; that invisible carrier must never receive surface paint.
+      const rawSelector = binding.text ? paintSelector : `${paintSelector}:not(.floating-window.is-collapsed > .floating-window-content,.function-frame.collapsed > .ui-frame-root)`;
       const rootSelector = target.instance?.part && target.instance.owner === "app"
         ? ":root[data-omnium-theme]" : ":root[data-omnium-theme] body";
       const declarations: string[] = [];

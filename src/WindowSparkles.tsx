@@ -59,6 +59,7 @@ export function WindowSparkles({
           ...[...document.querySelectorAll<HTMLElement>(selector)].filter(element => !replacedSurfaces.has(element)).map(element => ({ element }))];
         for (let index = 0; index < Math.min(350, candidates.length) && next.length < Math.max(1, allowance.sources); index++) {
           const { element, local: exact } = candidates[index];
+          if (element.matches(".floating-window.is-collapsed > .floating-window-content,.function-frame.collapsed > .ui-frame-root")) continue;
           if (!element.getClientRects().length || element.closest("[hidden],.ui-drag-source,[data-visual-selector]") || unavailableControl(element) || getComputedStyle(element).visibility === "hidden") continue;
           const rect = element.getBoundingClientRect();
           if (!rect.width || !rect.height || rect.bottom < 0 || rect.top > height || rect.right < 0 || rect.left > width) continue;
