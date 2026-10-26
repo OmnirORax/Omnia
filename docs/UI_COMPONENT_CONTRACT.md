@@ -315,3 +315,7 @@ double-click arbitration remains a separate 320ms interaction, unchanged here.
 Frame right-click menus omit Close; closing lives in Master Controller Active
 context and its shared command. Keep the menu-dismiss × separate from closing the
 frame. Existing close callbacks, vetoes and frame action registration remain intact.
+
+Active context Minimize / maximize toggles collapsed state and retains its frame
+target for restoration. Esc still steps back/minimizes and pops context normally.
+Front-on Focus shares this group and the existing rebindable F command.

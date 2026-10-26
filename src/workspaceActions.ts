@@ -21,7 +21,7 @@ export const ACTIONS = [
   { id: "selectAll", category: "Selection", label: "Select visible nodes", defaultKey: "Ctrl+A" },
   { id: "deleteSelected", category: "Selection", label: "Delete selected concepts and subnodes", defaultKey: "Delete" },
   { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Ctrl+/" },
-  { id: "focus", category: "Navigation", label: "Focus selected", defaultKey: "F" },
+  { id: "focus", category: "Navigation", label: "Frame selected front-on", defaultKey: "F" },
   { id: "isolateFocus", category: "Navigation", label: "Focus context only", defaultKey: "" },
   { id: "fitLocal", category: "Navigation", label: "Fit local system", defaultKey: "Ctrl+Alt+F" },
   { id: "fitAll", category: "Navigation", label: "Fit entire atlas", defaultKey: "" },

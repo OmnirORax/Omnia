@@ -970,7 +970,7 @@ function Workbench() {
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
       case "deleteSelected": deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
-      case "focus": if (selectedIds.size > 1) navigate("selection"); else if (selection?.kind === "node") navigate("focus", selection.id); break;
+      case "focus": featureActionRuntime.invoke("world.faceSelection"); break;
       case "isolateFocus":
         setSettings(old => ({ ...old, isolateFocus: !old.isolateFocus }));
         if (!settings.isolateFocus && selection?.kind === "node") setFocusContextIds(selectedIds.size > 1 ? [...selectedIds] : [selection.id]);

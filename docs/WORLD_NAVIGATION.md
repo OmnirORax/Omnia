@@ -92,10 +92,10 @@ no animation loop, per-pointer React update, persistence or DOM discovery. Conte
 membership/pivots are cached for the configuration/gesture snapshot; ordinary
 explicit camera focus/look/pan does not traverse the node inventory or raycast it.
 Context rotation raycasts once for its frozen target. Rotation does not scan
-subtree bounds or alter zoom. MC → World view → Frame selected front-on explicitly
+subtree bounds or alter zoom. MC → Active context → Frame selected front-on explicitly
 fits up to 256 selected mounted objects once and aligns the camera with the active
 object’s front/up plane. Object orientation stays unchanged; Back/Camera undo
-restores the view. This cataloged action is unbound by default. Front-on framing
+restores the view. The existing Focus command/shortcut (F by default) invokes this same framing action. Front-on framing
 stays perspective: flat node/text planes face the camera without perspective
 skew, while volumetric assets remain 3D. Picking refreshes the camera matrix before
 ray setup and initializes new scene matrices before accepting hits. Node text

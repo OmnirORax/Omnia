@@ -436,7 +436,6 @@ export function MasterController({ bindings, visualStatus, history, children: vi
       <ActiveContextControls />
       {history && <UISection id="history-controls" title="History"><HistoryControls history={history} /></UISection>}
       <SelectionPreviewToggle />
-      {!inspecting && <UISection id="master-world-view" title="World view"><FunctionControl id="world.faceSelection" mirror /></UISection>}
       {bindings && !inspecting && <CoupledProperties bindings={bindings} />}
       <UISection id="master-category:visual" title="Visuals" reveal={inspecting} defaultExpanded={inspecting} expanded={ctx.location || inspecting ? true : undefined}>
       {visualStatus}
