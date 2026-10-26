@@ -1,3 +1,7 @@
+import { OmnicWorkspaceActions } from "./omnic/WorkspaceActions";
+import { forkOmnicDefinition, saveOmnicDefinition } from "./omnic/document";
+import { createRecipe } from "./omnic/presets";
+import type { Recipe } from "./omnic/model";
 import { createHeldActions } from "./ui/heldActions";
 import { transformPlacements } from "./navigation/transforms";
 import { functionShortcutBinding } from "./workspaceActions";
@@ -77,6 +81,7 @@ import { useInterfaceState } from "./ui/useInterfaceState";
 import type { ColorPreview } from "./textScene";
 import { revealSearchPath, type SearchReveal } from "./ui/search";
 import { useControlGlow } from "./ui/useControlGlow";
+const OmnicComposer = lazy(() => import("./omnic/Composer").then(module => ({default:module.OmnicComposer})));
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
 const STORAGE_KEY = "omnium.atlas.v2";
@@ -249,6 +254,8 @@ function Workbench() {
   const consumedShortcutPress = useRef<number | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
   const heldNudges = useState(() => createHeldActions<NudgeActionId>())[0];
+  const [omnicEditorId, setOmnicEditorId] = useState<string | null>(null);
+  const omnicObject = document.entities.find(e => e.id === omnicEditorId);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
   const [focusContextIds, setFocusContextIds] = useState<readonly string[] | null>(null);
   const [connectionSource, setConnectionSource] = useState<string | null>(null);
@@ -279,8 +286,10 @@ function Workbench() {
       setProposalPreview(null);
       setRevision((r) => r + 1);
       setError("");
+      return true;
     } catch (e) {
       setError(message(e));
+      return false;
     }
   }
   function commit(next: Atlas) {
@@ -321,10 +330,29 @@ function Workbench() {
     }
     commit({ ...atlas, nodes: atlas.nodes.map((n) => (n.id === id ? { ...n, ...changes } : n)) });
   }
-  function createNodeInContext() {
+  function creationParentId() {
     const candidates = selection?.kind === "node" ? [selection.id] : focusContextIds ?? [];
-    const parentId = candidates.length === 1 && document.placements.some(p => p.id === candidates[0]) ? candidates[0] : null;
-    addNode(parentId);
+    return candidates.length === 1 && document.placements.some(p => p.id === candidates[0]) ? candidates[0] : null;
+  }
+  function createNodeInContext() { addNode(creationParentId()); }
+  function createOmnicObject(recipe = createRecipe(), label = "Omnic object", sourceId?: string) {
+    const entityId = newId(), parentId = creationParentId();
+    let next = forkOmnicDefinition(documentRef.current, sourceId, recipe, label, entityId);
+    if (parentId) {
+      const parent = next.placements.find(p => p.id === parentId)!;
+      next = {...next, compositions:[...next.compositions,{id:newId(),parentId:parent.entityId,childId:entityId}], placements:next.placements.map(p=>p.id===parentId?{...p,collapsed:false}:p)};
+    }
+    const placed = createPlacement(next, entityId, parentId, settings.spatial);
+    const frame = placed.next.frames.find(f => f.id === placed.next.activeFrameId);
+    if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
+    if (frame?.locked) placed.next.activeFrameId = null;
+    if (!commitDocument(placed.next)) throw Error("Omnic creation failed; no definition was saved.");
+    setSelection({kind:"node",id:placed.placementId}); setOmnicEditorId(entityId);
+  }
+  function saveOmnic(recipe: Recipe) {
+    if (!omnicEditorId) throw Error("No active Omnic object.");
+    const next = saveOmnicDefinition(documentRef.current, omnicEditorId, recipe);
+    if (!commitDocument(next)) throw Error("Omnic save failed; draft preserved.");
   }
   function addNode(parentId: string | null, atWorld?: { x: number; y: number; z: number }) {
     try {
@@ -1192,7 +1220,12 @@ function Workbench() {
   }
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
+    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><OmnicWorkspaceActions selected={!!selectedEntity}
+      canShow={!!selectedEntity?.omnic && !!selectedPlacement?.visual && !!(selectedPlacement.visual.assetId || selectedPlacement.visual.character)}
+      onOpen={() => selectedEntity && setOmnicEditorId(selectedEntity.id)}
+      onCreate={() => { try { createOmnicObject(); } catch(e) { setError(message(e)); } }}
+      onShow={() => selectedPlacement && commitDocument({...document,placements:document.placements.map(p=>p.id===selectedPlacement.id?{...p,visual:{size:p.visual?.size,showText:p.visual?.showText}}:p)})} />
+      <ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -1208,7 +1241,7 @@ function Workbench() {
             {["ui:import", "ui:export", "ui:saveTemplate", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:create" title="Create" menu>
-            {["panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
+            {["omnic.create", "omnic.open", "panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
             <FunctionControl id="appearance" />
@@ -1562,6 +1595,7 @@ function Workbench() {
             {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
             {selectedNode ? (
               <>
+                <div className="omnic-object-actions"><FunctionControl id="omnic.open" mirror /><FunctionControl id="omnic.show" mirror /></div>
                 <UISection id="node-technical-details" title="Technical details" defaultExpanded={false}>
                   <p>Identity: <code>{selectedEntity?.id}</code>
                   <br />
@@ -2172,6 +2206,10 @@ function Workbench() {
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {omnicObject && <FloatingWindow id="omnic-composer" title={`Omnic · ${omnicObject.label || "object"}`} width={600} height={650} onClose={() => setOmnicEditorId(null)}>
+        <Suspense fallback={<p>Opening Omnic composer…</p>}><OmnicComposer key={omnicObject.id} entity={omnicObject} objects={document.entities} history={actionHistory} onSave={saveOmnic}
+          onCopy={(recipe,label) => createOmnicObject(recipe,label,omnicObject.id)} onClose={() => setOmnicEditorId(null)} /></Suspense>
+      </FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} onMinimize={() => {
         if (appearancePending) { setAppearanceExit("minimize"); return false; }
         return true;

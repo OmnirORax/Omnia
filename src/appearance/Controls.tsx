@@ -37,8 +37,8 @@ export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { pr
     if (spec.kind !== "number") return undefined;
     const candidates = props.previewTargets ?? (ctx ? adjustmentTargets(ctx.state, ctx.targets, props.property, undefined, ctx.hierarchy.index) : []);
     const ranges = candidates.map(target => numericRange(target.numberRanges?.[props.property] ?? spec, key => ctx?.read(target, key)));
-    return { min: Math.max(spec.min!, ...ranges.map(range => range.min)), max: Math.min(spec.max!, ...(ranges.length ? ranges.map(range => range.max) : [numericRange(spec).max])) };
-  }, [spec, props.previewTargets, ctx?.hierarchy, ctx?.state.sets, ctx?.state.locks, ctx?.state.disconnected, spec.numericRange ? ctx?.read : null]);
+    return { min: Math.max(spec.min!, props.limits?.min ?? -Infinity, ...ranges.map(range => range.min)), max: Math.min(spec.max!, props.limits?.max ?? Infinity, ...(ranges.length ? ranges.map(range => range.max) : [numericRange(spec).max])) };
+  }, [spec, props.limits?.min, props.limits?.max, props.previewTargets, ctx?.hierarchy, ctx?.state.sets, ctx?.state.locks, ctx?.state.disconnected, spec.numericRange ? ctx?.read : null]);
   return <span data-appearance-editor data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
     onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
     onFocusCapture={() => setFocus(true)} onBlurCapture={event => {

@@ -1,3 +1,4 @@
+import { structuralVisual } from "../omnic/presentation.ts";
 import { editorView, ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { labelSize } from "./labels.ts";
 import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./assets.ts";
@@ -23,7 +24,7 @@ export function occupiedRadii(doc: Document, settings: SpatialSettings, worlds =
   const resolve = (id: string): number => {
     const found = cache.get(id); if (found !== undefined) return found;
     const p = doc.placements.find((item) => item.id === id)!;
-    const label = visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), p.visual, settings.sphereDiameter);
+    const label = visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), structuralVisual(doc, p), settings.sphereDiameter);
     let radius = label.sphere ? label.width / 2 : Math.max(settings.radius, Math.hypot(label.width, label.height, label.depth) / 2);
     if (!p.collapsed) for (const child of doc.placements.filter((c) => c.parentId === id && !c.hidden && c.variantOwner?.placementId !== id))
       radius = Math.max(radius, distance(worlds.get(id)!, worlds.get(child.id)!) + resolve(child.id) + settings.clearance);
@@ -44,7 +45,7 @@ export function siblingCollisions(doc: Document, settings: SpatialSettings): [st
   return result;
 }
 function overlap(doc: Document, a: Placement, ap: XYZ, b: Placement, bp: XYZ, settings: SpatialSettings) {
-  const footprint = (p: Placement) => visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), p.visual, settings.sphereDiameter);
+  const footprint = (p: Placement) => visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), structuralVisual(doc, p), settings.sphereDiameter);
   const aa = footprint(a), bb = footprint(b);
   if (aa.sphere && bb.sphere) return distance(ap, bp) < (aa.width + bb.width) / 2 + settings.clearance - 1e-6;
   const depth = (p: Placement) => { const size = footprint(p); return size.sphere ? size.depth : Math.max(settings.radius * 2, size.depth); };
@@ -53,8 +54,8 @@ function overlap(doc: Document, a: Placement, ap: XYZ, b: Placement, bp: XYZ, se
 function preferred(doc: Document, entityId: string, parentId: string | null, settings: SpatialSettings) {
   const parent = doc.placements.find((p) => p.id === parentId);
   if(!parent)return origin();
-  const parentSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===parent.entityId)?.label??''),parent.visual, settings.sphereDiameter);
-  const childSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===entityId)?.label??''), undefined, settings.sphereDiameter);
+  const parentSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===parent.entityId)?.label??''),structuralVisual(doc, parent), settings.sphereDiameter);
+  const childSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===entityId)?.label??''), structuralVisual(doc,{entityId}), settings.sphereDiameter);
   const composition = doc.compositions.find(c => c.parentId === parent.entityId && c.childId === entityId);
   const binder = composition ? { visual: composition.visual, label: composition.text ?? (composition.operators?.map(o => o.text).join(" · ") || "contains") } : { label: "visual nesting" };
   // Compare the readable XY directions using the binder actually rendered.
@@ -207,7 +208,7 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
   const entities = new Map(next.entities.map(e => [e.id, e]));
   const ownBoxes = new Map<string, Box3>();
   for (const p of next.placements) {
-    const size = visualFootprint(labelSize(entities.get(p.entityId)?.label ?? ""), p.visual, settings.sphereDiameter);
+    const size = visualFootprint(labelSize(entities.get(p.entityId)?.label ?? ""), structuralVisual(doc, p), settings.sphereDiameter);
     const floor = size.sphere ? 0 : settings.radius * 2;
     const x = Math.max(floor, size.width) / 2, y = Math.max(floor, size.height) / 2;
     const z = Math.max(floor, size.depth) / 2;

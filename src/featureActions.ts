@@ -1,6 +1,16 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "omnic.create", owner: "omnicWorkspace", scope: "global", category: "Omnic", label: "New Omnic object", defaultKey: "", description: "New Omnic object through the shared composer and canonical object state." },
+  { id: "omnic.open", owner: "omnicWorkspace", scope: "global", category: "Omnic", label: "Open Omnic composer", defaultKey: "", description: "Open Omnic composer through the shared composer and canonical object state." },
+  { id: "omnic.show", owner: "omnicWorkspace", scope: "global", category: "Omnic", label: "Show Omnic structure", defaultKey: "", description: "Show Omnic structure through the shared composer and canonical object state." },
+  { id: "omnic.save", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Save shared", defaultKey: "", description: "Save shared Omnic definition through the shared composer and canonical object state." },
+  { id: "omnic.copy", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Save copy", defaultKey: "", description: "Save Omnic copy through the shared composer and canonical object state." },
+  { id: "omnic.play", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Play / pause", defaultKey: "", description: "Play / pause Omnic motion through the shared composer and canonical object state." },
+  { id: "omnic.export", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Export recipe", defaultKey: "", description: "Export Omnic recipe through the shared composer and canonical object state." },
+  { id: "omnic.import", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Import recipe", defaultKey: "", description: "Import Omnic recipe through the shared composer and canonical object state." },
+  { id: "omnic.reset", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Reset draft", defaultKey: "", description: "Reset Omnic preset through the shared composer and canonical object state." },
+
   { id: "world.faceSelection", owner: "worldNavigation", scope: "world", category: "World navigation", label: "Frame selected front-on", defaultKey: "", description: "Center and fit selected objects, looking straight at their front plane. Changes camera only; use Back or Undo to restore the previous view." },
   { id: "world.navigate", owner: "worldNavigation", scope: "world", pointerGestureModifiers: ["Ctrl"], gestureSurface: ".spatial-workspace > canvas", category: "World navigation", label: "World navigation", defaultKey: "MB2", description: "Drag using the active movement mode. Hold Ctrl to lock the initial drag axis; Shift opens contextual configuration." },
   { id: "scene.copyPrompt", owner: "scene", scope: "global", category: "Scene", label: "Copy resolved prompt", defaultKey: "", description: "Copy the prompt with active-node values for use in ChatGPT. Remembers this node for the returned image." },

@@ -14,9 +14,10 @@ from a long chat, an old PR or a contradictory comment.
 
 Omnia is an environment for humans and AI to construct and explore structured
 knowledge. **Omnium** is its spatial, genuinely 3D nodegraph workbench. **Omnic** is
-a proposed structural/visual language whose grammar is not yet designed. Do not
-invent that grammar, infer truth from appearance, or rebuild a 2D editor as part
-of unrelated work. [Project direction](../PROJECT_DIRECTION.md) gives the broader
+a structural language with an unfinished grammar. Its Stage 1 composer is being
+implemented as an integrated construction/discovery instrument; read
+[the current Omnic contract](OMNIC_COMPOSER.md). Do not invent a finalized grammar,
+infer truth from appearance, or rebuild a 2D editor as part of unrelated work. [Project direction](../PROJECT_DIRECTION.md) gives the broader
 product constraints.
 
 The interface itself is user-arrangeable and customizable. A newly added feature
@@ -508,3 +509,13 @@ unchanged; see CLOUDFLARE_DEPLOYMENT.md for disposable-data/origin restrictions.
 Node click selection is immediate, while single-click options retain double-click
 arbitration. Selection styling updates the existing text scene instead of rebuilding
 it. Preserve this separation; see PERFORMANCE_RESULTS.md.
+
+
+Omnic Stage 1 is in progress: canonical Entity definitions may carry an Omnic
+recipe shared by all their placements. Shared edits update live uses; an explicit
+copy creates an independent identity. No concept-to-glyph assignment or default
+version-pinning workflow. Internal recipe connections never automatically author
+external knowledge relationships. Reuse MC/MS, properties, adaptive Shift and the
+existing history owners; bound evaluation and animate only the active composer
+preview. See [OMNIC_COMPOSER.md](OMNIC_COMPOSER.md) for scope, entry paths and deferred
+work. Do not mark acceptance complete before the implementation is verified.

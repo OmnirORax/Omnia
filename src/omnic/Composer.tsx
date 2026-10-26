@@ -1,0 +1,322 @@
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { closedComposerDraft, forgetClosedComposerDraft, preserveClosedComposerHistory } from "./draftHistory";
+import type { Recipe, Component, Application, Frame, Params } from "./model";
+import { validateRecipe } from "./model";
+import { evaluateRecipe } from "./evaluate";
+import { evaluationBounds, renderSVG } from "./svg";
+import { PRESETS, createRecipe } from "./presets";
+import { GENERATORS, OPERATORS, defaultParams, type Parameter, type Definition } from "./registry";
+import { commitOmnicParameter, useOmnicParameterBindings } from "./propertyAdapter";
+import { PropertyEditor } from "../appearance/Controls";
+import { UISection } from "../ui/UISection";
+import { UIField } from "../ui/UIField";
+import { UIAction } from "../ui/UIAction";
+import { FunctionControl } from "../ui/UIWorkspace";
+import { useFeatureActions } from "../ui/useFeatureActions";
+import type { ActionHistory } from "../ui/actionHistory";
+import { PROPERTY_REGISTRY } from "../appearance/registry";
+import { RENDER_BUDGET } from "../renderBudget";
+import "./composer.css";
+
+type ObjectRef = { id: string; label: string; omnic?: Recipe };
+type Props = {
+  entity: ObjectRef; objects: readonly ObjectRef[]; history: ActionHistory;
+  onSave: (recipe: Recipe) => void; onCopy: (recipe: Recipe, label: string) => void; onClose: () => void;
+};
+type Focus = { kind: "component" | "operation"; id: string };
+const storageKey = (id: string) => `omnium.omnic.draft.v1:${id}`;
+const normalizedHistory = (recipe: Recipe) => ({ ...recipe, revision: 0 });
+const allComponents = (components: readonly Component[]): Component[] => components.flatMap(component => [component, ...allComponents(component.children ?? [])]);
+const updateComponents = (components: Component[], id: string, change: (component: Component) => Component): Component[] => components.map(component => component.id === id ? change(component) : component.children ? { ...component, children: updateComponents(component.children, id, change) } : component);
+const removeComponent = (components: Component[], id: string): Component[] => components.filter(component => component.id !== id).map(component => component.children ? { ...component, children: removeComponent(component.children, id) } : component);
+const id = () => crypto.randomUUID();
+function restoredDraft(entity: ObjectRef): { recipe: Recipe; baseRevision: number | null } {
+  const closed = closedComposerDraft(`omnic.draft:${entity.id}`); if (closed) return closed;
+  try {
+    const raw = localStorage.getItem(storageKey(entity.id));
+    if (raw) { const saved = JSON.parse(raw); return { recipe: validateRecipe(saved.recipe), baseRevision: Number.isSafeInteger(saved.baseRevision) ? saved.baseRevision : null }; }
+  } catch { /* A damaged draft never prevents opening the canonical object. */ }
+  return { recipe: validateRecipe(entity.omnic ?? createRecipe()), baseRevision: entity.omnic?.revision ?? null };
+}
+function download(name: string, value: unknown) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
+  const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+function Parameters({ scope, spec, params, thresholds, change }: {
+  scope: string; spec: Definition; params: Params; thresholds: boolean; change: (parameter: Parameter, value: string | number | boolean, preview: boolean) => void;
+}) {
+  return <div className="omnic-parameters">{spec.parameters.map(parameter => <UIField key={parameter.key} id={`omnic:${scope}:${parameter.key}`} label={parameter.label} category="Omnic">
+    <label className="omnic-parameter"><span>{parameter.label}</span>{thresholds && parameter.thresholds?.length ? <div className="omnic-thresholds" role="group" aria-label={`${parameter.label} parameter presets`}>
+      {parameter.thresholds.map(value => <button key={value} type="button" aria-pressed={(params[parameter.key] ?? parameter.initial) === value} onClick={() => change(parameter, value, false)}>{value}</button>)}
+    </div> : <PropertyEditor property={parameter.property} label={parameter.label} value={params[parameter.key] ?? parameter.initial}
+      limits={parameter.kind === "number" ? { min: parameter.min!, max: parameter.max! } : undefined}
+      choices={parameter.options?.map(option => option.id)} onPreview={value => change(parameter, value, true)} onCommit={value => change(parameter, value, false)} />}</label>
+  </UIField>)}</div>;
+}
+
+/** The composer owns a recoverable local draft, not a second canonical object.
+ * Accepted changes use the shared journal; samples and animation stay transient. */
+export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Props) {
+  const [initial] = useState(() => restoredDraft(entity));
+  const [draft, setDraft] = useState<Recipe>(initial.recipe);
+  const [baseRevision, setBaseRevision] = useState<number | null>(initial.baseRevision);
+  const baseRevisionRef = useRef(baseRevision); baseRevisionRef.current = baseRevision;
+  const draftRef = useRef(draft); draftRef.current = draft;
+  const [sample, setSample] = useState<Recipe | null>(null);
+  const recipe = sample ?? draft, recipeRef = useRef(recipe); recipeRef.current = recipe;
+  const [focus, setFocus] = useState<Focus | null>(() => draft.components[0] ? { kind: "component", id: draft.components[0].id } : null);
+  const [picked, setPicked] = useState<string[]>([]), [query, setQuery] = useState("");
+  const [generator, setGenerator] = useState("radial"), [reference, setReference] = useState("");
+  const [thresholds, setThresholds] = useState(false), [playing, setPlaying] = useState(false);
+  const [copyLabel, setCopyLabel] = useState(entity.label ? `${entity.label} variation` : "Omnic variation");
+  const [error, setError] = useState(""), [notice, setNotice] = useState("");
+  const preview = useRef<HTMLDivElement>(null), importInput = useRef<HTMLInputElement>(null);
+  const owner = `omnic.draft:${entity.id}`;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const resolve = useMemo(() => { const byId = new Map(objects.map(object => [object.id, object.omnic])); return (key: string) => key === entity.id ? recipeRef.current : byId.get(key); }, [objects,entity.id]);
+  const evaluated = useMemo(() => {
+    try { return { result: evaluateRecipe(recipe, resolve), error: "" }; }
+    catch (failure) { return { result: null, error: failure instanceof Error ? failure.message : String(failure) }; }
+  }, [recipe, resolve]);
+  const viewBox = useMemo(() => {
+    if (!evaluated.result) return "-50 -50 100 100";
+    const seen = new Set<Recipe>(), cached = new Map<Recipe,number>();
+    const excursion = (current: Recipe): number => {
+      const known=cached.get(current);if(known!==undefined)return known;
+      if (seen.has(current)) return 0;
+      seen.add(current);
+      const own = current.operations.filter(operation=>operation.enabled && operation.operator === "oscillate").reduce((sum,operation)=>sum+Number(operation.params.amplitude ?? 10),0);
+      const nested = Math.max(0,...allComponents(current.components).flatMap(component=>{const referenced=component.reference?resolve(component.reference):undefined;return referenced?[excursion(referenced)]:[];}));
+      seen.delete(current);cached.set(current,own+nested);return own+nested;
+    };
+    const bounds = evaluationBounds(evaluated.result), padding = excursion(recipe);
+    return [bounds.x-padding,bounds.y-padding,bounds.width+padding*2,bounds.height+padding*2].join(" ");
+  }, [evaluated.result,recipe,resolve]);
+  const html = useMemo(() => evaluated.result ? renderSVG(evaluated.result).replace(/viewBox="[^"]*"/, `viewBox="${viewBox}"`) : "", [evaluated.result,viewBox]);
+  const htmlRef = useRef(html); htmlRef.current = html;
+  const components = useMemo(() => allComponents(recipe.components), [recipe.components]);
+  const componentDepths = useMemo(() => {
+    const depths = new Map<string,number>();
+    const visit = (items: Component[], depth: number) => items.forEach(component=>{ depths.set(component.id,depth); visit(component.children ?? [],depth+1); });
+    visit(recipe.components,0);return depths;
+  }, [recipe.components]);
+  const activeComponent = focus?.kind === "component" ? components.find(component => component.id === focus.id) : undefined;
+  const activeOperation = focus?.kind === "operation" ? recipe.operations.find(operation => operation.id === focus.id) : undefined;
+  const active = activeComponent ?? activeOperation;
+  const spec = activeComponent ? GENERATORS.find(generator => generator.id === activeComponent.generator) : activeOperation ? OPERATORS.find(operator => operator.id === activeOperation.operator) : undefined;
+  const commit = (next: Recipe, temporary = false) => {
+    try {
+      const checked = validateRecipe(next);
+      if (temporary) { setSample(checked); return true; }
+      const before = draftRef.current;
+      draftRef.current = checked; setDraft(checked); setSample(null); setError(""); setNotice("");
+      history.record(owner, normalizedHistory(before), normalizedHistory(checked), ["omnium"], ["omnium", "window:omnic-composer"]);
+      return true;
+    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); return false; }
+  };
+  useEffect(() => {
+    forgetClosedComposerDraft(owner);
+    const stop = history.register(owner, {
+      read: () => normalizedHistory(draftRef.current),
+      write: value => { const next = validateRecipe({ ...value, revision: draftRef.current.revision }); draftRef.current = next; setDraft(next); setSample(null); },
+    });
+    return () => {
+      stop();
+      preserveClosedComposerHistory(history,owner,storageKey(entity.id),{recipe:draftRef.current,baseRevision:baseRevisionRef.current});
+    };
+  }, [history, owner, entity.id]);
+
+  useEffect(() => {
+    try { localStorage.setItem(storageKey(entity.id), JSON.stringify({ baseRevision, recipe: draft })); }
+    catch { setError("Draft could not be preserved locally. Export JSON before closing."); }
+  }, [draft, entity.id, baseRevision]);
+  const changeParams = (params: Params, temporary = false) => {
+    if (!focus) return;
+    const current = recipeRef.current;
+    commit(focus.kind === "component" ? { ...current, components: updateComponents(current.components, focus.id, component => ({ ...component, params })) }
+      : { ...current, operations: current.operations.map(operation => operation.id === focus.id ? { ...operation, params } : operation) }, temporary);
+  };
+  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), spec?.parameters ?? []);
+  const parameter = (field: Parameter, value: string | number | boolean, temporary: boolean) => {
+    if (active) changeParams(commitOmnicParameter(active.params, field, value), temporary);
+  };
+  const save = () => {
+    try {
+      const next = validateRecipe({ ...recipeRef.current, revision: (entity.omnic?.revision ?? 0) + 1 });
+      onSave(next); setBaseRevision(next.revision); draftRef.current = next; setDraft(next); setSample(null); setNotice("Shared definition saved; its references use this revision."); setError("");
+    } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+  };
+  const copy = () => { try { onCopy(validateRecipe({ ...recipeRef.current, revision: 1 }), copyLabel.trim() || "Omnic variation"); setNotice("Copied as a new canonical object."); } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); } };
+  const reset = () => { setBaseRevision(entity.omnic?.revision ?? null); commit(validateRecipe(entity.omnic ?? createRecipe())); setPlaying(false); setPicked([]); };
+  const togglePlay = () => {
+    if (!playing && (evaluated.result?.nodes.length ?? 0) > RENDER_BUDGET.omnicAnimatedRoles) { setError(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles. The complete static structure is preserved.`); return; }
+    setPlaying(value => !value);
+  };
+  const shortcuts = useFeatureActions("omnicComposer", {
+    "omnic.save": { enabled: !evaluated.error, run: save },
+    "omnic.copy": { enabled: !evaluated.error, run: copy },
+    "omnic.play": { enabled: !!evaluated.result?.motion, run: togglePlay },
+    "omnic.export": { enabled: true, run: () => download("omnic-recipe.json", recipeRef.current) },
+    "omnic.import": { enabled: true, run: () => importInput.current?.click() },
+    "omnic.reset": { enabled: true, run: reset },
+  });
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => { if (shortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, []);
+  useEffect(() => {
+    if (!playing || !preview.current) return;
+    if ((evaluated.result?.nodes.length ?? 0) > RENDER_BUDGET.omnicAnimatedRoles) { setError(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles. Static structure is preserved.`); setPlaying(false); return; }
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (media.matches || document.visibilityState === "hidden") { setPlaying(false); return; }
+    let frame = 0, last = 0, slow = 0, visible = true;
+    const start = performance.now();
+    const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (!visible) setPlaying(false); });
+    observer.observe(preview.current);
+    const stop = () => { if (document.visibilityState === "hidden" || media.matches) setPlaying(false); };
+    document.addEventListener("visibilitychange", stop); media.addEventListener("change", stop);
+    const tick = (now: number) => {
+      if (now - last >= 1000 / RENDER_BUDGET.omnicFps && visible && preview.current) {
+        last = now;
+        try {
+          const began = performance.now();
+          preview.current.innerHTML = renderSVG(evaluateRecipe(recipe, resolve, (now - start) / 1000)).replace(/viewBox="[^"]*"/, `viewBox="${viewBox}"`);
+          slow = performance.now() - began > 12 ? slow + 1 : 0;
+          if (slow >= 3) { setNotice("Semantic motion paused to preserve responsiveness; the recipe is unchanged."); setPlaying(false); return; }
+        }
+        catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); setPlaying(false); return; }
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => { window.cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", stop); media.removeEventListener("change", stop); if (preview.current) preview.current.innerHTML = htmlRef.current; };
+  }, [playing, recipe, resolve, html, viewBox]);
+  const addGenerator = () => {
+    const spec = GENERATORS.find(value => value.id === generator); if (!spec) return;
+    if (generator === "reference" && !reference) { setError("Choose an existing Omnic object to reuse."); return; }
+    const component: Component = { id: id(), generator, params: defaultParams(spec), ...(generator === "group" ? { children: [] } : {}), ...(generator === "reference" ? { reference } : {}) };
+    const parent = activeComponent?.generator === "group" ? activeComponent.id : null;
+    if (!commit({ ...recipe, components: parent ? updateComponents(recipe.components, parent, group => ({ ...group, children: [...group.children ?? [], component] })) : [...recipe.components, component] })) return;
+    setFocus({ kind: "component", id: component.id }); setPicked([component.id]);
+  };
+  const addOperation = (operator: string) => {
+    const spec = OPERATORS.find(value => value.id === operator); if (!spec) return;
+    const operation: Application = { id: id(), operator, params: defaultParams(spec), targets: [...picked], enabled: true };
+    if (!commit({ ...recipe, operations: [...recipe.operations, operation] })) return; setFocus({ kind: "operation", id: operation.id });
+  };
+  const changeOperation = (operationId: string, patch: Partial<Application>) => commit({ ...recipe, operations: recipe.operations.map(operation => operation.id === operationId ? { ...operation, ...patch } : operation) });
+  const reorder = (operationId: string, offset: number) => {
+    const operations = [...recipe.operations], index = operations.findIndex(operation => operation.id === operationId), next = index + offset;
+    if (index < 0 || next < 0 || next >= operations.length) return;
+    [operations[index], operations[next]] = [operations[next], operations[index]]; commit({ ...recipe, operations });
+  };
+  const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
+    if (file.size > 1_000_000) { setError("Recipe import is limited to 1 MB."); return; }
+    try { const text = await file.text(); if (!mounted.current) return; const next = validateRecipe(JSON.parse(text)); setBaseRevision(entity.omnic?.revision ?? null); commit(next); setPlaying(false); setPicked([]); setFocus(next.components[0] ? { kind: "component", id: next.components[0].id } : null); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+  };
+  const [newFrameProperty, setNewFrameProperty] = useState("omnic.angle");
+  const frameProperties = useMemo(() => [...new Map([...GENERATORS, ...OPERATORS].flatMap(definition => definition.parameters).map(parameter => [parameter.property, parameter])).values()], []);
+  const changeFrame = (frameId: string, patch: Partial<Frame>) => commit({ ...recipe, frames: recipe.frames.map(frame => frame.id === frameId ? { ...frame, ...patch } : frame) });
+  const baseCount = useMemo(() => { try { return evaluateRecipe(entity.omnic ?? createRecipe(), resolve).properties.count; } catch { return null; } }, [entity.omnic, resolve]);
+  const dirty = JSON.stringify(recipe) !== JSON.stringify(entity.omnic ?? null);
+  const [roleFilter, setRoleFilter] = useState("");
+  const roles = (evaluated.result?.nodes ?? []).filter(node => !roleFilter || node.id.toLowerCase().includes(roleFilter.toLowerCase())).slice(0,128);
+  const [neighborKey, setNeighborKey] = useState("");
+  const neighborParameter = spec?.parameters.find(parameter => parameter.key === neighborKey && parameter.kind === "number") ?? spec?.parameters.find(parameter => parameter.kind === "number");
+  const neighbors = useMemo(() => {
+    if (!active || !spec || !neighborParameter || !evaluated.result || evaluated.result.nodes.length > RENDER_BUDGET.omnicAnimatedRoles) return [];
+    const parameter = neighborParameter, current = Number(active.params[parameter.key] ?? parameter.initial);
+    const values = thresholds && parameter.thresholds?.length ? parameter.thresholds : [Math.max(parameter.min!, current - (parameter.step ?? 1)), Math.min(parameter.max!, current + (parameter.step ?? 1))];
+    const below = [...values].filter(value => value < current).at(-1), above = [...values].find(value => value > current);
+    return [below, above].filter((value): value is number => value !== undefined).map(value => {
+      const params = commitOmnicParameter(active.params, parameter, value);
+      const candidate = activeComponent ? { ...recipe, components: updateComponents(recipe.components, activeComponent.id, component => ({ ...component, params })) }
+        : { ...recipe, operations: recipe.operations.map(operation => operation.id === activeOperation?.id ? { ...operation, params } : operation) };
+      try { return { value, recipe: candidate, html: renderSVG(evaluateRecipe(candidate, resolve)) }; } catch { return null; }
+    }).filter((candidate): candidate is { value: number; recipe: Recipe; html: string } => candidate !== null);
+  }, [recipe, active, spec, neighborParameter, thresholds, resolve, evaluated.result]);
+  return <div className="omnic-composer">
+    <div className="omnic-toolbar">
+      <strong>{entity.label || "Omnic object"}</strong><small>{dirty ? "Draft · not saved" : `Shared revision ${entity.omnic?.revision ?? 0}`}</small>
+      {["omnic.save", "omnic.copy", "omnic.play", "omnic.export", "omnic.import", "omnic.reset"].map(action => <FunctionControl key={action} id={action} />)}
+      <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importFile} />
+    </div>
+    <UIField id="omnic:copy-name" label="Variation name" category="Omnic"><label>Copy name <input value={copyLabel} maxLength={200} onChange={event => setCopyLabel(event.target.value)} /></label></UIField>
+    {(error || evaluated.error) && <small role="alert">{error || evaluated.error}</small>}{notice && <small role="status">{notice}</small>}
+    {baseRevision !== (entity.omnic?.revision ?? null) && <small role="status">This draft began at shared revision {baseRevision ?? "none"}; the object is now revision {entity.omnic?.revision ?? "none"}. Reset draft loads the current definition. Save shared explicitly replaces it; Save copy preserves both.</small>}
+    <div className="omnic-workbench">
+      <div className="omnic-preview-column">
+        <div className="omnic-preview" ref={preview} role="img" aria-label="Live Omnic structure" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
+          const target = event.target instanceof Element ? event.target.closest("[data-omnic-role]") : null;
+          const role = target?.getAttribute("data-omnic-role"); if (!role) return;
+          setPicked(current => current.includes(role) ? current.filter(value => value !== role) : [...current, role]);
+        }} />
+        <small role="status">{playing ? `Semantic motion · playing (${RENDER_BUDGET.omnicFps} fps)` : evaluated.result?.motion ? "Semantic motion · paused" : "Static structure"}</small>
+        {evaluated.result && <output className="omnic-derived">Units {evaluated.result.properties.count} · selected {evaluated.result.properties.selectedCount} · components {evaluated.result.properties.componentCount}{baseCount !== null ? ` · Δ count ${evaluated.result.properties.count - baseCount}` : ""}</output>}
+        {!!evaluated.result?.results.length && <UISection id="omnic-derived-results" title="Extracted properties">
+          <ol className="omnic-list">{evaluated.result.results.map((result,index)=><li key={`${result.operation}:${index}`}><output>Count {result.value}</output><small title={result.scope.join(", ")}> · operation {recipe.operations.findIndex(operation=>operation.id===result.operation)+1} · {result.scope.length ? `${result.scope.length} scoped roles` : "flow scope"}</small></li>)}</ol>
+        </UISection>}
+        {neighborParameter && (evaluated.result?.nodes.length ?? 0) > RENDER_BUDGET.omnicAnimatedRoles && <small>Neighbor previews paused for this structure size.</small>}
+        {neighborParameter && <div className="omnic-neighbors">
+          <select aria-label="Neighbor parameter" value={neighborParameter.key} onChange={event => setNeighborKey(event.target.value)}>{spec?.parameters.filter(parameter => parameter.kind === "number").map(parameter => <option value={parameter.key} key={parameter.key}>{parameter.label}</option>)}</select>
+          {neighbors.map(neighbor => <button type="button" key={neighbor.value} title={`Use ${neighborParameter.label} ${neighbor.value}`} onClick={() => commit(neighbor.recipe)}><span aria-hidden="true" dangerouslySetInnerHTML={{ __html: neighbor.html }} /><small>{neighbor.value}</small></button>)}
+        </div>}
+        <UIField id="omnic:preset" label="Construction preset" category="Omnic"><label>Preset <select value="" onChange={event => { const next = createRecipe(event.target.value); commit(next); setFocus(next.components[0] ? { kind:"component",id:next.components[0].id } : null); setPicked([]); }}><option value="" disabled>Choose…</option>{PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label}</option>)}</select></label></UIField>
+      </div>
+      <div className="omnic-edit-column">
+        <UISection id="omnic-structure" title="Structure">
+          <div className="omnic-row"><select aria-label="Generator" value={generator} onChange={event => setGenerator(event.target.value)}>{GENERATORS.map(generator => <option value={generator.id} key={generator.id}>{generator.label}</option>)}</select><UIAction id="omnic:add-generator" label={activeComponent?.generator === "group" ? "Add inside group" : "Add component"} category="Omnic" onClick={addGenerator} /></div>
+          {generator === "reference" && <select aria-label="Existing Omnic object" value={reference} onChange={event => setReference(event.target.value)}><option value="">Choose object…</option>{objects.filter(object => object.id !== entity.id && object.omnic).map(object => <option value={object.id} key={object.id}>{object.label || object.id}</option>)}</select>}
+          <div className="omnic-list">{components.map(component => <div className="omnic-row" key={component.id} style={{marginInlineStart:(componentDepths.get(component.id) ?? 0)*9}}>
+            <button type="button" aria-pressed={focus?.kind === "component" && focus.id === component.id} title={component.id} onClick={() => { setSample(null); setFocus({kind:"component",id:component.id}); setPicked([component.id]); }}>{GENERATORS.find(generator => generator.id === component.generator)?.label ?? component.generator} · {component.id.slice(0,6)}</button>
+            <UIAction id={`omnic:remove-component:${component.id}`} label="Remove component" symbol="×" category="Omnic" onClick={() => { commit({...recipe,components:removeComponent(recipe.components,component.id)}); if (focus?.id === component.id) setFocus(null); }} />
+          </div>)}</div>
+        </UISection>
+        {spec && active && <UISection id="omnic-parameters" title={spec.label}>
+          <UIField id="omnic:parameter-mode" label="Parameter navigation" category="Omnic"><label title="Registered numeric candidates; semantic significance is unverified."><input type="checkbox" checked={thresholds} onChange={event => setThresholds(event.target.checked)} />Parameter presets</label></UIField>
+          <Parameters scope={active.id} spec={spec} params={active.params} thresholds={thresholds} change={parameter} />
+        </UISection>}
+      </div>
+    </div>
+    <UISection id="omnic-targets" title={`Scope · ${picked.length ? `${picked.length} picked` : "flow selection"}`} defaultExpanded={false}>
+      <div className="omnic-row"><UIAction id="omnic:pick-all" label="Whole structure" category="Omnic" onClick={() => setPicked(recipe.components.map(component=>component.id))} /><UIAction id="omnic:pick-flow" label="Use flow selection" category="Omnic" onClick={() => setPicked([])} /><input aria-label="Filter structural roles" placeholder="Find role…" value={roleFilter} onChange={event => setRoleFilter(event.target.value)} /></div>
+      <div className="omnic-picked">{picked.map(role => <button type="button" key={role} title="Remove from picked scope" onClick={() => setPicked(current => current.filter(value => value !== role))}>{role} ×</button>)}</div>
+      <select aria-label="Pick structural role" value="" onChange={event => { const value=event.target.value;setPicked(current=>current.includes(value)?current:[...current,value]); }}><option value="" disabled>Pick role…{roles.length===128 ? " (first 128 matches)" : ""}</option>{roles.map(role=><option value={role.id} key={role.id}>{role.id}</option>)}</select>
+      {activeOperation && <div className="omnic-row"><UIAction id="omnic:apply-picked-scope" label="Use picked scope / repair targets" category="Omnic" onClick={()=>changeOperation(activeOperation.id,{targets:[...picked]})} /><small>{activeOperation.targets.length ? activeOperation.targets.join(", ") : "Operation uses prior selection, or the whole structure if none"}</small></div>}
+    </UISection>
+    <UISection id="omnic-operations" title="Ordered operations">
+      <UIField id="omnic:operator-search" label="Find operator" category="Omnic"><input aria-label="Find operator" placeholder="Find operator…" value={query} onChange={event=>setQuery(event.target.value)} /></UIField>
+      <div className="omnic-palette">{OPERATORS.filter(operator=>`${operator.label} ${operator.id}`.toLowerCase().includes(query.toLowerCase())).map(operator=><UIAction key={operator.id} id={`omnic:add-operator:${operator.id}`} label={operator.label} category="Omnic" onClick={()=>addOperation(operator.id)} />)}</div>
+      <div className="omnic-list">{recipe.operations.map((operation,index)=><div className="omnic-row" key={operation.id}>
+        <input aria-label={`Enable operation ${index+1}`} type="checkbox" checked={operation.enabled} onChange={event=>changeOperation(operation.id,{enabled:event.target.checked})} />
+        <button type="button" aria-pressed={focus?.kind === "operation" && focus.id === operation.id} onClick={()=>{setSample(null);setFocus({kind:"operation",id:operation.id});}}>{index+1}. {OPERATORS.find(operator=>operator.id===operation.operator)?.label ?? operation.operator}</button>
+        <button type="button" title="Move operation earlier" aria-label="Move operation earlier" disabled={index===0} onClick={()=>reorder(operation.id,-1)}>↑</button><button type="button" title="Move operation later" aria-label="Move operation later" disabled={index===recipe.operations.length-1} onClick={()=>reorder(operation.id,1)}>↓</button><button type="button" aria-label="Remove operation" onClick={()=>commit({...recipe,operations:recipe.operations.filter(item=>item.id!==operation.id)})}>×</button>
+      </div>)}</div>
+    </UISection>
+    <UISection id="omnic-frames" title="Interpretation frames" defaultExpanded={false}>
+      <div className="omnic-row"><select aria-label="Frame property" value={newFrameProperty} onChange={event=>setNewFrameProperty(event.target.value)}>{frameProperties.map(parameter=><option key={parameter.property} value={parameter.property}>{parameter.label}</option>)}</select><UIAction id="omnic:add-frame" label="Add inactive frame" category="Omnic" onClick={()=>commit({...recipe,frames:[...recipe.frames,{id:id(),property:newFrameProperty,state:"inactive",scope:[...picked]}]})} /></div>
+      {recipe.frames.map(frame=>{
+        const parameter=frameProperties.find(parameter=>parameter.property===frame.property), property=PROPERTY_REGISTRY.property(frame.property);
+        return <div className="omnic-frame" key={frame.id}>
+          <div className="omnic-row"><span>{property?.label ?? frame.property}</span><select aria-label="Frame activation" value={frame.state} onChange={event=>{
+            const state=event.target.value as Frame["state"];
+            const {value:_,...rest}=frame;
+            commit({...recipe,frames:recipe.frames.map(item=>item.id===frame.id?{...rest,state,...(state==="specified"?{value:property?.initial ?? ""}:{})}:item)});
+          }}><option value="inactive">Inactive</option><option value="unspecified">Active · unspecified</option><option value="specified">Active · specified</option></select><button type="button" aria-label="Remove frame" onClick={()=>commit({...recipe,frames:recipe.frames.filter(item=>item.id!==frame.id)})}>×</button></div>
+          <small>{frame.scope.length ? `Scope: ${frame.scope.join(", ")}` : "Scope: whole structure"}</small>
+          <UIAction id={`omnic:frame-scope:${frame.id}`} label="Use picked scope" category="Omnic" onClick={()=>changeFrame(frame.id,{scope:[...picked]})} />
+          {frame.state==="specified" && property && <PropertyEditor property={frame.property} value={frame.value ?? property.initial} limits={parameter?.kind==="number"?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter?.options?.map(option=>option.id)} onPreview={()=>{}} onCommit={value=>changeFrame(frame.id,{value})} />}
+        </div>;
+      })}
+      <small>Activation records an explicit interpretation constraint; geometry alone does not activate meaning.</small>
+    </UISection>
+    {!!evaluated.result?.diagnostics.length && <UISection id="omnic-diagnostics" title="Unresolved / constrained" defaultExpanded><ul>{evaluated.result.diagnostics.map((diagnostic,index)=><li key={`${diagnostic.code}:${diagnostic.target ?? ""}:${index}`}>{diagnostic.message}{diagnostic.target ? ` · ${diagnostic.target}` : ""}</li>)}</ul></UISection>}
+    <small>Undo / redo uses the shared action history. Drafts stay on this browser until saved or reset.</small>
+  </div>;
+}
+

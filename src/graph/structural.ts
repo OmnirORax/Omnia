@@ -1,3 +1,4 @@
+import { validateRecipe, validateRecipeReferences, type Recipe } from "../omnic/model.ts";
 import { parseAtlas as parseLegacyAtlas, type Atlas as LegacyAtlas } from "./model.ts";
 import { defaultNodeOffset } from "./labels.ts";
 import { worldPositions } from "./coordinates.ts";
@@ -5,7 +6,11 @@ import { validateAsset, validateVisual, type Visual, type VisualAsset } from "./
 
 export type XY = { x: number; y: number };
 export type XYZ = XY & { z: number };
-export type Entity = { id: string; label: string; aliases: string[]; notes: string };
+export type Entity = {
+  id: string; label: string; aliases: string[]; notes: string;
+  /** Canonical structural definition, shared by every placement of this object. */
+  omnic?: Recipe;
+};
 export type Appearance = { color: string; opacity: number; glow?: number };
 // Editable annotations, not an executable grammar or a definition of truth.
 export type BinderOperator = { id: string; text: string };
@@ -272,6 +277,12 @@ export function validateDocument(doc: Document): Document {
       !e.aliases.every((a) => str(a, 500))
     )
       fail("Invalid entity.");
+  const omnic = new Map<string, Recipe>();
+  for (const entity of doc.entities) if (entity.omnic !== undefined) {
+    validateRecipe(entity.omnic);
+    omnic.set(entity.id, entity.omnic);
+  }
+  validateRecipeReferences(omnic);
   if (doc.variants !== undefined) {
     if (doc.variantPlacementsVersion !== undefined && doc.variantPlacementsVersion !== 1) fail("Unsupported variant placement version.");
     if (!Array.isArray(doc.variants) || doc.variants.length > 4000 || doc.variants.some((v) => !rec(v))) fail("Invalid variants list.");

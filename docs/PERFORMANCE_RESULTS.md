@@ -174,3 +174,14 @@ variants. Actual variant/topology/font changes retain their scene rebuild path.
 Model tests cover immediate selection, exclusive single/double side effects and
 rapid target changes. Browser input-to-paint/freeze verification remains with the
 user; this is not a claim that all selection/UI rendering cost has disappeared.
+
+
+Omnic Stage 1 adds explicit evaluator and shared renderer budgets. World projection
+is static/derived, capped at 32 Omnic source occurrences and 256px raster edges;
+excess sources show a named preview-budget placeholder, preserving recipes. Cached
+SVG depends on canonical definition/dependency revisions rather than node positions.
+Composer motion is explicitly enabled, capped at 256 roles / 12fps, writes the
+preview DOM without per-frame React/history/storage, and pauses after sustained
+expensive frames. Large structures skip neighboring previews. These policies bound
+new work; no browser performance trace was run and existing system latency remains
+an open verification item. See OMNIC_COMPOSER.md for structural/input work limits.

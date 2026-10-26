@@ -1,3 +1,5 @@
+import { RENDER_BUDGET } from "./renderBudget";
+import { structuralVisual, omnicAsset, omnicBudgetAsset, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
 import { brightHex } from "./appearance/resolve";
 import { connected } from "./appearance/model";
 import { TARGETS } from "./appearance/registry";
@@ -172,9 +174,16 @@ export function buildTextScene(
   const placements = new Map(doc.placements.map(p => [p.id, p]));
   const nodeHits: LabelMesh[] = [],
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
+  let omnicPreviews = 0;
   for (const node of visible) {
     const placement = placements.get(node.id);
     const appearance = placement?.appearance;
+    let displayedVisual = placement ? structuralVisual(doc, placement) : undefined;
+    let derivedAsset: import("./graph/assets").VisualAsset | undefined;
+    if (displayedVisual?.assetId?.startsWith("omnic:")) {
+      derivedAsset = omnicPreviews++ < OMNIC_SCENE_BUDGET ? omnicAsset(doc, placement!.entityId) : omnicBudgetAsset;
+      if (derivedAsset) displayedVisual = {...displayedVisual,assetId:derivedAsset.id};
+    }
     const style = resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", appearance);
     style.opacity *= theme.opacity;
     const group = new THREE.Group();
@@ -194,9 +203,9 @@ export function buildTextScene(
       appearance?.color ?? glyphColor(theme, 'text.nodes', color),
     );
     text.material.opacity = style.opacity;
-    const hasVisual = !!(placement?.visual?.assetId || placement?.visual?.character);
-    const footprint = visualFootprint(labelSize(node.label), placement?.visual, sphereDiameter);
-    const visual = hasVisual ? visualObject(placement!.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity }) : undefined;
+    const hasVisual = !!(displayedVisual?.assetId || displayedVisual?.character);
+    const footprint = visualFootprint(labelSize(node.label), displayedVisual, sphereDiameter);
+    const visual = hasVisual ? visualObject(displayedVisual!, derivedAsset ? [derivedAsset] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity }, derivedAsset ? RENDER_BUDGET.omnicTextureEdge : 512) : undefined;
     const sprite: LabelMesh = footprint.sphere
       ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
@@ -231,7 +240,7 @@ export function buildTextScene(
       sprite,
       anchor: group.position.clone(),
       size: labelSize(node.label),
-      text, visual, visualSize: placement?.visual?.size ?? (hasVisual ? 1.4 : sphereDiameter), showText: !!node.label.trim() && placement?.visual?.showText !== false,
+      text, visual, visualSize: displayedVisual?.size ?? (hasVisual ? 1.4 : sphereDiameter), showText: !!node.label.trim() && displayedVisual?.showText !== false,
       depth: doc.assets?.find(a => a.id === placement?.visual?.assetId)?.kind === "glb" ? placement?.visual?.size ?? 1.4 : 0.05,
       sphere: footprint.sphere, outline, selected, color: style.color, opacity: style.opacity,
     });

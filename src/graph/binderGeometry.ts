@@ -1,3 +1,4 @@
+import { structuralVisual } from "../omnic/presentation.ts";
 import type { Visual } from "./assets.ts";
 import { visualFootprint } from "./assets.ts";
 import { labelSize } from "./labels.ts";
@@ -23,7 +24,7 @@ export function binderGap(binder: Pick<DisplayBinder, "visual" | "label">, direc
   return Math.max(BINDER_LENGTH_RATIO * operatorExtent(binder.visual), text + 0.35);
 }
 export function placementFootprint(doc: Document, placement: Placement, sphereDiameter?: number) {
-  return visualFootprint(labelSize(doc.entities.find(e => e.id === placement.entityId)?.label ?? ""), placement.visual, sphereDiameter);
+  return visualFootprint(labelSize(doc.entities.find(e => e.id === placement.entityId)?.label ?? ""), structuralVisual(doc, placement), sphereDiameter);
 }
 export function surfaceExtent(doc: Document, placement: Placement, direction: XYZ, sphereDiameter?: number) {
   const size = placementFootprint(doc, placement, sphereDiameter);

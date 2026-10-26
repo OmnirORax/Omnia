@@ -200,3 +200,13 @@ Backgrounds/Contours/Text/Icons/Indicators membership; new types inherit groupin
 Preserve stable target IDs and compatibility ancestry for saved selection/locks/
 bypass. The build verifies generated membership. See SHARED_PROPERTIES.md for the
 adapter declaration and compatibility contract.
+
+
+For Omnic work, read [docs/OMNIC_COMPOSER.md](docs/OMNIC_COMPOSER.md). Stage 1
+stores a renderer-independent structural recipe on the canonical Omnium object
+(`Entity.omnic`); placements/reused components reference it. Do not reintroduce
+concept-to-glyph asset assignment or infer semantic equivalence from matching
+renderings. Shared edits update references; explicit copies create identities.
+Keep provisional grammar/frames explicit, preserve unresolved role references,
+reuse MC/property/history owners, and respect evaluator/render budgets. English
+translation, audio, full radial grammar and Stage 2 library/cloud work are deferred.

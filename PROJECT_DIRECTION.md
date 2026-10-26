@@ -8,7 +8,7 @@ consumers are integrated, with further migration pending. Coupled consumers reta
 Omnia is intended to become a shared environment where humans and AI construct, explore, understand and manipulate knowledge through structured nodegraphs.
 
 - **Omnium:** a genuinely three-dimensional, spatial, hierarchical nodegraph. Three-dimensional space is essential.
-- **Omnic:** a future visual and structural language using nodes, symbols, typed operators, relationships, nesting and possibly spatial arrangements. Its grammar is still undesigned; do not invent it during implementation.
+- **Omnic:** a structural language with an unfinished grammar. Its integrated Stage 1 composer is being implemented as a procedural construction/discovery instrument using generators, operators, relationships, nesting and scoped frames. Canonical Entity recipes are shared across placements and live references; explicit copies create independent identities. Do not invent a finalized grammar. Read [the Stage 1 contract](docs/OMNIC_COMPOSER.md) before extending it.
 - **AI access:** AI should eventually read and modify graph data directly through structured operations, without screenshots or English as an intermediate representation.
 - **Semantic independence:** graph meaning and identity must not depend on a renderer, appearance, spatial layout or English labels.
 - **Extensibility:** Omnic should be able to grow without repeatedly rebuilding Omnium.

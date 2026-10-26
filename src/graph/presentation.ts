@@ -1,3 +1,4 @@
+import { structuralVisual } from "../omnic/presentation.ts";
 import {
   validateDocument,
   type Document,
@@ -44,7 +45,7 @@ export function hierarchyLayout(doc: Document, settings: SpatialSettings = DEFAU
       .sort((a, b) => a.id.localeCompare(b.id));
   const widths = new Map<string, number>();
   const size = (id: string) =>
-    visualFootprint(labelSize(next.entities.find((e) => e.id === byId.get(id)!.entityId)!.label), byId.get(id)!.visual, settings.sphereDiameter);
+    visualFootprint(labelSize(next.entities.find((e) => e.id === byId.get(id)!.entityId)!.label), structuralVisual(next, byId.get(id)!), settings.sphereDiameter);
   const width = (id: string): number => {
     const cached = widths.get(id);
     if (cached) return cached;

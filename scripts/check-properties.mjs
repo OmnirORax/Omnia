@@ -1,3 +1,4 @@
+import { OMNIC_PROPERTY_ADAPTERS } from "../src/omnic/propertyAdapter.ts";
 import { visualRoleGroup } from "../src/appearance/roleHierarchy.ts";
 import { createTargetIndex } from "../src/appearance/model.ts";
 import { selfInventory, resolvePropertyTarget } from "../src/properties/registry.ts";
@@ -26,6 +27,14 @@ for (const consumer of PROPERTY_REGISTRY.consumers) {
       if (!adapter.channels[channel]) throw new Error(`Missing consumer channel: ${consumer.id}/${channel}`);
     for (const channel of Object.keys(adapter.channels))
       if (!consumer.channels[channel]) throw new Error(`Adapter field is not coupled: ${consumer.id}/${channel}`);
+  } else if (consumer.owner === "omnic") {
+    const adapter = OMNIC_PROPERTY_ADAPTERS[consumer.id];
+    if (!adapter) throw new Error(`Missing Omnic adapter: ${consumer.id}`);
+    for (const channel of Object.values(consumer.channels))
+      if (typeof adapter.channels[channel]?.read !== "function" || typeof adapter.channels[channel]?.write !== "function")
+        throw new Error(`Missing Omnic consumer channel: ${consumer.id}/${channel}`);
+    for (const channel of Object.keys(adapter.channels))
+      if (!consumer.channels[channel]) throw new Error(`Omnic adapter field is not coupled: ${consumer.id}/${channel}`);
   } else throw new Error(`A new state owner needs adapter coverage in the property check: ${consumer.owner}`);
 }
 // Self inventory is a projection of coupled groups, never a second target list.
