@@ -1,5 +1,4 @@
-# Omnium structural workbench
-
+# Omnium 
 A local, interactive 3D atlas for charting systems. React, TypeScript, Three.js and Vite Plus power the current workbench. Its version-2 JSON document is independent of the renderer and provisional English labels. [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md) records the long-term constraints.
 
 ## For new workers
