@@ -25,7 +25,8 @@
     "backend:local-user": "node scripts/backend-local.mjs user",
     "test:backend": "node --test tests/backend.test.mjs",
     "backend:check": "node scripts/backend-check.mjs",
-    "backend:ready": "node scripts/backend-ready.mjs"
+    "backend:ready": "node scripts/backend-ready.mjs",
+    "preview:githack": "node scripts/publish-githack.mjs"
   },
   "dependencies": {
     "@iconify-json/lucide": "1.2.146",

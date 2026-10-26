@@ -500,3 +500,11 @@ and transient scene previews (`navigation/nudgeGesture.ts`). Never replay OS
 repeats through graph commits or catch up elapsed movement after a stalled frame.
 Commit once on release via the existing document/history owner; cancel stale
 previews on scene/context replacement. See SHORTCUTS.md and PERFORMANCE_RESULTS.md.
+
+
+Optional fast visual previews use `node --run preview:githack` and a separate
+artifact branch/commit-pinned public GitHack URL. Cloudflare stays protected and
+unchanged; see CLOUDFLARE_DEPLOYMENT.md for disposable-data/origin restrictions.
+Node click selection is immediate, while single-click options retain double-click
+arbitration. Selection styling updates the existing text scene instead of rebuilding
+it. Preserve this separation; see PERFORMANCE_RESULTS.md.

@@ -713,8 +713,13 @@ function Workbench() {
       catch (e) { setError(message(e)); }
     } else commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, collapsed: true } : p) });
   }
+  function selectNodeImmediately(id: string) {
+    setOptionNodeId(current => current === id ? current : null);
+    setSelectedIds(current => current.size === 1 && current.has(id) ? current : new Set([id]));
+    setSelection(current => current?.kind === "node" && current.id === id ? current : {kind:"node",id});
+  }
   function nodeClicked(id: string) {
-    setSelectedIds(new Set([id]));
+    selectNodeImmediately(id);
     if (connectionSource) {
       if (connectionSource !== id) connect({ source: connectionSource, target: id });
       setConnectionSource(null);
@@ -749,7 +754,7 @@ function Workbench() {
       next.frames.find((f) => f.id === frame.id)!.scope.entityIds.push(...new Set(missing.map((p) => p.entityId)));
     }
     if (next !== document) commitDocument(next);
-    setExpandedVariants((current) => new Set([...current, id]));
+    if (next.placements.some(p => p.variantOwner?.placementId === id)) setExpandedVariants((current) => current.has(id) ? current : new Set([...current, id]));
   }
   function toggleVariants(id: string) {
     if (!expandedVariants.has(id)) revealVariants(id);
@@ -2136,6 +2141,7 @@ function Workbench() {
               heldNudges={heldNudges}
               command={navCommand}
               constraintAxis={constraintAxis}
+              onNodeSelect={selectNodeImmediately}
               onNodeClick={nodeClicked}
               onNodeDoubleClick={nodeDoubleClicked}
               onSubtreeClick={nodeSubtreeClicked}

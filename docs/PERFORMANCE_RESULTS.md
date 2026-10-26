@@ -161,3 +161,16 @@ with mounted scene size, and final collision validation/one scene rebuild may
 still be expensive in large documents. Collision checks are deferred to release
 and can adjust the final position. Scene pixel/effect caps remain unchanged.
 Browser smoothness verification remains with the user; no new browser suite ran.
+
+
+Node selection no longer waits for the 320ms single/double-click options timer.
+A dedicated immediate callback selects on the first completed click; only options/
+variant revelation waits. Selection-only updates reuse scene meshes/textures,
+repaint changed selection cards and update changed binder relation styling. They
+no longer dispose/rebuild all text/geometry or recalculate occupied radii. Spatial
+projection is memoized by actual atlas/focus inputs. Variant reveal avoids creating
+a new expanded-set/atlas projection for nodes with no variants or already revealed
+variants. Actual variant/topology/font changes retain their scene rebuild path.
+Model tests cover immediate selection, exclusive single/double side effects and
+rapid target changes. Browser input-to-paint/freeze verification remains with the
+user; this is not a claim that all selection/UI rendering cost has disappeared.

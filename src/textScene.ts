@@ -107,6 +107,10 @@ export function textSprite(value: string, color: string, selected = false, node 
     const key = JSON.stringify(next); if (key === surfaceKey) return;
     surfaceKey = key; surface = next; paint(...currentStyle); texture.needsUpdate = true;
   };
+  sprite.userData.setSelected = (value: boolean) => {
+    if (value === selected) return;
+    selected = value; paint(...currentStyle); texture.needsUpdate = true;
+  };
   let paintKey = JSON.stringify([color, textColor, textGlow]);
   sprite.userData.setTextStyle = (border: string, ink: string, glow: number) => {
     const next = JSON.stringify([border, ink, glow]);
@@ -281,7 +285,9 @@ export function buildTextScene(
       spread: index - ((totals.get(pair(b)) ?? 1) - 1) / 2,
     });
   }
+  let currentTheme = theme, currentPreview: ColorPreview | null | undefined;
   function applyTheme(next: WorkspaceSettings["appearance"], preview?: ColorPreview | null) {
+    currentTheme = next; currentPreview = preview;
     const fallback = next.theme === "neon" ? next.accent : "#dce9fa";
     for (const [id, item] of nodes) {
       const placement = placements.get(id);
@@ -304,7 +310,10 @@ export function buildTextScene(
       if(item.visual)item.visual.userData.glowIntensity=override?.glow??symbol.glow;
       item.visual?.userData.setAppearance?.({ opacity: item.opacity*symbol.opacity, brightness:symbol.brightness, textColor:symbol.color, textGlow:override?.glow??symbol.glow });
     }
-    for (const item of connectors) {
+    for (const item of connectors) applyConnectorTheme(item, next, preview);
+  }
+  function applyConnectorTheme(item: BinderItem, next: WorkspaceSettings["appearance"], preview?: ColorPreview | null) {
+      const fallback = next.theme === "neon" ? next.accent : "#dce9fa";
       const original = item.data;
       const b = preview?.id === original.id ? {
         ...original,
@@ -329,8 +338,21 @@ export function buildTextScene(
       item.label?.userData.setTextStyle(text.color, b.textAppearance?.color ?? glyphColor(next, 'text.binders', text.color), b.textAppearance?.glow ?? glyphGlow(next, 'text.binders'));
       item.label?.userData.setSurfaceStyle(surfaceStyle(next, 'omnium.binders.background'));
       if (item.label) { item.label.userData.glowIntensity = b.textAppearance?.glow??(next.controller?.values['text.binders']?.glow!==undefined?glyphGlow(next,'text.binders'):text.glow); item.label.material.opacity = item.textOpacity; }
+  }
+  function updateSelection(primary: string | null, selected: ReadonlySet<string>) {
+    for (const [id,item] of nodes) {
+      const next = primary === id || selected.has(id);
+      if (item.selected === next) continue;
+      item.selected = next; item.outline.userData.selected = next; item.outline.visible = next;
+      item.text.userData.setSelected(next);
+    }
+    for (const item of connectors) {
+      const related = !primary || item.data.source === primary || item.data.target === primary;
+      if (related === item.related) continue;
+      item.related = related; applyConnectorTheme(item, currentTheme, currentPreview);
     }
   }
+
   function update(camera: THREE.PerspectiveCamera, width: number, height: number) {
     const right = new THREE.Vector3(1, 0, 0), up = new THREE.Vector3(0, 1, 0);
     const depth = (point: THREE.Vector3) => -point.clone().applyMatrix4(camera.matrixWorldInverse).z;
@@ -431,5 +453,5 @@ export function buildTextScene(
     }
   }
   applyTheme(theme);
-  return { nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme };
+  return { nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme, updateSelection };
 }

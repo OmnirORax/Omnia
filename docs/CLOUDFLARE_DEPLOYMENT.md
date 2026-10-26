@@ -250,3 +250,30 @@ if the preflight fails. Production conditions and activation variable are separa
 No Supabase origins or backend settings change: cloud operations remain restricted
 to the production/development origins documented above. PR UI/prompt preview works;
 API generation still needs its own backend rollout/credentials.
+
+
+## Optional GitHack visual preview (explicitly authorized)
+
+`node --run preview:githack` builds the self-contained preview locally, then
+publishes **only** its HTML and source provenance to the separate `preview/githack`
+artifact branch. It prints a fresh commit-pinned GitHack URL, avoiding stale branch
+caches. No checkout, force-push, Pages workflow activation or Cloudflare change is
+needed; all normal PR/merge checks remain. Requires GitHub push access and an
+already public repository (GitHack cannot serve private repository files). The
+artifact branch has no CI workflows; serving does not wait for backend checks.
+Each update adds an artifact commit; normal git delta compression applies.
+
+This public convenience route lacks Cloudflare Access and uses a different,
+shared third-party browser origin. Use it for disposable visual interaction
+fixtures, not private workspaces/authentication. Browser-local data from Cloudflare
+is not automatically transferred. Backend origins/allowlists stay unchanged;
+GitHack is not an authorized cloud/AI backend deployment. Never copy workspace
+exports, credentials or environment files into the artifact branch. The script
+copies exactly index.html and source.json, preserving existing build-time public
+configuration validation. Cloudflare remains the protected preview/production
+route. Source changes are still reviewed in the normal PR.
+
+The command builds the current working tree; source.json flags uncommitted source.
+Prefer committing reviewed changes first for exact provenance. Fresh URLs reduce
+cache confusion, but GitHack/GitHub throttling or availability can still delay
+serving; a successful push is not proof of a successful HTTP response.

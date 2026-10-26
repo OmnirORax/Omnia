@@ -14,7 +14,7 @@ import type { Rotation } from "./navigation/transforms";
 import { RENDER_BUDGET, budgetPixelRatio } from "./renderBudget";
 import { selectorSurfaceStrength } from "./appearance/selectorSurface";
 import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { guardCameraPointer } from "./cameraPointer";
@@ -68,6 +68,7 @@ type Props = {
   onFocusContextChange: (ids: readonly string[] | null) => void;
   command: NavigationCommand | null;
   constraintAxis: "x" | "y" | "z" | null;
+  onNodeSelect: (id: string) => void;
   onNodeClick: (id: string) => void;
   onNodeDoubleClick: (id: string) => void;
   onSubtreeClick: (id: string) => void;
@@ -115,8 +116,8 @@ export default function SpatialWorkspace(props: Props) {
   const optionBarRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
-  const baseGraph = projectSpatial(atlas);
-  const graph = isolateSpatialContext(baseGraph, settings.isolateFocus ? props.focusContextIds : null);
+  const baseGraph = useMemo(() => projectSpatial(atlas), [atlas]);
+  const graph = useMemo(() => isolateSpatialContext(baseGraph, settings.isolateFocus ? props.focusContextIds : null), [baseGraph, settings.isolateFocus, props.focusContextIds]);
   const fullGraphRef = useRef(baseGraph); fullGraphRef.current = baseGraph;
   const graphRef = useRef(graph); graphRef.current = graph;
   const meshes = useRef<LabelMesh[]>([]);
@@ -287,7 +288,7 @@ export default function SpatialWorkspace(props: Props) {
       if (stateRef.current) stateRef.current.controls = controls;
       requestRender();
     };
-    const clicks = nodeClicks((id) => callbacks.current.onNodeClick(id), (id) => callbacks.current.onNodeDoubleClick(id));
+    const clicks = nodeClicks((id) => callbacks.current.onNodeClick(id), (id) => callbacks.current.onNodeDoubleClick(id), 320, id => callbacks.current.onNodeSelect(id));
     const animate = (target: THREE.Vector3, distance: number, remember = true, facing?: THREE.Vector3) => {
       stopAnimation();
       if (remember) rememberCamera();
@@ -718,12 +719,17 @@ export default function SpatialWorkspace(props: Props) {
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, selectedId, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedIds, settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
+  }, [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
   useEffect(() => {
     textScene.current?.applyTheme(settings.appearance, props.colorPreview);
     stateRef.current?.requestPaint();
-  }, [ready, atlas, doc, selectedId, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter, props.colorPreview]);
+  }, [ready, atlas, doc, settings.appearance, settings.spatial.sphereDiameter, props.colorPreview]);
+
+  useEffect(() => {
+    textScene.current?.updateSelection(selectedId, props.selectedIds);
+    stateRef.current?.requestRender();
+  }, [ready, atlas, doc, selectedId, props.selectedIds, props.variantDisplay, settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
