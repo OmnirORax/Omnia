@@ -1729,17 +1729,6 @@ export function UIWorkspace({
               >
                 {menuContainer.pinned ? "Unpin frame" : "Pin frame"}
               </button>
-              {frameActions.get(menu.owner)?.onClose && (
-                <button
-                  onClick={() => {
-                    frameActions.get(menu.owner!)?.onClose?.();
-                    setMenu(null);
-                  }}
-                >
-                  {frameActions.get(menu.owner)?.closeLabel ??
-                    `Close ${frameActions.get(menu.owner)?.title}`}
-                </button>
-              )}
               <button
                 onClick={() => {
                   configure(null);

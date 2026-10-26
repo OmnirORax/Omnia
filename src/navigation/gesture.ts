@@ -60,7 +60,7 @@ export function createNavigationGesture(env: Environment) {
     if (!values.length) throw new Error("Select nodes for the selection center.");
     snapshot.center = values.reduce<THREE.Vector3>((sum, p) => sum.add(vector(p)), new THREE.Vector3()).divideScalar(values.length); return snapshot.center.clone();
   };
-  const resolve = (options: NavigationOptions, snapshot: Snapshot, fitting = false) => {
+  const resolve = (options: NavigationOptions, snapshot: Snapshot) => {
     const nodeMode = options.mode === "orient" || options.mode === "layout";
     const key = `${options.target}:${options.descendants}`;
     let ids = nodeMode ? snapshot.targets.get(key) : [];
@@ -76,7 +76,7 @@ export function createNavigationGesture(env: Environment) {
       pivot.copy(vector(snapshot.worlds.get(snapshot.pointed)!));
     }
     const limits = env.distanceLimits?.() ?? { min: .01, max: Infinity };
-    if (!fitting && options.mode === "orbit" && (env.camera.position.distanceTo(pivot) < limits.min || env.camera.position.distanceTo(pivot) > limits.max)) throw new Error(`Orbit radius must be ${limits.min}–${limits.max} world units; choose another pivot or Look around.`);
+    if (options.mode === "orbit" && (env.camera.position.distanceTo(pivot) < limits.min || env.camera.position.distanceTo(pivot) > limits.max)) throw new Error(`Orbit radius must be ${limits.min}–${limits.max} world units; choose another pivot or Look around.`);
     return { ids, pivot };
   };
   const describe = (options: NavigationOptions, ids: string[], pivot: THREE.Vector3) => {
@@ -90,12 +90,12 @@ export function createNavigationGesture(env: Environment) {
     marker.visible = options.mode !== "look" && options.mode !== "walk" && options.mode !== "pan";
     marker.position.copy(pivot); marker.scale.setScalar(Math.max(.02, env.camera.position.distanceTo(pivot) * .035)); env.request();
   };
-  type Gesture = { pointer: number; button: number; start: { x: number; y: number }; pose: CameraPose; before: CameraPose; fit: boolean; fitIds: string[]; blocked?: boolean; options: NavigationOptions; ids: string[]; pivot: THREE.Vector3;
+  type Gesture = { pointer: number; button: number; start: { x: number; y: number }; pose: CameraPose; before: CameraPose; options: NavigationOptions; ids: string[]; pivot: THREE.Vector3;
     originals: { id: string; position: THREE.Vector3; rotation: THREE.Quaternion; host?: Host }[]; rotation: THREE.Quaternion; dragged: boolean; trackball?: Trackball; constraint: DragConstraint };
   let gesture: Gesture | null = null;
   const restore = (current: Gesture) => {
     env.camera.position.copy(current.before.position); env.camera.up.copy(current.before.up); env.target().copy(current.before.target); env.camera.lookAt(env.target());
-    for (const original of current.originals) if (original.host) { original.host.anchor.copy(original.position); original.host.group.quaternion.copy(original.rotation); }
+    for (const original of current.originals) if (original.host) { original.host.anchor.copy(original.position); original.host.group.quaternion.copy(original.rotation); original.host.group.updateWorldMatrix(true, true); }
   };
   return {
     get active() { return !!gesture; },
@@ -104,18 +104,17 @@ export function createNavigationGesture(env: Environment) {
     acceptsRelease(event: PointerEvent) { return !!gesture && event.pointerId === gesture.pointer && event.button === gesture.button; },
     preview(options: NavigationOptions | null, point: { x: number; y: number }) {
       if (!options) { if (!gesture) { marker.visible = false; env.request(); } return ""; }
-      try { const snapshot = context(point); const fitting = options.mode === "auto" && options.actor !== "object" && kind(snapshot) === "graph"; options = contextual(options, snapshot); const { ids, pivot } = resolve(options, snapshot, fitting); show(options, pivot); return describe(options, ids, pivot); }
+      try { const snapshot = context(point); options = contextual(options, snapshot); const { ids, pivot } = resolve(options, snapshot); show(options, pivot); return describe(options, ids, pivot); }
       catch (error) { marker.visible = false; env.request(); return error instanceof Error ? error.message : String(error); }
     },
     begin(event: PointerEvent, options: NavigationOptions) {
       if (gesture) return false;
       try {
         const start = { x: event.clientX, y: event.clientY }, snapshot = context(start);
-        const fit = options.mode === "auto" && options.actor !== "object" && kind(snapshot) === "graph";
         options = contextual(options, snapshot);
-        const { ids, pivot } = resolve(options, snapshot, fit);
+        const { ids, pivot } = resolve(options, snapshot);
         const placements = new Map(ids.length ? snapshot.doc.placements.map(p => [p.id, p] as const) : []);
-        gesture = { pointer: event.pointerId, button: event.button, start, pose: cameraPose(), before: cameraPose(), fit, fitIds: fit ? transformTargets(snapshot.doc, [...new Set([...snapshot.selection, anchor(snapshot)].filter((id): id is string => !!id))], true, Infinity) : [], options: { ...options }, ids, pivot, rotation: new THREE.Quaternion(), dragged: false, constraint: {raw:{...start},point:{...start}},
+        gesture = { pointer: event.pointerId, button: event.button, start, pose: cameraPose(), before: cameraPose(), options: { ...options }, ids, pivot, rotation: new THREE.Quaternion(), dragged: false, constraint: {raw:{...start},point:{...start}},
           originals: ids.map(id => { const orientation = placements.get(id)?.orientation ?? identityRotation(); return { id, position: vector(snapshot.worlds.get(id)!), rotation: new THREE.Quaternion(orientation.x, orientation.y, orientation.z, orientation.w), host: env.nodes()?.get(id) }; }) };
         if ((options.mode === "orient" || options.mode === "layout") && options.axis === "free") {
           const rect = env.canvas.getBoundingClientRect?.();
@@ -138,29 +137,9 @@ export function createNavigationGesture(env: Environment) {
     },
     move(event: PointerEvent) {
       if (!gesture || event.pointerId !== gesture.pointer) return false;
-      if (gesture.blocked) return true;
       if (Math.hypot(event.clientX - gesture.start.x, event.clientY - gesture.start.y) < 5 && !gesture.dragged) return true;
       const point = constrainDrag(gesture.constraint, {x:event.clientX,y:event.clientY}, !!event.ctrlKey);
       const dx = point.x - gesture.start.x, dy = point.y - gesture.start.y;
-      if (!gesture.dragged && gesture.fit) {
-        const box = new THREE.Box3();
-        for (const id of gesture.fitIds) {
-          const host = env.nodes()?.get(id);
-          if (host) box.union(new THREE.Box3().setFromObject(host.group));
-        }
-        if (!box.isEmpty()) {
-          let radius = .5;
-          for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) radius = Math.max(radius, gesture.pivot.distanceTo(new THREE.Vector3(x,y,z)));
-          const vertical = THREE.MathUtils.degToRad(env.camera.getEffectiveFOV()) / 2;
-          const halfFov = Math.min(vertical, Math.atan(Math.tan(vertical) * env.camera.aspect));
-          const limits = env.distanceLimits?.() ?? { min: .01, max: Infinity };
-          const distance = Math.max(limits.min, gesture.pose.position.distanceTo(gesture.pivot), radius / Math.sin(halfFov) * 1.1);
-          if (distance > limits.max) { gesture.blocked = true; env.feedback("This branch exceeds the camera distance range."); return true; }
-          const direction = gesture.pose.position.clone().sub(gesture.pose.target).normalize();
-          gesture.pose.target.copy(gesture.pivot); gesture.pose.position.copy(gesture.pivot).addScaledVector(direction, distance);
-          show(gesture.options, gesture.pivot);
-        }
-      }
       gesture.dragged = true;
       const { pose, options, pivot } = gesture;
       if (options.mode === "orient" || options.mode === "layout") {

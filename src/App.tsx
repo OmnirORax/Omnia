@@ -1,3 +1,4 @@
+import { createHeldActions } from "./ui/heldActions";
 import { transformPlacements } from "./navigation/transforms";
 import { functionShortcutBinding } from "./workspaceActions";
 import { invokeCatalogAction } from "./workspaceActions";
@@ -44,7 +45,7 @@ import {
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
@@ -247,6 +248,7 @@ function Workbench() {
   const [capturing, setCapturing] = useState<string | null>(null);
   const consumedShortcutPress = useRef<number | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
+  const heldNudges = useState(() => createHeldActions<NudgeActionId>())[0];
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
   const [focusContextIds, setFocusContextIds] = useState<readonly string[] | null>(null);
   const [connectionSource, setConnectionSource] = useState<string | null>(null);
@@ -318,6 +320,11 @@ function Workbench() {
       return;
     }
     commit({ ...atlas, nodes: atlas.nodes.map((n) => (n.id === id ? { ...n, ...changes } : n)) });
+  }
+  function createNodeInContext() {
+    const candidates = selection?.kind === "node" ? [selection.id] : focusContextIds ?? [];
+    const parentId = candidates.length === 1 && document.placements.some(p => p.id === candidates[0]) ? candidates[0] : null;
+    addNode(parentId);
   }
   function addNode(parentId: string | null, atWorld?: { x: number; y: number; z: number }) {
     try {
@@ -706,8 +713,13 @@ function Workbench() {
       catch (e) { setError(message(e)); }
     } else commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, collapsed: true } : p) });
   }
+  function selectNodeImmediately(id: string) {
+    setOptionNodeId(current => current === id ? current : null);
+    setSelectedIds(current => current.size === 1 && current.has(id) ? current : new Set([id]));
+    setSelection(current => current?.kind === "node" && current.id === id ? current : {kind:"node",id});
+  }
   function nodeClicked(id: string) {
-    setSelectedIds(new Set([id]));
+    selectNodeImmediately(id);
     if (connectionSource) {
       if (connectionSource !== id) connect({ source: connectionSource, target: id });
       setConnectionSource(null);
@@ -742,7 +754,7 @@ function Workbench() {
       next.frames.find((f) => f.id === frame.id)!.scope.entityIds.push(...new Set(missing.map((p) => p.entityId)));
     }
     if (next !== document) commitDocument(next);
-    setExpandedVariants((current) => new Set([...current, id]));
+    if (next.placements.some(p => p.variantOwner?.placementId === id)) setExpandedVariants((current) => current.has(id) ? current : new Set([...current, id]));
   }
   function toggleVariants(id: string) {
     if (!expandedVariants.has(id)) revealVariants(id);
@@ -965,7 +977,7 @@ function Workbench() {
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
       case "deleteSelected": deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
-      case "focus": if (selectedIds.size > 1) navigate("selection"); else if (selection?.kind === "node") navigate("focus", selection.id); break;
+      case "focus": featureActionRuntime.invoke("world.faceSelection"); break;
       case "isolateFocus":
         setSettings(old => ({ ...old, isolateFocus: !old.isolateFocus }));
         if (!settings.isolateFocus && selection?.kind === "node") setFocusContextIds(selectedIds.size > 1 ? [...selectedIds] : [selection.id]);
@@ -974,7 +986,7 @@ function Workbench() {
       case "fitAll": navigate("all"); break;
       case "back": navigate("back"); break;
       case "zoom100": case "cameraOrigin": case "rollLeft": case "rollRight": navigate(action); break;
-      case "newNode": addNode(null); break;
+      case "newNode": createNodeInContext(); break;
       case "newChild": if (selection?.kind === "node") addNode(selection.id); break;
       case "connect": if (selection?.kind === "node") setConnectionSource(selection.id); break;
       case "expand": if (selection?.kind === "node") toggleNode(selection.id); break;
@@ -1010,19 +1022,25 @@ function Workbench() {
         if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
         assignBinding(key); return;
       }
-      if (event.defaultPrevented || isTypingTarget(event.target)) return;
+      if (event.defaultPrevented || isTypingTarget(event.target)) { heldNudges.stop(); return; }
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
       if ((settingsOpen || insertContext) && action !== "cancel" && action !== "searchUI") return;
-      event.preventDefault(); runAction(action);
+      event.preventDefault();
+      if (isNudgeAction(action)) {
+        // Stale queued presses cannot start a new movement after a main-thread stall.
+        if (!event.repeat && performance.now() - event.timeStamp < 150) heldNudges.press(action, event.code || event.key);
+      } else { heldNudges.stop(); runAction(action); }
     };
     const keyup = (event: KeyboardEvent) => {
+      heldNudges.release(event.code || event.key);
       if (isTypingTarget(event.target)) return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (action === "axisX" || action === "axisY" || action === "axisZ") setConstraintAxis(null);
     };
     const mouseHistory = (event: PointerEvent) => {
+      heldNudges.stop();
       clearRecordedShortcutPress();
       if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
       if (event.defaultPrevented) return;
@@ -1051,6 +1069,15 @@ function Workbench() {
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
     return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); window.removeEventListener("click", preventMouseNavigation, true); window.removeEventListener("contextmenu", preventRecordedMenu, true); };
   });
+  useEffect(() => {
+    heldNudges.stop();
+  }, [selection?.kind, selection?.id, capturing, settingsOpen, insertContext, settings.bindings]);
+  useEffect(() => {
+    const stop = () => heldNudges.stop();
+    const focus = (event: FocusEvent) => { if (isTypingTarget(event.target)) stop(); };
+    window.addEventListener("blur", stop); window.addEventListener("visibilitychange", stop); window.addEventListener("focusin", focus);
+    return () => { stop(); window.removeEventListener("blur", stop); window.removeEventListener("visibilitychange", stop); window.removeEventListener("focusin", focus); };
+  }, []);
   function outline(parentId: string | null, variantsOnly = false): React.ReactNode {
     return (
       <ul>
@@ -1101,7 +1128,7 @@ function Workbench() {
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
   for (const key of ["leftEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
   replaceFunction("ui:camera:rightEmpty", "World navigation", <FunctionControl id="world.navigate" mirror />, true);
-  replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
+  replaceFunction("newNode", "New node", <button onClick={createNodeInContext}>+ Node</button>);
   replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
@@ -1165,7 +1192,7 @@ function Workbench() {
   }
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
+    <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
       <header className="toolbar">
@@ -2111,8 +2138,10 @@ function Workbench() {
               focusContextIds={focusContextIds}
               colorPreview={colorPreview}
               onFocusContextChange={setFocusContextIds}
+              heldNudges={heldNudges}
               command={navCommand}
               constraintAxis={constraintAxis}
+              onNodeSelect={selectNodeImmediately}
               onNodeClick={nodeClicked}
               onNodeDoubleClick={nodeDoubleClicked}
               onSubtreeClick={nodeSubtreeClicked}

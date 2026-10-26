@@ -391,3 +391,49 @@ test("search returns a category instead of its property cross-product, retaining
   assert.equal(matchSearchResults(index, "no-such-control").length, 0);
   assert.equal(entries[1].appearance.property, undefined, "specific queries do not mutate branch destinations");
 });
+
+test("held actions ignore OS repeat bursts and duplicate physical presses without publishing or queuing work", async () => {
+  const { createHeldActions } = await import("../src/ui/heldActions.ts");
+  const held = createHeldActions(); let notifications = 0;
+  held.subscribe(() => notifications++);
+  const empty = held.getSnapshot();
+  assert.equal(held.press("moveLeft", "KeyA", true), false, "a delayed repeat cannot begin a gesture");
+  assert.equal(held.getSnapshot(), empty);
+  assert.equal(held.press("moveLeft", "KeyA"), true);
+  const first = held.getSnapshot();
+  for (let i = 0; i < 1000; i++) assert.equal(held.press("moveLeft", "KeyA", true), false);
+  assert.equal(held.press("moveRight", "KeyA"), false, "one physical key cannot switch action while held");
+  assert.equal(held.getSnapshot(), first); assert.equal(notifications, 1);
+  held.release("KeyA");
+  assert.deepEqual(held.getSnapshot().actions, []);
+  assert.equal(held.getSnapshot().generation, first.generation + 1);
+});
+
+test("held actions combine physical keys and retain an action until its last assigned key is released", async () => {
+  const { createHeldActions } = await import("../src/ui/heldActions.ts");
+  const held = createHeldActions();
+  held.press("left", "KeyA"); held.press("up", "KeyW");
+  const beforeAlias = held.getSnapshot();
+  held.press("left", "ArrowLeft");
+  assert.equal(held.getSnapshot(), beforeAlias);
+  assert.deepEqual(held.getSnapshot().actions, ["left", "up"]);
+  held.release("KeyA"); assert.equal(held.getSnapshot(), beforeAlias);
+  held.release("ArrowLeft"); assert.deepEqual(held.getSnapshot().actions, ["up"]);
+  assert.equal(held.release("Missing"), false);
+  held.release("KeyW"); assert.deepEqual(held.getSnapshot().actions, []);
+});
+
+test("stopping held input invalidates snapshots, clears every key, and respects subscriber cleanup", async () => {
+  const { createHeldActions } = await import("../src/ui/heldActions.ts");
+  const held = createHeldActions(); let calls = 0;
+  const unsubscribe = held.subscribe(() => calls++);
+  held.press("left", "ArrowLeft"); const beforeStop = held.getSnapshot();
+  held.stop(); assert.deepEqual(held.getSnapshot().actions, []);
+  assert.ok(held.getSnapshot().generation > beforeStop.generation);
+  assert.equal(held.release("ArrowLeft"), false);
+  const stopped = held.getSnapshot(); held.stop();
+  assert.ok(held.getSnapshot().generation > stopped.generation, "empty stop invalidates pending work too");
+  unsubscribe(); const beforeCleanup = calls;
+  held.press("right", "ArrowRight"); held.release("ArrowRight");
+  assert.equal(calls, beforeCleanup);
+});

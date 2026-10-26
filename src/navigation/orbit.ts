@@ -10,5 +10,5 @@ export function rebindOrbitControls(camera: THREE.PerspectiveCamera, canvas: HTM
   controls.enableDamping = false;
   controls.minDistance = previous.minDistance; controls.maxDistance = previous.maxDistance;
   controls.mouseButtons = { ...previous.mouseButtons }; controls.enabled = previous.enabled;
-  controls.update(); return controls;
+  controls.update(); camera.updateMatrixWorld(); return controls;
 }

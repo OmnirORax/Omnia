@@ -137,3 +137,40 @@ additional passes or persistent buffers. Flat pixels take five neighboring base
 samples; contrast edges take four more. This adds bounded GPU texture work and
 can slightly soften high-contrast detail; it is not free or a hardware FPS claim.
 Direct non-bloom rendering retains its existing rendering path.
+
+
+Node/binder canvas labels now use bilinear minification without mipmap generation.
+This avoids cross-fading blurred mip levels as soon as zoom drops below a texel’s
+native scale, and removes label mip allocation/rebuild work. It does not raise the
+scene pixel/DPR caps or add rendering passes. Very small text still loses detail
+at finite resolution and can alias at a distance; browser quality/performance
+verification remains with the user. This is not a system-wide lag resolution.
+
+
+Held-arrow movement previously committed every OS key repeat through React
+navigation state, collision resolution, document validation/history/autosave, and
+full text/geometry replacement. The held-key path now snapshots once, previews
+existing scene anchors at animation-frame cadence, and commits once on release.
+Regression checks simulate a 5-second stall: one capped 32ms movement step occurs,
+with no elapsed-time debt and no remaining frame/commit after release/cancellation.
+OS repeat storms cause no new held-state notifications.
+
+This removes repeated heavy commits/rebuilds from the gesture; it does not prove
+browser input-to-paint latency. Existing renderer node/binder updates still scale
+with mounted scene size, and final collision validation/one scene rebuild may
+still be expensive in large documents. Collision checks are deferred to release
+and can adjust the final position. Scene pixel/effect caps remain unchanged.
+Browser smoothness verification remains with the user; no new browser suite ran.
+
+
+Node selection no longer waits for the 320ms single/double-click options timer.
+A dedicated immediate callback selects on the first completed click; only options/
+variant revelation waits. Selection-only updates reuse scene meshes/textures,
+repaint changed selection cards and update changed binder relation styling. They
+no longer dispose/rebuild all text/geometry or recalculate occupied radii. Spatial
+projection is memoized by actual atlas/focus inputs. Variant reveal avoids creating
+a new expanded-set/atlas projection for nodes with no variants or already revealed
+variants. Actual variant/topology/font changes retain their scene rebuild path.
+Model tests cover immediate selection, exclusive single/double side effects and
+rapid target changes. Browser input-to-paint/freeze verification remains with the
+user; this is not a claim that all selection/UI rendering cost has disappeared.

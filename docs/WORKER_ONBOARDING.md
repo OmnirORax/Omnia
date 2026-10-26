@@ -485,3 +485,26 @@ history and performance contracts. New pointer actions can declare `gestureSurfa
 in the shared action catalog; the single Shift router honors that surface and
 keeps the active configuration callable while interacting with its popup. Native
 option right-clicks reach the shared lock/apply path even while Shift is held.
+
+
+Explicit MC hierarchy deselection now discards unapplied paint only for removed
+targets, restoring the separately supplied applied appearance. Other targets keep
+their draft. Reselecting resumes future edits without replay. Use the shared
+`draftTargets.ts` transaction; inspection/hover never performs this rollback.
+World rotation preserves zoom; fitting is explicit via Frame selected front-on
+in MC World view. See APPEARANCE_CONTROLLER.md and WORLD_NAVIGATION.md.
+
+
+Held node movement uses catalog-driven physical-key state (`ui/heldActions.ts`)
+and transient scene previews (`navigation/nudgeGesture.ts`). Never replay OS
+repeats through graph commits or catch up elapsed movement after a stalled frame.
+Commit once on release via the existing document/history owner; cancel stale
+previews on scene/context replacement. See SHORTCUTS.md and PERFORMANCE_RESULTS.md.
+
+
+Optional fast visual previews use `node --run preview:githack` and a separate
+artifact branch/commit-pinned public GitHack URL. Cloudflare stays protected and
+unchanged; see CLOUDFLARE_DEPLOYMENT.md for disposable-data/origin restrictions.
+Node click selection is immediate, while single-click options retain double-click
+arbitration. Selection styling updates the existing text scene instead of rebuilding
+it. Preserve this separation; see PERFORMANCE_RESULTS.md.

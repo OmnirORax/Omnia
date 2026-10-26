@@ -6,7 +6,10 @@ Open **Master controller → Visuals**. Choose a property above the tree; setter
 
 Animation color/brightness/opacity/glow can be adjusted separately on the same branches. The general Color/Brightness/Opacity/Glow adjusters also update their unlocked animation channels. Selecting an effect never rewrites a branch's ordinary color, font or opacity.
 
-- **Left-click the circle** to include or exclude a branch: filled means included, hollow means excluded. This selects what the next adjustment affects without erasing formatting.
+- **Left-click the circle** to include or exclude a branch: filled means included, hollow means excluded. This selects what the next adjustment affects. Excluding a target discards its
+  unapplied paint changes back to the last applied appearance; included targets
+  keep their draft. Reselecting resumes future edits without replaying earlier
+  adjustments. Applied formatting is preserved.
 - **Right-click that same circle** to bypass or reconnect stored appearance: bright means connected, dark means bypassed. Filling stays independent of brightness. Bypass preserves saved values and targeting; parent bypasses still apply to descendants. Shift+F10 or the context-menu key offers the same bypass action with the keyboard. UI rigidity keeps its ordinary fixed/movable circle without an appearance bypass.
 - **🔒** protects a branch and its descendants from adjustments originating above it. Click for all properties; hover for individual property locks. Deliberate edits at a locked row remain possible. Lower locks still protect descendants.
 - Named **appearance sets** remember targeting, exclusions, isolation and last adjuster values. Switching sets does not replay their values. Theme templates save the complete controller and its current presentation.
@@ -455,3 +458,13 @@ remain narrower, and toggling a role clears its descendant exceptions. Old type
 locks continue protecting their members from role-wide edits. The value resolver,
 policy index and MS pattern index share this ancestry. Grouping compiles from the
 registry at initialization, with no new DOM/pointer scans or animation work.
+
+
+Deselecting a hierarchy target during an appearance draft explicitly restores its
+applied paint through `draftTargets.ts` and the existing controller/session commit.
+The bridge exposes the applied appearance separately from live preview. Rollback
+is per removed leaf/part; other values, targeting masks, locks and bypass policies
+survive. An exact local part may need a saved-value override when its broader base
+still has a pending change. MC scoped exclusions use the same restore transaction;
+merely closing/inspecting an editor or changing properties never rolls back paint.
+This deliberate deselection is an undoable draft action, not a hover effect.

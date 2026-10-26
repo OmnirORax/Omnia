@@ -115,8 +115,8 @@ export function ActiveContextSystem() {
     "context.minimize": { enabled: !!frame, run: () => {
       const current = latest.current, entries = current.activeContext.getSnapshot(), active = activeFrame(entries);
       if (!active) return;
-      const action = current.frameActions.get(active.key)?.onChange;
-      if (action && action({ collapsed: true }) !== false) focusParent(current, entries.slice(0, entries.indexOf(active)));
+      const frame = current.frameActions.get(active.key);
+      frame?.onChange({ collapsed: !frame.state.collapsed });
     } },
     "context.descendants": { enabled: !!actions?.onBranchToggle, run: () => { const key = activeFrame(latest.current.activeContext.getSnapshot())?.key; if (key) latest.current.frameActions.get(key)?.onBranchToggle?.(); } },
   });
@@ -140,7 +140,7 @@ export function ActiveContextSystem() {
   useEffect(() => {
     const current = ui.activeContext.getSnapshot();
     const invalid = current.findIndex(entry => entry.kind === "frame"
-      ? getContainer(ui.layout, entry.key)?.closed || (ui.frameActions.get(entry.key)?.state.collapsed ?? getContainer(ui.layout, entry.key)?.collapsed) || entry.element && !entry.element.isConnected
+      ? getContainer(ui.layout, entry.key)?.closed || entry.element && !entry.element.isConnected
       : !entry.element.isConnected);
     if (invalid >= 0) publish(ui, current.slice(0, invalid));
   }, [ui.layout]);
@@ -155,6 +155,6 @@ export function ActiveContextControls() {
     if ((event.target as Element).closest("button")) event.preventDefault();
   }}><UISection id="active-context-actions" title="Active context">
     <p role="status">{top ? label : "Click a frame to activate it"}</p>
-    {["context.back", "context.search", "context.close", "context.minimize", "context.resize", "context.float", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
+    {["focus", "context.back", "context.search", "context.close", "context.minimize", "context.resize", "context.float", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
   </UISection></div>;
 }

@@ -1,3 +1,4 @@
+import { removedTargets, restoreTargetDraft } from "./draftTargets";
 import { boundedNumber } from "../properties/numericRange";
 import type { PropertySnapshot } from "../properties/clipboard";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -30,6 +31,7 @@ export type AppearanceBridge = {
   activityPreview?: (requests: ActivityPreview[]) => void;
   subtreeModifier?: "shift" | "alt" | "ctrl" | "none";
   base: Appearance;
+  applied?: Appearance;
   commit: (state: Controller) => void;
   preview: (state: Controller | null) => void;
   inspect?: (key: string) => void;
@@ -40,6 +42,8 @@ type ContextValue = AppearanceBridge & {
   propertyClipboard: PropertySnapshot | null;
   copyProperties: (snapshot: PropertySnapshot) => void;
   state: Controller;
+  retarget: (next: Controller) => void;
+  restoreTargets: (ids: readonly string[]) => void;
   renderBase: Appearance;
   legacyBase: Appearance;
   activatePreview: (request: ActivityPreview) => () => void;
@@ -218,6 +222,8 @@ export function AppearanceProvider({
     hierarchy,
     read,
     renderRead,
+    retarget: next => { activeBridge.preview(null); activeBridge.commit(activeBridge.applied ? restoreTargetDraft(activeBridge.base, activeBridge.applied, targets, removedTargets(state, next, targets), next) : next); },
+    restoreTargets: ids => { activeBridge.preview(null); if (activeBridge.applied) { const next = restoreTargetDraft(activeBridge.base, activeBridge.applied, targets, ids, state); if (next !== state) activeBridge.commit(next); } },
     location: hoverLocation ?? location,
     locate: (next, keep = false) => {
       if (keep) {

@@ -144,10 +144,13 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     // Explicitly choosing a parent can broaden the live pattern selection within
     // its existing work area. Logical/individual scopes retain their local mask.
     if (!selectingObject && visualSelection?.boundary && visualSelection.targetSelection.has(id)) {
+      const count = visualSelection.targetSelection.get(id)!;
+      if (count.included === count.total) ctx.restoreTargets(inBranch(id).map(item => item.id));
       ctx.preview(null); visualSelection.selectTarget(id); return;
     }
     const items = inBranch(id), exclude = items.some(item => !excludedItems.has(item.id));
     ctx.preview(null);
+    if (exclude) ctx.restoreTargets(items.filter(item => !excludedItems.has(item.id)).map(item => item.id));
     setScopeExclusions(previous => {
       const ids = new Set(previous.key === scopeKey ? previous.ids : []);
       for (const item of items) { if (exclude) ids.add(item.id); else ids.delete(item.id); }
@@ -384,7 +387,7 @@ export function MasterController({ bindings, visualStatus, history, children: vi
             }}
             onClick={() => rigidity
               ? ui.update(layout => toggleRigidity({ ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows } }, targets, target.id, ui.functions))
-              : inspecting ? toggleScopeBranch(target.id) : ctx.commit(toggleTarget(state, targets, target.id))}
+              : inspecting ? toggleScopeBranch(target.id) : ctx.retarget(toggleTarget(state, targets, target.id))}
           >
             <svg className="appearance-toggle-icon" viewBox="0 0 16 16" aria-hidden="true">
               <circle cx="8" cy="8" r="6" fill={lit ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" />

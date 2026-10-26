@@ -3,6 +3,7 @@ export function nodeClicks(
   single: (id: string) => void,
   double: (id: string) => void,
   delay = 320,
+  select: (id: string) => void = () => {},
 ) {
   let pending: { id: string; timer: ReturnType<typeof setTimeout> } | null = null;
   function cancel() {
@@ -13,6 +14,7 @@ export function nodeClicks(
     click(id: string) {
       if (pending?.id === id) {
         cancel();
+        select(id);
         double(id);
         return;
       }
@@ -21,6 +23,7 @@ export function nodeClicks(
         cancel();
         single(previous);
       }
+      select(id);
       pending = {
         id,
         timer: setTimeout(() => {

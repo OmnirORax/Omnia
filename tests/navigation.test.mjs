@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { navigateCamera, navigationRotation } from '../src/navigation/model.ts';
+import { frontOnPose, navigateCamera, navigationRotation } from '../src/navigation/model.ts';
 import { NAV_DEFAULTS as CONTEXT_DEFAULTS } from '../src/navigation/options.ts';
 import { transformTargets, transformPlacements } from '../src/navigation/transforms.ts';
 import { constrainDrag, moveTrackball, trackballPoint } from '../src/navigation/trackball.ts';
@@ -214,7 +214,7 @@ test('empty-space orbit keeps the active parent or child center rather than aver
     h.engine.move({...h.down,clientX:40}); vectorNear(h.target,new THREE.Vector3(x,0,0));
     const radius=h.camera.position.distanceTo(h.target), scans=h.inventoryCount();
     h.engine.move({...h.down,clientX:80}); near(h.camera.position.distanceTo(h.target),radius);
-    assert.equal(h.inventoryCount(),scans,'fit inventory is not rescanned during dragging');
+    assert.equal(h.inventoryCount(),scans,'orbit does not scan object bounds');
     h.engine.finish(); assert.equal(h.commits.length,0); h.engine.dispose();
   }
 });
@@ -229,12 +229,13 @@ test('empty space without selection looks from camera position; Camera overrides
   assert.equal(node.commits.length,0);node.engine.dispose();
 });
 
-test('graph fitting moves outward once without moving the branch pivot and cancels completely', () => {
+test('rotating a selected graph preserves the zoom radius regardless of subtree extent and cancels completely', () => {
   const h=contextualHarness(['a'],'a'), start=h.camera.position.clone();
   h.hosts.get('b').group.position.x=100;
+  const initialRadius=h.camera.position.distanceTo(new THREE.Vector3(2,0,0));
   h.engine.begin(h.down,CONTEXT_DEFAULTS); h.engine.move({...h.down,clientX:20});
   vectorNear(h.target,new THREE.Vector3(2,0,0));
-  const radius=h.camera.position.distanceTo(h.target); assert.ok(radius>100);
+  const radius=h.camera.position.distanceTo(h.target); near(radius,initialRadius); assert.equal(h.inventoryCount(),0);
   h.hosts.get('b').group.position.x=500;
   h.engine.move({...h.down,clientX:40});near(h.camera.position.distanceTo(h.target),radius);
   h.engine.finish(true);vectorNear(h.camera.position,start);vectorNear(h.target,new THREE.Vector3());h.engine.dispose();
@@ -306,4 +307,68 @@ test('Ctrl navigation uses the saved pointer binding and does not revive cleared
   assert.equal(matchesPointerShortcut('world.navigate',{'world.navigate':''},event),false);
   assert.equal(matchesPointerShortcut('world.navigate',{'world.navigate':'MB1'},event),false);
   assert.equal(matchesPointerShortcut('world.navigate',{'world.navigate':'MB1'},{...event,button:0}),true);
+});
+
+test('front-on framing centers a rotated object, fits it without changing it, and refuses excessive distance', () => {
+  const camera=new THREE.PerspectiveCamera(50,1.4,.05,1000), center=new THREE.Vector3(3,-2,5), orientation=new THREE.Quaternion().setFromEuler(new THREE.Euler(.5,.8,.3));
+  const box=new THREE.Box3(new THREE.Vector3(-2,-4,0),new THREE.Vector3(8,1,9)), before=orientation.clone();
+  const next=frontOnPose(camera,center,orientation,box,{min:1.2,max:100000});
+  camera.position.copy(next.position);camera.up.copy(next.up);camera.lookAt(next.target);camera.updateMatrixWorld();
+  vectorNear(center.clone().project(camera),new THREE.Vector3(0,0,center.clone().project(camera).z));
+  near(camera.quaternion.angleTo(orientation),0);near(orientation.angleTo(before),0);
+  for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]) {
+    const p=new THREE.Vector3(x,y,z).project(camera);assert.ok(Math.abs(p.x)<1 && Math.abs(p.y)<1 && p.z<1);
+  }
+  assert.throws(()=>frontOnPose(camera,center,orientation,box,{min:1.2,max:2}),/distance range/);
+});
+test('node picking immediately after camera control replacement uses the released view without a render', async () => {
+  const {OrbitControls}=await import('three/addons/controls/OrbitControls.js');
+  const {rebindOrbitControls}=await import('../src/navigation/orbit.ts');
+  const root=new EventTarget(),canvas=new EventTarget();canvas.style={};canvas.ownerDocument=root;canvas.getRootNode=()=>root;
+  const camera=new THREE.PerspectiveCamera(50,1,.05,1000);camera.position.set(0,0,8);camera.lookAt(0,0,0);
+  const old=new OrbitControls(camera,canvas);old.target.set(3,1,0);camera.position.set(3,1,8);
+  const controls=rebindOrbitControls(camera,canvas,old);
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(2,1),new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));plane.position.copy(old.target);plane.updateMatrixWorld();
+  const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(),camera);
+  assert.ok(ray.intersectObject(plane).length>0);controls.dispose();
+});
+
+test('held nudge previews without commits and discards missed frame time instead of catching up', async () => {
+  const {createNudgeGesture}=await import('../src/navigation/nudgeGesture.ts');
+  let clock=0,id=0,preview=new THREE.Vector3(),commits=[],restores=0,snapshots=0;
+  const frames=new Map();
+  const gesture=createNudgeGesture({now:()=>clock,schedule:callback=>{frames.set(++id,callback);return id;},cancel:key=>frames.delete(key),snapshot:()=>{
+    snapshots++;return {step:.25,frame:new THREE.Quaternion(),preview:value=>preview.copy(value),restore:()=>{restores++;},commit:value=>commits.push(value.clone())};
+  }});
+  const frame=time=>{clock=time;const entries=[...frames.values()];frames.clear();entries.forEach(callback=>callback(time));};
+  gesture.update(['nudgeLeft']);near(preview.x,-.25);assert.equal(commits.length,0);
+  frame(16);near(preview.x,-.25);
+  frame(200);const beforeStall=preview.x;
+  frame(5200);near(preview.x,beforeStall-.25*32*.012);
+  assert.equal(snapshots,1);assert.equal(commits.length,0);assert.equal(frames.size,1);
+  const stale=[...frames.values()][0];gesture.update([]);
+  assert.equal(commits.length,1);assert.equal(restores,1);assert.equal(frames.size,0);
+  const released=commits[0].clone();stale(6000);vectorNear(commits[0],released);assert.equal(frames.size,0);
+});
+
+test('held nudge commits one final move and cancellation cannot commit or revive a stale frame', async () => {
+  const {createNudgeGesture}=await import('../src/navigation/nudgeGesture.ts');
+  let clock=0,id=0,commits=0,restores=0;const frames=new Map(),previews=[];
+  const gesture=createNudgeGesture({now:()=>clock,schedule:callback=>{frames.set(++id,callback);return id;},cancel:key=>frames.delete(key),snapshot:()=>({step:1,frame:new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2),preview:value=>previews.push(value.clone()),restore:()=>restores++,commit:()=>commits++})});
+  gesture.update(['nudgeRight']);vectorNear(previews.at(-1),new THREE.Vector3(0,1,0));
+  const stale=[...frames.values()][0];gesture.finish(true);assert.equal(commits,0);assert.equal(restores,1);
+  gesture.update(['nudgeUp']);const count=previews.length;stale(9999);assert.equal(previews.length,count);
+  gesture.update([]);assert.equal(commits,1);assert.equal(restores,2);assert.equal(frames.size,0);
+});
+
+
+test('held nudge scheduler never invokes host callbacks with the environment as receiver', async () => {
+  const {createNudgeGesture}=await import('../src/navigation/nudgeGesture.ts');
+  let scheduled=0,cancelled=0,commits=0;
+  const gesture=createNudgeGesture({now:()=>0,
+    schedule:function(){assert.equal(this,undefined);scheduled++;return 1;},
+    cancel:function(id){assert.equal(this,undefined);assert.equal(id,1);cancelled++;},
+    snapshot:()=>({step:1,frame:new THREE.Quaternion(),preview(){},restore(){},commit(){commits++;}})});
+  gesture.update(['nudgeLeft']);gesture.update([]);
+  assert.equal(scheduled,1);assert.equal(cancelled,1);assert.equal(commits,1);
 });

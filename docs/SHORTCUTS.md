@@ -206,3 +206,29 @@ configuration. This follows the live base binding and uses shared catalog dispat
 there is no private Shift+Q listener or executable Shift binding. Shortcut search
 shows the derived editing gesture. Q is the new selector default; legacy default
 MB3/RMB-edit settings migrate when Q is free, preserving other custom assignments.
+
+
+## Held node movement
+
+The existing rebindable nudge actions (arrows by default) use physical held-key
+state, not OS repeat counts. A tap previews one grid/default step; after 180ms,
+holding moves at 12 steps/sec in the captured camera plane. Diagonals normalize.
+`ui/heldActions.ts` follows the same action catalog/settings and releases by
+physical code even if modifiers/focus change. Key repeats and stale initial events
+(over 150ms old) never enqueue document actions. Shift configuration/typing/capture
+and existing feature priority remain authoritative.
+
+`navigation/nudgeGesture.ts` snapshots the selected node and its visible descendants
+once (maximum 256 visible nodes) and previews existing scene anchors. Each frame
+advances at most 32ms, dropping missed time instead of catching up after stalls.
+Key release stops/cancels frame work immediately and commits once through the
+existing onMove/collision/history owner; there are no per-frame React, graph,
+validation, texture rebuild, history or storage writes. Backlogged repeat events
+cannot restart motion after release. Collision/grid validation happens on release,
+so the final safe position can differ from an overlapping preview.
+
+Blur, page suspension, starting another command or pointer interaction finishes
+held input. Entering a field/blocking dialog, rebinding and selection changes clear
+it. Scene/document replacement cancels its old preview before replacing objects;
+no stale scheduled frame may move a new target. Explicit clicks/programmatic nudge
+commands remain single-step catalog actions.

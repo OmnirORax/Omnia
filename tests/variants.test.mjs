@@ -179,3 +179,21 @@ test("single-click options and double-click expansion never fire together", (t) 
   t.mock.timers.tick(400);
   assert.equal(events.length, 2, "drag/cancel cannot open options afterward");
 });
+
+test("node selection is immediate while single/double click options stay exclusive", t => {
+  t.mock.timers.enable({apis:["setTimeout"]});
+  const events=[];
+  const clicks=nodeClicks(id=>events.push(["options",id]),id=>events.push(["expand",id]),320,id=>events.push(["select",id]));
+  clicks.click("a");assert.deepEqual(events,[["select","a"]]);
+  t.mock.timers.tick(100);clicks.click("a");t.mock.timers.tick(400);
+  assert.deepEqual(events,[["select","a"],["select","a"],["expand","a"]]);
+  clicks.click("b");assert.deepEqual(events.at(-1),["select","b"]);
+  clicks.cancel();t.mock.timers.tick(400);assert.equal(events.some(e=>e[0]==="options"),false);
+});
+
+test("rapid different-node clicks leave the latest node selected immediately", t => {
+  t.mock.timers.enable({apis:["setTimeout"]});
+  let selection;const clicks=nodeClicks(id=>{selection=id;},()=>{},320,id=>{selection=id;});
+  clicks.click("a");clicks.click("b");assert.equal(selection,"b");
+  t.mock.timers.tick(400);assert.equal(selection,"b");
+});
