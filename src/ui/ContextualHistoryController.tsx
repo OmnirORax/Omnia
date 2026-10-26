@@ -14,7 +14,7 @@ const modes: { id: HistoryMode; label: string }[] = [
 ];
 const categories: { id: HistoryCategory; label: string }[] = [
   { id: "omnium", label: "Omnium" }, { id: "ui", label: "UI arrangement" },
-  { id: "appearance", label: "Appearance" }, { id: "settings", label: "Settings" },
+  { id: "camera", label: "Camera" }, { id: "appearance", label: "Appearance" }, { id: "settings", label: "Settings" },
 ];
 /** A contextual projection of Master Controller, not a second settings inventory. */
 export function HistoryActionBridge({ history }: { history: ActionHistory }) {

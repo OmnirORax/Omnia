@@ -3,7 +3,7 @@ import { ConfigurationInteractionBoundary } from "./ConfigurationInteraction";
 import { createConfigurationGesture } from "./configurationGesture";
 import { useLayoutEffect, useRef, useState } from "react";
 import { ACTIONS, isTypingTarget, normalizeKey, normalizePointer, type WorkspaceSettings } from "../workspaceActions";
-import { featureActionRuntime, recordShortcutPress, recordedShortcutTail } from "../featureActions";
+import { featureActionRuntime, clearRecordedShortcutPress, recordShortcutPress, recordedShortcutTail } from "../featureActions";
 import type { PropertyBindings } from "../properties/CoupledProperties";
 import { useUI } from "./context";
 import { ContextualMasterController } from "./ContextualMasterController";
@@ -24,9 +24,17 @@ export function ShortcutConfiguration({ mouse, bindings }: { mouse: WorkspaceSet
       if (ui.shortcutCapturing || event.defaultPrevented || !event.shiftKey || event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target))) return;
       if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
       // Holding Shift must still permit ordinary clicks on the configuration itself.
-      if (event instanceof PointerEvent && event.button === 0 && event.target instanceof Element && event.target.closest("[data-context-controller]")) return;
+      if (event instanceof PointerEvent && event.target instanceof Element && event.target.closest("[data-context-controller]") &&
+        (event.button === 0 || event.button === 2 && event.target.closest("[data-configuration-option],[data-configuration-lock]"))) {
+        clearRecordedShortcutPress(); return;
+      }
       const chord = event instanceof KeyboardEvent ? normalizeKey(event) : normalizePointer(event);
-      const id = configurationTarget(ui.shortcutBindings ?? {}, chord, candidate => featureActionRuntime.available(candidate), { MB4: mouse.backButton, MB5: mouse.forwardButton });
+      const id = configurationTarget(ui.shortcutBindings ?? {}, chord, candidate => {
+        if (gesture.active?.id === candidate) return true;
+        const action = ACTIONS.find(action => action.id === candidate);
+        const surface = action && "gestureSurface" in action ? action.gestureSurface : undefined;
+        return featureActionRuntime.available(candidate) && (!surface || event.target instanceof Element && !!event.target.closest(surface));
+      }, { MB4: mouse.backButton, MB5: mouse.forwardButton });
       if (!id) return;
       event.preventDefault(); event.stopImmediatePropagation();
       if (event instanceof PointerEvent) { cursor.current = { x: event.clientX, y: event.clientY }; recordShortcutPress(event); claimUIPress(event.pointerId, event.pointerType, event.buttons); }

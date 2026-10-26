@@ -143,6 +143,7 @@ function PropertyInput({
             type="button"
             key={option.id}
             data-ui-id={option.id}
+            data-property-choice={option.id}
             aria-pressed={value === option.id}
             disabled={disabled}
             onClick={() => onCommit(option.id)}

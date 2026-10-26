@@ -1,3 +1,12 @@
+import { rebindOrbitControls } from "./navigation/orbit";
+import type { ActionHistory } from "./ui/actionHistory";
+import type { PropertyBindings } from "./properties/CoupledProperties";
+import { useFeatureActions } from "./ui/useFeatureActions";
+import { openActionConfiguration } from "./ui/shortcutConfiguration";
+import { NavigationConfiguration } from "./navigation/Configuration";
+import { createNavigationGesture } from "./navigation/gesture";
+import { MODES, navigationOptions, navigationConstraint, type NavigationOptions } from "./navigation/options";
+import type { Rotation } from "./navigation/transforms";
 import { RENDER_BUDGET, budgetPixelRatio } from "./renderBudget";
 import { selectorSurfaceStrength } from "./appearance/selectorSurface";
 import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
@@ -32,6 +41,9 @@ export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
+  bindings: PropertyBindings;
+  history: ActionHistory;
+  onTransformNodes: (ids: string[], rotation: Rotation, pivot: XYZ, layout: boolean) => void;
   wallpaperURL?: string | null;
   colorPreview?: ColorPreview | null;
   atlas: Atlas;
@@ -130,6 +142,26 @@ export default function SpatialWorkspace(props: Props) {
   const [feedback, setFeedback] = useState("");
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  const navigationEngine = useRef<ReturnType<typeof createNavigationGesture> | null>(null);
+  const navigationContexts = useRef(new Map<string, NavigationOptions>());
+  const navigationKey = (point: { x: number; y: number }) => JSON.stringify([...(callbacks.current.focusContextIds ?? []).slice().sort(), navigationEngine.current?.contextBranch(point), navigationEngine.current?.contextKind(point) ?? "space"]);
+  const rememberedNavigation = (point: { x: number; y: number }) => {
+    const remembered = navigationContexts.current.get(navigationKey(point)); if (remembered) return remembered;
+    const saved = navigationOptions(callbacks.current.settings), kind = navigationEngine.current?.contextKind(point);
+    return { ...saved, mode: saved.mode === "walk" || saved.mode === "pan" ? saved.mode : "auto" as const, actor: saved.actor === "auto" ? kind === "nodes" ? "object" as const : "camera" as const : saved.actor };
+  };
+  const [activeNavigation, setActiveNavigation] = useState(() => navigationOptions(settings));
+  const navigationShortcuts = useFeatureActions("worldNavigation", { "world.navigate": { enabled: ready,
+    configuration: <NavigationConfiguration bindings={props.bindings} initial={rememberedNavigation} apply={(options, point) => { navigationContexts.current.set(navigationKey(point), { ...options }); setActiveNavigation(options); }}
+      preview={(options, point) => navigationEngine.current?.preview(options, point) ?? "Opening 3D workspace…"} />,
+    run: input => {
+      if (input instanceof PointerEvent) { const options = rememberedNavigation({ x: input.clientX, y: input.clientY }); setActiveNavigation(options); if (navigationEngine.current?.begin(input, options)) navigationContexts.current.set(navigationKey({ x: input.clientX, y: input.clientY }), { ...options }); }
+      else openActionConfiguration("world.navigate");
+    },
+  } });
+  useEffect(() => { if (navigationEngine.current?.active) navigationEngine.current.finish(true); }, [doc, props.selectedIds]);
+  useEffect(() => { setActiveNavigation(navigationOptions(settings)); }, [settings.functionValues["world.navigation"]]);
+
   useEffect(() => {
     const host = hostRef.current; if (!host) return;
     let renderer: THREE.WebGLRenderer;
@@ -227,19 +259,26 @@ export default function SpatialWorkspace(props: Props) {
       },
     });
     appearance.start(() => scheduleRender(false));
-    const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; };
+    const readView = () => ({ position: asXYZ(camera.position), target: asXYZ(controls.target), up: asXYZ(camera.up), contextIds: callbacks.current.focusContextIds });
+    const applyView = (value: ReturnType<typeof readView>) => { camera.position.copy(asVector(value.position)); camera.up.copy(asVector(value.up)); controls.target.copy(asVector(value.target)); camera.lookAt(controls.target); callbacks.current.onFocusContextChange(value.contextIds); };
+    let nativeBefore: ReturnType<typeof readView> | null = null, nativeWheel = false;
+    const recordView = (before: ReturnType<typeof readView>, group?: string) => callbacks.current.history.record("world.camera", before, readView(), ["camera"], ["omnium"], group);
+    let pendingViewBefore: ReturnType<typeof readView> | null = null;
+    const commitPendingView = () => { if (pendingViewBefore) recordView(pendingViewBefore); pendingViewBefore = null; };
+    const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; commitPendingView(); };
+    const nativeStart = () => { stopAnimation(); nativeBefore = readView(); };
+    const nativeEnd = () => { if (nativeBefore) recordView(nativeBefore, nativeWheel ? "camera.wheel" : undefined); nativeBefore = null; };
+    const noteWheel = () => { nativeWheel = true; };
+    const stopCameraHistory = callbacks.current.history.register("world.camera", { read: readView, write: value => { stopAnimation(); applyView(value); rebindOrbit(); requestRender(); } });
     // OrbitControls caches its up-axis basis on construction. Rebind through its
     // public API after a discrete roll, without touching private engine fields.
     const rebindOrbit = () => {
-      const previous = controls, target = previous.target.clone();
-      previous.removeEventListener("change", requestRender); previous.removeEventListener("start", stopAnimation); previous.dispose();
-      controls = new OrbitControls(camera, renderer.domElement);
-      controls.target.copy(target); controls.enableDamping = false;
-      controls.minDistance = previous.minDistance; controls.maxDistance = previous.maxDistance;
-      controls.mouseButtons = { ...previous.mouseButtons }; controls.enabled = previous.enabled;
-      controls.addEventListener("change", requestRender); controls.addEventListener("start", stopAnimation);
+      const previous = controls;
+      previous.removeEventListener("change", requestRender); previous.removeEventListener("start", nativeStart); previous.removeEventListener("end", nativeEnd);
+      controls = rebindOrbitControls(camera, renderer.domElement, previous);
+      controls.addEventListener("change", requestRender); controls.addEventListener("start", nativeStart); controls.addEventListener("end", nativeEnd);
       if (stateRef.current) stateRef.current.controls = controls;
-      controls.update();
+      requestRender();
     };
     const clicks = nodeClicks((id) => callbacks.current.onNodeClick(id), (id) => callbacks.current.onNodeDoubleClick(id));
     const animate = (target: THREE.Vector3, distance: number, remember = true, facing?: THREE.Vector3) => {
@@ -256,7 +295,7 @@ export default function SpatialWorkspace(props: Props) {
         camera.position.copy(fromPosition).lerp(toPosition, eased);
         controls.target.copy(fromTarget).lerp(target, eased);
         controls.update(); requestRender();
-        if (t < 1) animation = requestAnimationFrame(tick); else animation = 0;
+        if (t < 1) animation = requestAnimationFrame(tick); else { animation = 0; commitPendingView(); }
       };
       animation = requestAnimationFrame(tick);
     };
@@ -297,7 +336,7 @@ export default function SpatialWorkspace(props: Props) {
           camera.position.copy(fromPosition).lerp(pose.position, eased);
           controls.target.copy(fromTarget).lerp(pose.target, eased);
           controls.update(); requestRender();
-          if (t < 1) animation = requestAnimationFrame(tick); else animation = 0;
+          if (t < 1) animation = requestAnimationFrame(tick); else { animation = 0; commitPendingView(); }
         };
         animation = requestAnimationFrame(tick); return;
       }
@@ -333,7 +372,7 @@ export default function SpatialWorkspace(props: Props) {
       animate(point, Math.max(4, radius / Math.tan(fov / 2) * 1.5));
       changeFocusContext(contextIds);
     };
-    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, requestPaint: () => scheduleRender(false), focus, wallpaper };
+    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
@@ -342,7 +381,7 @@ export default function SpatialWorkspace(props: Props) {
     };
     const observer = new ResizeObserver(resize); observer.observe(host); resize();
     controls.addEventListener("change", requestRender);
-    controls.addEventListener("start", stopAnimation);
+    controls.addEventListener("start", nativeStart); controls.addEventListener("end", nativeEnd);
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
     const aim = (event: Pick<PointerEvent, "clientX" | "clientY">) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -383,9 +422,29 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.style.cursor = hovered ? "grab" : "default";
       requestRender();
     };
+    const navigation = createNavigationGesture({ camera, scene, canvas: renderer.domElement,
+      target: () => controls.target, nodes: () => textScene.current?.nodes,
+      branch: () => callbacks.current.selectedId && callbacks.current.selectedIds.has(callbacks.current.selectedId) ? callbacks.current.selectedId : callbacks.current.focusContextIds?.[0] ?? null,
+      document: () => callbacks.current.document, selection: () => callbacks.current.selectedIds,
+      pointed: point => hits(point)[0]?.object.userData.nodeId,
+      request: requestRender, enabled: value => { if (!value) stopAnimation(); controls.enabled = value && !uiPointerActive && !drag && !selecting; },
+      rebind: rebindOrbit, feedback: setFeedback,
+      commit: (ids, rotation, pivot, layout) => callbacks.current.onTransformNodes(ids, rotation, pivot, layout),
+      remember: pose => { cameraHistory.push({ ...pose, contextIds: callbacks.current.focusContextIds }); recordView({ position: asXYZ(pose.position), target: asXYZ(pose.target), up: asXYZ(pose.up), contextIds: callbacks.current.focusContextIds }); },
+      distanceLimits: () => ({ min: controls.minDistance, max: controls.maxDistance }),
+    });
+    navigationEngine.current = navigation;
     const down = (event: PointerEvent) => {
+      nativeWheel = false;
+      if (navigation.active) return;
       if (!pointerOwner.owns(event)) return;
       stopAnimation(); setMenu(null);
+      if (navigationShortcuts.matches("world.navigate", event)) {
+        clicks.cancel(); callbacks.current.onDismissOptions();
+        if (event.button === 2) rightDown = { x: event.clientX, y: event.clientY, id: null, world: cursorWorld(event) };
+        navigationShortcuts.invoke("world.navigate", event);
+        return;
+      }
       if (event.button === 3 || event.button === 4) {
         event.preventDefault(); event.stopImmediatePropagation();
         callbacks.current.onAction(event.button === 3 ? callbacks.current.settings.mouse.backButton : callbacks.current.settings.mouse.forwardButton); return;
@@ -399,8 +458,7 @@ export default function SpatialWorkspace(props: Props) {
       if (event.button === 2) {
         clicks.cancel();
         callbacks.current.onDismissOptions();
-        const hit = hits(event)[0]?.object;
-        rightDown = { x: event.clientX, y: event.clientY, id: hit?.userData.nodeId ?? null, world: cursorWorld(event) };
+        rightDown = { x: event.clientX, y: event.clientY, id: null, world: cursorWorld(event) };
         return;
       }
       if (event.button !== 0) return;
@@ -426,6 +484,7 @@ export default function SpatialWorkspace(props: Props) {
     };
     const move = (event: PointerEvent) => {
       if (uiPointerActive || (event.buttons !== 0 && !pointerOwner.owns(event))) return;
+      if (navigation.move(event)) return;
       if (selecting) {
         const rect = host.getBoundingClientRect(), x = event.clientX - rect.left, y = event.clientY - rect.top;
         setSelectionRect({ x: Math.min(x, selecting.x), y: Math.min(y, selecting.y), width: Math.abs(x - selecting.x), height: Math.abs(y - selecting.y) }); return;
@@ -484,6 +543,10 @@ export default function SpatialWorkspace(props: Props) {
     };
     const up = (event: PointerEvent) => {
       if (uiPointerActive) return;
+      if (navigation.acceptsRelease(event)) {
+        const dragged = navigation.finish();
+        if (dragged) { rightDown = null; return; }
+      }
       if (event.button === 3 || event.button === 4) { event.preventDefault(); return; }
       if (selecting && event.button === 0) {
         const start = selecting; selecting = null; controls.enabled = !uiPointerActive; setSelectionRect(null);
@@ -512,6 +575,7 @@ export default function SpatialWorkspace(props: Props) {
       if (event.button === 2 && rightDown) {
         const right = rightDown; rightDown = null;
         if (Math.hypot(event.clientX - right.x, event.clientY - right.y) < CLICK_THRESHOLD) {
+          right.id = hits({ clientX: right.x, clientY: right.y })[0]?.object.userData.nodeId ?? null;
           const rect = host.getBoundingClientRect();
           if (right.id && !(callbacks.current.selectedIds.size > 1 && callbacks.current.selectedIds.has(right.id))) callbacks.current.onSelection([right.id]);
           setMenu({ x: Math.min(event.clientX - rect.left, rect.width - 215), y: Math.min(event.clientY - rect.top, rect.height - 360),
@@ -520,12 +584,14 @@ export default function SpatialWorkspace(props: Props) {
       }
       if (event.button === 0) finishDrag(event);
     };
-    const cancel = (event: PointerEvent) => { selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
+    const cancel = (event: PointerEvent) => { navigation.finish(true); selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
     const pointerOwner = guardCameraPointer(renderer.domElement, (active) => {
       uiPointerActive = active;
-      controls.enabled = !active && !drag && !selecting;
+      controls.enabled = !active && !drag && !selecting && !navigation.active;
       if (active) stopAnimation();
     }, () => {
+      navigation.finish(true);
+      if (nativeBefore) { applyView(nativeBefore); nativeBefore = null; }
       clicks.cancel(); stopAnimation();
       selecting = null; rightDown = null; binderDown = null; setSelectionRect(null);
       if (drag) {
@@ -539,6 +605,7 @@ export default function SpatialWorkspace(props: Props) {
       rebindOrbit();
     });
     const preventMenu = (event: MouseEvent) => event.preventDefault();
+    renderer.domElement.addEventListener("wheel", noteWheel, { capture: true, passive: true });
     renderer.domElement.addEventListener("pointerdown", down, true);
     renderer.domElement.addEventListener("auxclick", preventMenu);
     renderer.domElement.addEventListener("pointermove", move);
@@ -547,6 +614,10 @@ export default function SpatialWorkspace(props: Props) {
     renderer.domElement.addEventListener("contextmenu", preventMenu);
     setReady(true);
     return () => {
+      pendingViewBefore = null;
+      stopCameraHistory();
+      renderer.domElement.removeEventListener("wheel", noteWheel, true);
+      navigation.dispose(); navigationEngine.current = null;
       stopHierarchyHighlight(); hierarchyPulse.dispose();
       pointerOwner.dispose();
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
@@ -560,12 +631,17 @@ export default function SpatialWorkspace(props: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => { if (navigationShortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
+    window.addEventListener("keydown", key, true); return () => window.removeEventListener("keydown", key, true);
+  }, []);
+
   useEffect(() => { if (ready) void stateRef.current?.wallpaper.setURL(props.wallpaperURL ?? null); }, [ready, props.wallpaperURL]);
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
     const button = (action: "pan" | "rotate" | "none") => action === "pan" ? THREE.MOUSE.PAN : action === "rotate" ? THREE.MOUSE.ROTATE : null;
-    state.controls.mouseButtons = { LEFT: button(settings.mouse.leftEmpty), MIDDLE: THREE.MOUSE.DOLLY, RIGHT: button(settings.mouse.rightEmpty) };
+    state.controls.mouseButtons = { LEFT: button(settings.mouse.leftEmpty), MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null };
   }, [ready, settings.mouse.leftEmpty, settings.mouse.rightEmpty]);
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
@@ -612,7 +688,7 @@ export default function SpatialWorkspace(props: Props) {
   const menuItems = menu?.target.kind === "selection" ? selectionMenu : menu?.target.kind === "node" ? nodeMenu : spaceMenu;
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
-    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · right-drag: rotate</div>
+    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "auto" ? "node: object center · selected branch: orbit · no selection: look" : activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
     {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
       {NODE_OPTIONS.map((option) => <div className="node-option" key={option.id}>
         <button aria-expanded={props.expandedVariants.has(props.optionNodeId!)} onClick={() => props.onToggleVariants(props.optionNodeId!)}>{option.label}</button>

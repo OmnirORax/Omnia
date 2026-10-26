@@ -16,6 +16,8 @@ export type Placement = {
   parentId: string | null;
   position: XY;
   spatialPosition?: XYZ;
+  /** Visual facing only; independent of identity, containment and child layout. */
+  orientation?: XYZ & { w: number };
   collapsed: boolean;
   hidden: boolean;
   appearance?: Appearance;
@@ -307,6 +309,8 @@ export function validateDocument(doc: Document): Document {
       !(p.parentId === null || id(p.parentId)) ||
       !point(p.position, ["x", "y"]) ||
       (p.spatialPosition !== undefined && !point(p.spatialPosition, ["x", "y", "z"])) ||
+      (p.orientation !== undefined && (!point(p.orientation, ["x", "y", "z", "w"]) ||
+        Math.abs(Math.hypot(p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w) - 1) > .0001)) ||
       typeof p.collapsed !== "boolean" ||
       typeof p.hidden !== "boolean"
     )

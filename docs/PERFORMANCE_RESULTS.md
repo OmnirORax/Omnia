@@ -129,3 +129,11 @@ slider gestures with large mounted fixtures; cover combined graph/media workload
 Keep hardware paint/raster/compositing evidence distinct from JS sampling. Broader
 context subscriptions, large-document discovery and scene/media budgets remain
 incomplete; passing tests or these local gains do not close those tasks.
+
+
+Neon scene edge smoothing is fused into SceneGlow's existing composite shader.
+It retains the 1.5 MP base and 512px bloom bounds, without MSAA, supersampling,
+additional passes or persistent buffers. Flat pixels take five neighboring base
+samples; contrast edges take four more. This adds bounded GPU texture work and
+can slightly soften high-contrast detail; it is not free or a hardware FPS claim.
+Direct non-bloom rendering retains its existing rendering path.

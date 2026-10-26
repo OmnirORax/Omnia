@@ -115,3 +115,12 @@ press and invokes that catalog action immediately; Shift release does not execut
 the base action afterward. Selector opening uses this link to `selector.edit`
 (Shift+Q by default). Do not add literal Shift key combinations or competing
 configuration handlers. Derived hints/search follow the source's live binding.
+
+
+World navigation now uses the same contextual configuration signature, with
+explicit camera, node-facing and layout modes, targets, pivots and world-axis
+constraints. See [WORLD_NAVIGATION.md](WORLD_NAVIGATION.md) for gesture, storage,
+history and performance contracts. New pointer actions can declare `gestureSurface`
+in the shared action catalog; the single Shift router honors that surface and
+keeps the active configuration callable while interacting with its popup. Native
+option right-clicks reach the shared lock/apply path even while Shift is held.
