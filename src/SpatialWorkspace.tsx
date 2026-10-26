@@ -456,7 +456,7 @@ export default function SpatialWorkspace(props: Props) {
       distanceLimits: () => ({ min: controls.minDistance, max: controls.maxDistance }),
     });
     navigationEngine.current = navigation;
-    const nudging = createNudgeGesture({ schedule: requestAnimationFrame, cancel: cancelAnimationFrame, now: () => performance.now(), snapshot: () => {
+    const nudging = createNudgeGesture({ schedule: tick => window.requestAnimationFrame(tick), cancel: id => window.cancelAnimationFrame(id), now: () => performance.now(), snapshot: () => {
       if (navigation.active || drag || selecting || uiPointerActive) return null;
       const id = callbacks.current.selectedId;
       const node = graphRef.current.nodes.find(node => node.visible && node.id === id);

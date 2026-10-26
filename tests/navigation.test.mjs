@@ -360,3 +360,15 @@ test('held nudge commits one final move and cancellation cannot commit or revive
   gesture.update(['nudgeUp']);const count=previews.length;stale(9999);assert.equal(previews.length,count);
   gesture.update([]);assert.equal(commits,1);assert.equal(restores,2);assert.equal(frames.size,0);
 });
+
+
+test('held nudge scheduler never invokes host callbacks with the environment as receiver', async () => {
+  const {createNudgeGesture}=await import('../src/navigation/nudgeGesture.ts');
+  let scheduled=0,cancelled=0,commits=0;
+  const gesture=createNudgeGesture({now:()=>0,
+    schedule:function(){assert.equal(this,undefined);scheduled++;return 1;},
+    cancel:function(id){assert.equal(this,undefined);assert.equal(id,1);cancelled++;},
+    snapshot:()=>({step:1,frame:new THREE.Quaternion(),preview(){},restore(){},commit(){commits++;}})});
+  gesture.update(['nudgeLeft']);gesture.update([]);
+  assert.equal(scheduled,1);assert.equal(cancelled,1);assert.equal(commits,1);
+});

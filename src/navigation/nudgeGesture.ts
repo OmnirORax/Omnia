@@ -12,6 +12,9 @@ export function createNudgeGesture(env: {
   schedule: (tick: (time: number) => void) => number; cancel: (id: number) => void;
   now: () => number;
 }) {
+  // Copy callback adapters so invoking them never supplies this environment as
+  // the receiver (native Window functions reject a foreign receiver).
+  const { schedule, cancel } = env;
   let active: { snapshot: NudgeSnapshot; delta: THREE.Vector3; actions: readonly NudgeActionId[]; last: number; started: number } | null = null;
   let pending: number | undefined, generation = 0;
   const direction = (actions: readonly NudgeActionId[]) => new THREE.Vector3(
@@ -26,7 +29,7 @@ export function createNudgeGesture(env: {
   const queue = () => {
     if (pending !== undefined || !active) return;
     const token = generation;
-    pending = env.schedule(time => {
+    pending = schedule(time => {
       if (token !== generation || !active) return;
       pending = undefined;
       // Short press = one normal nudge. Hold begins after a brief repeat delay.
@@ -38,7 +41,7 @@ export function createNudgeGesture(env: {
   };
   const finish = (cancelled = false) => {
     generation++;
-    if (pending !== undefined) env.cancel(pending);
+    if (pending !== undefined) cancel(pending);
     pending = undefined;
     const current = active; active = null;
     if (!current) return;
