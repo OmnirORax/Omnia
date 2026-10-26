@@ -1,6 +1,7 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "world.faceSelection", owner: "worldNavigation", scope: "world", category: "World navigation", label: "Frame selected front-on", defaultKey: "", description: "Center and fit selected objects, looking straight at their front plane. Changes camera only; use Back or Undo to restore the previous view." },
   { id: "world.navigate", owner: "worldNavigation", scope: "world", pointerGestureModifiers: ["Ctrl"], gestureSurface: ".spatial-workspace > canvas", category: "World navigation", label: "World navigation", defaultKey: "MB2", description: "Drag using the active movement mode. Hold Ctrl to lock the initial drag axis; Shift opens contextual configuration." },
   { id: "scene.copyPrompt", owner: "scene", scope: "global", category: "Scene", label: "Copy resolved prompt", defaultKey: "", description: "Copy the prompt with active-node values for use in ChatGPT. Remembers this node for the returned image." },
   { id: "scene.chooseImage", owner: "scene", scope: "global", category: "Scene", label: "Choose image", defaultKey: "", description: "Import a PNG, JPEG or WebP, save it in this browser and apply it to the chosen node." },

@@ -1315,3 +1315,34 @@ test("new Text role spans systems while saved legacy Text targeting keeps its ol
   assert.equal(allText.values["text.nodes"].brightness, 2);
   assert.equal(allText.values["ui.buttons.background"], undefined);
 });
+
+test('excluding draft targets restores their applied paint while preserving other targets and targeting', async () => {
+  const {restoreTargetDraft,removedTargets}=await import('../src/appearance/draftTargets.ts');
+  const {toggleTarget}=await import('../src/appearance/model.ts');
+  const applied=defaultSettings().appearance, targets=controllerTargets(applied.controller);
+  const a=targets.find(t=>t.id==='text.nodes'), b=targets.find(t=>t.id==='text.binders');
+  const baseline={...applied,controller:applyValue(applied.controller,targets,'color','#112233',a.id)};
+  const draft={...baseline,controller:applyValue(baseline.controller,targets,'color','#abcdef')};
+  const off=toggleTarget(draft.controller,targets,a.id), restored=restoreTargetDraft(draft,baseline,targets,removedTargets(draft.controller,off,targets),off);
+  const read=createValueResolver(draft,restored,targets);
+  assert.equal(read(a,'color'),'#112233');assert.equal(read(b,'color'),'#abcdef');
+  assert.equal(included(restored.sets[0],targets,a.id),false);
+  const adjusted=applyValue(restored,targets,'color','#fedcba');
+  assert.equal(createValueResolver(draft,adjusted,targets)(a,'color'),'#112233');
+  assert.equal(createValueResolver(draft,adjusted,targets)(b,'color'),'#fedcba');
+  const reselected=toggleTarget(adjusted,targets,a.id);
+  assert.equal(createValueResolver(draft,reselected,targets)(a,'color'),'#112233');
+  assert.equal(createValueResolver(draft,applyValue(reselected,targets,'color','#778899'),targets)(a,'color'),'#778899');
+});
+
+test('restoring a deselected local part retains the applied value despite a draft change to its parent', async () => {
+  const {restoreTargetDraft}=await import('../src/appearance/draftTargets.ts');
+  const applied=defaultSettings().appearance;
+  const id='test:local', part={base:'text.nodes',owner:'function:example',label:'Example'};
+  const controller={...applied.controller,instances:{[id]:part},values:{'text.nodes':{color:'#abcdef'},[id]:{color:'#ee4400'}}};
+  const targets=controllerTargets(controller), draft={...applied,controller};
+  const next=restoreTargetDraft(draft,applied,targets,[id]);
+  const read=createValueResolver(draft,next,targets),baseline=createValueResolver(applied,applied.controller);
+  assert.equal(read(targets.find(t=>t.id===id),'color'),baseline(targets.find(t=>t.id===id),'color'));
+  assert.equal(next.values['text.nodes'].color,'#abcdef');
+});

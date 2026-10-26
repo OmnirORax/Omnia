@@ -35,3 +35,15 @@ export function navigateCamera(pose: CameraPose, options: NavigationOptions, dx:
   next.up.applyQuaternion(rotation).normalize();
   return next;
 }
+
+/** Fit once in the object's local front plane; node orientation/pivot never change. */
+export function frontOnPose(camera: Pick<THREE.PerspectiveCamera, "aspect" | "near"> & { getEffectiveFOV: () => number }, center: THREE.Vector3, orientation: THREE.Quaternion, bounds: THREE.Box3, limits: { min: number; max: number }): CameraPose {
+  const inverse = orientation.clone().invert(), tanY = Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2), tanX = tanY * camera.aspect;
+  let distance = Math.max(limits.min, camera.near * 2);
+  if (!bounds.isEmpty()) for (const x of [bounds.min.x,bounds.max.x]) for (const y of [bounds.min.y,bounds.max.y]) for (const z of [bounds.min.z,bounds.max.z]) {
+    const p = new THREE.Vector3(x,y,z).sub(center).applyQuaternion(inverse);
+    distance = Math.max(distance, p.z + Math.abs(p.x) / tanX * 1.12, p.z + Math.abs(p.y) / tanY * 1.12, p.z + camera.near * 2);
+  }
+  if (!Number.isFinite(distance) || distance > limits.max) throw new Error("Selection exceeds the camera distance range.");
+  return { position: new THREE.Vector3(0,0,distance).applyQuaternion(orientation).add(center), target: center.clone(), up: new THREE.Vector3(0,1,0).applyQuaternion(orientation) };
+}

@@ -11,9 +11,9 @@ same command for clickable use.
 Default rotation resolves at pointer-down:
 
 - Drag directly on a node: turn that node at its own center.
-- Drag empty space with a selection: orbit the current branch anchor, fitting its
-  visible subtree once as the drag starts. The active parent/child center is the
-  pivot; bounds determine distance, never the pivot. Fitting only moves outward.
+- Drag empty space with a selection: orbit the current branch anchor while preserving the current radius/zoom.
+  The active parent/child center is the pivot; rotation never automatically fits
+  the subtree or resets the zoom.
 - Drag empty space with no selection: look around from the camera's own position.
 
 Camera / Object overrides what moves for that target context. Camera on a node
@@ -33,7 +33,7 @@ axis-only dragging. This applies to node facing and selected-layout rotation,
 with the existing pivot, target limits, cancellation and one-commit history path.
 No DOM geometry reads or bounds scans occur during trackball movement.
 
-Target, pivot and fit membership freeze at pointer-down; moving over another node
+Target and pivot freeze at pointer-down; moving over another node
 never retargets an active drag. The optional descendant expansion remains explicit.
 
 The former right-drag Pan preference reads as Pan view; an explicit Off preference
@@ -91,9 +91,15 @@ Preview uses existing Three.js transforms and one reusable axes helper. There is
 no animation loop, per-pointer React update, persistence or DOM discovery. Context
 membership/pivots are cached for the configuration/gesture snapshot; ordinary
 explicit camera focus/look/pan does not traverse the node inventory or raycast it.
-Context rotation raycasts once for its frozen target. Graph fitting snapshots the
-subtree once and bounds only mounted node hosts on the first actual movement;
-subsequent pointer moves do not rescan it. Native
+Context rotation raycasts once for its frozen target. Rotation does not scan
+subtree bounds or alter zoom. MC → World view → Frame selected front-on explicitly
+fits up to 256 selected mounted objects once and aligns the camera with the active
+object’s front/up plane. Object orientation stays unchanged; Back/Camera undo
+restores the view. This cataloged action is unbound by default. Front-on framing
+stays perspective: flat node/text planes face the camera without perspective
+skew, while volumetric assets remain 3D. Picking refreshes the camera matrix before
+ray setup and initializes new scene matrices before accepting hits. Node text
+remains a hit surface alongside sphere/asset body proxies. Native
 context-menu picking is deferred until a real click. Node transforms support up
 to 256 targets per gesture and reject larger sets explicitly. Pointer cancellation,
 page suspension, document/selection changes and teardown restore unfinished node
@@ -103,5 +109,5 @@ new work; they do not establish a fix for the remaining system-wide lag report.
 Model checks cover radius/camera-origin/translation constraints, orientation
 round trips, selected/descendant layout invariants, cancellation, exactly-once
 commits, legacy settings, contextual target freezing, active branch pivots,
-once-only fitting and camera-only inventory avoidance. Browser interaction
+explicit front-on framing, zoom preservation and camera-only inventory avoidance. Browser interaction
 verification remains with the user under the existing repository preference.

@@ -80,6 +80,10 @@ export function textSprite(value: string, color: string, selected = false, node 
   paint(color, textColor, textGlow);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  // Small text should not blend progressively blurrier mip levels while zooming.
+  // One bilinear sample keeps antialiasing without extra texture allocations/passes.
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
   const sprite = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({
@@ -210,6 +214,14 @@ export function buildTextScene(
     if (visual) group.add(visual);
     content.add(group);
     nodeHits.push(sprite);
+    // Labels remain node targets when a sphere or visual proxy is the main body.
+    // Rotated text can visibly extend beyond that body's picking volume.
+    if (text !== sprite) {
+      text.userData.nodeId = node.id;
+      text.userData.baseColor = text.material.color.clone();
+      text.userData.hoverOutline = outline;
+      nodeHits.push(text);
+    }
     nodes.set(node.id, {
       group,
       sprite,

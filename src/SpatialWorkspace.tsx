@@ -4,6 +4,7 @@ import type { PropertyBindings } from "./properties/CoupledProperties";
 import { useFeatureActions } from "./ui/useFeatureActions";
 import { openActionConfiguration } from "./ui/shortcutConfiguration";
 import { NavigationConfiguration } from "./navigation/Configuration";
+import { frontOnPose } from "./navigation/model";
 import { createNavigationGesture } from "./navigation/gesture";
 import { MODES, navigationOptions, navigationConstraint, type NavigationOptions } from "./navigation/options";
 import type { Rotation } from "./navigation/transforms";
@@ -83,6 +84,7 @@ type SceneState = {
   requestRender: () => void;
   requestPaint: () => void;
   wallpaper: ReturnType<typeof createWallpaper>;
+  faceSelection: () => void;
   focus: (kind: NavigationCommand["kind"], id?: string) => void;
 };
 type Menu = { x: number; y: number; target: ContextTarget };
@@ -151,7 +153,7 @@ export default function SpatialWorkspace(props: Props) {
     return { ...saved, mode: saved.mode === "walk" || saved.mode === "pan" ? saved.mode : "auto" as const, actor: saved.actor === "auto" ? kind === "nodes" ? "object" as const : "camera" as const : saved.actor };
   };
   const [activeNavigation, setActiveNavigation] = useState(() => navigationOptions(settings));
-  const navigationShortcuts = useFeatureActions("worldNavigation", { "world.navigate": { enabled: ready,
+  const navigationShortcuts = useFeatureActions("worldNavigation", { "world.faceSelection": {enabled: ready && props.selectedIds.size > 0, run: () => stateRef.current?.faceSelection()}, "world.navigate": { enabled: ready,
     configuration: <NavigationConfiguration bindings={props.bindings} initial={rememberedNavigation} apply={(options, point) => { navigationContexts.current.set(navigationKey(point), { ...options }); setActiveNavigation(options); }}
       preview={(options, point) => navigationEngine.current?.preview(options, point) ?? "Opening 3D workspace…"} />,
     run: input => {
@@ -372,7 +374,21 @@ export default function SpatialWorkspace(props: Props) {
       animate(point, Math.max(4, radius / Math.tan(fov / 2) * 1.5));
       changeFocusContext(contextIds);
     };
-    stateRef.current = { camera, controls, renderer, content, appearance, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
+    const faceSelection = () => {
+      if (navigation.active || drag || selecting) return;
+      const ids = [...callbacks.current.selectedIds], primary = callbacks.current.selectedId && ids.includes(callbacks.current.selectedId) ? callbacks.current.selectedId : ids[0];
+      const item = textScene.current?.nodes.get(primary); if (!item) { setFeedback("Select a visible object to frame."); return; }
+      if (ids.length > 256) { setFeedback("Frame up to 256 selected objects at once."); return; }
+      try {
+        const box = new THREE.Box3();
+        for (const id of ids) { const host = textScene.current?.nodes.get(id); if (host) box.union(new THREE.Box3().setFromObject(host.group)); }
+        const next = frontOnPose(camera, item.anchor, item.group.getWorldQuaternion(new THREE.Quaternion()), box, {min:controls.minDistance,max:controls.maxDistance});
+        stopAnimation(); const before = readView(); rememberCamera();
+        camera.position.copy(next.position); camera.up.copy(next.up); controls.target.copy(next.target); camera.lookAt(next.target);
+        rebindOrbit(); recordView(before); requestRender(); setFeedback("");
+      } catch (error) { setFeedback(error instanceof Error ? error.message : String(error)); }
+    };
+    stateRef.current = { camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
@@ -386,6 +402,7 @@ export default function SpatialWorkspace(props: Props) {
     const aim = (event: Pick<PointerEvent, "clientX" | "clientY">) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
+      camera.updateWorldMatrix(true, false);
       raycaster.setFromCamera(pointer, camera);
     };
     const hits = (event: Pick<PointerEvent, "clientX" | "clientY">, except?: string) => {
@@ -661,6 +678,9 @@ export default function SpatialWorkspace(props: Props) {
       return [{ ...b, source: from.representative, target: to.representative }];
     });
     const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter);
+    state.camera.updateMatrixWorld();
+    built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
+    state.content.updateMatrixWorld(true);
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));

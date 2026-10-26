@@ -485,3 +485,11 @@ history and performance contracts. New pointer actions can declare `gestureSurfa
 in the shared action catalog; the single Shift router honors that surface and
 keeps the active configuration callable while interacting with its popup. Native
 option right-clicks reach the shared lock/apply path even while Shift is held.
+
+
+Explicit MC hierarchy deselection now discards unapplied paint only for removed
+targets, restoring the separately supplied applied appearance. Other targets keep
+their draft. Reselecting resumes future edits without replay. Use the shared
+`draftTargets.ts` transaction; inspection/hover never performs this rollback.
+World rotation preserves zoom; fitting is explicit via Frame selected front-on
+in MC World view. See APPEARANCE_CONTROLLER.md and WORLD_NAVIGATION.md.

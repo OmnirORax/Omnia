@@ -137,3 +137,11 @@ additional passes or persistent buffers. Flat pixels take five neighboring base
 samples; contrast edges take four more. This adds bounded GPU texture work and
 can slightly soften high-contrast detail; it is not free or a hardware FPS claim.
 Direct non-bloom rendering retains its existing rendering path.
+
+
+Node/binder canvas labels now use bilinear minification without mipmap generation.
+This avoids cross-fading blurred mip levels as soon as zoom drops below a texel’s
+native scale, and removes label mip allocation/rebuild work. It does not raise the
+scene pixel/DPR caps or add rendering passes. Very small text still loses detail
+at finite resolution and can alias at a distance; browser quality/performance
+verification remains with the user. This is not a system-wide lag resolution.
