@@ -319,6 +319,11 @@ function Workbench() {
     }
     commit({ ...atlas, nodes: atlas.nodes.map((n) => (n.id === id ? { ...n, ...changes } : n)) });
   }
+  function createNodeInContext() {
+    const candidates = selection?.kind === "node" ? [selection.id] : focusContextIds ?? [];
+    const parentId = candidates.length === 1 && document.placements.some(p => p.id === candidates[0]) ? candidates[0] : null;
+    addNode(parentId);
+  }
   function addNode(parentId: string | null, atWorld?: { x: number; y: number; z: number }) {
     try {
       const entityId = newId();
@@ -974,7 +979,7 @@ function Workbench() {
       case "fitAll": navigate("all"); break;
       case "back": navigate("back"); break;
       case "zoom100": case "cameraOrigin": case "rollLeft": case "rollRight": navigate(action); break;
-      case "newNode": addNode(null); break;
+      case "newNode": createNodeInContext(); break;
       case "newChild": if (selection?.kind === "node") addNode(selection.id); break;
       case "connect": if (selection?.kind === "node") setConnectionSource(selection.id); break;
       case "expand": if (selection?.kind === "node") toggleNode(selection.id); break;
@@ -1101,7 +1106,7 @@ function Workbench() {
   for (const [key, label] of [["backButton", "MB4"], ["forwardButton", "MB5"]] as const) replaceFunction(`ui:mouse:${key}`, label, <label>{label}<select aria-label={`${label} action`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as ActionId } }))}>{ACTIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>, true);
   for (const key of ["leftEmpty"] as const) replaceFunction(`ui:camera:${key}`, key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space", <label>{key === "leftEmpty" ? "Left-drag empty space" : "Right-drag empty space"}<select aria-label={`Shortcut ${key}`} value={settings.mouse[key]} onChange={(e) => setSettings((s) => ({ ...s, mouse: { ...s.mouse, [key]: e.target.value as WorkspaceSettings["mouse"][typeof key] } }))}>{["pan", "rotate", "none"].map((v) => <option key={v}>{v}</option>)}</select></label>, true);
   replaceFunction("ui:camera:rightEmpty", "World navigation", <FunctionControl id="world.navigate" mirror />, true);
-  replaceFunction("newNode", "New node", <button onClick={() => addNode(null)}>+ Node</button>);
+  replaceFunction("newNode", "New node", <button onClick={createNodeInContext}>+ Node</button>);
   replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);

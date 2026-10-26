@@ -111,3 +111,8 @@ round trips, selected/descendant layout invariants, cancellation, exactly-once
 commits, legacy settings, contextual target freezing, active branch pivots,
 explicit front-on framing, zoom preservation and camera-only inventory avoidance. Browser interaction
 verification remains with the user under the existing repository preference.
+
+New node uses the shared current-context creation path for its catalog command
+and clickable control: a selected placement is its parent; otherwise a single
+focused branch is its parent. With no unambiguous parent it creates at root.
+Explicit Create node here remains a world-position/root action.
