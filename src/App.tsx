@@ -1,3 +1,4 @@
+import { createHeldActions } from "./ui/heldActions";
 import { transformPlacements } from "./navigation/transforms";
 import { functionShortcutBinding } from "./workspaceActions";
 import { invokeCatalogAction } from "./workspaceActions";
@@ -44,7 +45,7 @@ import {
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, type ActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
@@ -247,6 +248,7 @@ function Workbench() {
   const [capturing, setCapturing] = useState<string | null>(null);
   const consumedShortcutPress = useRef<number | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
+  const heldNudges = useState(() => createHeldActions<NudgeActionId>())[0];
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
   const [focusContextIds, setFocusContextIds] = useState<readonly string[] | null>(null);
   const [connectionSource, setConnectionSource] = useState<string | null>(null);
@@ -1015,19 +1017,25 @@ function Workbench() {
         if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
         assignBinding(key); return;
       }
-      if (event.defaultPrevented || isTypingTarget(event.target)) return;
+      if (event.defaultPrevented || isTypingTarget(event.target)) { heldNudges.stop(); return; }
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
       if ((settingsOpen || insertContext) && action !== "cancel" && action !== "searchUI") return;
-      event.preventDefault(); runAction(action);
+      event.preventDefault();
+      if (isNudgeAction(action)) {
+        // Stale queued presses cannot start a new movement after a main-thread stall.
+        if (!event.repeat && performance.now() - event.timeStamp < 150) heldNudges.press(action, event.code || event.key);
+      } else { heldNudges.stop(); runAction(action); }
     };
     const keyup = (event: KeyboardEvent) => {
+      heldNudges.release(event.code || event.key);
       if (isTypingTarget(event.target)) return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (action === "axisX" || action === "axisY" || action === "axisZ") setConstraintAxis(null);
     };
     const mouseHistory = (event: PointerEvent) => {
+      heldNudges.stop();
       clearRecordedShortcutPress();
       if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
       if (event.defaultPrevented) return;
@@ -1056,6 +1064,15 @@ function Workbench() {
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
     return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); window.removeEventListener("click", preventMouseNavigation, true); window.removeEventListener("contextmenu", preventRecordedMenu, true); };
   });
+  useEffect(() => {
+    heldNudges.stop();
+  }, [selection?.kind, selection?.id, capturing, settingsOpen, insertContext, settings.bindings]);
+  useEffect(() => {
+    const stop = () => heldNudges.stop();
+    const focus = (event: FocusEvent) => { if (isTypingTarget(event.target)) stop(); };
+    window.addEventListener("blur", stop); window.addEventListener("visibilitychange", stop); window.addEventListener("focusin", focus);
+    return () => { stop(); window.removeEventListener("blur", stop); window.removeEventListener("visibilitychange", stop); window.removeEventListener("focusin", focus); };
+  }, []);
   function outline(parentId: string | null, variantsOnly = false): React.ReactNode {
     return (
       <ul>
@@ -2116,6 +2133,7 @@ function Workbench() {
               focusContextIds={focusContextIds}
               colorPreview={colorPreview}
               onFocusContextChange={setFocusContextIds}
+              heldNudges={heldNudges}
               command={navCommand}
               constraintAxis={constraintAxis}
               onNodeClick={nodeClicked}

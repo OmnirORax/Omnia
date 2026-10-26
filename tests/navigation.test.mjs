@@ -332,3 +332,31 @@ test('node picking immediately after camera control replacement uses the release
   const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(),camera);
   assert.ok(ray.intersectObject(plane).length>0);controls.dispose();
 });
+
+test('held nudge previews without commits and discards missed frame time instead of catching up', async () => {
+  const {createNudgeGesture}=await import('../src/navigation/nudgeGesture.ts');
+  let clock=0,id=0,preview=new THREE.Vector3(),commits=[],restores=0,snapshots=0;
+  const frames=new Map();
+  const gesture=createNudgeGesture({now:()=>clock,schedule:callback=>{frames.set(++id,callback);return id;},cancel:key=>frames.delete(key),snapshot:()=>{
+    snapshots++;return {step:.25,frame:new THREE.Quaternion(),preview:value=>preview.copy(value),restore:()=>{restores++;},commit:value=>commits.push(value.clone())};
+  }});
+  const frame=time=>{clock=time;const entries=[...frames.values()];frames.clear();entries.forEach(callback=>callback(time));};
+  gesture.update(['nudgeLeft']);near(preview.x,-.25);assert.equal(commits.length,0);
+  frame(16);near(preview.x,-.25);
+  frame(200);const beforeStall=preview.x;
+  frame(5200);near(preview.x,beforeStall-.25*32*.012);
+  assert.equal(snapshots,1);assert.equal(commits.length,0);assert.equal(frames.size,1);
+  const stale=[...frames.values()][0];gesture.update([]);
+  assert.equal(commits.length,1);assert.equal(restores,1);assert.equal(frames.size,0);
+  const released=commits[0].clone();stale(6000);vectorNear(commits[0],released);assert.equal(frames.size,0);
+});
+
+test('held nudge commits one final move and cancellation cannot commit or revive a stale frame', async () => {
+  const {createNudgeGesture}=await import('../src/navigation/nudgeGesture.ts');
+  let clock=0,id=0,commits=0,restores=0;const frames=new Map(),previews=[];
+  const gesture=createNudgeGesture({now:()=>clock,schedule:callback=>{frames.set(++id,callback);return id;},cancel:key=>frames.delete(key),snapshot:()=>({step:1,frame:new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2),preview:value=>previews.push(value.clone()),restore:()=>restores++,commit:()=>commits++})});
+  gesture.update(['nudgeRight']);vectorNear(previews.at(-1),new THREE.Vector3(0,1,0));
+  const stale=[...frames.values()][0];gesture.finish(true);assert.equal(commits,0);assert.equal(restores,1);
+  gesture.update(['nudgeUp']);const count=previews.length;stale(9999);assert.equal(previews.length,count);
+  gesture.update([]);assert.equal(commits,1);assert.equal(restores,2);assert.equal(frames.size,0);
+});

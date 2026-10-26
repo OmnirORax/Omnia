@@ -1,3 +1,6 @@
+import { createNudgeGesture } from "./navigation/nudgeGesture";
+import type { HeldActions } from "./ui/heldActions";
+import { transformTargets } from "./navigation/transforms";
 import { rebindOrbitControls } from "./navigation/orbit";
 import type { ActionHistory } from "./ui/actionHistory";
 import type { PropertyBindings } from "./properties/CoupledProperties";
@@ -42,6 +45,7 @@ export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
+  heldNudges: HeldActions<NudgeActionId>;
   bindings: PropertyBindings;
   history: ActionHistory;
   onTransformNodes: (ids: string[], rotation: Rotation, pivot: XYZ, layout: boolean) => void;
@@ -144,6 +148,7 @@ export default function SpatialWorkspace(props: Props) {
   const [feedback, setFeedback] = useState("");
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  const nudgeEngine = useRef<ReturnType<typeof createNudgeGesture> | null>(null);
   const navigationEngine = useRef<ReturnType<typeof createNavigationGesture> | null>(null);
   const navigationContexts = useRef(new Map<string, NavigationOptions>());
   const navigationKey = (point: { x: number; y: number }) => JSON.stringify([...(callbacks.current.focusContextIds ?? []).slice().sort(), navigationEngine.current?.contextBranch(point), navigationEngine.current?.contextKind(point) ?? "space"]);
@@ -212,7 +217,7 @@ export default function SpatialWorkspace(props: Props) {
           if (element.style.top !== top) element.style.top = top;
         };
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
-        const selected = worldCoordinates.current.get(callbacks.current.selectedId ?? "");
+        const selected = textScene.current?.nodes.get(callbacks.current.selectedId ?? "")?.anchor ?? worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
         if (selectedBackground || hierarchyBackground !== null) applyBackgroundFeedback();
         appearance.render();
@@ -451,9 +456,32 @@ export default function SpatialWorkspace(props: Props) {
       distanceLimits: () => ({ min: controls.minDistance, max: controls.maxDistance }),
     });
     navigationEngine.current = navigation;
+    const nudging = createNudgeGesture({ schedule: requestAnimationFrame, cancel: cancelAnimationFrame, now: () => performance.now(), snapshot: () => {
+      if (navigation.active || drag || selecting || uiPointerActive) return null;
+      const id = callbacks.current.selectedId;
+      const node = graphRef.current.nodes.find(node => node.visible && node.id === id);
+      if (!id || !node || !textScene.current?.nodes.has(id)) return null;
+      const parent = graphRef.current.nodes.find(parent => parent.id === node.parentId);
+      const local = asVector(node.world).sub(parent ? asVector(parent.world) : new THREE.Vector3());
+      const hosts = textScene.current.nodes;
+      const originals = transformTargets(callbacks.current.document, [id], true, Infinity).flatMap(child => {
+        const host = hosts.get(child); return host ? [{host, position:host.anchor.clone()}] : [];
+      });
+      if (originals.length > 256) { setFeedback("Move up to 256 visible nodes at once."); return null; }
+      stopAnimation(); controls.enabled = false;
+      return { step: callbacks.current.settings.spatial.spacing || .2, frame: camera.quaternion.clone(),
+        preview: delta => { for (const original of originals) { original.host.anchor.copy(original.position).add(delta); original.host.group.position.copy(original.host.anchor); } requestRender(); },
+        restore: () => { for (const original of originals) { original.host.anchor.copy(original.position); original.host.group.position.copy(original.position); } controls.enabled = !uiPointerActive && !drag && !selecting && !navigation.active; requestRender(); },
+        commit: delta => callbacks.current.onMove(id, asXYZ(local.clone().add(delta))),
+      };
+    } });
+    nudgeEngine.current = nudging;
+    const stopHeldNudges = props.heldNudges.subscribe(() => { try { nudging.update(props.heldNudges.getSnapshot().actions); } catch (error) { nudging.finish(true); props.heldNudges.stop(); setFeedback(error instanceof Error ? error.message : String(error)); } });
+
     const down = (event: PointerEvent) => {
       nativeWheel = false;
       if (navigation.active) return;
+      nudging.finish(true); props.heldNudges.stop();
       if (!pointerOwner.owns(event)) return;
       stopAnimation(); setMenu(null);
       if (navigationShortcuts.matches("world.navigate", event)) {
@@ -607,6 +635,7 @@ export default function SpatialWorkspace(props: Props) {
       controls.enabled = !active && !drag && !selecting && !navigation.active;
       if (active) stopAnimation();
     }, () => {
+      props.heldNudges.stop();
       navigation.finish(true);
       if (nativeBefore) { applyView(nativeBefore); nativeBefore = null; }
       clicks.cancel(); stopAnimation();
@@ -634,6 +663,7 @@ export default function SpatialWorkspace(props: Props) {
       pendingViewBefore = null;
       stopCameraHistory();
       renderer.domElement.removeEventListener("wheel", noteWheel, true);
+      stopHeldNudges(); nudging.finish(true); nudgeEngine.current = null; props.heldNudges.stop();
       navigation.dispose(); navigationEngine.current = null;
       stopHierarchyHighlight(); hierarchyPulse.dispose();
       pointerOwner.dispose();
@@ -667,6 +697,7 @@ export default function SpatialWorkspace(props: Props) {
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
+    nudgeEngine.current?.finish(true); props.heldNudges.stop();
     disposeContent(state.content);
     const visible = graph.nodes.filter((n) => n.visible);
     const visibleIds = new Set(visible.map(n => n.id));

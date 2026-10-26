@@ -493,3 +493,10 @@ their draft. Reselecting resumes future edits without replay. Use the shared
 `draftTargets.ts` transaction; inspection/hover never performs this rollback.
 World rotation preserves zoom; fitting is explicit via Frame selected front-on
 in MC World view. See APPEARANCE_CONTROLLER.md and WORLD_NAVIGATION.md.
+
+
+Held node movement uses catalog-driven physical-key state (`ui/heldActions.ts`)
+and transient scene previews (`navigation/nudgeGesture.ts`). Never replay OS
+repeats through graph commits or catch up elapsed movement after a stalled frame.
+Commit once on release via the existing document/history owner; cancel stale
+previews on scene/context replacement. See SHORTCUTS.md and PERFORMANCE_RESULTS.md.

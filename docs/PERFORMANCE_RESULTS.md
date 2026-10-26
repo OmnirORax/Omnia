@@ -145,3 +145,19 @@ native scale, and removes label mip allocation/rebuild work. It does not raise t
 scene pixel/DPR caps or add rendering passes. Very small text still loses detail
 at finite resolution and can alias at a distance; browser quality/performance
 verification remains with the user. This is not a system-wide lag resolution.
+
+
+Held-arrow movement previously committed every OS key repeat through React
+navigation state, collision resolution, document validation/history/autosave, and
+full text/geometry replacement. The held-key path now snapshots once, previews
+existing scene anchors at animation-frame cadence, and commits once on release.
+Regression checks simulate a 5-second stall: one capped 32ms movement step occurs,
+with no elapsed-time debt and no remaining frame/commit after release/cancellation.
+OS repeat storms cause no new held-state notifications.
+
+This removes repeated heavy commits/rebuilds from the gesture; it does not prove
+browser input-to-paint latency. Existing renderer node/binder updates still scale
+with mounted scene size, and final collision validation/one scene rebuild may
+still be expensive in large documents. Collision checks are deferred to release
+and can adjust the final position. Scene pixel/effect caps remain unchanged.
+Browser smoothness verification remains with the user; no new browser suite ran.
