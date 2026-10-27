@@ -517,3 +517,18 @@ offset was not reliably reproduced and is not claimed verified resolved.
 No additional browser profiling/testing was run for this follow-up. The user tests
 repeated grabs, expanded/minimized release with edge docks, docking and Undo.
 Previous white-border/resize projection fixes remain intact.
+
+## Discontinuous movement and release follow-up — user testing pending
+
+The user reports smooth continuous movement but pulse pauses around discontinuous
+movement and a release offset when moving quickly. Release already resolves the
+exact pointerup coordinates; no inertia is implemented. Source inspection found
+page-wide descendant CSS changes on capture/release and full structural validation
+on every already-free frame move. Capture now styles only the root, using inherited
+cursor/selection behavior. Coordinate-only free moves validate the coordinates and
+preserve unrelated layout references; real detach/ownership changes retain the
+existing structural path. Release deduplicates pointed ancestor bounds and reuses
+gesture candidates instead of globally rediscovering/measuring every slot.
+
+User tests quick versus stationary release, pause/resume while holding, repeated
+grabs, intentional docking and Undo. No new browser profiling was run.

@@ -1344,9 +1344,12 @@ export function UIWorkspace({
       // Release may arrive after scrolling/reflow but before another move frame.
       // Refresh only the pointed destination and ancestors, not the full app.
       const releaseZones = new Set<string>();
+      const refreshed = new Set<Element>();
       for (const hit of document.elementsFromPoint(e.clientX, e.clientY)) {
         if (hit.closest("[data-ui-ghost],.ui-live-drag,.ui-drag-source")) continue;
         for (let node: Element | null = hit; node; node = node.parentElement) {
+          if (refreshed.has(node)) continue;
+          refreshed.add(node);
           if (!node.matches(dropGeometrySelector)) continue;
           const bounds = node.hasAttribute("data-ui-resident-root") ? residentBounds(node as HTMLElement) : node.getBoundingClientRect();
           source.targetBounds.set(node, new DOMRect(bounds.x, bounds.y, bounds.width, bounds.height));
@@ -1361,9 +1364,11 @@ export function UIWorkspace({
         source.slots.set(key, [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")]
           .map(slot => ({ key: slot.dataset.uiSlotKey!, r: slot.getBoundingClientRect() })));
       }
-      // Preview discovery is gesture-local; release uses current visibility/order.
-      source.visibleZones=[...source.targetZones.values()].filter(zone=>zone.isConnected&&zone.getClientRects().length);
-      source.frameSlots=[...document.querySelectorAll<HTMLElement>('[data-ui-frame-slot],[data-ui-slot-key]')].filter(slot=>slot.getClientRects().length);
+      // Reuse gesture candidates: release must not remeasure every unrelated
+      // slot (or reintroduce the moving source's own subtree). Pointed targets
+      // above receive fresh geometry; detached candidates are simply removed.
+      source.visibleZones=source.visibleZones.filter(zone=>zone.isConnected);
+      source.frameSlots=source.frameSlots.filter(slot=>slot.isConnected);
       const p = resolve(e.clientX, e.clientY);
       source.live?.restore();
       show(null);

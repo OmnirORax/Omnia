@@ -791,8 +791,20 @@ export function dockResident(
 export function floatResident(layout: UILayout, key: string, x: number, y: number): UILayout {
   if (residentContextScope(layout, key) || key.startsWith("window:context:")) return layout;
   if (residentPinned(layout, key)) return layout;
-  const released = releaseResident(layout, key);
-  const next = key.startsWith("window:panel:") ? { ...released, panels: { ...released.panels, [key.slice("window:panel:".length)]: true } } : released;
+  if (!numeric(x) || !numeric(y)) throw new Error("Invalid floating position.");
+  const panel = key.startsWith("window:panel:") ? key.slice("window:panel:".length) : undefined;
+  const shown = panel && !layout.panels[panel]
+    ? { ...layout, panels: { ...layout.panels, [panel]: true } } : layout;
+  const current = getContainer(layout, key);
+  // Moving an already-free frame changes no ownership or topology. Validate
+  // only the new coordinates and preserve every unrelated layout reference.
+  // Detaching/docking transitions retain the full structural path below.
+  if (current && !current.dockEdge && !ownerOf(layout, key) &&
+      !("inline" in current && current.inline && !current.inline.detached)) {
+    if (current.x === x && current.y === y) return shown;
+    return updateContainer(shown, key, { x, y });
+  }
+  const next = releaseResident(shown, key);
   const m = readResident(key);
   if (m.kind === "function")
     return validateUILayout({
