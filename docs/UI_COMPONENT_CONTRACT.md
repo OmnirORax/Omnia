@@ -336,3 +336,25 @@ handlers, but `read`/`renderRead` retain snapshot identity so property/range mem
 invalidate correctly. Dock workspace context preserves identity for equal geometry.
 Native fields stay mounted and callable while collapsed. No duplicate value store,
 shortcut router or history owner is introduced by selective subscriptions.
+
+
+Window/panel/frame chrome, docking residents/tabs and editable labels also use
+scoped projections (`residentRenderSlice`). Docked controls subscribe to their own
+current registry entry so updated handlers/values do not require their parent to
+rerender. Closed frame searches and dormant active-layer adapters have empty
+render slices; events still read current committed state. Search subscribes to its
+inventory only while open.
+
+Native caption/button observers distinguish actual inserted subtrees from changed
+caption hosts. Deduplicate inserted roots with `minimalMutationRoots` before a
+subtree query; do not query all descendants of a changed caption. Initial discovery
+and an explicit global Hide names change may scan globally. Native presentation
+compares each entry's own item/label/binding, ownership permissions and relevant
+appearance/asset inputs; force reapply only after a real DOM host change. Function
+scope/rigidity metadata changes must invalidate permission checks.
+
+`createRegistrationBatch` coalesces function-registration metadata into one UI
+inventory publication per microtask. Source stacks/token cleanup update immediately;
+last registration/cleanup per ID wins. This is not an editor/action/history queue:
+commands and commits remain synchronous, and no registration publication occurs
+after owner unmount. Preserve unavailable placeholders and source-stack fallback.

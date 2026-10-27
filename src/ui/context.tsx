@@ -76,11 +76,16 @@ export function UIProvider({value,children}:{value:UIContextValue;children:React
   useLayoutEffect(()=>store.publish(value),[store,value]);
   return <UIStoreContext.Provider value={store}><UIContext.Provider value={value}>{children}</UIContext.Provider></UIStoreContext.Provider>;
 }
-export function useUITracked(select:(value:UIContextValue)=>readonly unknown[]):UIContextValue{
-  const store=useContext(UIStoreContext);if(!store)throw Error('UI subscription provider is not mounted.');
+const emptySlice:readonly unknown[]=[];
+const emptySubscribe=()=>()=>{};
+export function useOptionalUITracked(select:(value:UIContextValue)=>readonly unknown[]):UIContextValue|null{
+  const store=useContext(UIStoreContext);
   const latest=useRef(select);latest.current=select;
-  const cached=useRef<readonly unknown[]>([]);
-  const snapshot=useCallback(()=>{const next=latest.current(store.getSnapshot());if(!sameSlice(cached.current,next))cached.current=next;return cached.current;},[store]);
-  useSyncExternalStore(store.subscribe,snapshot);
-  return store.live;
+  const cached=useRef<readonly unknown[]>(emptySlice);
+  const snapshot=useCallback(()=>{if(!store)return emptySlice;const next=latest.current(store.getSnapshot());if(!sameSlice(cached.current,next))cached.current=next;return cached.current;},[store]);
+  useSyncExternalStore(store?.subscribe??emptySubscribe,snapshot);
+  return store?.live??null;
+}
+export function useUITracked(select:(value:UIContextValue)=>readonly unknown[]):UIContextValue{
+  const ui=useOptionalUITracked(select);if(!ui)throw Error('UI subscription provider is not mounted.');return ui;
 }

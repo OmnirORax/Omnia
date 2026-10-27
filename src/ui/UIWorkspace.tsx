@@ -1,3 +1,5 @@
+import {createRegistrationBatch} from './registrationBatch';
+import {residentRenderSlice} from './renderSubscriptions';
 import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
 import {functionIndex} from './functionIndex';
 import type { ActiveContextStack } from "./activeContextModel";
@@ -52,7 +54,6 @@ import {
   UIPathContext,
   UIContainerContext,
   DockFillContext,
-  useUI,
   type UIFunction,
   type UIContextValue,
   type UICommand,
@@ -161,10 +162,11 @@ const FunctionElement=memo(function FunctionElement({
 }) {
   const ui = useUITracked(ui=>{
     const item=ui.layout.items[fn.id],index=functionIndex(ui.functions,ui.layout);
-    return [item,index.permissions,ui.layout.hideNames,ui.layout.assets.find(a=>a.id===item?.style?.assetId),ui.shortcutBindings?.[buttonShortcutId(fn.id)],ui.selectedFunctions.has(fn.id),ui.selectingUI];
+    return [functionIndex(ui.functions,ui.layout).byId.get(fn.id),item,index.permissions,ui.layout.hideNames,ui.layout.assets.find(a=>a.id===item?.style?.assetId),ui.shortcutBindings?.[buttonShortcutId(fn.id)],ui.selectedFunctions.has(fn.id),ui.selectingUI];
   }),
     item = ui.layout.items[fn.id],
     style = item?.style ?? defaultStyle;
+  fn=functionIndex(ui.functions,ui.layout).byId.get(fn.id)??fn;
   const iconTint = useIconTint(`function:${fn.id}`);
   const [controlOpen, setControlOpen] = useState(false);
   const shortcut = ui.shortcutBindings?.[buttonShortcutId(fn.id)];
@@ -283,7 +285,7 @@ export function UIPanel({
   className?: string;
   menu?: boolean;
 }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[...residentRenderSlice(ui,`window:panel:${id}`),ui.layout.panels[id],ui.layout.nativeOrders?.["@sidebar"]]);
   const key = `window:panel:${id}`,
     owner = ownerOf(ui.layout, key);
   const root = useRef<HTMLElement>(null);
@@ -360,10 +362,10 @@ export function UIPanel({
     </section>
   );
 }
-function FunctionFrame({ frame }: { frame: UIFrame }) {
+const FunctionFrame=memo(function FunctionFrame({ frame }: { frame: UIFrame }) {
   const { ref, bounds, element } = useFrameBounds();
   const [z, setZ] = useState(nextWindowLayer);
-  const ui = useUI(),
+  const ui = useUITracked(ui=>residentRenderSlice(ui,`frame:${frame.id}`)),
     dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
     parent = ownerOf(ui.layout, key),
@@ -443,7 +445,7 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
     </Rnd>
   );
   return nested ? content : createPortal(content, document.body);
-}
+});
 function FreeFunction({ id, x, y, width, height, children }: { id: string; x: number; y: number; width?: number; height?: number; children: ReactNode }) {
   const workspace = useDockWorkspace();
   const area = workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
@@ -474,6 +476,7 @@ type DragState = {
   fromDockPane?: boolean;
   live?: ReturnType<typeof beginLiveDrag>;
 };
+
 export function UIWorkspace({
   layout,
   update,
@@ -499,29 +502,31 @@ export function UIWorkspace({
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
   const [registered, setRegistered] = useState<Record<string, UIFunction>>({});
+  const registryLive=useRef(true);
+  useLayoutEffect(()=>{registryLive.current=true;return()=>{registryLive.current=false;};},[]);
+  const [publishRegistration]=useState(()=>createRegistrationBatch<UIFunction>(patch=>{
+    if(registryLive.current)setRegistered(old=>Object.entries(patch).every(([id,value])=>old[id]===value)?old:{...old,...patch});
+  }));
   const registerFunction = useCallback(
     (fn: UIFunction) => {
       const token = Symbol(fn.id),
         entries = sources.get(fn.id) ?? new Map<symbol, UIFunction>();
       entries.set(token, fn);
       sources.set(fn.id, entries);
-      setRegistered((old) => ({ ...old, [fn.id]: fn }));
+      publishRegistration(fn.id,fn);
       return () => {
         entries.delete(token);
         const remaining = [...entries.values()].at(-1);
-        setRegistered((old) => ({
-          ...old,
-          [fn.id]: remaining ?? {
+        publishRegistration(fn.id, remaining ?? {
             ...fn,
             available: false,
             element: (
               <p>Select the relevant node or relationship to edit {fn.label.toLowerCase()}.</p>
             ),
-          },
-        }));
+          });
       };
     },
-    [sources],
+    [sources,publishRegistration],
   );
   const functions = useMemo(() => [
     ...new Map([...definitions, ...Object.values(registered)].map((fn) => [fn.id, fn])).values(),

@@ -1,5 +1,5 @@
-import { useContext, useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
-import { UIContext, useUI, type UIContextValue } from "./context";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
+import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
 import { activeFrame, parentContext, contextStackFromScopes, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
@@ -57,7 +57,7 @@ export function useCancelValueEdit<T extends HTMLElement>(ref: RefObject<T | nul
 }
 /** Shared popup adapters add a real intermediate level, including portalled ones. */
 export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string) {
-  const ui = useContext(UIContext), current = useRef(close); current.current = close;
+  const ui = useOptionalUITracked(()=>[]), current = useRef(close); current.current = close;
   useLayoutEffect(() => {
     const node = ref.current;
     if (!ui || !open || !node) return;

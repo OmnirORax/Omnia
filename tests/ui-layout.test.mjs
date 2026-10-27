@@ -171,3 +171,47 @@ test('selective UI snapshots retain unrelated slices and event handlers read the
   store.publish({...first,section:{collapsed:true}});assert.equal(renders,1);assert.equal(store.live.section.collapsed,true);
   stop();store.publish(first);assert.equal(renders,1);
 });
+
+test('window and native presentation subscriptions ignore unrelated collapse but retain actual dependencies',async()=>{
+  const {residentRenderSlice,nativePresentationSlice}=await import('../src/ui/renderSubscriptions.ts');
+  const {sameSlice}=await import('../src/ui/selectiveStore.ts');
+  const layout=emptyUILayout();
+  layout.windows.first={x:0,y:0,width:200,height:200,collapsed:false,pinned:false};
+  layout.windows.other={x:0,y:0,width:200,height:200,collapsed:false,pinned:false};
+  const ui={layout,functions:[],shortcutBindings:{}};
+  const collapse={...ui,layout:{...layout,windows:{...layout.windows,other:{...layout.windows.other,collapsed:true}}}};
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:first'),residentRenderSlice(collapse,'window:first')),true);
+  assert.equal(sameSlice(nativePresentationSlice(ui),nativePresentationSlice(collapse)),true);
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:other'),residentRenderSlice(collapse,'window:other')),false);
+  const pin={...ui,layout:{...layout,windows:{...layout.windows,other:{...layout.windows.other,pinned:true}}}};
+  assert.equal(sameSlice(nativePresentationSlice(ui),nativePresentationSlice(pin)),false);
+  const renamed={...ui,layout:{...layout,labels:{'window:first':'Renamed'}}};
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:first'),residentRenderSlice(renamed,'window:first')),false);
+  const rebind={...ui,shortcutBindings:{'button:@frame:window:first':'H'}};
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:first'),residentRenderSlice(rebind,'window:first')),false);
+  const fn={id:'button',label:'Old',scope:'window:first'};
+  const before={...ui,functions:[fn]};
+  const caption={...before,functions:[{...fn,label:'New'}]};
+  assert.equal(sameSlice(nativePresentationSlice(before),nativePresentationSlice(caption)),true);
+  assert.equal(sameSlice(nativePresentationSlice(before),nativePresentationSlice({...before,functions:[{...fn,scope:'window:other'}]})),false);
+});
+
+test('mutation discovery scans an inserted branch once, retaining independent siblings',async()=>{
+  const {minimalMutationRoots}=await import('../src/ui/mutationRoots.ts');
+  const outer={parentElement:null},inner={parentElement:outer},leaf={parentElement:inner},sibling={parentElement:null};
+  assert.deepEqual(minimalMutationRoots([inner,leaf,outer,sibling,leaf]),[outer,sibling]);
+  assert.deepEqual(minimalMutationRoots([leaf,sibling]),[leaf,sibling]);
+});
+
+test('registry publication coalesces discovery and preserves the final active source per command',async()=>{
+  const {createRegistrationBatch}=await import('../src/ui/registrationBatch.ts');
+  const scheduled=[],published=[];
+  const stage=createRegistrationBatch(value=>published.push(value),flush=>scheduled.push(flush));
+  stage('field',{available:true,label:'First'});stage('field',{available:false});stage('field',{available:true,label:'Latest'});
+  for(let i=0;i<100;i++)stage(`button-${i}`,{available:true});
+  assert.equal(scheduled.length,1);assert.equal(published.length,0);
+  scheduled.shift()();assert.equal(published.length,1);assert.equal(Object.keys(published[0]).length,101);
+  assert.equal(published[0].field.label,'Latest');
+  stage('field',{available:false});assert.equal(scheduled.length,1);scheduled.shift()();
+  assert.deepEqual(published[1],{field:{available:false}});
+});

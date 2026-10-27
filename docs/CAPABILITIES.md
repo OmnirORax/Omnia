@@ -43,7 +43,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Explicit workspace cloud save/load and conflicts](#cloud-snapshots) | Implemented and locally tested; hosted rollout pending | Omnic library → Cloud workspace, after signing in. |
 | [Node-linked scenes from imported images and copied prompts](#scene-manual) | Implemented; browser verification pending | Scene panel; select an Omnium node. |
 | [Optional API scene generation](#scene-api) | Implemented; paid generation gated by server configuration | Scene → API generation (optional). |
-| [Click responsiveness and shared rendering work](#performance-clicks) | Focused optimization implemented; user verification pending | Ordinary controls, including Omnic library → Objects → Structural filters. |
+| [Click responsiveness and shared rendering work](#performance-clicks) | First subscription pass confirmed improved by user; window/DOM follow-up awaiting user verification | Ordinary controls, including Omnic library → Objects → Structural filters. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -740,22 +740,23 @@ Authenticated, explicitly enabled API generation uses paid provider credit. Save
 <a id="performance-clicks"></a>
 ## Click responsiveness and shared rendering work
 
-**ID:** `performance.clicks` · **Status:** Focused optimization implemented; user verification pending
+**ID:** `performance.clicks` · **Status:** First subscription pass confirmed improved by user; window/DOM follow-up awaiting user verification
 
 **Where:** Ordinary controls, including Omnic library → Objects → Structural filters.
 
-Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order.
+Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous.
 
 **Minimal working test**
 
 1. Open Omnic library → Objects, then repeatedly expand/collapse Structural filters while observing the scene pulse. **Expected:** The section toggles without rerunning unrelated target eligibility calculations. Report any visible scene freeze; a smooth pulse is not yet verified on user hardware.
 2. Move a frame/control, rename an appearance target and change its color afterward. **Expected:** Ownership/captions and applicable controls update correctly; caching does not preserve stale edits.
+3. Open a frame search, type a query and exit with Esc. Expand/collapse and rename a frame; then use its controls and minimize/restore it. **Expected:** Search accepts typing and exits through the active context; frame labels, controls and window state remain current. Compare scene pulse continuity with the previous preview.
 
-**Limits / unavailable behavior:** Hot controls migrated; other legacy UI consumers still subscribe broadly. User hardware/scene verification remains pending; no universal frame-time guarantee.
+**Limits / unavailable behavior:** Legacy global owners and some consumers still subscribe broadly. Synthetic headless timings are noisy and not physical input-to-display latency; no universal frame-time guarantee.
 
-**Verification:** browser — Local synthetic click profiling; user pulse/latency verification pending. Automated — Selective snapshot, latest-handler and index invalidation regressions; model and type/build checks.
+**Verification:** browser — User reported “definitely much better” after 85c1074 (2026-10-27). Follow-up: isolated local synthetic click checks and native discovery/current-handler smoke; user pulse/latency acceptance pending.. Automated — 277 model checks, including resident/native dependency invalidation, inserted-subtree deduplication and registration batching; type/build checks.
 
-**Details:** [subsystem guide](PERFORMANCE_RESULTS.md). **Implementation:** [src/ui/functionIndex.ts](../src/ui/functionIndex.ts), [src/appearance/Controls.tsx](../src/appearance/Controls.tsx), [src/appearance/Context.tsx](../src/appearance/Context.tsx), [src/ui/DockArea.tsx](../src/ui/DockArea.tsx), [src/ui/context.tsx](../src/ui/context.tsx), [src/ui/selectiveStore.ts](../src/ui/selectiveStore.ts), [src/ui/DockWorkspace.tsx](../src/ui/DockWorkspace.tsx), [src/ui/EmbeddedGroup.tsx](../src/ui/EmbeddedGroup.tsx).
+**Details:** [subsystem guide](PERFORMANCE_RESULTS.md). **Implementation:** [src/ui/functionIndex.ts](../src/ui/functionIndex.ts), [src/appearance/Controls.tsx](../src/appearance/Controls.tsx), [src/appearance/Context.tsx](../src/appearance/Context.tsx), [src/ui/DockArea.tsx](../src/ui/DockArea.tsx), [src/ui/context.tsx](../src/ui/context.tsx), [src/ui/selectiveStore.ts](../src/ui/selectiveStore.ts), [src/ui/DockWorkspace.tsx](../src/ui/DockWorkspace.tsx), [src/ui/EmbeddedGroup.tsx](../src/ui/EmbeddedGroup.tsx), [src/ui/renderSubscriptions.ts](../src/ui/renderSubscriptions.ts), [src/ui/mutationRoots.ts](../src/ui/mutationRoots.ts), [src/ui/registrationBatch.ts](../src/ui/registrationBatch.ts), [src/ui/NativeActions.tsx](../src/ui/NativeActions.tsx), [src/ui/NamePresentation.tsx](../src/ui/NamePresentation.tsx), [scripts/profile-ui-clicks.mjs](../scripts/profile-ui-clicks.mjs).
 
 **Related:** [Structural filters, indexing and saved families](#library-filters), [Visual hierarchy, shared properties and Apply/Discard](#appearance-edit).
 

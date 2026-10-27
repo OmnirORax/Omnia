@@ -61,7 +61,8 @@ user repeatedly discovering regressions. Builds alone do not verify smoothness. 
 configuration freedom: prefer bounded supported options and explain necessary
 restrictions instead of allowing combinations that make the app unusable.
 
-The user still reports severe system-wide lag. See the
+The user confirmed a major click-responsiveness improvement after `85c1074`
+(2026-10-27). Remaining window/DOM work still needs user acceptance. See the
 [performance recovery plan](PERFORMANCE_ARCHITECTURE_PLAN.md) for inspected risk
 areas, baseline profiling, renderer-aware ranges, aggregate budgets and staged
 refactoring. The first systemic pass now shares indexes, preserves topology during paint edits,
@@ -539,3 +540,10 @@ Repeated UI controls now use `useUITracked` for scoped committed-snapshot
 subscriptions; see UI_COMPONENT_CONTRACT.md. Keep event reads live, include every
 render dependency, and preserve data-reader identity on actual appearance changes.
 Do not replace the legacy context globally without migrating its consumers.
+
+Window/panel/chrome/docking residents now also use scoped subscriptions. Closed
+frame searches and dormant active-layer adapters do not listen to unrelated UI
+changes. Native discovery deduplicates inserted subtrees, checks changed caption
+hosts directly and skips unchanged presentation. Function registration metadata
+publishes once per microtask; action/history execution stays synchronous. See
+UI_COMPONENT_CONTRACT.md and the opt-in `scripts/profile-ui-clicks.mjs` diagnostic.

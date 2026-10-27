@@ -1,5 +1,7 @@
+import {residentRenderSlice} from './renderSubscriptions';
+import {functionIndex} from './functionIndex';
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useUI } from "./context";
+import { useUITracked } from "./context";
 import { useDockPreview } from "./PlacementPreview";
 import { DockLayout } from "./DockLayout";
 import {
@@ -62,7 +64,11 @@ function bridges(shapes: Shape[]) {
   return paths.join(" ");
 }
 export function DockArea({ container, contour = true, hidden = false }: { container: string; contour?: boolean; hidden?: boolean }) {
-  const ui = useUI(),
+  const ui = useUITracked(ui=>[
+    ...residentRenderSlice(ui,container),
+    // A same-sized icon can change contour geometry without a ResizeObserver event.
+    ...(getContainer(ui.layout,container)?.members??[]).map(member=>member.kind==='function'?ui.layout.items[member.id]:undefined),
+  ]),
     root = useRef<HTMLDivElement>(null),
     mask = useId().replace(/:/g, ""),
     [shapes, setShapes] = useState<Shape[]>([]),
@@ -329,7 +335,7 @@ function ResidentSlot({
   origin: { x: number; y: number };
   stacked?: boolean;
 }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[member.kind==='function'?functionIndex(ui.functions,ui.layout).byId.get(member.id):getContainer(ui.layout,residentKey(member)),member.kind==='function'?ui.layout.items[member.id]:undefined]);
   return (
     <>
       {!stacked && member.breakBefore && !member.position && (

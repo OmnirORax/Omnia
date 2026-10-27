@@ -243,4 +243,44 @@ Focused browser checks passed for editing the library search field and creating
 an atlas through a current action handler after the subscription migration.
 Model tests cover unchanged slices, current handlers and ownership invalidation.
 The earlier attempted smoke check omitted opening Organization and timed out; the
-corrected path opened the section and passed. User hardware acceptance is pending.
+corrected path opened the section and passed. The user subsequently confirmed
+“definitely much better” after `85c1074`; remaining latency is not resolved by that
+feedback alone.
+
+
+## Window and DOM follow-up (2026-10-27)
+
+Baseline `85c1074` (the subscription pass the user confirmed improved clicks).
+Floating windows, panels, frame chrome, docking residents/tabs, labels and placement
+previews now subscribe to their render dependencies. Closed frame search and
+inactive popup adapters use empty slices. Docked function controls subscribe to
+their own registry records, preserving current values/handlers without waking
+all sibling residents. Native presentation compares per-entry inputs before DOM
+writes/permission checks. Caption changes inspect their host directly; actual
+inserted subtrees are deduplicated before discovery. Registration metadata publishes
+once per microtask instead of copying the inventory for each newly found control;
+source-stack operations, commands and history commits remain synchronous.
+
+[Raw samples](performance/2026-10-27-windows-dom.json) include intermediate builds
+and the rebuilt pair (before a final contour-invalidation safeguard for
+same-sized docked icons). Earlier comparisons improved, but the rebuilt
+pair was effectively unchanged: median click + two RAFs 373.4 ms baseline versus
+373.6 ms follow-up. This noisy headless diagnostic does **not** establish a further
+end-to-end latency improvement. It confirms eight successful toggles per build;
+model checks establish narrowed invalidation/batched metadata, not smoothness.
+The reproducible opt-in diagnostic is `node scripts/profile-ui-clicks.mjs <local-url>
+<output.json>`; it blocks external requests, seeds a disposable 12-node workspace,
+uses no CPU profiler and has no arbitrary timing pass/fail threshold.
+`OMNIA_PROFILE_SOURCE` labels a separately served baseline; otherwise the report
+records runner HEAD and dirty status. Do not compare these numbers directly to
+previous profiler-enabled samples or call them physical input-to-display latency.
+
+277 model checks passed, including render-slice invalidation, deduplicated inserted
+roots and final-source registration batching. Production build and type checking
+passed. Focused isolated Chromium smoke passed library field editing, atlas
+creation through the current action handler, inserted native-button discovery,
+caption updates with stable action identity and no page errors. Search/Esc,
+minimize/restore, docking behavior and scene pulse continuity still need user
+acceptance in the preview. Large-workspace commits, remaining broad global owners
+and renderer/effect load remain separate performance risks; no general frame-time
+guarantee is claimed.

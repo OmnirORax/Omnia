@@ -1,9 +1,10 @@
+import {residentRenderSlice} from './renderSubscriptions';
 import { activateFrameContext } from "./ActiveContext";
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import { fitWindow, getContainer, ownerOf, releaseResident, reopenContainer, type WindowState } from "./layout";
-import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
+import { useUITracked, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { FrameChrome } from "./FrameChrome";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
@@ -59,7 +60,7 @@ export function FloatingWindow({
   modal?: boolean;
   onInteract?: () => void;
 }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>residentRenderSlice(ui,`window:${id}`));
   const { ref, bounds } = useFrameBounds();
   const initial: WindowState = {
     x: x ?? (window.innerWidth - width) / 2,
