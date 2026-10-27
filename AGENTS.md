@@ -1,3 +1,18 @@
+# Capability discovery and delivery (required)
+
+Before implementing a feature, read/search [docs/CAPABILITIES.md](docs/CAPABILITIES.md)
+and the relevant subsystem reference. Reuse or fix existing capabilities instead
+of duplicating them. Every new/changed/retired user-facing behavior must update
+[docs/capabilities/catalog.json](docs/capabilities/catalog.json) in the same change,
+including exact entry path, behavior/options, minimal steps with expected outcomes,
+limits, deployment status and evidence-based verification status. Native controls
+and workflows without catalog actions are included. Follow the
+[authoring contract](docs/capabilities/README.md); regenerate with
+`node --run docs:capabilities`. Test/build entry points check registry coverage and
+freshness. Do not mark a feature finished with a generic placeholder walkthrough.
+Final handoffs link the changed guide sections and state what the user still needs
+to test. Browser acceptance and deployment are never inferred from builds.
+
 # Worker entry rules
 
 Read [docs/WORKER_ONBOARDING.md](docs/WORKER_ONBOARDING.md) once when starting work

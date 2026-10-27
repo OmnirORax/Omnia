@@ -5,6 +5,10 @@ what the systems mean before you need to inspect their implementation. Read only
 the relevant subsystem reference afterward; do not rediscover the whole project
 for each task. Repository entry rules live in [AGENTS.md](../AGENTS.md).
 
+For the user-facing inventory, locations and reproducible test walkthroughs, start
+with [CAPABILITIES.md](CAPABILITIES.md). Search it before proposing new work; update
+its source catalog with every user-facing change. See [authoring](capabilities/README.md).
+
 This is a map and a set of contracts, not proof that every feature implements them
 correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it
