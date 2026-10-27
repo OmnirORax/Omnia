@@ -1212,7 +1212,7 @@
       ],
       "actions": [],
       "gestures": [],
-      "status": "User confirmed significant improvement through 846feeb; residual-pause follow-up implemented locally, publication and user verification pending",
+      "status": "User confirmed significant improvement through 846feeb; residual-pause follow-up implemented, user verification pending",
       "verification": {
         "browser": "User reported significant improvement after 846feeb (2026-10-27), with a residual brief freeze. Local mapped CPU profiling identified idle UI-selection discovery; eight toggles caused 16 whole-UI selection scans before versus zero afterward. Field/current-handler and native discovery smoke pass; user acceptance of this follow-up pending.",
         "automated": "278 model checks, including cached subscriber reads and captured-selector/state invalidation; type/build checks"

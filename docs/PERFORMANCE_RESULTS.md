@@ -322,5 +322,6 @@ marker cleanup, with no page errors. An initial single-Esc assertion timed out;
 the baseline and follow-up both retain selection after the first Esc and clear
 after the second (active-context stepping). No Esc behavior change is claimed.
 User acceptance remains pending.
-GitHub requests currently fail authentication (HTTP 401 / missing Git username),
-so this follow-up cannot yet be pushed or published to the hosted preview.
+GitHub authentication initially blocked publication (HTTP 401 / missing Git
+username). Access was restored and verified before delivery. Since PR #34 had
+merged in the meantime, this follow-up uses a new branch/PR based on current master.

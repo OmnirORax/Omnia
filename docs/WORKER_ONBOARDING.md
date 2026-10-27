@@ -552,5 +552,6 @@ UI_COMPONENT_CONTRACT.md and the opt-in `scripts/profile-ui-clicks.mjs` diagnost
 Residual click profiling found idle UI-selection discovery on ordinary layout
 changes. That effect now skips empty selection; prior cleanup clears markers.
 Subscriber reads cache pure selectors by committed snapshot and selector identity,
-including invalidation for changed captured props. GitHub authentication blocked
-publication during this follow-up; see PERFORMANCE_RESULTS.md for exact evidence.
+including invalidation for changed captured props. GitHub authentication was restored
+after initially blocking publication. PR #34 merged before delivery, so the follow-up
+uses a separate branch/PR from current master. See PERFORMANCE_RESULTS.md for evidence.

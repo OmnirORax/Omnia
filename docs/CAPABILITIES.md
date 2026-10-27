@@ -43,7 +43,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Explicit workspace cloud save/load and conflicts](#cloud-snapshots) | Implemented and locally tested; hosted rollout pending | Omnic library → Cloud workspace, after signing in. |
 | [Node-linked scenes from imported images and copied prompts](#scene-manual) | Implemented; browser verification pending | Scene panel; select an Omnium node. |
 | [Optional API scene generation](#scene-api) | Implemented; paid generation gated by server configuration | Scene → API generation (optional). |
-| [Click responsiveness and shared rendering work](#performance-clicks) | User confirmed significant improvement through 846feeb; residual-pause follow-up implemented locally, publication and user verification pending | Ordinary controls, including Omnic library → Objects → Structural filters. |
+| [Click responsiveness and shared rendering work](#performance-clicks) | User confirmed significant improvement through 846feeb; residual-pause follow-up implemented, user verification pending | Ordinary controls, including Omnic library → Objects → Structural filters. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -740,7 +740,7 @@ Authenticated, explicitly enabled API generation uses paid provider credit. Save
 <a id="performance-clicks"></a>
 ## Click responsiveness and shared rendering work
 
-**ID:** `performance.clicks` · **Status:** User confirmed significant improvement through 846feeb; residual-pause follow-up implemented locally, publication and user verification pending
+**ID:** `performance.clicks` · **Status:** User confirmed significant improvement through 846feeb; residual-pause follow-up implemented, user verification pending
 
 **Where:** Ordinary controls, including Omnic library → Objects → Structural filters.
 
