@@ -411,3 +411,24 @@ ancestors/siblings eligible. Snapshot visibility and slot lists before the live
 lift writes popover/position styles. Exact resident IDs use a direct escaped
 selector. Function payloads retain their existing candidate semantics. Release
 still refreshes current destination geometry; do not reuse a stale expansion size.
+
+
+MC option hover/focus is selection of the temporary configuration choice, routed
+centrally through `ConfigurationInteractionBoundary` and the registered `select`.
+Armed Shift release applies that choice exactly once. Hover/focus never locks the
+future default; explicit unarmed configuration still needs an apply/lock action.
+Keep repeated-key cycling, right-click lock/apply, and left-click priority-1 reset
+on the same gesture owner. Do not add per-feature Shift/hover state stores.
+
+Resize viewport projection is owned by `data-ui-viewport-original` and private CSS
+variables, not React-owned className/inline position/transform. The stable marker
+retains geometry, original background/padding/border and fill rules across local
+window rerenders, so native popover defaults cannot leak through. CSS projection
+geometry yields to `.ui-live-drag`. Cleanup removes only projection-owned variables
+and its marker, leaving current React/Rnd geometry authoritative. Minimize must not
+clamp saved original coordinates using enlarged projection bounds.
+
+Use `useWindowLayer` for floating windows, detached groups and user frames. Repeated
+presses on the current front layer are no-ops; other windows still rise. Preserve
+menu priority and DOM ownership. Do not allocate a new layer and rerender all of a
+window's chrome on every grab when its stacking order is already correct.

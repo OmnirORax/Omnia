@@ -41,8 +41,8 @@ limitations, state ownership and performance constraints; it is not a feature sp
 # Universal Master Controller signature
 
 **Shift + any configured shortcut opens that function's adaptive Master Controller
-configuration. Repeated presses cycle choices; releasing Shift executes the choice
-once. Right-click an MC option applies and locks its future default; left-click
+configuration. Repeated presses cycle choices; hovering/focusing an MC option
+selects that temporary choice. Releasing Shift executes the selected choice once. Right-click an MC option applies and locks its future default; left-click
 resets to priority 1. Temporary cycling never overwrites the locked default.**
 This applies to keyboard/mouse commands, existing and future. Shift is reserved for
 configuration, not an alternate executable shortcut. Preserve ordinary text entry

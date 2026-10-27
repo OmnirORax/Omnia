@@ -448,3 +448,53 @@ isolated rerun passed. Native-button caption/identity and library field/current-
 handler smoke also passed. The 279-model suite and production build passed;
 self-contained delivery build type-checks the final source. For tab drags, pickup
 excludes only the represented resident, not its shared pane/sibling payloads.
+
+
+## Resize projection and repeated activation (2026-10-27)
+
+The user reported two related issues after W resizing: Shift cycling applied on
+release but pointing at a highlighted level did not, and subsequent frame/header
+clicks exposed a white border and made the enlarged window alternate between its
+selected position and a displaced one. They also clarified that drag lag happens
+at each grab, with smooth movement afterward.
+
+The resize defect was reproduced. React/Rnd replaced the imperatively added
+projection class and inline transform during wrapper updates. With a native popover
+still open, its 3px white default border became visible; a retained projected
+left/top combined with the original Rnd transform to displace the window twice.
+The projection now uses a persistent data marker and CSS variables independently
+of React-owned inline geometry/className. It restores only its own variables and
+marker. Collapsing an enlarged window also preserves original saved coordinates,
+instead of clamping them against enlarged content bounds. Native control focus
+indicators remain. No style-repair observer or per-pointer DOM scan was added.
+
+`ConfigurationInteractionBoundary` now routes option pointer-entry/focus through
+the shared temporary `select` adapter. Armed Shift release applies the highlighted
+choice once. Pointing does not lock preferences; right-click apply/lock and left-
+click priority-1 reset remain shared. Explicit unarmed configuration is unchanged.
+AGENTS.md and FUNCTION_CONFIGURATION.md record this universal behavior.
+
+Each normal window activation also allocated a new z-index and rerendered the
+wrapper, including repeated grabs of the same front window. Floating windows,
+user frames and detached embedded groups now share `useWindowLayer`: raising the
+current front layer is a no-op, while a different window still rises. This removes
+redundant activation work; it does not establish that all pickup latency is gone.
+Drag-start snapshot/effects/layout costs remain subject to the earlier limits.
+
+[Regression evidence](performance/2026-10-27-resize-viewport.json): the baseline
+library re-expanded at x≈987/y≈592 with a 3px white wrapper border, versus its
+selected x≈494/y≈296 rectangle. The follow-up returns to that selected rectangle
+with the original zero wrapper border on every cycle, even after React replaces
+its className. W restores original size and position. The focused local check
+passes hover/focus release, no implicit lock, right-click lock once, left-click
+reset, body-click stability, repeated floating/custom-frame collapse cycles,
+original-geometry restoration, no browser border, and three re-grabs reusing one
+layer, with no page errors. Existing projected-frame rigidity requires W restore
+before dragging; an attempted projected-drag check was corrected to assert that
+existing rule rather than waiting for an unavailable gesture.
+
+281 model checks and type/production builds pass. Opt-in local reproduction:
+`node scripts/check-ui-resize.mjs <local-url> <report.json>`. This is a correctness
+and activation-work check, not physical input-to-display latency measurement.
+Self-contained delivery build validates the final source; user acceptance remains
+pending for resize stability and the repeated pickup pause on their workspace.

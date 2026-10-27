@@ -2,8 +2,9 @@
 
 Shift is the Master Controller configuration modifier. Hold Shift, press any
 configured shortcut (keyboard or mouse), adjust the function's compact adaptive
-controls. Repeated presses of the same shortcut cycle options; release Shift to
-execute the chosen option once. The opening press does not execute. Right-click
+controls. Repeated presses of the same shortcut cycle options; hovering or focusing
+an MC option selects it temporarily. Release Shift to execute the selected option
+once. The opening press does not execute. Right-click
 an MC option to apply it immediately and lock it as the future default; left-click
 an option to reset the function to priority 1. Temporary cycling/scrolling never
 replaces the locked default. The normal shortcut uses that retained default.
@@ -49,7 +50,9 @@ Both shortcut screens list the universal gesture through FEATURE_GESTURES.
 expands to the nearest surrounding detected frame edges; subsequent levels expand
 progressively, up to the available website viewport. This does not request browser
 fullscreen. Levels are computed from one geometry snapshot on invocation/opening;
-hover/focus draws an outline without layout, ownership or history writes.
+hover/focus selects the temporary level and draws an outline without layout,
+ownership, preference or history writes. Releasing Shift applies that highlighted
+level once.
 
 `ui/resize.function.ts` declares the shared ordinal Level input, its consumer and
 settings adapter. Values use the normalized extensible `settings.functionValues`
@@ -58,7 +61,10 @@ map. The generic Master Controller also discovers it automatically.
 Execution records the selected viewport projection in the original frame's layout
 state. `FrameViewportSystem` projects that same mounted payload into the top layer;
 it does not detach it, duplicate its editor, change canonical data or rebuild its
-dock tree. Pressing W again removes the projection and restores the retained
+dock tree. A stable data marker and CSS variables own projected geometry independently
+of React/Rnd inline styles and className. Do not repair projection drift by observing
+and rewriting styles on every pointer event. Collapsing a projected window preserves
+its original saved coordinates rather than clamping them with enlarged bounds. Pressing W again removes the projection and restores the retained
 original arrangement. Undo/redo follows the existing UI journal. Pinned frames
 reject resize. The viewport projection is validated/serialized with its owner.
 Preview/configuration surfaces use top-layer rendering so they remain usable above
@@ -68,7 +74,8 @@ an enlarged frame. No geometry scans occur on pointer movement or choice hoverin
 
 `configurationGesture.ts` owns session arming, repeated presses, exactly-once
 release, cancellation and right-click completion. `ConfigurationInteractionBoundary`
-handles option clicks centrally. Specialized adapters register only cycle/select,
+handles option hover/focus selection and clicks centrally. Hover/focus updates the
+registered temporary choice, not only its preview. Specialized adapters register only cycle/select,
 apply, lock and reset operations through `useConfigurationInteraction`; option
 buttons declare `data-configuration-option` with their zero-based index. Do not
 add feature-specific input listeners. Left-click resets immediately and leaves

@@ -33,7 +33,8 @@ renaming, renderer changes and upgrades.
 
 Shift plus any configured keyboard/mouse shortcut opens only that function's
 adaptive Master Controller configuration. Repeat the shortcut while holding Shift
-to cycle options; release Shift to execute once. Right-click an MC option applies
+to cycle options, or hover/focus an option to select it. Release Shift to execute
+the selected choice once. Right-click an MC option applies
 and locks it as the future default; left-click resets to priority 1. Temporary
 choices leave the locked default intact. The base shortcut uses retained settings. This is a global
 interface contract for every future feature. Do not create per-feature Shift
@@ -578,3 +579,9 @@ before symbol/tooltip writes, avoiding cold style thrashing. Use
 scripts/profile-ui-open.mjs for first-open/warm metrics and profile-ui-drag.mjs
 with OMNIA_DRAG_EXPAND=1 for the corrected sequence. Both changes await user
 verification; do not conflate style/measurement reductions with zero latency.
+
+Resize projections now use data-ui-viewport-original plus CSS variables, independent
+of React/Rnd className/inline geometry refreshes. This prevents native popover borders
+and position jumps on focus/collapse/reopen. Preserve base coordinates while
+collapsing a projected window. Shared useWindowLayer raises only when below the
+current front layer, avoiding repeated local rerenders on same-window grabs.

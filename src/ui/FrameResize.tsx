@@ -64,7 +64,7 @@ function ResizeConfiguration({ bindings }: { bindings: PropertyBindings }) {
     select((choiceRef.current + (event.deltaY > 0 ? 1 : levels.length - 1)) % levels.length);
   }} onPointerLeave={() => setPreview(null)}>
     {levels.length ? levels.map((rect, index) => <button key={index} data-configuration-option={index} aria-pressed={choice === index}
-      title={`${Math.round(rect.width)} × ${Math.round(rect.height)} · right-click to apply and lock; left-click resets to 1`} onPointerEnter={() => setPreview(rect)} onFocus={() => setPreview(rect)} onBlur={() => setPreview(null)}
+      title={`${Math.round(rect.width)} × ${Math.round(rect.height)} · hover selects; release Shift applies · right-click to apply and lock; left-click resets to 1`} onPointerEnter={() => setPreview(rect)} onFocus={() => setPreview(rect)} onBlur={() => setPreview(null)}
 >
       {index + 1} · {index === levels.length - 1 ? "Full viewport" : index === 0 ? "Nearest edges" : "Wider edges"}
     </button>) : <p>Activate a frame to see resize levels.</p>}

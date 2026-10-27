@@ -11,8 +11,14 @@ export function useConfigurationInteraction(interaction: ConfigurationInteractio
   return context;
 }
 export function ConfigurationInteractionBoundary({ id, gesture, close, children }: { id: string; gesture: ConfigurationGesture; close: () => void; children: ReactNode }) {
+  const optionFor=(target:EventTarget)=>target instanceof Element?target.closest<HTMLElement>("[data-configuration-option]"):null;
   return <ConfigurationInteractionContext.Provider value={{ id, gesture, close }}>
-    <div onClickCapture={event => {
+    <div onPointerOverCapture={event=>{
+      const option=optionFor(event.target);
+      if(option&&!(event.relatedTarget instanceof Node&&option.contains(event.relatedTarget)))gesture.select(Number(option.dataset.configurationOption));
+    }} onFocusCapture={event=>{
+      const option=optionFor(event.target);if(option)gesture.select(Number(option.dataset.configurationOption));
+    }} onClickCapture={event => {
       if (!(event.target instanceof Element) || !event.target.closest("[data-configuration-option]")) return;
       event.preventDefault(); event.stopPropagation(); gesture.reset();
     }} onContextMenu={event => {

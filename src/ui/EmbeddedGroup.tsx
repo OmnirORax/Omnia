@@ -3,7 +3,6 @@ import {
   useEffect,
   useContext,
   useLayoutEffect,
-  useState,
   type MouseEvent,
   type ReactNode,
 } from "react";
@@ -12,7 +11,7 @@ import { useAppearance } from "../appearance/Context";
 import { useUITracked, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
-import { nextWindowLayer } from "./FloatingWindow";
+import { useWindowLayer } from "./useWindowLayer";
 import { FrameChrome } from "./FrameChrome";
 import { containers, type WindowState } from "./layout";
 import { nativeActionId } from "./NativeActions";
@@ -61,7 +60,7 @@ export function EmbeddedGroup({
     key = `window:${id}`;
   const expanded = expandedOverride ?? !(ui.layout.windows[id]?.collapsed ?? !defaultExpanded);
   const { element: root, ref, size } = useContentSize();
-  const [z, setZ] = useState(nextWindowLayer);
+  const [z, raise] = useWindowLayer();
   const initial: WindowState = {
     x: 120,
     y: 140,
@@ -174,7 +173,7 @@ export function EmbeddedGroup({
       onMouseDown={(event) => {
         if (!atHome && !host) {
           event.stopPropagation();
-          setZ(nextWindowLayer());
+          raise();
         }
       }}
       data-property-node={nodeId}

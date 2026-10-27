@@ -61,7 +61,8 @@ import {
 } from "./context";
 import { useDragActivationGuard } from "./activationGuard";
 import { useButtonSelection, ButtonSelectionOverlay } from "./useButtonSelection";
-import { FloatingWindow, nextWindowLayer } from "./FloatingWindow";
+import { FloatingWindow } from "./FloatingWindow";
+import { useWindowLayer } from "./useWindowLayer";
 import { EmbeddedGroup } from "./EmbeddedGroup";
 import {
   detachFunction,
@@ -364,7 +365,7 @@ export function UIPanel({
 }
 const FunctionFrame=memo(function FunctionFrame({ frame }: { frame: UIFrame }) {
   const { ref, bounds, element } = useFrameBounds();
-  const [z, setZ] = useState(nextWindowLayer);
+  const [z, raise] = useWindowLayer();
   const ui = useUITracked(ui=>residentRenderSlice(ui,`frame:${frame.id}`)),
     dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
@@ -375,10 +376,9 @@ const FunctionFrame=memo(function FunctionFrame({ frame }: { frame: UIFrame }) {
   useEffect(() => {
     if (!element || nested) return;
     // Portal children bubble through their former React owner, so focus follows DOM ownership.
-    const raise = () => setZ(nextWindowLayer());
     element.addEventListener("mousedown", raise);
     return () => element.removeEventListener("mousedown", raise);
-  }, [element, nested]);
+  }, [element, nested, raise]);
   const workspace = useDockWorkspace();
   const edgeBounds = frame.dockEdge && !nested ? workspace.docks[frame.dockEdge] : undefined;
   const structured = !!frame.dockLayout;

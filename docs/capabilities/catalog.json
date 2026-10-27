@@ -41,7 +41,7 @@
       "id": "interface.context",
       "title": "Active context, close, minimize, resize and descendants",
       "where": "Master controller → Active context. Click the intended frame first.",
-      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings.",
+      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings. Resized windows retain projected bounds and themed borders across focus and minimize/reopen. W restores retained original geometry. Projection styling is independent of React/Rnd wrapper updates.",
       "steps": [
         {
           "do": "Open a frame, click a value field, edit it, then press Esc.",
@@ -54,12 +54,20 @@
         {
           "do": "Expand several nested sections, then invoke Expand / collapse active descendants.",
           "expect": "Descendant sections collapse together. Closing preserves reopenable frames."
+        },
+        {
+          "do": "Resize with Shift+W, hover Full viewport and release Shift. Click the window body, minimize/re-expand it several times, then press W.",
+          "expect": "No extra white wrapper border or unexpected position jump. Expanded cycles return to the selected viewport; W restores original size and position."
         }
       ],
       "reference": "docs/UI_COMPONENT_CONTRACT.md",
       "sources": [
         "src/ui/ActiveContext.tsx",
-        "src/ui/FrameResize.tsx"
+        "src/ui/FrameResize.tsx",
+        "src/ui/FrameResize.tsx",
+        "src/ui/FrameViewport.tsx",
+        "src/ui/useWindowLayer.ts",
+        "scripts/check-ui-resize.mjs"
       ],
       "actions": [
         "cancel",
@@ -71,11 +79,11 @@
         "context.minimize",
         "context.descendants"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Website viewport sizing, not OS/browser fullscreen. Pinned frames reject resizing. Projected frames use W restore before dragging, under the existing rigidity policy. User acceptance pending.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Focused floating-window and custom-frame cycles, body clicks, restored geometry and no browser border pass locally; user acceptance pending.",
+        "automated": "281 model checks and type/build checks"
       },
       "related": [
         "interface.configure"
@@ -86,29 +94,32 @@
       "id": "interface.configure",
       "title": "Universal Shift configuration",
       "where": "Hold Shift and press the configured shortcut of the function you want.",
-      "behavior": "Only relevant MC settings appear. Repeated shortcut presses cycle choices; release Shift executes once. Right-click an option applies and locks it; left-click resets to priority 1.",
+      "behavior": "Only relevant MC settings appear. Repeated shortcut presses cycle choices; hovering/focusing an option selects the temporary choice. Release Shift applies the selected choice once. Right-click applies and locks it; left-click resets to priority 1. Hover/focus does not change the saved default.",
       "steps": [
         {
-          "do": "Open a frame. Hold Shift and press W repeatedly.",
-          "expect": "Resize options cycle and hovering previews the proposed bounds."
+          "do": "Activate a frame. Hold Shift, press W, then hover a different resize level without pressing W again. Release Shift.",
+          "expect": "The pointed option becomes selected and previews its bounds; Shift release applies that option exactly once. Keyboard focus selects an option the same way."
         },
         {
-          "do": "Release Shift. Repeat, right-click another option, then use plain W.",
-          "expect": "The selected action executes; the locked choice becomes the future default."
+          "do": "Repeat Shift+W, right-click another option, release Shift, then use plain W. Repeat and left-click an option.",
+          "expect": "Right-click applies and locks once; later Shift release does not execute again. Plain W uses the locked level or restores an active projection. Left-click resets to priority 1."
         }
       ],
       "reference": "docs/FUNCTION_CONFIGURATION.md",
       "sources": [
-        "src/ui/ShortcutConfiguration.tsx"
+        "src/ui/ShortcutConfiguration.tsx",
+        "src/ui/ConfigurationInteraction.tsx",
+        "src/ui/configurationGesture.ts",
+        "scripts/check-ui-resize.mjs"
       ],
       "actions": [
         "shortcuts"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Shift release executes only an armed shortcut configuration. Explicit button-opened configuration remains unarmed. User acceptance pending.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Focused local hover/focus release, no implicit lock, right-click locking and left-click reset checks pass. User acceptance pending.",
+        "automated": "281 model checks, including pointed selection exactly-once release, unarmed sessions, defaults and layer reuse; build/type checks"
       },
       "related": [],
       "gestures": [
@@ -1179,7 +1190,7 @@
       "id": "performance.clicks",
       "title": "Click responsiveness and shared rendering work",
       "where": "Ordinary controls, including Omnic library → Objects → Structural filters.",
-      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous. With no UI controls selected, ordinary layout changes now skip UI-selection discovery and visibility measurement. Subscription snapshot checks reuse pure selector results for the same committed snapshot and selector; changed state or captured props still reevaluate. Window movement now coalesces pointer positions per frame, reuses target lists and caches ownership/pinning/context/docking reads until the layout snapshot changes. Final release refreshes the pointed destination and uses the existing single-commit history path. Newly discovered frame captions now read their initial font sizes together before symbol/tooltip styling writes. This avoids repeated synchronous style recalculation during first-use presentation; later collapse/reopen keeps existing caption state. Drag pickup excludes a frame/window’s own subtree from destination measurements, snapshots visibility before lifting, and uses an exact resident lookup. Final destination refresh and shared docking/history remain intact.",
+      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous. With no UI controls selected, ordinary layout changes now skip UI-selection discovery and visibility measurement. Subscription snapshot checks reuse pure selector results for the same committed snapshot and selector; changed state or captured props still reevaluate. Window movement now coalesces pointer positions per frame, reuses target lists and caches ownership/pinning/context/docking reads until the layout snapshot changes. Final release refreshes the pointed destination and uses the existing single-commit history path. Newly discovered frame captions now read their initial font sizes together before symbol/tooltip styling writes. This avoids repeated synchronous style recalculation during first-use presentation; later collapse/reopen keeps existing caption state. Drag pickup excludes a frame/window’s own subtree from destination measurements, snapshots visibility before lifting, and uses an exact resident lookup. Final destination refresh and shared docking/history remain intact. Repeated activation of the current front window reuses its existing layer rather than changing z-index and rerendering the wrapper on each grab; other windows still rise.",
       "steps": [
         {
           "do": "Open Omnic library → Objects, then repeatedly expand/collapse Structural filters while observing the scene pulse.",
@@ -1226,10 +1237,10 @@
       ],
       "actions": [],
       "gestures": [],
-      "status": "Click and drag improvements confirmed by user; expand-then-drag/cold-caption follow-up implemented, user verification pending",
+      "status": "Earlier improvements confirmed; resize/projection and repeated-grab activation follow-up awaiting user verification",
       "verification": {
-        "browser": "User clarified the brief spike occurs when dragging immediately after expanding/maximizing a heavy frame. Local expand→drag checks reduced source rectangle reads 63 → 22 and observed maximum RAF gap 783 → 183 ms, with the same 50 ms median in software graphics. Cold caption diagnostics: 80 captions 82 → 3 style recalculations; Master controller first-open style recalculations 124 → 10. User hardware verification pending.",
-        "automated": "279 model checks and type/build checks; isolated browser caption/font and live-control discovery checks"
+        "browser": "User clarified the brief spike occurs when dragging immediately after expanding/maximizing a heavy frame. Local expand→drag checks reduced source rectangle reads 63 → 22 and observed maximum RAF gap 783 → 183 ms, with the same 50 ms median in software graphics. Cold caption diagnostics: 80 captions 82 → 3 style recalculations; Master controller first-open style recalculations 124 → 10. User hardware verification pending. Repeated-grab layer stability is verified locally; this does not prove all pickup latency is resolved.",
+        "automated": "281 model checks and type/build checks; focused browser resize/activation regressions"
       },
       "limits": "Legacy global owners and some consumers still subscribe broadly. Synthetic headless timings are noisy and not physical input-to-display latency; no universal frame-time guarantee.",
       "related": [

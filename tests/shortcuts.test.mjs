@@ -437,3 +437,14 @@ test("stopping held input invalidates snapshots, clears every key, and respects 
   held.press("right", "ArrowRight"); held.release("ArrowRight");
   assert.equal(calls, beforeCleanup);
 });
+
+test('pointed configuration selection applies once on Shift release without locking preferences',async()=>{
+  const {createConfigurationGesture}=await import('../src/ui/configurationGesture.ts');
+  const applied=[],gesture=createConfigurationGesture(()=>assert.fail('registered choice must handle apply'));
+  let choice=0,locked=0;
+  const register=()=>gesture.register({cycle:()=>choice=(choice+1)%3,select:index=>{choice=index;},apply:()=>applied.push(choice),lock:()=>{locked=choice;}});
+  gesture.begin('resize');register();gesture.select(2);assert.equal(locked,0);assert.deepEqual(applied,[]);
+  gesture.finish();assert.deepEqual(applied,[2]);assert.equal(gesture.finish(),false);assert.equal(locked,0);
+  gesture.begin('resize',false);register();gesture.select(1);assert.equal(gesture.finish(),false);assert.deepEqual(applied,[2]);
+  gesture.lock();assert.equal(locked,1);assert.deepEqual(applied,[2,1]);assert.equal(gesture.finish(),false);
+});

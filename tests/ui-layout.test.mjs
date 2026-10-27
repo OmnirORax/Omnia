@@ -252,3 +252,13 @@ test('drag read cache preserves policy results and invalidates on the next layou
     }
   }
 });
+
+test('activating the front window reuses its layer while other windows still rise',async()=>{
+  const {nextWindowLayer,raiseWindowLayer,nextMenuLayer}=await import('../src/ui/layers.ts');
+  const first=nextWindowLayer(),second=nextWindowLayer();
+  assert.equal(raiseWindowLayer(second),second);
+  assert.equal(raiseWindowLayer(second),second);
+  const raised=raiseWindowLayer(first);assert.ok(raised>second);
+  assert.equal(raiseWindowLayer(raised),raised);
+  assert.ok(nextMenuLayer()>raised);
+});
