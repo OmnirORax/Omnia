@@ -17,6 +17,25 @@ const name=(v:unknown):v is string=>typeof v==='string'&&v.trim().length>0&&v.le
 const unique=(values:string[])=>new Set(values).size===values.length;
 const fail=(message:string):never=>{throw Error(message);};
 const withoutEntities=(doc:Document):Omit<Document,'entities'>=>{const {entities:_,...atlas}=doc;return atlas;};
+const serializedSizes=new WeakMap<object,number>(),encoder=new TextEncoder();
+/** State owners commit immutable data. Cache unchanged subtrees so size guards
+ * visit changed paths instead of serializing every archived recipe on each edit.
+ * JSON imports and the server also check their actual UTF-8 input length. */
+export function assertWorkspaceBudget(workspace:OmnicWorkspace):void {
+  const active=new Set<object>();
+  const bytes=(value:unknown):number=>{
+    if(value===null)return 4;
+    if(typeof value!=='object'){const json=JSON.stringify(value);return json===undefined?4:encoder.encode(json).length;}
+    const cached=serializedSizes.get(value);if(cached!==undefined)return cached;
+    if(active.has(value))return fail('Workspace contains a circular data value.');active.add(value);
+    let size=2,count=0;
+    const add=(amount:number)=>{size+=amount+(count++?1:0);if(size>WORKSPACE_BYTES)fail('Workspace exceeds 8 MB. Prune unpinned history or reduce the workspace before saving this edit.');};
+    if(Array.isArray(value)){for(const item of value)add(bytes(item));}
+    else for(const [key,item] of Object.entries(value))if(item!==undefined)add(encoder.encode(JSON.stringify(key)).length+1+bytes(item));
+    active.delete(value);serializedSizes.set(value,size);return size;
+  };
+  if(bytes(workspace)>WORKSPACE_BYTES)fail('Workspace exceeds 8 MB. Prune unpinned history before saving this edit.');
+}
 const materialized=new WeakMap<WorkspaceAtlas,WeakMap<Entity[],Document>>();
 /** Atlas projections borrow the workspace's one canonical entity array. */
 export function activeDocument(workspace:OmnicWorkspace):Document {
@@ -25,7 +44,7 @@ export function activeDocument(workspace:OmnicWorkspace):Document {
   let doc=cache.get(workspace.entities);if(!doc){doc={...atlas.document,entities:workspace.entities};cache.set(workspace.entities,doc);}return doc;
 }
 export function createWorkspace(doc:Document=emptyDocument(),workspaceId:string=crypto.randomUUID(),atlasId:string=crypto.randomUUID()):OmnicWorkspace {
-  return {format:'omnium-workspace',version:1,id:workspaceId,name:'My workspace',revision:0,entities:archiveDefinitions(validateDocument(doc).entities),atlases:[{id:atlasId,name:'Atlas',document:withoutEntities(doc)}],activeAtlasId:atlasId,library:{items:[],collections:[],families:[]}};
+  const workspace:OmnicWorkspace={format:'omnium-workspace',version:1,id:workspaceId,name:'My workspace',revision:0,entities:archiveDefinitions(validateDocument(doc).entities),atlases:[{id:atlasId,name:'Atlas',document:withoutEntities(doc)}],activeAtlasId:atlasId,library:{items:[],collections:[],families:[]}};assertWorkspaceBudget(workspace);return workspace;
 }
 export function validateFilter(input:unknown):StructuralFilter {
   if(!record(input)||Object.keys(input).some(key=>!['text','tags','collection','generator','operator','countMin','countMax','motion','boundary','filled','parameter'].includes(key)))return fail('Invalid structural filter.');
@@ -54,7 +73,7 @@ export function validateWorkspace(input:unknown):OmnicWorkspace {
     if(!entities.has(item.entityId)||typeof item.preset!=='boolean'||!Array.isArray(item.tags)||item.tags.length>32||item.tags.some(tag=>!name(tag))||!unique(item.tags)||!Array.isArray(item.collections)||item.collections.length>128||item.collections.some(c=>!collections.has(c))||!unique(item.collections)||item.derivedFrom!==undefined&&!id(item.derivedFrom))fail('Invalid library organization.');
   }
   for(const family of library.families){if(!id(family.id)||!name(family.name))fail('Invalid family.');validateFilter(family.filter);}
-  return value;
+  assertWorkspaceBudget(value);return value;
 }
 export function parseWorkspace(text:string):OmnicWorkspace {
   if(new TextEncoder().encode(text).length>WORKSPACE_BYTES)fail('Workspace exceeds the 8 MB limit.');return validateWorkspace(JSON.parse(text));
@@ -65,7 +84,7 @@ export function withActiveDocument(workspace:OmnicWorkspace,doc:Document):OmnicW
   const entities=doc.entities,ids=new Set(entities.map(e=>e.id));
   const next={...workspace,entities,revision:workspace.revision+1,atlases:workspace.atlases.map(atlas=>atlas.id===workspace.activeAtlasId?{...atlas,document:{...withoutEntities(doc),revision:Math.max(doc.revision,atlas.document.revision+1)}}:entities!==workspace.entities?{...atlas,document:{...atlas.document,revision:atlas.document.revision+1}}:atlas),library:{...workspace.library,items:workspace.library.items.filter(item=>ids.has(item.entityId))}};
   if(entities!==workspace.entities)for(const atlas of next.atlases)if(atlas.id!==next.activeAtlasId)validateDocument({...atlas.document,entities});
-  return next;
+  assertWorkspaceBudget(next);return next;
 }
 export function addWorkspaceAtlas(workspace:OmnicWorkspace,nameValue:string,atlasId:string=crypto.randomUUID()):OmnicWorkspace {
   if(!name(nameValue)||workspace.atlases.length>=32)fail('Choose a name; at most 32 atlases per workspace.');

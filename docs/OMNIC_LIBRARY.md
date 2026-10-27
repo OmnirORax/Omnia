@@ -37,8 +37,10 @@ workspace import or cloud load. **Recover previous workspace** restores that slo
 
 Normal atlas export remains available and carries the canonical definitions and
 archived dependencies needed to reconstruct it. Library **Export workspace**
-includes every atlas, organization and revision. Workspace JSON/cloud snapshots
-are capped at 8 MB; ordinary atlas import retains its 5 MB bound. Existing JSON
+includes every atlas, organization and revision. Workspace state, JSON exports and cloud snapshots
+are capped at 8 MB through cached checks on immutable subtrees; oversized edits
+are rejected before replacing committed work. Exports use compact JSON so the
+export can be reimported within the same byte bound; ordinary atlas import retains its 5 MB bound. Existing JSON
 atlas import creates an independent atlas and remaps incoming canonical IDs,
 recipe references and role addresses. Equal imported IDs or drawings never merge
 unrelated objects. Workspace import deliberately restores the complete supplied
@@ -155,7 +157,7 @@ and hosted rollout must be distinguished from model/local backend evidence.
 
 ## Validation (2026-10-27)
 
-- `node --run test`: 271 model/architecture checks pass, including workspace migration,
+- `node --run test`: 272 model/architecture checks pass, including workspace migration,
   identity isolation, version pins, frozen dependencies, import target remapping,
   archive bounds, undo across atlas switches, index invalidation and storage recovery.
 - Production/type/property-contract and self-contained preview builds pass; the

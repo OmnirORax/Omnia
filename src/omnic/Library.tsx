@@ -54,7 +54,7 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}
   },[selected,revision,resolver]);
   const attempt=(run:()=>void)=>{try{run();setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}};
   const set=(patch:Partial<StructuralFilter>)=>setFilter(previous=>{const next={...previous,...patch};for(const key of Object.keys(next))if(next[key as keyof StructuralFilter]===undefined||next[key as keyof StructuralFilter]==='')delete next[key as keyof StructuralFilter];return next;});
-  const download=()=>{const data=JSON.stringify(workspace,null,2);if(new TextEncoder().encode(data).length>WORKSPACE_BYTES)throw Error('Workspace exceeds the export budget.');const url=URL.createObjectURL(new Blob([data],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='omnium-workspace.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+  const download=()=>{const data=JSON.stringify(workspace);if(new TextEncoder().encode(data).length>WORKSPACE_BYTES)throw Error('Workspace exceeds the export budget.');const url=URL.createObjectURL(new Blob([data],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='omnium-workspace.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   useFeatureActions('omnicLibrary',{
     'omnic.library.open':{enabled:!!selected,run:()=>selected&&onOpen(selected.id)},
     'omnic.library.place':{enabled:!!selected,run:()=>attempt(()=>selected&&onPlace(selected.id))},

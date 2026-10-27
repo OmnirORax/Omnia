@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyDocument,validateDocument,parseDocument} from '../src/graph/structural.ts';
-import {createWorkspace,activeDocument,withActiveDocument,addWorkspaceAtlas,validateWorkspace,parseWorkspace,organizeObject,importWorkspaceAtlas,workspaceHistory,restoreWorkspaceHistory,validateFilter} from '../src/omnic/workspace.ts';
+import {createWorkspace,activeDocument,withActiveDocument,addWorkspaceAtlas,validateWorkspace,parseWorkspace,organizeObject,importWorkspaceAtlas,workspaceHistory,restoreWorkspaceHistory,validateFilter,assertWorkspaceBudget} from '../src/omnic/workspace.ts';
 import {saveOmnicDefinition,forkOmnicDefinition} from '../src/omnic/document.ts';
 import {createRecipe} from '../src/omnic/presets.ts';
 import {evaluateRecipe} from '../src/omnic/evaluate.ts';
@@ -166,4 +166,13 @@ test('atlas role remapping follows actual references even when unrelated legacy 
   const pinned=recipe([reference('reuse','part',1)]);assert.equal(validateRecipe(pinned).version,2);
   assert.throws(()=>validateRecipe({...pinned,version:1}),/version 2/);
   assert.equal(createWorkspace(shared()).entities[0].omnic.version,2);
+});
+
+test('all workspace commit paths reject oversized UTF-8 data while preserving the exportable original',()=>{
+  const original=createWorkspace(),unchanged=JSON.stringify(original);
+  const entities=Array.from({length:300},(_,n)=>({...entity(`large-${n}`),notes:'界'.repeat(9500)}));
+  assert.throws(()=>assertWorkspaceBudget({...original,entities}),/8 MB/);
+  assert.throws(()=>validateWorkspace({...original,entities}),/8 MB/);
+  assert.throws(()=>withActiveDocument(original,{...activeDocument(original),entities}),/8 MB/);
+  assert.equal(JSON.stringify(original),unchanged);assert.deepEqual(parseWorkspace(unchanged),original);
 });
