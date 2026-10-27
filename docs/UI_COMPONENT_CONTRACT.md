@@ -21,6 +21,12 @@ cursor-open windows use the viewport; persistent panels use workspace packing.
 Free-drop resolution must follow the same policy as rendering. Explicit docking
 still uses shared docking rules. Future window features inherit this automatically.
 
+Held payload movement is a direct transform-only pointer update, independent of
+frame-batched destination discovery and feedback. Do not put docking calculations,
+interpolation or an additional animation-frame wait in front of pointer attachment.
+The browser coalesces transform writes for paint; placement previews remain
+transient and commits continue through the existing single-move history path.
+
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
 - Fields use `UIField`, which moves the label and input together. Shared
   `ValueFieldBehavior` selects numeric value contents on focus/first click so typing

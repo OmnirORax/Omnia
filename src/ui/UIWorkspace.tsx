@@ -1321,8 +1321,13 @@ export function UIWorkspace({
       e.preventDefault();
       e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-      // Keep only the newest pointer position. Read destination geometry before
-      // writing the payload transform, at most once per display frame.
+      // Pointer attachment is a cheap transform-only write. Do it immediately:
+      // neither the next animation frame nor docking discovery may delay the
+      // held payload. Browsers coalesce these writes before painting.
+      const source = drag.current;
+      source.live?.move(e.clientX-source.start.x, e.clientY-source.start.y);
+      // Only destination feedback needs frame batching. Keep its latest sample
+      // separately; resolving a complex dock must never drive payload movement.
       pendingPoint = { x: e.clientX, y: e.clientY };
       if (!previewFrame) previewFrame = requestAnimationFrame(() => {
         previewFrame = 0;
@@ -1330,7 +1335,6 @@ export function UIWorkspace({
         const source=drag.current;
         if (point && source && !source.cancelled) {
           const proposal=resolve(point.x,point.y);
-          source.live?.move(point.x-source.start.x,point.y-source.start.y);
           show(proposal);
         }
       });

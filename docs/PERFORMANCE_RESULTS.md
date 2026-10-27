@@ -532,3 +532,14 @@ gesture candidates instead of globally rediscovering/measuring every slot.
 
 User tests quick versus stationary release, pause/resume while holding, repeated
 grabs, intentional docking and Undo. No new browser profiling was run.
+
+## Pointer attachment follow-up — user testing pending
+
+The user reports the lag gone but the held window feels slippery and catches up
+with the cursor. Payload movement was coupled to destination discovery inside a
+requestAnimationFrame callback: it waited for both the frame and dock resolution.
+The shared drag path now writes the payload's transform directly from each pointer
+event. Only docking feedback is frame-batched, retaining the latest sample.
+No interpolation/inertia is added. Existing release/history and pickup optimizations
+remain. User tests fast movement, reversals, pause/resume and docking; no browser
+profiling or acceptance suite was run for this follow-up.
