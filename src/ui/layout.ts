@@ -799,7 +799,7 @@ export function floatResident(layout: UILayout, key: string, x: number, y: numbe
   // Moving an already-free frame changes no ownership or topology. Validate
   // only the new coordinates and preserve every unrelated layout reference.
   // Detaching/docking transitions retain the full structural path below.
-  if (current && !current.dockEdge && !ownerOf(layout, key) &&
+  if (current && !("dockEdge" in current && current.dockEdge) && !ownerOf(layout, key) &&
       !("inline" in current && current.inline && !current.inline.detached)) {
     if (current.x === x && current.y === y) return shown;
     return updateContainer(shown, key, { x, y });
