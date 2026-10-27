@@ -115,7 +115,7 @@ export function CloudPanel() {
   return <UISection id="cloud" title="Cloud connection" defaultExpanded={false}>
     {config.kind === 'local' ? <p>Cloud is not configured. Your atlas stays in this browser.</p> :
       config.kind === 'invalid' ? <p role="alert">{config.message}</p> : <>
-        <p>Atlas stays local. Cloud stores private images.</p>
+        <p>Local autosave stays local. Omnic library provides explicit cloud workspace save/load when its backend migration is installed.</p>
         {!signedIn ? <>
           <UIField id="backend.email" label="Account email" category="Cloud"><label>Email<input type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} /></label></UIField>
           <UIField id="backend.password" label="Account password" category="Cloud"><label>Password<input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} /></label></UIField>

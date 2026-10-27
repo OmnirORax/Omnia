@@ -1,4 +1,4 @@
-import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params } from "./model.ts";
+import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params, type RecipeResolver } from "./model.ts";
 import { defaultParams, definition } from "./registry.ts";
 export type StructuralNode = { id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number };
 export type Diagnostic = { code:string; message:string; target?:string; operation?:string };
@@ -7,7 +7,7 @@ export type Evaluation = { results:InterpretationResult[]; nodes:StructuralNode[
 type Generation={component:Component;root:StructuralNode;params:Params};
 const num=(p:Params,key:string,base=0)=>typeof p[key]==="number"?p[key] as number:base;
 const rad=(degrees:number)=>degrees*Math.PI/180;
-export function evaluateRecipe(input:Recipe,resolve?:(entityId:string)=>Recipe|undefined,time=0):Evaluation {
+export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Evaluation {
   const recipe=validateRecipe(input);
   if(!Number.isFinite(time))throw Error("Invalid evaluation time.");
   const nodes:StructuralNode[]=[],diagnostics:Diagnostic[]=[],frames:Frame[]=[],results:InterpretationResult[]=[];
@@ -60,9 +60,10 @@ export function evaluateRecipe(input:Recipe,resolve?:(entityId:string)=>Recipe|u
       c.children?.forEach(child=>component(child,id,root,level+1));
       if(c.generator==="reference"){
         const ref=c.reference!;
-        if(stack.has(ref))throw Error(`Circular Omnic reference: ${ref}`);
-        const linked=resolve?.(ref);if(!linked){diagnostics.push({code:"unresolved-object",message:`Missing Omnic object ${ref}.`,target:ref});return id;}
-        const next=new Set(stack);next.add(ref);run(validateRecipe(linked),`${id}:ref:${ref}/`,id,root,next,level+1);
+        const versionKey=JSON.stringify([ref,c.referenceRevision??null]);
+        if(stack.has(versionKey))throw Error(`Circular Omnic reference: ${ref}`);
+        const linked=resolve?.(ref,c.referenceRevision);if(!linked){diagnostics.push({code:"unresolved-object",message:`Missing Omnic object or revision ${ref}.`,target:ref});return id;}
+        const next=new Set(stack);next.add(versionKey);run(validateRecipe(linked),`${id}:ref:${ref}/`,id,root,next,level+1);
       }
       return id;
     };

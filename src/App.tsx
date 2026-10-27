@@ -1,3 +1,5 @@
+import {readWorkspaceSlot,saveWorkspaceSlot} from "./omnic/workspaceStorage";
+import { activeDocument, createWorkspace, validateWorkspace, withActiveDocument, importWorkspaceAtlas, workspaceHistory, restoreWorkspaceHistory, advanceWorkspaceRevisions, type OmnicWorkspace as WorkspaceSnapshot } from "./omnic/workspace";
 import { OmnicWorkspaceActions } from "./omnic/WorkspaceActions";
 import { forkOmnicDefinition, saveOmnicDefinition } from "./omnic/document";
 import { createRecipe } from "./omnic/presets";
@@ -81,6 +83,7 @@ import { useInterfaceState } from "./ui/useInterfaceState";
 import type { ColorPreview } from "./textScene";
 import { revealSearchPath, type SearchReveal } from "./ui/search";
 import { useControlGlow } from "./ui/useControlGlow";
+const OmnicLibrary = lazy(() => import("./omnic/Library").then(module => ({default:module.OmnicLibrary})));
 const OmnicComposer = lazy(() => import("./omnic/Composer").then(module => ({default:module.OmnicComposer})));
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
 
@@ -93,20 +96,26 @@ type ViewConfig = {
 };
 type Selection = { kind: "node" | "relationship" | "composition" | "variantBinder" | "visualBinder"; id: string } | null;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-function loadInitial(): { atlas: AtlasDocument; error: string } {
+type InitialWorkspace={ workspace: WorkspaceSnapshot; error: string };
+async function loadInitial(): Promise<InitialWorkspace> {
   try {
+    const workspace = await readWorkspaceSlot();
+    if (workspace) return { workspace, error: "" };
     const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
-    return { atlas: saved ? parseDocument(saved) : emptyDocument(), error: "" };
+    const migrated=createWorkspace(saved ? parseDocument(saved) : emptyDocument());
+    for(const entity of migrated.entities){const old=localStorage.getItem(`omnium.omnic.draft.v1:${entity.id}`);if(old)try{localStorage.setItem(`omnium.omnic.draft.v1:${migrated.id}:${entity.id}`,old);}catch{/* Existing legacy draft is retained. */}}
+    return { workspace:migrated,error:"" };
   } catch (e) {
     return {
-      atlas: emptyDocument(),
+      workspace: createWorkspace(),
       error: `Saved atlas could not be loaded. It has not been overwritten. ${message(e)}`,
     };
   }
 }
-function Workbench() {
-  const [initial] = useState(loadInitial);
-  const [document, setDocument] = useState(initial.atlas);
+function Workbench({initial}:{initial:InitialWorkspace}) {
+  const [workspace, setWorkspace] = useState(initial.workspace);
+  const workspaceRef = useRef(workspace); workspaceRef.current = workspace;
+  const document = useMemo(() => activeDocument(workspace), [workspace]);
   const [actionHistory] = useState(() => {
     try { return createActionHistory(JSON.parse(localStorage.getItem("omnium-history-options-v1") ?? "null") ?? undefined); }
     catch { return createActionHistory(); }
@@ -223,9 +232,11 @@ function Workbench() {
   const [autosave, setAutosave] = useState(!initial.error);
   const [saveStatus, setSaveStatus] = useState(initial.error ? "Autosave paused" : "Saved locally");
   const [revision, setRevision] = useState(0);
-  actionHistory.register("omnium", { read: () => ({ ...documentRef.current, revision: 0 }), write: value => {
-    const checked = validateDocument({ ...value, revision: documentRef.current.revision + 1 });
-    documentRef.current = checked; setDocument(checked); setSelection(null); setBinderPopup(null); setRevision(r => r + 1);
+  actionHistory.register("omnium", { read: () => workspaceHistory(workspaceRef.current), write: value => {
+    const checked = restoreWorkspaceHistory(workspaceRef.current, value);
+    const changedContext=checked.id!==workspaceRef.current.id||checked.activeAtlasId!==workspaceRef.current.activeAtlasId;
+    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setSelection(null); setBinderPopup(null); setProposalPreview(null); setRevision(r => r + 1);
+    if(changedContext)clearAtlasContext();
   } });
   const [proposalText, setProposalText] = useState("");
   const [proposalPreview, setProposalPreview] = useState<Preview | null>(null);
@@ -254,6 +265,7 @@ function Workbench() {
   const consumedShortcutPress = useRef<number | null>(null);
   const [constraintAxis, setConstraintAxis] = useState<"x" | "y" | "z" | null>(null);
   const heldNudges = useState(() => createHeldActions<NudgeActionId>())[0];
+  const [omnicLibraryOpen, setOmnicLibraryOpen] = useState(false);
   const [omnicEditorId, setOmnicEditorId] = useState<string | null>(null);
   const omnicObject = document.entities.find(e => e.id === omnicEditorId);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
@@ -276,13 +288,33 @@ function Workbench() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(savedSettings)); }
     catch { /* Settings are optional; atlas persistence is reported separately. */ }
   }, [savedSettings]);
-  function commitDocument(next: AtlasDocument) {
+  function commitWorkspace(next: WorkspaceSnapshot) {
+    const changedContext=next.id!==workspaceRef.current.id||next.activeAtlasId!==workspaceRef.current.activeAtlasId;
+    const checked=validateWorkspace(advanceWorkspaceRevisions(workspaceRef.current,next));
+    actionHistory.record("omnium",workspaceHistory(workspaceRef.current),workspaceHistory(checked),["omnium"],["omnium","window:omnic-library"]);
+    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setRevision(r=>r+1); setProposalPreview(null); setError("");
+    if(changedContext)clearAtlasContext();
+  }
+  function clearAtlasContext(){setSelection(null);setSelectedIds(new Set());setOptionNodeId(null);setOmnicEditorId(null);setExpandedVariants(new Set());setFocusContextIds(null);setBinderPopup(null);setInsertContext(null);setConnectionSource(null);setProposalPreview(null);}
+  function switchAtlas(id: string) {
+    if (!workspaceRef.current.atlases.some(a=>a.id===id)) return;
+    const next={...workspaceRef.current,activeAtlasId:id}; workspaceRef.current=next; documentRef.current=activeDocument(next); setWorkspace(next);
+    clearAtlasContext();
+  }
+  function placeLibraryObject(entityId: string) {
+    const placed=createPlacement(documentRef.current,entityId,creationParentId(),settings.spatial);
+    if(!commitDocument(placed.next))throw Error("Placement failed.");
+    setSelection({kind:"node",id:placed.placementId});
+  }
+  function commitDocument(next: AtlasDocument, copied?:{entityId:string;sourceId:string}) {
     try {
       const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
       const validated = validateDocument({ ...synced, revision: document.revision + 1 });
-      actionHistory.record("omnium", { ...documentRef.current, revision: 0 }, { ...validated, revision: 0 }, ["omnium"], ["omnium"]);
-      documentRef.current = validated;
-      setDocument(validated);
+      let nextWorkspace = withActiveDocument(workspaceRef.current, validated);
+      if(copied)nextWorkspace={...nextWorkspace,library:{...nextWorkspace.library,items:[...nextWorkspace.library.items,{entityId:copied.entityId,tags:[],collections:[],preset:false,derivedFrom:copied.sourceId}]}};
+      actionHistory.record("omnium", workspaceHistory(workspaceRef.current), workspaceHistory(nextWorkspace), ["omnium"], ["omnium", "window:omnic-library"]);
+      workspaceRef.current=nextWorkspace; documentRef.current = validated;
+      setWorkspace(nextWorkspace);
       setProposalPreview(null);
       setRevision((r) => r + 1);
       setError("");
@@ -313,15 +345,14 @@ function Workbench() {
     }
   }
   useEffect(() => {
-    if ((!revision && document.variantPlacementsVersion !== 1) || !autosave) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(document));
-      setSaveStatus("Saved locally");
-    } catch {
-      setSaveStatus("Not saved");
-      setError("Local storage is unavailable or full. Export JSON now to keep your work.");
-    }
-  }, [document, revision, autosave]);
+    if (!autosave) return;
+    let live=true;
+    setSaveStatus('Saving locally…');
+    void saveWorkspaceSlot(workspace).then(()=>{if(live)setSaveStatus("Saved locally");}).catch(()=>{
+      if(live){setSaveStatus("Not saved");setError("Local storage is unavailable or full. Export workspace JSON now to keep your work.");}
+    });
+    return()=>{live=false;};
+  }, [workspace, revision, autosave]);
   function patchNode(id: string, changes: Partial<AtlasNode>) {
     if (changes.spatialPosition) {
       try { commitDocument(movePlacement(document, id, changes.spatialPosition, settings.spatial)); }
@@ -346,7 +377,7 @@ function Workbench() {
     const frame = placed.next.frames.find(f => f.id === placed.next.activeFrameId);
     if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
     if (frame?.locked) placed.next.activeFrameId = null;
-    if (!commitDocument(placed.next)) throw Error("Omnic creation failed; no definition was saved.");
+    if (!commitDocument(placed.next,sourceId?{entityId,sourceId}:undefined)) throw Error("Omnic creation failed; no definition was saved.");
     setSelection({kind:"node",id:placed.placementId}); setOmnicEditorId(entityId);
   }
   function saveOmnic(recipe: Recipe) {
@@ -446,11 +477,11 @@ function Workbench() {
       if (
         atlas.nodes.length &&
         !window.confirm(
-          "Replace the current atlas and UI layout with this template? You can undo this action.",
+          "Import this template atlas as an independent atlas? You can undo this action.",
         )
       )
         return;
-      commitDocument(next);
+      commitWorkspace(importWorkspaceAtlas(workspaceRef.current,next,"Imported atlas"));
       setSelection(null);
       setOptionNodeId(null); setExpandedVariants(new Set());
     } catch (e) {
@@ -467,11 +498,11 @@ function Workbench() {
       if (
         atlas.nodes.length &&
         !window.confirm(
-          "Replace the current atlas with this file? You can undo this action. Export first to keep a separate backup.",
+          "Import this file as an independent atlas? Your current atlas is kept.",
         )
       )
         return;
-      commitDocument(next);
+      commitWorkspace(importWorkspaceAtlas(workspaceRef.current,next,"Imported atlas"));
       setSelection(null);
       setOptionNodeId(null); setExpandedVariants(new Set());
     } catch (e) {
@@ -1222,7 +1253,7 @@ function Workbench() {
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
     <UIWorkspace appearance={{ masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><OmnicWorkspaceActions selected={!!selectedEntity}
       canShow={!!selectedEntity?.omnic && !!selectedPlacement?.visual && !!(selectedPlacement.visual.assetId || selectedPlacement.visual.character)}
-      onOpen={() => selectedEntity && setOmnicEditorId(selectedEntity.id)}
+      onLibrary={() => setOmnicLibraryOpen(true)} onOpen={() => selectedEntity && setOmnicEditorId(selectedEntity.id)}
       onCreate={() => { try { createOmnicObject(); } catch(e) { setError(message(e)); } }}
       onShow={() => selectedPlacement && commitDocument({...document,placements:document.placements.map(p=>p.id===selectedPlacement.id?{...p,visual:{size:p.visual?.size,showText:p.visual?.showText}}:p)})} />
       <ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
@@ -1241,7 +1272,7 @@ function Workbench() {
             {["ui:import", "ui:export", "ui:saveTemplate", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:create" title="Create" menu>
-            {["omnic.create", "omnic.open", "panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
+            {["omnic.library", "omnic.create", "omnic.open", "panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
             <FunctionControl id="appearance" />
@@ -2206,8 +2237,11 @@ function Workbench() {
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
+        <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
+      </FloatingWindow>}
       {omnicObject && <FloatingWindow id="omnic-composer" title={`Omnic · ${omnicObject.label || "object"}`} width={600} height={650} onClose={() => setOmnicEditorId(null)}>
-        <Suspense fallback={<p>Opening Omnic composer…</p>}><OmnicComposer key={omnicObject.id} entity={omnicObject} objects={document.entities} history={actionHistory} onSave={saveOmnic}
+        <Suspense fallback={<p>Opening Omnic composer…</p>}><OmnicComposer key={`${workspace.id}:${omnicObject.id}`} workspaceId={workspace.id} presetIds={workspace.library.items.filter(item=>item.preset).map(item=>item.entityId)} entity={omnicObject} objects={document.entities} history={actionHistory} onSave={saveOmnic}
           onCopy={(recipe,label) => createOmnicObject(recipe,label,omnicObject.id)} onClose={() => setOmnicEditorId(null)} /></Suspense>
       </FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} onMinimize={() => {
@@ -2251,5 +2285,7 @@ function Workbench() {
   );
 }
 export default function App() {
-  return <Workbench />;
+  const [initial,setInitial]=useState<InitialWorkspace|null>(null);
+  useEffect(()=>{let live=true;void loadInitial().then(value=>{if(live)setInitial(value);});return()=>{live=false;};},[]);
+  return initial?<Workbench initial={initial}/>:<p role="status">Opening workspace…</p>;
 }

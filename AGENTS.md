@@ -209,4 +209,8 @@ concept-to-glyph asset assignment or infer semantic equivalence from matching
 renderings. Shared edits update references; explicit copies create identities.
 Keep provisional grammar/frames explicit, preserve unresolved role references,
 reuse MC/property/history owners, and respect evaluator/render budgets. English
-translation, audio, full radial grammar and Stage 2 library/cloud work are deferred.
+translation, audio and full radial grammar remain deferred. Stage 2 adds the
+workspace-wide canonical library, explicit pins and version-checked cloud snapshots;
+read [docs/OMNIC_LIBRARY.md](docs/OMNIC_LIBRARY.md). Use its shared workspace owner,
+IDs, IndexedDB persistence and dependency resolver. Never make per-atlas copies of
+shared objects or treat the local document revision as a server concurrency token.

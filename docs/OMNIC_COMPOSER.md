@@ -5,7 +5,8 @@ document records the current user agreement and the first implementation. Model
 and build validation are recorded below; browser usability and smoothness remain
 user-verified.
 The grammar remains unfinished; Stage 1 is a construction and discovery instrument,
-not a finalized ontology or an English-to-symbol translator.
+not a finalized ontology or an English-to-symbol translator. Stage 2 library/workspace
+extensions are now implemented for review; see [OMNIC_LIBRARY.md](OMNIC_LIBRARY.md).
 
 ## Canonical objects and sharing
 
@@ -25,8 +26,8 @@ remain presentation, not a competing structural definition.
 Composition references follow their referenced objects' current definitions by
 default. Editing a reusable object therefore updates its live uses. Do not quietly
 introduce immutable version pins as the default: revision-pinned dependency
-management is outside this Stage 1 agreement unless a concrete core requirement
-is approved. Existing document history and exported atlas JSON must retain enough
+management was outside Stage 1; Stage 2 now adds explicit pinned revisions with
+frozen dependency snapshots while retaining live references by default. Existing document history and exported atlas JSON must retain enough
 state/references to reconstruct the saved work; live references must not make an
 export depend on an unavailable external library.
 
@@ -186,8 +187,8 @@ Do not automatically proceed into persistent cloud libraries, collections/tags,
 full grammar, automatic semantic discovery, English translation, the complete
 radial matrix, audio/phonetic output or speculative ontology/runtime infrastructure.
 Stage 1's recipe and evaluator should leave room for these without implementing
-them prematurely. Explicit version-pin/follow UI is also future work; current
-references are live by default.
+them prematurely. Explicit version-pin/follow UI was deferred in Stage 1; the Stage 2 extension now
+supplies it. Current references remain live by default.
 
 Before marking Stage 1 complete, verify the agreed workflow end to end: generate
 and parameterize structures without drawing; target whole/substructures; reorder
@@ -245,13 +246,16 @@ Drafts are preserved locally by canonical object ID. The shared action journal
 records completed draft edits and canonical saves/copies, including closed-draft
 undo/redo through a storage-backed owner. A recovered draft whose base revision
 changed is clearly marked; Reset draft reloads the current shared definition.
-No private undo stack, authentication or cloud atlas store was added.
+Stage 1 added no private undo stack, authentication or cloud atlas store. Stage 2
+now integrates workspace history, IndexedDB autosave and explicit cloud snapshots
+through the existing backend; see OMNIC_LIBRARY.md.
 
 Runtime addition of an operator reuses registry behavior and control metadata;
 new property definitions still follow normal function discovery/build reload.
 The grammar, semantic equivalence, full frame interpretation/inference, audible
 language, translation tooltips and persistent library organization remain unresolved
-or deferred. Stage 2 is not started.
+or deferred. Stage 2 library organization and workspace persistence are now
+implemented for review; their contract and rollout limits are in OMNIC_LIBRARY.md.
 
 
 ## Validation for the first implementation
@@ -272,4 +276,5 @@ composer undo/redo. Numeric bounds/model timings do not establish interactive FP
 
 Smallest next step: user-test New Omnic object → radial count/rotation → nested
 reuse → Save shared across two placements → Save copy → reload/export/import.
-Resolve observed usability/performance issues before starting Stage 2.
+Resolve observed usability/performance issues as Stage 2 is reviewed. Stage 1
+frame authoring remains explicit scoped records; full interpretation is Stage 3.

@@ -10,10 +10,13 @@ export type Asset = {
   byte_size: number; object_key: string; state: 'pending' | 'ready' | 'deleting'; created_at: string;
 };
 export type BackendRequest =
+  | WorkspaceSaveInput
   | { operation: 'workspace.create'; name: string; requestId: string }
   | { operation: 'scene.capabilities'; workspaceId: string }
   | SceneGenerateInput
   | { operation: 'asset.finalize' | 'asset.delete'; assetId: string };
+export type WorkspaceSaveInput={operation:'workspace.save';workspaceId:string;expectedVersion:number;requestId:string;snapshot:unknown};
+export type WorkspaceSnapshot={workspace_id:string;version:number;snapshot:unknown;request_id:string;updated_by:string;updated_at:string};
 export const SCENE_SOURCES = ['label', 'notes', 'label-and-notes'] as const;
 export type SceneSource = typeof SCENE_SOURCES[number];
 export type SceneNode = { id: string; label: string; notes: string };
@@ -49,6 +52,9 @@ export const isImageType = (value: string): value is ImageType => (IMAGE_TYPES a
 export function parseBackendRequest(value: unknown): BackendRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_input');
   const input = value as Record<string, unknown>;
+  if(input.operation==='workspace.save'&&isUuid(input.workspaceId)&&isUuid(input.requestId)&&Number.isSafeInteger(input.expectedVersion)&&Number(input.expectedVersion)>=0&&
+    input.snapshot&&typeof input.snapshot==='object'&&!Array.isArray(input.snapshot)&&Object.keys(input).every(key=>['operation','workspaceId','expectedVersion','requestId','snapshot'].includes(key)))
+    return {operation:input.operation,workspaceId:input.workspaceId,requestId:input.requestId,expectedVersion:Number(input.expectedVersion),snapshot:input.snapshot};
   if (input.operation === 'scene.capabilities' && isUuid(input.workspaceId) &&
       Object.keys(input).every(key => ['operation', 'workspaceId'].includes(key)))
     return { operation: input.operation, workspaceId: input.workspaceId };

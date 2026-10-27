@@ -1,6 +1,15 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  { id: "omnic.workspace.recover", owner: "omnicLibrary", scope: "global", category: "Omnic library", label: "Recover previous workspace", defaultKey: "", description: "Restore the durable local backup kept before importing or loading a replacement workspace." },
+  { id: "omnic.workspace.saveCloud", owner: "omnicWorkspaceCloud", scope: "global", category: "Cloud", label: "Save workspace to cloud", defaultKey: "", description: "Explicit version-checked save of the shared library and all workspace atlases." },
+  { id: "omnic.workspace.loadCloud", owner: "omnicWorkspaceCloud", scope: "global", category: "Cloud", label: "Load cloud workspace", defaultKey: "", description: "Replace local workspace with the cloud snapshot, preserving a local recovery copy and shared Undo." },
+  { id: "omnic.library.open", owner: "omnicLibrary", scope: "global", category: "Omnic library", label: "Edit object", defaultKey: "", description: "Edit object through the shared workspace library." },
+  { id: "omnic.library.place", owner: "omnicLibrary", scope: "global", category: "Omnic library", label: "Place shared object", defaultKey: "", description: "Place shared object through the shared workspace library." },
+  { id: "omnic.library.copy", owner: "omnicLibrary", scope: "global", category: "Omnic library", label: "Create independent copy", defaultKey: "", description: "Create independent copy through the shared workspace library." },
+  { id: "omnic.workspace.export", owner: "omnicLibrary", scope: "global", category: "Omnic library", label: "Export workspace", defaultKey: "", description: "Export workspace through the shared workspace library." },
+  { id: "omnic.workspace.import", owner: "omnicLibrary", scope: "global", category: "Omnic library", label: "Import workspace", defaultKey: "", description: "Import workspace through the shared workspace library." },
+  { id: "omnic.library", owner: "omnicWorkspace", scope: "global", category: "Omnic", label: "Omnic library", defaultKey: "", description: "Browse shared objects, structural families, revisions and workspace atlases." },
   { id: "omnic.create", owner: "omnicWorkspace", scope: "global", category: "Omnic", label: "New Omnic object", defaultKey: "", description: "New Omnic object through the shared composer and canonical object state." },
   { id: "omnic.open", owner: "omnicWorkspace", scope: "global", category: "Omnic", label: "Open Omnic composer", defaultKey: "", description: "Open Omnic composer through the shared composer and canonical object state." },
   { id: "omnic.show", owner: "omnicWorkspace", scope: "global", category: "Omnic", label: "Show Omnic structure", defaultKey: "", description: "Show Omnic structure through the shared composer and canonical object state." },

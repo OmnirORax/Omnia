@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { closedComposerDraft, forgetClosedComposerDraft, preserveClosedComposerHistory } from "./draftHistory";
+import { objectResolver } from "./revisions";
 import type { Recipe, Component, Application, Frame, Params } from "./model";
 import { validateRecipe } from "./model";
 import { evaluateRecipe } from "./evaluate";
@@ -18,9 +19,9 @@ import { PROPERTY_REGISTRY } from "../appearance/registry";
 import { RENDER_BUDGET } from "../renderBudget";
 import "./composer.css";
 
-type ObjectRef = { id: string; label: string; omnic?: Recipe };
+type ObjectRef = { id: string; label: string; omnic?: Recipe; omnicHistory?: Recipe[] };
 type Props = {
-  entity: ObjectRef; objects: readonly ObjectRef[]; history: ActionHistory;
+  workspaceId?: string; presetIds?:readonly string[]; entity: ObjectRef; objects: readonly ObjectRef[]; history: ActionHistory;
   onSave: (recipe: Recipe) => void; onCopy: (recipe: Recipe, label: string) => void; onClose: () => void;
 };
 type Focus = { kind: "component" | "operation"; id: string };
@@ -30,10 +31,10 @@ const allComponents = (components: readonly Component[]): Component[] => compone
 const updateComponents = (components: Component[], id: string, change: (component: Component) => Component): Component[] => components.map(component => component.id === id ? change(component) : component.children ? { ...component, children: updateComponents(component.children, id, change) } : component);
 const removeComponent = (components: Component[], id: string): Component[] => components.filter(component => component.id !== id).map(component => component.children ? { ...component, children: removeComponent(component.children, id) } : component);
 const id = () => crypto.randomUUID();
-function restoredDraft(entity: ObjectRef): { recipe: Recipe; baseRevision: number | null } {
-  const closed = closedComposerDraft(`omnic.draft:${entity.id}`); if (closed) return closed;
+function restoredDraft(entity: ObjectRef, draftId=entity.id): { recipe: Recipe; baseRevision: number | null } {
+  const closed = closedComposerDraft(`omnic.draft:${draftId}`); if (closed) return closed;
   try {
-    const raw = localStorage.getItem(storageKey(entity.id));
+    const raw = localStorage.getItem(storageKey(draftId));
     if (raw) { const saved = JSON.parse(raw); return { recipe: validateRecipe(saved.recipe), baseRevision: Number.isSafeInteger(saved.baseRevision) ? saved.baseRevision : null }; }
   } catch { /* A damaged draft never prevents opening the canonical object. */ }
   return { recipe: validateRecipe(entity.omnic ?? createRecipe()), baseRevision: entity.omnic?.revision ?? null };
@@ -57,8 +58,9 @@ function Parameters({ scope, spec, params, thresholds, change }: {
 
 /** The composer owns a recoverable local draft, not a second canonical object.
  * Accepted changes use the shared journal; samples and animation stay transient. */
-export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Props) {
-  const [initial] = useState(() => restoredDraft(entity));
+export function OmnicComposer({ entity, objects, history, onSave, onCopy, workspaceId, presetIds=[] }: Props) {
+  const draftId=workspaceId?`${workspaceId}:${entity.id}`:entity.id;
+  const [initial] = useState(() => restoredDraft(entity,draftId));
   const [draft, setDraft] = useState<Recipe>(initial.recipe);
   const [baseRevision, setBaseRevision] = useState<number | null>(initial.baseRevision);
   const baseRevisionRef = useRef(baseRevision); baseRevisionRef.current = baseRevision;
@@ -72,10 +74,10 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Prop
   const [copyLabel, setCopyLabel] = useState(entity.label ? `${entity.label} variation` : "Omnic variation");
   const [error, setError] = useState(""), [notice, setNotice] = useState("");
   const preview = useRef<HTMLDivElement>(null), importInput = useRef<HTMLInputElement>(null);
-  const owner = `omnic.draft:${entity.id}`;
+  const owner = `omnic.draft:${draftId}`;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const resolve = useMemo(() => { const byId = new Map(objects.map(object => [object.id, object.omnic])); return (key: string) => key === entity.id ? recipeRef.current : byId.get(key); }, [objects,entity.id]);
+  const resolve = useMemo(() => { const saved=objectResolver(objects); return (key: string,revision?:number) => key === entity.id && revision===undefined ? recipeRef.current : saved(key,revision); }, [objects,entity.id]);
   const evaluated = useMemo(() => {
     try { return { result: evaluateRecipe(recipe, resolve), error: "" }; }
     catch (failure) { return { result: null, error: failure instanceof Error ? failure.message : String(failure) }; }
@@ -88,7 +90,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Prop
       if (seen.has(current)) return 0;
       seen.add(current);
       const own = current.operations.filter(operation=>operation.enabled && operation.operator === "oscillate").reduce((sum,operation)=>sum+Number(operation.params.amplitude ?? 10),0);
-      const nested = Math.max(0,...allComponents(current.components).flatMap(component=>{const referenced=component.reference?resolve(component.reference):undefined;return referenced?[excursion(referenced)]:[];}));
+      const nested = Math.max(0,...allComponents(current.components).flatMap(component=>{const referenced=component.reference?resolve(component.reference,component.referenceRevision):undefined;return referenced?[excursion(referenced)]:[];}));
       seen.delete(current);cached.set(current,own+nested);return own+nested;
     };
     const bounds = evaluationBounds(evaluated.result), padding = excursion(recipe);
@@ -124,14 +126,14 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Prop
     });
     return () => {
       stop();
-      preserveClosedComposerHistory(history,owner,storageKey(entity.id),{recipe:draftRef.current,baseRevision:baseRevisionRef.current});
+      preserveClosedComposerHistory(history,owner,storageKey(draftId),{recipe:draftRef.current,baseRevision:baseRevisionRef.current});
     };
-  }, [history, owner, entity.id]);
+  }, [history, owner, draftId]);
 
   useEffect(() => {
-    try { localStorage.setItem(storageKey(entity.id), JSON.stringify({ baseRevision, recipe: draft })); }
+    try { localStorage.setItem(storageKey(draftId), JSON.stringify({ baseRevision, recipe: draft })); }
     catch { setError("Draft could not be preserved locally. Export JSON before closing."); }
-  }, [draft, entity.id, baseRevision]);
+  }, [draft, draftId, baseRevision]);
   const changeParams = (params: Params, temporary = false) => {
     if (!focus) return;
     const current = recipeRef.current;
@@ -144,7 +146,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Prop
   };
   const save = () => {
     try {
-      const next = validateRecipe({ ...recipeRef.current, revision: (entity.omnic?.revision ?? 0) + 1 });
+      const next = validateRecipe({ ...recipeRef.current, version:2, revision: (entity.omnic?.revision ?? 0) + 1 });
       onSave(next); setBaseRevision(next.revision); draftRef.current = next; setDraft(next); setSample(null); setNotice("Shared definition saved; its references use this revision."); setError("");
     } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
   };
@@ -266,7 +268,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Prop
           <select aria-label="Neighbor parameter" value={neighborParameter.key} onChange={event => setNeighborKey(event.target.value)}>{spec?.parameters.filter(parameter => parameter.kind === "number").map(parameter => <option value={parameter.key} key={parameter.key}>{parameter.label}</option>)}</select>
           {neighbors.map(neighbor => <button type="button" key={neighbor.value} title={`Use ${neighborParameter.label} ${neighbor.value}`} onClick={() => commit(neighbor.recipe)}><span aria-hidden="true" dangerouslySetInnerHTML={{ __html: neighbor.html }} /><small>{neighbor.value}</small></button>)}
         </div>}
-        <UIField id="omnic:preset" label="Construction preset" category="Omnic"><label>Preset <select value="" onChange={event => { const next = createRecipe(event.target.value); commit(next); setFocus(next.components[0] ? { kind:"component",id:next.components[0].id } : null); setPicked([]); }}><option value="" disabled>Choose…</option>{PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label}</option>)}</select></label></UIField>
+        <UIField id="omnic:preset" label="Construction preset" category="Omnic"><label title="Load a procedural draft into this object; Save shared commits it.">Preset <select value="" onChange={event => { const saved=event.target.value.startsWith('saved:')?objects.find(object=>object.id===event.target.value.slice(6))?.omnic:undefined;const next = saved?validateRecipe(saved):createRecipe(event.target.value); commit(next); setFocus(next.components[0] ? { kind:"component",id:next.components[0].id } : null); setPicked([]); }}><option value="" disabled>Choose…</option><optgroup label="Built-in">{PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label}</option>)}</optgroup><optgroup label="Workspace presets">{objects.filter(object=>object.omnic&&presetIds.includes(object.id)).map(object=><option value={`saved:${object.id}`} key={object.id}>{object.label||object.id}</option>)}</optgroup></select></label></UIField>
       </div>
       <div className="omnic-edit-column">
         <UISection id="omnic-structure" title="Structure">
@@ -279,6 +281,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy }: Prop
         </UISection>
         {spec && active && <UISection id="omnic-parameters" title={spec.label}>
           <UIField id="omnic:parameter-mode" label="Parameter navigation" category="Omnic"><label title="Registered numeric candidates; semantic significance is unverified."><input type="checkbox" checked={thresholds} onChange={event => setThresholds(event.target.checked)} />Parameter presets</label></UIField>
+          {activeComponent?.reference && <UIField id="omnic:dependency-version" label="Dependency version" category="Omnic"><label>Reference <select aria-label="Dependency version" value={activeComponent.referenceRevision??'live'} onChange={event=>commit({...recipe,version:2,components:updateComponents(recipe.components,activeComponent.id,component=>{const {referenceRevision:_,...rest}=component;return event.target.value==='live'?rest:{...rest,referenceRevision:Number(event.target.value)};})})}><option value="live">Live definition</option>{objects.find(object=>object.id===activeComponent.reference)?.omnicHistory?.map(revision=><option key={revision.revision} value={revision.revision}>Pinned r{revision.revision}</option>)}</select></label></UIField>}
           <Parameters scope={active.id} spec={spec} params={active.params} thresholds={thresholds} change={parameter} />
         </UISection>}
       </div>

@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js';
 import { parseBackendRequest, imageSignatureMatches, ASSET_BUCKET, resolveScenePrompt } from '../supabase/functions/_shared/contracts.ts';
 import { generateSceneImage } from '../supabase/functions/backend/scene-provider.ts';
 import { localBackendStatus } from '../scripts/backend-status.mjs';
+import {createWorkspace} from '../src/omnic/workspace.ts';
+import {emptyDocument} from '../src/graph/structural.ts';
 
 test('backend operation contracts reject unsupported or ambiguous inputs', () => {
   assert.throws(() => parseBackendRequest({ operation: 'execute', sql: 'select 1' }));
@@ -99,6 +101,30 @@ test('local backend enforces identity, workspace roles, file integrity, and obje
       await operation(alice, { operation: 'workspace.create', name: 'Changed', requestId }, 409);
     });
     assert.ok(workspace, 'Workspace creation is required for the remaining permission checks.');
+    await t.test('workspace snapshots enforce CAS, idempotent retry, roles, validation and revocation',async()=>{
+      const snapshot=createWorkspace({...emptyDocument(),entities:[1,2,3].map(n=>({id:`text-${n}`,label:'Large notes',aliases:[],notes:'x'.repeat(9000)}))}),request={operation:'workspace.save',workspaceId:workspace.id,requestId:randomUUID(),expectedVersion:0,snapshot};
+      assert.ok(JSON.stringify(snapshot).length>16384,'workspace requests exceed the old asset operation body limit');
+      await operation(bob,request,403);
+      const saved=(await operation(alice,request)).data;assert.equal(saved.version,1);
+      assert.equal((await operation(alice,request)).data.version,1,'retry does not create another version');
+      await operation(alice,{...request,snapshot:{...snapshot,name:'Changed retry'}},409);
+      await operation(alice,{...request,requestId:randomUUID()},409);
+      assert.deepEqual(ok(await bob.client.from('workspace_snapshots').select('*').eq('workspace_id',workspace.id)),[]);
+      assert.ok((await alice.client.from('workspace_snapshots').update({version:10}).eq('workspace_id',workspace.id)).error);
+      assert.ok((await alice.client.rpc('save_workspace_snapshot',{p_workspace:workspace.id,p_actor:alice.id,p_expected:1,p_request:randomUUID(),p_snapshot:snapshot})).error);
+      await operation(alice,{...request,requestId:randomUUID(),expectedVersion:1,snapshot:{...snapshot,entities:[{id:'invalid'}]}},400);
+      ok(await alice.client.rpc('set_workspace_member',{p_workspace_id:workspace.id,p_user_id:bob.id,p_role:'viewer'}));
+      assert.equal(ok(await bob.client.from('workspace_snapshots').select('version').eq('workspace_id',workspace.id).single()).version,1);
+      await operation(bob,{...request,requestId:randomUUID(),expectedVersion:1},403);
+      ok(await alice.client.rpc('set_workspace_member',{p_workspace_id:workspace.id,p_user_id:bob.id,p_role:'editor'}));
+      const updated=(await operation(bob,{...request,requestId:randomUUID(),expectedVersion:1,snapshot:{...snapshot,name:'Editor revision'}})).data;assert.equal(updated.version,2);
+      const outcomes=await Promise.all([1,2].map(async n=>{
+        const response=await fetch(`${url}/functions/v1/backend`,{method:'POST',headers:{'Content-Type':'application/json',apikey:publicKey,Authorization:`Bearer ${alice.token}`},body:JSON.stringify({...request,requestId:randomUUID(),expectedVersion:2,snapshot:{...snapshot,name:`Concurrent ${n}`}})});return response.status;
+      }));assert.deepEqual(outcomes.sort(),[200,409]);
+      ok(await alice.client.rpc('set_workspace_member',{p_workspace_id:workspace.id,p_user_id:bob.id,p_role:null}));
+      assert.deepEqual(ok(await bob.client.from('workspace_snapshots').select('*').eq('workspace_id',workspace.id)),[]);
+      await operation(bob,{...request,requestId:randomUUID(),expectedVersion:3},403);
+    });
     await t.test('generation is gated, service-only claims are idempotent, and other workspaces cannot read attempts', async () => {
       const input = { operation: 'scene.generate', workspaceId: workspace.id, requestId: randomUUID(),
         prompt: 'Paint {{subject}}', variable: 'subject', source: 'label', node: { id: 'node-1', label: 'Forest', notes: '' } };

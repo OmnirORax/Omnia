@@ -185,3 +185,15 @@ preview DOM without per-frame React/history/storage, and pauses after sustained
 expensive frames. Large structures skip neighboring previews. These policies bound
 new work; no browser performance trace was run and existing system latency remains
 an open verification item. See OMNIC_COMPOSER.md for structural/input work limits.
+
+## Omnic workspace library (2026-10-27)
+
+Stage 2 reads cached structural facts during queries, mounts 32 result rows per
+page and evaluates in scheduled 4 ms batches with progress published at most
+every 50 ms. It renders one inspected revision preview and keeps at most two
+workspace indexes across reopening. Stable entity pools reuse scene resolvers;
+position-only edits do not rescan recipes. IndexedDB stores workspace snapshots
+after commits, not on pointer samples or animation ticks. Limits and remaining
+whole-document validation/projection costs are recorded in OMNIC_LIBRARY.md.
+No new browser trace or FPS measurement was performed; these are implementation
+bounds and model checks, not evidence that earlier system-wide latency is resolved.
