@@ -429,8 +429,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     actionHistory.travel("redo", { ...actionHistory.options, ...(steps === undefined ? {} : { steps }) });
   }
   function exportJSON() {
+    const data=JSON.stringify(document);
+    if(new TextEncoder().encode(data).length>5_000_000){setError('This atlas exceeds the 5 MB atlas import limit. Use Omnic library → Export workspace to keep the complete workspace.');setOmnicLibraryOpen(true);return;}
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(document, null, 2)], { type: "application/json" }),
+      new Blob([data], { type: "application/json" }),
     );
     const link = window.document.createElement("a");
     link.href = url;
