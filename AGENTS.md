@@ -263,7 +263,12 @@ bypass. The build verifies generated membership. See SHARED_PROPERTIES.md for th
 adapter declaration and compatibility contract.
 
 
-For Omnic work, read [docs/OMNIC_COMPOSER.md](docs/OMNIC_COMPOSER.md). Stage 1
+For Omnic work, read [docs/OMNIC_COMPOSER.md](docs/OMNIC_COMPOSER.md) and the
+[source-alignment audit](docs/OMNIC_ALIGNMENT_AUDIT.md) against the user's cleaned
+[language document](docs/omnic/OMNIC_RULES_SOURCE.md). Distinguish executable Stage
+1/2 scaffolding from missing semantics, preserve reusable infrastructure, and do
+not finalize exploratory or obsolete source passages. The cleaned source guides
+meaning; stage contracts still record agreed delivery scope. Stage 1
 stores a renderer-independent structural recipe on the canonical Omnium object
 (`Entity.omnic`); placements/reused components reference it. Do not reintroduce
 concept-to-glyph asset assignment or infer semantic equivalence from matching

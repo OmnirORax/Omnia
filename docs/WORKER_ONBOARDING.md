@@ -24,6 +24,13 @@ implemented for review as an integrated construction/discovery instrument; read
 infer truth from appearance, or rebuild a 2D editor as part of unrelated work. [Project direction](../PROJECT_DIRECTION.md) gives the broader
 product constraints.
 
+Before extending Omnic grammar, read the [source-alignment audit](OMNIC_ALIGNMENT_AUDIT.md)
+and its preserved user source. It maps Stage 1/2 reuse and missing semantics;
+construction transforms, numeric frame declarations and technical IDs are not
+yet a complete meaning, read-order, inheritance or referent-continuity system.
+Do not freeze tentative/obsolete source notes into grammar or duplicate shared
+infrastructure. Existing stage contracts still define delivery scope.
+
 The interface itself is user-arrangeable and customizable. A newly added feature
 should inherit shared behavior rather than arrive as a fixed, isolated widget.
 Stable identity, stored values and user customization must survive rearrangement,
