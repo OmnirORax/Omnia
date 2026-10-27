@@ -22,6 +22,19 @@ try{
   await page.evaluate(()=>document.querySelector('[data-ui-function="omnic.library"]').click());
   await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(e=>e.textContent==='Structural filters'&&e.getClientRects().length));
   await page.waitForTimeout(2000);
+  // Optional attribution only; keep this off for ordinary timing comparisons.
+  const countDiscovery=process.env.OMNIA_PROFILE_DOM==='1';
+  if(countDiscovery)await page.evaluate(()=>{
+    const original=Document.prototype.querySelectorAll;
+    window.__omniaDiscoveryCounts={uiSelectionScans:0};
+    Document.prototype.querySelectorAll=function(selector){
+      if(selector==='[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]')window.__omniaDiscoveryCounts.uiSelectionScans++;
+      return original.call(this,selector);
+    };
+  });
+  const profilePath=process.env.OMNIA_PROFILE_CPU;
+  const client=profilePath?await page.context().newCDPSession(page):null;
+  if(client){await client.send('Profiler.enable');await client.send('Profiler.start');}
   const samples=await page.evaluate(async()=>{
     const result=[];
     for(let i=0;i<8;i++){
@@ -32,9 +45,10 @@ try{
       result.push({handlerMs,twoRafMs:performance.now()-start,toggled:button.getAttribute('aria-expanded')!==expanded});
     }return result;
   });
+  if(client){const {profile}=await client.send('Profiler.stop');await writeFile(profilePath,JSON.stringify(profile));}
   if(samples.some(s=>!s.toggled))throw Error('A toggle did not change its expanded state.');
   if(errors.length)throw Error(errors.join('\n'));
   const sorted=samples.map(s=>s.twoRafMs).sort((a,b)=>a-b);
-  const report={version:1,source:process.env.OMNIA_PROFILE_SOURCE??execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),sourceDirty:process.env.OMNIA_PROFILE_SOURCE?null:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),target:url.href,fixture:'12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles',method:'Programmatic handler and two RAFs, no CPU profiler. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.',samples,medianTwoRafMs:(sorted[3]+sorted[4])/2,userAgent:await page.evaluate(()=>navigator.userAgent)};
+  const report={version:1,source:process.env.OMNIA_PROFILE_SOURCE??execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),sourceDirty:process.env.OMNIA_PROFILE_SOURCE?null:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),target:url.href,fixture:'12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles',method:`Programmatic handler and two RAFs; CPU profiler ${client?'enabled':'disabled'}. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.`,discovery:countDiscovery?await page.evaluate(()=>window.__omniaDiscoveryCounts):undefined,samples,medianTwoRafMs:(sorted[3]+sorted[4])/2,userAgent:await page.evaluate(()=>navigator.userAgent)};
   await writeFile(output,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({output,medianTwoRafMs:report.medianTwoRafMs,toggles:samples.length}));
 }finally{await browser.close();}

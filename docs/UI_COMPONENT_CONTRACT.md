@@ -358,3 +358,17 @@ inventory publication per microtask. Source stacks/token cleanup update immediat
 last registration/cleanup per ID wins. This is not an editor/action/history queue:
 commands and commits remain synchronous, and no registration publication occurs
 after owner unmount. Preserve unavailable placeholders and source-stack fallback.
+
+
+Snapshot selectors must be pure projections of the committed owner snapshot and
+captured component inputs. `createSliceReader` reuses a result for the same snapshot
+and selector identity, retaining the prior slice reference if values compare equal.
+A new inline selector/captured props or a new committed snapshot triggers evaluation;
+events continue to read the live committed handle. Never mutate snapshot objects to
+signal an update or use a render selector for side effects.
+
+UI-selection marker reconciliation must return immediately when its selected-ID
+set is empty: the previous effect cleanup removes old markers. Do not discover or
+measure every selectable control after an ordinary layout/registry change just to
+write false selection markers. Actual selection/arrangement still uses the shared
+selection path, current permissions and visible-control bounds.

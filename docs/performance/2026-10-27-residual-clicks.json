@@ -1,0 +1,343 @@
+{
+  "baseline": "846feeb15f9d5732437047fb84a13ce59783f6f4",
+  "note": "Local headless software-GPU diagnostic; ordinary settings, 12 nodes, graph selected, UI selection empty, 8 filter toggles. Programmatic click + two RAFs is not physical input-to-display latency. CPU attribution and DOM counters are separate from uninstrumented timings. A concurrent-smoke pair is retained but excluded. No universal smoothness claim.",
+  "timings": [
+    {
+      "run": "first",
+      "includeInComparison": true,
+      "before": {
+        "version": 1,
+        "source": "846feeb15f9d5732437047fb84a13ce59783f6f4",
+        "sourceDirty": false,
+        "target": "http://127.0.0.1:4186/",
+        "fixture": "12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles",
+        "method": "Programmatic handler and two RAFs; CPU profiler disabled. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.",
+        "samples": [
+          {
+            "handlerMs": 4.400000035762787,
+            "twoRafMs": 212.4000000357628,
+            "toggled": true
+          },
+          {
+            "handlerMs": 5,
+            "twoRafMs": 488.30000001192093,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.600000023841858,
+            "twoRafMs": 393,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.300000011920929,
+            "twoRafMs": 613.8000000119209,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.600000023841858,
+            "twoRafMs": 754.6000000238419,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.800000011920929,
+            "twoRafMs": 395.69999998807907,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.899999976158142,
+            "twoRafMs": 444.7999999523163,
+            "toggled": true
+          },
+          {
+            "handlerMs": 4.699999988079071,
+            "twoRafMs": 409.39999997615814,
+            "toggled": true
+          }
+        ],
+        "medianTwoRafMs": 427.0999999642372,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "after": {
+        "version": 1,
+        "source": "residual-pause-follow-up-on-846feeb",
+        "sourceDirty": true,
+        "target": "http://127.0.0.1:4187/",
+        "fixture": "12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles",
+        "method": "Programmatic handler and two RAFs; CPU profiler disabled. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.",
+        "samples": [
+          {
+            "handlerMs": 4.5,
+            "twoRafMs": 141.5999999642372,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.900000035762787,
+            "twoRafMs": 284.2000000476837,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.599999964237213,
+            "twoRafMs": 288.69999998807907,
+            "toggled": true
+          },
+          {
+            "handlerMs": 4.699999988079071,
+            "twoRafMs": 238.39999997615814,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.5,
+            "twoRafMs": 282.19999998807907,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.699999988079071,
+            "twoRafMs": 458.69999998807907,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.599999964237213,
+            "twoRafMs": 283.89999997615814,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.400000035762787,
+            "twoRafMs": 271.5,
+            "toggled": true
+          }
+        ],
+        "medianTwoRafMs": 283.0499999821186,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "run": "concurrent-smoke-excluded",
+      "includeInComparison": false,
+      "before": {
+        "version": 1,
+        "source": "846feeb15f9d5732437047fb84a13ce59783f6f4",
+        "sourceDirty": false,
+        "target": "http://127.0.0.1:4186/",
+        "fixture": "12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles",
+        "method": "Programmatic handler and two RAFs; CPU profiler disabled. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.",
+        "samples": [
+          {
+            "handlerMs": 2.699999988079071,
+            "twoRafMs": 136,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.300000011920929,
+            "twoRafMs": 481.5999999642372,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.899999976158142,
+            "twoRafMs": 333.19999998807907,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.5,
+            "twoRafMs": 276,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.400000035762787,
+            "twoRafMs": 271,
+            "toggled": true
+          },
+          {
+            "handlerMs": 15.399999976158142,
+            "twoRafMs": 319.69999998807907,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.100000023841858,
+            "twoRafMs": 286.80000001192093,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.5,
+            "twoRafMs": 288.5,
+            "toggled": true
+          }
+        ],
+        "medianTwoRafMs": 287.65000000596046,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "after": {
+        "version": 1,
+        "source": "residual-pause-follow-up-on-846feeb",
+        "sourceDirty": true,
+        "target": "http://127.0.0.1:4187/",
+        "fixture": "12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles",
+        "method": "Programmatic handler and two RAFs; CPU profiler disabled. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.",
+        "samples": [
+          {
+            "handlerMs": 4.900000035762787,
+            "twoRafMs": 203.5,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.399999976158142,
+            "twoRafMs": 611.0999999642372,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.5,
+            "twoRafMs": 297.60000002384186,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.300000011920929,
+            "twoRafMs": 352.60000002384186,
+            "toggled": true
+          },
+          {
+            "handlerMs": 4.5,
+            "twoRafMs": 355.0999999642372,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.800000011920929,
+            "twoRafMs": 540.8000000119209,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3,
+            "twoRafMs": 323.30000001192093,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.699999988079071,
+            "twoRafMs": 281.89999997615814,
+            "toggled": true
+          }
+        ],
+        "medianTwoRafMs": 337.9500000178814,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "run": "reverse-order",
+      "includeInComparison": true,
+      "before": {
+        "version": 1,
+        "source": "846feeb15f9d5732437047fb84a13ce59783f6f4",
+        "sourceDirty": false,
+        "target": "http://127.0.0.1:4186/",
+        "fixture": "12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles",
+        "method": "Programmatic handler and two RAFs; CPU profiler disabled. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.",
+        "samples": [
+          {
+            "handlerMs": 2,
+            "twoRafMs": 163.5,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3,
+            "twoRafMs": 472.89999997615814,
+            "toggled": true
+          },
+          {
+            "handlerMs": 20.400000035762787,
+            "twoRafMs": 326.2000000476837,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.600000023841858,
+            "twoRafMs": 417,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.200000047683716,
+            "twoRafMs": 312.30000001192093,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2,
+            "twoRafMs": 241,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.800000011920929,
+            "twoRafMs": 309.39999997615814,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.399999976158142,
+            "twoRafMs": 256.80000001192093,
+            "toggled": true
+          }
+        ],
+        "medianTwoRafMs": 310.84999999403954,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "after": {
+        "version": 1,
+        "source": "residual-pause-follow-up-on-846feeb",
+        "sourceDirty": true,
+        "target": "http://127.0.0.1:4187/",
+        "fixture": "12 ordinary nodes; Ctrl+A selection; default UI; 8 Structural filters toggles",
+        "method": "Programmatic handler and two RAFs; CPU profiler disabled. Not physical input-to-display latency. Fresh headless browser; nonlocal requests blocked. No timing pass/fail threshold.",
+        "samples": [
+          {
+            "handlerMs": 4.300000011920929,
+            "twoRafMs": 178.5,
+            "toggled": true
+          },
+          {
+            "handlerMs": 10.100000023841858,
+            "twoRafMs": 796.1000000238419,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3.199999988079071,
+            "twoRafMs": 319.5,
+            "toggled": true
+          },
+          {
+            "handlerMs": 5.699999988079071,
+            "twoRafMs": 275.19999998807907,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.5,
+            "twoRafMs": 308,
+            "toggled": true
+          },
+          {
+            "handlerMs": 3,
+            "twoRafMs": 255.0999999642372,
+            "toggled": true
+          },
+          {
+            "handlerMs": 2.400000035762787,
+            "twoRafMs": 294.10000002384186,
+            "toggled": true
+          },
+          {
+            "handlerMs": 1.5,
+            "twoRafMs": 271.5999999642372,
+            "toggled": true
+          }
+        ],
+        "medianTwoRafMs": 284.65000000596046,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    }
+  ],
+  "discoveryCounts": {
+    "before": {
+      "uiSelectionScans": 16
+    },
+    "after": {
+      "uiSelectionScans": 0
+    }
+  },
+  "mappedCPUObservations": {
+    "before": "useButtonSelection.tsx:721 effect calls buttons(), which queries all selectable controls and measures visibility. Present in sampled getClientRects stacks. Repeated subscription selector evaluations also present.",
+    "after": "Empty-selection buttons()/visibility stacks absent. Snapshot selector caching independently verified by model checks; CPU timings do not establish its isolated end-to-end gain.",
+    "method": "Chromium CDP Profiler around eight toggles; source-map build of baseline and follow-up. Optional OMNIA_PROFILE_CPU on scripts/profile-ui-clicks.mjs reproduces capture."
+  }
+}

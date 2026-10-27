@@ -719,6 +719,9 @@ export function useButtonSelection({
     };
   }, [suppress]);
   useEffect(() => {
+    // Ordinary UI changes must not measure the whole UI just to clear an empty
+    // selection. The preceding effect's cleanup already removes old markers.
+    if(!ids.size)return;
     const items = buttons();
     for (const item of items) item.toggleAttribute('data-ui-selected', ids.has(idOf(item)));
     return () => { for (const item of items) item.removeAttribute('data-ui-selected'); };

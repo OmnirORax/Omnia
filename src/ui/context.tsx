@@ -1,4 +1,4 @@
-import {createSelectiveStore,sameSlice} from './selectiveStore';
+import {createSelectiveStore,createSliceReader} from './selectiveStore';
 import type { ActiveContextStore, ContextLayer } from "./activeContextModel";
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from "react";
 import type { UILayout, WindowState, UIResident, FrameLayoutMode } from "./layout";
@@ -81,8 +81,9 @@ const emptySubscribe=()=>()=>{};
 export function useOptionalUITracked(select:(value:UIContextValue)=>readonly unknown[]):UIContextValue|null{
   const store=useContext(UIStoreContext);
   const latest=useRef(select);latest.current=select;
-  const cached=useRef<readonly unknown[]>(emptySlice);
-  const snapshot=useCallback(()=>{if(!store)return emptySlice;const next=latest.current(store.getSnapshot());if(!sameSlice(cached.current,next))cached.current=next;return cached.current;},[store]);
+  const reader=useRef<{store:typeof store;read:ReturnType<typeof createSliceReader<UIContextValue>>}|null>(null);
+  if(store&&reader.current?.store!==store)reader.current={store,read:createSliceReader(store.getSnapshot)};
+  const snapshot=useCallback(()=>store?reader.current!.read(latest.current):emptySlice,[store]);
   useSyncExternalStore(store?.subscribe??emptySubscribe,snapshot);
   return store?.live??null;
 }

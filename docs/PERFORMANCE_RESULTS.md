@@ -284,3 +284,43 @@ minimize/restore, docking behavior and scene pulse continuity still need user
 acceptance in the preview. Large-workspace commits, remaining broad global owners
 and renderer/effect load remain separate performance risks; no general frame-time
 guarantee is claimed.
+
+
+## Residual click pause (2026-10-27)
+
+The user confirmed `846feeb` was “significantly better”, while a brief freeze
+remained. A local source-mapped CPU profile identified UI-selection reconciliation
+calling `buttons()` after ordinary layout/registry changes with an empty selected-ID
+set. That queried all selectable controls and measured visibility. The effect now
+returns immediately when empty; the previous effect cleanup removes old markers.
+Actual nonempty selection still follows the existing discovery/permission path.
+
+React also repeatedly asks subscribers for snapshots within a commit. Subscriber
+reads now cache pure selector results by committed source and selector identity,
+retaining shallow-equal slice references. A new snapshot or selector (including
+changed captured props) reevaluates; live event reads remain unchanged. Model
+checks verify evaluation counts, equality retention and both invalidation paths.
+This does not eliminate broad parent renders or notifications to all subscribers.
+
+[Raw comparison](performance/2026-10-27-residual-clicks.json): eight ordinary filter
+toggles generated 16 global UI-selection scans before versus zero after. The
+empty-selection visibility stack disappeared from the mapped sampled CPU profile.
+Two isolated uninstrumented timing pairs improved: median programmatic click +
+two RAFs 427.1 → 283.0 ms (after-first), then 310.8 → 284.7 ms (baseline-first).
+A second pair overlapped a smoke browser and is explicitly excluded, retained in
+the raw report. Headless software graphics remain noisy; these values are not
+physical input-to-display latency, proof that a real pulse never pauses, or a
+separate measurement of selector caching's benefit.
+
+The opt-in local diagnostic supports `OMNIA_PROFILE_CPU=/tmp/profile.cpuprofile`
+for CPU attribution and `OMNIA_PROFILE_DOM=1` for UI-selection scan counting. Keep
+both off for final timing comparisons. No instrumentation enters the application.
+Model suite: 278 pass. Type checking and production/self-contained builds pass.
+Focused local smoke passed library field editing, current-handler atlas creation,
+native button discovery/caption identity, Ctrl UI selection and Ctrl deselection
+marker cleanup, with no page errors. An initial single-Esc assertion timed out;
+the baseline and follow-up both retain selection after the first Esc and clear
+after the second (active-context stepping). No Esc behavior change is claimed.
+User acceptance remains pending.
+GitHub requests currently fail authentication (HTTP 401 / missing Git username),
+so this follow-up cannot yet be pushed or published to the hosted preview.

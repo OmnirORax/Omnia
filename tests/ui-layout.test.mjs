@@ -215,3 +215,17 @@ test('registry publication coalesces discovery and preserves the final active so
   stage('field',{available:false});assert.equal(scheduled.length,1);scheduled.shift()();
   assert.deepEqual(published[1],{field:{available:false}});
 });
+
+test('subscriber reads evaluate once per committed snapshot and selector identity',async()=>{
+  const {createSliceReader}=await import('../src/ui/selectiveStore.ts');
+  let source={count:1,other:0},calls=0;
+  const select=value=>{calls++;return [value.count];};
+  const read=createSliceReader(()=>source),first=read(select);
+  assert.equal(read(select),first);assert.equal(read(select),first);assert.equal(calls,1);
+  source={count:1,other:1};assert.equal(read(select),first);assert.equal(calls,2);
+  source={count:2,other:1};const changed=read(select);assert.notEqual(changed,first);assert.deepEqual(changed,[2]);
+  // A selector may capture changed props even when owner state is unchanged.
+  const replacement=value=>{calls++;return [value.other];};
+  assert.deepEqual(read(replacement),[1]);assert.equal(calls,4);
+  assert.deepEqual(read(select),[2]);assert.equal(calls,5);
+});
