@@ -325,3 +325,56 @@ User acceptance remains pending.
 GitHub authentication initially blocked publication (HTTP 401 / missing Git
 username). Access was restored and verified before delivery. Since PR #34 had
 merged in the meantime, this follow-up uses a new branch/PR based on current master.
+
+
+## Window-drag follow-up (2026-10-27)
+
+The user reported that clicks were improved but moving a window still skipped
+frames. Baseline `f7dd3a2`. A source-mapped CPU profile of a 36-move floating-library
+drag found repeated docking ownership/context/pinning walks, global frame-slot and
+drop-zone discovery, visibility reads and effects/layout work. The existing gesture
+already lifted the real payload and committed saved layout only on release; the
+problem was repeated secondary work, not per-pointer persistence.
+
+Preview-only `createDragQueries` reuses read-only permission/ownership results until
+the effective immutable layout snapshot changes. Mutating/final layout transactions
+keep using the shared policy functions. Target lists and visibility are captured at
+pickup; movement uses those snapshots, and release refreshes current frame slots,
+visible zones and pointed destination/ancestor bounds. Pointer events retain only
+the latest coordinates; one frame callback reads docking geometry before writing
+the payload transform and publishing feedback. Final release resolves its own
+coordinates even if no animation callback ran. No new settings/history store.
+
+The cancellation check also exposed active-context Esc minimizing the source before
+its drag could cancel. Active-context keyboard handling now defers while the shared
+UI press owner is held. The existing drag handler cancels/restores first; physical
+input ownership continues through release, protecting the scene from that press.
+
+[Raw samples](performance/2026-10-27-window-drag.json) preserve default-effect CPU
+profiles, intermediate builds and the final effects-off comparison. Whole-inventory
+frame-slot queries fell 37 → 2 and drop-zone queries 76 → 2 over 36 pointer moves
+(pickup/release only). With effects/bloom/atmosphere off and default panel blur
+retained, median RAF interval fell 150 → 66.6 ms; max fell 1166.7 → 416.7 ms.
+These headless software-GPU values are still slow, noisy and not physical
+pointer-to-presented-paint latency. Default effects remained heavily graphics/paint
+limited: an intermediate after run had a 10.9-second gap. Those default CPU runs
+do not establish a speedup or hardware smoothness. Scene/effects/paint budgets and
+real GPU/user verification remain separate work; no blanket smoothness claim.
+
+The opt-in `scripts/profile-ui-drag.mjs <local-url> <report.json>` uses fresh local
+storage and blocks external requests. `OMNIA_PROFILE_CPU` captures CDP CPU samples;
+`OMNIA_PROFILE_DOM=1` counts the targeted global discovery queries;
+`OMNIA_DRAG_EFFECTS=off` isolates core movement with effects/bloom/atmosphere off;
+`OMNIA_DRAG_SMOKE=1` additionally checks single-step Undo, Esc cancellation,
+header docking and docking Undo. Do not compare smoke/profile timing to an
+uninstrumented hardware drag. The first fixture attempt lacked organized menus;
+correcting the fixture exposed the library. An initial raw-string Undo equality
+assertion was replaced with semantic layout equality; this then exposed the real
+Esc/minimize bug above, which the corrected smoke now verifies.
+
+279 model checks pass, including cache reuse and equivalence/invalidation under
+pinning, ownership, context and missing-target changes. Focused browser checks pass
+live payload, no saved layout during movement, release commit, one Undo restoring
+the full layout, Esc cancellation without minimizing, header docking and docking
+Undo, with no page errors. Type/build checks and the self-contained preview are
+required for delivery. User hardware drag acceptance remains pending.

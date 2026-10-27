@@ -152,7 +152,7 @@
       "id": "interface.arrange",
       "title": "Move, dock, select and organize UI",
       "where": "UI library; UI edit mode; shared frame/control context actions.",
-      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure.",
+      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure. Window/frame drag previews reuse gesture-local target discovery and read-only docking policy results. Visual movement uses the latest pointer position once per animation frame, with geometry reads before transform writes. Release refreshes destination geometry and commits through the existing shared history; cancellation restores the live payload. Active-context shortcuts defer to a held UI gesture, so Esc cancels the drag before a parent minimize action.",
       "steps": [
         {
           "do": "Create a UI frame, then drag a complete section into it by its handle.",
@@ -165,13 +165,19 @@
         {
           "do": "Select multiple UI controls and invoke Compact selected UI / Align UI. Undo.",
           "expect": "Selected controls rearrange; undo restores their UI arrangement without changing graph facts."
+        },
+        {
+          "do": "In UI edit mode, drag an expanded floating window across empty canvas, release it, then Undo once. Start another drag and press Esc before release.",
+          "expect": "The window follows the latest pointer position. Release saves its final location; one Undo restores the prior layout. Esc cancels movement without saving a layout change. Report any visible frame skipping."
         }
       ],
       "reference": "docs/UI_LAYOUT.md",
       "sources": [
         "src/ui/UIWorkspace.tsx",
         "src/ui/docking.ts",
-        "src/ui/layout.ts"
+        "src/ui/layout.ts",
+        "src/ui/dragQueries.ts",
+        "scripts/profile-ui-drag.mjs"
       ],
       "actions": [
         "ui:devMode",
@@ -179,11 +185,11 @@
         "ui:compact",
         "ui:align"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Drag targets use a gesture-local discovery snapshot, refreshed at release. Browser traces are local diagnostics; user hardware smoothness acceptance remains pending.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Focused isolated Chromium drag checks passed live payload, no persistence during movement, release commit, one-step Undo, Esc cancellation without minimizing, docking and one-step docking Undo. User hardware frame-skipping verification pending.",
+        "automated": "279 model checks, including cached docking/ownership/pinning/context policy equivalence and invalidation on changed snapshots; build/type checks"
       },
       "related": [],
       "gestures": [
@@ -1173,7 +1179,7 @@
       "id": "performance.clicks",
       "title": "Click responsiveness and shared rendering work",
       "where": "Ordinary controls, including Omnic library → Objects → Structural filters.",
-      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous. With no UI controls selected, ordinary layout changes now skip UI-selection discovery and visibility measurement. Subscription snapshot checks reuse pure selector results for the same committed snapshot and selector; changed state or captured props still reevaluate.",
+      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous. With no UI controls selected, ordinary layout changes now skip UI-selection discovery and visibility measurement. Subscription snapshot checks reuse pure selector results for the same committed snapshot and selector; changed state or captured props still reevaluate. Window movement now coalesces pointer positions per frame, reuses target lists and caches ownership/pinning/context/docking reads until the layout snapshot changes. Final release refreshes the pointed destination and uses the existing single-commit history path.",
       "steps": [
         {
           "do": "Open Omnic library → Objects, then repeatedly expand/collapse Structural filters while observing the scene pulse.",
@@ -1208,14 +1214,16 @@
         "src/ui/NativeActions.tsx",
         "src/ui/NamePresentation.tsx",
         "scripts/profile-ui-clicks.mjs",
-        "src/ui/useButtonSelection.tsx"
+        "src/ui/useButtonSelection.tsx",
+        "src/ui/dragQueries.ts",
+        "scripts/profile-ui-drag.mjs"
       ],
       "actions": [],
       "gestures": [],
-      "status": "User confirmed significant improvement through 846feeb; residual-pause follow-up implemented, user verification pending",
+      "status": "Click improvements confirmed by user; window-drag follow-up implemented, user verification pending",
       "verification": {
-        "browser": "User reported significant improvement after 846feeb (2026-10-27), with a residual brief freeze. Local mapped CPU profiling identified idle UI-selection discovery; eight toggles caused 16 whole-UI selection scans before versus zero afterward. Field/current-handler and native discovery smoke pass; user acceptance of this follow-up pending.",
-        "automated": "278 model checks, including cached subscriber reads and captured-selector/state invalidation; type/build checks"
+        "browser": "User confirmed click improvement through f7dd3a2 but reported frame skipping during window movement (2026-10-27). Focused drag tracing found repeated global target discovery/ownership checks. Isolated drag/cancel/undo/docking checks pass; user hardware smoothness remains pending.",
+        "automated": "279 model checks, including cached subscriber reads, captured-selector/state invalidation and drag-policy snapshot invalidation; type/build checks"
       },
       "limits": "Legacy global owners and some consumers still subscribe broadly. Synthetic headless timings are noisy and not physical input-to-display latency; no universal frame-time guarantee.",
       "related": [

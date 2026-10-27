@@ -1,3 +1,4 @@
+import {createDragQueries} from './dragQueries';
 import {createRegistrationBatch} from './registrationBatch';
 import {residentRenderSlice} from './renderSubscriptions';
 import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
@@ -93,7 +94,6 @@ import {
   resetContainer,
   validateUILayout,
   orderNativeFunction,
-  residentContextScope,
   type WindowState,
   type UIResident,
 } from "./layout";
@@ -469,6 +469,8 @@ type DragState = {
   originOffset: { x: number; y: number };
   slots: Map<string, { key: string; r: Rect }[]>;
   targetZones: Map<string, HTMLElement>;
+  visibleZones: HTMLElement[];
+  frameSlots: HTMLElement[];
   targetBounds: Map<Element, DOMRect>;
   zoneOrigins: Map<Element, { x: number; y: number }>;
   cancelled?: boolean;
@@ -703,6 +705,7 @@ export function UIWorkspace({
     };
   }, []);
   useEffect(() => {
+    const queries=createDragQueries();
     let previewFrame = 0;
     let pointer: { down: PointerEvent; started: boolean; release?: () => void } | null = null;
     let pendingPoint: { x: number; y: number } | null = null;
@@ -797,6 +800,8 @@ export function UIWorkspace({
         originOffset: origin ? { x: 0, y: 0 } : originOffset,
         slots,
         targetZones,
+        visibleZones:[...targetZones.values()].filter(zone=>zone.getClientRects().length),
+        frameSlots:[...document.querySelectorAll<HTMLElement>('[data-ui-frame-slot],[data-ui-slot-key]')].filter(slot=>slot.getClientRects().length),
         fromDockPane: !!tabPane,
         targetBounds,
         zoneOrigins,
@@ -807,20 +812,20 @@ export function UIWorkspace({
       };
     };
     const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
-      if (source.control || source.key.startsWith("function:") || residentContextScope(s, source.key)) return;
+      if (source.control || source.key.startsWith("function:") || queries.residentContextScope(s, source.key)) return;
       const viewport = { x: 8, y: 8, width: innerWidth - 16, height: innerHeight - 16 };
       const previous = placementPreview.getSnapshot()?.frameDock;
       // Guide cells and the diagonal travel gaps keep one target active, even
       // beyond a compact frame's bounds. A new cell still switches immediately.
       const chosen = previous?.bounds && dockGuideAt(previous.bounds, viewport, x, y, previous.side);
-      if (chosen && previous?.target && canDock(s, source.key, previous.target)) return { ...previous, side: chosen };
+      if (chosen && previous?.target && queries.canDock(s, source.key, previous.target)) return { ...previous, side: chosen };
       const area = dockWorkspaceArea();
       const distances = { left: x - area.x, right: area.x + area.width - x, top: y - area.y, bottom: area.y + area.height - y };
       const edge = (Object.keys(distances) as Exclude<DockSide, "tab">[]).find(side => distances[side] >= -8 && distances[side] <= 14);
       if (edge && source.key.startsWith("frame:") && s.frames.find(frame => `frame:${frame.id}` === source.key)?.dockEdge === edge) return;
       if (edge && x >= area.x - 8 && x <= area.x + area.width + 8 && y >= area.y - 8 && y <= area.y + area.height + 8) {
         const existing = s.frames.find(frame => frame.dockEdge === edge && `frame:${frame.id}` !== source.key);
-        if (existing && !canDock(s, source.key, `frame:${existing.id}`)) return;
+        if (existing && !queries.canDock(s, source.key, `frame:${existing.id}`)) return;
         return { edge, side: edge, rect: edgeDockRect(s, edge, area) };
       }
       for (const element of elements) {
@@ -838,7 +843,7 @@ export function UIWorkspace({
         // still is; ordinary buttons continue through the existing group logic.
         const surface = pane ?? (root?.matches(".ui-docked-panel:not(.ui-menu-panel)")
           ? element.closest<HTMLElement>(".ui-frame-handle") : root);
-        if (!target || !surface || source.key === target || !canDock(s, source.key, target)) continue;
+        if (!target || !surface || source.key === target || !queries.canDock(s, source.key, target)) continue;
         const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
         if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
         const tabStrip = pane && element.closest(".ui-dock-tab-strip");
@@ -853,7 +858,7 @@ export function UIWorkspace({
       }
       // The header starts docking; keep it alive while travelling to its guides.
       // A different header above has priority; leaving the target cancels it.
-      if (previous?.bounds && previous.target && canDock(s, source.key, previous.target) &&
+      if (previous?.bounds && previous.target && queries.canDock(s, source.key, previous.target) &&
           retainHeaderDock(previous.bounds, viewport, x, y, previous.side)) return previous;
     };
     const frameFeedback = (source: DragState, layout: UILayout, intent: FrameDock): Pick<Preview, 'rect' | 'frameLayout' | 'allocation'> => {
@@ -892,7 +897,7 @@ export function UIWorkspace({
         let position = { x: x - source.dx - r.x, y: y - source.dy - r.y };
         const px = position.x,
           py = position.y;
-        if (Math.abs(px) > 1000 || Math.abs(py) > 1000 || residentPinned(s, source.control.owner))
+        if (Math.abs(px) > 1000 || Math.abs(py) > 1000 || queries.residentPinned(s, source.control.owner))
           return { text: "Unpin this frame before rearranging its controls" };
         return {
           text: "Move this frame control",
@@ -900,7 +905,7 @@ export function UIWorkspace({
           rect: { x: r.x + px, y: r.y + py, width: source.width, height: source.height },
         };
       }
-      if (residentPinned(s, source.key)) return { text: "Unpin to rearrange" };
+      if (queries.residentPinned(s, source.key)) return { text: "Unpin to rearrange" };
       // Native dragging leaves the source at its old location. Look through that
       // surface so it cannot block a destination underneath it. Descendant frames
       // retain their own roots, allowing cycle/pinning rejection to remain explicit.
@@ -928,11 +933,9 @@ export function UIWorkspace({
           `function:${el.closest<HTMLElement>("[data-ui-function]")?.dataset.uiFunction}` !==
             source.key,
       );
-      const scope = residentContextScope(s, source.key);
+      const scope = queries.residentContextScope(s, source.key);
       if (scope) {
-        const area = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].find(
-          (el) => el.dataset.uiDropZone === scope,
-        );
+        const area = source.targetZones.get(scope);
         if (!area || rectDistance(x, y, boundsOf(area)) > DOCK_DISTANCE)
           return { text: "This control stays in its owning menu" };
       }
@@ -946,7 +949,7 @@ export function UIWorkspace({
       const stackTarget = stackHandle && getContainer(s, stackHandle)?.layoutMode === "stacked"
         ? stackHandle : pointedZone?.dataset.uiDropZone;
       if (stackTarget && getContainer(s, stackTarget)?.layoutMode === "stacked" && stackTarget !== source.key) {
-        if (!canDock(s, source.key, stackTarget)) return { text: "Cannot place items in a pinned frame or inside themselves" };
+        if (!queries.canDock(s, source.key, stackTarget)) return { text: "Cannot place items in a pinned frame or inside themselves" };
         const zone = source.targetZones.get(stackTarget);
         const bounds = zone && boundsOf(zone);
         const members = getContainer(s, stackTarget)?.members ?? [];
@@ -988,7 +991,7 @@ export function UIWorkspace({
         const target = peer.dataset.uiFunction!;
         const targetOwner =
           peer.closest<HTMLElement>("[data-ui-resident-root]")?.dataset.uiResidentRoot;
-        if (functionPinned(s, target) || (targetOwner && residentPinned(s, targetOwner)))
+        if (functionPinned(s, target) || (targetOwner && queries.residentPinned(s, targetOwner)))
           return { text: "Unpin this field or window before rearranging" };
         const r = boundsOf(peer),
           parentStyle = peer.parentElement ? getComputedStyle(peer.parentElement) : null;
@@ -1012,13 +1015,13 @@ export function UIWorkspace({
       // A frame's edge/gap means sibling insertion. Resolve it before handle
       // nesting or nearest-container magnetism can steal the drop.
       if (!source.key.startsWith("function:")) {
-        const choices = [...document.querySelectorAll<HTMLElement>("[data-ui-frame-slot],[data-ui-slot-key]")].flatMap(slot => {
+        const choices = source.frameSlots.flatMap(slot => {
           const key = slot.dataset.uiFrameSlot ?? slot.dataset.uiSlotKey!;
-          if ((!key.startsWith("frame:") && !key.startsWith("window:")) || key === source.key || !slot.getClientRects().length || slot.closest("[data-ui-ghost],.ui-drag-source")) return [];
+          if ((!key.startsWith("frame:") && !key.startsWith("window:")) || key === source.key || !slot.isConnected || slot.closest("[data-ui-ghost],.ui-drag-source")) return [];
           const strip = slot.hasAttribute("data-ui-frame-slot") ? slot.parentElement : null;
           const zone = strip ?? slot.parentElement?.closest<HTMLElement>("[data-ui-drop-zone]");
           const target = strip?.dataset.uiFrameStrip ?? zone?.dataset.uiDropZone;
-          if (!zone || !target || !canDock(s, source.key, target)) return [];
+          if (!zone || !target || !queries.canDock(s, source.key, target)) return [];
           const r = boundsOf(slot);
           if (!r.width || !r.height || rectDistance(x, y, r) > 14) return [];
           if (rectDistance(x, y, r) === 0 && !elements.some(el => slot.contains(el))) return [];
@@ -1047,7 +1050,7 @@ export function UIWorkspace({
           const boxes = new Map((source.slots.get(hit.target) ?? []).map(slot => [slot.key, { x: slot.r.x - bounds.x + ox + hit.zone.scrollLeft, y: slot.r.y - bounds.y + oy + hit.zone.scrollTop, width: slot.r.width, height: slot.r.height }]));
           if (boxes.has(hit.key)) {
             const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side);
-            if (insertion.baseline.some(member => { const box = boxes.get(residentKey(member)); return box && residentPinned(s, residentKey(member)) && (member.position?.x !== box.x || member.position?.y !== box.y); })) return { text: "Unpin neighboring frames before shifting them" };
+            if (insertion.baseline.some(member => { const box = boxes.get(residentKey(member)); return box && queries.residentPinned(s, residentKey(member)) && (member.position?.x !== box.x || member.position?.y !== box.y); })) return { text: "Unpin neighboring frames before shifting them" };
             return { text, rect, destination: true, dock: { key: source.key, target: hit.target, index: (c.members ?? []).findIndex(m => residentKey(m) === hit.key) + (after ? 1 : 0), breakBefore: false, width: source.width, height: source.height, ...insertion } };
           }
         }
@@ -1075,7 +1078,7 @@ export function UIWorkspace({
         "inline" in getContainer(s, inlineTarget)! &&
         (getContainer(s, inlineTarget) as WindowState).inline
       ) {
-        if (!canDock(s, source.key, inlineTarget))
+        if (!queries.canDock(s, source.key, inlineTarget))
           return { text: "Cannot place a group inside itself, its descendants or a pinned group" };
         return {
           text: `Add to ${frameActions.get(inlineTarget)?.title ?? "group"}`,
@@ -1090,7 +1093,7 @@ export function UIWorkspace({
           },
         };
       }
-      if (handleTarget && handleTarget !== source.key && !canDock(s, source.key, handleTarget))
+      if (handleTarget && handleTarget !== source.key && !queries.canDock(s, source.key, handleTarget))
         return { text: "Cannot dock into a pinned frame or into this frame’s own contents" };
       const directZone = elements
         .map((e) => e.closest<HTMLElement>("[data-ui-drop-zone]"))
@@ -1099,28 +1102,28 @@ export function UIWorkspace({
         directZone &&
         directZone.dataset.uiDropZone !== source.key &&
         !source.key.startsWith("function:") &&
-        !canDock(s, source.key, directZone.dataset.uiDropZone!)
+        !queries.canDock(s, source.key, directZone.dataset.uiDropZone!)
       )
         return { text: "Cannot dock into a pinned frame or into this frame’s own contents" };
       let zone = (interior === "dock" ? surfaceZone : undefined) ?? elements
         .map((e) => e.closest<HTMLElement>("[data-ui-drop-zone]"))
-        .find((e) => e && canDock(s, source.key, e.dataset.uiDropZone!));
-      const zones = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")];
-      if (handleTarget && canDock(s, source.key, handleTarget))
+        .find((e) => e && queries.canDock(s, source.key, e.dataset.uiDropZone!));
+      const zones = [...source.targetZones.values()];
+      if (handleTarget && queries.canDock(s, source.key, handleTarget))
         zone = zones.find((e) => e.dataset.uiDropZone === handleTarget);
       else if (!zone) {
-        const owner = ownerOf(s, source.key),
+        const owner = queries.ownerOf(s, source.key),
           own = zones.find((e) => e.dataset.uiDropZone === owner);
         if (
           own &&
           rectDistance(x, y, boundsOf(own)) === 0 &&
-          canDock(s, source.key, owner!)
+          queries.canDock(s, source.key, owner!)
         )
           zone = own;
       }
       if (!zone && (!handleTarget || handleTarget === source.key))
-        zone = [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")]
-          .filter((e) => e.getClientRects().length && canDock(s, source.key, e.dataset.uiDropZone!))
+        zone = source.visibleZones
+          .filter((e) => e.isConnected && queries.canDock(s, source.key, e.dataset.uiDropZone!))
           .map((e) => ({ e, distance: rectDistance(x, y, boundsOf(e)) }))
           .filter((p) => p.distance <= DOCK_DISTANCE)
           .sort(
@@ -1187,7 +1190,7 @@ export function UIWorkspace({
       }
       // A collapsed frame can accept a resident through its attached handle.
       const tab = handle?.closest<HTMLElement>("[data-ui-chrome]");
-      if (tab && canDock(s, source.key, tab.dataset.uiChrome!)) {
+      if (tab && queries.canDock(s, source.key, tab.dataset.uiChrome!)) {
         const target = tab.dataset.uiChrome!,
           r = boundsOf(tab);
         const members = getContainer(s, target)?.members ?? [];
@@ -1218,8 +1221,8 @@ export function UIWorkspace({
         !sourceFn?.control &&
         !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.control &&
         !current.current.functions.find((fn) => fn.id === other.dataset.uiFunction)?.scope &&
-        !ownerOf(s, `function:${other.dataset.uiFunction}`) &&
-        !residentPinned(s, `function:${other.dataset.uiFunction}`)
+        !queries.ownerOf(s, `function:${other.dataset.uiFunction}`) &&
+        !queries.residentPinned(s, `function:${other.dataset.uiFunction}`)
       )
         return {
           text: "Group into a collapsed frame",
@@ -1295,15 +1298,18 @@ export function UIWorkspace({
       e.preventDefault();
       e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-      const source = drag.current;
-      // dx/dy retain the exact grab point, independent of docking proposals.
-      // Transform writes stay on the pointer path; expensive hit testing is batched.
-      source.live?.move(e.clientX - source.start.x, e.clientY - source.start.y);
+      // Keep only the newest pointer position. Read destination geometry before
+      // writing the payload transform, at most once per display frame.
       pendingPoint = { x: e.clientX, y: e.clientY };
       if (!previewFrame) previewFrame = requestAnimationFrame(() => {
         previewFrame = 0;
         const point = pendingPoint; pendingPoint = null;
-        if (point && drag.current && !drag.current.cancelled) show(resolve(point.x, point.y));
+        const source=drag.current;
+        if (point && source && !source.cancelled) {
+          const proposal=resolve(point.x,point.y);
+          source.live?.move(point.x-source.start.x,point.y-source.start.y);
+          show(proposal);
+        }
       });
     };
     const drop = (e: MouseEvent) => {
@@ -1332,6 +1338,9 @@ export function UIWorkspace({
         source.slots.set(key, [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")]
           .map(slot => ({ key: slot.dataset.uiSlotKey!, r: slot.getBoundingClientRect() })));
       }
+      // Preview discovery is gesture-local; release uses current visibility/order.
+      source.visibleZones=[...source.targetZones.values()].filter(zone=>zone.isConnected&&zone.getClientRects().length);
+      source.frameSlots=[...document.querySelectorAll<HTMLElement>('[data-ui-frame-slot],[data-ui-slot-key]')].filter(slot=>slot.getClientRects().length);
       const p = resolve(e.clientX, e.clientY);
       source.live?.restore();
       show(null);

@@ -229,3 +229,26 @@ test('subscriber reads evaluate once per committed snapshot and selector identit
   assert.deepEqual(read(replacement),[1]);assert.equal(calls,4);
   assert.deepEqual(read(select),[2]);assert.equal(calls,5);
 });
+
+test('drag read cache preserves policy results and invalidates on the next layout snapshot',async()=>{
+  const {createDragQueries}=await import('../src/ui/dragQueries.ts');
+  const {canDock,ownerOf,residentPinned,residentContextScope}=await import('../src/ui/layout.ts');
+  const queries=createDragQueries(),layout=emptyUILayout();
+  const window=()=>({x:0,y:0,width:200,height:200,collapsed:false,pinned:false});
+  let pinReads=0;
+  layout.windows.a=window();layout.windows.b={...window(),get pinned(){pinReads++;return false;}};
+  assert.equal(queries.canDock(layout,'window:a','window:b'),true);const measured=pinReads;assert.ok(measured>0);
+  for(let i=0;i<20;i++)assert.equal(queries.canDock(layout,'window:a','window:b'),true);
+  assert.equal(pinReads,measured,'unchanged pointer previews reuse the permission result');
+  const pinned={...layout,windows:{...layout.windows,b:{...window(),pinned:true}}};
+  const nested={...layout,windows:{...layout.windows,a:{...window(),members:[{kind:'window',id:'b'}]}}};
+  const scoped={...layout,windows:{...layout.windows,a:{...window(),inline:{parent:'window:context:node'}}}};
+  for(const snapshot of [layout,pinned,nested,scoped,layout]){
+    for(const key of ['window:a','window:b','window:missing']){
+      assert.equal(queries.ownerOf(snapshot,key),ownerOf(snapshot,key));
+      assert.equal(queries.residentPinned(snapshot,key),residentPinned(snapshot,key));
+      assert.equal(queries.residentContextScope(snapshot,key),residentContextScope(snapshot,key));
+      for(const target of ['window:a','window:b','window:missing'])assert.equal(queries.canDock(snapshot,key,target),canDock(snapshot,key,target));
+    }
+  }
+});

@@ -372,3 +372,25 @@ set is empty: the previous effect cleanup removes old markers. Do not discover o
 measure every selectable control after an ordinary layout/registry change just to
 write false selection markers. Actual selection/arrangement still uses the shared
 selection path, current permissions and visible-control bounds.
+
+
+Window/frame drag previews use `createDragQueries` only for read-only gesture
+snapshots: ownership, inherited pinning, context scope and canDock results are
+reused by key until the effective layout identity changes. Do not use this cache
+inside mutating layout transactions. Final commits still revalidate using the
+shared layout functions. Frame-slot/visible-zone discovery occurs at pickup and
+release, rather than querying/measuring the entire inventory on each move. Existing
+source geometry snapshots keep target positions stable during preview; release
+refreshes pointed ancestors and slot bounds before resolving the final drop.
+
+Pointer movement retains only the newest coordinates. The frame callback reads
+hit geometry before writing the held payload's transform and publishing feedback.
+Esc/end/unmount cancel queued frames; release resolves its own coordinates even if
+there was no final animation callback. Live DOM lifting, grab offsets, payload
+restoration, ownership/pinning and a single saved history commit remain shared.
+Do not introduce per-pointer React layout updates or persistence for movement.
+
+Active-context shortcuts defer while `uiPointerHeld()` is true, allowing the
+existing drag/resize gesture handler to consume cancellation first. Esc must
+restore a held drag before any parent minimize action. Physical press ownership
+still ends only on release; cancel must not send that held input into the scene.

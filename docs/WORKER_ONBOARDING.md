@@ -555,3 +555,15 @@ Subscriber reads cache pure selectors by committed snapshot and selector identit
 including invalidation for changed captured props. GitHub authentication was restored
 after initially blocking publication. PR #34 merged before delivery, so the follow-up
 uses a separate branch/PR from current master. See PERFORMANCE_RESULTS.md for evidence.
+
+Window-drag profiling found repeated per-move global target discovery and docking
+ownership walks. Previews now reuse gesture-local target lists/read-only policy
+results; new layout snapshots invalidate permissions. Movement coalesces to the
+latest pointer per frame, reading before transforming. Final release refreshes
+pointed geometry and commits once through existing history; cancel restores.
+The opt-in local diagnostic is scripts/profile-ui-drag.mjs. See PERFORMANCE_RESULTS.md
+for effect/graphics limits and user acceptance status.
+
+Active-context key handling now defers to a held UI pointer gesture, so Esc
+cancels a drag before minimizing its parent. Keep the shared physical-press
+ownership lifetime through release; do not leak a cancelled held press to the scene.
