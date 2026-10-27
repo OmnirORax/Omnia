@@ -197,3 +197,27 @@ after commits, not on pointer samples or animation ticks. Limits and remaining
 whole-document validation/projection costs are recorded in OMNIC_LIBRARY.md.
 No new browser trace or FPS measurement was performed; these are implementation
 bounds and model checks, not evidence that earlier system-wide latency is resolved.
+
+## Click stalls: focused follow-up (2026-10-27)
+
+Baseline `6dce56b`. A local CPU profile reproduced long pauses while toggling
+Omnic library → Objects → Structural filters. Before the patch, sampled work
+included repeated `adjustmentTargets`, `FunctionControl` full-list/ownership scans,
+icon target scans and dock geometry discovery. The patch shares render indexes,
+keeps appearance metadata stable across unrelated collapse changes, memoizes
+adjuster eligibility, and skips hidden/unrelated dock measurements. Mutable layout
+transactions retain the original uncached ownership path.
+
+[Raw timing samples and method](performance/2026-10-27-clicks.json) record two
+sequential comparisons with 12 synthetic selected nodes, default UI, fresh headless
+Chromium, blocked external requests and CPU sampling enabled. Each sample is a
+programmatic click plus two RAF callbacks, not physical input-to-presented-paint.
+Median times: before1 327 ms / after1 413 ms; after2 374 ms / before2 402 ms.
+The scene-backed samples vary and do **not** establish a reliable overall latency
+improvement. Broad React renders and main-thread layout/paint remain substantial;
+the user's pulsing selection freezing is not claimed resolved. Empty-scene pilot
+samples improved, but are not substitutes for the selected-scene workload.
+
+`node --run test`: 273 model checks pass, including ownership/anchor/index
+invalidation. Type checks pass. These checks establish correctness of the shared
+lookup change, not smoothness. User hardware/workspace verification remains open.

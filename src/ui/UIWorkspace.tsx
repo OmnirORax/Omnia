@@ -1,4 +1,5 @@
 import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
+import {functionIndex} from './functionIndex';
 import type { ActiveContextStack } from "./activeContextModel";
 import { ActiveContextSystem } from "./ActiveContext";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
@@ -115,8 +116,8 @@ const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
 export function FunctionControl({ id, palette = false, mirror = false }: { id: string; palette?: boolean; mirror?: boolean }) {
-  const ui = useUI(),
-    fn = ui.functions.find((f) => f.id === id),
+  const ui = useUI(), index=functionIndex(ui.functions,ui.layout),
+    fn = index.byId.get(id),
     item = ui.layout.items[id];
   const scope = useContext(UIHomeContext),
     anchor = `${scope}|${id}`;
@@ -124,7 +125,7 @@ export function FunctionControl({ id, palette = false, mirror = false }: { id: s
   // relocating the resident or adding another action definition.
   if (mirror) return fn ? <FunctionElement fn={fn} /> : null;
   if (palette) return fn ? <FunctionElement fn={fn} palette /> : null;
-  const peers = ui.functions.filter((f) => ui.layout.items[f.id]?.anchorId === anchor);
+  const peers = index.anchors.get(anchor)??[];
   const order = [
     ...new Set([...(ui.layout.nativeOrders?.[anchor] ?? []), id, ...peers.map((f) => f.id)]),
   ];
@@ -134,7 +135,7 @@ export function FunctionControl({ id, palette = false, mirror = false }: { id: s
         const current = key === id ? fn : peers.find((f) => f.id === key);
         const visible =
           key !== id ||
-          (!ownerOf(ui.layout, `function:${id}`) && !item?.anchorId && (!item || item.home));
+          (!index.owners.has(`function:${id}`) && !item?.anchorId && (!item || item.home));
         return current && visible ? (
           <FunctionElement key={key} fn={current} nativeAnchor={{ key: anchor, id }} />
         ) : null;

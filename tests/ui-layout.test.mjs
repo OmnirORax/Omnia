@@ -144,3 +144,19 @@ test("custom UI field imports reject invalid types, values and dropdown choices"
   for (const change of [{ value: "missing" }, { kind: "script" }, { options: ["A", "A"] }, { min: 10, max: 1 }])
     assert.throws(() => validateUILayout({ ...valid, customControls: { "ui:custom:choice": { ...valid.customControls["ui:custom:choice"], ...change } } }));
 });
+
+test('render function index preserves explicit/inline ownership and invalidates changed snapshots', async () => {
+  const {functionIndex}=await import('../src/ui/functionIndex.ts');
+  const functions=[{id:'first'},{id:'second'}];
+  const layout=groupFunctions(emptyUILayout(),'first','second',96,144);
+  layout.windows.child={x:0,y:0,width:100,height:100,collapsed:false,pinned:false,inline:{parent:'window:parent'}};
+  layout.items.first={...layout.items.first,anchorId:'home|second'};
+  const index=functionIndex(functions,layout);
+  assert.equal(index.byId.get('first'),functions[0]);assert.deepEqual(index.anchors.get('home|second'),[functions[0]]);
+  for(const key of ['function:first','function:second','window:child'])assert.equal(index.owners.get(key),ownerOf(layout,key));
+  assert.equal(functionIndex(functions,layout),index);
+  const next={...layout,items:{...layout.items,first:{...layout.items.first,anchorId:'new|second'}}};
+  assert.equal(functionIndex(functions,next).anchors.has('home|second'),false);
+  assert.equal(index.anchors.has('home|second'),true);
+  assert.equal(functionIndex([...functions,{id:'third'}],next).byId.has('third'),true);
+});

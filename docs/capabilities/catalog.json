@@ -1168,6 +1168,41 @@
       },
       "related": [],
       "gestures": []
+    },
+    {
+      "id": "performance.clicks",
+      "title": "Click responsiveness and shared rendering work",
+      "where": "Ordinary controls, including Omnic library → Objects → Structural filters.",
+      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement.",
+      "steps": [
+        {
+          "do": "Open Omnic library → Objects, then repeatedly expand/collapse Structural filters while observing the scene pulse.",
+          "expect": "The section toggles without rerunning unrelated target eligibility calculations. Report any visible scene freeze; a smooth pulse is not yet verified on user hardware."
+        },
+        {
+          "do": "Move a frame/control, rename an appearance target and change its color afterward.",
+          "expect": "Ownership/captions and applicable controls update correctly; caching does not preserve stale edits."
+        }
+      ],
+      "reference": "docs/PERFORMANCE_RESULTS.md",
+      "sources": [
+        "src/ui/functionIndex.ts",
+        "src/appearance/Controls.tsx",
+        "src/appearance/Context.tsx",
+        "src/ui/DockArea.tsx"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Focused optimization implemented; user verification pending",
+      "verification": {
+        "browser": "Local synthetic click profiling; user pulse/latency verification pending",
+        "automated": "Index ownership and invalidation regression plus model/type checks"
+      },
+      "limits": "Broad React context updates and browser layout/paint remain. No universal sub-50ms or 60fps guarantee.",
+      "related": [
+        "library.filters",
+        "appearance.edit"
+      ]
     }
   ]
 }

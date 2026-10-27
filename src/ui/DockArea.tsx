@@ -104,10 +104,9 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
+        if (!node.getClientRects().length) return;
         const bounds = node.getBoundingClientRect();
-        const chrome = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
-          (e) => e.dataset.uiChrome === container,
-        );
+        const chrome = document.querySelector<HTMLElement>(`[data-ui-chrome="${CSS.escape(container)}"]`);
         const tab = chrome?.querySelector(".ui-frame-handle")?.getBoundingClientRect();
         const h = tab
           ? {
@@ -159,7 +158,7 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
       cancelAnimationFrame(frame);
     };
   }, [container, stacked, !!state?.dockLayout]);
-  useLayoutEffect(() => { measureContent.current(); }, [ui.layout, moving]);
+  useLayoutEffect(() => { measureContent.current(); }, [state, ui.layout.items, moving]);
   if (state?.dockLayout) return <div className="ui-embedded-dock-layout" hidden={hidden}><DockLayout container={container} /></div>;
   return (
     <div

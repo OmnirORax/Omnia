@@ -1,9 +1,9 @@
 import { removedTargets, restoreTargetDraft } from "./draftTargets";
+import {functionIndex} from '../ui/functionIndex';
 import { boundedNumber } from "../properties/numericRange";
 import type { PropertySnapshot } from "../properties/clipboard";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
-import { ownerOf } from "../ui/layout";
 import {
   createHierarchyIndex,
   ruleHas,
@@ -106,6 +106,13 @@ export function AppearanceProvider({
   // affect target metadata; using the elements here rebuilds every local binding.
   const functionLabels = ui.functions.map(fn => `${fn.id}\0${fn.label}`).join("\n");
   const frameLabels = [...ui.frameActions].map(([id, frame]) => `${id}\0${frame.title}`).join("\n");
+  const uiIndex=functionIndex(ui.functions,ui.layout);
+  const targetCaptionsKey=JSON.stringify(Object.entries(ui.layout.labels??{}).filter(([key])=>key.startsWith('appearance:target:')));
+  const targetLayoutKey=JSON.stringify([...new Set(Object.values(state.instances).map(instance=>instance.owner))].map(owner=>{
+    const chain:string[]=[],seen=new Set<string>();let key:string|undefined=owner;
+    while(key&&!seen.has(key)){seen.add(key);chain.push(key);key=uiIndex.owners.get(key);}
+    return [owner,ui.layout.labels?.[owner],chain];
+  }));
   const targets = useMemo(
     () =>
       controllerTargets(state).map((target) => {
@@ -118,7 +125,7 @@ export function AppearanceProvider({
         while (key && !seen.has(key)) {
           seen.add(key);
           if (!key.startsWith("function:")) path.unshift(key);
-          key = ownerOf(ui.layout, key);
+          key = uiIndex.owners.get(key);
         }
         // Native controls need the DOM home; moved residents use the saved ownership tree.
         if (owner.startsWith("function:") && !path.length)
@@ -129,7 +136,7 @@ export function AppearanceProvider({
             ui.layout.frames.find((f) => `frame:${f.id}` === owner)?.name);
         return { ...target, label: customLabel ?? (target.instance.part ? target.label : label) ?? target.label, instance: { ...target.instance, path } };
       }),
-    [state.instances, ui.layout, functionLabels, frameLabels],
+    [state.instances, targetLayoutKey, targetCaptionsKey, functionLabels, frameLabels],
   );
   const hierarchy = useMemo(() => createHierarchyIndex(targets), [targets]);
   // Target membership/locks are not paint inputs. Keep the legacy defaults and

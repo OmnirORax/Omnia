@@ -1,0 +1,156 @@
+{
+  "baseline": "6dce56b",
+  "fixture": "12 ordinary nodes, Ctrl+A selection, default UI, Omnic library Structural filters toggle x8",
+  "method": "Fresh headless Chromium each run, 1366x900, 2s warmup, CDP CPU profiler active, programmatic click followed by two requestAnimationFrames. Local container, not physical input-to-display latency. Nonlocal requests blocked. Runs sequential before1/after1/after2/before2.",
+  "conclusion": "No reliable overall latency improvement established. Repeated index/target computations removed; broad React render and scene/layout work remain.",
+  "runs": {
+    "before1": {
+      "samples": [
+        {
+          "handlerMs": 6.099999964237213,
+          "twoRafMs": 335.0999999642372
+        },
+        {
+          "handlerMs": 10.800000011920929,
+          "twoRafMs": 304.30000001192093
+        },
+        {
+          "handlerMs": 1.699999988079071,
+          "twoRafMs": 502.2999999523163
+        },
+        {
+          "handlerMs": 2.199999988079071,
+          "twoRafMs": 319.19999998807907
+        },
+        {
+          "handlerMs": 9.199999988079071,
+          "twoRafMs": 353.60000002384186
+        },
+        {
+          "handlerMs": 2.199999988079071,
+          "twoRafMs": 278.7999999523163
+        },
+        {
+          "handlerMs": 1.9000000357627869,
+          "twoRafMs": 293.10000002384186
+        },
+        {
+          "handlerMs": 1.600000023841858,
+          "twoRafMs": 505.10000002384186
+        }
+      ],
+      "medianTwoRafMs": 327.14999997615814
+    },
+    "after1": {
+      "samples": [
+        {
+          "handlerMs": 4.400000035762787,
+          "twoRafMs": 846.3000000119209
+        },
+        {
+          "handlerMs": 24.69999998807907,
+          "twoRafMs": 787.1999999880791
+        },
+        {
+          "handlerMs": 11.5,
+          "twoRafMs": 459.5999999642372
+        },
+        {
+          "handlerMs": 2.899999976158142,
+          "twoRafMs": 433.69999998807907
+        },
+        {
+          "handlerMs": 1.600000023841858,
+          "twoRafMs": 290.9000000357628
+        },
+        {
+          "handlerMs": 3.300000011920929,
+          "twoRafMs": 359.7000000476837
+        },
+        {
+          "handlerMs": 5.0,
+          "twoRafMs": 393.2999999523163
+        },
+        {
+          "handlerMs": 1.5999999642372131,
+          "twoRafMs": 390.5999999642372
+        }
+      ],
+      "medianTwoRafMs": 413.4999999701977
+    },
+    "after2": {
+      "samples": [
+        {
+          "handlerMs": 4.400000035762787,
+          "twoRafMs": 411.5
+        },
+        {
+          "handlerMs": 5.0,
+          "twoRafMs": 434.9000000357628
+        },
+        {
+          "handlerMs": 3.300000011920929,
+          "twoRafMs": 571.8999999761581
+        },
+        {
+          "handlerMs": 2.800000011920929,
+          "twoRafMs": 335.89999997615814
+        },
+        {
+          "handlerMs": 1.800000011920929,
+          "twoRafMs": 297.4000000357628
+        },
+        {
+          "handlerMs": 3.0,
+          "twoRafMs": 440.5
+        },
+        {
+          "handlerMs": 2.600000023841858,
+          "twoRafMs": 299.0
+        },
+        {
+          "handlerMs": 1.699999988079071,
+          "twoRafMs": 263.5999999642372
+        }
+      ],
+      "medianTwoRafMs": 373.69999998807907
+    },
+    "before2": {
+      "samples": [
+        {
+          "handlerMs": 2.699999988079071,
+          "twoRafMs": 368.89999997615814
+        },
+        {
+          "handlerMs": 2.800000011920929,
+          "twoRafMs": 436.0
+        },
+        {
+          "handlerMs": 8.699999988079071,
+          "twoRafMs": 722.5
+        },
+        {
+          "handlerMs": 1.5,
+          "twoRafMs": 365.19999998807907
+        },
+        {
+          "handlerMs": 1.0999999642372131,
+          "twoRafMs": 380.7999999523163
+        },
+        {
+          "handlerMs": 1.4000000357627869,
+          "twoRafMs": 423.19999998807907
+        },
+        {
+          "handlerMs": 14.199999988079071,
+          "twoRafMs": 739.6999999880791
+        },
+        {
+          "handlerMs": 1.300000011920929,
+          "twoRafMs": 345.39999997615814
+        }
+      ],
+      "medianTwoRafMs": 401.9999999701977
+    }
+  }
+}
