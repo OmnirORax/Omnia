@@ -1,0 +1,81 @@
+{
+  "baseline": "31f24e5",
+  "method": "Fresh headless Chromium, 12 synthetic selected nodes, default UI. Programmatic Structural filters click plus two RAFs with CPU profiler enabled; not physical input-to-paint. After then before, sequential. After sample predates the final data-reader identity safeguard (which preserves reader invalidation on appearance changes).",
+  "runs": {
+    "before": {
+      "samples": [
+        {
+          "handlerMs": 5.900000035762787,
+          "twoRafMs": 522.0
+        },
+        {
+          "handlerMs": 5.0,
+          "twoRafMs": 640.0
+        },
+        {
+          "handlerMs": 3.100000023841858,
+          "twoRafMs": 397.10000002384186
+        },
+        {
+          "handlerMs": 2.5,
+          "twoRafMs": 364.89999997615814
+        },
+        {
+          "handlerMs": 1.899999976158142,
+          "twoRafMs": 318.5999999642372
+        },
+        {
+          "handlerMs": 2.800000011920929,
+          "twoRafMs": 284.30000001192093
+        },
+        {
+          "handlerMs": 2.0,
+          "twoRafMs": 328.30000001192093
+        },
+        {
+          "handlerMs": 2.600000023841858,
+          "twoRafMs": 286.4000000357628
+        }
+      ],
+      "medianTwoRafMs": 346.59999999403954
+    },
+    "after": {
+      "samples": [
+        {
+          "handlerMs": 4.300000011920929,
+          "twoRafMs": 340.10000002384186
+        },
+        {
+          "handlerMs": 1.9000000357627869,
+          "twoRafMs": 287.4000000357628
+        },
+        {
+          "handlerMs": 12.199999988079071,
+          "twoRafMs": 509.19999998807907
+        },
+        {
+          "handlerMs": 2.5,
+          "twoRafMs": 298.5
+        },
+        {
+          "handlerMs": 3.199999988079071,
+          "twoRafMs": 288.9000000357628
+        },
+        {
+          "handlerMs": 4.0,
+          "twoRafMs": 273.30000001192093
+        },
+        {
+          "handlerMs": 1.899999976158142,
+          "twoRafMs": 259.2999999523163
+        },
+        {
+          "handlerMs": 3.600000023841858,
+          "twoRafMs": 298.80000001192093
+        }
+      ],
+      "medianTwoRafMs": 293.7000000178814
+    }
+  },
+  "limitations": "Single pair; prior traces show variance. Pulse continuity and real hardware performance remain pending. Legacy broad UI consumers remain; this is not a universal frame-time guarantee."
+}

@@ -31,6 +31,7 @@ import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
 import {
   cloneElement,
+  memo,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -45,7 +46,8 @@ import {
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import {
-  UIContext,
+  UIProvider,
+  useUITracked,
   UIHomeContext,
   UIPathContext,
   UIContainerContext,
@@ -115,12 +117,14 @@ import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
-export function FunctionControl({ id, palette = false, mirror = false }: { id: string; palette?: boolean; mirror?: boolean }) {
-  const ui = useUI(), index=functionIndex(ui.functions,ui.layout),
+export const FunctionControl=memo(function FunctionControl({ id, palette = false, mirror = false }: { id: string; palette?: boolean; mirror?: boolean }) {
+  const scope = useContext(UIHomeContext), anchor = `${scope}|${id}`;
+  const ui = useUITracked(ui=>{
+    const index=functionIndex(ui.functions,ui.layout);
+    return [index.byId.get(id),ui.layout.items[id],index.anchors.get(anchor),ui.layout.nativeOrders?.[anchor],index.owners.get(`function:${id}`)];
+  }), index=functionIndex(ui.functions,ui.layout),
     fn = index.byId.get(id),
     item = ui.layout.items[id];
-  const scope = useContext(UIHomeContext),
-    anchor = `${scope}|${id}`;
   // A contextual action surface reuses its registered action and styling without
   // relocating the resident or adding another action definition.
   if (mirror) return fn ? <FunctionElement fn={fn} /> : null;
@@ -142,8 +146,9 @@ export function FunctionControl({ id, palette = false, mirror = false }: { id: s
       })}
     </>
   );
-}
-function FunctionElement({
+});
+
+const FunctionElement=memo(function FunctionElement({
   fn,
   palette = false,
   resident = false,
@@ -154,7 +159,10 @@ function FunctionElement({
   resident?: boolean;
   nativeAnchor?: { key: string; id: string };
 }) {
-  const ui = useUI(),
+  const ui = useUITracked(ui=>{
+    const item=ui.layout.items[fn.id],index=functionIndex(ui.functions,ui.layout);
+    return [item,index.permissions,ui.layout.hideNames,ui.layout.assets.find(a=>a.id===item?.style?.assetId),ui.shortcutBindings?.[buttonShortcutId(fn.id)],ui.selectedFunctions.has(fn.id),ui.selectingUI];
+  }),
     item = ui.layout.items[fn.id],
     style = item?.style ?? defaultStyle;
   const iconTint = useIconTint(`function:${fn.id}`);
@@ -260,7 +268,8 @@ function FunctionElement({
       )}
     </>
   );
-}
+});
+
 export function UIPanel({
   id,
   title,
@@ -1583,7 +1592,7 @@ export function UIWorkspace({
   };
   const menuContainer = menu?.owner ? getContainer(ensure(layout), menu.owner) : undefined;
   return (
-    <UIContext.Provider
+    <UIProvider
       value={{
         layout,
         canMove,
@@ -1982,7 +1991,7 @@ export function UIWorkspace({
       )}
       </AppearanceProvider>
       </DockWorkspace>
-    </UIContext.Provider>
+    </UIProvider>
   );
 }
 export function UIArrangeButtons() {

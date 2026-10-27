@@ -5,7 +5,8 @@ export function createFunctionIndex<T extends {id:string}>(functions:readonly T[
   for(const fn of functions){const anchor=layout.items[fn.id]?.anchorId;if(anchor){const peers=anchors.get(anchor);if(peers)peers.push(fn);else anchors.set(anchor,[fn]);}}
   for(const [owner,container] of containers(layout))for(const member of container.members??[]){const key=residentKey(member);if(!owners.has(key))owners.set(key,owner);}
   for(const [id,window] of Object.entries(layout.windows))if(window.inline&&!window.inline.detached&&window.inline.parent!=='workspace'&&!owners.has(`window:${id}`))owners.set(`window:${id}`,window.inline.parent);
-  return {byId,anchors,owners};
+  const permissions=JSON.stringify([layout.uiRigidity,layout.panels['@devMode'],[...owners],containers(layout).map(([id,c])=>[id,c.pinned,'viewport' in c?c.viewport:undefined])]);
+  return {byId,anchors,owners,permissions};
 }
 const caches=new WeakMap<object,WeakMap<UILayout,ReturnType<typeof createFunctionIndex>>>();
 export function functionIndex<T extends {id:string}>(functions:readonly T[],layout:UILayout){

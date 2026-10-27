@@ -229,3 +229,8 @@ workspace-wide canonical library, explicit pins and version-checked cloud snapsh
 read [docs/OMNIC_LIBRARY.md](docs/OMNIC_LIBRARY.md). Use its shared workspace owner,
 IDs, IndexedDB persistence and dependency resolver. Never make per-atlas copies of
 shared objects or treat the local document revision as a server concurrency token.
+
+Repeated UI controls should use scoped `useUITracked` subscriptions rather than
+subscribing to the full UI context. Preserve current event handlers and actual
+render dependencies; appearance readers keep snapshot identity. Read the scoped
+subscription section in UI_COMPONENT_CONTRACT.md before extending this path.

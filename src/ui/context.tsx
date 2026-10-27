@@ -1,5 +1,6 @@
+import {createSelectiveStore,sameSlice} from './selectiveStore';
 import type { ActiveContextStore, ContextLayer } from "./activeContextModel";
-import { createContext, useContext, type ReactElement, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from "react";
 import type { UILayout, WindowState, UIResident, FrameLayoutMode } from "./layout";
 import type { PlacementPreview } from "./drag";
 import type { TransientStore } from "./transientStore";
@@ -66,4 +67,20 @@ export function useUI() {
   const value = useContext(UIContext);
   if (!value) throw new Error("UI workspace is not mounted.");
   return value;
+}
+
+const UIStoreContext=createContext<ReturnType<typeof createSelectiveStore<UIContextValue>>|null>(null);
+/** Publish after commit: selectors never observe an abandoned React render. */
+export function UIProvider({value,children}:{value:UIContextValue;children:ReactNode}){
+  const [store]=useState(()=>createSelectiveStore(value));
+  useLayoutEffect(()=>store.publish(value),[store,value]);
+  return <UIStoreContext.Provider value={store}><UIContext.Provider value={value}>{children}</UIContext.Provider></UIStoreContext.Provider>;
+}
+export function useUITracked(select:(value:UIContextValue)=>readonly unknown[]):UIContextValue{
+  const store=useContext(UIStoreContext);if(!store)throw Error('UI subscription provider is not mounted.');
+  const latest=useRef(select);latest.current=select;
+  const cached=useRef<readonly unknown[]>([]);
+  const snapshot=useCallback(()=>{const next=latest.current(store.getSnapshot());if(!sameSlice(cached.current,next))cached.current=next;return cached.current;},[store]);
+  useSyncExternalStore(store.subscribe,snapshot);
+  return store.live;
 }

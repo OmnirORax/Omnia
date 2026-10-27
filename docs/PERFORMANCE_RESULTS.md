@@ -221,3 +221,26 @@ samples improved, but are not substitutes for the selected-scene workload.
 `node --run test`: 273 model checks pass, including ownership/anchor/index
 invalidation. Type checks pass. These checks establish correctness of the shared
 lookup change, not smoothness. User hardware/workspace verification remains open.
+
+## Scoped subscriptions follow-up (2026-10-27)
+
+Baseline `31f24e5`. `UIProvider` now supplies a committed-snapshot subscription
+projection alongside legacy context. Repeated function controls, fields, action
+registration and embedded headers subscribe to narrow slices. Appearance action
+closures are delegated without invalidating every consumer; data readers retain
+snapshot identities. Appearance metadata depends on customized owners' actual
+labels/paths rather than unrelated frame-registration order. Equal dock geometry
+retains its context identity instead of waking all dock residents.
+
+[Timing samples](performance/2026-10-27-subscriptions.json): one sequential
+scene-backed headless comparison, median programmatic click + two RAFs 347 → 294 ms.
+This is noisy, not physical input-to-presented-paint or proof of pulse continuity.
+Remaining legacy context consumers, broad parent renders and layout/paint still
+need work; no global frame-time guarantee is claimed. The sampled after build
+predates a final safeguard preserving appearance reader identity on real edits.
+
+Focused browser checks passed for editing the library search field and creating
+an atlas through a current action handler after the subscription migration.
+Model tests cover unchanged slices, current handlers and ownership invalidation.
+The earlier attempted smoke check omitted opening Organization and timed out; the
+corrected path opened the section and passed. User hardware acceptance is pending.

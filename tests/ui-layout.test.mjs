@@ -160,3 +160,14 @@ test('render function index preserves explicit/inline ownership and invalidates 
   assert.equal(index.anchors.has('home|second'),true);
   assert.equal(functionIndex([...functions,{id:'third'}],next).byId.has('third'),true);
 });
+
+test('selective UI snapshots retain unrelated slices and event handlers read the latest committed owner',async()=>{
+  const {createSelectiveStore,sameSlice}=await import('../src/ui/selectiveStore.ts');
+  const first={section:{collapsed:false},other:0,run:()=>1},store=createSelectiveStore(first);
+  let slice=[store.getSnapshot().section],renders=0;
+  const stop=store.subscribe(()=>{const next=[store.getSnapshot().section];if(!sameSlice(slice,next)){slice=next;renders++;}});
+  store.publish({...first,other:1,run:()=>2});assert.equal(renders,0);assert.equal(store.live.run(),2);
+  assert.equal('section' in store.live,true);assert.equal({...store.live}.other,1);
+  store.publish({...first,section:{collapsed:true}});assert.equal(renders,1);assert.equal(store.live.section.collapsed,true);
+  stop();store.publish(first);assert.equal(renders,1);
+});

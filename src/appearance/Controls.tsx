@@ -1,7 +1,7 @@
 import { numericRange } from "../properties/numericRange";
 import { RangeControl } from "../ui/RangeControl";
 import { useCancelValueEdit } from "../ui/ActiveContext";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
 import { propertyFor, type RegisteredTarget } from "./registry";
 import type { Value } from "./model";
@@ -166,7 +166,7 @@ function PropertyInput({
   />;
 }
 /** Also registered as normal UI functions, so shared adjusters can be moved or found. */
-export function AppearanceAdjustment({ property, target }: { property: string; target?: string }) {
+export const AppearanceAdjustment=memo(function AppearanceAdjustment({ property, target }: { property: string; target?: string }) {
   const ctx = useAppearance();
   const editable=useMemo(()=>ctx?adjustmentTargets(ctx.state,ctx.targets,property,target,ctx.hierarchy.index):[],[ctx?.state,ctx?.targets,ctx?.hierarchy.index,property,target]);
   if (!ctx) return null;
@@ -192,4 +192,4 @@ export function AppearanceAdjustment({ property, target }: { property: string; t
       onCommit={(v) => change(v)}
     />
   );
-}
+});

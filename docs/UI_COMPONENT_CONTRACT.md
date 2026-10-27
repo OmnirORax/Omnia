@@ -319,3 +319,20 @@ frame. Existing close callbacks, vetoes and frame action registration remain int
 Active context Minimize / maximize toggles collapsed state and retains its frame
 target for restoration. Esc still steps back/minimizes and pops context normally.
 Front-on Focus shares this group and the existing rebindable F command.
+
+## Scoped UI subscriptions
+
+`UIProvider` publishes committed owner snapshots to a transient subscription
+projection; it does not own layout/history/settings. Frequently repeated controls
+use `useUITracked(select)` from `ui/context.tsx`. Select only render dependencies;
+returned slices compare references/scalars, while the live handle reads current
+committed state for events. Do not omit a render dependency to save a rerender.
+The provider publishes in a layout effect, never during an abandoned render.
+
+Buttons/fields/embedded headers and action registration now use this route.
+Legacy `useUI`/`UIContext` remains for consumers not yet migrated; avoid adding broad
+subscriptions to repeated controls. Appearance action delegates preserve current
+handlers, but `read`/`renderRead` retain snapshot identity so property/range memos
+invalidate correctly. Dock workspace context preserves identity for equal geometry.
+Native fields stay mounted and callable while collapsed. No duplicate value store,
+shortcut router or history owner is introduced by selective subscriptions.

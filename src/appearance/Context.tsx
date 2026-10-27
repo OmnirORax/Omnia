@@ -2,7 +2,7 @@ import { removedTargets, restoreTargetDraft } from "./draftTargets";
 import {functionIndex} from '../ui/functionIndex';
 import { boundedNumber } from "../properties/numericRange";
 import type { PropertySnapshot } from "../properties/clipboard";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUI } from "../ui/context";
 import {
   createHierarchyIndex,
@@ -104,11 +104,12 @@ export function AppearanceProvider({
   const state = activeBridge.base.controller ?? loadController(undefined);
   // Function React elements change on every preview. Only identities/captions
   // affect target metadata; using the elements here rebuilds every local binding.
-  const functionLabels = ui.functions.map(fn => `${fn.id}\0${fn.label}`).join("\n");
-  const frameLabels = [...ui.frameActions].map(([id, frame]) => `${id}\0${frame.title}`).join("\n");
   const uiIndex=functionIndex(ui.functions,ui.layout);
+  const instanceOwners=[...new Set(Object.values(state.instances).map(instance=>instance.owner))];
+  const functionLabels=JSON.stringify(instanceOwners.filter(owner=>owner.startsWith('function:')).map(owner=>[owner,uiIndex.byId.get(owner.slice(9))?.label]));
+  const frameLabels=JSON.stringify(instanceOwners.filter(owner=>!owner.startsWith('function:')).map(owner=>[owner,ui.frameActions.get(owner)?.title??ui.layout.frames.find(frame=>`frame:${frame.id}`===owner)?.name]));
   const targetCaptionsKey=JSON.stringify(Object.entries(ui.layout.labels??{}).filter(([key])=>key.startsWith('appearance:target:')));
-  const targetLayoutKey=JSON.stringify([...new Set(Object.values(state.instances).map(instance=>instance.owner))].map(owner=>{
+  const targetLayoutKey=JSON.stringify(instanceOwners.map(owner=>{
     const chain:string[]=[],seen=new Set<string>();let key:string|undefined=owner;
     while(key&&!seen.has(key)){seen.add(key);chain.push(key);key=uiIndex.owners.get(key);}
     return [owner,ui.layout.labels?.[owner],chain];
@@ -242,7 +243,22 @@ export function AppearanceProvider({
     lock,
     plug: (id, property) => activeBridge.commit(toggleRule(state, "disconnected", id, property)),
   };
-  return <Context.Provider value={bridge ? value : null}>{bridge
+  // Keep action closures current without broadcasting function identity changes
+  // to every appearance consumer when only UI arrangement changed.
+  const latestValue=useRef(value);useLayoutEffect(()=>{latestValue.current=value;});
+  const delegates=useRef(new Map<string,(...args:unknown[])=>unknown>());
+  const projected={...value};
+  // Readers are snapshot identities: preserve their changes for dependent memos.
+  const actionKeys=new Set(['commit','preview','inspect','reveal','activityPreview','copyProperties','activatePreview','retarget','restoreTargets','locate','customize','lock','plug']);
+  for(const [key,field] of Object.entries(value))if(typeof field==='function'&&actionKeys.has(key)){
+    if(!delegates.current.has(key))delegates.current.set(key,(...args:unknown[])=>{
+      const action=Reflect.get(latestValue.current,key);return action(...args);
+    });
+    Reflect.set(projected,key,delegates.current.get(key));
+  }
+  const stableValue=useRef(projected);
+  if(Object.keys(projected).some(key=>!Object.is(Reflect.get(projected,key),Reflect.get(stableValue.current,key))))stableValue.current=projected;
+  return <Context.Provider value={bridge ? stableValue.current : null}>{bridge
     ? <VisualSelectionProvider masterOpen={bridge.masterOpen} onInspect={setVisualInspection}>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
 }
 export function basesForOwner(owner: string, control = false): RegisteredTarget[] {

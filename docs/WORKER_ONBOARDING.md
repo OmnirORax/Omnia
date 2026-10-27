@@ -534,3 +534,8 @@ revision dependencies and shared workspace history are implemented for review.
 Existing atlas imports create independent identities; equality never merges them.
 The new backend migration/function must be rolled out separately; hosted availability
 and browser smoothness are not implied by the local implementation.
+
+Repeated UI controls now use `useUITracked` for scoped committed-snapshot
+subscriptions; see UI_COMPONENT_CONTRACT.md. Keep event reads live, include every
+render dependency, and preserve data-reader identity on actual appearance changes.
+Do not replace the legacy context globally without migrating its consumers.
