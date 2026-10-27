@@ -27,7 +27,7 @@ jobs:
       - name: Check Edge Function types and frozen dependencies
         run: node --run backend:check
       - name: Start isolated local backend
-        run: node --run backend:start > "$RUNNER_TEMP/omnia-backend-start.log" 2>&1
+        run: node scripts/backend-start-ci.mjs
       - name: Serve functions and verify readiness
         run: |
           node --run backend:serve > "$RUNNER_TEMP/omnia-backend-functions.log" 2>&1 &

@@ -190,3 +190,9 @@ Read the architecture plan and affected domain contracts first. Add feature-owne
 Future scene/music agents add protocols, explicit data bindings, context targets, jobs, and provider adapters. Current property coupling does not already resolve graph fields into prompt variables. Future cloud atlas agents add atlas identity and server concurrency independently from the existing document revision. Future collaboration agents must define merging and shared undo; Realtime alone does not supply them. Shared accepted knowledge, evidence, canonical identity reconciliation, and quest/reward policies remain domain work.
 
 Hand off actual implementation status, relevant migrations/contracts, verified commands, local versus hosted evidence, and outstanding limitations. Never mark a planned feature as available merely because it appears in the architecture plan.
+
+CI uses scripts/backend-start-ci.mjs to capture privileged CLI startup output in
+a mode-600 runner-local log and emit a fixed, credential-free failure category
+as a GitHub annotation. Raw startup/status logs are not printed or uploaded. The
+original exit code and all health/permission checks remain required. This changes
+diagnostics only; it does not skip unhealthy services or deploy the hosted backend.
