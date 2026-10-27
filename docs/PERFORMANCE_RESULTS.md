@@ -378,3 +378,73 @@ live payload, no saved layout during movement, release commit, one Undo restorin
 the full layout, Esc cancellation without minimizing, header docking and docking
 Undo, with no page errors. Type/build checks and the self-contained preview are
 required for delivery. User hardware drag acceptance remains pending.
+
+
+## First-use frame opening (2026-10-27)
+
+The user confirmed window movement after `519169d` was much better, then clarified
+that frame opening/expansion pauses only on first use. Later minimize/expand and
+even close/reopen are smooth. Investigation switched from repeated toggles to a
+fresh-page first-open comparison. Some first-use module/mount/layout work is real;
+this change does not claim to remove all of it.
+
+One avoidable cold path was caption setup in `NamePresentation`: each new caption
+wrote attributes/styles, then read computed font size, invalidating styles again
+before the next caption's read. Already decorated captions skip that font-size
+read, matching the cold/warm distinction. The adapter now reads initial sizes in
+one pass before symbol/tooltip/accessibility writes. Existing sizes, shared names,
+visual roles, native fields, saved appearance and action/history routes are retained.
+
+[Raw measurements](performance/2026-10-27-cold-frame-open.json): the first library
+open generated 46 and 33 style recalculations in two baseline runs versus 12 after.
+An isolated batch of 80 new 14px captions produced 82 recalculations before (both
+runs) versus 3 afterward; all 80 symbol sizes remained 14px. First-open wall times
+were 759/616 ms before versus 646 ms afterward—too noisy to claim consistent latency
+improvement. These software-GPU/CDP timings include readiness and two RAFs, not
+physical input-to-display latency. Module evaluation, component mounting, geometry
+and paint remain separate costs. The preliminary CPU trace using a role query was
+contaminated by the browser harness's accessibility scan; it is not latency evidence.
+
+Opt-in reproduction: `node scripts/profile-ui-open.mjs <local-url> <report.json>`.
+It uses a fresh disposable browser/storage, default UI and effects, blocks nonlocal
+requests, measures first library open/collapse/re-expand separately and then checks
+80 fresh caption sizes. `OMNIA_PROFILE_CPU=/tmp/prefix` optionally records each
+phase's CPU profile; keep it off for timing comparisons. No app instrumentation or
+background prewarming was added. Model/type/build checks and caption/live-control
+smoke are required before delivery; user cold-open acceptance remains pending.
+
+
+### Refined reproduction: drag immediately after expand
+
+The user then identified the spike as dragging right after maximizing/expanding,
+mainly on heavy frames' first use. Pickup still measured the source's entire
+subtree as potential destinations, although a frame/window cannot dock into its
+own descendants. Visibility/slot reads also ran after `beginLiveDrag` wrote its
+popover/position styles, forcing newly expanded content through another style/layout
+flush. Pickup now excludes that invalid subtree, retains ancestors/siblings,
+reads visibility before lifting and finds the represented resident by exact ID.
+Function payload candidate rules and final pointed-destination refresh are retained.
+
+The drag diagnostic now supports `OMNIA_DRAG_EXPAND=1`: collapse/settle, expand and
+immediately press/drag. With effects/bloom/atmosphere off (blur retained), rectangle
+reads inside the library fell 63 → 22; these counts include all app observers over
+the full expand/drag interval. Observed max RAF gap fell 783.2 → 183.3 ms, with the
+same 50 ms median. These software-GPU results are directional, not a hardware
+smoothness guarantee or an isolated measure of pickup latency. The settled drag
+smoke must still pass release, single Undo, Esc cancellation and docking/Undo.
+
+The heavier first-open diagnostic supports `OMNIA_OPEN_FRAME=master`: start the
+Master controller closed in a fresh default layout, then open/collapse/re-expand.
+First-open style recalculations fell 124 → 10 and sampled wall time 975 → 537 ms.
+Warm timings varied. This confirms reduced cold setup work; it does not turn the
+caption change into proof that all expand-then-drag latency is fixed. The raw report
+includes both frames and the corrected interaction sequence. User acceptance remains
+pending for the exact heavy-frame/GPU configuration.
+
+Final focused drag smoke passed live payload, no movement persistence while held,
+release, one-step Undo, Esc cancellation, docking and docking Undo, with no page
+errors. One earlier attempt timed out waiting for the startup library action; an
+isolated rerun passed. Native-button caption/identity and library field/current-
+handler smoke also passed. The 279-model suite and production build passed;
+self-contained delivery build type-checks the final source. For tab drags, pickup
+excludes only the represented resident, not its shared pane/sibling payloads.

@@ -567,3 +567,14 @@ for effect/graphics limits and user acceptance status.
 Active-context key handling now defers to a held UI pointer gesture, so Esc
 cancels a drag before minimizing its parent. Keep the shared physical-press
 ownership lifetime through release; do not leak a cancelled held press to the scene.
+
+The user confirmed window movement was much better after `519169d`; the remaining
+brief spike is dragging immediately after expanding/maximizing a heavy frame,
+especially on its first use. Pickup now excludes the held frame/window subtree
+from impossible destinations, reads visibility before lifting and resolves the
+source by exact ID. Shared tab panes keep sibling residents eligible; final drop
+refresh remains. `NamePresentation` also batches initial caption font-size reads
+before symbol/tooltip writes, avoiding cold style thrashing. Use
+scripts/profile-ui-open.mjs for first-open/warm metrics and profile-ui-drag.mjs
+with OMNIA_DRAG_EXPAND=1 for the corrected sequence. Both changes await user
+verification; do not conflate style/measurement reductions with zero latency.

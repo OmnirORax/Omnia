@@ -752,7 +752,7 @@ export function UIWorkspace({
         return;
       }
       const tabPane = handle?.getAttribute("role") === "tab" ? handle.closest<HTMLElement>("[data-ui-dock-pane]") : null;
-      const represented = handle && [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
+      const represented = handle && document.querySelector<HTMLElement>(`[data-ui-resident-root="${CSS.escape(key)}"]`);
       const root =
         mini ??
         (fn && key.startsWith("function:")
@@ -760,13 +760,19 @@ export function UIWorkspace({
           : tabPane ?? (represented?.getClientRects().length ? represented : (handle?.closest<HTMLElement>("[data-ui-resident-root]") ?? handle)));
       const r = root ? residentBounds(root) : undefined;
       if (!r) return;
+      // A frame cannot receive itself or its own contents. Avoid measuring its
+      // freshly expanded descendants as candidate destinations during pickup.
+      // A tab's pane also contains sibling residents; exclude only its actual
+      // payload, never the shared pane used to measure the drag footprint.
+      const frameSource=/^(frame|window):/.test(key)?represented??(tabPane?undefined:root):undefined;
+      const outsideSource=(element:Element)=>!frameSource?.contains(element);
       const targetZones = new Map(
-        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map(zone => [zone.dataset.uiDropZone!, zone]),
+        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].filter(outsideSource).map(zone => [zone.dataset.uiDropZone!, zone]),
       );
       const slots = new Map(
         [...targetZones].map(([key, zone]) => [
           key,
-          [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")].map((slot) => ({
+          [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")].filter(outsideSource).map((slot) => ({
             key: slot.dataset.uiSlotKey!,
             r: slot.getBoundingClientRect(),
           })),
@@ -775,16 +781,18 @@ export function UIWorkspace({
       // Resolve against one gesture snapshot while the real payload follows
       // the pointer. Its spacer preserves drop regions and coordinate origins.
       const targetBounds = new Map(
-        [...document.querySelectorAll<HTMLElement>(dropGeometrySelector)].map(el => {
+        [...document.querySelectorAll<HTMLElement>(dropGeometrySelector)].filter(outsideSource).map(el => {
           const box = el.hasAttribute('data-ui-resident-root') ? residentBounds(el) : el.getBoundingClientRect();
           return [el, new DOMRect(box.x, box.y, box.width, box.height)] as const;
         }),
       );
       const zoneOrigins = new Map(
-        [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].map(el => [el, {
+        [...targetZones.values()].map(el => [el, {
           x: Number(el.dataset.originX || 0), y: Number(el.dataset.originY || 0),
         }]),
       );
+      const visibleZones=[...targetZones.values()].filter(zone=>zone.getClientRects().length);
+      const frameSlots=[...document.querySelectorAll<HTMLElement>('[data-ui-frame-slot],[data-ui-slot-key]')].filter(outsideSource).filter(slot=>slot.getClientRects().length);
       const originOffset = { x: (root?.getBoundingClientRect().x ?? r.x) - r.x,
         y: (root?.getBoundingClientRect().y ?? r.y) - r.y };
       const tabLive = tabPane && handle ? beginLiveTabDrag(tabPane, handle, key, represented) : undefined;
@@ -800,8 +808,8 @@ export function UIWorkspace({
         originOffset: origin ? { x: 0, y: 0 } : originOffset,
         slots,
         targetZones,
-        visibleZones:[...targetZones.values()].filter(zone=>zone.getClientRects().length),
-        frameSlots:[...document.querySelectorAll<HTMLElement>('[data-ui-frame-slot],[data-ui-slot-key]')].filter(slot=>slot.getClientRects().length),
+        visibleZones,
+        frameSlots,
         fromDockPane: !!tabPane,
         targetBounds,
         zoneOrigins,

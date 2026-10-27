@@ -1,0 +1,591 @@
+{
+  "note": "Local headless software-GPU, CSS-only readiness queries and CDP metrics. Real frame phases include asynchronous module/mount work and two RAFs; not physical input-to-presented-paint latency. Caption probe isolates initial presentation but metrics include other active observers. No universal cold-open smoothness claim. A preliminary role-query CPU trace was discarded for attribution because its accessibility query polluted samples. User later refined the reproduction: drag immediately after expansion. Expand-drag runs exercise that sequence with effects/bloom/atmosphere off, retaining blur. Their sourceRectReads count covers the entire expand/drag period and all observers, not just pickup. Maximum RAF gap includes expansion/pickup/release, not isolated physical drag latency.",
+  "runs": [
+    {
+      "stage": "before",
+      "report": {
+        "source": "519169dccc0aac776b61d384c6d4d77728fd9621",
+        "sourceDirty": false,
+        "target": "http://127.0.0.1:4192/",
+        "fixture": "Fresh default workspace; first Omnic library open, collapse and re-expand; then 80 newly inserted 14px captions",
+        "method": "Local headless software-GPU; optional CPU profiler disabled. CSS-only readiness query, two RAFs; timings include CDP round trips and are not physical input-to-display latency. Probe metrics also include other active app observers.",
+        "phases": [
+          {
+            "phase": "first-open",
+            "ms": 759.1999999880791,
+            "metrics": {
+              "RecalcStyleCount": 46,
+              "LayoutCount": 17,
+              "RecalcStyleDuration": 0.031542,
+              "LayoutDuration": 0.255829,
+              "ScriptDuration": 0.536717,
+              "TaskDuration": 1.1781899999999998
+            }
+          },
+          {
+            "phase": "collapse",
+            "ms": 428.10000002384186,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 3,
+              "RecalcStyleDuration": 0.0034469999999999987,
+              "LayoutDuration": 0.0016160000000000063,
+              "ScriptDuration": 0.16154499999999994,
+              "TaskDuration": 0.3132170000000001
+            }
+          },
+          {
+            "phase": "re-expand",
+            "ms": 226.10000002384186,
+            "metrics": {
+              "RecalcStyleCount": 5,
+              "LayoutCount": 4,
+              "RecalcStyleDuration": 0.008196999999999996,
+              "LayoutDuration": 0.014122999999999997,
+              "ScriptDuration": 0.134409,
+              "TaskDuration": 0.18809300000000007
+            }
+          }
+        ],
+        "probe": {
+          "captions": 80,
+          "metrics": {
+            "RecalcStyleCount": 82,
+            "LayoutCount": 2,
+            "RecalcStyleDuration": 0.030248999999999998,
+            "LayoutDuration": 0.012258000000000047,
+            "ScriptDuration": 0.02277499999999999,
+            "TaskDuration": 0.09410600000000002
+          }
+        },
+        "checks": {
+          "captionSizes": true,
+          "noPageErrors": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "stage": "before-2",
+      "report": {
+        "source": "519169dccc0aac776b61d384c6d4d77728fd9621",
+        "sourceDirty": false,
+        "target": "http://127.0.0.1:4192/",
+        "fixture": "Fresh default workspace; first Omnic library open, collapse and re-expand; then 80 newly inserted 14px captions",
+        "method": "Local headless software-GPU; optional CPU profiler disabled. CSS-only readiness query, two RAFs; timings include CDP round trips and are not physical input-to-display latency. Probe metrics also include other active app observers.",
+        "phases": [
+          {
+            "phase": "first-open",
+            "ms": 616,
+            "metrics": {
+              "RecalcStyleCount": 33,
+              "LayoutCount": 14,
+              "RecalcStyleDuration": 0.016454,
+              "LayoutDuration": 0.017016,
+              "ScriptDuration": 0.315818,
+              "TaskDuration": 0.43623700000000004
+            }
+          },
+          {
+            "phase": "collapse",
+            "ms": 215.5,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 3,
+              "RecalcStyleDuration": 0.003693000000000002,
+              "LayoutDuration": 0.0013150000000000002,
+              "ScriptDuration": 0.12167699999999998,
+              "TaskDuration": 0.154157
+            }
+          },
+          {
+            "phase": "re-expand",
+            "ms": 206.89999997615814,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 3,
+              "RecalcStyleDuration": 0.005044,
+              "LayoutDuration": 0.0033889999999999997,
+              "ScriptDuration": 0.12458100000000005,
+              "TaskDuration": 0.158061
+            }
+          }
+        ],
+        "probe": {
+          "captions": 80,
+          "metrics": {
+            "RecalcStyleCount": 82,
+            "LayoutCount": 2,
+            "RecalcStyleDuration": 0.010374999999999995,
+            "LayoutDuration": 0.020842,
+            "ScriptDuration": 0.012429000000000023,
+            "TaskDuration": 0.06607000000000007
+          }
+        },
+        "checks": {
+          "captionSizes": true,
+          "noPageErrors": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "stage": "after",
+      "report": {
+        "source": "cold-caption-batching-on-519169d",
+        "sourceDirty": true,
+        "target": "http://127.0.0.1:4193/",
+        "fixture": "Fresh default workspace; first Omnic library open, collapse and re-expand; then 80 newly inserted 14px captions",
+        "method": "Local headless software-GPU; optional CPU profiler disabled. CSS-only readiness query, two RAFs; timings include CDP round trips and are not physical input-to-display latency. Probe metrics also include other active app observers.",
+        "phases": [
+          {
+            "phase": "first-open",
+            "ms": 646.1999999880791,
+            "metrics": {
+              "RecalcStyleCount": 12,
+              "LayoutCount": 11,
+              "RecalcStyleDuration": 0.018647,
+              "LayoutDuration": 0.015902000000000003,
+              "ScriptDuration": 0.318903,
+              "TaskDuration": 0.434446
+            }
+          },
+          {
+            "phase": "collapse",
+            "ms": 218.5,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 3,
+              "RecalcStyleDuration": 0.0032779999999999997,
+              "LayoutDuration": 0.001063999999999999,
+              "ScriptDuration": 0.09191900000000003,
+              "TaskDuration": 0.12812199999999996
+            }
+          },
+          {
+            "phase": "re-expand",
+            "ms": 256.4000000357628,
+            "metrics": {
+              "RecalcStyleCount": 5,
+              "LayoutCount": 4,
+              "RecalcStyleDuration": 0.011637000000000002,
+              "LayoutDuration": 0.002679000000000001,
+              "ScriptDuration": 0.14982,
+              "TaskDuration": 0.19200399999999995
+            }
+          }
+        ],
+        "probe": {
+          "captions": 80,
+          "metrics": {
+            "RecalcStyleCount": 3,
+            "LayoutCount": 2,
+            "RecalcStyleDuration": 0.005918999999999994,
+            "LayoutDuration": 0.006473999999999997,
+            "ScriptDuration": 0.011942000000000008,
+            "TaskDuration": 0.0470259999999999
+          }
+        },
+        "checks": {
+          "captionSizes": true,
+          "noPageErrors": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "stage": "master-before",
+      "report": {
+        "source": "519169dccc0aac776b61d384c6d4d77728fd9621",
+        "sourceDirty": false,
+        "target": "http://127.0.0.1:4192/",
+        "fixture": "Fresh default workspace; first Master controller open, collapse and re-expand; then 80 newly inserted 14px captions",
+        "method": "Local headless software-GPU; optional CPU profiler disabled. CSS-only readiness query, two RAFs; timings include CDP round trips and are not physical input-to-display latency. Probe metrics also include other active app observers.",
+        "phases": [
+          {
+            "phase": "first-open",
+            "ms": 974.8000000119209,
+            "metrics": {
+              "RecalcStyleCount": 124,
+              "LayoutCount": 8,
+              "RecalcStyleDuration": 0.014892,
+              "LayoutDuration": 0.035434,
+              "ScriptDuration": 0.612727,
+              "TaskDuration": 0.819498
+            }
+          },
+          {
+            "phase": "collapse",
+            "ms": 153.39999997615814,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 4,
+              "RecalcStyleDuration": 0.002576000000000002,
+              "LayoutDuration": 0.0009970000000000048,
+              "ScriptDuration": 0.12954299999999996,
+              "TaskDuration": 0.14944400000000002
+            }
+          },
+          {
+            "phase": "re-expand",
+            "ms": 220.19999998807907,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 3,
+              "RecalcStyleDuration": 0.004621999999999998,
+              "LayoutDuration": 0.01489,
+              "ScriptDuration": 0.16766199999999998,
+              "TaskDuration": 0.204434
+            }
+          }
+        ],
+        "probe": {
+          "captions": 80,
+          "metrics": {
+            "RecalcStyleCount": 82,
+            "LayoutCount": 2,
+            "RecalcStyleDuration": 0.0065769999999999995,
+            "LayoutDuration": 0.011440999999999993,
+            "ScriptDuration": 0.006739999999999968,
+            "TaskDuration": 0.03515899999999994
+          }
+        },
+        "checks": {
+          "captionSizes": true,
+          "noPageErrors": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "stage": "master-after",
+      "report": {
+        "source": "cold-caption-batching-on-519169d",
+        "sourceDirty": true,
+        "target": "http://127.0.0.1:4193/",
+        "fixture": "Fresh default workspace; first Master controller open, collapse and re-expand; then 80 newly inserted 14px captions",
+        "method": "Local headless software-GPU; optional CPU profiler disabled. CSS-only readiness query, two RAFs; timings include CDP round trips and are not physical input-to-display latency. Probe metrics also include other active app observers.",
+        "phases": [
+          {
+            "phase": "first-open",
+            "ms": 536.8999999761581,
+            "metrics": {
+              "RecalcStyleCount": 10,
+              "LayoutCount": 8,
+              "RecalcStyleDuration": 0.012538,
+              "LayoutDuration": 0.036082,
+              "ScriptDuration": 0.41706,
+              "TaskDuration": 0.533317
+            }
+          },
+          {
+            "phase": "collapse",
+            "ms": 365.2999999523163,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 4,
+              "RecalcStyleDuration": 0.004538,
+              "LayoutDuration": 0.004242000000000003,
+              "ScriptDuration": 0.14403299999999997,
+              "TaskDuration": 0.2554369999999999
+            }
+          },
+          {
+            "phase": "re-expand",
+            "ms": 324.5999999642372,
+            "metrics": {
+              "RecalcStyleCount": 4,
+              "LayoutCount": 3,
+              "RecalcStyleDuration": 0.026549,
+              "LayoutDuration": 0.005920000000000002,
+              "ScriptDuration": 0.19567199999999996,
+              "TaskDuration": 0.24780100000000005
+            }
+          }
+        ],
+        "probe": {
+          "captions": 80,
+          "metrics": {
+            "RecalcStyleCount": 2,
+            "LayoutCount": 1,
+            "RecalcStyleDuration": 0.003398000000000005,
+            "LayoutDuration": 0.008251000000000001,
+            "ScriptDuration": 0.010564000000000018,
+            "TaskDuration": 0.03136500000000009
+          }
+        },
+        "checks": {
+          "captionSizes": true,
+          "noPageErrors": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "stage": "expand-drag-before",
+      "report": {
+        "source": "519169dccc0aac776b61d384c6d4d77728fd9621",
+        "sourceDirty": false,
+        "target": "http://127.0.0.1:4192/",
+        "fixture": "12 selected ordinary nodes; edit-enabled UI; expanded Omnic library; 36 pointer moves over open canvas; drag immediately after expand;  effects/bloom/atmosphere off; default blur retained",
+        "method": "Headless software-GPU drag, 16ms between acknowledged moves. CPU profiler disabled. RAF intervals and CDP acknowledgements are not physical pointer-to-display latency.",
+        "inputMs": [
+          136.67580499999985,
+          49.444156999999905,
+          22.020714000000225,
+          40.253107999999884,
+          38.384227999999894,
+          23.255372999999963,
+          31.086849999999686,
+          41.546635000000606,
+          36.18989699999929,
+          49.02126599999974,
+          25.164491999999882,
+          32.65999499999998,
+          762.8714440000003,
+          39.66897400000016,
+          68.61557199999879,
+          28.08861800000159,
+          39.97374099999979,
+          44.58688299999994,
+          37.731729999999516,
+          39.314674000001105,
+          29.013349999999264,
+          36.54759699999886,
+          38.34603100000095,
+          39.99922599999991,
+          54.627557000001616,
+          21.625355000000127,
+          44.44181700000081,
+          41.78263800000059,
+          45.443664000000354,
+          57.63781800000106,
+          25.115466999999626,
+          22.084693000000698,
+          44.819360000001325,
+          59.25489500000003,
+          21.502320999999938,
+          35.05862800000068
+        ],
+        "frames": [
+          54.130000011920856,
+          33.27000000000044,
+          83.39999999999964,
+          66.60000000000036,
+          100,
+          16.699999999999818,
+          50,
+          49.899999999999636,
+          50.100000000000364,
+          50,
+          50,
+          49.899999999999636,
+          50,
+          50.100000000000364,
+          66.59999999999945,
+          50,
+          50,
+          50.100000000000364,
+          783.1999999999998,
+          33.400000000000546,
+          50,
+          49.899999999999636,
+          50.100000000000364,
+          66.59999999999945,
+          50,
+          50.100000000000364,
+          66.59999999999945,
+          49.900000000000546,
+          50.099999999999454,
+          166.70000000000073,
+          66.59999999999945,
+          50,
+          50,
+          66.69999999999982,
+          50,
+          49.900000000000546,
+          33.30000000000018,
+          50.099999999999454,
+          33.30000000000018,
+          50,
+          83.39999999999964,
+          50,
+          33.30000000000018,
+          66.60000000000036,
+          349.9999999999991
+        ],
+        "medianRafMs": 50,
+        "maxRafMs": 783.1999999999998,
+        "discovery": {
+          "frameSlotQueries": 2,
+          "dropZoneQueries": 2,
+          "sourceRectReads": 63
+        },
+        "checks": {
+          "livePayload": true,
+          "noMovementPersistedWhileHeld": true,
+          "committedOnRelease": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "stage": "expand-drag-after",
+      "report": {
+        "source": "expand-drag-pickup-on-519169d",
+        "sourceDirty": true,
+        "target": "http://127.0.0.1:4193/",
+        "fixture": "12 selected ordinary nodes; edit-enabled UI; expanded Omnic library; 36 pointer moves over open canvas; drag immediately after expand;  effects/bloom/atmosphere off; default blur retained",
+        "method": "Headless software-GPU drag, 16ms between acknowledged moves. CPU profiler disabled. RAF intervals and CDP acknowledgements are not physical pointer-to-display latency.",
+        "inputMs": [
+          112.63558000000012,
+          120.90798499999983,
+          37.797647999999754,
+          23.10936700000002,
+          45.86586299999999,
+          40.76661799999965,
+          61.652908000000025,
+          65.22949300000073,
+          31.552682999999888,
+          34.07264899999973,
+          39.01032699999996,
+          29.561558000000332,
+          35.7836810000008,
+          35.496729999998934,
+          44.360279000000446,
+          44.32770900000105,
+          33.328198999999586,
+          36.37953600000037,
+          41.877706000001126,
+          29.922534999999698,
+          38.43500299999869,
+          31.481391999999687,
+          42.16424899999947,
+          63.56443799999943,
+          42.471762999999555,
+          41.620412000000215,
+          32.95002399999976,
+          33.98250100000041,
+          28.031761000000188,
+          27.27291299999888,
+          26.657375000000684,
+          26.178157999998803,
+          39.041737999999896,
+          38.20155200000045,
+          31.096768999999767,
+          27.102434000000358
+        ],
+        "frames": [
+          -2.636000035762663,
+          49.935999999999694,
+          116.69999999999982,
+          100,
+          99.90000000000055,
+          16.699999999999818,
+          83.30000000000018,
+          66.69999999999982,
+          50,
+          50,
+          66.60000000000036,
+          66.79999999999927,
+          83.20000000000073,
+          50.099999999999454,
+          66.60000000000036,
+          50,
+          50,
+          33.30000000000018,
+          66.69999999999982,
+          50,
+          66.69999999999982,
+          50,
+          50,
+          66.69999999999982,
+          49.900000000000546,
+          50,
+          50,
+          50.099999999999454,
+          66.60000000000036,
+          83.39999999999964,
+          49.900000000000546,
+          50,
+          66.59999999999945,
+          33.400000000000546,
+          50,
+          33.399999999999636,
+          49.899999999999636,
+          50,
+          66.70000000000073,
+          50,
+          33.399999999999636,
+          49.899999999999636,
+          50.100000000000364,
+          183.29999999999927,
+          100
+        ],
+        "medianRafMs": 50,
+        "maxRafMs": 183.29999999999927,
+        "discovery": {
+          "frameSlotQueries": 2,
+          "dropZoneQueries": 1,
+          "sourceRectReads": 22
+        },
+        "checks": {
+          "livePayload": true,
+          "noMovementPersistedWhileHeld": true,
+          "committedOnRelease": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    },
+    {
+      "stage": "pickup-functional-smoke",
+      "report": {
+        "source": "expand-drag-pickup-on-519169d",
+        "sourceDirty": true,
+        "target": "http://127.0.0.1:4193/",
+        "fixture": "12 selected ordinary nodes; edit-enabled UI; expanded Omnic library; 8 pointer moves over open canvas;  effects/bloom/atmosphere off; default blur retained",
+        "method": "Headless software-GPU drag, 16ms between acknowledged moves. CPU profiler disabled. RAF intervals and CDP acknowledgements are not physical pointer-to-display latency.",
+        "inputMs": [
+          116.39120999999977,
+          101.72177999999985,
+          24.106768999999986,
+          76.38194899999962,
+          31.62192099999993,
+          45.4658330000002,
+          72.42580100000032,
+          35.84428099999968
+        ],
+        "frames": [
+          22.30000001192093,
+          33.30000000000018,
+          100,
+          33.30000000000018,
+          16.599999999999454,
+          50,
+          50,
+          83.40000000000055,
+          49.899999999999636,
+          50.100000000000364,
+          50,
+          49.899999999999636,
+          66.80000000000018,
+          33.19999999999982,
+          50,
+          300
+        ],
+        "medianRafMs": 50,
+        "maxRafMs": 300,
+        "checks": {
+          "livePayload": true,
+          "noMovementPersistedWhileHeld": true,
+          "committedOnRelease": true,
+          "singleUndo": true,
+          "cancelRestores": true,
+          "docked": true,
+          "dockSingleUndo": true
+        },
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      }
+    }
+  ]
+}

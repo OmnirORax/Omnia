@@ -394,3 +394,20 @@ Active-context shortcuts defer while `uiPointerHeld()` is true, allowing the
 existing drag/resize gesture handler to consume cancellation first. Esc must
 restore a held drag before any parent minimize action. Physical press ownership
 still ends only on release; cancel must not send that held input into the scene.
+
+
+Cold caption setup in `NamePresentation` reads initial font sizes for newly
+symbolized captions in one pass before applying symbol, tooltip or accessibility
+writes. Do not interleave `getComputedStyle` with per-caption styling: the first
+open of a large frame otherwise repeatedly forces synchronous style recalculation.
+Existing captions retain their measured symbol size; selectors and caption metadata
+remain shared. This does not preload feature modules, change saved appearance,
+unmount native fields or replace real first-use mounting/layout work with a fake
+loading delay. Test cold opens separately from warmed minimize/reopen.
+
+For frame/window pickup, omit the held root and its descendants from candidate
+destination zones, slots and bounds; they cannot receive their own ancestor. Keep
+ancestors/siblings eligible. Snapshot visibility and slot lists before the live
+lift writes popover/position styles. Exact resident IDs use a direct escaped
+selector. Function payloads retain their existing candidate semantics. Release
+still refreshes current destination geometry; do not reuse a stale expansion size.
