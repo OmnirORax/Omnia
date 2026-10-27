@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # Keep the local Docker/Supabase baseline stable during ubuntu-latest rollouts.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4

@@ -196,3 +196,7 @@ a mode-600 runner-local log and emit a fixed, credential-free failure category
 as a GitHub annotation. Raw startup/status logs are not printed or uploaded. The
 original exit code and all health/permission checks remain required. This changes
 diagnostics only; it does not skip unhealthy services or deploy the hosted backend.
+
+The backend CI jobs pin Ubuntu 24.04 rather than following ubuntu-latest runner
+rollouts. All health and permission checks remain enabled. Unknown startup errors
+report only allowlisted diagnostic keywords; no raw log fragments are emitted.
