@@ -543,3 +543,17 @@ event. Only docking feedback is frame-batched, retaining the latest sample.
 No interpolation/inertia is added. Existing release/history and pickup optimizations
 remain. User tests fast movement, reversals, pause/resume and docking; no browser
 profiling or acceptance suite was run for this follow-up.
+
+## Release handoff and live validation — user testing pending
+
+The user reports further improvement but two remaining pauses before stopping.
+Release restored the original DOM geometry before scheduling a React commit,
+allowing a concurrent render to expose an intermediate old position. Restoration,
+preview teardown and saved-layout update now share one synchronous render boundary.
+Inspection also found the interface owner repeated full topology validation after
+the free-move helper's coordinate validation. `normalizeLiveUILayout` recognizes
+immutable coordinate-only snapshots; it validates coordinates while preserving
+the already-validated topology. Every other edit/import retains full validation.
+Boundary checks cover invalid coordinates, dimensions and dangling membership.
+No local browser profiling or Docker tests were run; quick/calm release, docking
+and Undo remain for the user to test.

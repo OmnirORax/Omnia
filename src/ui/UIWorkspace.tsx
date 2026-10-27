@@ -47,7 +47,7 @@ import {
   type ReactElement,
 } from "react";
 import { Rnd } from "react-rnd";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   UIProvider,
   useUITracked,
@@ -1374,11 +1374,15 @@ export function UIWorkspace({
       source.visibleZones=source.visibleZones.filter(zone=>zone.isConnected);
       source.frameSlots=source.frameSlots.filter(slot=>slot.isConnected);
       const p = resolve(e.clientX, e.clientY);
-      source.live?.restore();
-      show(null);
       drag.current = null;
-      if (!p) return;
-      current.current.update((previous) => {
+      // End direct visual ownership and commit saved geometry in one render
+      // boundary. A concurrent render must not paint restored pre-drag geometry
+      // before the new coordinates (and resident allocation) are committed.
+      flushSync(() => {
+        source.live?.restore();
+        show(null);
+        if (!p) return;
+        current.current.update((previous) => {
         let s = ensure(previous);
         if (!residentMovable(s, source.key, current.current.functions)) return previous;
         const payload = getContainer(s, source.key);
@@ -1461,6 +1465,7 @@ export function UIWorkspace({
             : next;
         }
         return previous;
+        });
       });
     };
     const end = () => {

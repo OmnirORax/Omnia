@@ -200,3 +200,11 @@ diagnostics only; it does not skip unhealthy services or deploy the hosted backe
 The backend CI jobs pin Ubuntu 24.04 rather than following ubuntu-latest runner
 rollouts. All health and permission checks remain enabled. Unknown startup errors
 report only allowlisted diagnostic keywords; no raw log fragments are emitted.
+
+The latest failed runner startup reported registry HTTP 403. The shared CLI wrapper
+now defaults `SUPABASE_USE_SLIM_IMAGES=false` when `CI=true`, using the CLI's standard
+image distribution consistently for startup, serving and cleanup. An explicit
+environment setting still overrides this default. The local developer default stays slim;
+no health/permission check is skipped and no hosted backend is changed. This
+registry-distribution change awaits the normal automatic CI result; no local
+Docker startup or manual workflow retry was run for this follow-up.

@@ -26,6 +26,11 @@ frame-batched destination discovery and feedback. Do not put docking calculation
 interpolation or an additional animation-frame wait in front of pointer attachment.
 The browser coalesces transform writes for paint; placement previews remain
 transient and commits continue through the existing single-move history path.
+Release restores transient styles and commits the saved layout in one synchronous
+render boundary; do not expose an intermediate pre-drag position to paint.
+The interface owner uses `normalizeLiveUILayout` for immutable live snapshots:
+coordinate-only edits validate their coordinates and retain unchanged topology;
+all structural changes and imports still use full layout validation.
 
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
 - Fields use `UIField`, which moves the label and input together. Shared

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   emptyUILayout,
   validateUILayout,
+  normalizeLiveUILayout,
   groupFunctions,
   dockResident,
   detachFunction,
@@ -10,6 +11,16 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test("live coordinate moves preserve topology validation for other changes", () => {
+  const previous = emptyUILayout();
+  previous.windows.a = { x: 20, y: 30, width: 300, height: 400, collapsed: false, pinned: false };
+  const moved = { ...previous, windows: { ...previous.windows, a: { ...previous.windows.a, x: 70, y: 90 } } };
+  assert.equal(normalizeLiveUILayout(moved, previous), moved);
+  assert.equal(normalizeLiveUILayout(previous, previous), previous);
+  assert.throws(() => normalizeLiveUILayout({ ...moved, windows: { a: { ...moved.windows.a, x: Infinity } } }, previous));
+  assert.throws(() => normalizeLiveUILayout({ ...moved, windows: { a: { ...moved.windows.a, members: [{ kind: 'window', id: 'missing' }] } } }, previous));
+  assert.throws(() => normalizeLiveUILayout({ ...moved, windows: { a: { ...moved.windows.a, width: -1 } } }, previous));
+});
 test("grouping retains function identity and creates a named, initially collapsed UI frame", () => {
   const original = emptyUILayout(),
     grouped = groupFunctions(original, "focus", "undo", 96, 144);

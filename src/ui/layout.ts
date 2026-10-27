@@ -137,6 +137,29 @@ const cell = (v: unknown): v is Cell =>
   Number.isInteger(v.y) &&
   Math.abs(v.x as number) < 100 &&
   Math.abs(v.y as number) < 100;
+/** Live immutable edits start from a validated snapshot. Coordinate-only moves
+ * cannot change membership, scopes or migrations; avoid rechecking that topology.
+ * Imports and every other edit still pass through full validation. */
+export function normalizeLiveUILayout(next: UILayout, previous: UILayout): UILayout {
+  if (next === previous) return previous;
+  const sameKeys = (a: object, b: object) => Object.keys(a).length === Object.keys(b).length
+    && Object.keys(a).every(key => Object.hasOwn(b, key));
+  const coordinatesOnly = (a: UIFrame | WindowState, b: UIFrame | WindowState) => {
+    if (a === b) return true;
+    if (!sameKeys(a, b) || !numeric(b.x) || !numeric(b.y)) return false;
+    return Object.keys(a).every(key => key === 'x' || key === 'y'
+      || a[key as keyof typeof a] === b[key as keyof typeof b]);
+  };
+  if (sameKeys(previous, next)
+    && Object.keys(previous).every(key => key === 'windows' || key === 'frames'
+      || previous[key as keyof UILayout] === next[key as keyof UILayout])
+    && sameKeys(previous.windows, next.windows)
+    && Object.entries(previous.windows).every(([id, state]) => coordinatesOnly(state, next.windows[id]))
+    && previous.frames.length === next.frames.length
+    && previous.frames.every((frame, i) => coordinatesOnly(frame, next.frames[i]))) return next;
+  return validateUILayout(next);
+}
+
 export function validateUILayout(value: unknown): UILayout {
   if (
     !record(value) ||
