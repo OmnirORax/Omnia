@@ -144,3 +144,74 @@ test("custom UI field imports reject invalid types, values and dropdown choices"
   for (const change of [{ value: "missing" }, { kind: "script" }, { options: ["A", "A"] }, { min: 10, max: 1 }])
     assert.throws(() => validateUILayout({ ...valid, customControls: { "ui:custom:choice": { ...valid.customControls["ui:custom:choice"], ...change } } }));
 });
+
+test('render function index preserves explicit/inline ownership and invalidates changed snapshots', async () => {
+  const {functionIndex}=await import('../src/ui/functionIndex.ts');
+  const functions=[{id:'first'},{id:'second'}];
+  const layout=groupFunctions(emptyUILayout(),'first','second',96,144);
+  layout.windows.child={x:0,y:0,width:100,height:100,collapsed:false,pinned:false,inline:{parent:'window:parent'}};
+  layout.items.first={...layout.items.first,anchorId:'home|second'};
+  const index=functionIndex(functions,layout);
+  assert.equal(index.byId.get('first'),functions[0]);assert.deepEqual(index.anchors.get('home|second'),[functions[0]]);
+  for(const key of ['function:first','function:second','window:child'])assert.equal(index.owners.get(key),ownerOf(layout,key));
+  assert.equal(functionIndex(functions,layout),index);
+  const next={...layout,items:{...layout.items,first:{...layout.items.first,anchorId:'new|second'}}};
+  assert.equal(functionIndex(functions,next).anchors.has('home|second'),false);
+  assert.equal(index.anchors.has('home|second'),true);
+  assert.equal(functionIndex([...functions,{id:'third'}],next).byId.has('third'),true);
+});
+
+test('selective UI snapshots retain unrelated slices and event handlers read the latest committed owner',async()=>{
+  const {createSelectiveStore,sameSlice}=await import('../src/ui/selectiveStore.ts');
+  const first={section:{collapsed:false},other:0,run:()=>1},store=createSelectiveStore(first);
+  let slice=[store.getSnapshot().section],renders=0;
+  const stop=store.subscribe(()=>{const next=[store.getSnapshot().section];if(!sameSlice(slice,next)){slice=next;renders++;}});
+  store.publish({...first,other:1,run:()=>2});assert.equal(renders,0);assert.equal(store.live.run(),2);
+  assert.equal('section' in store.live,true);assert.equal({...store.live}.other,1);
+  store.publish({...first,section:{collapsed:true}});assert.equal(renders,1);assert.equal(store.live.section.collapsed,true);
+  stop();store.publish(first);assert.equal(renders,1);
+});
+
+test('window and native presentation subscriptions ignore unrelated collapse but retain actual dependencies',async()=>{
+  const {residentRenderSlice,nativePresentationSlice}=await import('../src/ui/renderSubscriptions.ts');
+  const {sameSlice}=await import('../src/ui/selectiveStore.ts');
+  const layout=emptyUILayout();
+  layout.windows.first={x:0,y:0,width:200,height:200,collapsed:false,pinned:false};
+  layout.windows.other={x:0,y:0,width:200,height:200,collapsed:false,pinned:false};
+  const ui={layout,functions:[],shortcutBindings:{}};
+  const collapse={...ui,layout:{...layout,windows:{...layout.windows,other:{...layout.windows.other,collapsed:true}}}};
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:first'),residentRenderSlice(collapse,'window:first')),true);
+  assert.equal(sameSlice(nativePresentationSlice(ui),nativePresentationSlice(collapse)),true);
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:other'),residentRenderSlice(collapse,'window:other')),false);
+  const pin={...ui,layout:{...layout,windows:{...layout.windows,other:{...layout.windows.other,pinned:true}}}};
+  assert.equal(sameSlice(nativePresentationSlice(ui),nativePresentationSlice(pin)),false);
+  const renamed={...ui,layout:{...layout,labels:{'window:first':'Renamed'}}};
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:first'),residentRenderSlice(renamed,'window:first')),false);
+  const rebind={...ui,shortcutBindings:{'button:@frame:window:first':'H'}};
+  assert.equal(sameSlice(residentRenderSlice(ui,'window:first'),residentRenderSlice(rebind,'window:first')),false);
+  const fn={id:'button',label:'Old',scope:'window:first'};
+  const before={...ui,functions:[fn]};
+  const caption={...before,functions:[{...fn,label:'New'}]};
+  assert.equal(sameSlice(nativePresentationSlice(before),nativePresentationSlice(caption)),true);
+  assert.equal(sameSlice(nativePresentationSlice(before),nativePresentationSlice({...before,functions:[{...fn,scope:'window:other'}]})),false);
+});
+
+test('mutation discovery scans an inserted branch once, retaining independent siblings',async()=>{
+  const {minimalMutationRoots}=await import('../src/ui/mutationRoots.ts');
+  const outer={parentElement:null},inner={parentElement:outer},leaf={parentElement:inner},sibling={parentElement:null};
+  assert.deepEqual(minimalMutationRoots([inner,leaf,outer,sibling,leaf]),[outer,sibling]);
+  assert.deepEqual(minimalMutationRoots([leaf,sibling]),[leaf,sibling]);
+});
+
+test('registry publication coalesces discovery and preserves the final active source per command',async()=>{
+  const {createRegistrationBatch}=await import('../src/ui/registrationBatch.ts');
+  const scheduled=[],published=[];
+  const stage=createRegistrationBatch(value=>published.push(value),flush=>scheduled.push(flush));
+  stage('field',{available:true,label:'First'});stage('field',{available:false});stage('field',{available:true,label:'Latest'});
+  for(let i=0;i<100;i++)stage(`button-${i}`,{available:true});
+  assert.equal(scheduled.length,1);assert.equal(published.length,0);
+  scheduled.shift()();assert.equal(published.length,1);assert.equal(Object.keys(published[0]).length,101);
+  assert.equal(published[0].field.label,'Latest');
+  stage('field',{available:false});assert.equal(scheduled.length,1);scheduled.shift()();
+  assert.deepEqual(published[1],{field:{available:false}});
+});

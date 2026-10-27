@@ -1,3 +1,4 @@
+import {functionIndex} from './functionIndex';
 import {
   useEffect,
   useContext,
@@ -8,7 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useAppearance } from "../appearance/Context";
-import { useUI, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
+import { useUITracked, UIHomeContext, UIContainerContext, UIPathContext } from "./context";
 import { DockArea } from "./DockArea";
 import { useDockHost } from "./DockHost";
 import { nextWindowLayer } from "./FloatingWindow";
@@ -53,7 +54,7 @@ export function EmbeddedGroup({
   children: ReactNode;
 }) {
   const appearance = useAppearance();
-  const ui = useUI(),
+  const ui = useUITracked(ui=>[ui.layout.windows[id],ui.layout.items,ui.layout.labels,functionIndex(ui.functions,ui.layout).owners.get(`window:${id}`),functionIndex(ui.functions,ui.layout).permissions]),
     home = useContext(UIHomeContext),
     parent = useContext(UIContainerContext) ?? home,
     path = useContext(UIPathContext),

@@ -9,6 +9,7 @@ export function visualObject(
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
   appearance: { color?: string; opacity?: number; brightness?: number; textColor?: string; textGlow?: number } = {},
+  imageResolution = 512,
 ) {
   const group = new THREE.Group();
   const restyle: (() => void)[] = [];
@@ -56,7 +57,7 @@ export function visualObject(
           const canvas = document.createElement("canvas");
           const width = image.naturalWidth || image.width || 256,
             height = image.naturalHeight || image.height || 256;
-          const scale = 512 / Math.max(width, height);
+          const scale = Math.max(64, Math.min(512, imageResolution)) / Math.max(width, height);
           canvas.width = Math.max(1, Math.round(width * scale));
           canvas.height = Math.max(1, Math.round(height * scale));
           const context = canvas.getContext("2d");

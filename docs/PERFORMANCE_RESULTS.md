@@ -174,3 +174,113 @@ variants. Actual variant/topology/font changes retain their scene rebuild path.
 Model tests cover immediate selection, exclusive single/double side effects and
 rapid target changes. Browser input-to-paint/freeze verification remains with the
 user; this is not a claim that all selection/UI rendering cost has disappeared.
+
+
+Omnic Stage 1 adds explicit evaluator and shared renderer budgets. World projection
+is static/derived, capped at 32 Omnic source occurrences and 256px raster edges;
+excess sources show a named preview-budget placeholder, preserving recipes. Cached
+SVG depends on canonical definition/dependency revisions rather than node positions.
+Composer motion is explicitly enabled, capped at 256 roles / 12fps, writes the
+preview DOM without per-frame React/history/storage, and pauses after sustained
+expensive frames. Large structures skip neighboring previews. These policies bound
+new work; no browser performance trace was run and existing system latency remains
+an open verification item. See OMNIC_COMPOSER.md for structural/input work limits.
+
+## Omnic workspace library (2026-10-27)
+
+Stage 2 reads cached structural facts during queries, mounts 32 result rows per
+page and evaluates in scheduled 4 ms batches with progress published at most
+every 50 ms. It renders one inspected revision preview and keeps at most two
+workspace indexes across reopening. Stable entity pools reuse scene resolvers;
+position-only edits do not rescan recipes. IndexedDB stores workspace snapshots
+after commits, not on pointer samples or animation ticks. Limits and remaining
+whole-document validation/projection costs are recorded in OMNIC_LIBRARY.md.
+No new browser trace or FPS measurement was performed; these are implementation
+bounds and model checks, not evidence that earlier system-wide latency is resolved.
+
+## Click stalls: focused follow-up (2026-10-27)
+
+Baseline `6dce56b`. A local CPU profile reproduced long pauses while toggling
+Omnic library → Objects → Structural filters. Before the patch, sampled work
+included repeated `adjustmentTargets`, `FunctionControl` full-list/ownership scans,
+icon target scans and dock geometry discovery. The patch shares render indexes,
+keeps appearance metadata stable across unrelated collapse changes, memoizes
+adjuster eligibility, and skips hidden/unrelated dock measurements. Mutable layout
+transactions retain the original uncached ownership path.
+
+[Raw timing samples and method](performance/2026-10-27-clicks.json) record two
+sequential comparisons with 12 synthetic selected nodes, default UI, fresh headless
+Chromium, blocked external requests and CPU sampling enabled. Each sample is a
+programmatic click plus two RAF callbacks, not physical input-to-presented-paint.
+Median times: before1 327 ms / after1 413 ms; after2 374 ms / before2 402 ms.
+The scene-backed samples vary and do **not** establish a reliable overall latency
+improvement. Broad React renders and main-thread layout/paint remain substantial;
+the user's pulsing selection freezing is not claimed resolved. Empty-scene pilot
+samples improved, but are not substitutes for the selected-scene workload.
+
+`node --run test`: 273 model checks pass, including ownership/anchor/index
+invalidation. Type checks pass. These checks establish correctness of the shared
+lookup change, not smoothness. User hardware/workspace verification remains open.
+
+## Scoped subscriptions follow-up (2026-10-27)
+
+Baseline `31f24e5`. `UIProvider` now supplies a committed-snapshot subscription
+projection alongside legacy context. Repeated function controls, fields, action
+registration and embedded headers subscribe to narrow slices. Appearance action
+closures are delegated without invalidating every consumer; data readers retain
+snapshot identities. Appearance metadata depends on customized owners' actual
+labels/paths rather than unrelated frame-registration order. Equal dock geometry
+retains its context identity instead of waking all dock residents.
+
+[Timing samples](performance/2026-10-27-subscriptions.json): one sequential
+scene-backed headless comparison, median programmatic click + two RAFs 347 → 294 ms.
+This is noisy, not physical input-to-presented-paint or proof of pulse continuity.
+Remaining legacy context consumers, broad parent renders and layout/paint still
+need work; no global frame-time guarantee is claimed. The sampled after build
+predates a final safeguard preserving appearance reader identity on real edits.
+
+Focused browser checks passed for editing the library search field and creating
+an atlas through a current action handler after the subscription migration.
+Model tests cover unchanged slices, current handlers and ownership invalidation.
+The earlier attempted smoke check omitted opening Organization and timed out; the
+corrected path opened the section and passed. The user subsequently confirmed
+“definitely much better” after `85c1074`; remaining latency is not resolved by that
+feedback alone.
+
+
+## Window and DOM follow-up (2026-10-27)
+
+Baseline `85c1074` (the subscription pass the user confirmed improved clicks).
+Floating windows, panels, frame chrome, docking residents/tabs, labels and placement
+previews now subscribe to their render dependencies. Closed frame search and
+inactive popup adapters use empty slices. Docked function controls subscribe to
+their own registry records, preserving current values/handlers without waking
+all sibling residents. Native presentation compares per-entry inputs before DOM
+writes/permission checks. Caption changes inspect their host directly; actual
+inserted subtrees are deduplicated before discovery. Registration metadata publishes
+once per microtask instead of copying the inventory for each newly found control;
+source-stack operations, commands and history commits remain synchronous.
+
+[Raw samples](performance/2026-10-27-windows-dom.json) include intermediate builds
+and the rebuilt pair (before a final contour-invalidation safeguard for
+same-sized docked icons). Earlier comparisons improved, but the rebuilt
+pair was effectively unchanged: median click + two RAFs 373.4 ms baseline versus
+373.6 ms follow-up. This noisy headless diagnostic does **not** establish a further
+end-to-end latency improvement. It confirms eight successful toggles per build;
+model checks establish narrowed invalidation/batched metadata, not smoothness.
+The reproducible opt-in diagnostic is `node scripts/profile-ui-clicks.mjs <local-url>
+<output.json>`; it blocks external requests, seeds a disposable 12-node workspace,
+uses no CPU profiler and has no arbitrary timing pass/fail threshold.
+`OMNIA_PROFILE_SOURCE` labels a separately served baseline; otherwise the report
+records runner HEAD and dirty status. Do not compare these numbers directly to
+previous profiler-enabled samples or call them physical input-to-display latency.
+
+277 model checks passed, including render-slice invalidation, deduplicated inserted
+roots and final-source registration batching. Production build and type checking
+passed. Focused isolated Chromium smoke passed library field editing, atlas
+creation through the current action handler, inserted native-button discovery,
+caption updates with stable action identity and no page errors. Search/Esc,
+minimize/restore, docking behavior and scene pulse continuity still need user
+acceptance in the preview. Large-workspace commits, remaining broad global owners
+and renderer/effect load remain separate performance risks; no general frame-time
+guarantee is claimed.

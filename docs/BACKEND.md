@@ -9,9 +9,10 @@ Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScrip
 - Private PNG/JPEG/WebP uploads, server-side signature/size/type validation, download, and retryable deletion.
 - Database grants and row-level policies; no ordinary client can change membership or finalize a file by writing table rows.
 - Optional frontend connection in Workspace settings → Cloud connection, using the existing shared UI section, fields, and action catalog.
-- Local-only tooling and an isolated backend permission suite. A first bounded OpenAI scene generation operation and private attempt ledger are described in [scene generation](SCENE_GENERATION.md); paid generation is gated off until configured. No public signup, cloud atlas synchronization, durable job runner, collaboration, quest system, or GitHub publishing integration.
+- Local-only tooling and an isolated backend permission suite. A first bounded OpenAI scene generation operation and private attempt ledger are described in [scene generation](SCENE_GENERATION.md); paid generation is gated off until configured. No public signup, automatic cloud atlas synchronization, durable job runner, collaboration, quest system, or GitHub publishing integration.
 
-The atlas still autosaves to the existing browser storage. Signing in creates no cloud copy. Cloud assets are separate resources and are not inserted into the atlas. The scene feature can explicitly apply a generated private image as the workspace background; uploading an ordinary file does not automatically apply it.
+The atlas still autosaves to the existing browser storage. Signing in creates no cloud copy. The Stage 2 library provides an explicit
+workspace snapshot save/load path once its migration/function update is installed. Cloud assets are separate resources and are not inserted into the atlas. The scene feature can explicitly apply a generated private image as the workspace background; uploading an ordinary file does not automatically apply it.
 
 ## Local setup
 

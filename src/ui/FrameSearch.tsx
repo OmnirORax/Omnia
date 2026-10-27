@@ -2,7 +2,7 @@ import { registerFrameSearch } from "./frameSearchActions";
 import { useActiveLayer } from "./ActiveContext";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useUI, type UIContextValue } from "./context";
+import { useUITracked, type UIContextValue } from "./context";
 import { activateDockMember, getContainer, residentKey, updateContainer } from "./layout";
 import { functionShortcutBinding } from "../workspaceActions";
 import { ShortcutHint } from "./ShortcutHint";
@@ -10,7 +10,7 @@ import { ShortcutHint } from "./ShortcutHint";
 export type SearchResult = { key: string; label: string; path: string[]; functionId?: string; element?: HTMLElement };
 export { normalizeSearch } from "./searchMatching";
 import { prepareSearchResults, matchSearchResults } from "./searchMatching";
-export const rootFor = (key: string) => key === "workspace" ? document.body : [...document.querySelectorAll<HTMLElement>("[data-ui-resident-root]")].find(element => element.dataset.uiResidentRoot === key);
+export const rootFor = (key: string) => key === "workspace" ? document.body : document.querySelector<HTMLElement>(`[data-ui-resident-root="${CSS.escape(key)}"]`) ?? undefined;
 export const nameFor = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? (key.startsWith("frame:") ? ui.layout.frames.find(frame => `frame:${frame.id}` === key)?.name : undefined) ?? key.replace(/^(frame:|window:panel:|window:)/, "");
 
 /** Index control labels; matching also resolves registered shortcut metadata.
@@ -57,8 +57,9 @@ export function frameControls(ui: UIContextValue, container: string): SearchResu
 }
 
 export function FrameSearch({ container, title, expand, renderToggle = true }: { container: string; title: string; expand: () => void; renderToggle?: boolean }) {
-  const ui = useUI(), id = useId();
+  const id = useId();
   const [open, setOpen] = useState(false), [query, setQuery] = useState(""), [active, setActive] = useState(0);
+  const ui=useUITracked(ui=>open?[ui.layout,ui.functions,ui.shortcutBindings]:[]);
   const [position, setPosition] = useState({ left: 8, top: 8, height: 400 });
   const toggle = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
   const cleanup = useRef<() => void>(() => {});

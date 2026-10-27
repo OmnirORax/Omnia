@@ -1,12 +1,12 @@
 import { useCancelValueEdit } from "./ActiveContext";
 import { useEffect, useRef, useState } from "react";
-import { useUI } from "./context";
+import { useUITracked } from "./context";
 import { nameSymbol } from "./nameSymbols";
 import { FEATURE_GESTURES } from "../featureActions";
 
 /** Display names are UI preferences. IDs, ownership and property semantics never change. */
 export function useUILabel(id: string, fallback: string) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[ui.layout.labels?.[id],ui.layout.hideNames]);
   const rename = (value: string) => {
     const name = value.trim().slice(0, 240);
     ui.update((layout) => {
@@ -68,7 +68,7 @@ export function UINameInput({
 }
 
 export function EditableLabel({ id, fallback }: { id: string; fallback: string }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[ui.layout.labels?.[id],ui.layout.hideNames]);
   const [name, rename] = useUILabel(id, fallback);
   const [editing, setEditing] = useState(false);
   return editing ? (

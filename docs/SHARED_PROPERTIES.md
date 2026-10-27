@@ -290,3 +290,20 @@ remain narrower, and toggling a role clears its descendant exceptions. Old type
 locks continue protecting their members from role-wide edits. The value resolver,
 policy index and MS pattern index share this ancestry. Grouping compiles from the
 registry at initialization, with no new DOM/pointer scans or animation work.
+
+
+## Active Omnic parameter owner
+
+`omnic/omnic.function.ts` projects generator/operator input metadata into the same
+property pool and declares pure read/write adapters for the `omnic` owner.
+`omnic/propertyAdapter.ts` scopes those inputs to the active component/application;
+Color and Opacity reuse existing definitions, while geometric extent/count/angle
+have their actual structural domains instead of reusing Star size or effect density.
+Editors and setters enforce active ranges, including aliases such as size/length.
+
+`contextBindings.ts` lends active owner binding references to subscribed MC controls.
+It is not a durable value store: the recoverable recipe draft remains the owner.
+Unmounted owners are hidden; settings adapters remain mandatory. The property
+contract build check covers Omnic's channels as well. Specialized consumers should
+use this existing extension path, not add a second setter registry or publish
+parameter samples into application-wide settings/React state.

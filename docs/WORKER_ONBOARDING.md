@@ -5,6 +5,10 @@ what the systems mean before you need to inspect their implementation. Read only
 the relevant subsystem reference afterward; do not rediscover the whole project
 for each task. Repository entry rules live in [AGENTS.md](../AGENTS.md).
 
+For the user-facing inventory, locations and reproducible test walkthroughs, start
+with [CAPABILITIES.md](CAPABILITIES.md). Search it before proposing new work; update
+its source catalog with every user-facing change. See [authoring](capabilities/README.md).
+
 This is a map and a set of contracts, not proof that every feature implements them
 correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it
@@ -14,9 +18,10 @@ from a long chat, an old PR or a contradictory comment.
 
 Omnia is an environment for humans and AI to construct and explore structured
 knowledge. **Omnium** is its spatial, genuinely 3D nodegraph workbench. **Omnic** is
-a proposed structural/visual language whose grammar is not yet designed. Do not
-invent that grammar, infer truth from appearance, or rebuild a 2D editor as part
-of unrelated work. [Project direction](../PROJECT_DIRECTION.md) gives the broader
+a structural language with an unfinished grammar. Its Stage 1 composer is
+implemented for review as an integrated construction/discovery instrument; read
+[the current Omnic contract](OMNIC_COMPOSER.md). Do not invent a finalized grammar,
+infer truth from appearance, or rebuild a 2D editor as part of unrelated work. [Project direction](../PROJECT_DIRECTION.md) gives the broader
 product constraints.
 
 The interface itself is user-arrangeable and customizable. A newly added feature
@@ -56,7 +61,8 @@ user repeatedly discovering regressions. Builds alone do not verify smoothness. 
 configuration freedom: prefer bounded supported options and explain necessary
 restrictions instead of allowing combinations that make the app unusable.
 
-The user still reports severe system-wide lag. See the
+The user confirmed a major click-responsiveness improvement after `85c1074`
+(2026-10-27). Remaining window/DOM work still needs user acceptance. See the
 [performance recovery plan](PERFORMANCE_ARCHITECTURE_PLAN.md) for inspected risk
 areas, baseline profiling, renderer-aware ranges, aggregate budgets and staged
 refactoring. The first systemic pass now shares indexes, preserves topology during paint edits,
@@ -508,3 +514,36 @@ unchanged; see CLOUDFLARE_DEPLOYMENT.md for disposable-data/origin restrictions.
 Node click selection is immediate, while single-click options retain double-click
 arbitration. Selection styling updates the existing text scene instead of rebuilding
 it. Preserve this separation; see PERFORMANCE_RESULTS.md.
+
+
+Omnic Stage 1 is implemented for review: canonical Entity definitions may carry an Omnic
+recipe shared by all their placements. Shared edits update live uses; an explicit
+copy creates an independent identity. No concept-to-glyph assignment or default
+version-pinning workflow. Internal recipe connections never automatically author
+external knowledge relationships. Reuse MC/MS, properties, adaptive Shift and the
+existing history owners; bound evaluation and animate only the active composer
+preview. See [OMNIC_COMPOSER.md](OMNIC_COMPOSER.md) for scope, entry paths and deferred
+work. Do not mark acceptance complete before the implementation is verified.
+
+## Omnic workspace library (Stage 2)
+
+Read [OMNIC_LIBRARY.md](OMNIC_LIBRARY.md) before changing persistence, library
+organization, revisions or cloud snapshots. The user chose a workspace-wide
+canonical entity pool and explicit cloud save/load. Stable workspace/atlas IDs,
+IndexedDB autosave, collections/tags/families, cached structural queries, frozen
+revision dependencies and shared workspace history are implemented for review.
+Existing atlas imports create independent identities; equality never merges them.
+The new backend migration/function must be rolled out separately; hosted availability
+and browser smoothness are not implied by the local implementation.
+
+Repeated UI controls now use `useUITracked` for scoped committed-snapshot
+subscriptions; see UI_COMPONENT_CONTRACT.md. Keep event reads live, include every
+render dependency, and preserve data-reader identity on actual appearance changes.
+Do not replace the legacy context globally without migrating its consumers.
+
+Window/panel/chrome/docking residents now also use scoped subscriptions. Closed
+frame searches and dormant active-layer adapters do not listen to unrelated UI
+changes. Native discovery deduplicates inserted subtrees, checks changed caption
+hosts directly and skips unchanged presentation. Function registration metadata
+publishes once per microtask; action/history execution stays synchronous. See
+UI_COMPONENT_CONTRACT.md and the opt-in `scripts/profile-ui-clicks.mjs` diagnostic.

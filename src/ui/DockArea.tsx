@@ -1,5 +1,7 @@
+import {residentRenderSlice} from './renderSubscriptions';
+import {functionIndex} from './functionIndex';
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useUI } from "./context";
+import { useUITracked } from "./context";
 import { useDockPreview } from "./PlacementPreview";
 import { DockLayout } from "./DockLayout";
 import {
@@ -62,7 +64,11 @@ function bridges(shapes: Shape[]) {
   return paths.join(" ");
 }
 export function DockArea({ container, contour = true, hidden = false }: { container: string; contour?: boolean; hidden?: boolean }) {
-  const ui = useUI(),
+  const ui = useUITracked(ui=>[
+    ...residentRenderSlice(ui,container),
+    // A same-sized icon can change contour geometry without a ResizeObserver event.
+    ...(getContainer(ui.layout,container)?.members??[]).map(member=>member.kind==='function'?ui.layout.items[member.id]:undefined),
+  ]),
     root = useRef<HTMLDivElement>(null),
     mask = useId().replace(/:/g, ""),
     [shapes, setShapes] = useState<Shape[]>([]),
@@ -104,10 +110,9 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
+        if (!node.getClientRects().length) return;
         const bounds = node.getBoundingClientRect();
-        const chrome = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
-          (e) => e.dataset.uiChrome === container,
-        );
+        const chrome = document.querySelector<HTMLElement>(`[data-ui-chrome="${CSS.escape(container)}"]`);
         const tab = chrome?.querySelector(".ui-frame-handle")?.getBoundingClientRect();
         const h = tab
           ? {
@@ -159,7 +164,7 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
       cancelAnimationFrame(frame);
     };
   }, [container, stacked, !!state?.dockLayout]);
-  useLayoutEffect(() => { measureContent.current(); }, [ui.layout, moving]);
+  useLayoutEffect(() => { measureContent.current(); }, [state, ui.layout.items, moving]);
   if (state?.dockLayout) return <div className="ui-embedded-dock-layout" hidden={hidden}><DockLayout container={container} /></div>;
   return (
     <div
@@ -330,7 +335,7 @@ function ResidentSlot({
   origin: { x: number; y: number };
   stacked?: boolean;
 }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[member.kind==='function'?functionIndex(ui.functions,ui.layout).byId.get(member.id):getContainer(ui.layout,residentKey(member)),member.kind==='function'?ui.layout.items[member.id]:undefined]);
   return (
     <>
       {!stacked && member.breakBefore && !member.position && (

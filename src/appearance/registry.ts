@@ -44,7 +44,7 @@ export const SELECTOR_FEEDBACK = {
   boundary: { label: "Boundary", color: "#60ddec" },
 } as const;
 /** Inline artwork has its own ink; it never inherits a text target's color. */
-export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]),[role="button"] svg:not([data-range-glyph]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
+export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]):not([data-omnic-structure]),[role="button"] svg:not([data-range-glyph]):not([data-omnic-structure]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];

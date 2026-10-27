@@ -319,3 +319,42 @@ frame. Existing close callbacks, vetoes and frame action registration remain int
 Active context Minimize / maximize toggles collapsed state and retains its frame
 target for restoration. Esc still steps back/minimizes and pops context normally.
 Front-on Focus shares this group and the existing rebindable F command.
+
+## Scoped UI subscriptions
+
+`UIProvider` publishes committed owner snapshots to a transient subscription
+projection; it does not own layout/history/settings. Frequently repeated controls
+use `useUITracked(select)` from `ui/context.tsx`. Select only render dependencies;
+returned slices compare references/scalars, while the live handle reads current
+committed state for events. Do not omit a render dependency to save a rerender.
+The provider publishes in a layout effect, never during an abandoned render.
+
+Buttons/fields/embedded headers and action registration now use this route.
+Legacy `useUI`/`UIContext` remains for consumers not yet migrated; avoid adding broad
+subscriptions to repeated controls. Appearance action delegates preserve current
+handlers, but `read`/`renderRead` retain snapshot identity so property/range memos
+invalidate correctly. Dock workspace context preserves identity for equal geometry.
+Native fields stay mounted and callable while collapsed. No duplicate value store,
+shortcut router or history owner is introduced by selective subscriptions.
+
+
+Window/panel/frame chrome, docking residents/tabs and editable labels also use
+scoped projections (`residentRenderSlice`). Docked controls subscribe to their own
+current registry entry so updated handlers/values do not require their parent to
+rerender. Closed frame searches and dormant active-layer adapters have empty
+render slices; events still read current committed state. Search subscribes to its
+inventory only while open.
+
+Native caption/button observers distinguish actual inserted subtrees from changed
+caption hosts. Deduplicate inserted roots with `minimalMutationRoots` before a
+subtree query; do not query all descendants of a changed caption. Initial discovery
+and an explicit global Hide names change may scan globally. Native presentation
+compares each entry's own item/label/binding, ownership permissions and relevant
+appearance/asset inputs; force reapply only after a real DOM host change. Function
+scope/rigidity metadata changes must invalidate permission checks.
+
+`createRegistrationBatch` coalesces function-registration metadata into one UI
+inventory publication per microtask. Source stacks/token cleanup update immediately;
+last registration/cleanup per ID wins. This is not an editor/action/history queue:
+commands and commits remain synchronous, and no registration publication occurs
+after owner unmount. Preserve unavailable placeholders and source-stack fallback.

@@ -1,4 +1,10 @@
 # Omnium 
+
+> **[Capabilities and user guide](docs/CAPABILITIES.md)** — what exists, where to
+> find it, how it works, and minimal tests with expected results. Command/gesture
+> names and defaults regenerate from the app; deployment and verification status
+> are recorded separately. Contributors: [guide authoring](docs/capabilities/README.md).
+
 A local, interactive 3D atlas for charting systems. React, TypeScript, Three.js and Vite Plus power the current workbench. Its version-2 JSON document is independent of the renderer and provisional English labels. [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md) records the long-term constraints.
 
 ## For new workers

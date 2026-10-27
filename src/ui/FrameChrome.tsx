@@ -1,9 +1,10 @@
+import {residentRenderSlice} from './renderSubscriptions';
 import { searchFrame } from "./frameSearchActions";
 import { toggleFrameDescendants } from "./frameExpansion";
 import { useIconTint } from "../appearance/Styles";
 import { useLayoutEffect, type MouseEvent } from "react";
 import { ShortcutHint } from "./ShortcutHint";
-import { useUI } from "./context";
+import { useUITracked } from "./context";
 import { startResidentDrag } from "./drag";
 import type { WindowState } from "./layout";
 import { FrameSearch } from "./FrameSearch";
@@ -54,7 +55,7 @@ export function FrameChrome({
     container,
     legacyHandleId ? `function:${legacyHandleId}` : undefined,
   );
-  const ui = useUI(),
+  const ui = useUITracked(ui=>residentRenderSlice(ui,container)),
     style = state.chrome?.style ?? { mode: "text", geometry: "circle" },
     asset = ui.layout.assets.find((a) => a.id === style.assetId);
   const close = onClose ?? (() => ui.update(layout => closeContainer({

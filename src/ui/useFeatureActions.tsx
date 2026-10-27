@@ -1,13 +1,13 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
 import { isTypingTarget, preferredFeatureKey, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
-import { useUI } from "./context";
+import { useUI, useUITracked } from "./context";
 
 type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void; configuration?: ReactNode }>;
 /** A feature cannot install a binding absent from the shared catalog. Its command
  * buttons, runtime input and shortcut rows all use these same registered IDs. */
 export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, handlers: Handlers<Owner>) {
-  const ui = useUI(), latest = useRef({ ui, handlers }); latest.current = { ui, handlers };
+  const ui = useUITracked(ui=>[ui.registerFunction]), latest = useRef({ ui, handlers }); latest.current = { ui, handlers };
   const definitions = FEATURE_ACTIONS.filter(action => action.owner === owner).sort((a, b) => Number(a.scope === "global") - Number(b.scope === "global"));
   const configurations = JSON.stringify(definitions.map(action => handlers[action.id as FeatureActionFor<Owner>].configuration !== undefined));
   const availability = JSON.stringify(definitions.map(action => handlers[action.id as FeatureActionFor<Owner>].enabled));

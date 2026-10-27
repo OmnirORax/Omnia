@@ -1,3 +1,4 @@
+import { useContextPropertyBindings } from "./contextBindings";
 import { useState } from "react";
 import { PROPERTY_REGISTRY } from "../appearance/registry";
 import { PropertyEditor } from "../appearance/Controls";
@@ -6,27 +7,31 @@ import { UIField } from "../ui/UIField";
 import { preparePropertyChanges, type PropertyChange, type PropertyValue } from "./registry";
 export type PropertyBindings = {
   values: Record<string, Record<string, PropertyValue>>;
+  limits?: Record<string, Record<string, {min:number;max:number}>>;
   commit: (changes: PropertyChange[]) => void;
 };
 /** Generated categories, one editor per property, and independent consumer targets. */
-export function CoupledProperties({ bindings, category: requestedCategory, selectedConsumers, scope = "master" }: { bindings: PropertyBindings; category?: string; selectedConsumers?: readonly string[]; scope?: string }) {
+export function CoupledProperties({ bindings: suppliedBindings, category: requestedCategory, selectedConsumers, scope = "master" }: { bindings: PropertyBindings; category?: string; selectedConsumers?: readonly string[]; scope?: string }) {
+  const bindings = useContextPropertyBindings(suppliedBindings);
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
-  const consumers = PROPERTY_REGISTRY.consumers.filter(consumer => consumer.owner !== "appearance" && (!selectedConsumers || selectedConsumers.includes(consumer.id)));
+  const consumers = PROPERTY_REGISTRY.consumers.filter(consumer => consumer.owner !== "appearance" && (consumer.owner === "settings" || !!bindings.values[consumer.id]) && (!selectedConsumers || selectedConsumers.includes(consumer.id)));
   for (const consumer of consumers) for (const property of Object.keys(consumer.channels)) {
-    if (bindings.values[consumer.id]?.[consumer.channels[property]] === undefined)
+    if (consumer.owner === "settings" && bindings.values[consumer.id]?.[consumer.channels[property]] === undefined)
       throw new Error(`Missing property adapter: ${consumer.id}/${property}`);
   }
   return <>{PROPERTY_REGISTRY.categories.filter(category => requestedCategory ? category.id === requestedCategory : category.id !== "visual").map(category => {
     const properties = PROPERTY_REGISTRY.definitions.filter(property => property.category?.id === category.id &&
-      consumers.some(consumer => consumer.properties.includes(property.id)));
+      consumers.some(consumer => consumer.properties.includes(property.id) && bindings.values[consumer.id]?.[consumer.channels[property.id]] !== undefined));
     if (!properties.length) return null;
     const contents = <>
       {properties.map(property => {
-        const targets = consumers.filter(consumer => consumer.properties.includes(property.id));
+        const targets = consumers.filter(consumer => consumer.properties.includes(property.id) && bindings.values[consumer.id]?.[consumer.channels[property.id]] !== undefined);
         const selected = targets.filter(consumer => !excluded.has(`${property.id}:${consumer.id}`));
         const values = selected.map(consumer => bindings.values[consumer.id][consumer.channels[property.id]]);
         const value = values[0] ?? property.initial;
         const mixed = values.some(item => item !== value);
+        const ranges = selected.flatMap(consumer => bindings.limits?.[consumer.id]?.[property.id] ? [bindings.limits[consumer.id][property.id]] : []);
+        const limits = ranges.length ? {min:Math.max(...ranges.map(range=>range.min)),max:Math.min(...ranges.map(range=>range.max))} : undefined;
         return <UISection key={property.id} id={`${scope}-property:${property.id}`} title={property.label}>
           {targets.map(consumer => <UIField key={consumer.id} id={`${scope}-target:${property.id}:${consumer.id}`} label={consumer.label} category={category.label}>
             <label><input type="checkbox" checked={!excluded.has(`${property.id}:${consumer.id}`)}
@@ -35,7 +40,7 @@ export function CoupledProperties({ bindings, category: requestedCategory, selec
           </UIField>)}
           <UIField id={`${scope}-setter:${property.id}`} label={property.label} category={category.label}>
             <label>{property.label}{property.unit ? ` (${property.unit})` : ""}{mixed ? " · Mixed" : ""}
-              <PropertyEditor property={property.id} value={value} disabled={!selected.length} choices={property.kind === "select" ? property.options?.filter(option => selected.every(consumer => !consumer.choices[property.id] || consumer.choices[property.id].includes(option.id))).map(option => option.id) : undefined} onPreview={() => {}}
+              <PropertyEditor property={property.id} value={value} limits={limits} disabled={!selected.length} choices={property.kind === "select" ? property.options?.filter(option => selected.every(consumer => !consumer.choices[property.id] || consumer.choices[property.id].includes(option.id))).map(option => option.id) : undefined} onPreview={() => {}}
                 onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property.id, value, selected.map(consumer => consumer.id)))} />
             </label>
           </UIField>

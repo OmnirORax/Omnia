@@ -1,3 +1,18 @@
+# Capability discovery and delivery (required)
+
+Before implementing a feature, read/search [docs/CAPABILITIES.md](docs/CAPABILITIES.md)
+and the relevant subsystem reference. Reuse or fix existing capabilities instead
+of duplicating them. Every new/changed/retired user-facing behavior must update
+[docs/capabilities/catalog.json](docs/capabilities/catalog.json) in the same change,
+including exact entry path, behavior/options, minimal steps with expected outcomes,
+limits, deployment status and evidence-based verification status. Native controls
+and workflows without catalog actions are included. Follow the
+[authoring contract](docs/capabilities/README.md); regenerate with
+`node --run docs:capabilities`. Test/build entry points check registry coverage and
+freshness. Do not mark a feature finished with a generic placeholder walkthrough.
+Final handoffs link the changed guide sections and state what the user still needs
+to test. Browser acceptance and deployment are never inferred from builds.
+
 # Worker entry rules
 
 Read [docs/WORKER_ONBOARDING.md](docs/WORKER_ONBOARDING.md) once when starting work
@@ -200,3 +215,22 @@ Backgrounds/Contours/Text/Icons/Indicators membership; new types inherit groupin
 Preserve stable target IDs and compatibility ancestry for saved selection/locks/
 bypass. The build verifies generated membership. See SHARED_PROPERTIES.md for the
 adapter declaration and compatibility contract.
+
+
+For Omnic work, read [docs/OMNIC_COMPOSER.md](docs/OMNIC_COMPOSER.md). Stage 1
+stores a renderer-independent structural recipe on the canonical Omnium object
+(`Entity.omnic`); placements/reused components reference it. Do not reintroduce
+concept-to-glyph asset assignment or infer semantic equivalence from matching
+renderings. Shared edits update references; explicit copies create identities.
+Keep provisional grammar/frames explicit, preserve unresolved role references,
+reuse MC/property/history owners, and respect evaluator/render budgets. English
+translation, audio and full radial grammar remain deferred. Stage 2 adds the
+workspace-wide canonical library, explicit pins and version-checked cloud snapshots;
+read [docs/OMNIC_LIBRARY.md](docs/OMNIC_LIBRARY.md). Use its shared workspace owner,
+IDs, IndexedDB persistence and dependency resolver. Never make per-atlas copies of
+shared objects or treat the local document revision as a server concurrency token.
+
+Repeated UI controls should use scoped `useUITracked` subscriptions rather than
+subscribing to the full UI context. Preserve current event handlers and actual
+render dependencies; appearance readers keep snapshot identity. Read the scoped
+subscription section in UI_COMPONENT_CONTRACT.md before extending this path.

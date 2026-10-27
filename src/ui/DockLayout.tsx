@@ -1,6 +1,7 @@
+import {functionIndex} from './functionIndex';
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
-import { useEffect, useRef, useState } from "react";
-import { DockFillContext, useUI } from "./context";
+import { memo, useEffect, useRef, useState } from "react";
+import { DockFillContext, useUITracked } from "./context";
 import { getContainer, updateContainer } from "./layout";
 import { dockSplitStyle, updateDockNode, type DockNode } from "./dockTree";
 import { DockHost } from "./DockHost";
@@ -10,12 +11,12 @@ import { useIconTint } from "../appearance/Styles";
 import { ShortcutHint } from "./ShortcutHint";
 import { nameSymbol } from "./nameSymbols";
 
-export function DockLayout({ container }: { container: string }) {
-  const ui = useUI(), tree = getContainer(ui.layout, container)?.dockLayout;
+export const DockLayout=memo(function DockLayout({ container }: { container: string }) {
+  const ui = useUITracked(ui=>[getContainer(ui.layout,container)?.dockLayout]), tree = getContainer(ui.layout, container)?.dockLayout;
   return tree ? <DockBranch node={tree} path={[]} container={container} /> : null;
-}
+});
 function DockBranch({ node, path, container }: { node: DockNode; path: number[]; container: string }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>node.kind==='tabs'?[ui.layout.hideNames,functionIndex(ui.functions,ui.layout).permissions,...node.keys.flatMap(key=>[nameFor(ui,key),getContainer(ui.layout,key)?.chrome?.style,ui.shortcutBindings?.[`button:@frame:${key}`]])]:[]);
   if (node.kind === "split") return <DockSplit node={node} path={path} container={container} />;
   return <div className="ui-dock-pane" data-ui-dock-pane={node.active} data-ui-dock-owner={container}>
     <div className="ui-dock-tab-strip" onContextMenu={event => {
@@ -48,7 +49,7 @@ function DockBranch({ node, path, container }: { node: DockNode; path: number[];
   </div>;
 }
 function DockTabLabel({ id, title }: { id: string; title: string }) {
-  const ui = useUI(), style = getContainer(ui.layout, id)?.chrome?.style;
+  const ui = useUITracked(ui=>[getContainer(ui.layout,id)?.chrome?.style,ui.layout.assets]), style = getContainer(ui.layout, id)?.chrome?.style;
   const tint = useIconTint(id), asset = ui.layout.assets.find(asset => asset.id === style?.assetId);
   if (style?.mode !== "icon") return title;
   return asset ? tint.color ? <span className="appearance-icon-mask" style={{ ...tint.style, backgroundColor: tint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} />
@@ -56,11 +57,11 @@ function DockTabLabel({ id, title }: { id: string; title: string }) {
     : <span style={{ ...tint.style, color: tint.color ?? tint.glyphColor }}>{style.character || "○"}</span>;
 }
 function DockFrameHost({ id }: { id: string }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[getContainer(ui.layout,id)]);
   return <DockFillContext.Provider value={true}><div className="ui-dock-fill">{ui.renderResident({ kind: "frame", id: id.slice(6) })}</div></DockFillContext.Provider>;
 }
 function DockSplit({ node, path, container }: { node: Extract<DockNode, { kind: "split" }>; path: number[]; container: string }) {
-  const ui = useUI(), root = useRef<HTMLDivElement>(null), [draft, setDraft] = useState<number>();
+  const ui = useUITracked(ui=>[functionIndex(ui.functions,ui.layout).permissions]), root = useRef<HTMLDivElement>(null), [draft, setDraft] = useState<number>();
   const latest = useRef({ ui, node, path }); latest.current = { ui, node, path };
   const gesture = useRef<{ pointer: number; start: number; extent: number; ratio: number; release: () => void } | null>(null);
   const commit = (ratio: number) => latest.current.ui.update(layout => {

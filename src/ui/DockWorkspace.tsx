@@ -1,3 +1,4 @@
+import {sameValue} from '../valueEquality';
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useUI } from "./context";
 import { getContainer, ownerOf } from "./layout";
@@ -36,7 +37,9 @@ export function DockWorkspace({ children, projection }: { children: ReactNode; p
     return () => setResidents(old => { if (old[key] !== rect) return old; const next = { ...old }; delete next[key]; return next; });
   }, []);
   const layout = allocation?.layout ?? ui.layout;
-  const geometry = useMemo(() => workspaceDockRects(layout, area), [layout, area]);
+  const proposedGeometry = useMemo(() => workspaceDockRects(layout, area), [layout, area]);
+  const lastGeometry=useRef(proposedGeometry);if(!sameValue(lastGeometry.current,proposedGeometry))lastGeometry.current=proposedGeometry;
+  const geometry=lastGeometry.current;
   const floating = useMemo(() => geometry.active ? { ...geometry.center, x: geometry.center.x + sidebarWidth, width: Math.max(1, geometry.center.width-sidebarWidth) } : geometry.center, [geometry, sidebarWidth]);
   const visibleResidents = useMemo(() => {
     if (!allocation) return residents;
@@ -80,5 +83,6 @@ export function DockWorkspace({ children, projection }: { children: ReactNode; p
       delete workspace.dataset.uiDocks;
     };
   }, [geometry]);
-  return <Context.Provider value={{ ...geometry, source: allocation?.source, floating, placements, register }}>{children}</Context.Provider>;
+  const value=useMemo(()=>({ ...geometry, source: allocation?.source, floating, placements, register }),[geometry,allocation?.source,floating,placements,register]);
+  return <Context.Provider value={value}>{children}</Context.Provider>;
 }

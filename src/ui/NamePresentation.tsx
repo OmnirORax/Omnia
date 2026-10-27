@@ -1,5 +1,6 @@
+import {minimalMutationRoots} from './mutationRoots';
 import { useEffect, useRef } from "react";
-import { useUI } from "./context";
+import { useUITracked } from "./context";
 import { nameSymbol } from "./nameSymbols";
 import { UIField } from "./UIField";
 
@@ -26,7 +27,7 @@ function caption(element: Element): string {
 
 /** CSS presentation only: never replace React children, edit values, or change action identities. */
 export function NamePresentation() {
-  const ui = useUI(),
+  const ui = useUITracked(ui=>[ui.layout.hideNames]),
     latest = useRef(ui);
   latest.current = ui;
   const scanRef = useRef<() => void>(() => {});
@@ -34,6 +35,7 @@ export function NamePresentation() {
     let frame = 0;
     let full = true;
     const dirty = new Set<Element>();
+    const added = new Set<Element>();
     const written = new WeakMap<Element, Map<string, string>>();
     const write = (element: HTMLElement, attribute: string, value: string) => {
       if (element.getAttribute(attribute) === value) return;
@@ -50,16 +52,16 @@ export function NamePresentation() {
         document
           .querySelectorAll<HTMLElement>(selector)
           .forEach((element) => candidates.add(element));
-      else
-        for (const root of dirty) {
-          if (!root.isConnected) continue;
-          if (root instanceof HTMLElement && root.matches(selector)) candidates.add(root);
-          root
-            .querySelectorAll<HTMLElement>(selector)
-            .forEach((element) => candidates.add(element));
+      else {
+        for(const element of dirty)if(element.isConnected&&element instanceof HTMLElement&&element.matches(selector))candidates.add(element);
+        for(const root of minimalMutationRoots(added)){
+          if(!root.isConnected)continue;
+          if(root instanceof HTMLElement&&root.matches(selector))candidates.add(root);
+          root.querySelectorAll<HTMLElement>(selector).forEach(element=>candidates.add(element));
         }
+      }
       full = false;
-      dirty.clear();
+      dirty.clear();added.clear();
       for (const element of candidates) {
         if (!element.closest(scope) || element.closest(ignored)) continue;
         if (
@@ -141,11 +143,11 @@ export function NamePresentation() {
           if (caption) dirty.add(caption);
           if (record.type === "childList")
             record.addedNodes.forEach((node) => {
-              if (node instanceof Element) dirty.add(node);
+              if (node instanceof Element) added.add(node);
             });
         }
       }
-      if (dirty.size) schedule();
+      if (dirty.size||added.size) schedule();
     });
     observer.observe(document.body, {
       subtree: true,
@@ -176,7 +178,7 @@ export function NamePresentation() {
 }
 
 export function NameVisibilityControl() {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[ui.layout.hideNames]);
   return (
     <UIField id="ui:hideNames" label="Hide names" category="Appearance">
       <label className="ui-checkbox-control">

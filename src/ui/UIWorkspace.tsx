@@ -1,4 +1,7 @@
+import {createRegistrationBatch} from './registrationBatch';
+import {residentRenderSlice} from './renderSubscriptions';
 import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
+import {functionIndex} from './functionIndex';
 import type { ActiveContextStack } from "./activeContextModel";
 import { ActiveContextSystem } from "./ActiveContext";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
@@ -30,6 +33,7 @@ import { AppearanceStyles, useIconTint } from "../appearance/Styles";
 import { ContextualAppearance } from "../appearance/ContextualEditor";
 import {
   cloneElement,
+  memo,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -44,12 +48,12 @@ import {
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import {
-  UIContext,
+  UIProvider,
+  useUITracked,
   UIHomeContext,
   UIPathContext,
   UIContainerContext,
   DockFillContext,
-  useUI,
   type UIFunction,
   type UIContextValue,
   type UICommand,
@@ -114,17 +118,19 @@ import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
-export function FunctionControl({ id, palette = false, mirror = false }: { id: string; palette?: boolean; mirror?: boolean }) {
-  const ui = useUI(),
-    fn = ui.functions.find((f) => f.id === id),
+export const FunctionControl=memo(function FunctionControl({ id, palette = false, mirror = false }: { id: string; palette?: boolean; mirror?: boolean }) {
+  const scope = useContext(UIHomeContext), anchor = `${scope}|${id}`;
+  const ui = useUITracked(ui=>{
+    const index=functionIndex(ui.functions,ui.layout);
+    return [index.byId.get(id),ui.layout.items[id],index.anchors.get(anchor),ui.layout.nativeOrders?.[anchor],index.owners.get(`function:${id}`)];
+  }), index=functionIndex(ui.functions,ui.layout),
+    fn = index.byId.get(id),
     item = ui.layout.items[id];
-  const scope = useContext(UIHomeContext),
-    anchor = `${scope}|${id}`;
   // A contextual action surface reuses its registered action and styling without
   // relocating the resident or adding another action definition.
   if (mirror) return fn ? <FunctionElement fn={fn} /> : null;
   if (palette) return fn ? <FunctionElement fn={fn} palette /> : null;
-  const peers = ui.functions.filter((f) => ui.layout.items[f.id]?.anchorId === anchor);
+  const peers = index.anchors.get(anchor)??[];
   const order = [
     ...new Set([...(ui.layout.nativeOrders?.[anchor] ?? []), id, ...peers.map((f) => f.id)]),
   ];
@@ -134,15 +140,16 @@ export function FunctionControl({ id, palette = false, mirror = false }: { id: s
         const current = key === id ? fn : peers.find((f) => f.id === key);
         const visible =
           key !== id ||
-          (!ownerOf(ui.layout, `function:${id}`) && !item?.anchorId && (!item || item.home));
+          (!index.owners.has(`function:${id}`) && !item?.anchorId && (!item || item.home));
         return current && visible ? (
           <FunctionElement key={key} fn={current} nativeAnchor={{ key: anchor, id }} />
         ) : null;
       })}
     </>
   );
-}
-function FunctionElement({
+});
+
+const FunctionElement=memo(function FunctionElement({
   fn,
   palette = false,
   resident = false,
@@ -153,9 +160,13 @@ function FunctionElement({
   resident?: boolean;
   nativeAnchor?: { key: string; id: string };
 }) {
-  const ui = useUI(),
+  const ui = useUITracked(ui=>{
+    const item=ui.layout.items[fn.id],index=functionIndex(ui.functions,ui.layout);
+    return [functionIndex(ui.functions,ui.layout).byId.get(fn.id),item,index.permissions,ui.layout.hideNames,ui.layout.assets.find(a=>a.id===item?.style?.assetId),ui.shortcutBindings?.[buttonShortcutId(fn.id)],ui.selectedFunctions.has(fn.id),ui.selectingUI];
+  }),
     item = ui.layout.items[fn.id],
     style = item?.style ?? defaultStyle;
+  fn=functionIndex(ui.functions,ui.layout).byId.get(fn.id)??fn;
   const iconTint = useIconTint(`function:${fn.id}`);
   const [controlOpen, setControlOpen] = useState(false);
   const shortcut = ui.shortcutBindings?.[buttonShortcutId(fn.id)];
@@ -259,7 +270,8 @@ function FunctionElement({
       )}
     </>
   );
-}
+});
+
 export function UIPanel({
   id,
   title,
@@ -273,7 +285,7 @@ export function UIPanel({
   className?: string;
   menu?: boolean;
 }) {
-  const ui = useUI();
+  const ui = useUITracked(ui=>[...residentRenderSlice(ui,`window:panel:${id}`),ui.layout.panels[id],ui.layout.nativeOrders?.["@sidebar"]]);
   const key = `window:panel:${id}`,
     owner = ownerOf(ui.layout, key);
   const root = useRef<HTMLElement>(null);
@@ -350,10 +362,10 @@ export function UIPanel({
     </section>
   );
 }
-function FunctionFrame({ frame }: { frame: UIFrame }) {
+const FunctionFrame=memo(function FunctionFrame({ frame }: { frame: UIFrame }) {
   const { ref, bounds, element } = useFrameBounds();
   const [z, setZ] = useState(nextWindowLayer);
-  const ui = useUI(),
+  const ui = useUITracked(ui=>residentRenderSlice(ui,`frame:${frame.id}`)),
     dockFill = useContext(DockFillContext),
     key = `frame:${frame.id}`,
     parent = ownerOf(ui.layout, key),
@@ -433,7 +445,7 @@ function FunctionFrame({ frame }: { frame: UIFrame }) {
     </Rnd>
   );
   return nested ? content : createPortal(content, document.body);
-}
+});
 function FreeFunction({ id, x, y, width, height, children }: { id: string; x: number; y: number; width?: number; height?: number; children: ReactNode }) {
   const workspace = useDockWorkspace();
   const area = workspace.active ? workspace.floating : { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
@@ -464,6 +476,7 @@ type DragState = {
   fromDockPane?: boolean;
   live?: ReturnType<typeof beginLiveDrag>;
 };
+
 export function UIWorkspace({
   layout,
   update,
@@ -489,29 +502,31 @@ export function UIWorkspace({
   const suppressActivation = useDragActivationGuard();
   const sources = useRef(new Map<string, Map<symbol, UIFunction>>()).current;
   const [registered, setRegistered] = useState<Record<string, UIFunction>>({});
+  const registryLive=useRef(true);
+  useLayoutEffect(()=>{registryLive.current=true;return()=>{registryLive.current=false;};},[]);
+  const [publishRegistration]=useState(()=>createRegistrationBatch<UIFunction>(patch=>{
+    if(registryLive.current)setRegistered(old=>Object.entries(patch).every(([id,value])=>old[id]===value)?old:{...old,...patch});
+  }));
   const registerFunction = useCallback(
     (fn: UIFunction) => {
       const token = Symbol(fn.id),
         entries = sources.get(fn.id) ?? new Map<symbol, UIFunction>();
       entries.set(token, fn);
       sources.set(fn.id, entries);
-      setRegistered((old) => ({ ...old, [fn.id]: fn }));
+      publishRegistration(fn.id,fn);
       return () => {
         entries.delete(token);
         const remaining = [...entries.values()].at(-1);
-        setRegistered((old) => ({
-          ...old,
-          [fn.id]: remaining ?? {
+        publishRegistration(fn.id, remaining ?? {
             ...fn,
             available: false,
             element: (
               <p>Select the relevant node or relationship to edit {fn.label.toLowerCase()}.</p>
             ),
-          },
-        }));
+          });
       };
     },
-    [sources],
+    [sources,publishRegistration],
   );
   const functions = useMemo(() => [
     ...new Map([...definitions, ...Object.values(registered)].map((fn) => [fn.id, fn])).values(),
@@ -1582,7 +1597,7 @@ export function UIWorkspace({
   };
   const menuContainer = menu?.owner ? getContainer(ensure(layout), menu.owner) : undefined;
   return (
-    <UIContext.Provider
+    <UIProvider
       value={{
         layout,
         canMove,
@@ -1981,7 +1996,7 @@ export function UIWorkspace({
       )}
       </AppearanceProvider>
       </DockWorkspace>
-    </UIContext.Provider>
+    </UIProvider>
   );
 }
 export function UIArrangeButtons() {

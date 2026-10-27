@@ -1,5 +1,9 @@
+import {minimalMutationRoots} from './mutationRoots';
+import {nativePresentationSlice} from './renderSubscriptions';
+import {functionIndex} from './functionIndex';
+import {sameSlice} from './selectiveStore';
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { useUI } from "./context";
+import { useUITracked } from "./context";
 import { containers, residentKey, type UILayout } from "./layout";
 import { stableUIHash } from "./identity";
 import { useAppearance } from "../appearance/Context";
@@ -110,7 +114,7 @@ button[data-ui-auto-action][data-ui-native-shortcut]:not([data-ui-caption])::aft
 /** One adapter covers ordinary buttons in every current/future frame. Registered controls
  * retain their existing behavior. Recovery and the customizer itself stay outside discovery. */
 export function NativeActions() {
-  const ui = useUI(),
+  const ui = useUITracked(nativePresentationSlice),
     latest = useRef(ui);
   latest.current = ui;
   const appearance = useAppearance(), ink = useRef(appearance);
@@ -129,11 +133,20 @@ export function NativeActions() {
   const styleValue = (element: HTMLElement, name: string, value: string) => {
     if (element.style.getPropertyValue(name) !== value) element.style.setProperty(name, value);
   };
-  const apply = (entry: Entry) => {
+  const applied = useRef(new WeakMap<Entry,readonly unknown[]>());
+  const presentationKey=functionIndex(ui.functions,ui.layout).permissions,rigidityKey=functionIndex(ui.functions,ui.layout).rigidity;
+  const apply = (entry: Entry, force=false) => {
     const { element, id } = entry,
       { layout, shortcutBindings } = latest.current;
     const item = layout.items[id],
       style = item?.style;
+    const appearance=ink.current,fn=functionIndex(latest.current.functions,layout).byId.get(id);
+    const inputs=[fn?.control,fn?.scope,fn?.homePath,fn?.rigidityTarget,item,layout.labels?.[`function:${id}`],layout.hideNames,shortcutBindings?.[`button:${id}`],functionIndex(latest.current.functions,layout).permissions,
+      style?.mode==='icon'?layout.assets.find(asset=>asset.id===style.assetId):undefined,
+      style?.mode==='icon'?appearance?.read:undefined,style?.mode==='icon'?appearance?.safe:undefined,entry.label];
+    const previous=applied.current.get(entry);
+    if(!force&&previous&&sameSlice(previous,inputs))return;
+
     if (element.title && !element.dataset.uiNativeTitle && !element.dataset.uiNameFallback)
       element.dataset.uiNameFallback = element.title.split(/\s*·\s*|;\s*/)[0];
     // Unknown expandable buttons are not complete movable groups. Their declared
@@ -191,13 +204,15 @@ export function NativeActions() {
     styleValue(element, "--ui-caption-shortcut", JSON.stringify(shortcut ? ` (${shortcut})` : ""));
     if (shortcut) attribute(element, "data-ui-native-shortcut", shortcut);
     else delete element.dataset.uiNativeShortcut;
+    applied.current.set(entry,inputs);
   };
   useLayoutEffect(() => {
-    entries.current.forEach(apply);
-  }, [ui.layout, ui.shortcutBindings, appearance?.read, appearance?.state.values, appearance?.state.disconnected, appearance?.targets, appearance?.safe]);
+    entries.current.forEach(entry=>apply(entry));
+  }, [ui.layout.items,ui.layout.labels,ui.layout.assets,ui.layout.hideNames,presentationKey,rigidityKey,ui.shortcutBindings,appearance?.read,appearance?.safe]);
   useEffect(() => {
     let frame = 0;
     const dirty = new Set<HTMLButtonElement>();
+    const added=new Set<Element>();
     let removed = false;
     const register = (button: HTMLButtonElement): Entry | undefined => {
       if (!eligible(button)) return;
@@ -240,11 +255,16 @@ export function NativeActions() {
           ),
         });
       }
-      apply(entry);
+      apply(entry,true);
       return entry;
     };
     const scan = () => {
       frame = 0;
+      for(const root of minimalMutationRoots(added))if(root.isConnected){
+        if(root instanceof HTMLButtonElement)dirty.add(root);
+        root.querySelectorAll<HTMLButtonElement>('button').forEach(button=>dirty.add(button));
+      }
+      added.clear();
       if (removed)
         for (const [button, entry] of entries.current)
           if (!button.isConnected) {
@@ -264,19 +284,11 @@ export function NativeActions() {
         const button = element.closest<HTMLButtonElement>("button");
         if (button) dirty.add(button);
         if (record.type === "childList") {
-          for (const node of record.addedNodes)
-            if (node instanceof Element) {
-              if (node instanceof HTMLButtonElement) dirty.add(node);
-              node
-                .querySelectorAll<HTMLButtonElement>("button")
-                .forEach((button) => dirty.add(button));
-            }
-          for (const node of record.removedNodes)
-            if (node instanceof Element && (node.matches("button") || node.querySelector("button")))
-              removed = true;
+          for(const node of record.addedNodes)if(node instanceof Element)added.add(node);
+          for(const node of record.removedNodes)if(node instanceof Element)removed=true;
         }
       }
-      if ((dirty.size || removed) && !frame) frame = requestAnimationFrame(scan);
+      if ((dirty.size || added.size || removed) && !frame) frame = requestAnimationFrame(scan);
     });
     observer.observe(document.body, { childList: true, characterData: true, subtree: true });
     document.body.querySelectorAll<HTMLButtonElement>("button").forEach(register);

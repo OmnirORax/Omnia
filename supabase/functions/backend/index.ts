@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { ASSET_BUCKET, MAX_ASSET_BYTES, imageSignatureMatches, parseBackendRequest, resolveScenePrompt, type Asset, type ErrorCode } from '../_shared/contracts.ts';
 import { generateSceneImage, SceneProviderFailure } from './scene-provider.ts';
+import {validateWorkspace,WORKSPACE_BYTES} from '../../../src/omnic/workspace.ts';
 
 class Failure extends Error {
   constructor(readonly code: ErrorCode, readonly status: number, message: string) { super(message); }
@@ -23,7 +24,7 @@ async function readBody(request: Request): Promise<unknown> {
     while (true) {
       const result = await reader.read(); if (result.done) break;
       size += result.value.length;
-      if (size > 16384) { await reader.cancel(); throw new Failure('invalid_input', 413, 'Operation exceeds 16 KiB.'); }
+      if (size > WORKSPACE_BYTES+2048) { await reader.cancel(); throw new Failure('invalid_input', 413, 'Operation exceeds the workspace request limit.'); }
       parts.push(result.value);
     }
   } finally { reader.releaseLock(); }
@@ -79,6 +80,17 @@ Deno.serve(async request => {
       const result = await user.rpc('create_workspace', { p_name: input.name, p_request_id: input.requestId });
       databaseError(result.error);
       return respond({ data: result.data, requestId });
+    }
+    if(input.operation==='workspace.save'){
+      const membership=await user.from('workspace_members').select('role').eq('workspace_id',input.workspaceId).eq('user_id',identity.data.user.id).maybeSingle();
+      databaseError(membership.error);
+      if(!['owner','editor'].includes(membership.data?.role??''))throw new Failure('forbidden',403,'Workspace editing access is required.');
+      try{if(new TextEncoder().encode(JSON.stringify(input.snapshot)).length>WORKSPACE_BYTES)throw Error();validateWorkspace(input.snapshot);}
+      catch{throw new Failure('invalid_input',400,'Invalid workspace snapshot or workspace budget exceeded.');}
+      const serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');if(!serviceKey)throw new Failure('dependency_unavailable',503,'Workspace saving is unavailable.');
+      const service=createClient(url,serviceKey,{...options,global:{...options.global,headers:{}}});
+      const result=await service.rpc('save_workspace_snapshot',{p_workspace:input.workspaceId,p_actor:identity.data.user.id,p_expected:input.expectedVersion,p_request:input.requestId,p_snapshot:input.snapshot});
+      databaseError(result.error);return respond({data:result.data,requestId});
     }
     if (input.operation === 'scene.capabilities') {
       const membership = await user.from('workspace_members').select('role').eq('workspace_id', input.workspaceId).eq('user_id', identity.data.user.id).maybeSingle();

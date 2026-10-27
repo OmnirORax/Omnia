@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { useUI } from "./context";
+import { useUITracked } from "./context";
 import { dockGuides } from "./dockGuides";
 import { DockLayoutPreview } from "./DockLayoutPreview";
 
 export function useDockPreview(container: string) {
-  const { placementPreview } = useUI();
+  const { placementPreview } = useUITracked(ui=>[ui.placementPreview]);
   return useSyncExternalStore(placementPreview.subscribe, () => {
     const dock = placementPreview.getSnapshot()?.dock;
     return dock?.target === container ? dock : null;
@@ -12,7 +12,7 @@ export function useDockPreview(container: string) {
 }
 
 export function PlacementPreviewOverlay() {
-  const { placementPreview } = useUI();
+  const { placementPreview } = useUITracked(ui=>[ui.placementPreview]);
   const preview = useSyncExternalStore(placementPreview.subscribe, placementPreview.getSnapshot);
   const layer = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {

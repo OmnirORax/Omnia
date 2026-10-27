@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { ASSET_BUCKET, MAX_ASSET_BYTES, isImageType, type Asset, type BackendRequest, type Workspace, type SceneGenerateInput, type SceneGeneration } from '../../supabase/functions/_shared/contracts.ts';
+import { ASSET_BUCKET, MAX_ASSET_BYTES, isImageType, type Asset, type BackendRequest, type Workspace, type SceneGenerateInput, type SceneGeneration,type WorkspaceSnapshot,type WorkspaceSaveInput } from '../../supabase/functions/_shared/contracts.ts';
 export type { Asset, Workspace, WorkspaceMember } from '../../supabase/functions/_shared/contracts.ts';
 
 type Configuration = { kind: 'local' } | { kind: 'invalid'; message: string } | { kind: 'cloud'; client: SupabaseClient };
@@ -39,6 +39,11 @@ async function operation<T>(client: SupabaseClient, body: BackendRequest): Promi
   return data.data as T;
 }
 export const cloud = {
+  saveWorkspace:(client:SupabaseClient,input:WorkspaceSaveInput)=>operation<WorkspaceSnapshot>(client,input),
+  async loadWorkspace(client:SupabaseClient,workspaceId:string):Promise<WorkspaceSnapshot|null>{
+    const result=await client.from('workspace_snapshots').select('*').eq('workspace_id',workspaceId).maybeSingle();
+    if(result.error)throw Error('Workspace snapshots are unavailable. Install the workspace backend migration first.');return result.data;
+  },
   sceneCapabilities: (client: SupabaseClient, workspaceId: string) => operation<{ enabled: boolean }>(client, { operation: 'scene.capabilities', workspaceId }),
   generateScene: (client: SupabaseClient, input: SceneGenerateInput) => operation<SceneGeneration>(client, input),
   async sceneGenerations(client: SupabaseClient, workspace: string): Promise<SceneGeneration[]> {

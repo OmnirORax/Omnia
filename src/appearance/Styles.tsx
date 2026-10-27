@@ -136,18 +136,18 @@ export function AppearanceStyles() {
 export function useIconTint(owner: string, fallbackOwner?: string) {
   return iconTintFor(useAppearance(), owner, fallbackOwner);
 }
+const iconOwners=new WeakMap<NonNullable<ReturnType<typeof useAppearance>>['targets'],Map<string,NonNullable<ReturnType<typeof useAppearance>>['targets'][number]>>();
 /** Shared by React artwork and the native-button adapter. */
 export function iconTintFor(ctx: ReturnType<typeof useAppearance>, owner: string, fallbackOwner?: string) {
   if (!ctx || ctx.safe) return {};
-  const instance = ctx.targets.find(
-    (t) => t.instance?.base === "symbols.ui" && t.instance.owner === owner && !t.instance.part,
-  );
-  const fallback = fallbackOwner
-    ? ctx.targets.find(
-        (t) => t.instance?.base === "symbols.ui" && t.instance.owner === fallbackOwner && !t.instance.part,
-      )
-    : undefined;
-  const target = instance ?? fallback ?? ctx.targets.find((t) => t.id === "symbols.ui");
+  let index=iconOwners.get(ctx.targets);
+  if(!index){
+    index=new Map();
+    for(const target of ctx.targets){if(target.id==='symbols.ui')index.set('',target);if(target.instance?.base==='symbols.ui'&&!target.instance.part&&!index.has(target.instance.owner))index.set(target.instance.owner,target);}
+    iconOwners.set(ctx.targets,index);
+  }
+  const instance=index.get(owner),fallback=fallbackOwner?index.get(fallbackOwner):undefined;
+  const target=instance??fallback??index.get('');
   if (!target) return {};
   const read = ctx.read;
   const get = (p: string) => read(target, p);

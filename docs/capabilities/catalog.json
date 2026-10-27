@@ -1,0 +1,1222 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "guidance.catalog",
+      "title": "Capability guide and automatic coverage checks",
+      "where": "Repository README → capabilities and user guide; bookmark docs/CAPABILITIES.md.",
+      "behavior": "Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance.",
+      "steps": [
+        {
+          "do": "Open the repository README and follow capabilities and user guide. Search for Interpretive frame declarations.",
+          "expect": "Its location, scoped tri-state behavior and explicit lack of constraint enforcement are visible."
+        },
+        {
+          "do": "Follow a capability’s numbered test and compare each expected result.",
+          "expect": "You can report the stable capability ID and the failing step without reconstructing chat history."
+        },
+        {
+          "do": "For contributors: run node --run docs:capabilities, then node --run check:capabilities.",
+          "expect": "The generated guide is current and every registered command/gesture has walkthrough coverage."
+        }
+      ],
+      "reference": "docs/capabilities/README.md",
+      "sources": [
+        "scripts/capabilities.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Implemented; generator and coverage checks verified",
+      "limits": "Repository guide only; no in-app guide viewer yet. Automation checks coverage/freshness, not whether a human walkthrough or browser behavior is correct.",
+      "verification": {
+        "browser": "Not applicable to repository-only guide generation",
+        "automated": "Generator and check command run; model suite validation recorded in delivery"
+      },
+      "related": [
+        "omnic.frames",
+        "library.objects"
+      ]
+    },
+    {
+      "id": "interface.context",
+      "title": "Active context, close, minimize, resize and descendants",
+      "where": "Master controller → Active context. Click the intended frame first.",
+      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings.",
+      "steps": [
+        {
+          "do": "Open a frame, click a value field, edit it, then press Esc.",
+          "expect": "The value edit cancels and focus returns to its parent."
+        },
+        {
+          "do": "Press Esc again at frame level; reopen it. Try M, W, then W again.",
+          "expect": "The frame minimizes/restores; resize can restore its earlier size."
+        },
+        {
+          "do": "Expand several nested sections, then invoke Expand / collapse active descendants.",
+          "expect": "Descendant sections collapse together. Closing preserves reopenable frames."
+        }
+      ],
+      "reference": "docs/UI_COMPONENT_CONTRACT.md",
+      "sources": [
+        "src/ui/ActiveContext.tsx",
+        "src/ui/FrameResize.tsx"
+      ],
+      "actions": [
+        "cancel",
+        "settings",
+        "context.resize",
+        "context.back",
+        "context.float",
+        "context.close",
+        "context.minimize",
+        "context.descendants"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [
+        "interface.configure"
+      ],
+      "gestures": []
+    },
+    {
+      "id": "interface.configure",
+      "title": "Universal Shift configuration",
+      "where": "Hold Shift and press the configured shortcut of the function you want.",
+      "behavior": "Only relevant MC settings appear. Repeated shortcut presses cycle choices; release Shift executes once. Right-click an option applies and locks it; left-click resets to priority 1.",
+      "steps": [
+        {
+          "do": "Open a frame. Hold Shift and press W repeatedly.",
+          "expect": "Resize options cycle and hovering previews the proposed bounds."
+        },
+        {
+          "do": "Release Shift. Repeat, right-click another option, then use plain W.",
+          "expect": "The selected action executes; the locked choice becomes the future default."
+        }
+      ],
+      "reference": "docs/FUNCTION_CONFIGURATION.md",
+      "sources": [
+        "src/ui/ShortcutConfiguration.tsx"
+      ],
+      "actions": [
+        "shortcuts"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": [
+        "function.configure"
+      ]
+    },
+    {
+      "id": "interface.search",
+      "title": "Search UI and reveal settings",
+      "where": "S in the active context; Shift+S chooses scope. Global UI search also exists in the catalog.",
+      "behavior": "Search finds registered functions/settings. S uses retained scope, progressing from active frame through parents to All UI. Selecting a destination retains its reveal after pointer exit.",
+      "steps": [
+        {
+          "do": "Activate MC, use Shift+S to choose All UI, release Shift, and type blur.",
+          "expect": "A focused search field accepts text and shows relevant results."
+        },
+        {
+          "do": "Activate a result and move the pointer away; press Esc through the field and popup.",
+          "expect": "The destination stays revealed. Esc exits each active layer without a stuck focus border."
+        }
+      ],
+      "reference": "docs/FUNCTION_CONFIGURATION.md",
+      "sources": [
+        "src/ui/SearchController.tsx",
+        "src/ui/search.ts"
+      ],
+      "actions": [
+        "searchUI",
+        "context.search"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "interface.arrange",
+      "title": "Move, dock, select and organize UI",
+      "where": "UI library; UI edit mode; shared frame/control context actions.",
+      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure.",
+      "steps": [
+        {
+          "do": "Create a UI frame, then drag a complete section into it by its handle.",
+          "expect": "Its live controls move with it."
+        },
+        {
+          "do": "Hover another window without dragging; then drag a header over another header and choose a dock guide.",
+          "expect": "Hover alone offers no docking. The deliberate drop docks the frame."
+        },
+        {
+          "do": "Select multiple UI controls and invoke Compact selected UI / Align UI. Undo.",
+          "expect": "Selected controls rearrange; undo restores their UI arrangement without changing graph facts."
+        }
+      ],
+      "reference": "docs/UI_LAYOUT.md",
+      "sources": [
+        "src/ui/UIWorkspace.tsx",
+        "src/ui/docking.ts",
+        "src/ui/layout.ts"
+      ],
+      "actions": [
+        "ui:devMode",
+        "ui:select",
+        "ui:compact",
+        "ui:align"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": [
+        "ui.context",
+        "ui.rename"
+      ]
+    },
+    {
+      "id": "history.global",
+      "title": "Chronological undo/redo and filtering",
+      "where": "MC → History; Shift plus the configured Undo/Redo trigger. Check current bindings in Shortcuts.",
+      "behavior": "Recent uses chronological actions across owners; Context limits actions to the active context; Selective uses categories. Configure steps and a retained maximum of 10. MS selection has a separate transient timeline.",
+      "steps": [
+        {
+          "do": "Change a visual property, then move a UI frame. Invoke normal Undo twice.",
+          "expect": "The frame move reverses before the earlier visual edit."
+        },
+        {
+          "do": "Hold Shift plus Undo, cycle Recent / Context / Selective, set steps, and release Shift.",
+          "expect": "The selected history operation executes once using those settings."
+        },
+        {
+          "do": "Redo, then switch atlases and undo a knowledge edit.",
+          "expect": "The shared workspace is restored safely; the edit is not applied to an unrelated atlas."
+        }
+      ],
+      "reference": "docs/SHORTCUTS.md",
+      "sources": [
+        "src/ui/actionHistory.ts",
+        "src/ui/ContextualHistoryController.tsx"
+      ],
+      "actions": [
+        "ui:undo",
+        "ui:redo",
+        "undo",
+        "redo",
+        "history.configure"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [
+        "selector.core"
+      ],
+      "gestures": []
+    },
+    {
+      "id": "appearance.edit",
+      "title": "Visual hierarchy, shared properties and Apply/Discard",
+      "where": "Master controller → Visuals → Visual hierarchy / Properties.",
+      "behavior": "Visual roles group backgrounds, contours, text and other repeated parts. Selection becomes the exclusive edit scope. Unapplied edits are drafts; deselecting a target rolls its draft back to applied values.",
+      "steps": [
+        {
+          "do": "Select two visual subtypes and change their color without applying.",
+          "expect": "Both selected types preview the edit."
+        },
+        {
+          "do": "Deselect one type, then change color again and Apply.",
+          "expect": "The removed type returns to its applied appearance; only the retained type receives later changes."
+        },
+        {
+          "do": "Make another draft change and request close/minimize.",
+          "expect": "Existing Apply / Discard / Cancel choices blink; Apply/Discard completes the queued action and Cancel keeps editing."
+        }
+      ],
+      "reference": "docs/APPEARANCE_CONTROLLER.md",
+      "sources": [
+        "src/appearance/MasterController.tsx",
+        "src/appearance/draftTargets.ts"
+      ],
+      "actions": [
+        "appearance"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "appearance.clipboard",
+      "title": "Choose, copy and paste applicable properties",
+      "where": "MC → Properties → Copy properties / Paste applicable properties.",
+      "behavior": "Copy offers a property checklist. Mixed values are omitted. Paste uses destination capabilities and protections; unchecked companion properties remain unchanged.",
+      "steps": [
+        {
+          "do": "Choose a text target, customize color and glow, then Copy properties and check only Color.",
+          "expect": "The transient copy contains Color only."
+        },
+        {
+          "do": "Choose a different compatible text type and Paste applicable properties.",
+          "expect": "Its color changes; its glow and unsupported/locked properties stay unchanged."
+        }
+      ],
+      "reference": "docs/APPEARANCE_CONTROLLER.md",
+      "sources": [
+        "src/appearance/MasterController.tsx"
+      ],
+      "actions": [
+        "properties.copy",
+        "properties.paste"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "appearance.recovery",
+      "title": "Themes, templates, fonts and emergency recovery",
+      "where": "Master controller / appearance settings; hold Esc for two seconds for protected recovery.",
+      "behavior": "Appearance and UI templates preserve supported settings. Custom fonts are imported through the font library. Recovery remains usable when a theme becomes unreadable.",
+      "steps": [
+        {
+          "do": "Save a theme/template, make a small appearance change, then restore the saved template.",
+          "expect": "Supported saved appearance returns."
+        },
+        {
+          "do": "Hold Esc for two seconds and inspect recovery choices.",
+          "expect": "Protected recovery opens even if normal theme controls are hard to see. Cancel without resetting."
+        }
+      ],
+      "reference": "docs/APPEARANCE_CONTROLLER.md",
+      "sources": [
+        "src/appearance/Recovery.tsx",
+        "src/themeTemplates.ts",
+        "src/fontLibrary.ts"
+      ],
+      "actions": [
+        "ui:arrange",
+        "ui:createFrame",
+        "ui:reset",
+        "theme"
+      ],
+      "limits": "Use disposable themes when testing restoration. Effects are budgeted; smoothness on user hardware remains unverified.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": [
+        "appearance.recovery"
+      ]
+    },
+    {
+      "id": "controls.spectrum",
+      "title": "Horizontal spectrum slider",
+      "where": "Numeric property editors, including history Steps and visual parameters.",
+      "behavior": "Drag anywhere on the track. Left-click endpoints selects min/max; right-click endpoints edits working limits. Right-click the dot types a value; right-click arrows changes jump size. Working limits cannot override hard renderer/semantic bounds.",
+      "steps": [
+        {
+          "do": "Drag from an empty point on the track, rather than the dot.",
+          "expect": "The value follows the pointer continuously."
+        },
+        {
+          "do": "Right-click the dot, enter a value, then right-click an endpoint and an arrow.",
+          "expect": "Manual value, working bound and jump editors appear for the corresponding parts."
+        },
+        {
+          "do": "Select an endpoint and undo the completed property edit.",
+          "expect": "The value reaches the supported endpoint; undo restores the prior committed setting."
+        }
+      ],
+      "reference": "docs/UI_COMPONENT_CONTRACT.md",
+      "sources": [
+        "src/ui/RangeControl.tsx"
+      ],
+      "actions": [],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "selector.core",
+      "title": "Master Selector: patterns, scope, removal and cursor parking",
+      "where": "Q opens/resumes MS; Shift+Q opens selected-property editing by default.",
+      "behavior": "Pattern matching selects registered subtypes. E cycles modes; drawing geometry combines boundary/inside/outside. RMB removes the pointed selected pattern, or clears all over an unselected target. Ctrl+MB3 parks the MS cursor. Esc clears MS before minimizing a window.",
+      "steps": [
+        {
+          "do": "Aim MS at one text subtype and select it. Enter MC.",
+          "expect": "That subtype is selected for editing; cursor becomes normal in the editor."
+        },
+        {
+          "do": "Resume aiming and right-click a selected target, then an unselected target.",
+          "expect": "The first removes the matching selection; the second clears all."
+        },
+        {
+          "do": "Make a selection, undo/redo it while MS is active, then press Esc.",
+          "expect": "Selection history works independently; Esc clears MS before affecting the window."
+        }
+      ],
+      "reference": "docs/VISUAL_SELECTION.md",
+      "sources": [
+        "src/appearance/VisualSelector.tsx",
+        "src/appearance/visualSelection.ts"
+      ],
+      "actions": [
+        "selector.open",
+        "selector.lock",
+        "selector.selectMouse",
+        "selector.pattern",
+        "selector.deselect",
+        "selector.edit",
+        "selector.cancel",
+        "selector.undo",
+        "selector.redo",
+        "selector.redoAlternate",
+        "selector.clear",
+        "selector.aim",
+        "selector.boundary",
+        "selector.inside",
+        "selector.outside",
+        "selector.include",
+        "selector.finishGeometry",
+        "selector.releaseGeometry",
+        "selector.closePath",
+        "selector.bounds",
+        "selector.colorStop"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": [
+        "selector.pick",
+        "selector.context"
+      ]
+    },
+    {
+      "id": "selector.geometry",
+      "title": "Selection geometry, feedback and logical Self targets",
+      "where": "MS geometry controls; Self inventory; Selection / Preview and BG controls.",
+      "behavior": "Rectangle, ellipse, polygon, freehand and directional modes refine scope. BG inclusion is opt-in. Feedback visibility does not alter selection. Self inventory exposes registered logical consumers such as Mouse trail.",
+      "steps": [
+        {
+          "do": "Choose polygon mode, place at least three vertices, then Enter.",
+          "expect": "The polygon completes and defines the selected region."
+        },
+        {
+          "do": "Toggle Selection / Preview, then restore it.",
+          "expect": "Feedback hides/returns while accepted membership remains."
+        },
+        {
+          "do": "Select Mouse through Self inventory and open MC.",
+          "expect": "Its coupled controls are available without creating a visual instance."
+        }
+      ],
+      "reference": "docs/VISUAL_SELECTION.md",
+      "sources": [
+        "src/appearance/selectionGeometry.ts",
+        "src/appearance/VisualSelector.tsx"
+      ],
+      "actions": [
+        "selector.selfInventory",
+        "selector.feedbackView",
+        "selector.backgrounds"
+      ],
+      "limits": "Arbitrary negative-space and general semantic 3D picking are not implemented. See the subsystem guide for exact supported geometries.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": [
+        "selector.rotate",
+        "selector.depth"
+      ]
+    },
+    {
+      "id": "graph.create",
+      "title": "Create nodes, children, reuse identities and connect",
+      "where": "Create menu, node Inspector and context actions; N / New child / Connect from selected.",
+      "behavior": "N resolves creation from the current focus/selection. Placements can share a canonical identity. Typed relationships, structural composition and visual nesting are distinct.",
+      "steps": [
+        {
+          "do": "Select a node and press N, then select its child and press N again.",
+          "expect": "Creation follows the current context rather than a hardcoded parent."
+        },
+        {
+          "do": "Reuse an identity as another placement; rename the identity.",
+          "expect": "Both placements refer to the renamed object."
+        },
+        {
+          "do": "Connect two nodes through the relationship controls.",
+          "expect": "An explicit relationship is created; merely moving one near another creates none."
+        }
+      ],
+      "reference": "docs/WORKER_ONBOARDING.md",
+      "sources": [
+        "src/App.tsx",
+        "src/graph/structural.ts"
+      ],
+      "actions": [
+        "selectAll",
+        "deleteSelected",
+        "newNode",
+        "newChild",
+        "connect"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "graph.layout",
+      "title": "Expansion, movement, axis constraints and compaction",
+      "where": "Node selection; expansion controls; spatial settings and compaction actions.",
+      "behavior": "Expansion shows charted structure. Arrow-key movement previews per frame and commits once on release. Axis constraints and graph compaction affect placement, not canonical identity.",
+      "steps": [
+        {
+          "do": "Create a parent/child pair and toggle the selected node and its whole subtree.",
+          "expect": "Visibility expands/collapses at the selected scope."
+        },
+        {
+          "do": "Hold a movement arrow, release it, then Undo.",
+          "expect": "Movement stops on release and reverses as one gesture without a queued backlog."
+        },
+        {
+          "do": "Compact the selected subsystem.",
+          "expect": "Its placements rearrange; unrelated knowledge identities are unchanged."
+        }
+      ],
+      "reference": "docs/SHORTCUTS.md",
+      "sources": [
+        "src/navigation/nudgeGesture.ts",
+        "src/graph/layout3d.ts"
+      ],
+      "actions": [
+        "expand",
+        "expandAll",
+        "toggleSnap",
+        "nudgeLeft",
+        "nudgeRight",
+        "nudgeUp",
+        "nudgeDown",
+        "axisX",
+        "axisY",
+        "axisZ",
+        "compactSelected",
+        "compactFrame",
+        "compactAll"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "graph.frames",
+      "title": "Investigative frames, variants, layouts and proposals",
+      "where": "Create / investigative-frame / relationship / external AI proposal panels.",
+      "behavior": "Investigative frames scope knowledge references. Variants and coordinate layout views retain canonical IDs. External changesets are reviewed against a local revision before acceptance.",
+      "steps": [
+        {
+          "do": "Create a frame around a small branch and change its scope.",
+          "expect": "The frame view changes without deleting the underlying identities."
+        },
+        {
+          "do": "Switch a saved coordinate layout or inspect a variant.",
+          "expect": "Presentation changes without inventing knowledge relationships."
+        },
+        {
+          "do": "Preview a disposable external changeset before accepting it.",
+          "expect": "Proposed changes remain a preview until accepted; invalid or stale proposals are rejected."
+        }
+      ],
+      "reference": "docs/WORKER_ONBOARDING.md",
+      "sources": [
+        "src/graph/changeset.ts",
+        "src/graph/presentation.ts",
+        "src/graph/variants.ts"
+      ],
+      "actions": [],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "camera.navigation",
+      "title": "Camera versus object rotation, trackball and axis lock",
+      "where": "World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings.",
+      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session.",
+      "steps": [
+        {
+          "do": "Drag near a node center, then tangentially near its rim.",
+          "expect": "Trackball turn/tilt differs from rim spin."
+        },
+        {
+          "do": "Select the node, zoom in, and drag empty space vertically through a full turn.",
+          "expect": "Camera orbits the branch without an automatic zoom-out or vertical pole lock."
+        },
+        {
+          "do": "Hold Ctrl and begin horizontal motion, adding vertical jitter.",
+          "expect": "The initial axis stays locked until Ctrl is released."
+        }
+      ],
+      "reference": "docs/WORLD_NAVIGATION.md",
+      "sources": [
+        "src/SpatialWorkspace.tsx",
+        "src/navigation/transforms.ts"
+      ],
+      "actions": [
+        "world.navigate"
+      ],
+      "limits": "Camera context choices are session-only. Check the current shortcut binding rather than assuming MB2 when MS is active.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": [
+        "world.axisLock"
+      ]
+    },
+    {
+      "id": "camera.framing",
+      "title": "Front-on centering, fit, origin, roll and focus navigation",
+      "where": "MC World view / Active context and navigation catalog; F frames selected front-on.",
+      "behavior": "Front-on framing changes the camera, not the object. Fit local/all, return focus, roll, origin and zoom reset are separate explicit actions.",
+      "steps": [
+        {
+          "do": "Select a rotated node and invoke Frame selected front-on.",
+          "expect": "It is centered and fitted face-on without changing its stored orientation."
+        },
+        {
+          "do": "Use Fit local system, zoom reset, then Back to previous focus.",
+          "expect": "Each command changes the relevant camera view; Back restores the prior focus."
+        }
+      ],
+      "reference": "docs/WORLD_NAVIGATION.md",
+      "sources": [
+        "src/SpatialWorkspace.tsx"
+      ],
+      "actions": [
+        "focus",
+        "isolateFocus",
+        "fitLocal",
+        "fitAll",
+        "back",
+        "zoom100",
+        "cameraOrigin",
+        "rollLeft",
+        "rollRight",
+        "world.faceSelection"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "omnic.compose",
+      "title": "Procedural generators and parameters",
+      "where": "Create → New Omnic object; or select a node → Inspector → Open Omnic composer.",
+      "behavior": "Dot, ring, line, chain, radial, group and Reference generators build structures from shared parameter controls. No freehand glyph drawing. An Omnic definition is part of the canonical object.",
+      "steps": [
+        {
+          "do": "Create an Omnic object and choose a radial preset. Change Count and Radius.",
+          "expect": "The procedural structure changes immediately."
+        },
+        {
+          "do": "Add a group and add a generator inside it. Change its parameters.",
+          "expect": "Nested structure appears and can be edited without manually placing units."
+        }
+      ],
+      "reference": "docs/OMNIC_COMPOSER.md",
+      "sources": [
+        "src/omnic/Composer.tsx",
+        "src/omnic/registry.ts"
+      ],
+      "actions": [
+        "omnic.create",
+        "omnic.open"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "omnic.operations",
+      "title": "Ordered operations, role picking, target repair and count extraction",
+      "where": "Composer → Scope / Ordered operations.",
+      "behavior": "Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired.",
+      "steps": [
+        {
+          "do": "Add Count followed by Extract count; change Count.",
+          "expect": "The extracted scalar reflects the preceding count operation."
+        },
+        {
+          "do": "Move Extract count before Count using the order controls.",
+          "expect": "Its scalar now reflects the earlier state."
+        },
+        {
+          "do": "Target a generated unit, shrink count so it disappears, then use picked scope / repair targets.",
+          "expect": "The missing role is reported, never silently redirected, and an explicit replacement repairs it."
+        }
+      ],
+      "reference": "docs/OMNIC_COMPOSER.md",
+      "sources": [
+        "src/omnic/evaluate.ts",
+        "src/omnic/Composer.tsx"
+      ],
+      "actions": [],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "omnic.frames",
+      "title": "Interpretive frame declarations",
+      "where": "Composer → Interpretation frames.",
+      "behavior": "Frames record inactive, active-unspecified or active-specified properties and an explicit scope. They do not yet interpret meaning, enforce constraints or alter geometry.",
+      "steps": [
+        {
+          "do": "Pick part of a composition, add an inactive angle frame, then switch it to active-specified and enter a value.",
+          "expect": "The scoped declaration is recorded; geometry does not rotate."
+        },
+        {
+          "do": "Save shared, reopen and inspect the frame.",
+          "expect": "Its scope, state and value are retained. Use Rotate structure separately to change geometry."
+        }
+      ],
+      "reference": "docs/OMNIC_COMPOSER.md",
+      "sources": [
+        "src/omnic/Composer.tsx",
+        "src/omnic/model.ts"
+      ],
+      "actions": [],
+      "limits": "Constraint enforcement, inheritance and full semantic interpretation belong to Stage 3; unavailable now.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "omnic.motion",
+      "title": "Semantic oscillation and playback",
+      "where": "Composer → Semantic oscillation preset / Play–pause.",
+      "behavior": "Oscillation is evaluated at explicit time, paused by default. Only the active bounded composer preview animates; world nodes stay static.",
+      "steps": [
+        {
+          "do": "Load Semantic oscillation, then press Play.",
+          "expect": "The selected structure oscillates."
+        },
+        {
+          "do": "Pause and change amplitude/frequency/axis; play again.",
+          "expect": "Motion reflects those parameters; pause changes playback without removing the operation."
+        }
+      ],
+      "reference": "docs/OMNIC_COMPOSER.md",
+      "sources": [
+        "src/omnic/Composer.tsx",
+        "src/omnic/evaluate.ts"
+      ],
+      "actions": [
+        "omnic.play"
+      ],
+      "limits": "256 animated roles / 12fps; hidden/reduced-motion/slow previews pause. Atlas nodes are static.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "omnic.saving",
+      "title": "Shared save, independent copy, drafts and recipe import/export",
+      "where": "Composer toolbar; Inspector → Show Omnic structure.",
+      "behavior": "Save shared updates canonical uses. Save copy creates a new identity. Drafts recover locally and use shared history. Recipe-only exports need their referenced objects; full workspace exports carry dependencies.",
+      "steps": [
+        {
+          "do": "Place the same object twice, edit it and Save shared.",
+          "expect": "Both live placements update."
+        },
+        {
+          "do": "Save copy and edit the copy.",
+          "expect": "The original stays unchanged."
+        },
+        {
+          "do": "Leave a draft, close/reopen, then reload. Export/import its recipe.",
+          "expect": "The unfinished draft recovers; imported structure reproduces when dependencies are available."
+        }
+      ],
+      "reference": "docs/OMNIC_COMPOSER.md",
+      "sources": [
+        "src/omnic/document.ts",
+        "src/omnic/draftHistory.ts"
+      ],
+      "actions": [
+        "omnic.show",
+        "omnic.save",
+        "omnic.copy",
+        "omnic.export",
+        "omnic.import",
+        "omnic.reset"
+      ],
+      "limits": "Explicit imported asset/character overrides can hide the generated view; Show Omnic structure clears that placement override.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "library.objects",
+      "title": "Shared library, multiple atlases and copy provenance",
+      "where": "Create → Omnic library.",
+      "behavior": "Named atlases share one canonical object pool. Edit object opens its definition; Place shared object adds a placement in the current context; independent copy records provenance without equating identities.",
+      "steps": [
+        {
+          "do": "Create a second atlas through Organization. Select an object and Place shared object.",
+          "expect": "The second atlas contains a placement of the existing identity."
+        },
+        {
+          "do": "Edit that source and Save shared; switch back to the first atlas.",
+          "expect": "Live uses in both atlases update."
+        },
+        {
+          "do": "Create independent copy and inspect Copied from.",
+          "expect": "The copy is separately editable and records its source."
+        }
+      ],
+      "reference": "docs/OMNIC_LIBRARY.md",
+      "sources": [
+        "src/omnic/Library.tsx",
+        "src/omnic/workspace.ts"
+      ],
+      "actions": [
+        "omnic.library.open",
+        "omnic.library.place",
+        "omnic.library.copy",
+        "omnic.library"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "library.organize",
+      "title": "Collections, tags, presets and names",
+      "where": "Omnic library → selected object / Organization.",
+      "behavior": "One object may have several tags and nested collection memberships without copying data. Reusable preset makes its definition available to the composer preset selector.",
+      "steps": [
+        {
+          "do": "Select an object, edit its name/tags and Save name / tags. Create a collection and assign it.",
+          "expect": "The object is searchable by its new name/tag and belongs to that collection."
+        },
+        {
+          "do": "Mark Reusable preset, then open a different object in the composer and select that workspace preset.",
+          "expect": "The saved structure loads into the destination draft; it does not silently change identity."
+        }
+      ],
+      "reference": "docs/OMNIC_LIBRARY.md",
+      "sources": [
+        "src/omnic/Library.tsx",
+        "src/omnic/Composer.tsx"
+      ],
+      "actions": [],
+      "limits": "Browser acceptance has not been recorded for this guide.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "library.filters",
+      "title": "Structural filters, indexing and saved families",
+      "where": "Omnic library → Structural filters / Organization → Save filter as family.",
+      "behavior": "Queries combine computed counts, boundary/fill/motion, generator/operator use, declared numeric ranges, tags and collection scope. Families are saved live queries, not semantic equivalence claims.",
+      "steps": [
+        {
+          "do": "Create a six-unit radial object and a five-unit chain. Filter count to six.",
+          "expect": "Only matching indexed objects remain."
+        },
+        {
+          "do": "Save the filter as a named family, clear filters, then choose the family.",
+          "expect": "The same combined query is restored."
+        },
+        {
+          "do": "Edit the six-unit source to five, save and reopen the family.",
+          "expect": "Membership updates after indexing. Search mounts at most 32 result rows per page."
+        }
+      ],
+      "reference": "docs/OMNIC_LIBRARY.md",
+      "sources": [
+        "src/omnic/libraryIndex.ts",
+        "src/omnic/Library.tsx"
+      ],
+      "actions": [],
+      "limits": "Indexing is scheduled and bounded to 256 dependencies/object. Uncomputed/error facts are not treated as zero or false.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "library.revisions",
+      "title": "Live dependencies, frozen pins, restore and archive pruning",
+      "where": "Composer reference component → Dependency version; library → Dependencies / revisions.",
+      "behavior": "Live references follow edits. Pinned references use saved revisions with frozen dependencies. Restore creates a new revision. Pruning keeps current snapshots and required pins.",
+      "steps": [
+        {
+          "do": "Reuse a source in two objects. Pin one reference and leave the other live. Edit and save the source.",
+          "expect": "Only the live reference follows the source change."
+        },
+        {
+          "do": "Select an archived revision and Restore as new revision.",
+          "expect": "The old structure becomes a new current revision; history is not rewritten."
+        },
+        {
+          "do": "Prune unpinned history, then Undo.",
+          "expect": "Required pins survive; Undo restores the pruned archive."
+        }
+      ],
+      "reference": "docs/OMNIC_LIBRARY.md",
+      "sources": [
+        "src/omnic/revisions.ts",
+        "src/omnic/model.ts"
+      ],
+      "actions": [],
+      "limits": "32 revisions/object, 2,048 archived recipes/workspace; missing revisions and cycles are rejected.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "library.persistence",
+      "title": "Local workspace autosave, portability and recovery",
+      "where": "Library → Export workspace / Import workspace / Recover previous workspace; File → Import/Export JSON for individual atlases.",
+      "behavior": "IndexedDB autosaves locally. Workspace import/cloud load retain a durable previous-workspace backup. Atlas imports remap independent canonical identities rather than merging equal legacy IDs.",
+      "steps": [
+        {
+          "do": "Create two atlases with organization metadata, reload, and export the workspace.",
+          "expect": "Both atlases and organization survive reload and are included in the export."
+        },
+        {
+          "do": "Import that workspace, then Recover previous workspace or Undo.",
+          "expect": "The imported state loads; the previous state is recoverable."
+        },
+        {
+          "do": "Import an atlas whose old IDs overlap existing IDs.",
+          "expect": "It becomes an independent atlas with remapped canonical identities."
+        }
+      ],
+      "reference": "docs/OMNIC_LIBRARY.md",
+      "sources": [
+        "src/omnic/workspaceStorage.ts",
+        "src/omnic/workspace.ts"
+      ],
+      "actions": [
+        "omnic.workspace.recover",
+        "omnic.workspace.export",
+        "omnic.workspace.import"
+      ],
+      "limits": "8 MB workspace commit/export/cloud budget; 5 MB atlas import/export limit. Local images have separate backup requirements.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "cloud.connection",
+      "title": "Existing account, private workspace and image storage",
+      "where": "Workspace settings → Cloud connection.",
+      "behavior": "Supabase login is separate from site Access. Existing accounts create private workspaces. Owner/editor/viewer roles govern files and snapshots. Signing in does not upload local work.",
+      "steps": [
+        {
+          "do": "Sign in with a pre-created account and create/select a disposable private workspace.",
+          "expect": "Its membership/role appears; local atlas data has not been uploaded."
+        },
+        {
+          "do": "Upload a small PNG/WebP/JPEG, download it, then delete the disposable file.",
+          "expect": "File lifecycle respects current membership and upload validation."
+        }
+      ],
+      "reference": "docs/BACKEND.md",
+      "sources": [
+        "src/backend/CloudPanel.tsx",
+        "src/backend/client.ts"
+      ],
+      "actions": [
+        "backend.signIn",
+        "backend.signOut",
+        "backend.refresh",
+        "backend.createWorkspace",
+        "backend.upload",
+        "backend.download",
+        "backend.finalize",
+        "backend.delete"
+      ],
+      "limits": "Requires configured backend and existing account. Test file deletion only on disposable files; it is permanent.",
+      "status": "Existing hosted foundation; current browser acceptance not recorded",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "cloud.snapshots",
+      "title": "Explicit workspace cloud save/load and conflicts",
+      "where": "Omnic library → Cloud workspace, after signing in.",
+      "behavior": "Save uploads the workspace snapshot. Load replaces local workspace after backup. Server concurrency versions are separate from local revisions; a stale save cannot overwrite a newer snapshot.",
+      "steps": [
+        {
+          "do": "After backend rollout, save a disposable workspace, then load it in a second signed-in browser.",
+          "expect": "Atlases, canonical objects, organization and revisions reproduce."
+        },
+        {
+          "do": "Save a change from browser A, then try saving from B without loading the new version.",
+          "expect": "B receives a conflict and its local work stays intact."
+        },
+        {
+          "do": "Load the newer cloud snapshot, then Recover previous workspace.",
+          "expect": "The cloud state loads explicitly and the replaced local state remains recoverable."
+        }
+      ],
+      "reference": "docs/OMNIC_LIBRARY.md",
+      "sources": [
+        "src/omnic/WorkspaceCloud.tsx",
+        "supabase/migrations/20261027000100_workspace_snapshots.sql"
+      ],
+      "actions": [
+        "omnic.workspace.saveCloud",
+        "omnic.workspace.loadCloud"
+      ],
+      "limits": "Hosted migration/function rollout is not recorded as completed. No background synchronization or automatic merge.",
+      "status": "Implemented and locally tested; hosted rollout pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "scene.manual",
+      "title": "Node-linked scenes from imported images and copied prompts",
+      "where": "Scene panel; select an Omnium node.",
+      "behavior": "A saved prompt resolves selected-node label/notes into one named variable. Copy it for external ChatGPT use, then import the returned image. Assignments and image bytes stay local and separate from atlas exports.",
+      "steps": [
+        {
+          "do": "Select a node, choose a prompt using {{subject}}, then Copy resolved prompt.",
+          "expect": "The resolved text contains the chosen node data; no paid request runs."
+        },
+        {
+          "do": "Choose a disposable image with Choose image. Select another node, then return.",
+          "expect": "The first node shows its assigned scene again; another node uses its own scene/default."
+        },
+        {
+          "do": "Download the original, Clear scene, then Undo.",
+          "expect": "The file can be backed up; Undo restores the assignment. Permanent image deletion is separate."
+        }
+      ],
+      "reference": "docs/SCENE_GENERATION.md",
+      "sources": [
+        "src/scene/ScenePanel.tsx"
+      ],
+      "actions": [
+        "scene.copyPrompt",
+        "scene.chooseImage",
+        "scene.pasteImage",
+        "scene.applyLocal",
+        "scene.downloadLocal",
+        "scene.deleteLocal",
+        "scene.clear"
+      ],
+      "limits": "Clipboard reading may need browser permission. Atlas/workspace exports do not include local scene bytes/assignments; download images separately.",
+      "status": "Implemented; browser verification pending",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "scene.api",
+      "title": "Optional API scene generation",
+      "where": "Scene → API generation (optional).",
+      "behavior": "Authenticated, explicitly enabled API generation uses paid provider credit. Saved attempts distinguish running/ready/failed/uncertain; refresh does not resubmit.",
+      "steps": [
+        {
+          "do": "Expand the optional API section without enabling generation.",
+          "expect": "Availability reflects backend capabilities; no paid request runs."
+        },
+        {
+          "do": "If already authorized and configured, inspect an existing ready attempt and Apply saved image.",
+          "expect": "The stored image applies without submitting another generation."
+        }
+      ],
+      "reference": "docs/SCENE_GENERATION.md",
+      "sources": [
+        "src/scene/ScenePanel.tsx",
+        "supabase/functions/backend/scene-provider.ts"
+      ],
+      "actions": [
+        "scene.generate",
+        "scene.apply",
+        "scene.refresh"
+      ],
+      "limits": "Do not generate merely to test documentation. Requires separate server enablement/provider configuration.",
+      "status": "Implemented; paid generation gated by server configuration",
+      "verification": {
+        "browser": "Not recorded",
+        "automated": "See subsystem tests and PR checks; not proof of usability"
+      },
+      "related": [],
+      "gestures": []
+    },
+    {
+      "id": "performance.clicks",
+      "title": "Click responsiveness and shared rendering work",
+      "where": "Ordinary controls, including Omnic library → Objects → Structural filters.",
+      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous.",
+      "steps": [
+        {
+          "do": "Open Omnic library → Objects, then repeatedly expand/collapse Structural filters while observing the scene pulse.",
+          "expect": "The section toggles without rerunning unrelated target eligibility calculations. Report any visible scene freeze; a smooth pulse is not yet verified on user hardware."
+        },
+        {
+          "do": "Move a frame/control, rename an appearance target and change its color afterward.",
+          "expect": "Ownership/captions and applicable controls update correctly; caching does not preserve stale edits."
+        },
+        {
+          "do": "Open a frame search, type a query and exit with Esc. Expand/collapse and rename a frame; then use its controls and minimize/restore it.",
+          "expect": "Search accepts typing and exits through the active context; frame labels, controls and window state remain current. Compare scene pulse continuity with the previous preview."
+        }
+      ],
+      "reference": "docs/PERFORMANCE_RESULTS.md",
+      "sources": [
+        "src/ui/functionIndex.ts",
+        "src/appearance/Controls.tsx",
+        "src/appearance/Context.tsx",
+        "src/ui/DockArea.tsx",
+        "src/ui/context.tsx",
+        "src/ui/selectiveStore.ts",
+        "src/ui/DockWorkspace.tsx",
+        "src/ui/EmbeddedGroup.tsx",
+        "src/ui/renderSubscriptions.ts",
+        "src/ui/mutationRoots.ts",
+        "src/ui/registrationBatch.ts",
+        "src/ui/NativeActions.tsx",
+        "src/ui/NamePresentation.tsx",
+        "scripts/profile-ui-clicks.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "First subscription pass confirmed improved by user; window/DOM follow-up awaiting user verification",
+      "verification": {
+        "browser": "User reported “definitely much better” after 85c1074 (2026-10-27). Follow-up: isolated local synthetic click checks and native discovery/current-handler smoke; user pulse/latency acceptance pending.",
+        "automated": "277 model checks, including resident/native dependency invalidation, inserted-subtree deduplication and registration batching; type/build checks"
+      },
+      "limits": "Legacy global owners and some consumers still subscribe broadly. Synthetic headless timings are noisy and not physical input-to-display latency; no universal frame-time guarantee.",
+      "related": [
+        "library.filters",
+        "appearance.edit"
+      ]
+    }
+  ]
+}

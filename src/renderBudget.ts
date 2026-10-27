@@ -1,6 +1,7 @@
 /** Conservative shared rendering limits. Input/selection semantics stay unchanged;
  * decoration quality is bounded rather than scaling freely with viewport/DPR. */
 export const RENDER_BUDGET = {
+  omnicSceneSources: 32, omnicTextureEdge: 256, omnicAnimatedRoles: 256, omnicFps: 12,
   scenePixels: 1_500_000, overlayPixels: 1_000_000, maxSceneDpr: 1.25,
   bloomEdge: 512, uiGlow: .8, uiBlur: 8, effectFps: 20, uiEffectHosts: 24, particles: 500, lightningSegments: 800, electricPixels: 400_000,
 } as const;
