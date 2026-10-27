@@ -42,7 +42,35 @@ handlers. The shared router uses action metadata and discovered property couplin
 specialized adapters provide only their real configuration/preview content. Read
 [the implementation contract](FUNCTION_CONFIGURATION.md) before adding an action.
 
+## Universal contextual priority order
+
+Choices progress from the nearest relevant scope to the broadest/global scope:
+start with the nearest relevant boundary and progress upward or downward along
+the contextual hierarchy, according to the function's applicable hierarchy.
+This applies universally to existing and future functions. Derive levels from
+the active context and shared hierarchy rather than hardcoded per-feature lists.
+See [AGENTS.md](../AGENTS.md).
+
+## Systemic implementation and future inheritance
+
+All agents must fix underlying causes at the appropriate shared system boundary,
+rather than hardcode an affected ID/component or add a one-off symptom patch.
+Consider existing systems, saved data and long-term effects; keep scope
+proportional rather than turning a focused fix into an unrelated rewrite.
+
+**Future consideration & inheritance:** implement shared behavior so any future
+system or feature to which it applies inherits it automatically, without manually
+implementing or wiring that behavior again. Provide this inheritance through
+registries, discovery, adapters and shared component contracts. Future systems
+declare their actual capabilities and unique behavior; applicable universal
+behavior follows automatically. Extend and document the shared mechanism instead
+of adding parallel inventories or manual per-feature wiring.
+See [AGENTS.md](../AGENTS.md).
+
 ## Compactness
+
+**UI Compactness:** smallest practical layout + contents, neatly arranged,
+minimal wasted space, minimal text — defer explanations to tooltips.
 
 Compactness is a standing product rule for every feature: fit the controls to
 content, minimize unused space, keep related controls on the same row, and put
@@ -53,6 +81,15 @@ shell rather than opening the whole general panel. See AGENTS.md and the UI
 component contract before choosing a new layout.
 
 ## Responsiveness
+
+**Optimization delivery baseline for every agent:** inspect the affected code,
+fix the concrete inefficiencies found, then hand testing to the user. They decide
+whether the improvement is sufficient and report back if it is not. Do not turn
+an optimization request into repeated traces, browser checks, benchmarks, CI
+reruns or speculative rounds of tuning. Additional profiling/testing requires an
+explicit request; a one-off authorization applies only to that specific check.
+Keep required static/build/model checks focused and distinguish them from user
+acceptance. See the optimization delivery baseline in [AGENTS.md](../AGENTS.md).
 
 The user requires features to preserve responsiveness. Flag an approach likely to
 cause significant lag before implementing it, explain the cost and offer practical

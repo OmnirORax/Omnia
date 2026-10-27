@@ -11,6 +11,16 @@ only their relevant controls, with category-specific rows appearing when needed.
 
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
+Drag pickup measures destination bounds and child slots on demand and caches them
+for the gesture; it must not eagerly measure every destination's children. Release
+refreshes the pointed destination. Fixed surfaces mounted directly on document.body
+move with their existing transform, avoiding popover promotion and geometry/style
+rewrites; nested/tab payloads still use the shared lift to escape clipping.
+`FloatingWindow` exposes its free-placement policy with `data-ui-free-placement`:
+cursor-open windows use the viewport; persistent panels use workspace packing.
+Free-drop resolution must follow the same policy as rendering. Explicit docking
+still uses shared docking rules. Future window features inherit this automatically.
+
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
 - Fields use `UIField`, which moves the label and input together. Shared
   `ValueFieldBehavior` selects numeric value contents on focus/first click so typing

@@ -57,7 +57,39 @@ metadata (`configuration`), reusing its inputs and setters. No second settings s
 or per-shortcut registry. Contextual MC shows only relevant controls; explicit MC
 shows general categories. Keep previews transient and configuration compact.
 
+## Universal contextual priority order
+
+Choices progress from the nearest relevant scope to the broadest/global scope.
+Start at the nearest relevant boundary and progress upward or downward along the
+contextual hierarchy, according to that function's applicable hierarchy. This is
+a universal ordering rule for existing and future functions, not just resizing.
+Derive the levels from the active context and shared hierarchy; do not hardcode
+feature-specific scope lists or treat the order as an arbitrary list of options.
+
+# Systemic implementation and future inheritance (all agents)
+
+Fix the underlying cause in the shared system, not the individual symptom with
+hardcoded IDs, per-component exceptions, duplicated logic or one-off patches.
+Inspect the affected ownership and contracts, consider other affected systems and the
+long-term system, and make the correction at the appropriate shared boundary.
+Keep the change proportional to the cause; this is not permission for unrelated
+rewrites or speculative frameworks.
+
+**Future consideration & inheritance:** implement shared behavior so any future
+system or feature to which it applies inherits it automatically, without manually
+implementing or wiring that behavior again. Use the existing registry, discovery,
+adapters or shared component contracts to provide that inheritance. Future systems
+declare their actual capabilities and unique behavior; universal controls,
+configuration, selection, history, hierarchy grouping and performance safeguards
+must follow automatically wherever applicable. Extend the common mechanism when
+it is incomplete, preserve existing systems and saved data, and document the
+extension contract so future workers use it. Do not maintain parallel lists or
+repeat feature-specific wiring where the shared system can derive it.
+
 # Compactness is a product requirement
+
+**UI Compactness:** smallest practical layout + contents, neatly arranged,
+minimal wasted space, minimal text — defer explanations to tooltips.
 
 Every new or changed UI feature must use the smallest practical layout that fits
 its controls neatly and readably. Size containers to content, use tight consistent
@@ -74,6 +106,20 @@ Reuse it instead of adding private ranges, arrow steppers or duplicate min/max
 fields. See the UI component contract for its left/right-click semantics.
 
 # Responsiveness is a product requirement
+
+## Optimization delivery baseline (all agents)
+
+When the user requests an optimization or performance fix, inspect the affected
+code and fix the concrete inefficiencies and problems found. Then hand the change
+to the user to test whether it is sufficient. The user reports back if more work
+is needed. Do not extend the task into repeated profiling, browser testing,
+benchmarking, CI reruns or speculative optimization rounds to prove sufficiency.
+Only perform that additional investigation when the user explicitly requests it;
+authorization for one focused trace/check is limited to that check, not future
+tasks or broader testing. Keep any required static/build/model checks focused;
+they do not establish interactive acceptance. Report what changed and what remains
+unverified, without claiming user-observed lag is resolved before their feedback.
+This is the default operating rule for every agent and future session.
 
 For cross-cutting performance changes, start with
 [docs/PERFORMANCE_ARCHITECTURE_PLAN.md](docs/PERFORMANCE_ARCHITECTURE_PLAN.md).

@@ -167,6 +167,7 @@ export function FloatingWindow({
         <div className="floating-backdrop" style={{ zIndex: z - 1 }} onClick={onClose} />
       )}
       <Rnd
+        data-ui-free-placement={openAtCursor ? "viewport" : "workspace"}
         className={`floating-window ${state.collapsed ? "is-collapsed" : ""} ${stacked ? "ui-stacked-window" : ""} ${owner ? "docked-window" : ""} ${className}`}
         position={
           owner

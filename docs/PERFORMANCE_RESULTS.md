@@ -498,3 +498,22 @@ existing rule rather than waiting for an unavailable gesture.
 and activation-work check, not physical input-to-display latency measurement.
 Self-contained delivery build validates the final source; user acceptance remains
 pending for resize stability and the repeated pickup pause on their workspace.
+
+## Pickup and popup placement follow-up — user testing pending
+
+The user reported the layer-only change did not solve pickup and felt worse.
+Source inspection found two remaining unnecessary costs: eagerly measuring every
+destination's child slots and promoting already-fixed body-mounted windows to
+popovers, rewriting their geometry on each grab. The shared drag path now caches
+bounds/child slots when needed. Already-fixed page-level surfaces preserve their
+geometry and move with a composed transform; nested/tab surfaces retain lifting.
+
+Free-drop projection also previously packed cursor-open popups into workspace
+residents even though those popups render against the viewport. Rendering and
+release now share the window's declared placement policy, without an Omnic-specific
+exception. This addresses an identified placement mismatch; the user's exact
+offset was not reliably reproduced and is not claimed verified resolved.
+
+No additional browser profiling/testing was run for this follow-up. The user tests
+repeated grabs, expanded/minimized release with edge docks, docking and Undo.
+Previous white-border/resize projection fixes remain intact.

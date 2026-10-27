@@ -14,6 +14,17 @@ export function beginLiveDrag(sources: HTMLElement[], bounds = new Map<HTMLEleme
   const snapshots = roots.map(element => {
     const override = bounds.get(element);
     const rect = override?.rect ?? element.getBoundingClientRect(), computed = getComputedStyle(element);
+    // A fixed surface already portalled to body needs only a compositor move.
+    // Lifting it through the top layer on every grab unnecessarily changes its
+    // formatting context and invalidates the entire heavy window's layout.
+    const direct = !override && element.parentElement === document.body && computed.position === 'fixed'
+      && !element.matches(':popover-open');
+    if (direct) {
+      const fixed: Record<string, string> = { 'z-index': '30001', 'will-change': 'transform', transition: 'none' };
+      return { element, fixed, spacer: undefined,
+        saved: [...Object.keys(fixed), 'transform'].map(name => [name, element.style.getPropertyValue(name), element.style.getPropertyPriority(name)]),
+        popover: element.getAttribute('popover'), direct: true, transform: computed.transform === 'none' ? '' : computed.transform };
+    }
     const fixed: Record<string, string> = {
       position: 'fixed', right: 'auto', bottom: 'auto', left: `${rect.x}px`, top: `${rect.y}px`,
       width: `${rect.width}px`, height: `${rect.height}px`, 'box-sizing': 'border-box',
@@ -42,16 +53,18 @@ export function beginLiveDrag(sources: HTMLElement[], bounds = new Map<HTMLEleme
       spacer.style.setProperty(name, value, 'important');
     return { element, fixed, spacer: ['absolute', 'fixed'].includes(computed.position) ? undefined : spacer,
       saved: Object.keys(fixed).map(name => [name, element.style.getPropertyValue(name), element.style.getPropertyPriority(name)]),
-      popover: element.getAttribute('popover') };
+      popover: element.getAttribute('popover'), direct: false, transform: '' };
   });
   let active = true;
   const restore = () => {
     if (!active) return;
     active = false;
-    for (const { element, spacer, saved, popover } of snapshots) {
+    for (const { element, spacer, saved, popover, direct } of snapshots) {
       if (!element.classList.contains('ui-live-drag')) continue;
-      element.hidePopover();
-      if (popover === null) element.removeAttribute('popover'); else element.setAttribute('popover', popover);
+      if (!direct) {
+        element.hidePopover();
+        if (popover === null) element.removeAttribute('popover'); else element.setAttribute('popover', popover);
+      }
       element.classList.remove('ui-live-drag');
       for (const [name, value, priority] of saved) {
         if (value) element.style.setProperty(name, value, priority); else element.style.removeProperty(name);
@@ -60,19 +73,21 @@ export function beginLiveDrag(sources: HTMLElement[], bounds = new Map<HTMLEleme
     }
   };
   try {
-    for (const { element, spacer, fixed } of snapshots) {
+    for (const { element, spacer, fixed, direct } of snapshots) {
       if (spacer) element.before(spacer);
       element.classList.add('ui-live-drag');
       for (const [name, value] of Object.entries(fixed)) element.style.setProperty(name, value, 'important');
-      element.setAttribute('popover', 'manual');
-      element.showPopover();
+      if (!direct) {
+        element.setAttribute('popover', 'manual');
+        element.showPopover();
+      }
     }
   } catch (error) { restore(); throw error; }
   return {
     move(dx: number, dy: number) {
       if (!active) return;
-      for (const { element } of snapshots)
-        element.style.setProperty('transform', `translate3d(${dx}px,${dy}px,0)`, 'important');
+      for (const { element, transform } of snapshots)
+        element.style.setProperty('transform', `translate3d(${dx}px,${dy}px,0) ${transform}`, 'important');
     },
     restore,
   };

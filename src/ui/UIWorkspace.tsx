@@ -476,6 +476,7 @@ type DragState = {
   cancelled?: boolean;
   control?: { owner: string; control: string };
   fromDockPane?: boolean;
+  freePlacement?: string;
   live?: ReturnType<typeof beginLiveDrag>;
 };
 
@@ -769,23 +770,13 @@ export function UIWorkspace({
       const targetZones = new Map(
         [...document.querySelectorAll<HTMLElement>("[data-ui-drop-zone]")].filter(outsideSource).map(zone => [zone.dataset.uiDropZone!, zone]),
       );
-      const slots = new Map(
-        [...targetZones].map(([key, zone]) => [
-          key,
-          [...zone.querySelectorAll<HTMLElement>(":scope > [data-ui-slot-key]")].filter(outsideSource).map((slot) => ({
-            key: slot.dataset.uiSlotKey!,
-            r: slot.getBoundingClientRect(),
-          })),
-        ]),
-      );
+      // Measure child slots only when their destination is actually considered.
+      // Eagerly reading every window's children makes every grab scale with the
+      // whole interface, including destinations the pointer never approaches.
+      const slots: DragState['slots'] = new Map();
       // Resolve against one gesture snapshot while the real payload follows
       // the pointer. Its spacer preserves drop regions and coordinate origins.
-      const targetBounds = new Map(
-        [...document.querySelectorAll<HTMLElement>(dropGeometrySelector)].filter(outsideSource).map(el => {
-          const box = el.hasAttribute('data-ui-resident-root') ? residentBounds(el) : el.getBoundingClientRect();
-          return [el, new DOMRect(box.x, box.y, box.width, box.height)] as const;
-        }),
-      );
+      const targetBounds = new Map<Element, DOMRect>();
       const zoneOrigins = new Map(
         [...targetZones.values()].map(el => [el, {
           x: Number(el.dataset.originX || 0), y: Number(el.dataset.originY || 0),
@@ -811,6 +802,7 @@ export function UIWorkspace({
         visibleZones,
         frameSlots,
         fromDockPane: !!tabPane,
+        freePlacement: root ? dragSurface(represented ?? root).dataset.uiFreePlacement : undefined,
         targetBounds,
         zoneOrigins,
         control: mini
@@ -818,6 +810,26 @@ export function UIWorkspace({
           : undefined,
         live,
       };
+    };
+    const boundsFor = (source: DragState, element: Element): DOMRect => {
+      const cached = source.targetBounds.get(element);
+      if (cached) return cached;
+      const box = element.hasAttribute('data-ui-resident-root')
+        ? residentBounds(element as HTMLElement) : element.getBoundingClientRect();
+      const bounds = new DOMRect(box.x, box.y, box.width, box.height);
+      source.targetBounds.set(element, bounds);
+      return bounds;
+    };
+    const slotsFor = (source: DragState, key: string) => {
+      let slots = source.slots.get(key);
+      if (!slots) {
+        const zone = source.targetZones.get(key);
+        slots = zone ? [...zone.querySelectorAll<HTMLElement>(':scope > [data-ui-slot-key]')]
+          .filter(slot => slot.dataset.uiSlotKey !== source.key)
+          .map(slot => ({ key: slot.dataset.uiSlotKey!, r: boundsFor(source, slot) })) : [];
+        source.slots.set(key, slots);
+      }
+      return slots;
     };
     const frameDockIntent = (source: DragState, s: UILayout, x: number, y: number, elements: Element[]): FrameDock | undefined => {
       if (source.control || source.key.startsWith("function:") || queries.residentContextScope(s, source.key)) return;
@@ -852,7 +864,7 @@ export function UIWorkspace({
         const surface = pane ?? (root?.matches(".ui-docked-panel:not(.ui-menu-panel)")
           ? element.closest<HTMLElement>(".ui-frame-handle") : root);
         if (!target || !surface || source.key === target || !queries.canDock(s, source.key, target)) continue;
-        const bounds = source.targetBounds.get(surface) ?? surface.getBoundingClientRect();
+        const bounds = boundsFor(source, surface);
         if (!bounds.width || !bounds.height || rectDistance(x, y, bounds) !== 0) continue;
         const tabStrip = pane && element.closest(".ui-dock-tab-strip");
         const side = initialFrameDockSide(header, !!tabStrip, bounds, viewport, x, y);
@@ -882,7 +894,7 @@ export function UIWorkspace({
         const root = [...document.querySelectorAll<HTMLElement>('[data-ui-resident-root]')].find(el => el.dataset.uiResidentRoot === groupKey);
         const body = root && [...root.querySelectorAll<HTMLElement>('.ui-structured-body,.ui-embedded-dock-layout')]
           .find(el => el.closest('[data-ui-resident-root]') === root && el.getClientRects().length);
-        if (body) { rect = source.targetBounds.get(body) ?? body.getBoundingClientRect(); title = undefined; }
+        if (body) { rect = boundsFor(source, body); title = undefined; }
       }
       const feedback = { rect, allocation: projected === layout ? undefined : { layout: projected, source: source.key, root: groupKey },
         frameLayout: group?.dockLayout ? { tree: group.dockLayout, source: source.key, title } : undefined };
@@ -894,7 +906,7 @@ export function UIWorkspace({
       if (!source || source.cancelled) return null;
       const s = effectiveLayout();
       if (!residentMovable(s, source.key, current.current.functions)) return { text: "Enable UI edit mode to rearrange fixed UI" };
-      const boundsOf = (element: Element): DOMRect => source.targetBounds.get(element) ?? element.getBoundingClientRect();
+      const boundsOf = (element: Element): DOMRect => boundsFor(source, element);
       const originOf = (element: HTMLElement) => source.zoneOrigins.get(element) ?? { x: Number(element.dataset.originX || 0), y: Number(element.dataset.originY || 0) };
       if (source.control) {
         const element = [...document.querySelectorAll<HTMLElement>("[data-ui-chrome]")].find(
@@ -961,7 +973,7 @@ export function UIWorkspace({
         const zone = source.targetZones.get(stackTarget);
         const bounds = zone && boundsOf(zone);
         const members = getContainer(s, stackTarget)?.members ?? [];
-        const slots = (source.slots.get(stackTarget) ?? []).filter(slot => slot.key !== source.key);
+        const slots = slotsFor(source, stackTarget).filter(slot => slot.key !== source.key);
         const before = stackHandle === stackTarget ? undefined : slots.find(slot => y < slot.r.y + slot.r.height / 2);
         const last = slots.at(-1)?.r;
         return {
@@ -1055,7 +1067,7 @@ export function UIWorkspace({
           const c = getContainer(s, hit.target)!;
           const bounds = boundsOf(hit.zone);
           const ox = originOf(hit.zone).x, oy = originOf(hit.zone).y;
-          const boxes = new Map((source.slots.get(hit.target) ?? []).map(slot => [slot.key, { x: slot.r.x - bounds.x + ox + hit.zone.scrollLeft, y: slot.r.y - bounds.y + oy + hit.zone.scrollTop, width: slot.r.width, height: slot.r.height }]));
+          const boxes = new Map(slotsFor(source, hit.target).map(slot => [slot.key, { x: slot.r.x - bounds.x + ox + hit.zone.scrollLeft, y: slot.r.y - bounds.y + oy + hit.zone.scrollTop, width: slot.r.width, height: slot.r.height }]));
           if (boxes.has(hit.key)) {
             const insertion = insertFrameBeside(c.members ?? [], boxes, source.key, source, hit.key, hit.side);
             if (insertion.baseline.some(member => { const box = boxes.get(residentKey(member)); return box && queries.residentPinned(s, residentKey(member)) && (member.position?.x !== box.x || member.position?.y !== box.y); })) return { text: "Unpin neighboring frames before shifting them" };
@@ -1148,7 +1160,7 @@ export function UIWorkspace({
         const ox = originOf(zone).x,
           oy = originOf(zone).y;
         const boxes = new Map(
-          (source.slots.get(target) ?? []).map((slot) => [
+          slotsFor(source, target).map((slot) => [
             slot.key,
             {
               x: slot.r.x - bounds.x + ox + zone.scrollLeft,
@@ -1171,7 +1183,7 @@ export function UIWorkspace({
               };
         const position = desired;
         // Keep a useful reading order without using array insertion to push visual neighbors.
-        const nearest = (source.slots.get(target) ?? [])
+        const nearest = slotsFor(source, target)
           .filter((slot) => slot.key !== source.key)
           .sort((a, b) => rectDistance(x, y, a.r) - rectDistance(x, y, b.r))[0];
         const breakBefore = !!nearest && y > nearest.r.y + nearest.r.height + 6;
@@ -1257,7 +1269,10 @@ export function UIWorkspace({
       const canvas = document.querySelector(".canvas")?.getBoundingClientRect();
       const floatingArea = canvas ? { x: Math.max(freeArea.center.x, canvas.x), y: freeArea.center.y, width: Math.min(freeArea.center.width, canvas.width), height: freeArea.center.height } : freeArea.center;
       const fitted = fitDockRect({ ...desired, width: source.width, height: source.height }, floatingArea);
-      const position = freeArea.active ? dockProjection.current?.(source.key, fitted) ?? fitted : { ...desired, width: source.width, height: source.height };
+      // Cursor-open popups render against the viewport, not the workspace's
+      // packed resident area. Drop must use that same policy or release snaps
+      // them away from the pointer despite no docking being requested.
+      const position = freeArea.active && source.freePlacement !== "viewport" ? dockProjection.current?.(source.key, fitted) ?? fitted : rectangle;
       if (
         position.x < 0 ||
         position.y < 0 ||
@@ -1275,12 +1290,12 @@ export function UIWorkspace({
       if (!proposal?.dock || !source) return proposal;
       const dock = proposal.dock, zone = source.targetZones.get(dock.target);
       if (getContainer(effectiveLayout(), dock.target)?.layoutMode === "stacked") return proposal;
-      const bounds = zone && source.targetBounds.get(zone);
+      const bounds = zone && boundsFor(source, zone);
       // Closed contents have no measurable layout; retain their existing append
       // behavior rather than turning zero-sized DOM boxes into saved positions.
       if (!zone || !bounds || !zone.getClientRects().length) return proposal;
       const origin = source.zoneOrigins.get(zone) ?? { x: 0, y: 0 };
-      const boxes = new Map((source.slots.get(dock.target) ?? []).map(slot => [slot.key, {
+      const boxes = new Map(slotsFor(source, dock.target).map(slot => [slot.key, {
         x: slot.r.x - bounds.x + origin.x + zone.scrollLeft,
         y: slot.r.y - bounds.y + origin.y + zone.scrollTop,
         width: slot.r.width, height: slot.r.height,
