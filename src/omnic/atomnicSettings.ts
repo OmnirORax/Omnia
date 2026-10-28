@@ -13,6 +13,8 @@ export const ATOMNIC_PARAMETERS: readonly Parameter[] = [
   {key:'pivotMode',property:'atomnic.pivotMode',label:'Pivot picking',kind:'select',initial:'target',options:[{id:'exact',label:'Exact click'},{id:'target',label:'Detected target'}]},
   numeric('axis','halving.axisStep','Reference axis step',0,0,383),
   numeric('position','atomnic.pivotFraction','Position along axis',.5,0,1,.0001),
+  numeric('viewX','omnic.coordinate.x','View center X',0,-10000,10000,.0001),
+  numeric('viewY','omnic.coordinate.y','View center Y',0,-10000,10000,.0001),
   numeric('viewSize','atomnic.viewSize','Construction view extent',200,40,1000),
   numeric('fraction','omnic.regionFraction','Highlighted fraction',.5,0,1,.0001),
   numeric('markTurn','angle.turn','Mark orientation · turns',0,-3,3,.0001),
@@ -26,7 +28,7 @@ export const atomnicDefaults = ():Record<string,Value> => Object.fromEntries(ATO
 export function atomnicViewBounds(params?:Record<string,Value>) {
   if(!params)return undefined;
   const size=Number(params.viewSize??200);
-  return {x:-size/2,y:-size/2,width:size,height:size};
+  return {x:Number(params.viewX??0)-size/2,y:Number(params.viewY??0)-size/2,width:size,height:size};
 }
 
 /** Each action declares its applicable input sequence, never a second value store. */

@@ -5,8 +5,8 @@ import { ContextualMasterController } from './ContextualMasterController';
 import './radialMenu.css';
 export type RadialNavigation={back:()=>boolean;open:()=>void;toggle:()=>void};
 type CategoryAnchor={id:string;x:number;y:number};
-export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigationChange,quickItems}: {
-  items:RadialNode<ReactNode>[];inset?:ReactNode;onClose:()=>void;navigationRef?:Ref<RadialNavigation>;children?:ReactNode;onNavigationChange?:(nested:boolean)=>void;quickItems?:ReactNode[];
+export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigationChange,quickItems,quickEnd}: {
+  items:RadialNode<ReactNode>[];inset?:ReactNode;onClose:()=>void;navigationRef?:Ref<RadialNavigation>;children?:ReactNode;onNavigationChange?:(nested:boolean)=>void;quickItems?:ReactNode[];quickEnd?:ReactNode[];
 }) {
   const root=useRef<HTMLDivElement>(null),[quickExtent,setQuickExtent]=useState(360);
   useLayoutEffect(()=>{
@@ -49,6 +49,10 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
         return <span className="radial-menu-slot" key={index} style={{left:`${slot.x}%`,top:`${slot.y}%`,width:slot.size,height:slot.size}}>{content}</span>;
       })}
       {visible&&ring(items,0,!!children)}
+      {visible&&quickItems&&quickEnd?.map((content,index)=>{
+        const slot=radialQuickSlot(quickItems.length+items.length+index,quickExtent);
+        return <span className="radial-menu-slot" key={`end:${index}`} style={{left:`${slot.x}%`,top:`${slot.y}%`,width:slot.size,height:slot.size}}>{content}</span>;
+      })}
       {visible&&!quickItems&&inset&&<div className="radial-menu-insets">{inset}</div>}
       <div className="radial-menu-centre">
         <button type="button" aria-label={visible?'Hide tools':'Show tools'} title={`${visible?'Hide tools':'Show tools'} · Right-click ${path.length?'Back':'Close'} · Esc steps outward`} aria-pressed={visible} style={{opacity:visible?1:.5}}

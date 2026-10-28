@@ -7,6 +7,8 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
+Current direct interaction: remove Procedural X/Y/Move from stationary target rings; left-grab moves the target/selection. Right-click during movement settles it and opens progressive position settings for the next drag. Pen/eraser belongs last after all remaining tools, so toggling Atomnic does not shift their order. Wheel over the Composer replaces its view-zoom button; retain Ctrl+wheel browser behavior, view center and bounded rendering.
+
 Newest correction: promote remaining Object tools directly beside pen/eraser and mode controls, with no Object wrapper. Restore the ⠒ Atomnic on/off tool there; it was removed during the preceding cleanup, leaving only the registered search/controller action. Color should be a circular rainbow wheel matching the supplied reference. Use shared presentation metadata and preserve all existing owners/settings.
 
 Further cleanup: remove the whole Selection, Transform, Fill/marking and toolbox/Inspection category projections, not merely the Select/Fill leaf actions. Remove Configure selected component and the ⠒ rim toggle. Move the existing Free/Realistic control directly beside pen/eraser at top middle; retain registered mode action/settings. Direct target selection and right-click DOFs remain. Target Fill uses ◐; target Opacity uses a 50%-faded ⬤. Reusable command/data owners are preserved.

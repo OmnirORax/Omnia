@@ -28,3 +28,21 @@ export function writeTargetDegree(recipe:Recipe,degree:EditableDegree,value:Valu
   if(!legalAtoms(next))throw Error('That edit is outside the Realistic touching-lattice profile.');
   return next;
 }
+
+/** Translate authored targets once each; selected ancestors own their children. */
+export function translateTargets(recipe:Recipe,ids:ReadonlySet<string>,delta:{x:number;y:number}):Recipe {
+  const index=new Map(components(recipe.components).map(item=>[item.id,item]));
+  if(!ids.size||[...ids].some(id=>!index.has(id)))throw Error('The movement target no longer exists.');
+  const walk=(items:Component[]):Component[]=>items.map(item=>{
+    if(ids.has(item.id)){
+      const parameters=definition(item.generator,true)!.parameters;
+      const x=parameters.find(p=>p.property==='omnic.coordinate.x'),y=parameters.find(p=>p.property==='omnic.coordinate.y');
+      if(!x||!y)throw Error('This target has no position adapter.');
+      return {...item,params:{...item.params,[x.key]:Number(item.params[x.key]??x.initial)+delta.x,[y.key]:Number(item.params[y.key]??y.initial)+delta.y}};
+    }
+    return item.children?{...item,children:walk(item.children)}:item;
+  });
+  const next=validateRecipe({...recipe,components:walk(recipe.components)});
+  if(!legalAtoms(next))throw Error('That movement is outside the Realistic touching-lattice profile.');
+  return next;
+}

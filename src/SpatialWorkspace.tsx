@@ -816,7 +816,7 @@ export default function SpatialWorkspace(props: Props) {
     const up=(event:PointerEvent)=>{const frame=held;if(!frame||frame.pointerId!==event.pointerId)return;event.preventDefault();event.stopImmediatePropagation();held=null;
       frame.editing.up(point(frame,event),event);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);};
     const cancel=()=>{held?.editing.cancel();held=null;};
-    const context=(event:MouseEvent)=>{if(event.target===canvas&&props.omnicPreview.getSnapshot()?.editing){event.preventDefault();event.stopImmediatePropagation();}};
+    const context=(event:MouseEvent)=>{if(event.target===canvas&&props.omnicPreview.getSnapshot()?.editing){event.preventDefault();event.stopImmediatePropagation();(held?.editing??props.omnicPreview.getSnapshot()?.editing)?.context?.(event);}};
     window.addEventListener('scroll',invalidate,true);window.addEventListener('resize',invalidate);
     window.addEventListener('pointerdown',down,true);window.addEventListener('pointermove',move,true);window.addEventListener('pointerup',up,true);window.addEventListener('pointercancel',cancel,true);window.addEventListener('contextmenu',context,true);window.addEventListener('blur',cancel);
     return()=>{cancel();observer.disconnect();window.removeEventListener('scroll',invalidate,true);window.removeEventListener('resize',invalidate);window.removeEventListener('pointerdown',down,true);window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerup',up,true);window.removeEventListener('pointercancel',cancel,true);window.removeEventListener('contextmenu',context,true);window.removeEventListener('blur',cancel);};

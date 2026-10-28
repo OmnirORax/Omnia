@@ -7,7 +7,7 @@ import { evaluateRecipe } from '../src/omnic/evaluate.ts';
 import { renderSVG, evaluationBounds, pickStructuralNode } from '../src/omnic/svg.ts';
 import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings, atomnicEditable, addAtom, legalAtoms } from '../src/omnic/atomnic.ts';
 import { snapTurn, turnDelta } from '../src/properties/halving.ts';
-import { targetDegrees, targetDegreeValue, writeTargetDegree } from '../src/omnic/targetDegrees.ts';
+import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets } from '../src/omnic/targetDegrees.ts';
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
@@ -311,4 +311,15 @@ test('parameter applicability follows registered scope rules without discarding 
   const group=applicableParameters(rotate,{scope:'group',pivot:'custom',snap:30});
   assert.ok(group.some(p=>p.key==='pivotX'));assert.ok(group.some(p=>p.key==='snapOrigin'));
   assert.ok(!applicableParameters(definition('highlight'),{which:'all',fraction:1}).some(p=>p.key==='index'||p.key==='start'));
+});
+
+test('direct target translation preserves group geometry, scope and profile legality',()=>{
+  const recipe={version:2,revision:1,atomnic:{active:false,mode:'free'},components:[{id:'g',generator:'group',params:{x:10,y:20},children:[{id:'r',generator:'ring',params:{x:3,y:4,radius:10}}]},{id:'other',generator:'line',params:{length:30}}],operations:[],frames:[]};
+  const next=translateTargets(recipe,new Set(['g','r']),{x:7,y:-2});
+  assert.deepEqual(next.components[0].params,{x:17,y:18});
+  assert.deepEqual(next.components[0].children[0].params,recipe.components[0].children[0].params,'selected ancestors prevent double translation');
+  assert.deepEqual(next.components[1],recipe.components[1]);assert.deepEqual(recipe.components[0].params,{x:10,y:20});
+  assert.throws(()=>translateTargets(recipe,new Set(['stale']),{x:1,y:0}),/no longer exists/);
+  const dot={...recipe,atomnic:{mode:'constrained',size:10},components:[{id:'dot',generator:'dot',params:{size:10,x:0,y:0}}]};
+  assert.throws(()=>translateTargets(dot,new Set(['dot']),{x:1,y:0}),/Realistic/);
 });
