@@ -5,10 +5,59 @@ import { GENERATORS, OPERATORS } from '../src/omnic/registry.ts';
 import { createRecipe, PRESETS } from '../src/omnic/presets.ts';
 import { evaluateRecipe } from '../src/omnic/evaluate.ts';
 import { renderSVG, evaluationBounds } from '../src/omnic/svg.ts';
+import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings } from '../src/omnic/atomnic.ts';
+import { snapTurn, turnDelta } from '../src/properties/halving.ts';
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
 const almost=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+
+test('retained halving steps govern drag snapping in either direction, including zero',()=>{
+  almost(snapTurn(.14,1,2),2/12);
+  almost(snapTurn(-.14,1,2),-2/12);
+  almost(snapTurn(.14,1,-2),2/12);
+  assert.equal(snapTurn(.49,1,0),0);
+  almost(snapTurn(.14,1),2/12);
+  let total=0,previous=0;
+  for(const next of [.25,.49,-.25,0,.25]){total+=turnDelta(previous,next);previous=next;}
+  almost(total,1.25);
+  total=0;previous=0;
+  for(const next of [-.25,-.49,.25,0,-.25]){total+=turnDelta(previous,next);previous=next;}
+  almost(total,-1.25);
+});
+
+test('ungroup preserves nested positions, atom identities, marks and frame scopes',()=>{
+  const source=validateRecipe({...recipe([
+    {id:'outer',generator:'group',params:{x:20,y:10},children:[
+      {id:'inner',generator:'group',params:{x:-5,y:15},children:[dot('a',-10),dot('b',10)]},
+      dot('c',30)]},dot('other',-70)
+  ],[op('mark','highlight',['inner'],{which:'all',fraction:.5,color:'#ff0000'})],
+  [{id:'scope',property:'example',state:'unspecified',scope:['inner','other:shape']}]),atomnic:{mode:'free'}});
+  const before=atoms(source),rendered=evaluateRecipe(source).nodes.filter(n=>n.kind==='dot');
+  const next=ungroupAtoms(source,new Set(['a']));
+  assert.deepEqual(atoms(next).map(a=>[a.id,a.x,a.y]),before.map(a=>[a.id,a.x,a.y]));
+  assert.equal(atoms(next).find(a=>a.id==='a').group,'outer');
+  assert.equal(atoms(next).find(a=>a.id==='other').group,'@root');
+  assert.deepEqual(next.operations[0].targets,['a','b']);
+  assert.deepEqual(next.frames[0].scope,['a','b','other:shape']);
+  const after=evaluateRecipe(next);
+  assert.deepEqual(after.nodes.filter(n=>n.kind==='dot').map(({parent,...n})=>n),rendered.map(({parent,...n})=>n));
+  assert.equal(after.diagnostics.length,0);
+  assert.deepEqual(source.operations[0].targets,['inner'],'input is unchanged');
+  assert.equal(ungroupAtoms(source,new Set(['other'])),source,'ungroup at root is a no-op');
+});
+
+test('ungroup dissolves multiple nearest levels only when selected and retains legal rotation',()=>{
+  const source=validateRecipe({...recipe([{id:'outer',generator:'group',params:{},children:[
+    {id:'inner',generator:'group',params:{},children:[dot('a',0,-20)]},dot('b',0,20)
+  ]}],[op('mark','highlight',['outer'],{which:'all',fraction:.5})]),atomnic:{...atomnicSettings(recipe([])),mode:'constrained',size:5}});
+  const next=ungroupAtoms(source,new Set(['a','b']));
+  assert.deepEqual(next.components.map(c=>c.id),['a','b']);
+  assert.deepEqual(next.operations[0].targets,['a','b']);
+  const rotated=rotateAtoms(next,new Set(['a','b']),{x:0,y:0},1/6);
+  almost(atoms(rotated)[0].x,20*Math.sqrt(3)/2);
+  assert.equal(rotated.operations[0].params.start,60);
+});
 
 test('all starter generators and presets reconstruct deterministically without drawing or renderer objects',()=>{
   assert.deepEqual(GENERATORS.map(g=>g.id),['dot','ring','line','chain','radial','group','reference']);

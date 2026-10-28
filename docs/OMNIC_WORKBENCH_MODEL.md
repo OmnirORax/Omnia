@@ -15,6 +15,18 @@ rest of PR #36, especially Atomnic tools, generators/presets, scope/reusable too
 save/recovery/live preview and library. Existing operation/frame data is preserved.
 Do not interpret this as authorization to remove the rest of the composer again.
 
+The user then authorized implementing further concrete requirements while they
+test. The next batch adds contextual Ungroup and corrects retained-step rotation
+dragging. Ungroup dissolves only selected atoms' nearest authored group boundaries,
+preserving child IDs/positions and expanding group-targeted operations/frame scopes
+to the promoted children. It uses the existing action catalog and recipe history;
+no permanent controls or new grouping identities. Rotation drag uses the magnitude
+of the saved step count on the existing 6 × 2^order grid, accumulates pointer
+direction across full turns, and avoids geometry writes inside an unchanged snap.
+Zero holds orientation; one-shot Step still uses the saved sign. Touching-profile
+legality is unchanged. These changes await user interaction acceptance. The broader
+Shift-configuration/MS/frame/zoom gaps documented below remain open.
+
 ## Start here
 
 The user needs a general instrument for constructing, applying and revising

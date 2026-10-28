@@ -9,6 +9,14 @@ closed PR #37 was rejected and reverted; do not reapply it. Earlier descriptions
 of those removed controls below are historical implementation context, not their
 current availability. See CAPABILITIES.md for current entry points.
 
+Atomnic follow-up: right-click → Ungroup dissolves the nearest authored groups
+containing selected atoms. Children retain positions/IDs; explicit operations and
+frames scoped to a removed group retain its former children. Undo restores the
+group. Rotation dragging honors the retained step-count interval and tracks
+successive angles across full turns; zero holds orientation, negative step counts
+set the one-shot Step direction while dragging follows the pointer. Unchanged
+snaps skip geometry work. The existing Free/touching constraints still apply.
+
 The user's subsequent direction is synthesized in
 [OMNIC_WORKBENCH_MODEL.md](OMNIC_WORKBENCH_MODEL.md). It authorizes progressive
 world-integrated construction, temporary/shared live drafts and lattice-constrained

@@ -58,6 +58,30 @@ export function selectionScope(list:Atom[],ids:ReadonlySet<string>,macro:boolean
   if(!macro)return new Set(ids);
   const groups=new Set(list.filter(a=>ids.has(a.id)).map(a=>a.group));return new Set(list.filter(a=>groups.has(a.group)).map(a=>a.id));
 }
+/** Dissolve only the nearest authored groups of the selected atoms. Children keep
+ * their identities and world coordinates; references to a removed group become
+ * explicit references to its former children, preserving their scope. */
+export function ungroupAtoms(recipe:Recipe,ids:ReadonlySet<string>):Recipe {
+  const groups=new Set(atoms(recipe).filter(a=>ids.has(a.id)&&a.group!=='@root').map(a=>a.group));
+  if(!groups.size)return recipe;
+  const replacements=new Map<string,string[]>();
+  const walk=(items:Component[]):Component[]=>items.flatMap(component=>{
+    const children=component.children?walk(component.children):undefined;
+    if(component.generator==='group'&&groups.has(component.id)) {
+      const promoted=(children??[]).map(child=>({...child,params:{...child.params,
+        x:Number(child.params.x??0)+Number(component.params.x??0),
+        y:Number(child.params.y??0)+Number(component.params.y??0)}}));
+      replacements.set(component.id,promoted.map(child=>child.id));
+      return promoted;
+    }
+    return [{...component,...(children?{children}:{})}];
+  });
+  const components=walk(recipe.components);
+  const expand=(targets:string[])=>[...new Set(targets.flatMap(id=>replacements.get(id)??[id]))];
+  return validateRecipe({...recipe,components,
+    operations:recipe.operations.map(operation=>({...operation,targets:expand(operation.targets)})),
+    frames:recipe.frames.map(frame=>({...frame,scope:expand(frame.scope)}))});
+}
 /** Shared deletion transaction for selected removal and continuous erasing.
  * Surviving identities and explicit operator addresses are never reassigned. */
 export function removeAtoms(recipe:Recipe,ids:ReadonlySet<string>):Recipe {

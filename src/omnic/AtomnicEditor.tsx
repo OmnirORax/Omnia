@@ -3,13 +3,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Recipe, Component } from './model';
 import { validateRecipe } from './model';
-import { atoms, atomnicSettings, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, type Point } from './atomnic';
+import { atoms, atomnicSettings, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms, type Point } from './atomnic';
 import { ATOMNIC_PARAMETERS, ATOMNIC_OPERATION_INPUTS, type AtomnicConfigAction } from './atomnicSettings';
 import { useOmnicParameterBindings } from './propertyAdapter';
 import { PropertyEditor } from '../appearance/Controls';
 import { rankedPropertyPatterns, matchingProperties, type PropertyCriterion } from '../appearance/propertyPatterns';
 import { PROPERTY_REGISTRY } from '../properties/catalog';
-import { divisions, directionTurn, snapTurn, turnStep } from '../properties/halving';
+import { divisions, directionTurn, snapTurn, turnStep, turnDelta } from '../properties/halving';
 import { HalvingPicker } from '../properties/HalvingPicker';
 import { ContextualMasterController } from '../ui/ContextualMasterController';
 import { UIAction } from '../ui/UIAction';
@@ -25,7 +25,7 @@ import { claimUIPress } from '../ui/pointerOwnership';
 type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void};
 type Panel={kind:'functions'}|{kind:'operation';action:AtomnicConfigAction;index:number}|{kind:'pivotModes'}|{kind:'reference';index:number}|{kind:'axis';stage:'start'|'end'|'halving';start?:number;end?:number}|{kind:'position'}|{kind:'patterns'};
 type Tool='draw'|'erase'|'select'|'move'|'rotate';
-type Gesture={kind:'draw'|'erase'|'move'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number};
+type Gesture={kind:'draw'|'erase'|'move'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number;turn?:number;appliedTurn?:number};
 const uid=()=>crypto.randomUUID();
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
 export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
@@ -88,6 +88,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     'atomnic.highlight':{enabled:compatible&&selected.size>0,run:mark},
     'atomnic.fill':{enabled:compatible&&selected.size>0,run:()=>{const ids=scoped(selectedRef.current);commit(mapAtoms(recipeRef.current,c=>ids.has(c.id)?{...c,params:{...c.params,fill:Boolean(settings.fill),color:String(settings.color),opacity:Number(settings.opacity)}}:c));}},
     'atomnic.remove':{enabled:compatible&&selected.size>0,run:remove},'atomnic.group':{enabled:compatible&&selected.size>0,run:group},
+    'atomnic.ungroup':{enabled:compatible&&list.some(a=>selected.has(a.id)&&a.group!=='@root'),run:()=>{try{commit(ungroupAtoms(recipeRef.current,selectedRef.current));}catch(failure){error(failure);}}},
     'atomnic.all':{enabled:compatible,run:()=>{setSelected(new Set(list.map(a=>a.id)));setTool('select');}},
     'atomnic.selectionUndo':{enabled:selectionTimeline.index>0,run:()=>setSelectionTimeline(previous=>stepTransient(previous,-1))},
     'atomnic.selectionRedo':{enabled:selectionTimeline.index<selectionTimeline.states.length-1,run:()=>setSelectionTimeline(previous=>stepTransient(previous,1))},
@@ -151,12 +152,14 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
           const delta=placementPoint({x:point.x-active.start.x,y:point.y-active.start.y},settings);
           next=transformAtoms(active.base,active.ids,a=>({x:a.x+delta.x,y:a.y+delta.y}));
         } else if(pivot) {
-          let turn=directionTurn(point.x-pivot.x,point.y-pivot.y)-active.angle;
-          if(turn>.5)turn-=1;if(turn<-.5)turn+=1;
-          next=rotateAtoms(active.base,active.ids,pivot,snapTurn(turn,Number(settings.order)));
+          const direction=directionTurn(point.x-pivot.x,point.y-pivot.y);
+          active.turn=(active.turn??0)+turnDelta(active.angle,direction);active.angle=direction;
+          const turn=snapTurn(active.turn,Number(settings.order),Number(settings.steps));
+          if(turn===(active.appliedTurn??0))return;
+          next=rotateAtoms(active.base,active.ids,pivot,turn);
         }
         if(next===active.next){active.last=point;return;}
-        if(commit(next,true)){active.next=next;active.last=point;setMessage('');}
+        if(commit(next,true)){active.next=next;active.last=point;if(active.kind==='rotate')active.appliedTurn=snapTurn(active.turn??0,Number(settings.order),Number(settings.steps));setMessage('');}
       }catch(failure){error(failure);}
     },
     up:()=>{const active=gesture.current;gesture.current=null;if(active){if(active.next!==active.base)commit(active.next);if(active.kind==='erase'){const remaining=new Set(atoms(active.next).map(a=>a.id));const nextSelected=new Set([...selectedRef.current].filter(id=>remaining.has(id)));if(nextSelected.size!==selectedRef.current.size)setSelected(nextSelected);}if(active.kind==='rotate')setPhase('idle');}},cancel,
@@ -182,12 +185,12 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     {message&&<small role="status">{message}</small>}
     <ContextualMasterController title={panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} position={menu} onClose={()=>{setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
       {panel.kind==='functions'&&<div className="atomnic-functions">
-        {(['draw','erase','select','move','rotate','step','highlight','fill','group','remove','all','selectionUndo','selectionRedo','patterns','configure'] as const).map(action=>{
+        {(['draw','erase','select','move','rotate','step','highlight','fill','group','ungroup','remove','all','selectionUndo','selectionRedo','patterns','configure'] as const).map(action=>{
           const id=`atomnic.${action}` as const;
           const hasInputs=id in ATOMNIC_OPERATION_INPUTS;
-          const requiresSelection=['move','rotate','step','highlight','fill','group','remove','patterns'].includes(action);
+          const requiresSelection=['move','rotate','step','highlight','fill','group','ungroup','remove','patterns'].includes(action);
           return <UIAction key={id} id={`atomnic:context:${action}`} category="Atomnic" label={operationLabel(id)}
-            disabled={requiresSelection&&!selected.size||action==='selectionUndo'&&selectionTimeline.index===0||action==='selectionRedo'&&selectionTimeline.index===selectionTimeline.states.length-1}
+            disabled={requiresSelection&&!selected.size||action==='ungroup'&&!list.some(a=>selected.has(a.id)&&a.group!=='@root')||action==='selectionUndo'&&selectionTimeline.index===0||action==='selectionRedo'&&selectionTimeline.index===selectionTimeline.states.length-1}
             onClick={()=>{commands.invoke(id);if(!['configure','patterns'].includes(action))setMenu(null);}}
             onConfigure={hasInputs?()=>configureOperation(id as AtomnicConfigAction):undefined} />;
         })}
@@ -263,7 +266,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
       'atomnic.select':`Select · ${settings.scope}`,'atomnic.move':`Move · ${settings.scope}`,
       'atomnic.rotate':`🗘 Rotate · ${settings.steps}/${count}`,'atomnic.step':`🗘 Step · ${settings.steps}/${count}`,
       'atomnic.highlight':`Highlight · ${settings.fraction}`,'atomnic.fill':`Fill · ${settings.fill?'on':'off'}`,
-      'atomnic.group':'Group','atomnic.remove':'Remove','atomnic.all':'Select all',
+      'atomnic.group':'Group','atomnic.ungroup':'Ungroup','atomnic.remove':'Remove','atomnic.all':'Select all',
       'atomnic.selectionUndo':'Undo selection','atomnic.selectionRedo':'Redo selection',
       'atomnic.patterns':`Property patterns · ${criteria.length}`,'atomnic.configure':`View · ${settings.viewSize}`,
     };return labels[action]??action;
