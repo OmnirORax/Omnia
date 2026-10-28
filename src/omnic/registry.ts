@@ -1,11 +1,12 @@
+import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = { key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[] };
+export type Parameter = { key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
-  setCount: (count: number) => void; select: () => void; connect: () => void; extract: () => void;
+  highlight: () => void; setCount: (count: number) => void; select: () => void; connect: () => void; extract: () => void;
 };
 export type Definition = { id: string; label: string; parameters: readonly Parameter[]; description?: string; input?: readonly string[]; output?: "structure"|"selection"|"property"; category?: string; preconditions?: readonly string[]; apply?: (context:OperatorContext) => void };
 const number = (key: string, property: string, label: string, initial: number, min: number, max: number, step = .1, thresholds?:number[]): Parameter => ({key,property,label,kind:"number",initial,min,max,step,thresholds});
@@ -29,11 +30,24 @@ export const GENERATORS: readonly Definition[] = [
   {id:"group",label:"Nested group",parameters:[x,y]},
   {id:"reference",label:"Reuse object",parameters:[x,y]},
 ];
+const select = (key:string, property:string, label:string, initial:string, options:readonly {id:string;label:string}[]):Parameter => ({key,property,label,initial,options,kind:"select"});
 const operatorDefinitions: Definition[] = [
+  {id:"highlight",label:"Highlight units / region",parameters:[
+    select("which","omnic.unitSelection","Units","index",[{id:"index",label:"One unit"},{id:"all",label:"All scoped units"}]),
+    {...number("index","omnic.unitIndex","Unit (1-based)",1,1,1024,1),when:p=>p.which==="index"},
+    number("fraction","omnic.regionFraction","Highlighted fraction",1,0,1,.05,[.25,.5,1]),
+    {...number("start","omnic.regionAngle","Region start (°)",0,-1080,1080,1),when:p=>Number(p.fraction)>0&&Number(p.fraction)<1},
+    {...color,initial:"#ffffff"},opacity],output:"structure",apply:ctx=>ctx.highlight()},
   {id:"count",label:"Set generated count",parameters:[count],preconditions:["Target a chain or radial generator"],apply:ctx=>ctx.setCount(Number(ctx.params.count))},
   {id:"size",label:"Scale structure",parameters:[number("factor","omnic.scale","Scale",1,.1,4,.1,[.25,.5,1,2,4])],apply:ctx=>ctx.transform("size")},
   {id:"fill",label:"Set fill",parameters:[fill,color,opacity],apply:ctx=>ctx.transform("fill")},
-  {id:"rotate",label:"Rotate structure",parameters:[angle,number("pivotX","omnic.coordinate.x","Pivot X",0,-300,300,1),number("pivotY","omnic.coordinate.y","Pivot Y",0,-300,300,1)],apply:ctx=>ctx.transform("rotate")},
+  {id:"rotate",label:"Rotate structure",parameters:[angle,{...number("pivotX","omnic.coordinate.x","Pivot X",0,-300,300,1),when:p=>p.scope==="group"&&p.pivot==="custom"},{...number("pivotY","omnic.coordinate.y","Pivot Y",0,-300,300,1),when:p=>p.scope==="group"&&p.pivot==="custom"},
+    select("scope","omnic.rotationScope","Rotate","group",[{id:"region",label:"Highlighted region"},{id:"each",label:"Each unit"},{id:"group",label:"Together"}]),
+    {...select("pivot","omnic.rotationPivot","Pivot","origin",[{id:"center",label:"Target center"},{id:"origin",label:"Composition origin"},{id:"custom",label:"Custom offset"}]),when:p=>p.scope==="group"},
+    number("snap","omnic.rotationSnap","Snap step (°; 0 = free)",0,0,360,.5,[0,15,30,45,60,90]),
+    {...number("snapOrigin","omnic.rotationSnapOrigin","Snap origin (°)",0,-360,360,1),when:p=>Number(p.snap)>0&&!String(p.stops).trim()},
+    {key:"stops",property:"omnic.rotationStops",label:"Allowed angles (comma-separated)",kind:"text",initial:""}
+    ],apply:ctx=>ctx.transform("rotate")},
   {id:"select",label:"Select structural roles",parameters:[],output:"selection",apply:ctx=>ctx.select()},
   {id:"connect",label:"Connect selected roles",parameters:[thickness,color],preconditions:["At least two primitive roles"],apply:ctx=>ctx.connect()},
   {id:"oscillate",label:"Semantic oscillation",parameters:[number("amplitude","omnic.amplitude","Amplitude",10,0,60,1),number("frequency","omnic.frequency","Frequency (Hz)",1,.1,4,.1),number("phase","omnic.angle","Phase",0,-1080,1080,1),{key:"axis",property:"omnic.axis",label:"Axis",kind:"select",initial:"y",options:[{id:"x",label:"X"},{id:"y",label:"Y"}]}],apply:ctx=>ctx.transform("oscillate")},
@@ -57,12 +71,19 @@ export function checkedParams(input: unknown, spec: Definition): Record<string,V
   const params:Record<string,Value> = {};
   for (const [key,value] of Object.entries(input)) {
     const p=spec.parameters.find(p=>p.key===key); if(!p) throw Error(`Unknown parameter ${spec.id}.${key}`);
-    if (p.kind==="number" && (typeof value!=="number" || !Number.isFinite(value) || value < p.min! || value > p.max! || (p.key==="count" && !Number.isInteger(value)))) throw Error(`Unsupported range: ${spec.id}.${key}`);
+    if (p.kind==="number" && (typeof value!=="number" || !Number.isFinite(value) || value < p.min! || value > p.max! || (["count","index"].includes(p.key) && !Number.isInteger(value)))) throw Error(`Unsupported range: ${spec.id}.${key}`);
     if (p.kind==="toggle" && typeof value!=="boolean") throw Error(`Expected boolean: ${key}`);
     if (p.kind==="color" && (typeof value!=="string" || !/^#[\da-f]{6}$/i.test(value))) throw Error(`Expected RGB color: ${key}`);
     if (p.kind==="select" && !p.options?.some(o=>o.id===value)) throw Error(`Unsupported choice: ${key}`);
     if (p.kind==="text" && (typeof value!=="string" || value.length>200)) throw Error(`Invalid text: ${key}`);
+    if (spec.id === "rotate" && key === "stops") rotationStops(String(value));
     params[key]=value as Value;
   }
   return params;
+}
+
+/** Active editors and MC lend the same metadata-defined relevant inputs. */
+export function applicableParameters(spec:Definition,params:Record<string,Value>):readonly Parameter[]{
+  const values={...defaultParams(spec),...params};
+  return spec.parameters.filter(parameter=>!parameter.when||parameter.when(values));
 }

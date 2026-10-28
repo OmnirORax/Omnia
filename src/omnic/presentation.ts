@@ -1,3 +1,4 @@
+import { isOperationTool } from "./tools.ts";
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import type { Document, Placement } from "../graph/structural.ts";
 import type { Visual, VisualAsset } from "../graph/assets.ts";
@@ -18,7 +19,7 @@ function context(doc:Document) {
 /** Derived presentation envelope only; this object is never saved as a recipe/asset. */
 export function structuralVisual(doc:Document,p:Pick<Placement,"entityId"|"visual">):Visual|undefined {
   if(p.visual?.assetId||p.visual?.character||!context(doc).recipes.has(p.entityId))return p.visual;
-  return {...p.visual,assetId:`omnic:${p.entityId}`,showText:p.visual?.showText??false};
+  return {...p.visual,assetId:`omnic:${p.entityId}`,showText:p.visual?.showText??isOperationTool(context(doc).recipes.get(p.entityId)!)};
 }
 export function omnicAsset(doc:Document,entityId:string):VisualAsset|undefined {
   const ctx=context(doc),recipe=ctx.recipes.get(entityId);if(!recipe)return;

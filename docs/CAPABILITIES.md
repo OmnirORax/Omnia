@@ -30,7 +30,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Camera versus object rotation, trackball and axis lock](#camera-navigation) | Implemented; browser verification pending | World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings. |
 | [Front-on centering, fit, origin, roll and focus navigation](#camera-framing) | Implemented; browser verification pending | MC World view / Active context and navigation catalog; F frames selected front-on. |
 | [Procedural generators and parameters](#omnic-compose) | Implemented; browser verification pending | Create → New Omnic object; or select a node → Inspector → Open Omnic composer. |
-| [Ordered operations, role picking, target repair and count extraction](#omnic-operations) | Implemented; browser verification pending | Composer → Scope / Ordered operations. |
+| [Ordered operations, role picking, target repair and count extraction](#omnic-operations) | Implemented; user verification pending | Composer → Scope / Ordered operations. |
 | [Interpretive frame declarations](#omnic-frames) | Implemented; browser verification pending | Composer → Interpretation frames. |
 | [Semantic oscillation and playback](#omnic-motion) | Implemented; browser verification pending | Composer → Semantic oscillation preset / Play–pause. |
 | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) | Implemented; browser verification pending | Composer toolbar; Inspector → Show Omnic structure. |
@@ -458,23 +458,29 @@ Dot, ring, line, chain, radial, group and Reference generators build structures 
 <a id="omnic-operations"></a>
 ## Ordered operations, role picking, target repair and count extraction
 
-**ID:** `omnic.operations` · **Status:** Implemented; browser verification pending
+**ID:** `omnic.operations` · **Status:** Implemented; user verification pending
 
 **Where:** Composer → Scope / Ordered operations.
 
-Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired.
+Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired. Highlight units / region selects a 1-based unit or all scoped units and highlights an exact disk sector/ring arc fraction. Rotate supports highlighted region, each unit and group scopes, target-center/origin/custom pivots, saved snap step/origin and optional allowed angles. Rotate one step is rebindable and inherits Shift configuration. Operation tools are canonical scope-relative recipes, saved from the focused operation and applied as editable snapshots to picked/flow scope.
 
 **Minimal working test**
 
 1. Add Count followed by Extract count; change Count. **Expected:** The extracted scalar reflects the preceding count operation.
 2. Move Extract count before Count using the order controls. **Expected:** Its scalar now reflects the earlier state.
 3. Target a generated unit, shrink count so it disappears, then use picked scope / repair targets. **Expected:** The missing role is reported, never silently redirected, and an explicit replacement repairs it.
+4. Open Create → New Omnic object. In Preset choose Member · one of two. Select Highlight units / region in Ordered operations. **Expected:** Two generated dots remain; Unit 1 is highlighted. Change Unit to 2 to move the highlight without drawing or changing unit count.
+5. Choose Part · half a unit. Its highlight has fraction 0.5. Add Rotate structure, set Rotate to Highlighted region and Snap step to 30°. Set Angle to 50°. **Expected:** The half highlight rotates to 60°; the dot stays fixed. Together rotates the scoped composition; Each unit rotates each shape about its own center. Earlier operations determine the region available.
+6. Set Snap step to 30° and use Rotate one step. Rebind that action in Master controller shortcuts if desired; hold Shift with its configured trigger to edit rotation configuration. **Expected:** Each ordinary invocation advances the angle by its saved snap. Repeated Shift trigger cycles Region → Each unit → Together; release applies. Right-click applies/locks; left-click resets to the first scope. Temporary changed configuration adds a scoped rotation operation and preserves the focused settings.
+7. Focus Highlight units / region, set a copy name and choose Save operation as tool. Return to a composition, pick a component or Whole structure, open Reusable tools, choose the saved tool and Stamp copy to scope. **Expected:** The tool is a shared canonical object with no generated units. Applying it adds independently editable operations to the current draft; changing the tool later does not retroactively change stamped operations. Save shared, reopen and Undo/Redo retain authored rules.
 
-**Limits / unavailable behavior:** Browser acceptance has not been recorded for this guide.
+**Limits / unavailable behavior:** Browser acceptance has not been recorded for this guide. Fractions are angular sectors of disks or arc fractions of rings; fractional lines report inapplicable. Whole line highlight works. One highlight layer per primitive (later highlight replaces earlier). Rotation is planar, angles bounded ±1080°, snap step 0–360°, up to 32 allowed-angle values. New rotation operators use target center; legacy operators retain origin/pivot offsets. Tool stamping snapshots operations rather than introducing live executable dependencies. No default rotation shortcut is assigned. Fixed-size world reading integration remains deferred.
 
-**Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
+**Verification:** browser — New Member/Part, rotation and tool workflows await user interaction testing; no browser suite run.. Automated — Normal model command passes; 20 focused Omnic engine cases pass directly, including highlighting, rotation, tools and parameter applicability. Production/type/property checks and self-contained preview build pass..
 
-**Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/evaluate.ts](../src/omnic/evaluate.ts), [src/omnic/Composer.tsx](../src/omnic/Composer.tsx).
+**Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/evaluate.ts](../src/omnic/evaluate.ts), [src/omnic/Composer.tsx](../src/omnic/Composer.tsx), [src/omnic/rotation.ts](../src/omnic/rotation.ts), [src/omnic/tools.ts](../src/omnic/tools.ts).
+
+**Command IDs:** `omnic.rotateStep`.
 
 <a id="omnic-frames"></a>
 ## Interpretive frame declarations
@@ -830,6 +836,7 @@ Labels, descriptions and defaults are read from the same catalog as the applicat
 | New Omnic object · `omnic.create` | Unassigned | New Omnic object through the shared composer and canonical object state. | [Procedural generators and parameters](#omnic-compose) |
 | Open Omnic composer · `omnic.open` | Unassigned | Open Omnic composer through the shared composer and canonical object state. | [Procedural generators and parameters](#omnic-compose) |
 | Show Omnic structure · `omnic.show` | Unassigned | Show Omnic structure through the shared composer and canonical object state. | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) |
+| Rotate one step · `omnic.rotateStep` | Unassigned | Advance the focused Omnic rotation using its saved snap settings. Shift opens contextual rotation configuration. | [Ordered operations, role picking, target repair and count extraction](#omnic-operations) |
 | Save shared · `omnic.save` | Unassigned | Save shared Omnic definition through the shared composer and canonical object state. | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) |
 | Save copy · `omnic.copy` | Unassigned | Save Omnic copy through the shared composer and canonical object state. | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) |
 | Play / pause · `omnic.play` | Unassigned | Play / pause Omnic motion through the shared composer and canonical object state. | [Semantic oscillation and playback](#omnic-motion) |

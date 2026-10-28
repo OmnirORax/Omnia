@@ -727,7 +727,7 @@
       "id": "omnic.operations",
       "title": "Ordered operations, role picking, target repair and count extraction",
       "where": "Composer → Scope / Ordered operations.",
-      "behavior": "Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired.",
+      "behavior": "Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired. Highlight units / region selects a 1-based unit or all scoped units and highlights an exact disk sector/ring arc fraction. Rotate supports highlighted region, each unit and group scopes, target-center/origin/custom pivots, saved snap step/origin and optional allowed angles. Rotate one step is rebindable and inherits Shift configuration. Operation tools are canonical scope-relative recipes, saved from the focused operation and applied as editable snapshots to picked/flow scope.",
       "steps": [
         {
           "do": "Add Count followed by Extract count; change Count.",
@@ -740,19 +740,39 @@
         {
           "do": "Target a generated unit, shrink count so it disappears, then use picked scope / repair targets.",
           "expect": "The missing role is reported, never silently redirected, and an explicit replacement repairs it."
+        },
+        {
+          "do": "Open Create → New Omnic object. In Preset choose Member · one of two. Select Highlight units / region in Ordered operations.",
+          "expect": "Two generated dots remain; Unit 1 is highlighted. Change Unit to 2 to move the highlight without drawing or changing unit count."
+        },
+        {
+          "do": "Choose Part · half a unit. Its highlight has fraction 0.5. Add Rotate structure, set Rotate to Highlighted region and Snap step to 30°. Set Angle to 50°.",
+          "expect": "The half highlight rotates to 60°; the dot stays fixed. Together rotates the scoped composition; Each unit rotates each shape about its own center. Earlier operations determine the region available."
+        },
+        {
+          "do": "Set Snap step to 30° and use Rotate one step. Rebind that action in Master controller shortcuts if desired; hold Shift with its configured trigger to edit rotation configuration.",
+          "expect": "Each ordinary invocation advances the angle by its saved snap. Repeated Shift trigger cycles Region → Each unit → Together; release applies. Right-click applies/locks; left-click resets to the first scope. Temporary changed configuration adds a scoped rotation operation and preserves the focused settings."
+        },
+        {
+          "do": "Focus Highlight units / region, set a copy name and choose Save operation as tool. Return to a composition, pick a component or Whole structure, open Reusable tools, choose the saved tool and Stamp copy to scope.",
+          "expect": "The tool is a shared canonical object with no generated units. Applying it adds independently editable operations to the current draft; changing the tool later does not retroactively change stamped operations. Save shared, reopen and Undo/Redo retain authored rules."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
       "sources": [
         "src/omnic/evaluate.ts",
-        "src/omnic/Composer.tsx"
+        "src/omnic/Composer.tsx",
+        "src/omnic/rotation.ts",
+        "src/omnic/tools.ts"
       ],
-      "actions": [],
-      "limits": "Browser acceptance has not been recorded for this guide.",
-      "status": "Implemented; browser verification pending",
+      "actions": [
+        "omnic.rotateStep"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide. Fractions are angular sectors of disks or arc fractions of rings; fractional lines report inapplicable. Whole line highlight works. One highlight layer per primitive (later highlight replaces earlier). Rotation is planar, angles bounded ±1080°, snap step 0–360°, up to 32 allowed-angle values. New rotation operators use target center; legacy operators retain origin/pivot offsets. Tool stamping snapshots operations rather than introducing live executable dependencies. No default rotation shortcut is assigned. Fixed-size world reading integration remains deferred.",
+      "status": "Implemented; user verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "New Member/Part, rotation and tool workflows await user interaction testing; no browser suite run.",
+        "automated": "Normal model command passes; 20 focused Omnic engine cases pass directly, including highlighting, rotation, tools and parameter applicability. Production/type/property checks and self-contained preview build pass."
       },
       "related": [],
       "gestures": []

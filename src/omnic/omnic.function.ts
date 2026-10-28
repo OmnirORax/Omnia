@@ -23,7 +23,7 @@ export function checkedParameter(parameter: Parameter, input: PropertyValue): Pr
   if (parameter.kind === "number") {
     if (typeof input !== "number" || !Number.isFinite(input)) throw Error(`Expected a finite ${parameter.label}.`);
     let value = Math.max(parameter.min ?? spec?.min ?? -Infinity, Math.min(parameter.max ?? spec?.max ?? Infinity, input));
-    if (parameter.property === "omnic.count") value = Math.round(value);
+    if (["omnic.count","omnic.unitIndex"].includes(parameter.property)) value = Math.round(value);
     return value;
   }
   if (parameter.kind === "toggle" && typeof input !== "boolean") throw Error(`Expected boolean ${parameter.label}.`);
@@ -52,5 +52,5 @@ const inputs = Object.fromEntries([...families].map(([property, group]) => {
     },
   }];
 }));
-export default defineFunction<OmnicParameterState>({id:OMNIC_CONSUMER,label:"Active Omnic component / operator",owner:"omnic",
+export default defineFunction<OmnicParameterState>({id:OMNIC_CONSUMER,controls:["omnic.rotateStep"],label:"Active Omnic component / operator",owner:"omnic",
   group:[{id:"omnic",label:"Omnic structure"}],inputs});

@@ -106,8 +106,16 @@ verbatim; this clarification takes precedence over the audit's earlier reading.
 
 ## Proposed next slice
 
-Incorporate the separate handoff, then agree one source-backed example's exact
-rules before implementation. A possible slice is a boundary with an internal
+The user subsequently authorized Member/Part construction. The extension now adds
+authored whole-unit/fractional highlighting, scoped rotation with snap constraints,
+Member/Part presets and operation-tool snapshots through existing shared paths.
+See [the current extension contract](OMNIC_COMPOSER.md#member--part-construction-extension-2026-10-28).
+The audit's general frame/binding/read-order gaps remain; this extension is not
+full semantic interpretation. Fixed-size reading remains the design direction
+above rather than a claim about the world renderer.
+
+The earlier, broader frame/binding proposal still needs exact rules agreed before
+implementation. A possible slice is a boundary with an internal
 unit, explicit content/position/part view activation and inherited scope. Expose
 what is specified, inactive or unresolved without inventing English translation.
 Use it to exercise shared frame/role/binding evaluation, derived library facts
