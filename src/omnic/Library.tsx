@@ -1,3 +1,4 @@
+import { atomnicViewBounds } from './atomnicSettings.ts';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {UISection} from '../ui/UISection';
 import {UIField} from '../ui/UIField';
@@ -50,7 +51,7 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}
   const preview=useMemo(()=>{
     if(!selected||revision===null)return '';
     const recipe=selected.omnicHistory?.find(r=>r.revision===revision);if(!recipe)return '';
-    try{return renderSVG(evaluateRecipe(recipe,resolver));}catch{return '';}
+    try{return renderSVG(evaluateRecipe(recipe,resolver),{bounds:atomnicViewBounds(recipe.atomnic)});}catch{return '';}
   },[selected,revision,resolver]);
   const attempt=(run:()=>void)=>{try{run();setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}};
   const set=(patch:Partial<StructuralFilter>)=>setFilter(previous=>{const next={...previous,...patch};for(const key of Object.keys(next))if(next[key as keyof StructuralFilter]===undefined||next[key as keyof StructuralFilter]==='')delete next[key as keyof StructuralFilter];return next;});

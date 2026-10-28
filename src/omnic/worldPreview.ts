@@ -1,12 +1,14 @@
-import { createTransientStore, type TransientStore } from '../ui/transientStore';
+import { createTransientStore, type TransientStore } from '../ui/transientStore.ts';
 import type { XYZ } from '../graph/structural';
 import type { Recipe } from './model';
+import type { AtomnicInteraction } from './atomnicInteraction';
 
 /** Session-owned renderer projection. Never enters the workspace or its history. */
 export type OmnicWorldPreview = {
   owner: string;
   entityId: string;
   recipe: Recipe;
+  editing?: AtomnicInteraction;
   temporary?: { placementId: string; parentId: string | null; position: XYZ };
 };
 export type OmnicPreviewStore = TransientStore<OmnicWorldPreview | null>;
@@ -34,5 +36,5 @@ export function completeOmnicDraft(workspaceId: string, atlasId: string, id: str
 }
 
 /** A construction seed, with no concept interpretation or prebuilt operator. */
-export const newOmnicDraft = (): Recipe => ({ version: 2, revision: 0,
-  components: [{ id: 'unit', generator: 'dot', params: { size: 10 } }], operations: [], frames: [] });
+export const newOmnicDraft = (): Recipe => ({ version: 2, revision: 0, atomnic:{active:true},
+  components: [{ id: 'unit', generator: 'dot', params: { size: 10, color:'#ffffff', thickness:.25 } }], operations: [], frames: [] });

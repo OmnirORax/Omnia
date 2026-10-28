@@ -312,7 +312,7 @@ export function buildTextScene(
   const draftNodes = new Map<NodeItem, DraftNode>();
   let draftPlanId: string | undefined;
   let draftPlan: { entityId: string; item: NodeItem }[] = [];
-  let draftBatch: { recipe: OmnicWorldPreview['recipe']; assets: ReturnType<typeof omnicDraftAssets>; cursor: number } | undefined;
+  let draftBatch: { recipe: OmnicWorldPreview['recipe']; assets: ReturnType<typeof omnicDraftAssets>; cursor: number; editing?:OmnicWorldPreview["editing"] } | undefined;
   const omnicSlotsAvailable = Math.max(0, OMNIC_SCENE_BUDGET - Math.min(omnicPreviews, OMNIC_SCENE_BUDGET));
   const clearOmnicDraft = () => {
     const changed = draftNodes.size > 0;
@@ -340,8 +340,8 @@ export function buildTextScene(
         else if (available > 0) { available--; draftPlan.push({ entityId, item }); }
       }
     }
-    if (draftBatch?.recipe !== preview.recipe)
-      draftBatch = { recipe: preview.recipe, assets: omnicDraftAssets(doc, preview.entityId, preview.recipe), cursor: 0 };
+    if (draftBatch?.recipe !== preview.recipe || draftBatch.editing !== preview.editing)
+      draftBatch = { recipe: preview.recipe, assets: omnicDraftAssets(doc, preview.entityId, preview.recipe,preview.editing), cursor: 0, editing:preview.editing };
     const start = performance.now();
     while (draftBatch.cursor < draftPlan.length) {
       const { entityId, item } = draftPlan[draftBatch.cursor++];

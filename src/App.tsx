@@ -4,6 +4,7 @@ import { OmnicWorkspaceActions } from "./omnic/WorkspaceActions";
 import { forkOmnicDefinition, saveOmnicDefinition } from "./omnic/document";
 import { createRecipe } from "./omnic/presets";
 import type { Recipe } from "./omnic/model";
+import type { AtomnicInteraction } from "./omnic/atomnicInteraction";
 import { createOmnicPreviewStore, newOmnicDraft, unsavedOmnicId, completeOmnicDraft } from "./omnic/worldPreview";
 import { createHeldActions } from "./ui/heldActions";
 import { transformPlacements } from "./navigation/transforms";
@@ -274,11 +275,11 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const omnicObject = document.entities.find(e => e.id === omnicEditorId) ??
     (omnicNewDraft?.entityId === omnicEditorId ? { id: omnicNewDraft.entityId, label: "" } : undefined);
   const omnicIsNew = !!omnicNewDraft && omnicEditorId === omnicNewDraft.entityId;
-  const previewOmnic = useCallback((recipe: Recipe | null) => {
+  const previewOmnic = useCallback((recipe: Recipe | null, editing?: AtomnicInteraction) => {
     const owner = `${omnicPreviewContext}:${omnicEditorId}`;
     if (!recipe) { if (omnicPreview.getSnapshot()?.owner === owner) omnicPreview.set(null); return; }
     if (!omnicEditorId) return;
-    omnicPreview.set({ owner, entityId: omnicEditorId, recipe,
+    omnicPreview.set({ owner, entityId: omnicEditorId, recipe, editing,
       ...(omnicNewDraft?.entityId === omnicEditorId ? { temporary: omnicNewDraft } : {}) });
   }, [omnicPreview, omnicPreviewContext, omnicEditorId, omnicNewDraft]);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);

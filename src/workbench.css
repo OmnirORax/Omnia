@@ -1245,3 +1245,9 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .scene-panel select { max-width: min(36ch, 100%); }
 .scene-panel textarea { width: 30ch; max-width: 100%; resize: vertical; }
 .scene-resolved { max-width: 34ch; max-height: 10em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+
+.halving-picker{display:inline-flex;align-items:center;gap:3px;max-width:100%;font-size:11px}
+.halving-picker button{padding:2px 4px;min-width:0;min-height:22px;white-space:nowrap}
+.halving-picker input{width:36px!important;min-width:0!important;padding:2px!important}
+.range-spectrum .range-halving{padding:1px 3px;margin-left:3px;min-width:18px;min-height:20px;font-size:12px}
+.range-spectrum>.halving-picker{position:absolute;z-index:5;top:100%;left:0;background:var(--omnium-background,#111);border:1px solid currentColor;padding:3px;border-radius:3px}

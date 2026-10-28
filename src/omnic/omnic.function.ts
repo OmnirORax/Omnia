@@ -1,14 +1,16 @@
+import { FEATURE_ACTIONS } from '../featureActions.ts';
 import { defineFunction } from "../properties/function.ts";
 import { PROPERTY_REGISTRY } from "../properties/catalog.ts";
 import type { PropertyDefinition, PropertyValue } from "../properties/registry.ts";
 import { GENERATORS, OPERATORS, type Parameter } from "./registry.ts";
+import { ATOMNIC_PARAMETERS } from './atomnicSettings.ts';
 
 export const OMNIC_CONSUMER = "omnic.composer";
 export type OmnicParameterState = { params: Record<string, PropertyValue>; parameters: readonly Parameter[] };
 /** Registry metadata is the single input declaration for evaluation and editing.
  * Aliases (e.g. size/length or x/pivotX) share a property but keep their own active
  * parameter key and narrower domain. No independent settings values are created. */
-const parameters = [...GENERATORS, ...OPERATORS].flatMap(definition => definition.parameters);
+const parameters = [...GENERATORS, ...OPERATORS].flatMap(definition => definition.parameters).concat(ATOMNIC_PARAMETERS);
 const families = new Map<string, Parameter[]>();
 for (const parameter of parameters) families.set(parameter.property, [...(families.get(parameter.property) ?? []), parameter]);
 const labels: Record<string,string> = {
@@ -23,7 +25,7 @@ export function checkedParameter(parameter: Parameter, input: PropertyValue): Pr
   if (parameter.kind === "number") {
     if (typeof input !== "number" || !Number.isFinite(input)) throw Error(`Expected a finite ${parameter.label}.`);
     let value = Math.max(parameter.min ?? spec?.min ?? -Infinity, Math.min(parameter.max ?? spec?.max ?? Infinity, input));
-    if (["omnic.count","omnic.unitIndex"].includes(parameter.property)) value = Math.round(value);
+    if (["omnic.count","omnic.unitIndex","halving.angularOrder","halving.turnSteps","halving.axisStep"].includes(parameter.property)) value = Math.round(value);
     return value;
   }
   if (parameter.kind === "toggle" && typeof input !== "boolean") throw Error(`Expected boolean ${parameter.label}.`);
@@ -52,5 +54,5 @@ const inputs = Object.fromEntries([...families].map(([property, group]) => {
     },
   }];
 }));
-export default defineFunction<OmnicParameterState>({id:OMNIC_CONSUMER,controls:["omnic.rotateStep"],label:"Active Omnic component / operator",owner:"omnic",
+export default defineFunction<OmnicParameterState>({id:OMNIC_CONSUMER,controls:["omnic.rotateStep",...FEATURE_ACTIONS.filter(action=>action.owner==="atomnicComposer").map(action=>action.id)],label:"Active Omnic component / operator",owner:"omnic",
   group:[{id:"omnic",label:"Omnic structure"}],inputs});

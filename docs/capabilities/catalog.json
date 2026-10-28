@@ -693,7 +693,7 @@
     {
       "id": "omnic.compose",
       "title": "Procedural generators and parameters",
-      "where": "Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer.",
+      "where": "Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer. New objects start in Atomnic; switch to Generator controls for this procedural walkthrough.",
       "behavior": "New work opens a recoverable single-dot world draft without creating an object. Existing dot, ring, line, chain, radial, group and Reference generators use shared parameter controls. Valid changes preview directly in Omnium; canonical definitions change only on save.",
       "steps": [
         {
@@ -843,14 +843,94 @@
       "gestures": []
     },
     {
+      "id": "omnic.atomnic",
+      "title": "Atomnic placement, selection, contextual DOFs and pivot rotation",
+      "where": "Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image.",
+      "behavior": "Authored dots/groups support click/sweep placement with a slot ghost/grid, Micro/Macro and additive selection, rigid movement, grouping/removal, fractional marks, retained contextual DOFs and two-phase pivot/rotation. Touching lattice couples imprint diameter and pitch and rejects invalid rigid configurations; Free uses independent movement/imprint sizes. Shared property patterns exclude absolute position. Geometry uses draft action history; selection uses the shared transient timeline mechanism. Save/copy/recovery remain existing workflows. The retained construction viewport also defines saved/library presentation scale, preventing rescale on save.",
+      "steps": [
+        {
+          "do": "Create a new Omnic object. Move the pointer over the local square, click a neighboring slot, then hold and sweep.",
+          "expect": "A ghost follows legal slots; individual units are placed on a non-overlapping triangular lattice. The world updates before Save shared."
+        },
+        {
+          "do": "Press V, click a unit and Shift-click another; choose G and drag. Use right-click group, change Scope to Macro, then pick a member.",
+          "expect": "Units can be selected together, moved with a common translation and grouped. Macro then addresses that nearest group; no canonical identities are merged."
+        },
+        {
+          "do": "Right-click → Configure DOFs. Select Free; use a movement step smaller or larger than the imprint diameter, then D and sweep.",
+          "expect": "Fine, overlapping or spaced imprints are allowed. Switching to Touching rejects an incompatible construction rather than silently reshaping it. Touching movement step remains coupled to diameter."
+        },
+        {
+          "do": "Select a unit/group. Right-click then R; set angular order 1 and step 1, choose Exact click, Confirm, click pivot, then press and drag.",
+          "expect": "The cursor prompts for pivot before rotation; drag snaps to twelfths clockwise from top. The step button instead performs one retained step after pivot selection. Esc cancels an active geometry preview."
+        },
+        {
+          "do": "Choose detected-target pivot; use Axis interval → Top→Right → depth 1, and Pivot position halving → depth 2. Confirm and point at a target.",
+          "expect": "The axis uses the nearest supported halved radial address; the pivot is at the chosen quarter-position along that target reference axis. Choosing position 1/2 restores center."
+        },
+        {
+          "do": "For Member place two units, V select one, right-click Configure DOFs, retain Brush / next mark, choose a contrasting color and fraction 1, then highlight. For Part repeat on one unit with fraction 1/2.",
+          "expect": "Member marks one complete unit among two; Part marks a horizontal half at default orientation. Brush paint does not recolor the base selection; no automatic part/half semantics are assigned."
+        },
+        {
+          "do": "Right-click a unit → Property patterns. Hover Size or Color; select a row, combine + and − criteria; use selectionUndo then selectionRedo.",
+          "expect": "Candidate sets glow, ranked registered properties select matching units without comparing absolute position, include/exclude refines the set, and selection history changes no geometry."
+        },
+        {
+          "do": "Repeat a move or rotation on the active world image. Release, undo the accepted edit, close/reopen, then Save shared.",
+          "expect": "Both editing surfaces use the same draft. Pointer samples stay transient, release records an accepted edit, close restores saved world rendering, reopening recovers work and save publishes the definition."
+        }
+      ],
+      "reference": "docs/OMNIC_COMPOSER.md",
+      "sources": [
+        "src/omnic/AtomnicEditor.tsx",
+        "src/omnic/atomnic.ts",
+        "src/omnic/atomnicSettings.ts",
+        "src/appearance/propertyPatterns.ts",
+        "src/ui/transientTimeline.ts",
+        "src/SpatialWorkspace.tsx"
+      ],
+      "actions": [
+        "atomnic.draw",
+        "atomnic.select",
+        "atomnic.move",
+        "atomnic.rotate",
+        "atomnic.step",
+        "atomnic.highlight",
+        "atomnic.fill",
+        "atomnic.remove",
+        "atomnic.group",
+        "atomnic.all",
+        "atomnic.configure",
+        "atomnic.confirm",
+        "atomnic.cancel",
+        "atomnic.selectionUndo",
+        "atomnic.selectionRedo"
+      ],
+      "gestures": [
+        "atomnic.pointer"
+      ],
+      "limits": "128 components/groups and 128 operations; coordinates ±300. Authored dot/group recipes plus highlights only; arrays/references/other geometry operations keep Generator controls. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis interval presets and order≤6; arbitrary pointer brackets and final radial workflow remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending.",
+      "status": "Implemented for review in the open workbench PR; not merged to production",
+      "verification": {
+        "browser": "Not run; user interaction and smoothness acceptance pending",
+        "automated": "2026-10-28: full existing model suite, TypeScript, property/capability contracts and self-contained preview build pass (2.88MB). Focused runtime checks covered lattice rotation/collisions, Free mode, halving, property matching and scoped mark rotation. No browser suite or performance trace."
+      },
+      "related": [
+        "omnic.worldPreview",
+        "omnic.compose",
+        "omnic.saving"
+      ]
+    },
+    {
       "id": "omnic.worldPreview",
       "title": "Live world drafts before saving",
       "where": "Create → New Omnic object; Open Omnic composer with or without an existing selected object.",
       "behavior": "New work uses a recoverable temporary world structure. Valid composer inputs preview on selected identities and transitive live uses through a transient renderer bridge. Saved data and pins remain unchanged until an explicit save. Close removes the projection; Reset reverts unsaved edits.",
       "steps": [
         {
-          "do": "Open New Omnic object without saving and change Unit size or add/modify a generator.",
-          "expect": "A temporary world structure follows valid edits. No new entity or graph placement appears in the saved workspace."
+          "do": "Open New Omnic object. Use D and click/sweep the construction view, then the edited world image, before saving.",
+          "expect": "A temporary world structure follows valid edits. No saved entity or placement is created until Save shared. Generator controls remains available for procedural recipes."
         },
         {
           "do": "Close and reopen the new composer, then reload and open it again.",
@@ -883,7 +963,7 @@
         "src/App.tsx"
       ],
       "actions": [],
-      "limits": "At most 32 structural world sources at 256px; extra occurrences retain saved rendering and a temporary with no free slot uses the preview-budget placeholder. Inputs are coalesced to 12fps, dependents use 4ms batches, and evaluation is static at time zero. Invalid evaluations keep the last valid preview. Temporary work is edited in the composer until saved. This does not deliver frame/dial editing, lattice gestures, MS region picking or reading-size calibration.",
+      "limits": "At most 32 structural world sources at 256px; extra occurrences retain saved rendering and a temporary with no free slot uses the preview-budget placeholder. Inputs are coalesced to 12fps, dependents use 4ms batches, and evaluation is static at time zero. Invalid evaluations keep the last valid preview. Atomnic-compatible authored drafts can now be edited on the world image before saving. Generated arrays/references remain in Generator controls. Frame/dial editing, full MS region picking and reading-size calibration remain pending.",
       "status": "Implemented for review; source PR and visual preview do not establish production deployment or browser acceptance",
       "verification": {
         "browser": "Not run; user acceptance pending",
@@ -1345,6 +1425,41 @@
       "related": [
         "library.filters",
         "appearance.edit"
+      ]
+    },
+    {
+      "id": "properties.halving",
+      "title": "Universal halving for numeric value picking",
+      "where": "Any shared numeric range control → ½ button. Atomnic contextual DOFs also expose axis and position interval pickers.",
+      "behavior": "Choose either endpoint and a halving depth; Enter or click the computed result applies one interval division through the existing property setter. Depth 1 is half, 2 quarter, 3 eighth. Existing working ranges, step resolution, validation and history remain authoritative.",
+      "steps": [
+        {
+          "do": "Open a numeric property; select ½ and type depth 3. Press Enter.",
+          "expect": "The value becomes one eighth of the current interval from the chosen endpoint, rounded to consumer precision."
+        },
+        {
+          "do": "Switch the endpoint and repeat depth 3; then edit a narrower working interval and repeat.",
+          "expect": "Picking proceeds from the opposite endpoint and uses the current interval without changing the hard validation domain."
+        }
+      ],
+      "reference": "docs/SHARED_PROPERTIES.md",
+      "sources": [
+        "src/properties/halving.ts",
+        "src/properties/HalvingPicker.tsx",
+        "src/ui/RangeControl.tsx"
+      ],
+      "actions": [],
+      "gestures": [
+        "numeric.halving"
+      ],
+      "limits": "Depth 0–16. Integer/step consumers quantize fractional results. Applies automatically to shared range controls; other bespoke picker families are not all migrated. Recursive pointer bracket selection remains further work.",
+      "status": "Implemented for review; browser acceptance pending",
+      "verification": {
+        "browser": "Not run; user acceptance pending",
+        "automated": "2026-10-28: type/property/capability checks, full existing model suite and self-contained preview build pass; interval math checked directly. Interaction not inferred."
+      },
+      "related": [
+        "omnic.atomnic"
       ]
     }
   ]

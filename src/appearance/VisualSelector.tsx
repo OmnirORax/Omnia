@@ -1,3 +1,4 @@
+import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
@@ -79,8 +80,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const record = useCallback((change: (current: SelectionState) => SelectionState) => setTimeline(previous => {
     const current = previous.states[previous.index], next = change(current);
     if (next === current) return previous;
-    const states = [...previous.states.slice(0, previous.index + 1), next];
-    return { states, index: states.length - 1 };
+    return appendTransient(previous,next);
   }), []);
   const cancelDrawing = () => { gesture.current = null; polygon.current = null; setDrawing(false); setCandidatePick(null); };
   const toggleSelection = (constraint: SelectionConstraint) => record(current => {
@@ -199,8 +199,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   }, [record, setCandidatePick]);
   const close = () => { cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
   const disable = () => { close(); clear(); };
-  const undo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.max(0, previous.index - 1) })); };
-  const redo = () => { cancelDrawing(); setTimeline(previous => ({ ...previous, index: Math.min(previous.states.length - 1, previous.index + 1) })); };
+  const undo = () => { cancelDrawing(); setTimeline(previous => stepTransient(previous,-1)); };
+  const redo = () => { cancelDrawing(); setTimeline(previous => stepTransient(previous,1)); };
   const aim = () => { retainedPreview.current = !!candidateRef.current; toggleCandidate.current = null; setCatalog(collectVisualParts()); setInventoryOpen(false); setPhase("aim"); };
   const edit = (x: number, y: number) => {
     if (!hasSelection()) return;

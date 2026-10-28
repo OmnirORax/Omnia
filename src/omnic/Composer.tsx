@@ -1,3 +1,4 @@
+import { atomnicViewBounds } from './atomnicSettings.ts';
 import { functionInputValue } from "../properties/runtimeInputs";
 import { OMNIC_CONSUMER } from "./omnic.function";
 import { operationTool, isOperationTool, applyOperationTool } from "./tools";
@@ -22,11 +23,13 @@ import type { ActionHistory } from "../ui/actionHistory";
 import { PROPERTY_REGISTRY } from "../appearance/registry";
 import { RENDER_BUDGET } from "../renderBudget";
 import "./composer.css";
+import { AtomnicEditor } from "./AtomnicEditor";
+import type { AtomnicInteraction } from "./atomnicInteraction";
 
 type ObjectRef = { id: string; label: string; omnic?: Recipe; omnicHistory?: Recipe[] };
 type Props = {
   workspaceId?: string; presetIds?:readonly string[]; entity: ObjectRef; objects: readonly ObjectRef[]; history: ActionHistory;
-  isNew?: boolean; initialRecipe?: Recipe; onPreview?: (recipe: Recipe | null) => void;
+  isNew?: boolean; initialRecipe?: Recipe; onPreview?: (recipe: Recipe | null, editing?: AtomnicInteraction) => void;
   onSave: (recipe: Recipe, label?: string) => void; onCopy: (recipe: Recipe, label: string) => void; onClose: () => void;
 };
 type Focus = { kind: "component" | "operation"; id: string };
@@ -64,6 +67,7 @@ function Parameters({ scope, spec, params, thresholds, change }: {
 /** The composer owns a recoverable local draft, not a second canonical object.
  * Accepted changes use the shared journal; samples and animation stay transient. */
 export function OmnicComposer({ entity, objects, history, onSave, onCopy, workspaceId, presetIds=[], isNew=false, initialRecipe, onPreview }: Props) {
+  const [atomnicBridge,setAtomnicBridge]=useState<AtomnicInteraction|null>(null);
   const draftId=workspaceId?`${workspaceId}:${entity.id}`:entity.id;
   const [initial] = useState(() => restoredDraft(entity,draftId,initialRecipe));
   const [draft, setDraft] = useState<Recipe>(initial.recipe);
@@ -72,6 +76,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const draftRef = useRef(draft); draftRef.current = draft;
   const [sample, setSample] = useState<Recipe | null>(null);
   const recipe = sample ?? draft, recipeRef = useRef(recipe); recipeRef.current = recipe;
+  const atomnicActive=!!recipe.atomnic?.active;
   const [focus, setFocus] = useState<Focus | null>(() => draft.components[0] ? { kind: "component", id: draft.components[0].id } : null);
   const [picked, setPicked] = useState<string[]>([]), [query, setQuery] = useState("");
   const [toolId, setToolId] = useState("");
@@ -88,10 +93,12 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     try { return { result: evaluateRecipe(recipe, resolve), error: "" }; }
     catch (failure) { return { result: null, error: failure instanceof Error ? failure.message : String(failure) }; }
   }, [recipe, resolve]);
-  useEffect(() => { if (!evaluated.error) onPreview?.(recipe); }, [recipe, evaluated.error, onPreview]);
+  useEffect(() => { if (!evaluated.error) onPreview?.(recipe,atomnicBridge??undefined); }, [recipe, evaluated.error, onPreview,atomnicBridge]);
   useEffect(() => () => onPreview?.(null), [onPreview]);
   const viewBox = useMemo(() => {
     if (!evaluated.result) return "-50 -50 100 100";
+    const atomnicBounds=atomnicViewBounds(recipe.atomnic);
+    if(atomnicBounds)return [atomnicBounds.x,atomnicBounds.y,atomnicBounds.width,atomnicBounds.height].join(" ");
     const seen = new Set<Recipe>(), cached = new Map<Recipe,number>();
     const excursion = (current: Recipe): number => {
       const known=cached.get(current);if(known!==undefined)return known;
@@ -149,7 +156,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       : { ...current, operations: current.operations.map(operation => operation.id === focus.id ? { ...operation, params } : operation) }, temporary);
   };
   const activeParameters=useMemo(()=>spec?applicableParameters(spec,active?.params??{}):[],[spec,active?.params]);
-  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), activeParameters);
+  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), atomnicActive?[]:activeParameters);
   const parameter = (field: Parameter, value: string | number | boolean, temporary: boolean) => {
     if (active) changeParams(commitOmnicParameter(active.params, field, value), temporary);
   };
@@ -281,7 +288,9 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     <UIField id="omnic:copy-name" label={isNew ? "Glyph name" : "Variation name"} category="Omnic"><label>{isNew ? "Glyph name" : "Copy name"} <input value={copyLabel} maxLength={200} onChange={event => setCopyLabel(event.target.value)} /></label></UIField>
     {(error || evaluated.error) && <small role="alert">{error || evaluated.error}</small>}{notice && <small role="status">{notice}</small>}
     {baseRevision !== (entity.omnic?.revision ?? null) && <small role="status">This draft began at shared revision {baseRevision ?? "none"}; the object is now revision {entity.omnic?.revision ?? "none"}. Reset draft loads the current definition. Save shared explicitly replaces it; Save copy preserves both.</small>}
-    <div className="omnic-workbench">
+    <div className="omnic-row"><UIAction id="omnic:atomnic-mode" label={atomnicActive ? "Generator controls" : "Atomnic mode"} category="Omnic" onClick={()=>commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}})} /></div>
+    {atomnicActive && <AtomnicEditor recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge} />}
+    {!atomnicActive && <div className="omnic-workbench">
       <div className="omnic-preview-column">
         <div className="omnic-preview" ref={preview} role="img" aria-label="Live Omnic structure" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
           const target = event.target instanceof Element ? event.target.closest("[data-omnic-role]") : null;
@@ -317,7 +326,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
           {activeOperation && <UIAction id="omnic:save-operation-tool" label="Save operation as tool" category="Omnic" onClick={()=>{try{onCopy(operationTool(activeOperation),copyLabel.trim()||"Omnic tool");}catch(failure){setError(failure instanceof Error?failure.message:String(failure));}}} />}
         </UISection>}
       </div>
-    </div>
+    </div>}
     <UISection id="omnic-targets" title={`Scope · ${picked.length ? `${picked.length} picked` : "flow selection"}`} defaultExpanded={false}>
       <div className="omnic-row"><UIAction id="omnic:pick-all" label="Whole structure" category="Omnic" onClick={() => setPicked(recipe.components.map(component=>component.id))} /><UIAction id="omnic:pick-flow" label="Use flow selection" category="Omnic" onClick={() => setPicked([])} /><input aria-label="Filter structural roles" placeholder="Find role…" value={roleFilter} onChange={event => setRoleFilter(event.target.value)} /></div>
       <div className="omnic-picked">{picked.map(role => <button type="button" key={role} title="Remove from picked scope" onClick={() => setPicked(current => current.filter(value => value !== role))}>{role} ×</button>)}</div>
@@ -329,7 +338,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
         <UIAction id="omnic:apply-operation-tool" label="Stamp copy to scope" category="Omnic" onClick={()=>{try{const tool=objects.find(object=>object.id===toolId)?.omnic;if(!tool){setError("Choose a saved operation tool.");return;}const next=applyOperationTool(recipe,tool,picked,id);if(commit(next)){setFocus({kind:"operation",id:next.operations.at(-1)!.id});}}catch(failure){setError(failure instanceof Error?failure.message:String(failure));}}} />
       </div>
     </UISection>
-    <UISection id="omnic-operations" title="Ordered operations">
+    <UISection id="omnic-operations" title="Ordered operations" defaultExpanded={!atomnicActive}>
       <UIField id="omnic:operator-search" label="Find operator" category="Omnic"><input aria-label="Find operator" placeholder="Find operator…" value={query} onChange={event=>setQuery(event.target.value)} /></UIField>
       <div className="omnic-palette">{OPERATORS.filter(operator=>`${operator.label} ${operator.id}`.toLowerCase().includes(query.toLowerCase())).map(operator=><UIAction key={operator.id} id={`omnic:add-operator:${operator.id}`} label={operator.label} category="Omnic" onClick={()=>addOperation(operator.id)} />)}</div>
       <div className="omnic-list">{recipe.operations.map((operation,index)=><div className="omnic-row" key={operation.id}>

@@ -161,11 +161,11 @@ rule, and a matched set never establishes shared canonical identity. Extend
 registered property/pattern capabilities, not a private Omnic detector.
 
 **Angular picking:** user-facing rotation/axis picking uses no degrees. Start at
-the right with six positions; increasing refinement/ring order doubles the count:
+the top, proceeding clockwise, with six positions; increasing refinement/ring order doubles the count:
 6 → 12 → 24 → 48. Three base steps reaches the opposite side. Store an order and
 step/address, with renderer angle conversion internally. This supersedes the
 agent's earlier interpretation of `3` as three halvings of a North–East sector.
-Positive direction and whether order changes radius remain pending.
+Angular refinement and radial distance are separate DOFs. They may be coupled by a constrained/realistic profile; refinement alone does not change pivot distance.
 
 **Contextual interaction:** right-click a target to expose applicable DOFs and
 operations at the pointer, with retained values such as rotation step. Clicking
@@ -423,10 +423,26 @@ The user explicitly requested this to stay aligned; links alone do not satisfy i
   frozen. Close restores saved rendering and keeps recoverable drafts. The shared
   32-source/256px world budget, 12fps input cap and 4ms dependent batches apply. Type,
   capability/property and self-contained preview checks pass; browser acceptance
-  and responsiveness remain user-tested. Temporary previews are
-  not yet selectable world construction surfaces; composer controls edit them.
+  and responsiveness remain user-tested. The first slice originally exposed composer-only editing; the Atomnic extension below now adds direct construction gestures to the edited world image.
   See [actual behavior and limits](OMNIC_COMPOSER.md#live-world-drafts-first-workbench-slice-2026-10-28).
-- Remaining work: the broader frame/lattice/MS/operator/calibration work above.
+- Atomnic construction extension (2026-10-28): authored dot/group recipes have
+  click/sweep placement, slot ghost/grid, Micro/Macro multi-selection, rigid movement,
+  grouping, deletion, shared-property matching with include/exclude and hover,
+  fractional highlights, retained settings and two-phase pivot/drag rotation.
+  Top/clockwise base-six refinement uses shared halving math; all shared numeric
+  range controls expose an interval-halving picker. Selection timelines reuse the
+  shared transient timeline mechanism; geometry uses existing draft action history.
+  Free and the first touching-lattice constraint profile are explicit. The profile
+  couples pitch to imprint diameter, enforces slot membership/non-overlap, and
+  rejects illegal rigid transformations. It is not a full physical simulator.
+  Type/property/capability checks, the existing model suite and self-contained
+  preview build pass (2.88MB); browser acceptance remains pending.
+  See [the actual controls and limits](OMNIC_COMPOSER.md#atomnic-construction).
+- Remaining work: arbitrary MS clipping/region tools inside dots, deeper pattern
+  descriptors, authored array/reference conversion, the broader frame/dial/node
+  model, richer physical profiles, contextual axis bracket gestures and reading-size
+  calibration. The current sector highlight is a geometry tool with no automatic
+  semantic interpretation. Not all agreed future grammar is implemented.
 - Verification: the user performs browser interaction/design testing. Run required
   focused static/build checks for a preview; do not add unsolicited browser suites,
   repeated profiling or speculative testing. A build does not establish smoothness.

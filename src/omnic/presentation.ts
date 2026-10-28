@@ -1,3 +1,4 @@
+import { atomnicViewBounds } from './atomnicSettings.ts';
 import { isOperationTool } from "./tools.ts";
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import type { Document, Placement } from "../graph/structural.ts";
@@ -5,6 +6,7 @@ import type { Visual, VisualAsset } from "../graph/assets.ts";
 import { referenceComponents, type Recipe, type RecipeResolver } from "./model.ts";
 import { evaluateRecipe } from "./evaluate.ts";
 import { renderSVG } from "./svg.ts";
+import type { AtomnicInteraction } from "./atomnicInteraction";
 import {objectResolver} from './revisions.ts';
 const contexts = new WeakMap<Document,{recipes:Map<string,Recipe>;stamp:string;resolve:ReturnType<typeof objectResolver>;assets:Map<string,VisualAsset>}>();
 const recipeTokens=new WeakMap<Recipe,number>();let nextRecipeToken=0;
@@ -53,12 +55,12 @@ export function omnicAsset(doc:Document,entityId:string):VisualAsset|undefined {
   const asset = recipeAsset(entityId, recipe, ctx.resolve, ctx.stamp);
   ctx.assets.set(entityId,asset);return asset;
 }
-function recipeAsset(entityId: string, recipe: Recipe, resolve: RecipeResolver, stamp: string): VisualAsset {
+function recipeAsset(entityId: string, recipe: Recipe, resolve: RecipeResolver, stamp: string, feedback?:AtomnicInteraction): VisualAsset {
   let cache=compiled.get(recipe);if(!cache){cache=new Map();compiled.set(recipe,cache);}
   let dataUrl=cache.get(stamp);
   if(!dataUrl){
     let svg:string;
-    try { svg=renderSVG(evaluateRecipe(recipe,resolve,0)); } catch { return {...omnicBudgetAsset,id:`omnic:${entityId}`}; }
+    try { svg=renderSVG(evaluateRecipe(recipe,resolve,0),feedback??{bounds:atomnicViewBounds(recipe.atomnic)}); } catch { return {...omnicBudgetAsset,id:`omnic:${entityId}`}; }
     // Renderer output uses ASCII escapes for identifiers; UTF-8 encoding stays portable.
     const bytes=new TextEncoder().encode(svg);let binary='';for(const b of bytes)binary+=String.fromCharCode(b);
     dataUrl=`data:image/svg+xml;base64,${btoa(binary)}`;
@@ -69,14 +71,15 @@ function recipeAsset(entityId: string, recipe: Recipe, resolve: RecipeResolver, 
 }
 /** A bounded renderer requests only its visible affected roots. No draft mutates
  * canonical definitions, archived pins, document revisions or saved asset bytes. */
-export function omnicDraftAssets(doc: Document, editedId: string, draft: Recipe) {
+export function omnicDraftAssets(doc: Document, editedId: string, draft: Recipe, feedback?:AtomnicInteraction) {
   const ctx = context(doc), assets = new Map<string, VisualAsset>();
   const resolve: RecipeResolver = (id, revision) => id === editedId && revision === undefined ? draft : ctx.resolve(id, revision);
   const stamp = `${ctx.stamp}:draft:${editedId}:${token(draft)}`;
+  const feedbackStamp=feedback?JSON.stringify([feedback.bounds,feedback.selected,feedback.hovered,feedback.pivot,feedback.gridPitch,feedback.ghost]):"";
   return (entityId: string): VisualAsset | undefined => {
     const previous = assets.get(entityId); if (previous) return previous;
     const recipe = resolve(entityId); if (!recipe) return;
-    const asset = recipeAsset(entityId, recipe, resolve, stamp); assets.set(entityId, asset); return asset;
+    const asset = recipeAsset(entityId, recipe, resolve, entityId===editedId?`${stamp}:${feedbackStamp}`:stamp, entityId===editedId?feedback:undefined); assets.set(entityId, asset); return asset;
   };
 }
 export const OMNIC_SCENE_BUDGET=RENDER_BUDGET.omnicSceneSources;

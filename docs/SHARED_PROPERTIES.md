@@ -336,3 +336,17 @@ Unmounted owners are hidden; settings adapters remain mandatory. The property
 contract build check covers Omnic's channels as well. Specialized consumers should
 use this existing extension path, not add a second setter registry or publish
 parameter samples into application-wide settings/React state.
+
+
+### Shared interval halving
+
+`ui/RangeControl.tsx` offers `properties/HalvingPicker.tsx` automatically for numeric
+consumers. It uses the working interval and applies existing consumer resolution
+and validation after picking. `properties/halving.ts` supplies interval division,
+base-six radial subdivision, top/clockwise turns and snapping. Controls keep only
+picker state; accepted values remain with the registered consumer. Atomnic lends
+its recipe-backed parameters through the existing `omnic.composer` adapter; there
+is no second MC settings owner. Angular order and radius are distinct inputs;
+constraint profiles enforce their own legal combinations. Depth is an initial
+explicit convention (1 = midpoint, then quarter/eighth), not a finalized grammar
+for every future contextual picker.

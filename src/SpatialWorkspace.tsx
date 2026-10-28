@@ -23,6 +23,8 @@ import { isolateSpatialContext, projectSpatial, type XYZ } from "./graph/spatial
 import { disposeVisual, visualObject } from "./visualScene";
 import type { OmnicPreviewStore } from "./omnic/worldPreview";
 import { omnicDraftAssets, omnicBudgetAsset } from "./omnic/presentation";
+import { claimUIPress } from './ui/pointerOwnership';
+import type { AtomnicInteraction } from './omnic/atomnicInteraction';
 import type { ActionId, WorkspaceSettings } from "./workspaceActions";
 import type { Document } from "./graph/structural";
 import { chartedBinders } from "./graph/presentation";
@@ -756,8 +758,9 @@ export default function SpatialWorkspace(props: Props) {
         temporary.position.set((parent?.x ?? 0) + preview.temporary.position.x,
           (parent?.y ?? 0) + preview.temporary.position.y, (parent?.z ?? 0) + preview.temporary.position.z);
         temporary.scale.setScalar(1.4);
+        temporary.userData.omnicDraftEntity=preview.entityId;
       }
-      const asset = built.omnicSlotsAvailable ? omnicDraftAssets(doc, preview.entityId, preview.recipe)(preview.entityId) : omnicBudgetAsset;
+      const asset = built.omnicSlotsAvailable ? omnicDraftAssets(doc, preview.entityId, preview.recipe,preview.editing)(preview.entityId) : omnicBudgetAsset;
       if (!asset || asset.dataUrl === url || !temporary) return;
       url = asset.dataUrl;
       if (pending) { temporary.remove(pending); disposeVisual(pending); }
@@ -773,6 +776,51 @@ export default function SpatialWorkspace(props: Props) {
     const stop = props.omnicPreview.subscribe(schedule); schedule();
     return () => { stop(); cancelAnimationFrame(frame); built.applyOmnicDraft(null, state.requestPaint); clearTemporary(); };
   }, [sceneStructure, props.omnicPreview, props.omnicPreviewContext]);
+
+  useEffect(() => {
+    const state=stateRef.current,built=textScene.current;if(!state||!built||!ready)return;
+    const canvas=state.renderer.domElement,ray=new THREE.Raycaster();
+    type Frame={plane:THREE.Plane;inverse:THREE.Matrix4;editing:AtomnicInteraction;pointerId:number};
+    let held:Frame|null=null;
+    let sourceId:string|undefined,placements:ReturnType<typeof built.nodes.get>[]=[];
+    let temporaryRoot:THREE.Object3D|undefined;
+    let canvasBounds:DOMRect|undefined;
+    const measure=()=>canvasBounds??(canvasBounds=canvas.getBoundingClientRect());
+    const invalidate=()=>{canvasBounds=undefined;};
+    const observer=new ResizeObserver(invalidate);observer.observe(canvas);
+    const locate=(event:PointerEvent):Frame|null=>{
+      const preview=props.omnicPreview.getSnapshot(),editing=preview?.editing;if(!editing||!preview.owner.startsWith(`${props.omnicPreviewContext}:`))return null;
+      const rect=measure();state.camera.updateMatrixWorld();
+      ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),state.camera);
+      const roots:THREE.Object3D[]=[];
+      if(sourceId!==preview.entityId){sourceId=preview.entityId;temporaryRoot=undefined;placements=doc.placements.filter(p=>p.entityId===sourceId).slice(0,32).map(p=>built.nodes.get(p.id));}
+      if(preview.temporary){if(!temporaryRoot?.parent)temporaryRoot=state.content.children.find(child=>child.userData.omnicDraftEntity===sourceId);if(temporaryRoot)roots.push(temporaryRoot);}
+      else for(const node of placements)if(node?.visual)roots.push(node.visual);
+      for(const root of roots){
+        root.updateWorldMatrix(true,false);const origin=root.getWorldPosition(new THREE.Vector3());
+        const normal=new THREE.Vector3(0,0,1).applyQuaternion(root.getWorldQuaternion(new THREE.Quaternion()));
+        const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(normal,origin),point=ray.ray.intersectPlane(plane,new THREE.Vector3());if(!point)continue;
+        const inverse=root.matrixWorld.clone().invert(),local=point.clone().applyMatrix4(inverse);
+        if(Math.abs(local.x)<=.5&&Math.abs(local.y)<=.5)return {plane,inverse,editing,pointerId:event.pointerId};
+      }return null;
+    };
+    const point=(frame:Frame,event:PointerEvent)=>{
+      const rect=measure();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),state.camera);
+      const local=(ray.ray.intersectPlane(frame.plane,new THREE.Vector3())??new THREE.Vector3()).applyMatrix4(frame.inverse),b=frame.editing.bounds,edge=Math.max(b.width,b.height);
+      return {x:b.x+b.width/2+local.x*edge,y:b.y+b.height/2-local.y*edge};
+    };
+    const down=(event:PointerEvent)=>{if(event.target!==canvas||event.button!==0&&event.button!==2)return;invalidate();const frame=locate(event);if(!frame)return;
+      event.preventDefault();event.stopImmediatePropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);held=frame;canvas.setPointerCapture(event.pointerId);frame.editing.down(point(frame,event),event);};
+    const move=(event:PointerEvent)=>{const frame=held??(event.target===canvas?locate(event):null);if(!frame)return;
+      if(held){event.preventDefault();event.stopImmediatePropagation();}frame.editing.move(point(frame,event),event);};
+    const up=(event:PointerEvent)=>{const frame=held;if(!frame||frame.pointerId!==event.pointerId)return;event.preventDefault();event.stopImmediatePropagation();held=null;
+      frame.editing.up(point(frame,event),event);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);};
+    const cancel=()=>{held?.editing.cancel();held=null;};
+    const context=(event:MouseEvent)=>{if(event.target===canvas&&props.omnicPreview.getSnapshot()?.editing){event.preventDefault();event.stopImmediatePropagation();}};
+    window.addEventListener('scroll',invalidate,true);window.addEventListener('resize',invalidate);
+    window.addEventListener('pointerdown',down,true);window.addEventListener('pointermove',move,true);window.addEventListener('pointerup',up,true);window.addEventListener('pointercancel',cancel,true);window.addEventListener('contextmenu',context,true);window.addEventListener('blur',cancel);
+    return()=>{cancel();observer.disconnect();window.removeEventListener('scroll',invalidate,true);window.removeEventListener('resize',invalidate);window.removeEventListener('pointerdown',down,true);window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerup',up,true);window.removeEventListener('pointercancel',cancel,true);window.removeEventListener('contextmenu',context,true);window.removeEventListener('blur',cancel);};
+  },[sceneStructure,props.omnicPreview,props.omnicPreviewContext]);
 
   useEffect(() => {
     textScene.current?.applyTheme(settings.appearance, props.colorPreview);

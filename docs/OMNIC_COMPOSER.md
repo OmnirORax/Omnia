@@ -385,3 +385,83 @@ Smallest next step: user-test New Omnic object → radial count/rotation → nes
 reuse → Save shared across two placements → Save copy → reload/export/import.
 Resolve observed usability/performance issues as Stage 2 is reviewed. Stage 1
 frame authoring remains explicit scoped records; full interpretation is Stage 3.
+
+
+## Atomnic construction
+
+Implemented for review on the workbench PR; browser interaction and smoothness
+remain user-tested. This extends the first live-world slice. New Omnic object opens
+Atomnic by default. Existing recipes use **Atomnic mode** / **Generator controls**
+to switch. Saved data is preserved. Authoring supports explicit dots and nested
+groups with highlights; arrays, references and other enabled geometry operators
+remain in Generator controls. There is no automatic destructive flattening.
+
+- **D / Draw:** move to preview the next imprint; click places one, hold and sweep
+  places a bounded stroke. The touching-lattice profile uses triangular slots,
+  fixed diameter pitch and no overlap; leave empty slots for gaps. Free separates
+  imprint radius and movement step, permitting gaps, overlaps and fractional steps.
+  Slot grid is omitted above 1,024 visible slots. A stroke samples at most 64 points
+  per event; recipe limits still apply.
+- **V / Select:** click a unit; Shift-click adds/removes. **Scope** Micro addresses
+  units; Macro addresses their nearest authored group (ungrouped root dots share
+  the construction). Ctrl+A selects all authored units. Context **group** gathers
+  selected units preserving IDs and coordinates; **remove** / Delete deletes them.
+  Context selectionUndo/selectionRedo changes only transient selection. Ordinary
+  shared Undo/Redo changes accepted construction, not each pointer preview.
+- **G / Move:** drag selected units rigidly. A clicked unselected unit becomes the
+  selection. Touching mode snaps the common translation and rejects overlap;
+  Free uses its retained movement step. Invalid samples retain the last valid one.
+- **Right-click:** contextual MC opens at the pointer with operations, current
+  rotation step, Scope and **Configure DOFs**. Settings live in the existing recipe
+  draft and survive save/import/export. Paint target **Brush / next mark** changes
+  future imprints and marks; **Selected units** edits selected paint/size. The
+  touching-profile radius changes its unit scale throughout the construction,
+  coupling pitch with it. Movement step is read-only there; Free makes it independent.
+- **R / Rotate:** retained order/step settings, then click the pivot, then drag.
+  Right-click → R opens configuration; Confirm or Enter (outside a text input)
+  advances to pivot picking. The cursor shows rotation and a pulsing central point
+  for pivot selection. **Exact click** uses your point; **Detected target** uses
+  the current Micro/Macro target bounding box. Position 1/2 is its center; changing
+  position chooses a fraction along the reference axis. Axis zero is top; positive
+  goes clockwise. Order 0/1/2 gives 6/12/24 directions. The **🗘 steps/divisions**
+  command picks a pivot and performs one retained step without dragging.
+- **Halving:** every shared numeric range has a **½** picker: select endpoint,
+  type depth, Enter or click the result. Depth 1 is the midpoint, 2 one quarter,
+  3 one eighth from that endpoint. Consumer range/precision still applies. Rotation
+  uses order/step, never degree entry in Atomnic. Axis interval offers Top→Right,
+  Right→Bottom, Bottom→Left and full turn, with the same depth picker; it maps to
+  the nearest supported base-six address (maximum order 6). Arbitrary pointer-picked
+  brackets and recursive contextual prompts remain further work.
+- **Highlight:** set brush color, highlighted fraction and mark orientation in
+  turns; select units and invoke highlight. Fraction 1/2 paints a horizontal half
+  at the default orientation; 1 marks the entire unit. Paint values stay
+  independent of canonical semantics. **Fill** applies retained paint/fill to units.
+  Existing Ordered operations shows/removes/reorders marks. Generator controls
+  also supplies reusable copied operation tools, export and detailed operations.
+- **Property patterns:** right-click a unit, expand Property patterns. Candidates
+  come from registered dot properties, ranked by shared-property similarity;
+  absolute position is excluded. Hover glows candidates; click selects that set;
+  + includes a criterion, − excludes it, Clear criteria removes criteria without
+  discarding the chosen selection. Size, fill, color, opacity, stroke, orientation and evaluated highlight descriptors
+  participate. Orientation include/exclude uses half a current angular step as
+  tolerance, with cyclic wrapping. The shared matcher is renderer-independent;
+  full integration with the global MS geometry/region UI is still pending.
+- **World:** the same gestures address the active edited image in Omnium, including
+  unsaved temporary work. Shared uses continue previewing together within the
+  existing 32-source budget. Selection/pivot/grid/ghost are transient editing
+  feedback, excluded from saved/exported glyph geometry. Close restores saved
+  rendering; unsaved draft recovery and Reset keep their existing behavior.
+
+The construction view extent is fixed while editing and adjustable in DOFs; it
+does not auto-fit each placement. That retained viewport also applies after saving
+and in library thumbnails, so saving does not silently rescale the composition.
+This is not yet the final calibrated reading
+size/max-zoom system. World rendering still uses a 256px texture and 12fps draft
+budget. Direct hit testing addresses the edited identity's image plane; generated
+reference users show live results but are not alternate atom-editing surfaces.
+At most 128 components (groups included), 128 operations and coordinates within
+±300; finite bounded ranges are enforced. Touching mode checks authored centers
+and disk radii, not stroke thickness or arbitrary simulated physical laws. Illegal
+pivots/rotations do not deform individual atoms to make them fit. Finer rotations
+usually require Free. No automatic meaning, equal-node relayout, visible circular
+frame/dial authoring or complete MS intradot carving is claimed in this version.

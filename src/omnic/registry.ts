@@ -22,7 +22,7 @@ const x = number("x","omnic.coordinate.x","Procedural X",0,-300,300,1);
 const y = number("y","omnic.coordinate.y","Procedural Y",0,-300,300,1);
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
-  {id:"dot",label:"Dot / disk",parameters:[size,...paint,x,y]},
+  {id:"dot",label:"Dot / disk",parameters:[size,angle,...paint,x,y]},
   {id:"ring",label:"Ring / boundary",parameters:[radius,{...fill,initial:false},thickness,color,opacity,x,y]},
   {id:"line",label:"Continuous line",parameters:[number("length","omnic.extent","Length",80,1,300,1),angle,thickness,color,opacity,x,y]},
   {id:"chain",label:"Discrete chain",parameters:[count,size,number("spacing","omnic.spacing","Spacing",18,1,100,1),angle,...paint,x,y]},
@@ -71,7 +71,7 @@ export function checkedParams(input: unknown, spec: Definition): Record<string,V
   const params:Record<string,Value> = {};
   for (const [key,value] of Object.entries(input)) {
     const p=spec.parameters.find(p=>p.key===key); if(!p) throw Error(`Unknown parameter ${spec.id}.${key}`);
-    if (p.kind==="number" && (typeof value!=="number" || !Number.isFinite(value) || value < p.min! || value > p.max! || (["count","index"].includes(p.key) && !Number.isInteger(value)))) throw Error(`Unsupported range: ${spec.id}.${key}`);
+    if (p.kind==="number" && (typeof value!=="number" || !Number.isFinite(value) || value < p.min! || value > p.max! || ((["count","index"].includes(p.key) || spec.id === "atomnic" && ["order","steps","axis"].includes(p.key)) && !Number.isInteger(value)))) throw Error(`Unsupported range: ${spec.id}.${key}`);
     if (p.kind==="toggle" && typeof value!=="boolean") throw Error(`Expected boolean: ${key}`);
     if (p.kind==="color" && (typeof value!=="string" || !/^#[\da-f]{6}$/i.test(value))) throw Error(`Expected RGB color: ${key}`);
     if (p.kind==="select" && !p.options?.some(o=>o.id===value)) throw Error(`Unsupported choice: ${key}`);
