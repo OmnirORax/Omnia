@@ -134,12 +134,18 @@ appearance. Declare its default `toolIcon` in `FEATURE_ACTIONS` and its active
 `cursor` state in `useFeatureActions`; alias buttons identify their canonical
 command with `UIAction tool`. The shared FunctionControl captures the clicked
 rendered icon once, and `ToolCursorLayer` supplies website-wide transport and
-priority. Keyboard/default activation uses the same declared icon. Specialized
+priority. Each active tool MUST declare its applicable `zone`. Register DOM
+surfaces with `useToolCursorZone`; canvas/3D adapters publish their existing hit
+result with `setToolCursorZone`. Leaving that zone or entering controls restores
+the native cursor. Function/zone changes choose the applicable tool, rather than
+retaining the last clicked icon globally. Only page-wide operations declare
+`zone: "*"`; settings/selector chrome stay excluded. Keyboard/default activation
+uses the same declared icon. Specialized
 live composite tools use `useToolCursor` with their existing symbol component;
 MS keeps its precision anchor/parking and priority above other active tools.
 Never add private cursor emoji/portals, duplicate icon definitions, or per-tool
-pointer listeners. Pointer motion must not trigger React, layout/style reads,
-storage or history. Clicked custom appearance refreshes on the next activation.
+pointer listeners. Ordinary motion must not trigger React, layout/style reads,
+storage or history; operation/zone transitions update only the cursor layer. Clicked custom appearance refreshes on the next activation.
 
 # Compactness is a product requirement
 

@@ -1,5 +1,5 @@
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
+import { useCallback, useId, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import type { Recipe, Component } from './model';
 import { validateRecipe } from './model';
 import { atoms, atomnicSettings, atomnicEditable, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms, type Point } from './atomnic';
@@ -28,6 +28,7 @@ import { cursorPosition } from '../ui/cursorPosition';
 import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets } from './targetDegrees';
 import type { EditableDegree } from '../properties/editableDegrees';
 import type { Parameter } from './registry';
+import { useToolCursorZone } from '../ui/toolCursorZone';
 import { nameSymbol } from '../ui/nameSymbols';
 
 type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void;documentEntries?:RadialEntry<ReactNode>[];modeControl?:ReactNode;radar?:boolean;extraPanel?:ReactNode;closePanel?:()=>void;presentationBounds?:{x:number;y:number;width:number;height:number};normalSelection?:string[];onPickGeometry?:(point:Point,role?:string)=>readonly string[]|void;surfaceRef?:Ref<HTMLDivElement>;markupRef?:RefObject<string>};
@@ -37,7 +38,8 @@ type Gesture={kind:'draw'|'erase'|'move'|'translate'|'rotate';base:Recipe;next:R
 const uid=()=>crypto.randomUUID();
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
 export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries=[],modeControl,radar=false,extraPanel,closePanel,presentationBounds,normalSelection=[],onPickGeometry,surfaceRef,markupRef}:Props) {
-  const localSurface=useRef<HTMLDivElement>(null);
+  const localSurface=useRef<HTMLDivElement>(null),cursorZone=useId();
+  useToolCursorZone(localSurface,cursorZone,radar);
   const attachSurface=useCallback((node:HTMLDivElement|null)=>{localSurface.current=node;if(typeof surfaceRef==='function')surfaceRef(node);else if(surfaceRef)surfaceRef.current=node;},[surfaceRef]);
   const wheelDelta=useRef(0),wheelTimer=useRef<ReturnType<typeof setTimeout>|null>(null),wheelEnd=useRef<ReturnType<typeof setTimeout>|null>(null);
   const recipeRef=useRef(recipe);recipeRef.current=recipe;
@@ -46,6 +48,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
   const setSelected=(next:Set<string>)=>setSelectionTimeline(previous=>appendTransient(previous,next));
   const [hovered,setHovered]=useState<string[]>([]);
   const [tool,setTool]=useState<Tool>('draw'),[phase,setPhase]=useState('idle'),[pivot,setPivot]=useState<Point|null>(null);
+  const [cursorOperation,setCursorOperation]=useState<'move'|null>(null);
+  const pointerTool=cursorOperation??tool;
   const [menu,setMenu]=useState<{x:number;y:number}|null>(null),[panel,setPanel]=useState<Panel>({kind:'functions'}),[message,setMessage]=useState('');
   const [criteria,setCriteria]=useState<PropertyCriterion[]>([]),[pointed,setPointed]=useState<string|null>(null);
   const [degrees,setDegrees]=useState<EditableDegree[]>([]);
@@ -87,7 +91,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
   const degreeValues=useMemo(()=>degree?{[degree.targets[0].input.key]:targetDegreeValue(recipe,degree)}:displayed,[degree,recipe,displayed]);
   useOmnicParameterBindings(degreeValues,next=>{if(degree){changeDegree(degree,next[degree.targets[0].input.key]);return;}for(const key of Object.keys(next))if(next[key]!==displayed[key])input(key,next[key]);},degree?degreeParameters:isAtomnic&&!extraPanel?ATOMNIC_PARAMETERS:[]);
   const beginRotation=(step=false)=>{if(!selectedRef.current.size){setMessage('Select atoms before rotating.');return;}stepOnly.current=step;setTool('rotate');setMenu(null);setPanel({kind:'functions'});setPhase('pivot');setMessage('Pick the pivot: exact click or detected target.');};
-  const cancel=()=>{const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
+  const cancel=()=>{setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
   const mark=()=>{try{const targets=[...scoped(selectedRef.current)].map(id=>`${id}:shape`);if(!targets.length)return;
     commit({...recipeRef.current,operations:[...recipeRef.current.operations,{id:uid(),operator:'highlight',targets,enabled:true,
       params:{which:'all',fraction:Number(settings.fraction),start:Number(settings.markTurn)*360,color:String(settings.color),opacity:Number(settings.opacity)}}]});
@@ -101,11 +105,11 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
   // rendered; only authored dots are direct Atomnic gesture targets.
   const compatible=isAtomnic&&atomnicEditable(recipe);
   const commands=useFeatureActions('atomnicComposer',{
-    'atomnic.erase':{enabled:compatible,cursor:compatible&&tool==='erase',run:()=>{cancel();setTool('erase');}},
+    'atomnic.erase':{enabled:compatible,cursor:compatible&&pointerTool==='erase'?{zone:cursorZone}:false,run:()=>{cancel();setTool('erase');}},
     'atomnic.constraints':{enabled:true,run:()=>input('mode',settings.mode==='free'?'constrained':'free')},
-    'atomnic.draw':{enabled:compatible,cursor:compatible&&tool==='draw',run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,cursor:compatible&&tool==='select',run:()=>{cancel();setTool('select');}},
-    'atomnic.move':{enabled:compatible&&selected.size>0,cursor:compatible&&tool==='move',run:()=>{cancel();setTool('move');}},
-    'atomnic.rotate':{enabled:compatible&&selected.size>0,cursor:compatible&&tool==='rotate'?{rotationTurns:turnStep(Number(settings.order),Number(settings.steps)),badge:phase==='pivot'?'●':undefined,pulse:phase==='pivot'}:false,run:event=>{if(menu&&event instanceof KeyboardEvent){configureOperation('atomnic.rotate');}else beginRotation();}},
+    'atomnic.draw':{enabled:compatible,cursor:compatible&&pointerTool==='draw'?{zone:cursorZone}:false,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,cursor:compatible&&pointerTool==='select'?{zone:cursorZone}:false,run:()=>{cancel();setTool('select');}},
+    'atomnic.move':{enabled:compatible&&selected.size>0,cursor:(compatible||gesture.current?.kind==='translate')&&pointerTool==='move'?{zone:cursorZone}:false,run:()=>{cancel();setTool('move');}},
+    'atomnic.rotate':{enabled:compatible&&selected.size>0,cursor:compatible&&pointerTool==='rotate'?{zone:cursorZone,rotationTurns:turnStep(Number(settings.order),Number(settings.steps)),badge:phase==='pivot'?'●':undefined,pulse:phase==='pivot'}:false,run:event=>{if(menu&&event instanceof KeyboardEvent){configureOperation('atomnic.rotate');}else beginRotation();}},
     'atomnic.step':{enabled:compatible&&selected.size>0,run:()=>beginRotation(true)},
     'atomnic.highlight':{enabled:compatible&&selected.size>0,run:mark},
     'atomnic.fill':{enabled:compatible&&selected.size>0,run:()=>{const ids=scoped(selectedRef.current);commit(mapAtoms(recipeRef.current,c=>ids.has(c.id)?{...c,params:{...c.params,fill:Boolean(settings.fill),color:String(settings.color),opacity:Number(settings.opacity)}}:c));}},
@@ -143,7 +147,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
       }
       if(event.button===0&&!target){
         const ids=onPickGeometry?.(point,role);
-        if(Array.isArray(ids)&&ids.length){setMenu(null);gesture.current={kind:'translate',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:new Set(ids),angle:0,bounds};return;}
+        if(Array.isArray(ids)&&ids.length){setMenu(null);setCursorOperation('move');gesture.current={kind:'translate',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:new Set(ids),angle:0,bounds};return;}
         if(!isAtomnic)return;
       }
       if(!compatible)return;
@@ -172,6 +176,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
         selectedRef.current=ids;setSelected(ids);
         if(event.shiftKey)return;
         const kind=tool==='rotate'?'rotate':'move';if(kind==='rotate'&&!pivot){beginRotation();return;}
+        if(kind==='move')setCursorOperation('move');
         gesture.current={kind,base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:scoped(ids),bounds,angle:pivot?directionTurn(point.x-pivot.x,point.y-pivot.y):0};return;
       }
       if(tool==='rotate'&&pivot&&selected.size){gesture.current={kind:'rotate',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:scoped(selectedRef.current),angle:directionTurn(point.x-pivot.x,point.y-pivot.y)};return;}
@@ -211,10 +216,10 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
         if(commit(next,true)){active.next=next;active.last=point;if(appliedDelta)active.appliedDelta=appliedDelta;if(active.kind==='rotate')active.appliedTurn=snapTurn(active.turn??0,Number(settings.order),Number(settings.steps));setMessage('');}
       }catch(failure){error(failure);}
     },
-    up:(_point,event)=>{if(event.buttons&1)return;const active=gesture.current;gesture.current=null;if(active){if(active.next!==active.base)commit(active.next);if(active.kind==='erase'){const remaining=new Set(atoms(active.next).map(a=>a.id));const nextSelected=new Set([...selectedRef.current].filter(id=>remaining.has(id)));if(nextSelected.size!==selectedRef.current.size)setSelected(nextSelected);}if(active.kind==='rotate')setPhase('idle');}},cancel,
+    up:(_point,event)=>{if(event.buttons&1)return;setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active){if(active.next!==active.base)commit(active.next);if(active.kind==='erase'){const remaining=new Set(atoms(active.next).map(a=>a.id));const nextSelected=new Set([...selectedRef.current].filter(id=>remaining.has(id)));if(nextSelected.size!==selectedRef.current.size)setSelected(nextSelected);}if(active.kind==='rotate')setPhase('idle');}},cancel,
   };
   const api=useMemo(()=>({context:(event:MouseEvent)=>openMovingPosition(event.clientX,event.clientY),down:(p:Point,e:PointerEvent)=>handlers.current.down(p,e),move:(p:Point,e:PointerEvent)=>handlers.current.move(p,e),up:(p:Point,e:PointerEvent)=>handlers.current.up(p,e),cancel:()=>handlers.current.cancel()}),[]);
-  const bridge=useMemo<AtomnicInteraction>(()=>({...api,bounds,gridPitch:isAtomnic&&settings.mode==='constrained'?Number(settings.size)*2:undefined,ghost:isAtomnic&&tool==='draw'&&ghost?{...ghost,radius:Number(settings.size),color:String(settings.color)}:undefined,selected:isAtomnic?[...selected]:normalSelection,hovered:isAtomnic?hovered:[],pivot:isAtomnic?pivot:null,phase:isAtomnic?(phase==='idle'?tool:phase):'select'}),[api,bounds,selected,hovered,pivot,phase,tool,ghost,settings.mode,settings.size,settings.color,isAtomnic,isAtomnic?null:normalSelection]);
+  const bridge=useMemo<AtomnicInteraction>(()=>({...api,bounds,cursorZone,gridPitch:isAtomnic&&settings.mode==='constrained'?Number(settings.size)*2:undefined,ghost:isAtomnic&&tool==='draw'&&ghost?{...ghost,radius:Number(settings.size),color:String(settings.color)}:undefined,selected:isAtomnic?[...selected]:normalSelection,hovered:isAtomnic?hovered:[],pivot:isAtomnic?pivot:null,phase:isAtomnic?(phase==='idle'?tool:phase):'select'}),[api,bounds,cursorZone,selected,hovered,pivot,phase,tool,ghost,settings.mode,settings.size,settings.color,isAtomnic,isAtomnic?null:normalSelection]);
   useEffect(()=>{onBridge(radar||compatible?bridge:null);},[bridge,onBridge,compatible,radar]);useEffect(()=>()=>{onBridge(null);},[onBridge]);
   const beforeUnmount=useRef(cancel);beforeUnmount.current=cancel;
   useEffect(()=>{const stop=()=>{if(gesture.current)beforeUnmount.current();};window.addEventListener('blur',stop);return()=>{window.removeEventListener('blur',stop);};},[]);
@@ -321,7 +326,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
   return radar?content:<UISection id="atomnic-editor" title="Atomnic">{content}</UISection>;
   function openMovingPosition(x:number,y:number){
     const active=gesture.current;if(!active||active.kind!=='move'&&active.kind!=='translate')return false;
-    gesture.current=null;if(active.next!==active.base)commit(active.next);
+    gesture.current=null;setCursorOperation(null);if(active.next!==active.base)commit(active.next);
     closePanel?.();setMenu({x,y});setPanel({kind:'operation',action:'atomnic.move',index:0});setPhase('configure');return true;
   }
   function operationKeys(action:AtomnicConfigAction):readonly string[]{return ATOMNIC_OPERATION_INPUTS[action].filter(key=>key!=='step'||settings.mode==='free');}

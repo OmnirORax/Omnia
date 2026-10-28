@@ -529,5 +529,17 @@ or history. Style capture is activation-only and bounded to 128 icon nodes.
 Do not introduce another hardcoded cursor emoji, private portal or pointer listener.
 
 The pen/eraser uses two opposite halves of the same rounded diagonal silhouette,
-without an underline. Pen is upper white/lower black; Erase is upper black/lower
+without an underline. Pen is upper black/lower white; Erase is upper black/lower
 white. The button offers the next action; the cursor shows the active one.
+
+Tool cursor inheritance is applicability-scoped. Every active cursor declares a
+`zone`; absent scope means native cursor. DOM surfaces register through
+`useToolCursorZone`, caching geometry on entry/resize/scroll; canvas/3D adapters
+publish existing hit results through `setToolCursorZone`. The resolver filters
+by the pointer's actual zone before choosing priority. Only an explicitly
+page-wide operation declares `zone: "*"`; selector/settings chrome is excluded.
+Leaving a zone restores native controls immediately, even with pointer capture
+(cached circle/rectangle containment). Function/zone transitions update the
+cursor selection; ordinary motion only updates its transform. The existing
+capture-phase cursor tracker feeds this transport before domain handlers can
+consume pointer events. It does not install another pointer-move listener.

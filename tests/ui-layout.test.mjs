@@ -1,4 +1,4 @@
-import { activeToolCursor } from "../src/ui/toolCursorModel.ts";
+import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCursorModel.ts";
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -360,6 +360,22 @@ test('shared active cursor gives MS priority, restores other tools, and pen/eras
   assert.equal(activeToolCursor([erase]),erase);assert.equal(activeToolCursor([]),null);
   const svg=url=>decodeURIComponent(url.slice(url.indexOf(',')+1));
   const fills=url=>[...svg(url).matchAll(/<path fill="(#[a-z0-9]+)"/g)].map(match=>match[1]);
-  assert.deepEqual(fills(PEN_SYMBOL),['#fff','#000']);assert.deepEqual(fills(ERASER_SYMBOL),['#000','#fff']);
+  assert.deepEqual(fills(PEN_SYMBOL),['#000','#fff']);assert.deepEqual(fills(ERASER_SYMBOL),['#fff','#000']);
   assert.equal((svg(PEN_SYMBOL).match(/<path/g)||[]).length,2,'two body halves only, no underline');
+});
+
+test('cursor applicability follows operation zones and restores native behavior outside them',()=>{
+  const pen={priority:0,key:'pen',zone:'composer-a'},other={priority:1,key:'other',zone:'composer-b'},selector={priority:100,key:'selector',zone:'*'};
+  const pick=(zone,blocked=false)=>activeToolCursor([pen,other],request=>cursorApplies(request,zone,blocked));
+  assert.equal(pick('composer-a'),pen);assert.equal(pick('composer-b'),other);
+  assert.equal(pick(undefined),null,'toolbars and other controls keep their native cursor');
+  assert.equal(pick('composer-a',true),null,'settings controllers suspend tools');
+  assert.equal(cursorApplies({},'composer-a'),false,'unscoped tools never leak globally');
+  assert.equal(cursorApplies(selector,undefined),true);assert.equal(cursorApplies(selector,undefined,true),false);
+  assert.equal(cursorApplies({...selector,parked:{x:0,y:0}},undefined,true),true,'parked MS remains a stationary marker');
+  const circle={left:100,top:100,width:200,height:200,circle:true};
+  assert.equal(inCursorArea({x:200,y:200},circle),true);
+  assert.equal(inCursorArea({x:110,y:110},circle),false,'circular corners/rim are outside editing');
+  assert.equal(inCursorArea({x:310,y:200},circle),false,'pointer capture cannot extend applicability');
+  assert.equal(inCursorArea({x:110,y:110},{...circle,circle:false}),true);
 });

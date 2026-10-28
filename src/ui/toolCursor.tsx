@@ -1,18 +1,20 @@
 import { useId, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { cursorPosition } from './cursorPosition';
-import { activeToolCursor } from './toolCursorModel';
-export type ToolCursorOptions={priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
+import { cursorSample, observeCursor } from './cursorPosition';
+import { pointerToolZone, observeToolZones } from './toolCursorZone';
+import { activeToolCursor, cursorApplies } from './toolCursorModel';
+export type ToolCursorOptions={zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
 export type ToolCursorRequest=ToolCursorOptions & {key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number}};
 const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,HTMLElement>(),listeners=new Set<()=>void>();
-let version=0;
+let version=0,selected:ToolCursorRequest|null=null;
 const publish=()=>{version++;listeners.forEach(listener=>listener());};
+const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point),next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked));if(next!==selected){selected=next;publish();}};
 const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
 /** Owners declare active state; transport, priority and clicked-icon inheritance are shared. */
 export function useToolCursor(request:ToolCursorRequest|null){
   const owner=useId();
-  useLayoutEffect(()=>{owners.delete(owner);if(request)owners.set(owner,request);publish();},[owner,request]);
-  useLayoutEffect(()=>()=>{if(owners.delete(owner))publish();},[owner]);
+  useLayoutEffect(()=>{owners.delete(owner);if(request)owners.set(owner,request);refresh();},[owner,request]);
+  useLayoutEffect(()=>()=>{if(owners.delete(owner))refresh();},[owner]);
 }
 /** Capture only the actual icon, once on activation, including custom appearance.
  * No source layout/style lookup occurs during pointer movement. */
@@ -27,25 +29,37 @@ export function rememberToolIcon(key:string,source:HTMLElement|null){
 /** The website has one active cursor layer; pointer updates only its transform. */
 export function ToolCursorLayer(){
   useSyncExternalStore(subscribe,()=>version);
-  const request=activeToolCursor(owners.values());
-  const root=useRef<HTMLDivElement>(null),captured=useRef<HTMLDivElement>(null),point=useRef(cursorPosition());
+  const request=selected;
+  const root=useRef<HTMLDivElement>(null),captured=useRef<HTMLDivElement>(null),point=useRef(cursorSample());
   const snapshot=request?snapshots.get(request.key):undefined;
   useLayoutEffect(()=>{
     if(!captured.current)return;
     captured.current.replaceChildren(...(snapshot?[snapshot.cloneNode(true)]:[]));
   },[snapshot,request?.key]);
+  const current=useRef(request);current.current=request;
+  const paint=()=>{
+    const active=current.current,node=root.current;if(!active||!node)return;
+    const p=active.parked??point.current,anchor=active.anchor??{x:0,y:0};
+    node.style.transform=`translate3d(${p.x-(active.width??28)*anchor.x}px,${p.y-(active.height??28)*anchor.y}px,0)`;
+  };
   useLayoutEffect(()=>{
-    if(!request||!root.current)return;
-    const width=request.width??28,height=request.height??28,anchor=request.anchor??{x:0,y:0};
-    const paint=()=>{const p=request.parked??point.current;root.current!.style.transform=`translate3d(${p.x-width*anchor.x}px,${p.y-height*anchor.y}px,0)`;};
-    point.current=cursorPosition();paint();
-    document.documentElement.toggleAttribute('data-tool-cursor',!request.parked);
-    const move=(event:PointerEvent)=>{root.current!.style.visibility="visible";point.current={x:event.clientX,y:event.clientY};paint();};
-    const hide=()=>{if(root.current&&!request.parked)root.current.style.visibility='hidden';};
-    const leave=(event:PointerEvent)=>{if(!event.relatedTarget)hide();};
-    if(!request.parked)window.addEventListener('pointermove',move,true);
-    window.addEventListener('blur',hide);window.addEventListener('pointerout',leave,true);
-    return()=>{window.removeEventListener('pointermove',move,true);window.removeEventListener('blur',hide);window.removeEventListener('pointerout',leave,true);delete document.documentElement.dataset.toolCursor;};
+    const follow=(sample=cursorSample())=>{
+      point.current=sample;refresh(sample);
+      if(selected!==current.current){if(root.current)root.current.style.visibility='hidden';delete document.documentElement.dataset.toolCursor;return;}
+      if(selected&&root.current){
+        if(root.current.style.visibility!=='visible')root.current.style.visibility='visible';
+        const hideNative=!selected.parked;
+        if(document.documentElement.hasAttribute('data-tool-cursor')!==hideNative)document.documentElement.toggleAttribute('data-tool-cursor',hideNative);
+      }
+      if(!selected?.parked)paint();
+    };
+    const stopPointer=observeCursor(follow),stopZones=observeToolZones(follow);
+    return()=>{stopPointer();stopZones();delete document.documentElement.dataset.toolCursor;};
+  },[]);
+  useLayoutEffect(()=>{
+    if(root.current)root.current.style.visibility='visible';paint();
+    document.documentElement.toggleAttribute('data-tool-cursor',!!request&&!request.parked);
+    return()=>{delete document.documentElement.dataset.toolCursor;};
   },[request]);
   useLayoutEffect(()=>()=>{snapshots.clear();},[]);
   if(!request)return null;

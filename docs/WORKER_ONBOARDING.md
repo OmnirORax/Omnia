@@ -31,7 +31,7 @@ from a long chat, an old PR or a contradictory comment.
 
 Active pointer tools inherit the icon activated, rather than a separate cursor
 emoji. Declare `FEATURE_ACTIONS.toolIcon`, active `useFeatureActions` cursor state,
-and canonical `UIAction tool` for aliases. The shared cursor captures custom clicked
+and canonical `UIAction tool` for aliases. Every active cursor must declare its applicable zone; outside it the native cursor returns. DOM zones use useToolCursorZone, and canvas adapters publish their existing hit test with setToolCursorZone. The shared cursor captures custom clicked
 appearance and handles transport/priority automatically. MS uses the same layer
 with its live SelectorSymbol and precision/parking; parked MS restores the native
 pointer. See AGENTS.md and UI_COMPONENT_CONTRACT.md; do not add private cursor
