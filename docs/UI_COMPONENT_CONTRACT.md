@@ -552,3 +552,13 @@ marker through setToolCursorAim: DOM relative positions use cached surface
 geometry; 3D surfaces publish projected screen coordinates from existing image
 transforms. This is transient cursor feedback, not a second position owner.
 Unchanged snapped positions do not rewrite cursor transforms.
+
+Brush feedback performance: Composer pointer-only feedback uses svgBrushFeedback
+and a cached spatial hit index, not React state or whole-SVG replacement. Only
+changed highlights/marker attributes are painted. Hit membership is reused inside
+the same target; erase-only feedback resources are not built for Pen. Cursor
+position/context notifications are separate: motion only places the icon,
+context/zone/tool transitions resolve applicability, and target updates trigger
+paint only. Do not add preview-wide cursor subscriptions or generic per-update
+checking loops. Genuine edits and the existing bounded world feedback path keep
+their owners. User testing establishes whether responsiveness is sufficient.

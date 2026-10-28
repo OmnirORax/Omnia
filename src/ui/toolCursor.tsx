@@ -1,14 +1,15 @@
 import { useId, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { cursorSample, observeCursor } from './cursorPosition';
-import { pointerToolZone, observeToolZones, toolCursorAim } from './toolCursorZone';
+import { cursorSample, observeCursor, observeCursorContext } from './cursorPosition';
+import { pointerToolZone, observeToolZones, observeToolAim, type ToolCursorScope } from './toolCursorZone';
 import { activeToolCursor, cursorApplies, cursorOrigin } from './toolCursorModel';
 export type ToolCursorOptions={zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
 export type ToolCursorRequest=ToolCursorOptions & {key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number}};
 const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,{node:HTMLElement;width:number;height:number}>(),listeners=new Set<()=>void>();
+let currentScope:ToolCursorScope|undefined;
 let version=0,selected:ToolCursorRequest|null=null;
 const publish=()=>{version++;listeners.forEach(listener=>listener());};
-const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point),next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked));if(next!==selected){selected=next;publish();}};
+const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point);currentScope=scope;const next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked));if(next!==selected){selected=next;publish();}};
 const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
 /** Owners declare active state; transport, priority and clicked-icon inheritance are shared. */
 export function useToolCursor(request:ToolCursorRequest|null){
@@ -38,12 +39,12 @@ export function ToolCursorLayer(){
     if(!captured.current)return;
     captured.current.replaceChildren(...(snapshot?[snapshot.node.cloneNode(true)]:[]));
   },[snapshot,request?.key]);
+  const offset=useRef({x:0,y:0});
   const current=useRef(request),lastPaint=useRef<{node:HTMLElement;transform:string}|null>(null);current.current=request;
   const paint=()=>{
     const active=current.current,node=root.current;if(!active||!node)return;
-    const p=active.parked??toolCursorAim(point.current,active.zone,active.key)??point.current;
-    const origin=cursorOrigin(p,active.width??28,active.height??28,active.anchor,active.rotationTurns);
-    const transform=`translate3d(${origin.x}px,${origin.y}px,0)`;
+    const p=active.parked??currentScope?.aim?.(active.key)??point.current;
+    const transform=`translate3d(${p.x+offset.current.x}px,${p.y+offset.current.y}px,0)`;
     if(lastPaint.current?.node!==node||lastPaint.current.transform!==transform){node.style.transform=transform;lastPaint.current={node,transform};}
   };
   useLayoutEffect(()=>{
@@ -57,10 +58,12 @@ export function ToolCursorLayer(){
       }
       if(!selected?.parked)paint();
     };
-    const stopPointer=observeCursor(follow),stopZones=observeToolZones(follow);
-    return()=>{stopPointer();stopZones();delete document.documentElement.dataset.toolCursor;};
+    const move=(sample=cursorSample())=>{point.current=sample;if(!current.current?.parked)paint();};
+    const stopPointer=observeCursor(move),stopContext=observeCursorContext(follow),stopZones=observeToolZones(follow),stopAim=observeToolAim(()=>{if(!current.current?.parked)paint();});
+    return()=>{stopPointer();stopContext();stopZones();stopAim();delete document.documentElement.dataset.toolCursor;};
   },[]);
   useLayoutEffect(()=>{
+    offset.current=request?cursorOrigin({x:0,y:0},request.width??28,request.height??28,request.anchor,request.rotationTurns):{x:0,y:0};
     if(root.current)root.current.style.visibility='visible';paint();
     document.documentElement.toggleAttribute('data-tool-cursor',!!request&&!request.parked);
     return()=>{delete document.documentElement.dataset.toolCursor;};

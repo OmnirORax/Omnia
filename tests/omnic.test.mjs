@@ -1,3 +1,4 @@
+import { brushHitIndex } from "../src/omnic/brushFeedback.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateRecipe, validateRecipeReferences, LIMITS } from '../src/omnic/model.ts';
@@ -322,4 +323,14 @@ test('direct target translation preserves group geometry, scope and profile lega
   assert.throws(()=>translateTargets(recipe,new Set(['stale']),{x:1,y:0}),/no longer exists/);
   const dot={...recipe,atomnic:{mode:'constrained',size:10},components:[{id:'dot',generator:'dot',params:{size:10,x:0,y:0}}]};
   assert.throws(()=>translateTargets(dot,new Set(['dot']),{x:1,y:0}),/Realistic/);
+});
+
+test('brush hover uses indexed geometry and retains feedback identity until membership changes',()=>{
+  const source={version:2,revision:1,components:[{id:'g',generator:'group',params:{},children:[{id:'a',generator:'dot',params:{size:10,x:0,y:0}},{id:'b',generator:'dot',params:{size:10,x:20,y:0}}]},{id:'c',generator:'dot',params:{size:10,x:100,y:0}}],operations:[],frames:[]};
+  const pick=brushHitIndex(atoms(source));
+  const first=pick({x:0,y:0},false);assert.deepEqual([...first],['a']);
+  assert.equal(pick({x:1,y:1},false),first,'unchanged hit membership does not replace feedback');
+  assert.deepEqual([...pick({x:10,y:0},false)],['a','b'],'touching boundaries retain both hits');
+  assert.deepEqual([...pick({x:0,y:0},true)],['a','b'],'Macro expands the existing authored group');
+  assert.deepEqual([...pick({x:100,y:0},true)],['c']);assert.equal(pick({x:500,y:500},false).size,0);
 });
