@@ -92,6 +92,13 @@ feature-specific scope lists or treat the order as an arbitrary list of options.
 
 # Systemic implementation and future inheritance (all agents)
 
+The user's **halving method** is a universal value-picking requirement, not an
+Omnic-only or radial-selector feature. Implement it through shared value/property
+selection mechanisms so applicable current and future consumers inherit it.
+Radial axes and positions are examples. Exact indexing, endpoint/direction and
+threshold behavior remain to be resolved with the user; do not freeze guessed
+formulas into individual controls. See SHARED_PROPERTIES.md.
+
 Fix the underlying cause in the shared system, not the individual symptom with
 hardcoded IDs, per-component exceptions, duplicated logic or one-off patches.
 Inspect the affected ownership and contracts, consider other affected systems and the

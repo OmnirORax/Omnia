@@ -1,5 +1,21 @@
 # Universal properties, coupling and generated controllers
 
+## Universal halving method (user requirement, 2026-10-28)
+
+The user explicitly clarified that the **halving method applies to all value
+picking systems**. It is not confined to Omnic, rotation, pivot selection or
+radial axes. Build the applicable mechanism once in shared property/value picking
+and let current/future consumers inherit it through their declared domains.
+
+The interaction uses a chosen interval/reference and a quickly entered halving
+depth, with direction/endpoints where needed. Radial examples start with six
+divisions and can refine to 12, 24, 48; position examples include half, quarter
+and eighth along an axis. These examples do not yet settle all indexing and
+direction rules. The exact interpretation of depth, interval branching, valid
+thresholds and mapping to discrete/non-numeric domains remains open. Preserve
+consumer constraints and distinguish picking precision from actual allowed values.
+Do not create separate halving implementations or settings stores per feature.
+
 Status: **shared core implemented; migration is incremental**. Updated 2026-10-22.
 The general registry now drives canonical property lookup, compatible consumer
 coupling, category discovery and generated controller/target projections. Existing

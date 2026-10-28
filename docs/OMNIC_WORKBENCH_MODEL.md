@@ -144,6 +144,13 @@ shared action/input ownership paths while resolving them through use.
 
 ## Operators, presets and selection
 
+The user's **halving method is universal across all value-picking systems**.
+Radial axis subdivision and fractional pivot positioning are applications of
+that shared mechanism. The examples include 6 → 12 → 24 → 48 angular divisions
+and 1/2 → 1/4 → 1/8 positions, quickly entered by depth. Exact interval/direction
+and indexing semantics remain under discussion. Implement through shared value
+picking, not private Atomnic controls; see SHARED_PROPERTIES.md.
+
 The user's term is **operator presets**: reusable operator configurations with
 modifiable degrees of freedom, snaps and constraints. Stamping is an application
 gesture. The earlier agent's Member/Part construction presets are examples, not
