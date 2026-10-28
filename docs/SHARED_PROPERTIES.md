@@ -7,6 +7,13 @@ picking systems**. It is not confined to Omnic, rotation, pivot selection or
 radial axes. Build the applicable mechanism once in shared property/value picking
 and let current/future consumers inherit it through their declared domains.
 
+Angular clarification: start from the right with base six positions; refinement
+order doubles the count 6 → 12 → 24 → 48. Three base steps reaches the opposite
+side. User-facing controls use step/order or fractional addresses, not degrees;
+renderer angle conversion is internal. Positive direction and radius coupling
+remain pending. Do not interpret entering `3` as three halvings of a North–East
+sector unless that interval operation was explicitly selected.
+
 The interaction uses a chosen interval/reference and a quickly entered halving
 depth, with direction/endpoints where needed. Radial examples start with six
 divisions and can refine to 12, 24, 48; position examples include half, quarter

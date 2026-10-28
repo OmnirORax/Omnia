@@ -121,17 +121,24 @@ or final pixel dimensions follow from this discussion.
 
 ## Agreed dot construction mode
 
-The illustrated minimal ● mode has a fixed touching lattice (the shown staggered,
-six-neighbor arrangement). Gaps come from leaving slots empty, not continuously
-adjusting the substrate's pitch. This is a mode's substrate rule, not a universal
-grid imposed on all future Omnic modules, operators or Omnium itself.
+The user subsequently clarified that **● is the visible discrete unit, not the
+tool's minimum movement step**. Provide free and constrained modes. Tools can
+place, rotate and engineer fractional configurations the units could not produce
+unaided. A constrained/physical-law profile supplies the applicable limits; free
+mode permits finer construction. Enlarged inspection helps engineer a result
+whose relevant distinctions must survive the intended reading scale.
+
+The earlier fixed touching lattice is one constrained profile. Imprint equal to
+step gives touching discrete marks; smaller imprint leaves gaps; larger imprint
+overlaps and can make continuous/fractional detail. Do not globally forbid these
+configurations or impose this substrate on all future modules and operators.
 
 Required interactions:
 
 - A dot follows the mouse through valid positions and lands on the desired slot.
 - Support both click placement and held/swept repeated placement.
 - Select any number of units and move them together, preserving their arrangement.
-- Preserve minimum unit size and prevent overlap; stable identities survive moves.
+- Preserve applicable mode constraints; stable identities survive moves.
 - Count is the occupied units. Arbitrary arrangements cannot be limited to the
   existing chain/radial generators or a fixed collection of prepared patterns.
 - Fine internal marks and their rotations have their own DOFs/constraints. They
@@ -141,6 +148,36 @@ How a rotated group relates to the substrate (local lattice rotation versus
 allowed landings on an existing lattice), collision feedback, region gesture
 details and final shortcuts are open interaction details. Preserve the existing
 shared action/input ownership paths while resolving them through use.
+
+Later clarification permits fractional configurations in free mode; do not block
+all rotation until every result lands on the earlier fixed lattice.
+
+**Grouping:** reuse/extend MS detection over Omnic contents. Selecting a target
+exposes shared-pattern choices ranked most similar to least. Hover previews the
+matching set; the user includes/excludes criteria. Color can select all white
+objects; direction can select an orientation range. Size participates; absolute
+position is excluded from similarity matching. Touching alone is not the group
+rule, and a matched set never establishes shared canonical identity. Extend
+registered property/pattern capabilities, not a private Omnic detector.
+
+**Angular picking:** user-facing rotation/axis picking uses no degrees. Start at
+the right with six positions; increasing refinement/ring order doubles the count:
+6 → 12 → 24 → 48. Three base steps reaches the opposite side. Store an order and
+step/address, with renderer angle conversion internally. This supersedes the
+agent's earlier interpretation of `3` as three halvings of a North–East sector.
+Positive direction and whether order changes radius remain pending.
+
+**Contextual interaction:** right-click a target to expose applicable DOFs and
+operations at the pointer, with retained values such as rotation step. Clicking
+an operation executes it; a configured key selects its function with retained
+sub-settings. Right-click configures. Micro targets the selected member; Macro
+targets its group; Shift-click adds members/groups in this context. Rotation
+configuration leads to an explicit pivot-picking phase, then drag rotation. The
+cursor carries the operation symbol; a pulsing central dot cues pivot selection.
+Pivot choices include exact click and a detected target's configurable reference
+point. Axis and position picking use the universal halving method. Reuse/extend
+shared action, MC, MS and property paths; the existing composer UI can be replaced
+where these paths cover it. Do not implement private input/settings systems.
 
 ## Operators, presets and selection
 
