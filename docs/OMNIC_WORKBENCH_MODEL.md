@@ -5,6 +5,16 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
+## Latest scope: narrow removal from the restored PR #36
+
+PR #37's broad composer cleanup was rejected and rolled back. The user now
+explicitly targets only the shown old operation/frame area: retain Semantic
+oscillation; remove the other operation palette/list entries, search, Ordered
+operations wrapper, Interpretation frames editor and footer explanation. Keep the
+rest of PR #36, especially Atomnic tools, generators/presets, scope/reusable tools,
+save/recovery/live preview and library. Existing operation/frame data is preserved.
+Do not interpret this as authorization to remove the rest of the composer again.
+
 ## Start here
 
 The user needs a general instrument for constructing, applying and revising

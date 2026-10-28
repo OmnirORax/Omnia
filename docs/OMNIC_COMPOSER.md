@@ -1,5 +1,14 @@
 # Omnic composer: Stage 1 contract
 
+Current narrow UI change after restoring PR #36: remove the screenshot's Ordered
+operations frame/search/non-oscillation palette and list entries, plus the
+Interpretation frames editor and footer explanation. Keep Semantic oscillation and
+its existing controls. Preserve existing operation/frame recipe data. All other
+PR #36 composer/Atomnic/library functionality remains. The broader cleanup in
+closed PR #37 was rejected and reverted; do not reapply it. Earlier descriptions
+of those removed controls below are historical implementation context, not their
+current availability. See CAPABILITIES.md for current entry points.
+
 The user's subsequent direction is synthesized in
 [OMNIC_WORKBENCH_MODEL.md](OMNIC_WORKBENCH_MODEL.md). It authorizes progressive
 world-integrated construction, temporary/shared live drafts and lattice-constrained

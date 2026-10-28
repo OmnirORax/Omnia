@@ -30,9 +30,9 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Camera versus object rotation, trackball and axis lock](#camera-navigation) | Implemented; browser verification pending | World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings. |
 | [Front-on centering, fit, origin, roll and focus navigation](#camera-framing) | Implemented; browser verification pending | MC World view / Active context and navigation catalog; F frames selected front-on. |
 | [Procedural generators and parameters](#omnic-compose) | Implemented; browser verification pending | Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer. New objects start in Atomnic; switch to Generator controls for this procedural walkthrough. |
-| [Ordered operations, role picking, target repair and count extraction](#omnic-operations) | Implemented; user verification pending | Composer → Scope / Ordered operations. |
-| [Interpretive frame declarations](#omnic-frames) | Implemented; browser verification pending | Composer → Interpretation frames. |
-| [Semantic oscillation and playback](#omnic-motion) | Implemented; browser verification pending | Composer → Semantic oscillation preset / Play–pause. |
+| [Semantic oscillation entry and preserved operation data](#omnic-operations) | Screenshot-specific composer simplification implemented for review | Composer → Semantic oscillation button. Existing oscillation rows remain selectable; Generator controls edits their parameters. |
+| [Interpretation frame metadata; authoring panel removed](#omnic-frames) | Old composer frame panel removed; saved metadata preserved | Existing records remain in saved recipe JSON; the composer Interpretation frames panel is removed. |
+| [Semantic oscillation and playback](#omnic-motion) | Implemented; browser verification pending | Composer → Semantic oscillation button; its selected operation parameters in Generator controls; toolbar Play/pause. |
 | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) | Implemented for review in the open workbench PR; not merged to production | Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image. |
 | [Live world drafts before saving](#omnic-worldPreview) | Implemented for review; source PR and visual preview do not establish production deployment or browser acceptance | Create → New Omnic object; Open Omnic composer with or without an existing selected object. |
 | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) | Implemented; browser verification pending | Composer toolbar; Inspector → Show Omnic structure. |
@@ -70,7 +70,7 @@ Reviewed walkthroughs explain features, exact entry points, limitations and obse
 
 **Details:** [subsystem guide](capabilities/README.md). **Implementation:** [scripts/capabilities.mjs](../scripts/capabilities.mjs), [.github/workflows/backend.yml](../.github/workflows/backend.yml), [.github/workflows/cloudflare-pages.yml](../.github/workflows/cloudflare-pages.yml), [.github/workflows/deploy-pages.yml](../.github/workflows/deploy-pages.yml).
 
-**Related:** [Interpretive frame declarations](#omnic-frames), [Shared library, multiple atlases and copy provenance](#library-objects).
+**Related:** [Interpretation frame metadata; authoring panel removed](#omnic-frames), [Shared library, multiple atlases and copy provenance](#library-objects).
 
 <a id="interface-context"></a>
 ## Active context, close, minimize, resize and descendants
@@ -462,49 +462,47 @@ New work opens a recoverable single-dot world draft without creating an object. 
 **Related:** [Live world drafts before saving](#omnic-worldPreview), [Shared save, independent copy, drafts and recipe import/export](#omnic-saving).
 
 <a id="omnic-operations"></a>
-## Ordered operations, role picking, target repair and count extraction
+## Semantic oscillation entry and preserved operation data
 
-**ID:** `omnic.operations` · **Status:** Implemented; user verification pending
+**ID:** `omnic.operations` · **Status:** Screenshot-specific composer simplification implemented for review
 
-**Where:** Composer → Scope / Ordered operations.
+**Where:** Composer → Semantic oscillation button. Existing oscillation rows remain selectable; Generator controls edits their parameters.
 
-Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired. Highlight units / region selects a 1-based unit or all scoped units and highlights an exact disk sector/ring arc fraction. Rotate supports highlighted region, each unit and group scopes, target-center/origin/custom pivots, saved snap step/origin and optional allowed angles. Rotate one step is rebindable and inherits Shift configuration. Operation tools are canonical scope-relative recipes, saved from the focused operation and applied as editable snapshots to picked/flow scope.
+The shown old Ordered operations frame, search and non-oscillation palette/list entries are removed. Semantic oscillation remains available, including adding/selecting/enabling/reordering/removing existing oscillation applications and their existing parameter/playback workflow. Underlying non-oscillation operations remain in recipes and continue evaluating; the separate Atomnic tools and other composer panels retain PR #36 behavior.
 
 **Minimal working test**
 
-1. Add Count followed by Extract count; change Count. **Expected:** The extracted scalar reflects the preceding count operation.
-2. Move Extract count before Count using the order controls. **Expected:** Its scalar now reflects the earlier state.
-3. Target a generated unit, shrink count so it disappears, then use picked scope / repair targets. **Expected:** The missing role is reported, never silently redirected, and an explicit replacement repairs it.
-4. Open Create → New Omnic object. In Preset choose Member · one of two. Select Highlight units / region in Ordered operations. **Expected:** Two generated dots remain; Unit 1 is highlighted. Change Unit to 2 to move the highlight without drawing or changing unit count.
-5. Choose Part · half a unit. Its highlight has fraction 0.5. Add Rotate structure, set Rotate to Highlighted region and Snap step to 30°. Set Angle to 50°. **Expected:** The half highlight rotates to 60°; the dot stays fixed. Together rotates the scoped composition; Each unit rotates each shape about its own center. Earlier operations determine the region available.
-6. Set Snap step to 30° and use Rotate one step. Rebind that action in Master controller shortcuts if desired; hold Shift with its configured trigger to edit rotation configuration. **Expected:** Each ordinary invocation advances the angle by its saved snap. Repeated Shift trigger cycles Region → Each unit → Together; release applies. Right-click applies/locks; left-click resets to the first scope. Temporary changed configuration adds a scoped rotation operation and preserves the focused settings.
-7. Focus Highlight units / region, set a copy name and choose Save operation as tool. Return to a composition, pick a component or Whole structure, open Reusable tools, choose the saved tool and Stamp copy to scope. **Expected:** The tool is a shared canonical object with no generated units. Applying it adds independently editable operations to the current draft; changing the tool later does not retroactively change stamped operations. Save shared, reopen and Undo/Redo retain authored rules.
+1. Open the composer and inspect the former Ordered operations / Interpretation frames area. **Expected:** Only the Semantic oscillation entry remains from that screenshot. There is no operator search, non-oscillation operation palette/list or Interpretation frames panel.
+2. Choose Semantic oscillation; select its row and edit amplitude/frequency/axis through Generator controls, then use Play/pause. **Expected:** Existing semantic oscillation controls still work. Its row can be enabled/disabled, reordered or removed.
+3. Open an existing recipe with highlights, rotations or other operations, then use the separate Atomnic tools and save/export. **Expected:** Existing operation data/evaluation is retained, and Atomnic drawing, Eraser, selection, rotation, marking and live preview are not removed.
 
-**Limits / unavailable behavior:** Browser acceptance has not been recorded for this guide. Fractions are angular sectors of disks or arc fractions of rings; fractional lines report inapplicable. Whole line highlight works. One highlight layer per primitive (later highlight replaces earlier). Rotation is planar, angles bounded ±1080°, snap step 0–360°, up to 32 allowed-angle values. New rotation operators use target center; legacy operators retain origin/pivot offsets. Tool stamping snapshots operations rather than introducing live executable dependencies. No default rotation shortcut is assigned. Fixed-size world reading integration remains deferred.
+**Limits / unavailable behavior:** This is a narrow UI removal relative to PR #36. Hidden operation/frame records are preserved for saved-data compatibility. Scope, reusable tools, generators, presets, diagnostics, library and Atomnic remain as in PR #36. The non-oscillation addition buttons are no longer in this area.
 
-**Verification:** browser — New Member/Part, rotation and tool workflows await user interaction testing; no browser suite run.. Automated — Normal model command passes; 20 focused Omnic engine cases pass directly, including highlighting, rotation, tools and parameter applicability. Production/type/property checks and self-contained preview build pass..
+**Verification:** browser — Awaiting user interaction testing; no browser suite run.. Automated — Existing model/type/property/capability/preview checks recorded in delivery..
 
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/evaluate.ts](../src/omnic/evaluate.ts), [src/omnic/Composer.tsx](../src/omnic/Composer.tsx), [src/omnic/rotation.ts](../src/omnic/rotation.ts), [src/omnic/tools.ts](../src/omnic/tools.ts).
 
 **Command IDs:** `omnic.rotateStep`.
 
+**Related:** [Semantic oscillation and playback](#omnic-motion), [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic), [Interpretation frame metadata; authoring panel removed](#omnic-frames).
+
 <a id="omnic-frames"></a>
-## Interpretive frame declarations
+## Interpretation frame metadata; authoring panel removed
 
-**ID:** `omnic.frames` · **Status:** Implemented; browser verification pending
+**ID:** `omnic.frames` · **Status:** Old composer frame panel removed; saved metadata preserved
 
-**Where:** Composer → Interpretation frames.
+**Where:** Existing records remain in saved recipe JSON; the composer Interpretation frames panel is removed.
 
-Frames record inactive, active-unspecified or active-specified properties and an explicit scope. They do not yet interpret meaning, enforce constraints or alter geometry.
+The property selector, Add inactive frame, activation/scope/value forms and accompanying explanation are no longer mounted. Existing frame records remain unchanged through loading/saving/export; no interpretation semantics are added or removed.
 
 **Minimal working test**
 
-1. Pick part of a composition, add an inactive angle frame, then switch it to active-specified and enter a value. **Expected:** The scoped declaration is recorded; geometry does not rotate.
-2. Save shared, reopen and inspect the frame. **Expected:** Its scope, state and value are retained. Use Rotate structure separately to change geometry.
+1. Open the composer, including a layout where Interpretation frames was detached. **Expected:** The old Interpretation frames section and its controls are absent.
+2. Load and export/save a recipe already containing frames. **Expected:** Frame data remains intact; merely opening the composer does not delete it.
 
-**Limits / unavailable behavior:** Constraint enforcement, inheritance and full semantic interpretation belong to Stage 3; unavailable now.
+**Limits / unavailable behavior:** Frame authoring in that old panel is retired. This does not remove or change Atomnic highlighting, rotation, selection or any library feature.
 
-**Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
+**Verification:** browser — Awaiting user testing; no browser suite run.. Automated — Existing recipe/model checks retained; final build checks recorded in delivery..
 
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/Composer.tsx](../src/omnic/Composer.tsx), [src/omnic/model.ts](../src/omnic/model.ts).
 
@@ -513,7 +511,7 @@ Frames record inactive, active-unspecified or active-specified properties and an
 
 **ID:** `omnic.motion` · **Status:** Implemented; browser verification pending
 
-**Where:** Composer → Semantic oscillation preset / Play–pause.
+**Where:** Composer → Semantic oscillation button; its selected operation parameters in Generator controls; toolbar Play/pause.
 
 Oscillation is evaluated at explicit time, paused by default. Only the active bounded composer preview animates; world nodes stay static.
 
@@ -942,7 +940,7 @@ Labels, descriptions and defaults are read from the same catalog as the applicat
 | New Omnic object · `omnic.create` | Unassigned | New Omnic object through the shared composer and canonical object state. | [Procedural generators and parameters](#omnic-compose) |
 | Open Omnic composer · `omnic.open` | Unassigned | Open Omnic composer through the shared composer and canonical object state. | [Procedural generators and parameters](#omnic-compose) |
 | Show Omnic structure · `omnic.show` | Unassigned | Show Omnic structure through the shared composer and canonical object state. | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) |
-| Rotate one step · `omnic.rotateStep` | Unassigned | Advance the focused Omnic rotation using its saved snap settings. Shift opens contextual rotation configuration. | [Ordered operations, role picking, target repair and count extraction](#omnic-operations) |
+| Rotate one step · `omnic.rotateStep` | Unassigned | Advance the focused Omnic rotation using its saved snap settings. Shift opens contextual rotation configuration. | [Semantic oscillation entry and preserved operation data](#omnic-operations) |
 | Save shared · `omnic.save` | Unassigned | Save shared Omnic definition through the shared composer and canonical object state. | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) |
 | Save copy · `omnic.copy` | Unassigned | Save Omnic copy through the shared composer and canonical object state. | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) |
 | Play / pause · `omnic.play` | Unassigned | Play / pause Omnic motion through the shared composer and canonical object state. | [Semantic oscillation and playback](#omnic-motion) |
