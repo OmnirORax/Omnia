@@ -1251,3 +1251,8 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .halving-picker input{width:36px!important;min-width:0!important;padding:2px!important}
 .range-spectrum .range-halving{padding:1px 3px;margin-left:3px;min-width:18px;min-height:20px;font-size:12px}
 .range-spectrum>.halving-picker{position:absolute;z-index:5;top:100%;left:0;background:var(--omnium-background,#111);border:1px solid currentColor;padding:3px;border-radius:3px}
+
+.progressive-configuration{display:flex;flex-direction:column;gap:5px;max-width:232px}
+.progressive-configuration label{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.progressive-navigation{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.progressive-configuration .halving-picker{flex-wrap:wrap}

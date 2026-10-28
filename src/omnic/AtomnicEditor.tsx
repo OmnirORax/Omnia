@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { Recipe, Component } from './model';
 import { validateRecipe } from './model';
 import { atoms, atomnicSettings, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, type Point } from './atomnic';
-import { ATOMNIC_PARAMETERS } from './atomnicSettings';
+import { ATOMNIC_PARAMETERS, ATOMNIC_OPERATION_INPUTS, type AtomnicConfigAction } from './atomnicSettings';
 import { useOmnicParameterBindings } from './propertyAdapter';
 import { PropertyEditor } from '../appearance/Controls';
 import { rankedPropertyPatterns, matchingProperties, type PropertyCriterion } from '../appearance/propertyPatterns';
@@ -13,6 +13,7 @@ import { divisions, directionTurn, snapTurn, turnStep } from '../properties/halv
 import { HalvingPicker } from '../properties/HalvingPicker';
 import { ContextualMasterController } from '../ui/ContextualMasterController';
 import { UIAction } from '../ui/UIAction';
+import { ProgressiveConfiguration } from '../ui/ProgressiveConfiguration';
 import { UIField } from '../ui/UIField';
 import { UISection } from '../ui/UISection';
 import { useFeatureActions } from '../ui/useFeatureActions';
@@ -22,6 +23,7 @@ import type { Evaluation } from './evaluate';
 import { claimUIPress } from '../ui/pointerOwnership';
 
 type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void};
+type Panel={kind:'functions'}|{kind:'operation';action:AtomnicConfigAction;index:number}|{kind:'pivotModes'}|{kind:'reference';index:number}|{kind:'axis';stage:'start'|'end'|'halving';start?:number;end?:number}|{kind:'position'}|{kind:'patterns'};
 type Tool='draw'|'select'|'move'|'rotate';
 type Gesture={kind:'draw'|'move'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number};
 const uid=()=>crypto.randomUUID();
@@ -33,8 +35,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   const setSelected=(next:Set<string>)=>setSelectionTimeline(previous=>appendTransient(previous,next));
   const [hovered,setHovered]=useState<string[]>([]);
   const [tool,setTool]=useState<Tool>('draw'),[phase,setPhase]=useState('idle'),[pivot,setPivot]=useState<Point|null>(null);
-  const [menu,setMenu]=useState<{x:number;y:number}|null>(null),[configure,setConfigure]=useState(false),[message,setMessage]=useState('');
-  const [axisRange,setAxisRange]=useState({low:0,high:.25});
+  const [menu,setMenu]=useState<{x:number;y:number}|null>(null),[panel,setPanel]=useState<Panel>({kind:'functions'}),[message,setMessage]=useState('');
   const [criteria,setCriteria]=useState<PropertyCriterion[]>([]),[pointed,setPointed]=useState<string|null>(null);
   const gesture=useRef<Gesture|null>(null),stepOnly=useRef(false),cursor=useRef<HTMLDivElement>(null);
   const pointer=useRef({x:0,y:0}),lastHover=useRef(0);
@@ -56,16 +57,17 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
         next=mapAtoms(next,c=>({...c,params:{...c.params,size:Number(value)}}));
         next=transformAtoms(next,all,a=>({x:a.x*ratio,y:a.y*ratio}));
         next={...next,atomnic:{...next.atomnic,step:Number(value)*2}};
-      } else if(['size','fill','color','opacity','thickness'].includes(key)&&ids.size&&settings.paint==='selection')
+      } else if(['size','fill','color','opacity','thickness'].includes(key)&&ids.size&&settings.paint==='selection'&&!(panel.kind==='operation'&&panel.action==='atomnic.highlight'))
         next=mapAtoms(next,c=>ids.has(c.id)?{...c,params:{...c.params,[key]:value}}:c);
       if(!legalAtoms(next))throw Error('The construction does not fit the touching-lattice profile. Use Free or adjust the geometry first.');
       if(commit(validateRecipe(next),preview))setMessage('');
     }catch(failure){error(failure);}
   };
   const first=list.find(a=>selected.has(a.id));
-  const displayed=useMemo(()=>{const values={...settings};if(first&&settings.paint==='selection')for(const key of ['size','fill','color','opacity','thickness'])values[key]=first.component.params[key]??values[key];return values;},[settings,first]);
+  const editingMark=panel.kind==='operation'&&panel.action==='atomnic.highlight';
+  const displayed=useMemo(()=>{const values={...settings};if(first&&settings.paint==='selection'&&!editingMark)for(const key of ['size','fill','color','opacity','thickness'])values[key]=first.component.params[key]??values[key];return values;},[settings,first,editingMark]);
   useOmnicParameterBindings(displayed,next=>{for(const key of Object.keys(next))if(next[key]!==displayed[key])input(key,next[key]);},ATOMNIC_PARAMETERS);
-  const beginRotation=(step=false)=>{if(!selectedRef.current.size){setMessage('Select atoms before rotating.');return;}stepOnly.current=step;setTool('rotate');setMenu(null);setConfigure(false);setPhase('pivot');setMessage('Pick the pivot: exact click or detected target.');};
+  const beginRotation=(step=false)=>{if(!selectedRef.current.size){setMessage('Select atoms before rotating.');return;}stepOnly.current=step;setTool('rotate');setMenu(null);setPanel({kind:'functions'});setPhase('pivot');setMessage('Pick the pivot: exact click or detected target.');};
   const cancel=()=>{const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
   const mark=()=>{try{const targets=[...scoped(selectedRef.current)].map(id=>`${id}:shape`);if(!targets.length)return;
     commit({...recipeRef.current,operations:[...recipeRef.current.operations,{id:uid(),operator:'highlight',targets,enabled:true,
@@ -80,7 +82,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   const commands=useFeatureActions('atomnicComposer',{
     'atomnic.draw':{enabled:compatible,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,run:()=>{cancel();setTool('select');}},
     'atomnic.move':{enabled:compatible&&selected.size>0,run:()=>{cancel();setTool('move');}},
-    'atomnic.rotate':{enabled:compatible&&selected.size>0,run:event=>{if(menu&&event instanceof KeyboardEvent){setConfigure(true);setTool('rotate');setPhase('configure');}else beginRotation();}},
+    'atomnic.rotate':{enabled:compatible&&selected.size>0,run:event=>{if(menu&&event instanceof KeyboardEvent){configureOperation('atomnic.rotate');}else beginRotation();}},
     'atomnic.step':{enabled:compatible&&selected.size>0,run:()=>beginRotation(true)},
     'atomnic.highlight':{enabled:compatible&&selected.size>0,run:mark},
     'atomnic.fill':{enabled:compatible&&selected.size>0,run:()=>{const ids=scoped(selectedRef.current);commit(mapAtoms(recipeRef.current,c=>ids.has(c.id)?{...c,params:{...c.params,fill:Boolean(settings.fill),color:String(settings.color),opacity:Number(settings.opacity)}}:c));}},
@@ -88,17 +90,19 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     'atomnic.all':{enabled:compatible,run:()=>{setSelected(new Set(list.map(a=>a.id)));setTool('select');}},
     'atomnic.selectionUndo':{enabled:selectionTimeline.index>0,run:()=>setSelectionTimeline(previous=>stepTransient(previous,-1))},
     'atomnic.selectionRedo':{enabled:selectionTimeline.index<selectionTimeline.states.length-1,run:()=>setSelectionTimeline(previous=>stepTransient(previous,1))},
-    'atomnic.configure':{enabled:compatible,run:()=>{setConfigure(true);setMenu({...pointer.current});}},
-    'atomnic.confirm':{enabled:phase==='configure',run:()=>beginRotation()},
-    'atomnic.cancel':{enabled:phase!=='idle'||selected.size>0||!!menu,run:()=>{if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
+    'atomnic.configure':{enabled:compatible,run:()=>{setPanel({kind:'functions'});setMenu({...pointer.current});}},
+    'atomnic.patterns':{enabled:compatible&&selected.size>0,run:()=>setPanel({kind:'patterns'})},
+    'atomnic.confirm':{enabled:!!menu&&(panel.kind==='operation'||panel.kind==='reference'),run:()=>nextConfiguration()},
+    'atomnic.cancel':{enabled:phase!=='idle'||selected.size>0||!!menu,run:()=>{if(menu&&panel.kind!=='functions')backConfiguration();else if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
   });
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if(commands.handle(event)){event.preventDefault();event.stopImmediatePropagation();}};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[]);
+  useEffect(()=>{if(tool!=='rotate')return;const move=(event:PointerEvent)=>{pointer.current={x:event.clientX,y:event.clientY};if(cursor.current)cursor.current.style.transform=`translate(${event.clientX+12}px,${event.clientY+12}px)`;};window.addEventListener('pointermove',move);return()=>window.removeEventListener('pointermove',move);},[tool]);
   const handlers=useRef({down:(_p:Point,_e:PointerEvent)=>{},move:(_p:Point,_e:PointerEvent)=>{},up:(_p:Point,_e:PointerEvent)=>{},cancel});
   handlers.current={
     down:(point,event)=>{
       if(!compatible)return;
       pointer.current={x:event.clientX,y:event.clientY};const target=hit(point);if(target)setPointed(target.id);
-      if(event.button===2){if(target&&!selected.has(target.id))setSelected(scoped(new Set([target.id])));setMenu({...pointer.current});setConfigure(true);return;}
+      if(event.button===2){if(target&&!selected.has(target.id))setSelected(scoped(new Set([target.id])));setMenu({...pointer.current});setPanel(phase==='pivot'?{kind:'pivotModes'}:{kind:'functions'});return;}
       if(event.button!==0)return;
       setMenu(null);
       if(phase==='pivot') {
@@ -163,37 +167,101 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   const patternTarget=patternObjects.find(a=>a.id===target?.id);
   const patterns=useMemo(()=>patternTarget?rankedPropertyPatterns(patternObjects,patternTarget):[],[patternObjects,patternTarget]);
   const field=(key:string)=>{const p=ATOMNIC_PARAMETERS.find(p=>p.key===key)!;return <UIField key={key} id={`atomnic:${key}`} label={p.label} category="Atomnic"><label>{p.label}<PropertyEditor property={p.property} label={p.label} disabled={key==='step'&&settings.mode==='constrained'} value={key==='step'&&settings.mode==='constrained'?Number(settings.size)*2:displayed[key]} limits={p.kind==='number'?{min:p.min!,max:p.max!}:undefined} choices={p.options?.map(o=>o.id)} onPreview={v=>input(key,v,true)} onCommit={v=>input(key,v)} /></label></UIField>;};
-  const configureKeys=['mode','paint','scope','size','step','thickness','fill','color','opacity','order','steps','pivotMode','axis','position','fraction','markTurn','viewSize'];
   const svg=evaluation?renderSVG(evaluation,bridge):'';
   const local=(event:React.PointerEvent<HTMLDivElement>)=>{const box=event.currentTarget.getBoundingClientRect();const edge=Math.min(box.width,box.height);return {x:((event.clientX-box.left-(box.width-edge)/2)/edge-.5)*size,y:((event.clientY-box.top-(box.height-edge)/2)/edge-.5)*size};};
   return <UISection id="atomnic-editor" title="Atomnic">
     {!compatible&&<small role="alert">This recipe uses generated arrays, references or geometry operators. Switch to Generator controls to edit it; Atomnic gestures edit authored dots and groups.</small>}
-    <div className="omnic-row">{(['draw','select','move','rotate','all','highlight','configure'] as const).map(action=><UIAction key={action} id={`atomnic:toolbar:${action}`} category="Atomnic" label={action==='rotate'?'🗘 Rotate':action} onClick={()=>commands.invoke(`atomnic.${action}`)} />)}<small>{list.length} units · {selected.size} selected · {String(settings.mode)} · {divisions(Number(settings.order))} directions</small></div>
+    <small className="atomnic-status" title="Right-click the construction or edited world image for functions; right-click one function for its configuration.">{tool} · {list.length} units · {selected.size} selected</small>
     <div className="omnic-preview atomnic-surface" data-atomnic-surface onContextMenu={e=>e.preventDefault()} dangerouslySetInnerHTML={{__html:svg}}
       onPointerDown={event=>{event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);event.currentTarget.setPointerCapture(event.pointerId);api.down(local(event),event.nativeEvent);}}
       onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />
     {message&&<small role="status">{message}</small>}
-    <small>Draw: click/sweep. Select V · Move G · Rotate R. Shift-click adds targets. Right-click for DOFs/patterns. Also editable directly in the world.</small>
-    <ContextualMasterController title="Atomnic" position={menu} onClose={()=>{setMenu(null);setHovered([]);}}>
-      <div className="omnic-row">{(['draw','select','move','rotate','highlight','fill','group','remove','selectionUndo','selectionRedo'] as const).map(action=><UIAction key={action} id={`atomnic:context:${action}`} category="Atomnic" label={action} onClick={()=>commands.invoke(`atomnic.${action}`)} />)}<UIAction id="atomnic:step" category="Atomnic" label={`🗘 ${settings.steps}/${divisions(Number(settings.order))}`} onClick={()=>commands.invoke('atomnic.step')} /></div>
-      <div className="omnic-row"><UIAction id="atomnic:settings" category="Atomnic" label="Configure DOFs" onClick={()=>setConfigure(v=>!v)} />{field('scope')}</div>
-      {configure&&<><div className="atomnic-fields">{configureKeys.filter(key=>key!=='scope').map(field)}</div>
-        <UIField id="atomnic:axis-halving" label="Axis interval" category="Atomnic"><label>Axis interval <select defaultValue="0,.25" onChange={event=>{const [low,high]=event.target.value.split(',').map(Number);setAxisRange({low,high});}}><option value="0,.25">Top → Right</option><option value=".25,.5">Right → Bottom</option><option value=".5,.75">Bottom → Left</option><option value="0,1">Full turn</option></select></label></UIField>
-        <HalvingPicker low={axisRange.low} high={axisRange.high} label="Axis halving" onPick={value=>{let order=0;while(order<6&&Math.abs(value*divisions(order)-Math.round(value*divisions(order)))>1e-6)order++;commit({...recipeRef.current,atomnic:{...settings,order,axis:Math.round(value*divisions(order))}});}} />
-        <HalvingPicker low={0} high={1} label="Pivot position halving" onPick={value=>input('position',value)} />
-        <HalvingPicker low={0} high={1} label="Highlight fraction halving" onPick={value=>input('fraction',value)} />
-        <UIAction id="atomnic:confirm" category="Atomnic" label="Confirm → pick pivot" onClick={()=>beginRotation()} /></>}
-      {target&&<UISection id="atomnic-patterns" title="Property patterns" defaultExpanded={false}>
+    <ContextualMasterController title={panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} position={menu} onClose={()=>{setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
+      {panel.kind==='functions'&&<div className="atomnic-functions">
+        {(['draw','select','move','rotate','step','highlight','fill','group','remove','all','selectionUndo','selectionRedo','patterns','configure'] as const).map(action=>{
+          const id=`atomnic.${action}` as const;
+          const hasInputs=id in ATOMNIC_OPERATION_INPUTS;
+          const requiresSelection=['move','rotate','step','highlight','fill','group','remove','patterns'].includes(action);
+          return <UIAction key={id} id={`atomnic:context:${action}`} category="Atomnic" label={operationLabel(id)}
+            disabled={requiresSelection&&!selected.size||action==='selectionUndo'&&selectionTimeline.index===0||action==='selectionRedo'&&selectionTimeline.index===selectionTimeline.states.length-1}
+            onClick={()=>{commands.invoke(id);if(!['configure','patterns'].includes(action))setMenu(null);}}
+            onConfigure={hasInputs?()=>configureOperation(id as AtomnicConfigAction):undefined} />;
+        })}
+      </div>}
+      {panel.kind==='operation'&&<ProgressiveConfiguration label={operationLabel(panel.action)} index={panel.index} count={operationKeys(panel.action).length} onBack={backConfiguration} onNext={nextConfiguration}>
+        {field(operationKeys(panel.action)[panel.index])}
+      </ProgressiveConfiguration>}
+      {panel.kind==='pivotModes'&&<div className="atomnic-functions">
+        <UIAction id="atomnic:pivot-exact" category="Atomnic" label={`Exact click${settings.pivotMode==='exact'?' ✓':''}`} onClick={()=>{input('pivotMode','exact');setMenu(null);}} />
+        <UIAction id="atomnic:pivot-target" category="Atomnic" label={`Detected target${settings.pivotMode==='target'?' ✓':''}`} onClick={()=>{input('pivotMode','target');setMenu(null);}} onConfigure={()=>{input('pivotMode','target');setPanel({kind:'reference',index:0});}} />
+        <button type="button" onClick={()=>setPanel({kind:'functions'})}>Back</button>
+      </div>}
+      {panel.kind==='reference'&&<ProgressiveConfiguration label="Detected target" index={panel.index} count={2} onBack={backConfiguration} onNext={nextConfiguration}>
+        {panel.index===0?<UIAction id="atomnic:reference-axis" category="Atomnic" label={`Axis · ${settings.axis}/${divisions(Number(settings.order))}`} onClick={nextConfiguration} onConfigure={()=>setPanel({kind:'axis',stage:'start'})} />:
+          <UIAction id="atomnic:reference-position" category="Atomnic" label={`Position · ${settings.position}`} onClick={nextConfiguration} onConfigure={()=>setPanel({kind:'position'})} />}
+      </ProgressiveConfiguration>}
+      {panel.kind==='axis'&&<div className="progressive-configuration">
+        {panel.stage!=='halving'?<><small>{panel.stage==='start'?'First':'Second'} interval boundary · clockwise</small>
+          <svg className="atomnic-axis-picker" viewBox="-65 -65 130 130" role="group" aria-label="Axis interval boundary">
+            <circle r="48" fill="none" stroke="currentColor" opacity=".4" />
+            {Array.from({length:Math.min(48,divisions(Number(settings.order)))},(_,i)=>{
+              const count=Math.min(48,divisions(Number(settings.order))),turn=i/count,x=Math.sin(turn*Math.PI*2)*48,y=-Math.cos(turn*Math.PI*2)*48;
+              return <g key={i} role="button" tabIndex={0} aria-label={`Boundary ${i}/${count}`} onClick={()=>pickBoundary(turn)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.stopPropagation();pickBoundary(turn);}}}><circle cx={x} cy={y} r="5" fill="currentColor"/><title>{i}/{count}</title></g>;
+            })}
+          </svg>
+          <div className="progressive-navigation">{(['Top','Right','Bottom','Left'] as const).map((label,index)=><button type="button" key={label} onClick={()=>pickBoundary(index/4)}>{label}</button>)}</div>
+        </>:<HalvingPicker key={`${panel.start}:${panel.end}`} low={panel.start!} high={panel.end!} label="Axis halving" endpointLabels={['first boundary','second boundary']} onPick={pickAxis} />}
+        <button type="button" onClick={backConfiguration}>Back</button>
+      </div>}
+      {panel.kind==='position'&&<div className="progressive-configuration"><small>Position along axis</small><HalvingPicker low={0} high={1} label="Pivot position halving" endpointLabels={['axis start','axis end']} onPick={value=>{input('position',value);setMenu(null);setPhase('pivot');}}/><button type="button" onClick={backConfiguration}>Back</button></div>}
+      {panel.kind==='patterns'&&<div className="atomnic-patterns">
         {patterns.map(pattern=><div className="omnic-row" key={pattern.rule.property} onMouseEnter={()=>setHovered(pattern.ids)} onMouseLeave={()=>setHovered([])}>
           <button type="button" onClick={()=>{setSelected(new Set(pattern.ids));setTool('select');}}>{PROPERTY_REGISTRY.property(pattern.rule.property)?.label??pattern.rule.property} · {['omnic.angle','omnic.regionAngle'].includes(pattern.rule.property)?`${Number(pattern.rule.value)/360*divisions(Number(settings.order))}/${divisions(Number(settings.order))} turn`:String(pattern.rule.value)} · {pattern.ids.length}</button>
           <button type="button" aria-label={`Include ${pattern.rule.property}`} onClick={()=>chooseCriterion(pattern.rule,false)}>+</button>
           <button type="button" aria-label={`Exclude ${pattern.rule.property}`} onClick={()=>chooseCriterion(pattern.rule,true)}>−</button>
         </div>)}
         <UIAction id="atomnic:clear-criteria" category="Atomnic" label={`Clear criteria · ${criteria.length}`} onClick={()=>setCriteria([])} />
-      </UISection>}
+        <button type="button" onClick={()=>{setPanel({kind:'functions'});setHovered([]);}}>Back</button>
+      </div>}
     </ContextualMasterController>
     {tool==='rotate'&&createPortal(<div ref={cursor} className={`atomnic-cursor ${phase==='pivot'?'atomnic-pivot':''}`} style={{pointerEvents:'none',position:'fixed',left:0,top:0,zIndex:2147483000,transform:`translate(${pointer.current.x+12}px,${pointer.current.y+12}px)`}}><span style={{display:'inline-block',transform:`rotate(${turnStep(Number(settings.order),Number(settings.steps))}turn)`}}>🗘</span>{phase==='pivot'&&<i>●</i>}</div>,document.body)}
   </UISection>;
+  function operationKeys(action:AtomnicConfigAction):readonly string[]{return ATOMNIC_OPERATION_INPUTS[action].filter(key=>key!=='step'||settings.mode==='free');}
+  function configureOperation(action:AtomnicConfigAction){setPanel({kind:'operation',action,index:0});setPhase('configure');if(action==='atomnic.rotate'||action==='atomnic.step')setTool('rotate');}
+  function nextConfiguration(){
+    if(panel.kind==='operation'){
+      if(panel.index+1<operationKeys(panel.action).length){setPanel({...panel,index:panel.index+1});return;}
+      if(panel.action==='atomnic.configure'){setMenu(null);setPhase('idle');return;}
+      if(panel.action==='atomnic.rotate'||panel.action==='atomnic.step'){beginRotation(panel.action==='atomnic.step');return;}
+      commands.invoke(panel.action);setMenu(null);setPhase('idle');
+    }else if(panel.kind==='reference'){
+      if(panel.index===0)setPanel({kind:'reference',index:1});else {setMenu(null);setPhase('pivot');}
+    }
+  }
+  function backConfiguration(){
+    if(panel.kind==='operation'&&panel.index>0)setPanel({...panel,index:panel.index-1});
+    else if(panel.kind==='reference')setPanel(panel.index?{kind:'reference',index:0}:{kind:'pivotModes'});
+    else if(panel.kind==='axis')setPanel(panel.stage==='halving'?{...panel,stage:'end'}:panel.stage==='end'?{kind:'axis',stage:'start'}:{kind:'reference',index:0});
+    else if(panel.kind==='position')setPanel({kind:'reference',index:1});
+    else {setPanel({kind:'functions'});if(phase==='configure')setPhase('idle');}
+  }
+  function pickBoundary(turn:number){if(panel.kind!=='axis')return;if(panel.stage==='start')setPanel({kind:'axis',stage:'end',start:turn});else setPanel({...panel,stage:'halving',end:turn>panel.start!?turn:turn+1});}
+  function pickAxis(value:number){
+    let order=Number(settings.order);while(order<6&&Math.abs(value*divisions(order)-Math.round(value*divisions(order)))>1e-6)order++;
+    if(Math.abs(value*divisions(order)-Math.round(value*divisions(order)))>1e-6){setMessage('That axis exceeds the supported halving order (6). Choose a lower depth.');return;}
+    if(commit({...recipeRef.current,atomnic:{...atomnicSettings(recipeRef.current),order,axis:Math.round(value*divisions(order))%divisions(order)}}))setPanel({kind:'position'});
+  }
+  function operationLabel(action:string){
+    const count=divisions(Number(settings.order));
+    const labels:Record<string,string>={
+      'atomnic.draw':`Draw · r ${settings.size} · step ${settings.mode==='constrained'?Number(settings.size)*2:settings.step}`,
+      'atomnic.select':`Select · ${settings.scope}`,'atomnic.move':`Move · ${settings.scope}`,
+      'atomnic.rotate':`🗘 Rotate · ${settings.steps}/${count}`,'atomnic.step':`🗘 Step · ${settings.steps}/${count}`,
+      'atomnic.highlight':`Highlight · ${settings.fraction}`,'atomnic.fill':`Fill · ${settings.fill?'on':'off'}`,
+      'atomnic.group':'Group','atomnic.remove':'Remove','atomnic.all':'Select all',
+      'atomnic.selectionUndo':'Undo selection','atomnic.selectionRedo':'Redo selection',
+      'atomnic.patterns':`Property patterns · ${criteria.length}`,'atomnic.configure':`View · ${settings.viewSize}`,
+    };return labels[action]??action;
+  }
   function chooseCriterion(rule:PropertyCriterion,exclude:boolean){const next=[...criteria.filter(r=>r.property!==rule.property),{...rule,exclude,...(rule.property==='omnic.angle'?{period:360,tolerance:360/divisions(Number(settings.order))/2}:{})}];setCriteria(next);setSelected(new Set(matchingProperties(patternObjects,next)));setTool('select');}
-  // The interval belongs to the picker, not a duplicate property value store.
 }

@@ -167,17 +167,24 @@ step/address, with renderer angle conversion internally. This supersedes the
 agent's earlier interpretation of `3` as three halvings of a North–East sector.
 Angular refinement and radial distance are separate DOFs. They may be coupled by a constrained/realistic profile; refinement alone does not change pivot distance.
 
-**Contextual interaction:** right-click a target to expose applicable DOFs and
-operations at the pointer, with retained values such as rotation step. Clicking
-an operation executes it; a configured key selects its function with retained
-sub-settings. Right-click configures. Micro targets the selected member; Macro
-targets its group; Shift-click adds members/groups in this context. Rotation
-configuration leads to an explicit pivot-picking phase, then drag rotation. The
-cursor carries the operation symbol; a pulsing central dot cues pivot selection.
-Pivot choices include exact click and a detected target's configurable reference
-point. Axis and position picking use the universal halving method. Reuse/extend
-shared action, MC, MS and property paths; the existing composer UI can be replaced
-where these paths cover it. Do not implement private input/settings systems.
+**Contextual interaction — corrected explicitly by user:** keep construction
+visually quiet. The available function list appears only on right-click. Entries
+show current values; left-click (or the normal shortcut) uses retained settings.
+Right-click ONE function opens its configuration, **one relevant setter/prompt
+at a time**. Confirm advances; Back/Esc returns one level. Do not render a permanent
+function toolbar or unfold every setting, including settings for other functions.
+A full grid and a collapsed global "Configure DOFs" form do not satisfy this.
+
+For rotation: select Micro/Macro targets and Shift-click additions; configure the
+operation if requested, then prompt for the pivot, then drag. The cursor carries
+rotation while configuring; its pulsing center signals pivot selection. Right-click
+during pivot picking exposes exact/detected choices. Right-click detected target
+reveals its reference configuration: axis, then position. Right-click Axis to set
+first interval boundary, second boundary, halving depth, then direction **only if
+the answer is not the midpoint**. Once the axis is resolved, repeat the method for
+position. Ordinary invocation skips setters and inherits retained values. Shared
+MC/action/property mechanisms own the implementation; no second durable settings
+store. General halving pickers follow the same depth-before-direction principle.
 
 ## Operators, presets and selection
 
@@ -440,7 +447,7 @@ The user explicitly requested this to stay aligned; links alone do not satisfy i
   See [the actual controls and limits](OMNIC_COMPOSER.md#atomnic-construction).
 - Remaining work: arbitrary MS clipping/region tools inside dots, deeper pattern
   descriptors, authored array/reference conversion, the broader frame/dial/node
-  model, richer physical profiles, contextual axis bracket gestures and reading-size
+  model, richer physical profiles, full world-space radial boundary gestures and reading-size
   calibration. The current sector highlight is a geometry tool with no automatic
   semantic interpretation. Not all agreed future grammar is implemented.
 - Verification: the user performs browser interaction/design testing. Run required

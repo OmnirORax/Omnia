@@ -411,34 +411,43 @@ remain in Generator controls. There is no automatic destructive flattening.
 - **G / Move:** drag selected units rigidly. A clicked unselected unit becomes the
   selection. Touching mode snaps the common translation and rejects overlap;
   Free uses its retained movement step. Invalid samples retain the last valid one.
-- **Right-click:** contextual MC opens at the pointer with operations, current
-  rotation step, Scope and **Configure DOFs**. Settings live in the existing recipe
-  draft and survive save/import/export. Paint target **Brush / next mark** changes
-  future imprints and marks; **Selected units** edits selected paint/size. The
-  touching-profile radius changes its unit scale throughout the construction,
-  coupling pitch with it. Movement step is read-only there; Free makes it independent.
-- **R / Rotate:** retained order/step settings, then click the pivot, then drag.
-  Right-click → R opens configuration; Confirm or Enter (outside a text input)
-  advances to pivot picking. The cursor shows rotation and a pulsing central point
-  for pivot selection. **Exact click** uses your point; **Detected target** uses
-  the current Micro/Macro target bounding box. Position 1/2 is its center; changing
-  position chooses a fraction along the reference axis. Axis zero is top; positive
-  goes clockwise. Order 0/1/2 gives 6/12/24 directions. The **🗘 steps/divisions**
-  command picks a pivot and performs one retained step without dragging.
-- **Halving:** every shared numeric range has a **½** picker: select endpoint,
-  type depth, Enter or click the result. Depth 1 is the midpoint, 2 one quarter,
-  3 one eighth from that endpoint. Consumer range/precision still applies. Rotation
-  uses order/step, never degree entry in Atomnic. Axis interval offers Top→Right,
-  Right→Bottom, Bottom→Left and full turn, with the same depth picker; it maps to
-  the nearest supported base-six address (maximum order 6). Arbitrary pointer-picked
-  brackets and recursive contextual prompts remain further work.
-- **Highlight:** set brush color, highlighted fraction and mark orientation in
-  turns; select units and invoke highlight. Fraction 1/2 paints a horizontal half
+- **Right-click:** reveals only the function list, with retained values. No
+  permanent function toolbar appears above the construction. Left-click a function
+  uses its retained settings. Right-click ONE function reveals only its first
+  relevant setter; Next/Confirm advances to the next, Back/Esc goes back. Draw
+  configures constraints, paint target, imprint, step (Free only) and paint inputs
+  in sequence. Select/Move configure their own relevant inputs. View configures only
+  construction extent. Other functions' fields never appear alongside the current one.
+- **R / Rotate:** ordinary invocation skips setters, prompts for a pivot, then
+  permits dragging. Right-click → right-click Rotate (or R with the list open)
+  configures Scope → angular halving order → rotation step count, one at a time.
+  Confirm at the last step enters pivot picking. The retained one-step function
+  follows the same pivot prompt and applies the step without dragging.
+- **Pivot/reference:** during pivot picking, right-click exposes Exact click and
+  Detected target. Left-click selects that retained mode and returns to picking.
+  Right-click Detected target exposes its Axis step; left-click retains the axis
+  and advances to Position, while right-click Axis opens boundary picking. Choose
+  first boundary, second boundary, then halving depth. Midpoint accepts immediately;
+  deeper choices ask direction. The resolved axis advances to position halving.
+  Position 1/2 is target center; quarter/eighth positions request a side. The cursor
+  shows rotation throughout and a pulsing center during target selection. The
+  reference uses the current Micro/Macro bounding box. Top is zero, clockwise
+  positive; order 0/1/2 yields 6/12/24 directions. Exact supported axes are retained;
+  angular precision beyond order 6 is rejected, never silently rounded.
+- **Halving:** shared numeric ranges expose **½**. It first asks depth; depth 1
+  accepts the midpoint with no direction question. Depth 2/3 then asks which endpoint
+  to approach for quarter/eighth. Input Enter confirms each native input step.
+  Consumer validation/resolution still applies. Atomnic axis boundaries can be
+  picked on the radial address ring (up to 48 handles) or cardinal buttons; the axis
+  itself is derived from the bracket and depth, not manually guessed.
+- **Highlight:** right-click Highlight to configure Scope, fraction, mark orientation,
+  color and opacity one at a time, then confirm to apply. Left-click Highlight
+  applies those retained settings immediately. Fraction 1/2 paints a horizontal half
   at the default orientation; 1 marks the entire unit. Paint values stay
   independent of canonical semantics. **Fill** applies retained paint/fill to units.
   Existing Ordered operations shows/removes/reorders marks. Generator controls
   also supplies reusable copied operation tools, export and detailed operations.
-- **Property patterns:** right-click a unit, expand Property patterns. Candidates
+- **Property patterns:** right-click a unit, then choose Property patterns. Candidates
   come from registered dot properties, ranked by shared-property similarity;
   absolute position is excluded. Hover glows candidates; click selects that set;
   + includes a criterion, − excludes it, Clear criteria removes criteria without

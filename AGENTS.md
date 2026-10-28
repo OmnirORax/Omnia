@@ -136,6 +136,13 @@ Numeric slider controls use `ui/RangeControl.tsx`, the shared spectrum widget.
 Reuse it instead of adding private ranges, arrow steppers or duplicate min/max
 fields. See the UI component contract for its left/right-click semantics.
 
+Omnic contextual interaction is progressive: keep the function list hidden until
+right-click; left-click uses retained values; right-click ONE function reveals one
+relevant setter at a time. Confirm advances and Back/Esc goes back. Pivot, axis
+bounds, halving depth, optional direction and position appear in sequence. A
+permanent toolbar or a full settings grid violates the user's explicit correction.
+See OMNIC_WORKBENCH_MODEL.md for the exact contract.
+
 # Responsiveness is a product requirement
 
 ## Optimization delivery baseline (all agents)

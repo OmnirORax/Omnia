@@ -28,3 +28,18 @@ export function atomnicViewBounds(params?:Record<string,Value>) {
   const size=Number(params.viewSize??200);
   return {x:-size/2,y:-size/2,width:size,height:size};
 }
+
+/** Each action declares its applicable input sequence, never a second value store. */
+export const ATOMNIC_OPERATION_INPUTS = {
+  'atomnic.draw':['mode','paint','size','step','thickness','fill','color','opacity'],
+  'atomnic.select':['scope'],
+  'atomnic.move':['scope','mode','step'],
+  'atomnic.rotate':['scope','order','steps'],
+  'atomnic.step':['scope','order','steps'],
+  'atomnic.highlight':['scope','fraction','markTurn','color','opacity'],
+  'atomnic.fill':['scope','fill','color','opacity'],
+  'atomnic.group':['scope'],
+  'atomnic.remove':['scope'],
+  'atomnic.configure':['viewSize'],
+} as const;
+export type AtomnicConfigAction=keyof typeof ATOMNIC_OPERATION_INPUTS;

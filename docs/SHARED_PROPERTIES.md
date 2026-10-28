@@ -350,3 +350,12 @@ is no second MC settings owner. Angular order and radius are distinct inputs;
 constraint profiles enforce their own legal combinations. Depth is an initial
 explicit convention (1 = midpoint, then quarter/eighth), not a finalized grammar
 for every future contextual picker.
+
+
+The contextual configuration correction makes `HalvingPicker` sequential: depth
+first, direction only for a non-midpoint result. `UIAction.onConfigure` supplies
+shared right-click-to-configure semantics while ordinary click keeps execution.
+`ProgressiveConfiguration` mounts only the active registered input. Atomnic declares
+per-operation input sequences from its existing parameter keys; durable values
+remain in the same recipe/property adapters. Nested radial reference setup follows
+bounds → depth → optional direction → position, never a simultaneous input grid.
