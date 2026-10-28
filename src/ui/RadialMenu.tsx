@@ -21,7 +21,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     </svg>
     {visible&&levels.at(-1)!.map((node,index)=>{
       const slot=radialSlot(index,levels.at(-1)!.length,depth);
-      const turn=index/levels.at(-1)!.length*Math.PI*2,s=Math.sin(turn),c=Math.cos(turn),edge=slot.size/2+2;
+      const turn=(index+(children ? .5 : 0))/levels.at(-1)!.length*Math.PI*2,s=Math.sin(turn),c=Math.cos(turn),edge=slot.size/2+2;
       return <span key={`${depth}:${node.id}`} className="radial-menu-slot" style={{left:children?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:children?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}}>
         {node.children?<button type="button" data-ui-id={`radial:${node.id}`} aria-label={node.label} title={node.label} aria-haspopup="true"
           onClick={()=>setPath([...path.slice(0,depth),node.id])}>{node.symbol}</button>:node.content}
@@ -29,8 +29,8 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     })}
     {visible&&depth===0&&inset&&<div className="radial-menu-insets">{inset}</div>}
     <div className="radial-menu-centre">
-      <button type="button" aria-label={visible?'Hide tools':'Show tools'} title={`${visible?'Hide tools':'Show tools'} · Right-click ${path.length?'Back':'Close'} · Esc steps outward`} aria-pressed={visible}
-        onClick={()=>setVisible(!visible)} onContextMenu={event=>{event.preventDefault();event.stopPropagation();if(!back())onClose();}}>⠿</button>
+      <button type="button" aria-label={visible?'Hide tools':'Show tools'} title={`${visible?'Hide tools':'Show tools'} · Right-click ${path.length?'Back':'Close'} · Esc steps outward`} aria-pressed={visible} style={{opacity:visible?1:.5}}
+        onClick={()=>setVisible(!visible)} onContextMenu={event=>{event.preventDefault();event.stopPropagation();if(!back())onClose();}}>👁</button>
     </div>
   </div>;
 }

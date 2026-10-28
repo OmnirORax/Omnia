@@ -214,19 +214,20 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
   const local=(event:React.PointerEvent<HTMLDivElement>)=>{const box=event.currentTarget.getBoundingClientRect();const edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);return {x:bounds.x+bounds.width/2+((event.clientX-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((event.clientY-box.top-(box.height-edge)/2)/edge-.5)*scale};};
   const radialActions=FEATURE_ACTIONS.filter(action=>action.owner==='atomnicComposer'&&'radial' in action&&!('adjusts' in action)&&(isAtomnic||['atomnic.configure','atomnic.constraints'].includes(action.id)));
   const radialControl=(action:typeof radialActions[number])=>{
-    const id=action.id as Parameters<typeof commands.invoke>[0],hasInputs=id in ATOMNIC_OPERATION_INPUTS;
-    const symbol=id==='atomnic.constraints'?(settings.mode==='free'?'⌁':'⊣'):'radial' in action?action.radial.symbol:'◇';
+    const displayedAction=action.id==='atomnic.erase'&&tool==='erase'?FEATURE_ACTIONS.find(action=>action.id==='atomnic.draw')!:action;
+    const id=displayedAction.id as Parameters<typeof commands.invoke>[0],hasInputs=id in ATOMNIC_OPERATION_INPUTS;
+    const symbol=id==='atomnic.constraints'?(settings.mode==='free'?'⌁':'⊣'):'radial' in displayedAction?displayedAction.radial.symbol:'◇';
     return <><UIAction id={`atomnic:context:${id.slice(8)}`} category="Atomnic" label={operationLabel(id)} symbol={symbol} registerOnly
       disabled={!commands.available(id)} onClick={()=>{commands.invoke(id);if(!['atomnic.configure','atomnic.patterns','atomnic.constraints'].includes(id))setMenu(null);}}
       onConfigure={hasInputs?()=>configureOperation(id as AtomnicConfigAction):undefined}/>
       <FunctionControl id={`atomnic:context:${id.slice(8)}`} mirror symbol={symbol} tooltip={`${operationLabel(id)}${hasInputs?' · Left-click uses retained settings; right-click configures':''}`} /></>;
   };
-  const radialEntries:RadialEntry<ReactNode>[]=radialActions.filter(action=>!('radial' in action&&'inset' in action.radial)).map(action=>({id:action.id,label:operationLabel(action.id),symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:radialControl(action)}));
+  const radialEntries:RadialEntry<ReactNode>[]=radialActions.filter(action=>action.id!=='atomnic.draw'&&!('radial' in action&&'inset' in action.radial)).map(action=>({id:action.id,label:operationLabel(action.id),symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:radialControl(action)}));
   const surface=<div ref={surfaceRef} className="omnic-preview atomnic-surface" data-atomnic-surface data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();}} dangerouslySetInnerHTML={{__html:svg}}
       onPointerDown={event=>{event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);event.currentTarget.setPointerCapture(event.pointerId);api.down(local(event),event.nativeEvent);}}
       onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />;
   const rim=<RadialMenu items={radialTree([...radialEntries,...documentEntries])} navigationRef={radialNavigation} onNavigationChange={setRadialContext} onClose={()=>radar?radialNavigation.current?.toggle():setMenu(null)}
-    inset={<>{radialActions.filter(action=>'radial' in action&&'inset' in action.radial).map(action=><span className="radial-menu-inset" key={action.id}>{radialControl(action)}</span>)}{modeControl&&<span className="radial-menu-inset">{modeControl}</span>}</>}>{radar?surface:undefined}</RadialMenu>;
+    inset={<>{radialActions.filter(action=>'radial' in action&&'inset' in action.radial).map(action=><span className={`radial-menu-inset${action.id==='atomnic.erase'?' radial-menu-primary':''}`} key={action.id}>{radialControl(action)}</span>)}{modeControl&&<span className="radial-menu-inset">{modeControl}</span>}</>}>{radar?surface:undefined}</RadialMenu>;
   const content=<>
     {radar?rim:<>
     {!compatible&&isAtomnic&&<small role="alert">An enabled geometry operator changes the displayed construction. Turn Atomnic off to edit it. Other generators can coexist; Atomnic gestures target authored dots.</small>}

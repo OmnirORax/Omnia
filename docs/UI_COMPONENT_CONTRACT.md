@@ -16,7 +16,7 @@ Only the active category ring is expanded, using 32/28/24px spheres in
 spheres are drawn per ring; overflow becomes More tools and deeper navigation
 stops shrinking at 24px targets. No pointer-move layout/matching is needed. `ContextualMasterController`
 provides centred/clamped top-layer presentation and existing context-menu ownership.
-Centre left-click toggles tools; centre right-click or Esc steps outward.
+The always-visible eye toggles tools at 100%/50% opacity; its right-click or Esc steps outward. Embedded category slots leave the top-middle position for the pen/eraser switch. Category metadata may retire a presentation branch without deleting command owners. Contextual controllers opened during a held press consume its trailing contextmenu event before newly appeared controls can interpret it; a fresh pointerdown enables normal interaction.
 `FunctionControl mirror symbol tooltip` projects the existing action/field without
 another identity/value owner. Symbol fields open compact contextual editors.
 `UIField`/`UIAction registerOnly` retain real registry entries while their inline

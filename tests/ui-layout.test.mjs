@@ -31,6 +31,7 @@ test('radial projections group shared categories without changing leaf identitie
     {id:'name',label:'Name',symbol:'✎',group:[save],content:field},
     {id:'export',label:'Export',symbol:'⇧',group:[file],content:action},
   ]);
+  assert.deepEqual(radialTree([{id:'hidden',label:'Hidden',symbol:'○',group:[{id:'retired',label:'Retired',symbol:'○',hidden:true}],content:action}]),[], 'retired radial categories expose no entries while preserving command owners');
   assert.equal(tree.length,2);assert.equal(tree[0].children.length,2);
   assert.equal(tree[0].children[0].id,'save-shared');assert.equal(tree[0].children[0].content,action);
   assert.equal(tree[0].children[1].content,field);

@@ -701,26 +701,26 @@
       "id": "omnic.compose",
       "title": "Circular Omnic composer: editing inside, tools on the rim",
       "where": "Create → New Omnic object, or select an object → Open Omnic composer. Both open the same circular radar.",
-      "behavior": "The whole Composer is a circular radar, not a rectangular window containing a separate radial popup. Its interior is the editing surface; icon-only tool/category controls sit on its rim, with names/current values in tooltips. Tool navigation changes rim contents/icon size without resizing the canvas. Atomnic is an on/off tool toggle inside this same composition. Off exposes normal generator icons; on exposes lattice/dot tools. Existing definitions, save/copy/export/import, live world previews, history, recovery, library references and evaluator budgets are reused. Object categories expose components, progressive parameter editing, scope, presets, reusable operation tools, motion and diagnostics. Only requested controls open a compact contextual editor. The circular frame retains its stable ID, shared ownership/customization/resize/close behavior; old rectangular dimensions are projected rather than deleted.",
+      "behavior": "The whole Composer is a circular radar, not a rectangular window containing a separate radial popup. Its interior is the editing surface; icon-only tool/category controls sit on its rim, with names/current values in tooltips. Tool navigation changes rim contents/icon size without resizing the canvas. Atomnic is an on/off tool toggle inside this same composition. Off keeps normal geometry in this same composition; on exposes lattice/dot tools. Generator insertion and structural grouping entries are currently removed from the radial along with Structure; their engine/commands and existing geometry remain. Existing definitions, save/copy/export/import, live world previews, history, recovery, library references and evaluator budgets are reused. Object categories expose progressive parameter editing, scope, presets and reusable operation tools; Motion ⇳ and Inspection 🧰 have their own categories. The Structure category is retired from the radial presentation. Frame/navigation commands remain in shared frame controls. Only requested controls open a compact contextual editor. The circular frame retains its stable ID, shared ownership/customization/resize/close behavior; old rectangular dimensions are projected rather than deleted.",
       "steps": [
         {
           "do": "Open an existing ring/line/radial recipe with Atomnic off, or create a new Omnic object.",
           "expect": "The Composer itself is circular, with the composition inside and symbols on its rim. The old rectangular toolbar/side panels do not appear in either mode."
         },
         {
-          "do": "Click a rim category, then its symbols; hover for names. Use the right-edge ⠿ button to hide/show tools. Right-click that button or press Esc to step back through categories.",
+          "do": "Click a rim category, then its symbols; hover for names. Use the eye button to hide/show tools. Right-click that button or press Esc to step back through categories.",
           "expect": "The editing surface remains in place and at the same size. Only the rim changes; tool names/settings are tooltip-only until an editor is requested."
         },
         {
-          "do": "Toggle Atomnic off (⠒). Open Construction (✎), click Ring (○) or Line (━), then Object (◇) → selected properties (⚙). Adjust each field and advance with Next.",
-          "expect": "Geometry is added to the same recipe and previews in Omnium. Property setters appear one at a time; no old generator window returns. Toggling Atomnic back on preserves all geometry."
+          "do": "Open a recipe containing normal geometry. Toggle Atomnic off (⠒), click its visible geometry, then Object (◇) → selected properties (⚙). Adjust each field and advance with Next.",
+          "expect": "Existing geometry remains in the same recipe and previews in Omnium. Property setters appear one at a time. Toggling Atomnic back on preserves all geometry. Structure/generator-insertion categories are absent from the radial."
         },
         {
-          "do": "With Atomnic off, click a visible ring/line/generated unit, then use Object → selected properties; alternatively Object → Structure and right-click a component symbol.",
+          "do": "With Atomnic off, click a visible ring/line/generated unit, then use Object → selected properties.",
           "expect": "The rendered role resolves its authored component, and the requested component parameters appear progressively. References edit their authored use, not a different canonical object."
         },
         {
-          "do": "Use Object → Name and save, or Import and export. Save shared/copy or export; use Close composer (× under Object → View and mode), then reopen.",
+          "do": "Use Object → Name and save, or File (📁). Save shared/copy or export; close through the shared frame controls, then reopen.",
           "expect": "Existing lifecycle actions work on this same recipe. Closing restores saved world rendering and preserves recoverable unsaved work; no data is erased by the presentation change."
         },
         {
@@ -865,11 +865,15 @@
       "id": "omnic.atomnic",
       "title": "Target-derived radial DOF adjusters in the Omnic radar",
       "where": "Right-click a rendered pattern in the radar interior or active edited Omnium image. General creation/file controls remain on the radar rim.",
-      "behavior": "Right-click a target resolves its active Micro/Macro selection, reads the existing generators’ writable parameter adapters, and shows only common editable degrees of freedom as a flat circle of buttons at the pointer. The target ring has no category hierarchy or file actions; all detected DOFs occupy the same ring. Registered operation metadata supplies specialized adjusters: position inputs invoke Move and writable direction invokes Rotation for authored atoms. Other properties use the shared PropertyEditor and exact per-target setters. Left-click Move/Rotation uses retained settings; right-click opens only that adjuster’s progressive settings. Rotation retains scope → halving order → step → pivot → drag, with optional axis/position configuration. Right-click a scalar adjuster opens its step editor; its shared slider supplies bounds, dragging and halving. Scalar working ranges/step sizes are retained for the current Composer session, independently of target values. Step affects slider drag, keyboard, nudge and wheel. Discovery/selection creates no recipe edit; accepted value edits reuse draft/history/live world preview. The radar, general tools, Eraser, modes, save/library/recovery and previous construction behavior remain. Position/Rotation adjusters are removed from the static general tool inventory; their command identities and shortcuts are preserved and the target ring discovers them through capability metadata.",
+      "behavior": "Right-click a target resolves its active Micro/Macro selection, reads the existing generators’ writable parameter adapters, and shows only common editable degrees of freedom as a flat circle of buttons at the pointer. The target ring has no category hierarchy or file actions; all detected DOFs occupy the same ring. Registered operation metadata supplies specialized adjusters: position inputs invoke Move and writable direction invokes Rotation for authored atoms. Other properties use the shared PropertyEditor and exact per-target setters. Left-click Move/Rotation uses retained settings; right-click opens only that adjuster’s progressive settings. Rotation retains scope → halving order → step → pivot → drag, with optional axis/position configuration. Right-click a scalar adjuster opens its step editor; its shared slider supplies bounds, dragging and halving. Scalar working ranges/step sizes are retained for the current Composer session, independently of target values. Step affects slider drag, keyboard, nudge and wheel. Discovery/selection creates no recipe edit; accepted value edits reuse draft/history/live world preview. The radar, general tools, Eraser, modes, save/library/recovery and previous construction behavior remain. Position/Rotation adjusters are removed from the static general tool inventory; their command identities and shortcuts are preserved and the target ring discovers them through capability metadata. The opening right press is consumed by the shared contextual controller, so releasing it does not activate the new menu’s centre or a tool. Tools remain until an intentional action. The always-visible eye toggles tool visibility at 100%/50% opacity. The top-middle pen/eraser control shows the next action: eraser while drawing, pen while erasing. File uses 📁, Motion ⇳, Selection ◌ and Inspection 🧰. Structure entries are removed from the general radial presentation; their underlying commands and saved data remain. Frame/navigation commands are not radial categories; shared frame controls and in-context Back/Confirm remain.",
       "steps": [
         {
           "do": "Create a new Omnic object and right-click its dot. Repeat on an authored group in Macro scope.",
           "expect": "Only target DOF buttons appear around one circle, with names/current values in tooltips. No file actions or category picker appears in this target ring. Detection/selection does not change the recipe."
+        },
+        {
+          "do": "Right-click a target, release the button, then move away without clicking. Next right-click a scalar adjuster.",
+          "expect": "The DOF ring stays open on release. A separate right press configures the chosen adjuster; the opening press does not close the menu or select anything."
         },
         {
           "do": "Left-click Rotation in that ring. Pick a pivot and drag. Then right-click the same pattern → right-click Rotation; advance Scope, halving order and step count, confirm, pick pivot and drag again.",
@@ -898,6 +902,10 @@
         {
           "do": "Use the general rim for Draw, Erase, Select/all, Group/Ungroup/Remove, marking/fill, patterns and selection undo/redo.",
           "expect": "Those existing functions remain; this change replaces the target right-click path rather than deleting general construction/library/lifecycle capabilities."
+        },
+        {
+          "do": "On the general radar rim, toggle the eye twice. In Atomnic mode click the top-middle eraser, erase a unit, then click the pen to resume drawing. Browse File, Motion, Selection and Inspection.",
+          "expect": "The eye remains visible at 50% when tools are hidden and 100% when shown; the canvas remains. The pen/eraser icon always shows the tool the next click activates. Categories use 📁 / ⇳ / ◌ / 🧰. No Structure or frame/navigation category appears. Target DOFs still come only from target right-click."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -957,7 +965,7 @@
       "limits": "Detection is adapter-based, not arbitrary pixel/semantic inference. Only common writable generator inputs appear; future adapters must declare actual setters. Specialized drag/pivot executors currently cover authored atoms/groups; normal geometry uses its existing parameter setters. Applied-operator-only freedoms and full MS clipping remain separate work. Realistic fixes target atom size and retains lattice/overlap/rotation constraints; it is not full physics. Scalar range/step preferences last for the editing session, not across closing/reloading; movement/rotation settings remain recipe-backed. Model/component/evaluation/render budgets remain. Chrome/Omnium size synchronization is still paused.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
-        "browser": "Target-derived DOF-ring and adjuster-configuration slice awaits user testing. No browser suite or profiling run.",
+        "browser": "User reported the opening right-button release dismissed the DOF ring. Shared opening-gesture guard and new rim organization await user retest; no browser suite run.",
         "automated": "2026-10-28: model regressions cover parameter-derived applicability, common selected-target DOFs, position/direction operation mapping, fixed-profile freedoms, scoped writes/stale-ID rejection, and non-overlapping flat rings. Full model/type/property/backend/preview checks run before publication; browser acceptance is separate."
       },
       "related": [

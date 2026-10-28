@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode, type WheelEvent } from "react";
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
+import { uiPointerHeld } from "./pointerOwnership";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
@@ -9,6 +10,8 @@ export function ContextualMasterController({ title, hint, position, onClose, onW
   onClose: () => void; onWheel?: (event: WheelEvent) => void; children: ReactNode; radial?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const openingPress = useRef(false);
+  useLayoutEffect(() => { openingPress.current = !!position && uiPointerHeld(); }, [!!position]);
   useActiveLayer(!!position, root, onClose);
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
@@ -35,6 +38,12 @@ export function ContextualMasterController({ title, hint, position, onClose, onW
     return () => node.removeEventListener("wheel", preventScroll);
   }, [!!position, !!onWheel]);
   return position && createPortal(<div ref={root} className={`contextual-master-controller ui-frame-search-popup${radial?' contextual-master-controller-radial':''}`} data-context-controller data-ui-search data-ui-name-ignore
+    onPointerDownCapture={() => { openingPress.current = false; }}
+    onContextMenuCapture={event => {
+      // A popup opened on pointerdown must not interpret that same press
+      // again when the browser dispatches contextmenu at its new contents.
+      if (openingPress.current) { event.preventDefault(); event.stopPropagation(); }
+    }}
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{ left: Math.max(8, Math.min(position.x, innerWidth - 252)), top: Math.max(8, Math.min(position.y, innerHeight - 240)) }}>

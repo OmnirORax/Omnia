@@ -1,10 +1,11 @@
-export type RadialGroup={id:string;label:string;symbol:string};
+export type RadialGroup={id:string;label:string;symbol:string;hidden?:boolean};
 export type RadialEntry<T>={id:string;label:string;symbol:string;group?:readonly RadialGroup[];content:T};
 export type RadialNode<T>=RadialGroup & {children?:RadialNode<T>[];content?:T};
 /** Shared presentation grouping; commands/values remain with their existing owner. */
 export function radialTree<T>(entries:readonly RadialEntry<T>[]):RadialNode<T>[] {
   const roots:RadialNode<T>[]=[];
   for(const entry of entries){
+    if(entry.group?.some(group=>group.hidden))continue;
     let level=roots;
     for(const group of entry.group??[]){
       let node=level.find(node=>node.id===group.id&&node.children);

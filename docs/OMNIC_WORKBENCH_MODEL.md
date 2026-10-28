@@ -7,6 +7,8 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
+Rim choices: permanently visible eye, 100% tools shown / 50% hidden. Top-middle pen/eraser switch displays the next action. File 📁, Motion ⇳, Selection ◌, Inspection 🧰. Remove the entire Structure category from the radial presentation, retaining reusable commands/data. Frame/navigation controls do not belong in this radial; contextual Back/Confirm still work. Target DOF discovery is unchanged. Opening right-button release must never activate/dismiss newly appeared controls.
+
 Latest interaction clarification: right-click a target/pattern to discover its
 actual writable DOFs, and show the corresponding freedom adjusters directly as
 buttons around ONE circle. This is not a category tree or a row. Direction being

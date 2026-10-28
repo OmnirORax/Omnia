@@ -1,14 +1,16 @@
 // Presentation metadata reuses command identities; radial consumers discover their
 // applicable actions from this catalog rather than maintaining another tool list.
 export const radialGroups = {
-  construct:{id:'construct',label:'Construction',symbol:'✎'},
-  select:{id:'select',label:'Selection',symbol:'◉'},
+  construct:{id:'construct',label:'Construction',symbol:'✎',hidden:true},
+  select:{id:'select',label:'Selection',symbol:'◌'},
   transform:{id:'transform',label:'Transform',symbol:'🗘'},
   mark:{id:'mark',label:'Marking',symbol:'◒'},
-  structure:{id:'structure',label:'Structure',symbol:'⠿'},
+  structure:{id:'structure',label:'Structure',symbol:'⠿',hidden:true},
   object:{id:'object',label:'Object',symbol:'◇'},
   save:{id:'save',label:'Name and save',symbol:'▣'},
-  file:{id:'file',label:'Import and export',symbol:'⇅'},
+  file:{id:'file',label:'File',symbol:'📁'},
+  motion:{id:'motion',label:'Motion',symbol:'⇳'},
+  inspect:{id:'inspect',label:'Inspection',symbol:'🧰'},
   view:{id:'view',label:'View and mode',symbol:'⊙'},
 } as const;
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
@@ -48,7 +50,7 @@ export const FEATURE_ACTIONS = [
   { id: "omnic.rotateStep", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Rotate one step", defaultKey: "", description: "Advance the focused Omnic rotation using its saved snap settings. Shift opens contextual rotation configuration." },
   { id: "omnic.save", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Save shared", defaultKey: "", description: "Save shared Omnic definition through the shared composer and canonical object state." , radial:{symbol:'▣',group:[radialGroups.object,radialGroups.save]}},
   { id: "omnic.copy", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Save copy", defaultKey: "", description: "Save Omnic copy through the shared composer and canonical object state." , radial:{symbol:'⧉',group:[radialGroups.object,radialGroups.save]}},
-  { id: "omnic.play", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Play / pause", defaultKey: "", description: "Play / pause Omnic motion through the shared composer and canonical object state." , radial:{symbol:'▷',group:[radialGroups.object,radialGroups.view]}},
+  { id: "omnic.play", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Play / pause", defaultKey: "", description: "Play / pause Omnic motion through the shared composer and canonical object state." , radial:{symbol:'▷',group:[radialGroups.motion]}},
   { id: "omnic.export", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Export recipe", defaultKey: "", description: "Export Omnic recipe through the shared composer and canonical object state." , radial:{symbol:'⇧',group:[radialGroups.object,radialGroups.file]}},
   { id: "omnic.import", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Import recipe", defaultKey: "", description: "Import Omnic recipe through the shared composer and canonical object state." , radial:{symbol:'⇩',group:[radialGroups.object,radialGroups.file]}},
   { id: "omnic.reset", owner: "omnicComposer", scope: "global", category: "Omnic", label: "Reset draft", defaultKey: "", description: "Reset Omnic preset through the shared composer and canonical object state." , radial:{symbol:'↺',group:[radialGroups.object,radialGroups.view]}},
