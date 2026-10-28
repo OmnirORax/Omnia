@@ -26,7 +26,8 @@ import "./composer.css";
 type ObjectRef = { id: string; label: string; omnic?: Recipe; omnicHistory?: Recipe[] };
 type Props = {
   workspaceId?: string; presetIds?:readonly string[]; entity: ObjectRef; objects: readonly ObjectRef[]; history: ActionHistory;
-  onSave: (recipe: Recipe) => void; onCopy: (recipe: Recipe, label: string) => void; onClose: () => void;
+  isNew?: boolean; initialRecipe?: Recipe; onPreview?: (recipe: Recipe | null) => void;
+  onSave: (recipe: Recipe, label?: string) => void; onCopy: (recipe: Recipe, label: string) => void; onClose: () => void;
 };
 type Focus = { kind: "component" | "operation"; id: string };
 const storageKey = (id: string) => `omnium.omnic.draft.v1:${id}`;
@@ -35,13 +36,13 @@ const allComponents = (components: readonly Component[]): Component[] => compone
 const updateComponents = (components: Component[], id: string, change: (component: Component) => Component): Component[] => components.map(component => component.id === id ? change(component) : component.children ? { ...component, children: updateComponents(component.children, id, change) } : component);
 const removeComponent = (components: Component[], id: string): Component[] => components.filter(component => component.id !== id).map(component => component.children ? { ...component, children: removeComponent(component.children, id) } : component);
 const id = () => crypto.randomUUID();
-function restoredDraft(entity: ObjectRef, draftId=entity.id): { recipe: Recipe; baseRevision: number | null } {
+function restoredDraft(entity: ObjectRef, draftId=entity.id, initialRecipe?: Recipe): { recipe: Recipe; baseRevision: number | null } {
   const closed = closedComposerDraft(`omnic.draft:${draftId}`); if (closed) return closed;
   try {
     const raw = localStorage.getItem(storageKey(draftId));
     if (raw) { const saved = JSON.parse(raw); return { recipe: validateRecipe(saved.recipe), baseRevision: Number.isSafeInteger(saved.baseRevision) ? saved.baseRevision : null }; }
   } catch { /* A damaged draft never prevents opening the canonical object. */ }
-  return { recipe: validateRecipe(entity.omnic ?? createRecipe()), baseRevision: entity.omnic?.revision ?? null };
+  return { recipe: validateRecipe(entity.omnic ?? initialRecipe ?? createRecipe()), baseRevision: entity.omnic?.revision ?? null };
 }
 function download(name: string, value: unknown) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
@@ -62,9 +63,9 @@ function Parameters({ scope, spec, params, thresholds, change }: {
 
 /** The composer owns a recoverable local draft, not a second canonical object.
  * Accepted changes use the shared journal; samples and animation stay transient. */
-export function OmnicComposer({ entity, objects, history, onSave, onCopy, workspaceId, presetIds=[] }: Props) {
+export function OmnicComposer({ entity, objects, history, onSave, onCopy, workspaceId, presetIds=[], isNew=false, initialRecipe, onPreview }: Props) {
   const draftId=workspaceId?`${workspaceId}:${entity.id}`:entity.id;
-  const [initial] = useState(() => restoredDraft(entity,draftId));
+  const [initial] = useState(() => restoredDraft(entity,draftId,initialRecipe));
   const [draft, setDraft] = useState<Recipe>(initial.recipe);
   const [baseRevision, setBaseRevision] = useState<number | null>(initial.baseRevision);
   const baseRevisionRef = useRef(baseRevision); baseRevisionRef.current = baseRevision;
@@ -74,9 +75,9 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const [focus, setFocus] = useState<Focus | null>(() => draft.components[0] ? { kind: "component", id: draft.components[0].id } : null);
   const [picked, setPicked] = useState<string[]>([]), [query, setQuery] = useState("");
   const [toolId, setToolId] = useState("");
-  const [generator, setGenerator] = useState("radial"), [reference, setReference] = useState("");
+  const [generator, setGenerator] = useState(isNew ? "dot" : "radial"), [reference, setReference] = useState("");
   const [thresholds, setThresholds] = useState(false), [playing, setPlaying] = useState(false);
-  const [copyLabel, setCopyLabel] = useState(entity.label ? `${entity.label} variation` : "Omnic variation");
+  const [copyLabel, setCopyLabel] = useState(entity.label ? `${entity.label} variation` : isNew ? "Omnic object" : "Omnic variation");
   const [error, setError] = useState(""), [notice, setNotice] = useState("");
   const preview = useRef<HTMLDivElement>(null), importInput = useRef<HTMLInputElement>(null);
   const owner = `omnic.draft:${draftId}`;
@@ -87,6 +88,8 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     try { return { result: evaluateRecipe(recipe, resolve), error: "" }; }
     catch (failure) { return { result: null, error: failure instanceof Error ? failure.message : String(failure) }; }
   }, [recipe, resolve]);
+  useEffect(() => { if (!evaluated.error) onPreview?.(recipe); }, [recipe, evaluated.error, onPreview]);
+  useEffect(() => () => onPreview?.(null), [onPreview]);
   const viewBox = useMemo(() => {
     if (!evaluated.result) return "-50 -50 100 100";
     const seen = new Set<Recipe>(), cached = new Map<Recipe,number>();
@@ -153,11 +156,11 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const save = () => {
     try {
       const next = validateRecipe({ ...recipeRef.current, version:2, revision: (entity.omnic?.revision ?? 0) + 1 });
-      onSave(next); setBaseRevision(next.revision); draftRef.current = next; setDraft(next); setSample(null); setNotice("Shared definition saved; its references use this revision."); setError("");
+      onSave(next, isNew ? copyLabel.trim() || "Omnic object" : undefined); setBaseRevision(next.revision); draftRef.current = next; setDraft(next); setSample(null); setNotice("Shared definition saved; its references use this revision."); setError("");
     } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
   };
   const copy = () => { try { onCopy(validateRecipe({ ...recipeRef.current, revision: 1 }), copyLabel.trim() || "Omnic variation"); setNotice("Copied as a new canonical object."); } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); } };
-  const reset = () => { setBaseRevision(entity.omnic?.revision ?? null); commit(validateRecipe(entity.omnic ?? createRecipe())); setPlaying(false); setPicked([]); };
+  const reset = () => { setBaseRevision(entity.omnic?.revision ?? null); commit(validateRecipe(entity.omnic ?? initialRecipe ?? createRecipe())); setPlaying(false); setPicked([]); };
   const togglePlay = () => {
     if (!playing && (evaluated.result?.nodes.length ?? 0) > RENDER_BUDGET.omnicAnimatedRoles) { setError(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles. The complete static structure is preserved.`); return; }
     setPlaying(value => !value);
@@ -271,11 +274,11 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   }, [recipe, active, spec, neighborParameter, thresholds, resolve, evaluated.result]);
   return <div className="omnic-composer">
     <div className="omnic-toolbar">
-      <strong>{entity.label || "Omnic object"}</strong><small>{dirty ? "Draft · not saved" : `Shared revision ${entity.omnic?.revision ?? 0}`}</small>
+      <strong>{entity.label || "Omnic object"}</strong><small title={isNew ? "Save shared creates this object at the preview position. Closing removes the world preview and keeps the recoverable draft. World previews use the shared 32-source budget." : "The world previews this draft and its live uses within the shared 32-source budget; other occurrences retain saved rendering. Closing restores saved rendering; Reset draft reverts unsaved work."}>{isNew ? "New · world draft" : dirty ? "World draft · not saved" : `Shared revision ${entity.omnic?.revision ?? 0}`}</small>
       {["omnic.save", "omnic.copy", "omnic.play", "omnic.export", "omnic.import", "omnic.reset"].map(action => <FunctionControl key={action} id={action} />)}
       <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importFile} />
     </div>
-    <UIField id="omnic:copy-name" label="Variation name" category="Omnic"><label>Copy name <input value={copyLabel} maxLength={200} onChange={event => setCopyLabel(event.target.value)} /></label></UIField>
+    <UIField id="omnic:copy-name" label={isNew ? "Glyph name" : "Variation name"} category="Omnic"><label>{isNew ? "Glyph name" : "Copy name"} <input value={copyLabel} maxLength={200} onChange={event => setCopyLabel(event.target.value)} /></label></UIField>
     {(error || evaluated.error) && <small role="alert">{error || evaluated.error}</small>}{notice && <small role="status">{notice}</small>}
     {baseRevision !== (entity.omnic?.revision ?? null) && <small role="status">This draft began at shared revision {baseRevision ?? "none"}; the object is now revision {entity.omnic?.revision ?? "none"}. Reset draft loads the current definition. Save shared explicitly replaces it; Save copy preserves both.</small>}
     <div className="omnic-workbench">

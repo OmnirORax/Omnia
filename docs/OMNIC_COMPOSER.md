@@ -212,10 +212,13 @@ Stop after Stage 1 and report the smallest useful next step.
 
 Open **Create → New Omnic object**, or select an existing node and use
 **Inspector → Open Omnic composer** (also searchable/rebindable catalog actions).
-A new object is a canonical entity with an initial procedural definition. Opening
-an ordinary object starts a recoverable composer draft; Save shared adds/revises
-its structural definition without changing identity. Save copy creates another
-canonical entity and a normal placement in the current creation context.
+New work now starts as a recoverable unsaved draft with one procedural dot and
+a temporary world preview; it creates no canonical entity until saved. Opening
+the composer without a selected object uses that same route. Opening an ordinary
+object starts a recoverable composer draft; Save shared adds/revises its structural
+definition without changing identity. For unsaved work Save shared creates the
+object at its creation context; Save copy deliberately creates another identity.
+See the live-world slice below for bounds and remaining limitations.
 
 The composer supplies procedural dot, ring, line, chain, radial and nested-group
 generators, shared-object references, count/scale/fill/rotation/selection/connection/
@@ -264,6 +267,59 @@ language, translation tooltips and persistent library organization remain unreso
 or deferred. Stage 2 library organization and workspace persistence are now
 implemented for review; their contract and rollout limits are in OMNIC_LIBRARY.md.
 
+
+## Live world drafts: first workbench slice (2026-10-28)
+
+**Create → New Omnic object**, or **Open Omnic composer** with no selection,
+opens one recoverable unsaved draft for the active workspace/atlas. Its seed is
+one procedural dot. A temporary structure appears in the world at the creation
+context without adding an entity, placement or canonical history entry. The
+existing composer supplies the editing controls in this slice. Enter **Glyph name**
+and **Save shared** to create the canonical object there. Completing that draft
+releases its recovery slot; the next new draft has a fresh history owner. An
+unfinished draft reopens/reloads through its own workspace/atlas recovery ID.
+
+Opening a selected object previews its recipe immediately on visible uses and
+transitive **live** dependents. Pinned revisions and paths through frozen pins
+retain their saved definitions. Previews temporarily show the structural view
+over local asset/character overrides; closing restores the original presentation.
+Save shared changes the canonical recipe, not those explicit presentation choices;
+**Show Omnic structure** remains the way to clear an override permanently.
+
+Input samples, draft Undo/Redo, presets, imports and Reset draft update the world
+without writing canonical state. Closing removes the world draft and restores
+saved rendering while retaining the recoverable draft. Reset reloads the saved
+definition (or the single-dot seed for unsaved work). Invalid evaluations retain
+the last valid world preview while the composer reports the error. Save/copy still
+use the existing validated workspace, archive and shared history paths.
+
+The bridge is a session-owned transient store, not another recipe owner. Renderer
+plans use immutable-pool indexes for live dependencies and visible occurrences.
+Updates are coalesced at the existing 12fps Omnic budget, spread dependent work
+over 4ms batches, reuse generated assets,
+replace only affected visuals and retain the last decoded visual until its
+replacement loads. A draft sample does not rebuild the entire scene or pass a
+projected document through graph commits. Pending loads and proxies are disposed
+on replacement, close, atlas switch and scene rebuild.
+
+The shared world budget remains 32 structural sources at 256px. Preview can use
+existing reserved occurrences and free slots; additional occurrences retain saved
+rendering. A new temporary uses a free slot or displays the existing preview-budget
+placeholder. The world remains static at evaluation time zero; Play animates only
+the composer. This is not fixed-size Omnic reading or readability calibration.
+
+Temporary world drafts are edited through the composer and become normal
+selectable graph placements after saving. This slice does not yet implement the
+fixed touching-lattice mouse/sweep interface, arbitrary subset movement, exact
+MS internal-region selection, an Omnic frame/dial UI or the complete node rework.
+Those follow the shared [mental model](OMNIC_WORKBENCH_MODEL.md), rather than
+being inferred as delivered by the preview bridge.
+
+Type/capability/property checks and the self-contained preview build pass (2.85MB).
+No browser suite or performance trace ran; user acceptance is pending. Focus user testing on new draft → world edit →
+close/recover → save, shared uses/live dependencies versus pins, Reset/Undo,
+asset override restoration and atlas-switch cleanup. Build/static results are
+recorded at handoff and do not establish interactive smoothness.
 
 ## Member / Part construction extension (2026-10-28)
 

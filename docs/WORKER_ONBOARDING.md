@@ -587,6 +587,15 @@ work. Do not mark acceptance complete before the implementation is verified.
 
 ## Omnic workspace library (Stage 2)
 
+The first world-workbench slice adds temporary unsaved construction and a transient
+live draft bridge. It previews selected objects and live dependents without graph
+commits or whole-scene rebuilding per sample; pins remain frozen, closing restores
+saved visuals and new work becomes canonical only on save. Existing world budgets
+apply. This does not yet provide lattice mouse construction, Omnic frame/dial
+controls, exact MS regions or calibrated reading size. See
+[the current mental model](OMNIC_WORKBENCH_MODEL.md) and
+[live draft contract](OMNIC_COMPOSER.md#live-world-drafts-first-workbench-slice-2026-10-28).
+
 Read [OMNIC_LIBRARY.md](OMNIC_LIBRARY.md) before changing persistence, library
 organization, revisions or cloud snapshots. The user chose a workspace-wide
 canonical entity pool and explicit cloud save/load. Stable workspace/atlas IDs,

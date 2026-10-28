@@ -294,6 +294,12 @@ registry at initialization, with no new DOM/pointer scans or animation work.
 
 ## Active Omnic parameter owner
 
+World draft preview subscribes to the existing composer-owned recipe through
+`omnic/worldPreview.ts`. The transient store carries a render projection only;
+MC setters, draft recovery and chronological history still use the same owner.
+It does not publish parameter samples to App state or commit workspace snapshots
+on pointer movement. See the live draft section in OMNIC_COMPOSER.md.
+
 `omnic/omnic.function.ts` projects generator/operator input metadata into the same
 property pool and declares pure read/write adapters for the `omnic` owner.
 `omnic/propertyAdapter.ts` scopes those inputs to the active component/application;

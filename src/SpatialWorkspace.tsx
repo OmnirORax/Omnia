@@ -20,7 +20,9 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { guardCameraPointer } from "./cameraPointer";
 import type { Atlas } from "./graph/model";
 import { isolateSpatialContext, projectSpatial, type XYZ } from "./graph/spatial";
-import { disposeVisual } from "./visualScene";
+import { disposeVisual, visualObject } from "./visualScene";
+import type { OmnicPreviewStore } from "./omnic/worldPreview";
+import { omnicDraftAssets, omnicBudgetAsset } from "./omnic/presentation";
 import type { ActionId, WorkspaceSettings } from "./workspaceActions";
 import type { Document } from "./graph/structural";
 import { chartedBinders } from "./graph/presentation";
@@ -45,6 +47,8 @@ export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus
 export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
+  omnicPreview: OmnicPreviewStore;
+  omnicPreviewContext: string;
   heldNudges: HeldActions<NudgeActionId>;
   bindings: PropertyBindings;
   history: ActionHistory;
@@ -696,6 +700,10 @@ export default function SpatialWorkspace(props: Props) {
     state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
+  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter,
+    settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay,
+    settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
+
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
     nudgeEngine.current?.finish(true); props.heldNudges.stop();
@@ -719,7 +727,52 @@ export default function SpatialWorkspace(props: Props) {
     volumeRadii.current = occupiedRadii(doc, settings.spatial);
     worldCoordinates.current = worldPositions(doc);
     state.requestRender();
-  }, [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
+  }, [sceneStructure]);
+
+  useEffect(() => {
+    const state = stateRef.current, built = textScene.current;
+    if (!state || !built || !ready) return;
+    let frame = 0, last = -Infinity;
+    let lastPreview = props.omnicPreview.getSnapshot();
+    let temporary: THREE.Group | undefined, current: THREE.Group | undefined, pending: THREE.Group | undefined;
+    let temporaryOwner: string | undefined, url: string | undefined;
+    const clearTemporary = () => {
+      if (temporary) { state.content.remove(temporary); disposeVisual(temporary); state.requestPaint(); }
+      temporary = current = pending = undefined; temporaryOwner = url = undefined;
+    };
+    const draw = (time: number) => {
+      frame = 0;
+      const candidate = props.omnicPreview.getSnapshot();
+      const preview = candidate?.owner.startsWith(`${props.omnicPreviewContext}:`) ? candidate : null;
+      if (!preview) { built.applyOmnicDraft(null, state.requestPaint); clearTemporary(); return; }
+      if (preview !== lastPreview && time - last < 1000 / RENDER_BUDGET.omnicFps) { frame = requestAnimationFrame(draw); return; }
+      if (preview !== lastPreview || last === -Infinity) { last = time; lastPreview = preview; }
+      if (built.applyOmnicDraft(preview, state.requestPaint)) frame = requestAnimationFrame(draw);
+      if (!preview.temporary) { clearTemporary(); return; }
+      if (temporaryOwner !== preview.owner) {
+        clearTemporary(); temporaryOwner = preview.owner;
+        temporary = new THREE.Group(); state.content.add(temporary);
+        const parent = preview.temporary.parentId ? worldCoordinates.current.get(preview.temporary.parentId) : undefined;
+        temporary.position.set((parent?.x ?? 0) + preview.temporary.position.x,
+          (parent?.y ?? 0) + preview.temporary.position.y, (parent?.z ?? 0) + preview.temporary.position.z);
+        temporary.scale.setScalar(1.4);
+      }
+      const asset = built.omnicSlotsAvailable ? omnicDraftAssets(doc, preview.entityId, preview.recipe)(preview.entityId) : omnicBudgetAsset;
+      if (!asset || asset.dataUrl === url || !temporary) return;
+      url = asset.dataUrl;
+      if (pending) { temporary.remove(pending); disposeVisual(pending); }
+      const root = temporary;
+      const next = visualObject({ assetId: asset.id }, [asset], () => new THREE.Group(), () => {
+        if (root.userData.disposed || pending !== next) return;
+        if (current) { root.remove(current); disposeVisual(current); }
+        current = next; pending = undefined; next.visible = true; state.requestPaint();
+      }, {}, RENDER_BUDGET.omnicTextureEdge);
+      next.visible = false; pending = next; root.add(next);
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(draw); };
+    const stop = props.omnicPreview.subscribe(schedule); schedule();
+    return () => { stop(); cancelAnimationFrame(frame); built.applyOmnicDraft(null, state.requestPaint); clearTemporary(); };
+  }, [sceneStructure, props.omnicPreview, props.omnicPreviewContext]);
 
   useEffect(() => {
     textScene.current?.applyTheme(settings.appearance, props.colorPreview);

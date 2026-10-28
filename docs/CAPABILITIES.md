@@ -29,10 +29,11 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Investigative frames, variants, layouts and proposals](#graph-frames) | Implemented; browser verification pending | Create / investigative-frame / relationship / external AI proposal panels. |
 | [Camera versus object rotation, trackball and axis lock](#camera-navigation) | Implemented; browser verification pending | World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings. |
 | [Front-on centering, fit, origin, roll and focus navigation](#camera-framing) | Implemented; browser verification pending | MC World view / Active context and navigation catalog; F frames selected front-on. |
-| [Procedural generators and parameters](#omnic-compose) | Implemented; browser verification pending | Create → New Omnic object; or select a node → Inspector → Open Omnic composer. |
+| [Procedural generators and parameters](#omnic-compose) | Implemented; browser verification pending | Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer. |
 | [Ordered operations, role picking, target repair and count extraction](#omnic-operations) | Implemented; user verification pending | Composer → Scope / Ordered operations. |
 | [Interpretive frame declarations](#omnic-frames) | Implemented; browser verification pending | Composer → Interpretation frames. |
 | [Semantic oscillation and playback](#omnic-motion) | Implemented; browser verification pending | Composer → Semantic oscillation preset / Play–pause. |
+| [Live world drafts before saving](#omnic-worldPreview) | Implemented for review; source PR and visual preview do not establish production deployment or browser acceptance | Create → New Omnic object; Open Omnic composer with or without an existing selected object. |
 | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) | Implemented; browser verification pending | Composer toolbar; Inspector → Show Omnic structure. |
 | [Shared library, multiple atlases and copy provenance](#library-objects) | Implemented; browser verification pending | Create → Omnic library. |
 | [Collections, tags, presets and names](#library-organize) | Implemented; browser verification pending | Omnic library → selected object / Organization. |
@@ -438,22 +439,24 @@ Front-on framing changes the camera, not the object. Fit local/all, return focus
 
 **ID:** `omnic.compose` · **Status:** Implemented; browser verification pending
 
-**Where:** Create → New Omnic object; or select a node → Inspector → Open Omnic composer.
+**Where:** Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer.
 
-Dot, ring, line, chain, radial, group and Reference generators build structures from shared parameter controls. No freehand glyph drawing. An Omnic definition is part of the canonical object.
+New work opens a recoverable single-dot world draft without creating an object. Existing dot, ring, line, chain, radial, group and Reference generators use shared parameter controls. Valid changes preview directly in Omnium; canonical definitions change only on save.
 
 **Minimal working test**
 
-1. Create an Omnic object and choose a radial preset. Change Count and Radius. **Expected:** The procedural structure changes immediately.
+1. Open New Omnic object, choose a radial construction preset and change Count and Radius. **Expected:** Both the composer and temporary world structure change; no canonical object is created until Save shared or Save copy.
 2. Add a group and add a generator inside it. Change its parameters. **Expected:** Nested structure appears and can be edited without manually placing units.
 
-**Limits / unavailable behavior:** Browser acceptance has not been recorded for this guide.
+**Limits / unavailable behavior:** Lattice-constrained mouse/sweep construction, exact MS regions and calibrated reading size remain planned. Existing procedural controls are implemented. Browser acceptance has not been recorded.
 
 **Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
 
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/Composer.tsx](../src/omnic/Composer.tsx), [src/omnic/registry.ts](../src/omnic/registry.ts).
 
 **Command IDs:** `omnic.create`, `omnic.open`.
+
+**Related:** [Live world drafts before saving](#omnic-worldPreview), [Shared save, independent copy, drafts and recipe import/export](#omnic-saving).
 
 <a id="omnic-operations"></a>
 ## Ordered operations, role picking, target repair and count extraction
@@ -524,6 +527,32 @@ Oscillation is evaluated at explicit time, paused by default. Only the active bo
 
 **Command IDs:** `omnic.play`.
 
+<a id="omnic-worldPreview"></a>
+## Live world drafts before saving
+
+**ID:** `omnic.worldPreview` · **Status:** Implemented for review; source PR and visual preview do not establish production deployment or browser acceptance
+
+**Where:** Create → New Omnic object; Open Omnic composer with or without an existing selected object.
+
+New work uses a recoverable temporary world structure. Valid composer inputs preview on selected identities and transitive live uses through a transient renderer bridge. Saved data and pins remain unchanged until an explicit save. Close removes the projection; Reset reverts unsaved edits.
+
+**Minimal working test**
+
+1. Open New Omnic object without saving and change Unit size or add/modify a generator. **Expected:** A temporary world structure follows valid edits. No new entity or graph placement appears in the saved workspace.
+2. Close and reopen the new composer, then reload and open it again. **Expected:** The temporary world preview disappears on close and the unfinished recipe recovers on reopening in the same workspace/atlas.
+3. Enter Glyph name and choose Save shared. **Expected:** One canonical object is created through normal placement/history, at the preview creation context.
+4. Open an object with multiple placements and live Reference users; change its draft without saving. Compare with a revision-pinned Reference. **Expected:** Visible live uses and live dependency chains preview the draft within the shared budget; the pinned expansion stays saved.
+5. Use draft Undo/Redo and Reset draft, then close. Switch atlases while a draft is open. **Expected:** Valid world edits follow the existing draft owner, Reset restores the saved definition, and closing/switching leaves no stale preview in the other atlas.
+6. Open an object with an explicit imported visual override and change its recipe, then close without clearing that override. **Expected:** The structural draft is visible while editing; the original explicit visual returns on close.
+
+**Limits / unavailable behavior:** At most 32 structural world sources at 256px; extra occurrences retain saved rendering and a temporary with no free slot uses the preview-budget placeholder. Inputs are coalesced to 12fps, dependents use 4ms batches, and evaluation is static at time zero. Invalid evaluations keep the last valid preview. Temporary work is edited in the composer until saved. This does not deliver frame/dial editing, lattice gestures, MS region picking or reading-size calibration.
+
+**Verification:** browser — Not run; user acceptance pending. Automated — 2026-10-28: type/capability/property checks and self-contained preview build pass (2.85MB); no browser suite or performance trace..
+
+**Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/worldPreview.ts](../src/omnic/worldPreview.ts), [src/omnic/presentation.ts](../src/omnic/presentation.ts), [src/omnic/Composer.tsx](../src/omnic/Composer.tsx), [src/textScene.ts](../src/textScene.ts), [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [src/App.tsx](../src/App.tsx).
+
+**Related:** [Procedural generators and parameters](#omnic-compose), [Shared save, independent copy, drafts and recipe import/export](#omnic-saving), [Live dependencies, frozen pins, restore and archive pruning](#library-revisions).
+
 <a id="omnic-saving"></a>
 ## Shared save, independent copy, drafts and recipe import/export
 
@@ -531,21 +560,24 @@ Oscillation is evaluated at explicit time, paused by default. Only the active bo
 
 **Where:** Composer toolbar; Inspector → Show Omnic structure.
 
-Save shared updates canonical uses. Save copy creates a new identity. Drafts recover locally and use shared history. Recipe-only exports need their referenced objects; full workspace exports carry dependencies.
+Draft changes preview in the world before saving. Save shared creates unsaved work or updates an existing canonical object; Save copy deliberately creates a new identity. Close restores saved visuals while preserving draft recovery and shared history. Exports retain the existing dependency contracts.
 
 **Minimal working test**
 
-1. Place the same object twice, edit it and Save shared. **Expected:** Both live placements update.
+1. Open a shared object used twice, change its draft, then close without saving. **Expected:** Visible live uses preview the change within the world budget, then restore saved rendering. Reopening recovers the draft.
 2. Save copy and edit the copy. **Expected:** The original stays unchanged.
 3. Leave a draft, close/reopen, then reload. Export/import its recipe. **Expected:** The unfinished draft recovers; imported structure reproduces when dependencies are available.
+4. Start a new unsaved draft, set Glyph name and Save shared. Then open another new draft. **Expected:** The first becomes one canonical object at its creation context; the next has a fresh independent draft identity.
 
-**Limits / unavailable behavior:** Explicit imported asset/character overrides can hide the generated view; Show Omnic structure clears that placement override.
+**Limits / unavailable behavior:** Explicit asset/character overrides are temporarily covered by structural preview and restored on close; Show Omnic structure clears an override permanently. World animation, structural part picking and calibrated reading remain outside this slice.
 
 **Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
 
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/document.ts](../src/omnic/document.ts), [src/omnic/draftHistory.ts](../src/omnic/draftHistory.ts).
 
 **Command IDs:** `omnic.show`, `omnic.save`, `omnic.copy`, `omnic.export`, `omnic.import`, `omnic.reset`.
+
+**Related:** [Live world drafts before saving](#omnic-worldPreview).
 
 <a id="library-objects"></a>
 ## Shared library, multiple atlases and copy provenance

@@ -367,7 +367,15 @@ proposed visible node-frame system. Binder operators are presently annotations.
 
 - Mental-model synthesis and onboarding links: recorded in this change.
 - First implementation slice: live world draft preview and temporary construction
-  lifecycle; update this entry with actual delivered behavior and limitations.
+  lifecycle are implemented for review in this change. Opening without a selection
+  starts/resumes a single-dot unsaved draft; Save shared creates the object. Selected
+  objects and transitive live uses preview without canonical commits; pins remain
+  frozen. Close restores saved rendering and keeps recoverable drafts. The shared
+  32-source/256px world budget, 12fps input cap and 4ms dependent batches apply. Type,
+  capability/property and self-contained preview checks pass; browser acceptance
+  and responsiveness remain user-tested. Temporary previews are
+  not yet selectable world construction surfaces; composer controls edit them.
+  See [actual behavior and limits](OMNIC_COMPOSER.md#live-world-drafts-first-workbench-slice-2026-10-28).
 - Remaining work: the broader frame/lattice/MS/operator/calibration work above.
 - Verification: the user performs browser interaction/design testing. Run required
   focused static/build checks for a preview; do not add unsolicited browser suites,
