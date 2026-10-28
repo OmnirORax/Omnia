@@ -127,6 +127,20 @@ it is incomplete, preserve existing systems and saved data, and document the
 extension contract so future workers use it. Do not maintain parallel lists or
 repeat feature-specific wiring where the shared system can derive it.
 
+# Active tool cursor inheritance (all agents)
+
+An active tool's cursor inherits the icon the user activated, including custom
+appearance. Declare its default `toolIcon` in `FEATURE_ACTIONS` and its active
+`cursor` state in `useFeatureActions`; alias buttons identify their canonical
+command with `UIAction tool`. The shared FunctionControl captures the clicked
+rendered icon once, and `ToolCursorLayer` supplies website-wide transport and
+priority. Keyboard/default activation uses the same declared icon. Specialized
+live composite tools use `useToolCursor` with their existing symbol component;
+MS keeps its precision anchor/parking and priority above other active tools.
+Never add private cursor emoji/portals, duplicate icon definitions, or per-tool
+pointer listeners. Pointer motion must not trigger React, layout/style reads,
+storage or history. Clicked custom appearance refreshes on the next activation.
+
 # Compactness is a product requirement
 
 **UI Compactness:** smallest practical layout + contents, neatly arranged,

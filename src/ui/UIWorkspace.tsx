@@ -1,3 +1,5 @@
+import { ToolCursorLayer, rememberToolIcon } from "./toolCursor";
+import { ToolGlyph, toolIconFor } from "./toolIcon";
 import { ownsContextMenu, routeContextMenu } from './contextMenuOwnership';
 import { ContextualMasterController } from './ContextualMasterController';
 import {createDragQueries} from './dragQueries';
@@ -177,11 +179,12 @@ const FunctionElement=memo(function FunctionElement({
   const [controlPosition,setControlPosition]=useState({x:0,y:0});
   const shortcut = ui.shortcutBindings?.[buttonShortcutId(fn.id)];
   const asset = ui.layout.assets.find((a) => a.id === style.assetId);
+  const toolIcon=fn.tool?toolIconFor(fn.tool):undefined;
   const content =
     palette || (resident && style.mode === "text") ? (
       fn.label
     ) : style.mode === "text" ? (
-      (symbolMask ? <span aria-hidden="true" style={{display:"inline-block",width:"1.15em",height:"1.15em",opacity:symbolOpacity,background:symbolFill??"currentColor",maskImage:`url("${symbolMask}")`,WebkitMaskImage:`url("${symbolMask}")`,maskSize:"contain",maskRepeat:"no-repeat",filter:"drop-shadow(0 0 .6px #888)"}}/> : symbol !== undefined && (symbolOpacity !== undefined || symbolFill !== undefined) ? <span style={{opacity:symbolOpacity,...(symbolFill?{background:symbolFill,backgroundClip:"text",WebkitBackgroundClip:"text",color:"transparent"}:{})}}>{symbol}</span> : symbol ?? (fn.element.props as { children?: ReactNode }).children ?? fn.label)
+      (toolIcon && symbol ? <span style={{display:"inline-block",width:"1.15em",height:"1.15em"}}><ToolGlyph icon={toolIcon}/></span> : symbolMask ? <span aria-hidden="true" style={{display:"inline-block",width:"1.15em",height:"1.15em",opacity:symbolOpacity,background:symbolFill??"currentColor",maskImage:`url("${symbolMask}")`,WebkitMaskImage:`url("${symbolMask}")`,maskSize:"contain",maskRepeat:"no-repeat",filter:"drop-shadow(0 0 .6px #888)"}}/> : symbol !== undefined && (symbolOpacity !== undefined || symbolFill !== undefined) ? <span style={{opacity:symbolOpacity,...(symbolFill?{background:symbolFill,backgroundClip:"text",WebkitBackgroundClip:"text",color:"transparent"}:{})}}>{symbol}</span> : symbol ?? (fn.element.props as { children?: ReactNode }).children ?? fn.label)
     ) : asset ? (
       iconTint.color ? <span className="appearance-icon-mask" style={{ ...iconTint.style, backgroundColor: iconTint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} /> : <img src={asset.dataUrl} alt="" style={iconTint.style}/>
     ) : (
@@ -194,6 +197,7 @@ const FunctionElement=memo(function FunctionElement({
     className?: string;
     onMouseEnter?: () => void;
     onContextMenu?: (event: React.MouseEvent) => void;
+    onClickCapture?: (event: React.MouseEvent) => void;
     'data-ui-tooltip'?:string;
   }>;
   const shared = {
@@ -207,6 +211,7 @@ const FunctionElement=memo(function FunctionElement({
     "data-ui-tooltip": tooltip ?? (symbol ? fn.label : original.props['data-ui-tooltip']),
     draggable:
       !projected && (!fn.control || palette || style.mode === "icon") && ui.canMove(`function:${fn.id}`),
+    onClickCapture:(event:React.MouseEvent)=>{original.props.onClickCapture?.(event);if(fn.tool&&!palette&&!original.props.disabled)rememberToolIcon(fn.tool,event.currentTarget.querySelector<HTMLElement>("[data-tool-icon]"));},
     onDragStart: (e: DragEvent) => {
       if ((e.target as Element).closest("input,select,textarea")) return;
       e.dataTransfer.setData(MIME, fn.id);
@@ -263,7 +268,7 @@ const FunctionElement=memo(function FunctionElement({
           : (original.props["aria-label" as keyof typeof original.props] ??
             (symbol || resident || style.mode === "icon" ? fn.label : undefined)),
         className: `${original.props.className ?? ""} ui-function ${modeClass} ${!palette && ui.selectedFunctions.has(fn.id) ? "ui-selected" : ""}`,
-        children: <>{content}{!symbol&&(palette || style.mode === "text") && <ShortcutHint binding={shortcut} />}</>,
+        children: <>{fn.tool&&!palette&&(symbol||style.mode==='icon')?<span data-tool-icon="" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>{content}</span>:content}{!symbol&&(palette || style.mode === "text") && <ShortcutHint binding={shortcut} />}</>,
       })
     );
   return (
@@ -1708,6 +1713,7 @@ export function UIWorkspace({
       <ValueFieldBehavior />
       <CustomControls />
       <NamePresentation />
+      <ToolCursorLayer/>
       {children}
       {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">

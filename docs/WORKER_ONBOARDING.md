@@ -27,6 +27,16 @@ correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it
 from a long chat, an old PR or a contradictory comment.
 
+## Active tool cursor rule
+
+Active pointer tools inherit the icon activated, rather than a separate cursor
+emoji. Declare `FEATURE_ACTIONS.toolIcon`, active `useFeatureActions` cursor state,
+and canonical `UIAction tool` for aliases. The shared cursor captures custom clicked
+appearance and handles transport/priority automatically. MS uses the same layer
+with its live SelectorSymbol and precision/parking; parked MS restores the native
+pointer. See AGENTS.md and UI_COMPONENT_CONTRACT.md; do not add private cursor
+portals or pointer listeners.
+
 ## Product and direction
 
 For Omnic and Omnium node/frame work, first read

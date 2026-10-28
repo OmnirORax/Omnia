@@ -1265,3 +1265,15 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .floating-window-circle:not(.is-collapsed)>.floating-window-content>.frame-chrome .ui-frame-handle{width:24px;height:24px;min-width:0;min-height:0;padding:0}
 .floating-window-circle:not(.is-collapsed)>.floating-window-content>.frame-chrome .ui-frame-handle>button{width:24px;height:24px;padding:0;font-size:15px}
 .floating-window-circle:not(.is-collapsed)>.floating-window-content>.floating-body>.ui-dock-area{position:absolute;inset:0;margin:0;border:0;padding:0;pointer-events:none}
+
+/* All active tool cursors use one pointer-transparent transport and glyph source. */
+html[data-tool-cursor],html[data-tool-cursor] *{cursor:none!important}
+.tool-cursor{position:fixed;left:0;top:0;z-index:2147483000;pointer-events:none!important;font-size:28px;line-height:1;color:var(--text,#d4e6ef);will-change:transform}
+.tool-cursor *{pointer-events:none!important}
+.tool-cursor-icon,.tool-cursor-captured{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.tool-cursor>i{position:absolute;left:50%;top:50%;font-style:normal;font-size:9px;color:white;transform:translate(-50%,-50%)}
+.tool-cursor-pulse{animation:tool-cursor-pulse .7s ease-in-out infinite alternate}
+@keyframes tool-cursor-pulse{to{opacity:.2}}
+@media(prefers-reduced-motion:reduce){.tool-cursor-pulse{animation:none}}
+
+.tool-cursor.visual-selector-cursor{color:var(--omnium-accent,#60ddec)}

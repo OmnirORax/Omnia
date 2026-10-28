@@ -508,3 +508,26 @@ already run inside their wrapper and are not invoked twice. Do not use
 browser menu before React dispatch. Ordinary frame chrome and unowned controls
 keep existing UI editing. No Omnic-specific IDs, permission changes, listeners per
 function, geometry scans or saved ownership values are needed.
+
+
+## Active tool cursor inheritance
+
+`FEATURE_ACTIONS.toolIcon` declares a persistent tool's default glyph/image once.
+Its owner supplies active `cursor` state to `useFeatureActions`; the shared hook
+registers it automatically with the single website `ToolCursorLayer`. Alias
+buttons use `UIAction tool` with the canonical command ID. FunctionControl renders
+the same declared icon and captures the actual clicked glyph/custom asset before
+a toggle swaps to the next action. Native keyboard/default activation uses the
+declared icon; clicked appearance snapshots refresh on the next activation.
+
+The shared layer gives MS priority, keeps its live SelectorSymbol, precision
+anchor and parked position, and restores the underlying tool when MS closes.
+Other specialized live tools use `useToolCursor` with their existing symbol.
+Cursor nodes inherit the existing nonselectable decoration marker. Pointer motion
+updates one transform only: no React, geometry/style reads, matching, persistence
+or history. Style capture is activation-only and bounded to 128 icon nodes.
+Do not introduce another hardcoded cursor emoji, private portal or pointer listener.
+
+The pen/eraser uses two opposite halves of the same rounded diagonal silhouette,
+without an underline. Pen is upper white/lower black; Erase is upper black/lower
+white. The button offers the next action; the cursor shows the active one.

@@ -3,10 +3,6 @@
 .omnic-library-results{display:grid;gap:2px;max-height:225px;overflow:auto;contain:layout paint}.omnic-library-results>button{display:flex;align-items:center;justify-content:space-between;gap:6px;text-align:start}.omnic-library-results>button>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.omnic-library-results>button>small{white-space:nowrap}.omnic-revision-preview{width:120px;height:120px;contain:layout paint}.omnic-revision-preview svg{width:100%;height:100%}.omnic-library .omnic-row label{display:inline-flex;align-items:center;gap:3px}
 
 .atomnic-surface{width:min(100%,245px);justify-self:start;background:#050505;touch-action:none;user-select:none}
-.atomnic-cursor{font-size:26px;color:#d28aff;text-shadow:0 0 2px #000}
-.atomnic-cursor i{position:absolute;left:10px;top:10px;font-size:9px;color:#fff;animation:atomnic-pivot-pulse .7s ease-in-out infinite alternate}
-@keyframes atomnic-pivot-pulse{to{opacity:.2}}
-@media(prefers-reduced-motion:reduce){.atomnic-cursor i{animation:none}}
 
 .atomnic-functions{display:flex;align-items:center;flex-wrap:wrap;gap:3px;max-width:232px}
 .atomnic-patterns{display:grid;gap:3px;max-height:50vh;overflow:auto}

@@ -1,3 +1,5 @@
+import { activeToolCursor } from "../src/ui/toolCursorModel.ts";
+import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { radialTree, radialSlot, radialDimensions, radialQuickSlot } from '../src/ui/radialMenuModel.ts';
@@ -349,4 +351,15 @@ test('content right-click ownership preserves function handlers before UI editin
     const nested={closest:selector=>selector.includes('['+owner+']')?{}:null};
     assert.equal(ownsContextMenu(nested),true,'descendants inherit ownership from '+owner);
   }
+});
+
+test('shared active cursor gives MS priority, restores other tools, and pen/erase icons reverse both halves',()=>{
+  const pen={priority:0,key:'pen'},erase={priority:0,key:'erase'},selector={priority:100,key:'selector'};
+  assert.equal(activeToolCursor([pen,erase]),erase);
+  assert.equal(activeToolCursor([pen,selector,erase]),selector);
+  assert.equal(activeToolCursor([erase]),erase);assert.equal(activeToolCursor([]),null);
+  const svg=url=>decodeURIComponent(url.slice(url.indexOf(',')+1));
+  const fills=url=>[...svg(url).matchAll(/<path fill="(#[a-z0-9]+)"/g)].map(match=>match[1]);
+  assert.deepEqual(fills(PEN_SYMBOL),['#fff','#000']);assert.deepEqual(fills(ERASER_SYMBOL),['#000','#fff']);
+  assert.equal((svg(PEN_SYMBOL).match(/<path/g)||[]).length,2,'two body halves only, no underline');
 });
