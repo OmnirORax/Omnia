@@ -9,6 +9,13 @@ For the user-facing inventory, locations and reproducible test walkthroughs, sta
 with [CAPABILITIES.md](CAPABILITIES.md). Search it before proposing new work; update
 its source catalog with every user-facing change. See [authoring](capabilities/README.md).
 
+The user confirmed the baseline delivery workflow: push authorized changes to
+`OmnirORax/Omnia`, create/update the open PR, publish the existing self-contained
+GitHack visual artifact and return its fresh commit-pinned link. Do not repeatedly
+ask permission for that routine delivery. Production merge/deployment remains
+separate; preserve backend/privacy boundaries. See the GitHack section of
+[deployment operations](CLOUDFLARE_DEPLOYMENT.md).
+
 This is a map and a set of contracts, not proof that every feature implements them
 correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it

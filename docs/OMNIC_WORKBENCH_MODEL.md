@@ -380,7 +380,11 @@ proposed visible node-frame system. Binder operators are presently annotations.
 - Verification: the user performs browser interaction/design testing. Run required
   focused static/build checks for a preview; do not add unsolicited browser suites,
   repeated profiling or speculative testing. A build does not establish smoothness.
-- Publication: use an open PR from current master. The merged PR #35 is historical;
+- Publication: the user explicitly confirmed the standing baseline on 2026-10-28:
+  push authorized changes to `OmnirORax/Omnia`, create/update the open PR, publish
+  the self-contained visual artifact and provenance to `preview/githack`, and give
+  a fresh commit-pinned GitHack link. Routine delivery needs no repeated permission
+  question. Use an open PR from current master. The merged PR #35 is historical;
   do not keep pushing follow-up source into it. Preserve private Cloudflare Access
   and existing backend boundaries; a GitHack visual artifact does not deploy a
   cloud/AI backend or imply hosted cloud snapshot availability.

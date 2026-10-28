@@ -15,6 +15,15 @@ to test. Browser acceptance and deployment are never inferred from builds.
 
 # Worker entry rules
 
+The user's standing delivery workflow is to push authorized implementation to
+`OmnirORax/Omnia`, create/update its open pull request, publish the self-contained
+visual build and `source.json` to the existing `preview/githack` artifact branch,
+and provide a fresh commit-pinned GitHack preview. The user explicitly confirmed
+this baseline on 2026-10-28; do not ask again for routine PR/preview publication.
+Preserve the existing public-artifact/private-backend boundary and never include
+workspace data or credentials. Merging/deploying production is a separate action.
+Use a new PR when the preceding PR has merged.
+
 For Omnic or Omnium node/frame work, also read
 [the current workbench mental model](docs/OMNIC_WORKBENCH_MODEL.md). It synthesizes
 the user's 2026-10-28 decisions, open ideas and implementation sequence. Build the

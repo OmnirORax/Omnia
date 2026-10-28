@@ -252,7 +252,14 @@ to the production/development origins documented above. PR UI/prompt preview wor
 API generation still needs its own backend rollout/credentials.
 
 
-## Optional GitHack visual preview (explicitly authorized)
+## GitHack visual preview (baseline delivery workflow)
+
+On 2026-10-28 the user explicitly confirmed that updating an open PR and giving
+them its GitHack preview is the standing baseline workflow. Routine authorized
+implementation includes source-branch push to `OmnirORax/Omnia`, creating/updating
+the open PR and publishing the artifact below; do not ask for repeated confirmation.
+This does not merge the PR, deploy production or authorize publishing workspace
+data, secrets or a cloud backend.
 
 `node --run preview:githack` builds the self-contained preview locally, then
 publishes **only** its HTML and source provenance to the separate `preview/githack`
