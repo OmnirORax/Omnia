@@ -11,6 +11,27 @@ only their relevant controls, with category-specific rows appearing when needed.
 
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
+Drag pickup measures destination bounds and child slots on demand and caches them
+for the gesture; it must not eagerly measure every destination's children. Release
+refreshes the pointed destination. Fixed surfaces mounted directly on document.body
+move with their existing transform, avoiding popover promotion and geometry/style
+rewrites; nested/tab payloads still use the shared lift to escape clipping.
+`FloatingWindow` exposes its free-placement policy with `data-ui-free-placement`:
+cursor-open windows use the viewport; persistent panels use workspace packing.
+Free-drop resolution must follow the same policy as rendering. Explicit docking
+still uses shared docking rules. Future window features inherit this automatically.
+
+Held payload movement is a direct transform-only pointer update, independent of
+frame-batched destination discovery and feedback. Do not put docking calculations,
+interpolation or an additional animation-frame wait in front of pointer attachment.
+The browser coalesces transform writes for paint; placement previews remain
+transient and commits continue through the existing single-move history path.
+Release restores transient styles and commits the saved layout in one synchronous
+render boundary; do not expose an intermediate pre-drag position to paint.
+The interface owner uses `normalizeLiveUILayout` for immutable live snapshots:
+coordinate-only edits validate their coordinates and retain unchanged topology;
+all structural changes and imports still use full layout validation.
+
 - Actions use `FunctionControl`/the function registry. The shared `NativeActions` adapter also discovers ordinary buttons in new frames, preserving their original handlers. Stable `data-ui-id` keys protect customized actions from markup/list reordering. Automatically discovered expandable buttons remain customizable but are not draggable as incomplete headers; use the shared group component for their payload.
 - Fields use `UIField`, which moves the label and input together. Shared
   `ValueFieldBehavior` selects numeric value contents on focus/first click so typing
@@ -358,3 +379,77 @@ inventory publication per microtask. Source stacks/token cleanup update immediat
 last registration/cleanup per ID wins. This is not an editor/action/history queue:
 commands and commits remain synchronous, and no registration publication occurs
 after owner unmount. Preserve unavailable placeholders and source-stack fallback.
+
+
+Snapshot selectors must be pure projections of the committed owner snapshot and
+captured component inputs. `createSliceReader` reuses a result for the same snapshot
+and selector identity, retaining the prior slice reference if values compare equal.
+A new inline selector/captured props or a new committed snapshot triggers evaluation;
+events continue to read the live committed handle. Never mutate snapshot objects to
+signal an update or use a render selector for side effects.
+
+UI-selection marker reconciliation must return immediately when its selected-ID
+set is empty: the previous effect cleanup removes old markers. Do not discover or
+measure every selectable control after an ordinary layout/registry change just to
+write false selection markers. Actual selection/arrangement still uses the shared
+selection path, current permissions and visible-control bounds.
+
+
+Window/frame drag previews use `createDragQueries` only for read-only gesture
+snapshots: ownership, inherited pinning, context scope and canDock results are
+reused by key until the effective layout identity changes. Do not use this cache
+inside mutating layout transactions. Final commits still revalidate using the
+shared layout functions. Frame-slot/visible-zone discovery occurs at pickup and
+release, rather than querying/measuring the entire inventory on each move. Existing
+source geometry snapshots keep target positions stable during preview; release
+refreshes pointed ancestors and slot bounds before resolving the final drop.
+
+Pointer movement retains only the newest coordinates. The frame callback reads
+hit geometry before writing the held payload's transform and publishing feedback.
+Esc/end/unmount cancel queued frames; release resolves its own coordinates even if
+there was no final animation callback. Live DOM lifting, grab offsets, payload
+restoration, ownership/pinning and a single saved history commit remain shared.
+Do not introduce per-pointer React layout updates or persistence for movement.
+
+Active-context shortcuts defer while `uiPointerHeld()` is true, allowing the
+existing drag/resize gesture handler to consume cancellation first. Esc must
+restore a held drag before any parent minimize action. Physical press ownership
+still ends only on release; cancel must not send that held input into the scene.
+
+
+Cold caption setup in `NamePresentation` reads initial font sizes for newly
+symbolized captions in one pass before applying symbol, tooltip or accessibility
+writes. Do not interleave `getComputedStyle` with per-caption styling: the first
+open of a large frame otherwise repeatedly forces synchronous style recalculation.
+Existing captions retain their measured symbol size; selectors and caption metadata
+remain shared. This does not preload feature modules, change saved appearance,
+unmount native fields or replace real first-use mounting/layout work with a fake
+loading delay. Test cold opens separately from warmed minimize/reopen.
+
+For frame/window pickup, omit the held root and its descendants from candidate
+destination zones, slots and bounds; they cannot receive their own ancestor. Keep
+ancestors/siblings eligible. Snapshot visibility and slot lists before the live
+lift writes popover/position styles. Exact resident IDs use a direct escaped
+selector. Function payloads retain their existing candidate semantics. Release
+still refreshes current destination geometry; do not reuse a stale expansion size.
+
+
+MC option hover/focus is selection of the temporary configuration choice, routed
+centrally through `ConfigurationInteractionBoundary` and the registered `select`.
+Armed Shift release applies that choice exactly once. Hover/focus never locks the
+future default; explicit unarmed configuration still needs an apply/lock action.
+Keep repeated-key cycling, right-click lock/apply, and left-click priority-1 reset
+on the same gesture owner. Do not add per-feature Shift/hover state stores.
+
+Resize viewport projection is owned by `data-ui-viewport-original` and private CSS
+variables, not React-owned className/inline position/transform. The stable marker
+retains geometry, original background/padding/border and fill rules across local
+window rerenders, so native popover defaults cannot leak through. CSS projection
+geometry yields to `.ui-live-drag`. Cleanup removes only projection-owned variables
+and its marker, leaving current React/Rnd geometry authoritative. Minimize must not
+clamp saved original coordinates using enlarged projection bounds.
+
+Use `useWindowLayer` for floating windows, detached groups and user frames. Repeated
+presses on the current front layer are no-ops; other windows still rise. Preserve
+menu priority and DOM ownership. Do not allocate a new layer and rerender all of a
+window's chrome on every grab when its stacking order is already correct.

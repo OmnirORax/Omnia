@@ -258,6 +258,50 @@ or deferred. Stage 2 library organization and workspace persistence are now
 implemented for review; their contract and rollout limits are in OMNIC_LIBRARY.md.
 
 
+## Member / Part construction extension (2026-10-28)
+
+**Create → New Omnic object → Preset → Member · one of two / Part · half a unit**
+loads ordinary procedural recipes. The registered **Highlight units / region**
+operator chooses a 1-based unit or all scoped units, with fraction, start angle,
+color and opacity. It preserves unit identity/count. Fractions are exact angular
+sectors of filled disks or arcs of unfilled circles; fractional lines report
+inapplicable. One highlight layer per primitive is supported; a later highlight
+replaces it. This is durable authored data, separate from temporary editor picking.
+Count regeneration diagnoses removal of an earlier highlight; put highlight after
+count when its result must survive regeneration.
+
+**Rotate structure** now supports Region → Each unit → Together. Region changes
+the authored highlight orientation; Each unit rotates primitive geometry/marks
+about its own center; Together preserves relative positions about a shared pivot.
+Pivot is target-bounds center, composition origin or explicit offset. New operators
+use target center; legacy recipes retain origin/offset behavior. Saved snap step
+(0 = free), snap origin and optional allowed-angle list constrain actual rotation.
+The applied angle is shown. Angles remain bounded ±1080°, snap 0–360°, with at most
+32 allowed angles. These are editor constraints, not proven semantic thresholds.
+
+**Rotate one step** is a catalog action with no default binding. Its configured
+shortcut advances the focused rotation. Shift uses the existing generic MC input
+configuration/gesture adapter, with scope choices in contextual priority order.
+Temporary changed inputs stamp a rotation step while preserving the focused
+settings; locking writes those settings before execution. No private Shift handler
+or independent settings store is added. Registry applicability metadata hides
+irrelevant controls in both the composer and contextual MC.
+
+**Save operation as tool** saves the focused operation as an ordinary independent
+canonical object with scope-relative targets and no components. **Reusable tools →
+Stamp copy to scope** copies its operations into the current draft's picked/flow
+scope, with fresh operation IDs. Stamps are editable snapshots, not live executable
+dependencies. Shared glyph reuse remains the Reference generator. Tool objects
+retain visible labels in world presentation. Existing save/copy, drafts, Undo,
+workspace persistence and export/import paths own these edits.
+
+The extension does not implement general frame interpretation, read-order grammar,
+physical substrate simulation or fixed-size world reading. See the
+[walkthrough](CAPABILITIES.md#omnic-operations). User interaction testing is pending;
+no browser suite or new performance trace was run. The normal model command
+passes, 20 focused Omnic engine cases pass directly, and production/type/property
+checks plus the self-contained preview build pass.
+
 ## Validation for the first implementation
 
 - `node --run test`: 254 model/architecture checks pass, including 28 new Omnic

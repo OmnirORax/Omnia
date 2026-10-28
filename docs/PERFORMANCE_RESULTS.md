@@ -284,3 +284,276 @@ minimize/restore, docking behavior and scene pulse continuity still need user
 acceptance in the preview. Large-workspace commits, remaining broad global owners
 and renderer/effect load remain separate performance risks; no general frame-time
 guarantee is claimed.
+
+
+## Residual click pause (2026-10-27)
+
+The user confirmed `846feeb` was “significantly better”, while a brief freeze
+remained. A local source-mapped CPU profile identified UI-selection reconciliation
+calling `buttons()` after ordinary layout/registry changes with an empty selected-ID
+set. That queried all selectable controls and measured visibility. The effect now
+returns immediately when empty; the previous effect cleanup removes old markers.
+Actual nonempty selection still follows the existing discovery/permission path.
+
+React also repeatedly asks subscribers for snapshots within a commit. Subscriber
+reads now cache pure selector results by committed source and selector identity,
+retaining shallow-equal slice references. A new snapshot or selector (including
+changed captured props) reevaluates; live event reads remain unchanged. Model
+checks verify evaluation counts, equality retention and both invalidation paths.
+This does not eliminate broad parent renders or notifications to all subscribers.
+
+[Raw comparison](performance/2026-10-27-residual-clicks.json): eight ordinary filter
+toggles generated 16 global UI-selection scans before versus zero after. The
+empty-selection visibility stack disappeared from the mapped sampled CPU profile.
+Two isolated uninstrumented timing pairs improved: median programmatic click +
+two RAFs 427.1 → 283.0 ms (after-first), then 310.8 → 284.7 ms (baseline-first).
+A second pair overlapped a smoke browser and is explicitly excluded, retained in
+the raw report. Headless software graphics remain noisy; these values are not
+physical input-to-display latency, proof that a real pulse never pauses, or a
+separate measurement of selector caching's benefit.
+
+The opt-in local diagnostic supports `OMNIA_PROFILE_CPU=/tmp/profile.cpuprofile`
+for CPU attribution and `OMNIA_PROFILE_DOM=1` for UI-selection scan counting. Keep
+both off for final timing comparisons. No instrumentation enters the application.
+Model suite: 278 pass. Type checking and production/self-contained builds pass.
+Focused local smoke passed library field editing, current-handler atlas creation,
+native button discovery/caption identity, Ctrl UI selection and Ctrl deselection
+marker cleanup, with no page errors. An initial single-Esc assertion timed out;
+the baseline and follow-up both retain selection after the first Esc and clear
+after the second (active-context stepping). No Esc behavior change is claimed.
+User acceptance remains pending.
+GitHub authentication initially blocked publication (HTTP 401 / missing Git
+username). Access was restored and verified before delivery. Since PR #34 had
+merged in the meantime, this follow-up uses a new branch/PR based on current master.
+
+
+## Window-drag follow-up (2026-10-27)
+
+The user reported that clicks were improved but moving a window still skipped
+frames. Baseline `f7dd3a2`. A source-mapped CPU profile of a 36-move floating-library
+drag found repeated docking ownership/context/pinning walks, global frame-slot and
+drop-zone discovery, visibility reads and effects/layout work. The existing gesture
+already lifted the real payload and committed saved layout only on release; the
+problem was repeated secondary work, not per-pointer persistence.
+
+Preview-only `createDragQueries` reuses read-only permission/ownership results until
+the effective immutable layout snapshot changes. Mutating/final layout transactions
+keep using the shared policy functions. Target lists and visibility are captured at
+pickup; movement uses those snapshots, and release refreshes current frame slots,
+visible zones and pointed destination/ancestor bounds. Pointer events retain only
+the latest coordinates; one frame callback reads docking geometry before writing
+the payload transform and publishing feedback. Final release resolves its own
+coordinates even if no animation callback ran. No new settings/history store.
+
+The cancellation check also exposed active-context Esc minimizing the source before
+its drag could cancel. Active-context keyboard handling now defers while the shared
+UI press owner is held. The existing drag handler cancels/restores first; physical
+input ownership continues through release, protecting the scene from that press.
+
+[Raw samples](performance/2026-10-27-window-drag.json) preserve default-effect CPU
+profiles, intermediate builds and the final effects-off comparison. Whole-inventory
+frame-slot queries fell 37 → 2 and drop-zone queries 76 → 2 over 36 pointer moves
+(pickup/release only). With effects/bloom/atmosphere off and default panel blur
+retained, median RAF interval fell 150 → 66.6 ms; max fell 1166.7 → 416.7 ms.
+These headless software-GPU values are still slow, noisy and not physical
+pointer-to-presented-paint latency. Default effects remained heavily graphics/paint
+limited: an intermediate after run had a 10.9-second gap. Those default CPU runs
+do not establish a speedup or hardware smoothness. Scene/effects/paint budgets and
+real GPU/user verification remain separate work; no blanket smoothness claim.
+
+The opt-in `scripts/profile-ui-drag.mjs <local-url> <report.json>` uses fresh local
+storage and blocks external requests. `OMNIA_PROFILE_CPU` captures CDP CPU samples;
+`OMNIA_PROFILE_DOM=1` counts the targeted global discovery queries;
+`OMNIA_DRAG_EFFECTS=off` isolates core movement with effects/bloom/atmosphere off;
+`OMNIA_DRAG_SMOKE=1` additionally checks single-step Undo, Esc cancellation,
+header docking and docking Undo. Do not compare smoke/profile timing to an
+uninstrumented hardware drag. The first fixture attempt lacked organized menus;
+correcting the fixture exposed the library. An initial raw-string Undo equality
+assertion was replaced with semantic layout equality; this then exposed the real
+Esc/minimize bug above, which the corrected smoke now verifies.
+
+279 model checks pass, including cache reuse and equivalence/invalidation under
+pinning, ownership, context and missing-target changes. Focused browser checks pass
+live payload, no saved layout during movement, release commit, one Undo restoring
+the full layout, Esc cancellation without minimizing, header docking and docking
+Undo, with no page errors. Type/build checks and the self-contained preview are
+required for delivery. User hardware drag acceptance remains pending.
+
+
+## First-use frame opening (2026-10-27)
+
+The user confirmed window movement after `519169d` was much better, then clarified
+that frame opening/expansion pauses only on first use. Later minimize/expand and
+even close/reopen are smooth. Investigation switched from repeated toggles to a
+fresh-page first-open comparison. Some first-use module/mount/layout work is real;
+this change does not claim to remove all of it.
+
+One avoidable cold path was caption setup in `NamePresentation`: each new caption
+wrote attributes/styles, then read computed font size, invalidating styles again
+before the next caption's read. Already decorated captions skip that font-size
+read, matching the cold/warm distinction. The adapter now reads initial sizes in
+one pass before symbol/tooltip/accessibility writes. Existing sizes, shared names,
+visual roles, native fields, saved appearance and action/history routes are retained.
+
+[Raw measurements](performance/2026-10-27-cold-frame-open.json): the first library
+open generated 46 and 33 style recalculations in two baseline runs versus 12 after.
+An isolated batch of 80 new 14px captions produced 82 recalculations before (both
+runs) versus 3 afterward; all 80 symbol sizes remained 14px. First-open wall times
+were 759/616 ms before versus 646 ms afterward—too noisy to claim consistent latency
+improvement. These software-GPU/CDP timings include readiness and two RAFs, not
+physical input-to-display latency. Module evaluation, component mounting, geometry
+and paint remain separate costs. The preliminary CPU trace using a role query was
+contaminated by the browser harness's accessibility scan; it is not latency evidence.
+
+Opt-in reproduction: `node scripts/profile-ui-open.mjs <local-url> <report.json>`.
+It uses a fresh disposable browser/storage, default UI and effects, blocks nonlocal
+requests, measures first library open/collapse/re-expand separately and then checks
+80 fresh caption sizes. `OMNIA_PROFILE_CPU=/tmp/prefix` optionally records each
+phase's CPU profile; keep it off for timing comparisons. No app instrumentation or
+background prewarming was added. Model/type/build checks and caption/live-control
+smoke are required before delivery; user cold-open acceptance remains pending.
+
+
+### Refined reproduction: drag immediately after expand
+
+The user then identified the spike as dragging right after maximizing/expanding,
+mainly on heavy frames' first use. Pickup still measured the source's entire
+subtree as potential destinations, although a frame/window cannot dock into its
+own descendants. Visibility/slot reads also ran after `beginLiveDrag` wrote its
+popover/position styles, forcing newly expanded content through another style/layout
+flush. Pickup now excludes that invalid subtree, retains ancestors/siblings,
+reads visibility before lifting and finds the represented resident by exact ID.
+Function payload candidate rules and final pointed-destination refresh are retained.
+
+The drag diagnostic now supports `OMNIA_DRAG_EXPAND=1`: collapse/settle, expand and
+immediately press/drag. With effects/bloom/atmosphere off (blur retained), rectangle
+reads inside the library fell 63 → 22; these counts include all app observers over
+the full expand/drag interval. Observed max RAF gap fell 783.2 → 183.3 ms, with the
+same 50 ms median. These software-GPU results are directional, not a hardware
+smoothness guarantee or an isolated measure of pickup latency. The settled drag
+smoke must still pass release, single Undo, Esc cancellation and docking/Undo.
+
+The heavier first-open diagnostic supports `OMNIA_OPEN_FRAME=master`: start the
+Master controller closed in a fresh default layout, then open/collapse/re-expand.
+First-open style recalculations fell 124 → 10 and sampled wall time 975 → 537 ms.
+Warm timings varied. This confirms reduced cold setup work; it does not turn the
+caption change into proof that all expand-then-drag latency is fixed. The raw report
+includes both frames and the corrected interaction sequence. User acceptance remains
+pending for the exact heavy-frame/GPU configuration.
+
+Final focused drag smoke passed live payload, no movement persistence while held,
+release, one-step Undo, Esc cancellation, docking and docking Undo, with no page
+errors. One earlier attempt timed out waiting for the startup library action; an
+isolated rerun passed. Native-button caption/identity and library field/current-
+handler smoke also passed. The 279-model suite and production build passed;
+self-contained delivery build type-checks the final source. For tab drags, pickup
+excludes only the represented resident, not its shared pane/sibling payloads.
+
+
+## Resize projection and repeated activation (2026-10-27)
+
+The user reported two related issues after W resizing: Shift cycling applied on
+release but pointing at a highlighted level did not, and subsequent frame/header
+clicks exposed a white border and made the enlarged window alternate between its
+selected position and a displaced one. They also clarified that drag lag happens
+at each grab, with smooth movement afterward.
+
+The resize defect was reproduced. React/Rnd replaced the imperatively added
+projection class and inline transform during wrapper updates. With a native popover
+still open, its 3px white default border became visible; a retained projected
+left/top combined with the original Rnd transform to displace the window twice.
+The projection now uses a persistent data marker and CSS variables independently
+of React-owned inline geometry/className. It restores only its own variables and
+marker. Collapsing an enlarged window also preserves original saved coordinates,
+instead of clamping them against enlarged content bounds. Native control focus
+indicators remain. No style-repair observer or per-pointer DOM scan was added.
+
+`ConfigurationInteractionBoundary` now routes option pointer-entry/focus through
+the shared temporary `select` adapter. Armed Shift release applies the highlighted
+choice once. Pointing does not lock preferences; right-click apply/lock and left-
+click priority-1 reset remain shared. Explicit unarmed configuration is unchanged.
+AGENTS.md and FUNCTION_CONFIGURATION.md record this universal behavior.
+
+Each normal window activation also allocated a new z-index and rerendered the
+wrapper, including repeated grabs of the same front window. Floating windows,
+user frames and detached embedded groups now share `useWindowLayer`: raising the
+current front layer is a no-op, while a different window still rises. This removes
+redundant activation work; it does not establish that all pickup latency is gone.
+Drag-start snapshot/effects/layout costs remain subject to the earlier limits.
+
+[Regression evidence](performance/2026-10-27-resize-viewport.json): the baseline
+library re-expanded at x≈987/y≈592 with a 3px white wrapper border, versus its
+selected x≈494/y≈296 rectangle. The follow-up returns to that selected rectangle
+with the original zero wrapper border on every cycle, even after React replaces
+its className. W restores original size and position. The focused local check
+passes hover/focus release, no implicit lock, right-click lock once, left-click
+reset, body-click stability, repeated floating/custom-frame collapse cycles,
+original-geometry restoration, no browser border, and three re-grabs reusing one
+layer, with no page errors. Existing projected-frame rigidity requires W restore
+before dragging; an attempted projected-drag check was corrected to assert that
+existing rule rather than waiting for an unavailable gesture.
+
+281 model checks and type/production builds pass. Opt-in local reproduction:
+`node scripts/check-ui-resize.mjs <local-url> <report.json>`. This is a correctness
+and activation-work check, not physical input-to-display latency measurement.
+Self-contained delivery build validates the final source; user acceptance remains
+pending for resize stability and the repeated pickup pause on their workspace.
+
+## Pickup and popup placement follow-up — user testing pending
+
+The user reported the layer-only change did not solve pickup and felt worse.
+Source inspection found two remaining unnecessary costs: eagerly measuring every
+destination's child slots and promoting already-fixed body-mounted windows to
+popovers, rewriting their geometry on each grab. The shared drag path now caches
+bounds/child slots when needed. Already-fixed page-level surfaces preserve their
+geometry and move with a composed transform; nested/tab surfaces retain lifting.
+
+Free-drop projection also previously packed cursor-open popups into workspace
+residents even though those popups render against the viewport. Rendering and
+release now share the window's declared placement policy, without an Omnic-specific
+exception. This addresses an identified placement mismatch; the user's exact
+offset was not reliably reproduced and is not claimed verified resolved.
+
+No additional browser profiling/testing was run for this follow-up. The user tests
+repeated grabs, expanded/minimized release with edge docks, docking and Undo.
+Previous white-border/resize projection fixes remain intact.
+
+## Discontinuous movement and release follow-up — user testing pending
+
+The user reports smooth continuous movement but pulse pauses around discontinuous
+movement and a release offset when moving quickly. Release already resolves the
+exact pointerup coordinates; no inertia is implemented. Source inspection found
+page-wide descendant CSS changes on capture/release and full structural validation
+on every already-free frame move. Capture now styles only the root, using inherited
+cursor/selection behavior. Coordinate-only free moves validate the coordinates and
+preserve unrelated layout references; real detach/ownership changes retain the
+existing structural path. Release deduplicates pointed ancestor bounds and reuses
+gesture candidates instead of globally rediscovering/measuring every slot.
+
+User tests quick versus stationary release, pause/resume while holding, repeated
+grabs, intentional docking and Undo. No new browser profiling was run.
+
+## Pointer attachment follow-up — user testing pending
+
+The user reports the lag gone but the held window feels slippery and catches up
+with the cursor. Payload movement was coupled to destination discovery inside a
+requestAnimationFrame callback: it waited for both the frame and dock resolution.
+The shared drag path now writes the payload's transform directly from each pointer
+event. Only docking feedback is frame-batched, retaining the latest sample.
+No interpolation/inertia is added. Existing release/history and pickup optimizations
+remain. User tests fast movement, reversals, pause/resume and docking; no browser
+profiling or acceptance suite was run for this follow-up.
+
+## Release handoff and live validation — user testing pending
+
+The user reports further improvement but two remaining pauses before stopping.
+Release restored the original DOM geometry before scheduling a React commit,
+allowing a concurrent render to expose an intermediate old position. Restoration,
+preview teardown and saved-layout update now share one synchronous render boundary.
+Inspection also found the interface owner repeated full topology validation after
+the free-move helper's coordinate validation. `normalizeLiveUILayout` recognizes
+immutable coordinate-only snapshots; it validates coordinates while preserving
+the already-validated topology. Every other edit/import retains full validation.
+Boundary checks cover invalid coordinates, dimensions and dangling membership.
+No local browser profiling or Docker tests were run; quick/calm release, docking
+and Undo remain for the user to test.

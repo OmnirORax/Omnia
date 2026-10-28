@@ -1,6 +1,6 @@
 import {residentRenderSlice} from './renderSubscriptions';
 import { activateFrameContext } from "./ActiveContext";
-import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import { fitWindow, getContainer, ownerOf, releaseResident, reopenContainer, type WindowState } from "./layout";
@@ -13,7 +13,7 @@ import { useDockResident, useDockWorkspace } from "./DockWorkspace";
 import { fitDockRect } from "./docking";
 import { keepFloatingHandleVisible } from "./positioning";
 import { cursorPosition } from "./cursorPosition";
-import { nextWindowLayer } from "./layers";
+import { useWindowLayer } from "./useWindowLayer";
 export { nextWindowLayer } from "./layers";
 export function FloatingWindow({
   id,
@@ -88,7 +88,7 @@ export function FloatingWindow({
       ui.defaults.delete(id);
     };
   }, [id]);
-  const [z, setZ] = useState(nextWindowLayer);
+  const [z, raise] = useWindowLayer();
   useLayoutEffect(() => { if (!saved.closed && !state.collapsed) activateFrameContext(ui, key); }, [id, openingKey]);
   // Mounting a caller-controlled window is an explicit open request. Repair
   // stale closed flags from tab/fallback closes through the same model path.
@@ -98,7 +98,7 @@ export function FloatingWindow({
   useLayoutEffect(() => {
     if (!openAtCursor) {
       // Reveal a persistent controller without moving it or writing its geometry.
-      if (openingKey !== undefined) setZ(nextWindowLayer());
+      if (openingKey !== undefined) raise();
       return;
     }
     if (owner) return;
@@ -113,7 +113,7 @@ export function FloatingWindow({
         },
       };
     });
-    setZ(nextWindowLayer());
+    raise();
     // Opening a new target also repositions an editor that is already mounted.
     // Saved coordinate updates during dragging must not recenter it.
   }, [id, openAtCursor, openingKey]);
@@ -125,7 +125,7 @@ export function FloatingWindow({
         ...layout.windows,
         [id]: (() => {
           const next = fitWindow({ ...saved, ...patch }, window.innerWidth, window.innerHeight);
-          return next.collapsed && !next.floatingOverflow
+          return next.collapsed && !next.floatingOverflow && !saved.viewport
             ? {
                 ...next,
                 x:
@@ -167,6 +167,7 @@ export function FloatingWindow({
         <div className="floating-backdrop" style={{ zIndex: z - 1 }} onClick={onClose} />
       )}
       <Rnd
+        data-ui-free-placement={openAtCursor ? "viewport" : "workspace"}
         className={`floating-window ${state.collapsed ? "is-collapsed" : ""} ${stacked ? "ui-stacked-window" : ""} ${owner ? "docked-window" : ""} ${className}`}
         position={
           owner
@@ -197,7 +198,7 @@ export function FloatingWindow({
           // must not raise the library/inspector that opened it above itself.
           event.stopPropagation();
           if (!(event.currentTarget instanceof Element) || !event.currentTarget.contains(event.target as Node)) return;
-          setZ(nextWindowLayer());
+          raise();
           onInteract?.();
         }}
         onDragStop={(_, data) => { set({ x: data.x, y: data.y }); }}

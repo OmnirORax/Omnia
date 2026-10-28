@@ -62,6 +62,16 @@ export function NamePresentation() {
       }
       full = false;
       dirty.clear();added.clear();
+      // A newly opened frame can introduce many captions at once. Read their
+      // initial font sizes before any symbol/tooltip writes invalidate styles.
+      const initialSizes=new Map<HTMLElement,string>();
+      for(const element of candidates){
+        if(element.hasAttribute("data-ui-name-symbol")||!element.matches(captions)||
+          !element.closest(scope)||element.closest(ignored)||
+          element.matches(".function-icon,[data-ui-native-icon]")||element.closest(".icon-handle,[data-ui-control]")||
+          !/[\p{L}\p{N}]/u.test(caption(element)))continue;
+        initialSizes.set(element,getComputedStyle(element).fontSize);
+      }
       for (const element of candidates) {
         if (!element.closest(scope) || element.closest(ignored)) continue;
         if (
@@ -109,7 +119,7 @@ export function NamePresentation() {
           continue;
         }
         if (!element.hasAttribute("data-ui-name-symbol")) {
-          const size = getComputedStyle(element).fontSize;
+          const size = initialSizes.get(element) ?? "12px";
           element.style.setProperty("--ui-name-size", parseFloat(size) > 0 ? size : "12px");
         }
         const id =

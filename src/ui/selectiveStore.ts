@@ -1,5 +1,18 @@
 /** A subscription projection of committed owner state, never a second editor. */
 export const sameSlice=(a:readonly unknown[],b:readonly unknown[])=>a.length===b.length&&a.every((value,i)=>Object.is(value,b[i]));
+/** React may check a subscriber many times per commit. A pure selector only
+ * needs evaluation once for the same committed snapshot and selector identity. */
+export function createSliceReader<T extends object>(getSnapshot:()=>T){
+  let source:T|undefined,selector:((value:T)=>readonly unknown[])|undefined,slice:readonly unknown[]=[];
+  return (select:(value:T)=>readonly unknown[])=>{
+    const nextSource=getSnapshot();
+    if(source===nextSource&&selector===select)return slice;
+    const next=select(nextSource);
+    source=nextSource;selector=select;
+    if(!sameSlice(slice,next))slice=next;
+    return slice;
+  };
+}
 export function createSelectiveStore<T extends object>(initial:T){
   let value=initial;const listeners=new Set<()=>void>();
   const getSnapshot=()=>value;

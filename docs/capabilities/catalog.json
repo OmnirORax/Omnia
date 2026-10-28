@@ -41,7 +41,7 @@
       "id": "interface.context",
       "title": "Active context, close, minimize, resize and descendants",
       "where": "Master controller → Active context. Click the intended frame first.",
-      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings.",
+      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings. Resized windows retain projected bounds and themed borders across focus and minimize/reopen. W restores retained original geometry. Projection styling is independent of React/Rnd wrapper updates.",
       "steps": [
         {
           "do": "Open a frame, click a value field, edit it, then press Esc.",
@@ -54,12 +54,20 @@
         {
           "do": "Expand several nested sections, then invoke Expand / collapse active descendants.",
           "expect": "Descendant sections collapse together. Closing preserves reopenable frames."
+        },
+        {
+          "do": "Resize with Shift+W, hover Full viewport and release Shift. Click the window body, minimize/re-expand it several times, then press W.",
+          "expect": "No extra white wrapper border or unexpected position jump. Expanded cycles return to the selected viewport; W restores original size and position."
         }
       ],
       "reference": "docs/UI_COMPONENT_CONTRACT.md",
       "sources": [
         "src/ui/ActiveContext.tsx",
-        "src/ui/FrameResize.tsx"
+        "src/ui/FrameResize.tsx",
+        "src/ui/FrameResize.tsx",
+        "src/ui/FrameViewport.tsx",
+        "src/ui/useWindowLayer.ts",
+        "scripts/check-ui-resize.mjs"
       ],
       "actions": [
         "cancel",
@@ -71,11 +79,11 @@
         "context.minimize",
         "context.descendants"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Website viewport sizing, not OS/browser fullscreen. Pinned frames reject resizing. Projected frames use W restore before dragging, under the existing rigidity policy. User acceptance pending.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Focused floating-window and custom-frame cycles, body clicks, restored geometry and no browser border pass locally; user acceptance pending.",
+        "automated": "281 model checks and type/build checks"
       },
       "related": [
         "interface.configure"
@@ -86,29 +94,32 @@
       "id": "interface.configure",
       "title": "Universal Shift configuration",
       "where": "Hold Shift and press the configured shortcut of the function you want.",
-      "behavior": "Only relevant MC settings appear. Repeated shortcut presses cycle choices; release Shift executes once. Right-click an option applies and locks it; left-click resets to priority 1.",
+      "behavior": "Only relevant MC settings appear. Repeated shortcut presses cycle choices; hovering/focusing an option selects the temporary choice. Release Shift applies the selected choice once. Right-click applies and locks it; left-click resets to priority 1. Hover/focus does not change the saved default.",
       "steps": [
         {
-          "do": "Open a frame. Hold Shift and press W repeatedly.",
-          "expect": "Resize options cycle and hovering previews the proposed bounds."
+          "do": "Activate a frame. Hold Shift, press W, then hover a different resize level without pressing W again. Release Shift.",
+          "expect": "The pointed option becomes selected and previews its bounds; Shift release applies that option exactly once. Keyboard focus selects an option the same way."
         },
         {
-          "do": "Release Shift. Repeat, right-click another option, then use plain W.",
-          "expect": "The selected action executes; the locked choice becomes the future default."
+          "do": "Repeat Shift+W, right-click another option, release Shift, then use plain W. Repeat and left-click an option.",
+          "expect": "Right-click applies and locks once; later Shift release does not execute again. Plain W uses the locked level or restores an active projection. Left-click resets to priority 1."
         }
       ],
       "reference": "docs/FUNCTION_CONFIGURATION.md",
       "sources": [
-        "src/ui/ShortcutConfiguration.tsx"
+        "src/ui/ShortcutConfiguration.tsx",
+        "src/ui/ConfigurationInteraction.tsx",
+        "src/ui/configurationGesture.ts",
+        "scripts/check-ui-resize.mjs"
       ],
       "actions": [
         "shortcuts"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Shift release executes only an armed shortcut configuration. Explicit button-opened configuration remains unarmed. User acceptance pending.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Focused local hover/focus release, no implicit lock, right-click locking and left-click reset checks pass. User acceptance pending.",
+        "automated": "281 model checks, including pointed selection exactly-once release, unarmed sessions, defaults and layer reuse; build/type checks"
       },
       "related": [],
       "gestures": [
@@ -152,7 +163,7 @@
       "id": "interface.arrange",
       "title": "Move, dock, select and organize UI",
       "where": "UI library; UI edit mode; shared frame/control context actions.",
-      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure.",
+      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure. Window/frame drag previews reuse gesture-local target discovery and read-only docking policy results. Visual movement uses the latest pointer position once per animation frame, with geometry reads before transform writes. Release refreshes destination geometry and commits through the existing shared history; cancellation restores the live payload. Active-context shortcuts defer to a held UI gesture, so Esc cancels the drag before a parent minimize action. Pickup snapshots exclude descendants of the held frame/window and read visibility before lifting, reducing the expand-then-drag setup burst.",
       "steps": [
         {
           "do": "Create a UI frame, then drag a complete section into it by its handle.",
@@ -165,13 +176,19 @@
         {
           "do": "Select multiple UI controls and invoke Compact selected UI / Align UI. Undo.",
           "expect": "Selected controls rearrange; undo restores their UI arrangement without changing graph facts."
+        },
+        {
+          "do": "In UI edit mode, drag an expanded floating window across empty canvas, release it, then Undo once. Start another drag and press Esc before release.",
+          "expect": "The window follows the latest pointer position. Release saves its final location; one Undo restores the prior layout. Esc cancels movement without saving a layout change. Report any visible frame skipping."
         }
       ],
       "reference": "docs/UI_LAYOUT.md",
       "sources": [
         "src/ui/UIWorkspace.tsx",
         "src/ui/docking.ts",
-        "src/ui/layout.ts"
+        "src/ui/layout.ts",
+        "src/ui/dragQueries.ts",
+        "scripts/profile-ui-drag.mjs"
       ],
       "actions": [
         "ui:devMode",
@@ -179,11 +196,11 @@
         "ui:compact",
         "ui:align"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Drag targets use a gesture-local discovery snapshot, refreshed at release. Browser traces are local diagnostics; user hardware smoothness acceptance remains pending.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Focused isolated Chromium drag checks passed live payload, no persistence during movement, release commit, one-step Undo, Esc cancellation without minimizing, docking and one-step docking Undo. User hardware frame-skipping verification pending.",
+        "automated": "279 model checks, including cached docking/ownership/pinning/context policy equivalence and invalidation on changed snapshots; build/type checks"
       },
       "related": [],
       "gestures": [
@@ -710,7 +727,7 @@
       "id": "omnic.operations",
       "title": "Ordered operations, role picking, target repair and count extraction",
       "where": "Composer → Scope / Ordered operations.",
-      "behavior": "Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired.",
+      "behavior": "Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired. Highlight units / region selects a 1-based unit or all scoped units and highlights an exact disk sector/ring arc fraction. Rotate supports highlighted region, each unit and group scopes, target-center/origin/custom pivots, saved snap step/origin and optional allowed angles. Rotate one step is rebindable and inherits Shift configuration. Operation tools are canonical scope-relative recipes, saved from the focused operation and applied as editable snapshots to picked/flow scope.",
       "steps": [
         {
           "do": "Add Count followed by Extract count; change Count.",
@@ -723,19 +740,39 @@
         {
           "do": "Target a generated unit, shrink count so it disappears, then use picked scope / repair targets.",
           "expect": "The missing role is reported, never silently redirected, and an explicit replacement repairs it."
+        },
+        {
+          "do": "Open Create → New Omnic object. In Preset choose Member · one of two. Select Highlight units / region in Ordered operations.",
+          "expect": "Two generated dots remain; Unit 1 is highlighted. Change Unit to 2 to move the highlight without drawing or changing unit count."
+        },
+        {
+          "do": "Choose Part · half a unit. Its highlight has fraction 0.5. Add Rotate structure, set Rotate to Highlighted region and Snap step to 30°. Set Angle to 50°.",
+          "expect": "The half highlight rotates to 60°; the dot stays fixed. Together rotates the scoped composition; Each unit rotates each shape about its own center. Earlier operations determine the region available."
+        },
+        {
+          "do": "Set Snap step to 30° and use Rotate one step. Rebind that action in Master controller shortcuts if desired; hold Shift with its configured trigger to edit rotation configuration.",
+          "expect": "Each ordinary invocation advances the angle by its saved snap. Repeated Shift trigger cycles Region → Each unit → Together; release applies. Right-click applies/locks; left-click resets to the first scope. Temporary changed configuration adds a scoped rotation operation and preserves the focused settings."
+        },
+        {
+          "do": "Focus Highlight units / region, set a copy name and choose Save operation as tool. Return to a composition, pick a component or Whole structure, open Reusable tools, choose the saved tool and Stamp copy to scope.",
+          "expect": "The tool is a shared canonical object with no generated units. Applying it adds independently editable operations to the current draft; changing the tool later does not retroactively change stamped operations. Save shared, reopen and Undo/Redo retain authored rules."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
       "sources": [
         "src/omnic/evaluate.ts",
-        "src/omnic/Composer.tsx"
+        "src/omnic/Composer.tsx",
+        "src/omnic/rotation.ts",
+        "src/omnic/tools.ts"
       ],
-      "actions": [],
-      "limits": "Browser acceptance has not been recorded for this guide.",
-      "status": "Implemented; browser verification pending",
+      "actions": [
+        "omnic.rotateStep"
+      ],
+      "limits": "Browser acceptance has not been recorded for this guide. Fractions are angular sectors of disks or arc fractions of rings; fractional lines report inapplicable. Whole line highlight works. One highlight layer per primitive (later highlight replaces earlier). Rotation is planar, angles bounded ±1080°, snap step 0–360°, up to 32 allowed-angle values. New rotation operators use target center; legacy operators retain origin/pivot offsets. Tool stamping snapshots operations rather than introducing live executable dependencies. No default rotation shortcut is assigned. Fixed-size world reading integration remains deferred.",
+      "status": "Implemented; user verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "New Member/Part, rotation and tool workflows await user interaction testing; no browser suite run.",
+        "automated": "Normal model command passes; 20 focused Omnic engine cases pass directly, including highlighting, rotation, tools and parameter applicability. Production/type/property checks and self-contained preview build pass."
       },
       "related": [],
       "gestures": []
@@ -1173,7 +1210,7 @@
       "id": "performance.clicks",
       "title": "Click responsiveness and shared rendering work",
       "where": "Ordinary controls, including Omnic library → Objects → Structural filters.",
-      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous.",
+      "behavior": "Render-time function, anchor, owner and icon target lookups share snapshot indexes. Opening/collapsing a frame preserves appearance target metadata when ownership and captions are unchanged. Appearance adjusters reuse target calculations; hidden dock areas skip measurement. Hot function controls now subscribe to their own item, binding, selection and permission slices instead of the full UI context. Stable appearance context actions keep current handlers without broadcasting closure changes. Legacy consumers retain their existing route during incremental migration. Fields, action registrations and embedded headers use scoped subscriptions. Dock workspace geometry/context preserve identity when unchanged; appearance label invalidation follows actual customized owners, not unrelated frame registration order. Floating windows, panels, frame chrome, docking residents and labels now use scoped subscriptions. Closed frame searches and dormant popup adapters do not subscribe to unrelated UI updates. Native caption/button discovery deduplicates inserted subtrees and updates changed hosts directly; unchanged native presentation skips DOM writes and permission work. Discovered function registrations publish once per microtask while commands/history remain synchronous. With no UI controls selected, ordinary layout changes now skip UI-selection discovery and visibility measurement. Subscription snapshot checks reuse pure selector results for the same committed snapshot and selector; changed state or captured props still reevaluate. Window movement now coalesces pointer positions per frame, reuses target lists and caches ownership/pinning/context/docking reads until the layout snapshot changes. Final release refreshes the pointed destination and uses the existing single-commit history path. Newly discovered frame captions now read their initial font sizes together before symbol/tooltip styling writes. This avoids repeated synchronous style recalculation during first-use presentation; later collapse/reopen keeps existing caption state. Drag pickup excludes a frame/window’s own subtree from destination measurements, snapshots visibility before lifting, and uses an exact resident lookup. Final destination refresh and shared docking/history remain intact. Repeated activation of the current front window reuses its existing layer rather than changing z-index and rerendering the wrapper on each grab; other windows still rise. Fixed surfaces already mounted directly on the page move using their existing transform without popover promotion or geometry rewrites. Drag destination bounds are cached on demand; child-slot measurement is limited to destinations actually considered. Cursor-open windows use viewport free placement on both rendering and drop, avoiding workspace packing on release. Drag capture no longer toggles a descendant CSS selector across the whole page. Release deduplicates pointed ancestor measurements, reuses gesture candidate lists. Final placement continues to use the exact release coordinate; no inertia is implemented. Moving an already-free frame validates its new coordinates and preserves unrelated layout records instead of rerunning structural detach/prune/full validation. The held payload now receives a direct transform update from each pointer event; docking discovery/feedback alone stays frame-batched. Movement does not wait for docking calculations or interpolate toward the cursor. Release now hands direct visual ownership back to committed layout synchronously, preventing a paint of the pre-drag position between them. The interface state owner recognizes immutable coordinate-only edits and validates the changed coordinates without rechecking unchanged topology; other edits/imports retain full validation.",
       "steps": [
         {
           "do": "Open Omnic library → Objects, then repeatedly expand/collapse Structural filters while observing the scene pulse.",
@@ -1186,6 +1223,30 @@
         {
           "do": "Open a frame search, type a query and exit with Esc. Expand/collapse and rename a frame; then use its controls and minimize/restore it.",
           "expect": "Search accepts typing and exits through the active context; frame labels, controls and window state remain current. Compare scene pulse continuity with the previous preview."
+        },
+        {
+          "do": "Clear UI control selection, then toggle Structural filters several times while watching the scene pulse. Ctrl-click an editable UI control to select it, then Ctrl-click it again to deselect.",
+          "expect": "Ordinary toggles do not run UI-selection discovery while selection is empty. Real selection markers still appear and clear; report remaining visible pulse interruptions."
+        },
+        {
+          "do": "Reload, expand/maximize a heavy frame and drag it immediately. Compare with waiting briefly before dragging; then minimize/reopen and repeat.",
+          "expect": "Pickup excludes invalid destinations inside the held frame and completes visibility reads before lifting. Controls, docking and Undo still work. Report any remaining brief spike; cold-caption batching is not a universal smoothness guarantee."
+        },
+        {
+          "do": "Repeatedly grab and release Omnic library, both expanded and minimized. Move it in different directions with an edge-docked panel present; then try intentional header docking and Undo.",
+          "expect": "Free release preserves the pointer-relative position rather than workspace packing the popup. Repeated pickup avoids full destination-child measurement and popover relayout. Report whether the remaining grab pause and offset are resolved on your workspace."
+        },
+        {
+          "do": "Drag continuously, then pause/resume while holding. Compare a quick moving release with a stationary release, and repeat several grabs.",
+          "expect": "Final placement uses the release coordinate with no intentional inertia. Pickup/release avoids page-wide descendant CSS toggles and redundant structural work. Report any remaining pulse pause or release offset."
+        },
+        {
+          "do": "Grab a window and move quickly, pause, reverse direction and release. Also try docking it onto another header.",
+          "expect": "The grabbed point follows pointer samples directly without catch-up interpolation; docking feedback and one-move Undo still work. Report any remaining visible trailing."
+        },
+        {
+          "do": "Move a floating window quickly and release while still moving; repeat with a calm release. Then dock it deliberately and use Undo/Redo.",
+          "expect": "Release has one committed position without an intermediate return to the old position. Ownership, invalid-geometry rejection and one-move Undo remain intact. Report any remaining two-stage pause."
         }
       ],
       "reference": "docs/PERFORMANCE_RESULTS.md",
@@ -1203,14 +1264,19 @@
         "src/ui/registrationBatch.ts",
         "src/ui/NativeActions.tsx",
         "src/ui/NamePresentation.tsx",
-        "scripts/profile-ui-clicks.mjs"
+        "scripts/profile-ui-clicks.mjs",
+        "src/ui/useButtonSelection.tsx",
+        "src/ui/dragQueries.ts",
+        "scripts/profile-ui-drag.mjs",
+        "scripts/profile-ui-open.mjs",
+        "src/ui/UIWorkspace.tsx"
       ],
       "actions": [],
       "gestures": [],
-      "status": "First subscription pass confirmed improved by user; window/DOM follow-up awaiting user verification",
+      "status": "Earlier lag improvements confirmed; release handoff and live validation follow-up await user testing",
       "verification": {
-        "browser": "User reported “definitely much better” after 85c1074 (2026-10-27). Follow-up: isolated local synthetic click checks and native discovery/current-handler smoke; user pulse/latency acceptance pending.",
-        "automated": "277 model checks, including resident/native dependency invalidation, inserted-subtree deduplication and registration batching; type/build checks"
+        "browser": "User clarified the brief spike occurs when dragging immediately after expanding/maximizing a heavy frame. Local expand→drag checks reduced source rectangle reads 63 → 22 and observed maximum RAF gap 783 → 183 ms, with the same 50 ms median in software graphics. Cold caption diagnostics: 80 captions 82 → 3 style recalculations; Master controller first-open style recalculations 124 → 10. User hardware verification pending. Repeated-grab layer stability is verified locally; this does not prove all pickup latency is resolved. User reported the previous layer-only change insufficient/worse. No new browser trace or acceptance run for this follow-up; testing is delegated to the user. Latest report distinguishes quick releases/discontinuous movement from continuous dragging; transition-cost follow-up awaits user testing. User reports lag gone but motion feels slippery; immediate pointer movement has been separated from frame-batched docking feedback. User testing pending. User reports much better movement but two remaining pauses before stopping; atomic release/live validation follow-up is not browser-tested.",
+        "automated": "Follow-up static/build checks recorded in delivery; no new browser suite."
       },
       "limits": "Legacy global owners and some consumers still subscribe broadly. Synthetic headless timings are noisy and not physical input-to-display latency; no universal frame-time guarantee.",
       "related": [

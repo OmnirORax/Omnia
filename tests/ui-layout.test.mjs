@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   emptyUILayout,
   validateUILayout,
+  normalizeLiveUILayout,
   groupFunctions,
   dockResident,
   detachFunction,
@@ -10,6 +11,16 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test("live coordinate moves preserve topology validation for other changes", () => {
+  const previous = emptyUILayout();
+  previous.windows.a = { x: 20, y: 30, width: 300, height: 400, collapsed: false, pinned: false };
+  const moved = { ...previous, windows: { ...previous.windows, a: { ...previous.windows.a, x: 70, y: 90 } } };
+  assert.equal(normalizeLiveUILayout(moved, previous), moved);
+  assert.equal(normalizeLiveUILayout(previous, previous), previous);
+  assert.throws(() => normalizeLiveUILayout({ ...moved, windows: { a: { ...moved.windows.a, x: Infinity } } }, previous));
+  assert.throws(() => normalizeLiveUILayout({ ...moved, windows: { a: { ...moved.windows.a, members: [{ kind: 'window', id: 'missing' }] } } }, previous));
+  assert.throws(() => normalizeLiveUILayout({ ...moved, windows: { a: { ...moved.windows.a, width: -1 } } }, previous));
+});
 test("grouping retains function identity and creates a named, initially collapsed UI frame", () => {
   const original = emptyUILayout(),
     grouped = groupFunctions(original, "focus", "undo", 96, 144);
@@ -214,4 +225,51 @@ test('registry publication coalesces discovery and preserves the final active so
   assert.equal(published[0].field.label,'Latest');
   stage('field',{available:false});assert.equal(scheduled.length,1);scheduled.shift()();
   assert.deepEqual(published[1],{field:{available:false}});
+});
+
+test('subscriber reads evaluate once per committed snapshot and selector identity',async()=>{
+  const {createSliceReader}=await import('../src/ui/selectiveStore.ts');
+  let source={count:1,other:0},calls=0;
+  const select=value=>{calls++;return [value.count];};
+  const read=createSliceReader(()=>source),first=read(select);
+  assert.equal(read(select),first);assert.equal(read(select),first);assert.equal(calls,1);
+  source={count:1,other:1};assert.equal(read(select),first);assert.equal(calls,2);
+  source={count:2,other:1};const changed=read(select);assert.notEqual(changed,first);assert.deepEqual(changed,[2]);
+  // A selector may capture changed props even when owner state is unchanged.
+  const replacement=value=>{calls++;return [value.other];};
+  assert.deepEqual(read(replacement),[1]);assert.equal(calls,4);
+  assert.deepEqual(read(select),[2]);assert.equal(calls,5);
+});
+
+test('drag read cache preserves policy results and invalidates on the next layout snapshot',async()=>{
+  const {createDragQueries}=await import('../src/ui/dragQueries.ts');
+  const {canDock,ownerOf,residentPinned,residentContextScope}=await import('../src/ui/layout.ts');
+  const queries=createDragQueries(),layout=emptyUILayout();
+  const window=()=>({x:0,y:0,width:200,height:200,collapsed:false,pinned:false});
+  let pinReads=0;
+  layout.windows.a=window();layout.windows.b={...window(),get pinned(){pinReads++;return false;}};
+  assert.equal(queries.canDock(layout,'window:a','window:b'),true);const measured=pinReads;assert.ok(measured>0);
+  for(let i=0;i<20;i++)assert.equal(queries.canDock(layout,'window:a','window:b'),true);
+  assert.equal(pinReads,measured,'unchanged pointer previews reuse the permission result');
+  const pinned={...layout,windows:{...layout.windows,b:{...window(),pinned:true}}};
+  const nested={...layout,windows:{...layout.windows,a:{...window(),members:[{kind:'window',id:'b'}]}}};
+  const scoped={...layout,windows:{...layout.windows,a:{...window(),inline:{parent:'window:context:node'}}}};
+  for(const snapshot of [layout,pinned,nested,scoped,layout]){
+    for(const key of ['window:a','window:b','window:missing']){
+      assert.equal(queries.ownerOf(snapshot,key),ownerOf(snapshot,key));
+      assert.equal(queries.residentPinned(snapshot,key),residentPinned(snapshot,key));
+      assert.equal(queries.residentContextScope(snapshot,key),residentContextScope(snapshot,key));
+      for(const target of ['window:a','window:b','window:missing'])assert.equal(queries.canDock(snapshot,key,target),canDock(snapshot,key,target));
+    }
+  }
+});
+
+test('activating the front window reuses its layer while other windows still rise',async()=>{
+  const {nextWindowLayer,raiseWindowLayer,nextMenuLayer}=await import('../src/ui/layers.ts');
+  const first=nextWindowLayer(),second=nextWindowLayer();
+  assert.equal(raiseWindowLayer(second),second);
+  assert.equal(raiseWindowLayer(second),second);
+  const raised=raiseWindowLayer(first);assert.ok(raised>second);
+  assert.equal(raiseWindowLayer(raised),raised);
+  assert.ok(nextMenuLayer()>raised);
 });

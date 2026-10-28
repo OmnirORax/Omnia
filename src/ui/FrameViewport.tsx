@@ -8,27 +8,27 @@ import type { ResizeRect } from "./resizeGeometry";
  * handlers and original geometry. Removing the projection restores that geometry. */
 function project(element: HTMLElement) {
   const rect = element.getBoundingClientRect(), computed = getComputedStyle(element);
-  const keys = ["position", "inset", "left", "top", "right", "bottom", "width", "height", "min-width", "min-height", "max-width", "max-height", "margin", "transform", "translate", "rotate", "scale", "z-index", "box-sizing", "--ui-viewport-background", "--ui-viewport-padding", "--ui-viewport-border"];
-  const saved = keys.map(key => [key, element.style.getPropertyValue(key), element.style.getPropertyPriority(key)]), popover = element.getAttribute("popover");
+  // React/Rnd own inline geometry and className. A persistent data marker plus
+  // CSS variables keep this projection independent of their ordinary rerenders.
+  const styles={"--ui-viewport-left":`${rect.x}px`,"--ui-viewport-top":`${rect.y}px`,
+    "--ui-viewport-width":`${rect.width}px`,"--ui-viewport-height":`${rect.height}px`,
+    "--ui-viewport-background":computed.backgroundColor,"--ui-viewport-padding":computed.padding,"--ui-viewport-border":computed.border};
+  const saved = Object.keys(styles).map(key => [key, element.style.getPropertyValue(key), element.style.getPropertyPriority(key)]), popover = element.getAttribute("popover");
   const spacer = document.createElement("div"); spacer.dataset.uiNativeTag = "transparent"; spacer.inert = true;
   if (!["fixed", "absolute"].includes(computed.position)) {
     spacer.style.cssText = `width:${rect.width}px;height:${rect.height}px;visibility:hidden;pointer-events:none`;
     element.before(spacer);
   }
   const original = element.getAttribute("data-ui-viewport-original");
+  for(const [key,value] of Object.entries(styles))element.style.setProperty(key,value);
   element.dataset.uiViewportOriginal = JSON.stringify({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-  element.style.setProperty("--ui-viewport-background", computed.backgroundColor);
-  element.style.setProperty("--ui-viewport-padding", computed.padding);
-  element.style.setProperty("--ui-viewport-border", computed.border);
   element.classList.add("ui-frame-viewport");
   element.setAttribute("popover", "manual"); element.showPopover();
   return {
     set(next: ResizeRect) {
-      const styles = { position: "fixed", inset: "auto", left: `${next.x}px`, top: `${next.y}px`, right: "auto", bottom: "auto",
-        width: `${next.width}px`, height: `${next.height}px`, "min-width": "0", "min-height": "0", "max-width": "none", "max-height": "none",
-        margin: "0", transform: "none", translate: "none", rotate: "none", scale: "none", "z-index": "30000", "box-sizing": "border-box" };
-      for (const [key, value] of Object.entries(styles))
-        if (element.style.getPropertyValue(key) !== value || element.style.getPropertyPriority(key) !== "important") element.style.setProperty(key, value, "important");
+      const values={"--ui-viewport-left":`${next.x}px`,"--ui-viewport-top":`${next.y}px`,
+        "--ui-viewport-width":`${next.width}px`,"--ui-viewport-height":`${next.height}px`};
+      for(const [key,value] of Object.entries(values))if(element.style.getPropertyValue(key)!==value)element.style.setProperty(key,value);
     },
     restore() {
       if (element.isConnected && element.matches(":popover-open")) element.hidePopover(); if (popover === null) element.removeAttribute("popover"); else element.setAttribute("popover", popover);

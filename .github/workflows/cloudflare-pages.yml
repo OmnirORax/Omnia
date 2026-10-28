@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # Keep the local Docker/Supabase baseline stable during ubuntu-latest rollouts.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +43,7 @@ jobs:
       - name: Check backend types (local only)
         run: node --run backend:check
       - name: Start isolated backend
-        run: node --run backend:start > "$RUNNER_TEMP/omnia-backend-start.log" 2>&1
+        run: node scripts/backend-start-ci.mjs
       - name: Verify backend permissions (local only)
         run: |
           node --run backend:serve > "$RUNNER_TEMP/omnia-backend-functions.log" 2>&1 &

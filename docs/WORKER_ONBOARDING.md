@@ -24,6 +24,18 @@ implemented for review as an integrated construction/discovery instrument; read
 infer truth from appearance, or rebuild a 2D editor as part of unrelated work. [Project direction](../PROJECT_DIRECTION.md) gives the broader
 product constraints.
 
+Before extending Omnic grammar, read the [source-alignment audit](OMNIC_ALIGNMENT_AUDIT.md)
+and its preserved user source. It maps Stage 1/2 reuse and missing semantics;
+construction transforms, numeric frame declarations and technical IDs are not
+yet a complete meaning, read-order, inheritance or referent-continuity system.
+Do not freeze tentative/obsolete source notes into grammar or duplicate shared
+infrastructure. Existing stage contracts still define delivery scope.
+
+Omnic reading currently has a fixed, maximally zoomed-out size independent of
+Omnium content zoom: it is the meta/reading layer. The source's local/global
+enlargement guidance primarily concerns Omnium content. Exact integration remains
+open to actual mapping use; see the audit's reading-size clarification.
+
 The interface itself is user-arrangeable and customizable. A newly added feature
 should inherit shared behavior rather than arrive as a fixed, isolated widget.
 Stable identity, stored values and user customization must survive rearrangement,
@@ -33,7 +45,8 @@ renaming, renderer changes and upgrades.
 
 Shift plus any configured keyboard/mouse shortcut opens only that function's
 adaptive Master Controller configuration. Repeat the shortcut while holding Shift
-to cycle options; release Shift to execute once. Right-click an MC option applies
+to cycle options, or hover/focus an option to select it. Release Shift to execute
+the selected choice once. Right-click an MC option applies
 and locks it as the future default; left-click resets to priority 1. Temporary
 choices leave the locked default intact. The base shortcut uses retained settings. This is a global
 interface contract for every future feature. Do not create per-feature Shift
@@ -41,7 +54,35 @@ handlers. The shared router uses action metadata and discovered property couplin
 specialized adapters provide only their real configuration/preview content. Read
 [the implementation contract](FUNCTION_CONFIGURATION.md) before adding an action.
 
+## Universal contextual priority order
+
+Choices progress from the nearest relevant scope to the broadest/global scope:
+start with the nearest relevant boundary and progress upward or downward along
+the contextual hierarchy, according to the function's applicable hierarchy.
+This applies universally to existing and future functions. Derive levels from
+the active context and shared hierarchy rather than hardcoded per-feature lists.
+See [AGENTS.md](../AGENTS.md).
+
+## Systemic implementation and future inheritance
+
+All agents must fix underlying causes at the appropriate shared system boundary,
+rather than hardcode an affected ID/component or add a one-off symptom patch.
+Consider existing systems, saved data and long-term effects; keep scope
+proportional rather than turning a focused fix into an unrelated rewrite.
+
+**Future consideration & inheritance:** implement shared behavior so any future
+system or feature to which it applies inherits it automatically, without manually
+implementing or wiring that behavior again. Provide this inheritance through
+registries, discovery, adapters and shared component contracts. Future systems
+declare their actual capabilities and unique behavior; applicable universal
+behavior follows automatically. Extend and document the shared mechanism instead
+of adding parallel inventories or manual per-feature wiring.
+See [AGENTS.md](../AGENTS.md).
+
 ## Compactness
+
+**UI Compactness:** smallest practical layout + contents, neatly arranged,
+minimal wasted space, minimal text — defer explanations to tooltips.
 
 Compactness is a standing product rule for every feature: fit the controls to
 content, minimize unused space, keep related controls on the same row, and put
@@ -53,6 +94,15 @@ component contract before choosing a new layout.
 
 ## Responsiveness
 
+**Optimization delivery baseline for every agent:** inspect the affected code,
+fix the concrete inefficiencies found, then hand testing to the user. They decide
+whether the improvement is sufficient and report back if it is not. Do not turn
+an optimization request into repeated traces, browser checks, benchmarks, CI
+reruns or speculative rounds of tuning. Additional profiling/testing requires an
+explicit request; a one-off authorization applies only to that specific check.
+Keep required static/build/model checks focused and distinguish them from user
+acceptance. See the optimization delivery baseline in [AGENTS.md](../AGENTS.md).
+
 The user requires features to preserve responsiveness. Flag an approach likely to
 cause significant lag before implementing it, explain the cost and offer practical
 workarounds. Account for selection, pointer movement, live editing and large scenes
@@ -61,8 +111,9 @@ user repeatedly discovering regressions. Builds alone do not verify smoothness. 
 configuration freedom: prefer bounded supported options and explain necessary
 restrictions instead of allowing combinations that make the app unusable.
 
-The user confirmed a major click-responsiveness improvement after `85c1074`
-(2026-10-27). Remaining window/DOM work still needs user acceptance. See the
+The user confirmed major click-responsiveness improvements after `85c1074` and
+`846feeb` (2026-10-27), with a remaining brief freeze. The residual-pause follow-up
+still needs user acceptance. See the
 [performance recovery plan](PERFORMANCE_ARCHITECTURE_PLAN.md) for inspected risk
 areas, baseline profiling, renderer-aware ranges, aggregate budgets and staged
 refactoring. The first systemic pass now shares indexes, preserves topology during paint edits,
@@ -547,3 +598,39 @@ changes. Native discovery deduplicates inserted subtrees, checks changed caption
 hosts directly and skips unchanged presentation. Function registration metadata
 publishes once per microtask; action/history execution stays synchronous. See
 UI_COMPONENT_CONTRACT.md and the opt-in `scripts/profile-ui-clicks.mjs` diagnostic.
+
+Residual click profiling found idle UI-selection discovery on ordinary layout
+changes. That effect now skips empty selection; prior cleanup clears markers.
+Subscriber reads cache pure selectors by committed snapshot and selector identity,
+including invalidation for changed captured props. GitHub authentication was restored
+after initially blocking publication. PR #34 merged before delivery, so the follow-up
+uses a separate branch/PR from current master. See PERFORMANCE_RESULTS.md for evidence.
+
+Window-drag profiling found repeated per-move global target discovery and docking
+ownership walks. Previews now reuse gesture-local target lists/read-only policy
+results; new layout snapshots invalidate permissions. Movement coalesces to the
+latest pointer per frame, reading before transforming. Final release refreshes
+pointed geometry and commits once through existing history; cancel restores.
+The opt-in local diagnostic is scripts/profile-ui-drag.mjs. See PERFORMANCE_RESULTS.md
+for effect/graphics limits and user acceptance status.
+
+Active-context key handling now defers to a held UI pointer gesture, so Esc
+cancels a drag before minimizing its parent. Keep the shared physical-press
+ownership lifetime through release; do not leak a cancelled held press to the scene.
+
+The user confirmed window movement was much better after `519169d`; the remaining
+brief spike is dragging immediately after expanding/maximizing a heavy frame,
+especially on its first use. Pickup now excludes the held frame/window subtree
+from impossible destinations, reads visibility before lifting and resolves the
+source by exact ID. Shared tab panes keep sibling residents eligible; final drop
+refresh remains. `NamePresentation` also batches initial caption font-size reads
+before symbol/tooltip writes, avoiding cold style thrashing. Use
+scripts/profile-ui-open.mjs for first-open/warm metrics and profile-ui-drag.mjs
+with OMNIA_DRAG_EXPAND=1 for the corrected sequence. Both changes await user
+verification; do not conflate style/measurement reductions with zero latency.
+
+Resize projections now use data-ui-viewport-original plus CSS variables, independent
+of React/Rnd className/inline geometry refreshes. This prevents native popover borders
+and position jumps on focus/collapse/reopen. Preserve base coordinates while
+collapsing a projected window. Shared useWindowLayer raises only when below the
+current front layer, avoiding repeated local rerenders on same-window grabs.

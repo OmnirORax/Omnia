@@ -1,3 +1,7 @@
+import { functionInputValue } from "../properties/runtimeInputs";
+import { OMNIC_CONSUMER } from "./omnic.function";
+import { operationTool, isOperationTool, applyOperationTool } from "./tools";
+import { snappedAngle, rotationStops } from "./rotation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { closedComposerDraft, forgetClosedComposerDraft, preserveClosedComposerHistory } from "./draftHistory";
 import { objectResolver } from "./revisions";
@@ -6,7 +10,7 @@ import { validateRecipe } from "./model";
 import { evaluateRecipe } from "./evaluate";
 import { evaluationBounds, renderSVG } from "./svg";
 import { PRESETS, createRecipe } from "./presets";
-import { GENERATORS, OPERATORS, defaultParams, type Parameter, type Definition } from "./registry";
+import { GENERATORS, OPERATORS, defaultParams, applicableParameters, type Parameter, type Definition } from "./registry";
 import { commitOmnicParameter, useOmnicParameterBindings } from "./propertyAdapter";
 import { PropertyEditor } from "../appearance/Controls";
 import { UISection } from "../ui/UISection";
@@ -47,7 +51,7 @@ function download(name: string, value: unknown) {
 function Parameters({ scope, spec, params, thresholds, change }: {
   scope: string; spec: Definition; params: Params; thresholds: boolean; change: (parameter: Parameter, value: string | number | boolean, preview: boolean) => void;
 }) {
-  return <div className="omnic-parameters">{spec.parameters.map(parameter => <UIField key={parameter.key} id={`omnic:${scope}:${parameter.key}`} label={parameter.label} category="Omnic">
+  return <div className="omnic-parameters">{applicableParameters(spec,params).map(parameter => <UIField key={parameter.key} id={`omnic:${scope}:${parameter.key}`} label={parameter.label} category="Omnic">
     <label className="omnic-parameter"><span>{parameter.label}</span>{thresholds && parameter.thresholds?.length ? <div className="omnic-thresholds" role="group" aria-label={`${parameter.label} parameter presets`}>
       {parameter.thresholds.map(value => <button key={value} type="button" aria-pressed={(params[parameter.key] ?? parameter.initial) === value} onClick={() => change(parameter, value, false)}>{value}</button>)}
     </div> : <PropertyEditor property={parameter.property} label={parameter.label} value={params[parameter.key] ?? parameter.initial}
@@ -69,6 +73,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const recipe = sample ?? draft, recipeRef = useRef(recipe); recipeRef.current = recipe;
   const [focus, setFocus] = useState<Focus | null>(() => draft.components[0] ? { kind: "component", id: draft.components[0].id } : null);
   const [picked, setPicked] = useState<string[]>([]), [query, setQuery] = useState("");
+  const [toolId, setToolId] = useState("");
   const [generator, setGenerator] = useState("radial"), [reference, setReference] = useState("");
   const [thresholds, setThresholds] = useState(false), [playing, setPlaying] = useState(false);
   const [copyLabel, setCopyLabel] = useState(entity.label ? `${entity.label} variation` : "Omnic variation");
@@ -140,7 +145,8 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     commit(focus.kind === "component" ? { ...current, components: updateComponents(current.components, focus.id, component => ({ ...component, params })) }
       : { ...current, operations: current.operations.map(operation => operation.id === focus.id ? { ...operation, params } : operation) }, temporary);
   };
-  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), spec?.parameters ?? []);
+  const activeParameters=useMemo(()=>spec?applicableParameters(spec,active?.params??{}):[],[spec,active?.params]);
+  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), activeParameters);
   const parameter = (field: Parameter, value: string | number | boolean, temporary: boolean) => {
     if (active) changeParams(commitOmnicParameter(active.params, field, value), temporary);
   };
@@ -156,7 +162,28 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     if (!playing && (evaluated.result?.nodes.length ?? 0) > RENDER_BUDGET.omnicAnimatedRoles) { setError(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles. The complete static structure is preserved.`); return; }
     setPlaying(value => !value);
   };
+  const stepRotation = () => {
+    if (!activeOperation || activeOperation.operator !== "rotate") return;
+    try {
+      const source=recipeRef.current.operations.find(op=>op.id===activeOperation.id);if(!source)return;
+      const rotationSpec=OPERATORS.find(op=>op.id==="rotate")!;
+      const stored={...defaultParams(rotationSpec),...source.params};
+      const params=Object.fromEntries(rotationSpec.parameters.map(parameter=>[parameter.key,functionInputValue(OMNIC_CONSUMER,parameter.property,()=>stored[parameter.key]) ]));
+      const angle=Number(params.angle??0), step=Number(params.snap??0)||1;
+      const stops=rotationStops(String(params.stops??""));
+      const next=stops.length ? stops.find(value=>value>angle)??stops[0] : snappedAngle(angle,step,Number(params.snapOrigin??0))+step;
+      if(Math.abs(next)>1080){setError("Rotation is limited to ±1080°. Change the angle to continue.");return;}
+      const temporary=rotationSpec.parameters.some(parameter=>params[parameter.key]!==stored[parameter.key]);
+      if(temporary){
+        const before=snappedAngle(Number(stored.angle),Number(stored.snap),Number(stored.snapOrigin),String(stored.stops));
+        const delta=Number((next-before).toFixed(9));
+        if(delta)commit({...recipeRef.current,operations:[...recipeRef.current.operations,{...source,id:id(),params:{...params,angle:delta,snap:0,snapOrigin:0,stops:""}}]});
+      }
+      else commit({...recipeRef.current,operations:recipeRef.current.operations.map(op=>op.id===source.id?{...op,params:{...op.params,angle:next}}:op)});
+    } catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
+  };
   const shortcuts = useFeatureActions("omnicComposer", {
+    "omnic.rotateStep": { enabled: activeOperation?.operator === "rotate", run: stepRotation },
     "omnic.save": { enabled: !evaluated.error, run: save },
     "omnic.copy": { enabled: !evaluated.error, run: copy },
     "omnic.play": { enabled: !!evaluated.result?.motion, run: togglePlay },
@@ -206,7 +233,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   };
   const addOperation = (operator: string) => {
     const spec = OPERATORS.find(value => value.id === operator); if (!spec) return;
-    const operation: Application = { id: id(), operator, params: defaultParams(spec), targets: [...picked], enabled: true };
+    const operation: Application = { id: id(), operator, params: {...defaultParams(spec),...(operator==="rotate"?{pivot:"center"}:{})}, targets: [...picked], enabled: true };
     if (!commit({ ...recipe, operations: [...recipe.operations, operation] })) return; setFocus({ kind: "operation", id: operation.id });
   };
   const changeOperation = (operationId: string, patch: Partial<Application>) => commit({ ...recipe, operations: recipe.operations.map(operation => operation.id === operationId ? { ...operation, ...patch } : operation) });
@@ -283,6 +310,8 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
           <UIField id="omnic:parameter-mode" label="Parameter navigation" category="Omnic"><label title="Registered numeric candidates; semantic significance is unverified."><input type="checkbox" checked={thresholds} onChange={event => setThresholds(event.target.checked)} />Parameter presets</label></UIField>
           {activeComponent?.reference && <UIField id="omnic:dependency-version" label="Dependency version" category="Omnic"><label>Reference <select aria-label="Dependency version" value={activeComponent.referenceRevision??'live'} onChange={event=>commit({...recipe,version:2,components:updateComponents(recipe.components,activeComponent.id,component=>{const {referenceRevision:_,...rest}=component;return event.target.value==='live'?rest:{...rest,referenceRevision:Number(event.target.value)};})})}><option value="live">Live definition</option>{objects.find(object=>object.id===activeComponent.reference)?.omnicHistory?.map(revision=><option key={revision.revision} value={revision.revision}>Pinned r{revision.revision}</option>)}</select></label></UIField>}
           <Parameters scope={active.id} spec={spec} params={active.params} thresholds={thresholds} change={parameter} />
+          {activeOperation?.operator === "rotate" && <div className="omnic-row"><FunctionControl id="omnic.rotateStep" /><output title="Angle after snap / allowed-angle constraints">Applied {snappedAngle(Number(active.params.angle??0),Number(active.params.snap??0),Number(active.params.snapOrigin??0),String(active.params.stops??""))}°</output></div>}
+          {activeOperation && <UIAction id="omnic:save-operation-tool" label="Save operation as tool" category="Omnic" onClick={()=>{try{onCopy(operationTool(activeOperation),copyLabel.trim()||"Omnic tool");}catch(failure){setError(failure instanceof Error?failure.message:String(failure));}}} />}
         </UISection>}
       </div>
     </div>
@@ -291,6 +320,11 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       <div className="omnic-picked">{picked.map(role => <button type="button" key={role} title="Remove from picked scope" onClick={() => setPicked(current => current.filter(value => value !== role))}>{role} ×</button>)}</div>
       <select aria-label="Pick structural role" value="" onChange={event => { const value=event.target.value;setPicked(current=>current.includes(value)?current:[...current,value]); }}><option value="" disabled>Pick role…{roles.length===128 ? " (first 128 matches)" : ""}</option>{roles.map(role=><option value={role.id} key={role.id}>{role.id}</option>)}</select>
       {activeOperation && <div className="omnic-row"><UIAction id="omnic:apply-picked-scope" label="Use picked scope / repair targets" category="Omnic" onClick={()=>changeOperation(activeOperation.id,{targets:[...picked]})} /><small>{activeOperation.targets.length ? activeOperation.targets.join(", ") : "Operation uses prior selection, or the whole structure if none"}</small></div>}
+    </UISection>
+    <UISection id="omnic-tools" title="Reusable tools" defaultExpanded={false}>
+      <div className="omnic-row"><select aria-label="Saved operation tool" value={toolId} onChange={event=>setToolId(event.target.value)}><option value="">Choose tool…</option>{objects.filter(object=>object.omnic&&isOperationTool(object.omnic)).map(object=><option key={object.id} value={object.id}>{object.label||object.id}</option>)}</select>
+        <UIAction id="omnic:apply-operation-tool" label="Stamp copy to scope" category="Omnic" onClick={()=>{try{const tool=objects.find(object=>object.id===toolId)?.omnic;if(!tool){setError("Choose a saved operation tool.");return;}const next=applyOperationTool(recipe,tool,picked,id);if(commit(next)){setFocus({kind:"operation",id:next.operations.at(-1)!.id});}}catch(failure){setError(failure instanceof Error?failure.message:String(failure));}}} />
+      </div>
     </UISection>
     <UISection id="omnic-operations" title="Ordered operations">
       <UIField id="omnic:operator-search" label="Find operator" category="Omnic"><input aria-label="Find operator" placeholder="Find operator…" value={query} onChange={event=>setQuery(event.target.value)} /></UIField>

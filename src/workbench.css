@@ -846,7 +846,9 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
 .appearance-row-name { flex: 1; min-width: 55px; font-size: 11px; overflow-wrap: anywhere; }
 .ui-editable-label { cursor: text; }
 [data-ui-drag],button[draggable="true"][data-ui-function],.ui-bubble-drag { touch-action: none; }
-html.ui-pointer-dragging,html.ui-pointer-dragging * { cursor: grabbing !important; user-select: none !important; }
+/* Capture targets the root; inherited cursor/selection behavior avoids toggling
+   a selector on every element in the document at each pickup and release. */
+html.ui-pointer-dragging { cursor: grabbing !important; user-select: none !important; }
 .ui-name-input { min-width: 0; width: 100%; box-sizing: border-box; }
 [data-ui-name-symbol]::before { content: attr(data-ui-name-symbol); display: inline-block; margin-inline-end: .35em; font-size: var(--ui-name-size, 12px); line-height: 1.2; vertical-align: middle; }
 [data-ui-name-symbol=""]::before { display: none; }
@@ -1167,18 +1169,28 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .history-action-row small { opacity: .65; margin-left: 4px; }
 
 .contextual-master-controller { margin: 0; inset: auto; }
-.contextual-master-controller::backdrop,.ui-frame-viewport::backdrop { background: transparent; pointer-events: none; }
-.ui-frame-viewport > .frame-chrome,.ui-frame-viewport > .floating-window-content > .frame-chrome,.ui-frame-viewport > .ui-frame-root > .frame-chrome { display: block !important; }
-.ui-frame-viewport > .floating-window-content,.ui-frame-viewport > .ui-frame-root { width: 100% !important; height: 100% !important; left: 0 !important; top: 0 !important; overflow: auto; }
-.ui-inline-group.ui-frame-viewport { display: flex; flex-direction: column; }
-.ui-frame-viewport > .property-node-contents { min-height: 0; flex: 1; overflow: auto; }
+.contextual-master-controller::backdrop,[data-ui-viewport-original]::backdrop { background: transparent; pointer-events: none; }
+[data-ui-viewport-original] > .frame-chrome,[data-ui-viewport-original] > .floating-window-content > .frame-chrome,[data-ui-viewport-original] > .ui-frame-root > .frame-chrome { display: block !important; }
+[data-ui-viewport-original] > .floating-window-content,[data-ui-viewport-original] > .ui-frame-root { width: 100% !important; height: 100% !important; left: 0 !important; top: 0 !important; overflow: auto; }
+.ui-inline-group[data-ui-viewport-original] { display: flex; flex-direction: column; }
+[data-ui-viewport-original] > .property-node-contents { min-height: 0; flex: 1; overflow: auto; }
 .action-configuration { display: flex; flex-direction: column; gap: 5px; max-width: 240px; }
 .action-configuration label { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; margin: 0; font-size: 12px; }
 .action-configuration :is(button,input,select) { padding: 3px 5px; font-size: 12px; min-height: 0; }
 .resize-levels { display: flex; flex-direction: column; gap: 3px; }
 .resize-levels button[aria-pressed="true"] { border-color: var(--omnium-accent); box-shadow: inset 2px 0 var(--omnium-accent); }
 .frame-resize-preview { margin: 0; inset: auto; position: fixed; box-sizing: border-box; border: 1px dashed #60ffd0; background: #60ffd00c; pointer-events: none; z-index: 100001; }
-.ui-frame-viewport { background-color: var(--ui-viewport-background, transparent); padding: var(--ui-viewport-padding, 0); border: var(--ui-viewport-border, none); }
+[data-ui-viewport-original] { background-color: var(--ui-viewport-background, transparent); padding: var(--ui-viewport-padding, 0); border: var(--ui-viewport-border, none); }
+/* Projection survives Rnd inline-style/class refreshes; live dragging owns its
+   temporary geometry until release. Native control focus cues remain intact. */
+[data-ui-viewport-original]:not(.ui-live-drag) {
+  position: fixed !important; inset: auto !important;
+  left: var(--ui-viewport-left) !important; top: var(--ui-viewport-top) !important;
+  width: var(--ui-viewport-width) !important; height: var(--ui-viewport-height) !important;
+  min-width: 0 !important; min-height: 0 !important; max-width: none !important; max-height: none !important;
+  margin: 0 !important; transform: none !important; translate: none !important; rotate: none !important; scale: none !important;
+  z-index: 30000 !important; box-sizing: border-box !important;
+}
 .configuration-options { display: flex; flex-wrap: wrap; gap: 3px; }
 .configuration-options button { flex: 1 1 auto; white-space: nowrap; }
 .configuration-options button[aria-pressed="true"] { border-color: var(--omnium-accent); box-shadow: inset 2px 0 var(--omnium-accent); }

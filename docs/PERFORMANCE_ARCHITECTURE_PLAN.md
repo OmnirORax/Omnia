@@ -35,9 +35,12 @@ real hardware costs; architectural improvements cannot make unlimited work free.
 | Overload | UI decoration decreases its source allowance after sustained expensive/delayed frames, eventually freezing; MC reports reduced/paused animation. | This is a fallback, not an equivalent-quality speedup or a guarantee of 60fps on every device. |
 | Ranges | Shared conditional numeric metadata, consumer-specific UI glow/blur bounds, common mixed-selection interval, writes and rendering use the same bounds. | The full numeric catalog still needs device-specific visual/cost calibration. There is no universal meaningful maximum for all properties. |
 
-## 1. Capture the baseline before more performance fixes
+## 1. Optional profiling when explicitly requested
 
-Use the same saved fixture, browser, viewport, DPR and reference hardware for each
+Default delivery is code inspection → fix identified inefficiencies → user testing.
+Do not start or repeat profiling to prove sufficiency without an explicit request.
+The earlier focused trace authorization is historical, not standing permission.
+When profiling is requested, use the same saved fixture, browser, viewport, DPR and reference hardware for each
 comparison. Record the exact application SHA, settings and enabled features.
 Separate steady-state cost from the initial apply and from continuous editing.
 
@@ -51,8 +54,8 @@ paint/raster/compositing, effect CPU time, allocations/memory, target/DOM counts
 invalidation causes. Use browser traces for actual interaction claims; add low-cost,
 opt-in local counters/timings for subsystem attribution. Aggregate without React
 updates, storage writes or console output on each sample. Turn instrumentation off
-for final timing comparisons. The user authorized a focused local performance trace for this work; unrelated
-browser suites remain outside that request.
+for final timing comparisons. Any authorization is limited to the requested check;
+unrelated browser suites remain outside that request.
 
 Locate the dominant cost and its scaling first. Unit assertions that a cache is
 reused are useful regression checks, not proof of low frame time or low GPU cost.

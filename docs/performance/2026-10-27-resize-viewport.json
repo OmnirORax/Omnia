@@ -1,0 +1,337 @@
+{
+  "baseline": "b14603b08e898c490a31ab24f801522c19c5dd12",
+  "followup": "resize-projection-and-hover-followup-on-b14603b",
+  "method": "Isolated local Chromium, default fixture with effects off. Before/after body-click and collapse/reopen records use the same floating library fixture. Focused final check also adds a custom frame. Geometry/lifecycle regressions and layer allocation checks only; no end-to-end pickup latency claim.",
+  "cycles": {
+    "before": [
+      {
+        "step": "before",
+        "rect": {
+          "x": 683,
+          "y": 300,
+          "width": 420,
+          "height": 500
+        },
+        "popoverOpen": false,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "105"
+      },
+      {
+        "step": "resized",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "30000 !important"
+      },
+      {
+        "step": "body 0",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "111"
+      },
+      {
+        "step": "body 1",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "112"
+      },
+      {
+        "step": "body 2",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "113"
+      },
+      {
+        "step": "header 0",
+        "rect": {
+          "x": 485.625,
+          "y": 287.9375,
+          "width": 137.765625,
+          "height": 54.3125
+        },
+        "popoverOpen": false,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "105"
+      },
+      {
+        "step": "header 1",
+        "rect": {
+          "x": 987.25,
+          "y": 591.875,
+          "width": 420,
+          "height": 500
+        },
+        "popoverOpen": true,
+        "border": "3px solid rgb(255, 255, 255)",
+        "projectionClassPresent": false,
+        "layer": "30000 !important"
+      },
+      {
+        "step": "header 2",
+        "rect": {
+          "x": 485.625,
+          "y": 287.9375,
+          "width": 137.765625,
+          "height": 54.3125
+        },
+        "popoverOpen": false,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "115"
+      },
+      {
+        "step": "header 3",
+        "rect": {
+          "x": 987.25,
+          "y": 591.875,
+          "width": 420,
+          "height": 500
+        },
+        "popoverOpen": true,
+        "border": "3px solid rgb(255, 255, 255)",
+        "projectionClassPresent": false,
+        "layer": "30000 !important"
+      }
+    ],
+    "after": [
+      {
+        "step": "before",
+        "rect": {
+          "x": 683,
+          "y": 300,
+          "width": 420,
+          "height": 500
+        },
+        "popoverOpen": false,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "104"
+      },
+      {
+        "step": "resized",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "104"
+      },
+      {
+        "step": "body 0",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "110"
+      },
+      {
+        "step": "body 1",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "110"
+      },
+      {
+        "step": "body 2",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": true,
+        "layer": "110"
+      },
+      {
+        "step": "header 0",
+        "rect": {
+          "x": 675,
+          "y": 292,
+          "width": 137.765625,
+          "height": 54.3125
+        },
+        "popoverOpen": false,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "110"
+      },
+      {
+        "step": "header 1",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "110"
+      },
+      {
+        "step": "header 2",
+        "rect": {
+          "x": 675,
+          "y": 292,
+          "width": 137.765625,
+          "height": 54.3125
+        },
+        "popoverOpen": false,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "110"
+      },
+      {
+        "step": "header 3",
+        "rect": {
+          "x": 493.625,
+          "y": 295.9375,
+          "width": 864.375,
+          "height": 596.0625
+        },
+        "popoverOpen": true,
+        "border": "0px none color(srgb 0.906471 0.98 0.988824)",
+        "projectionClassPresent": false,
+        "layer": "110"
+      }
+    ]
+  },
+  "focusedCheck": {
+    "checks": {
+      "hoverRelease": true,
+      "focusRelease": true,
+      "noImplicitLock": true,
+      "bodyClicksStable": true,
+      "collapseExpandStable": true,
+      "originalGeometryRestored": true,
+      "noBrowserBorder": true,
+      "regrabsReuseLayer": true,
+      "customFrameCyclesStable": true,
+      "rightClickLocksOnce": true,
+      "leftClickResets": true,
+      "noPageErrors": true
+    },
+    "original": {
+      "rect": {
+        "x": 683,
+        "y": 300,
+        "width": 420,
+        "height": 500
+      },
+      "borderWidth": 0,
+      "projected": false,
+      "layer": "105",
+      "layout": {
+        "x": 683,
+        "y": 300,
+        "width": 420,
+        "height": 500,
+        "collapsed": false,
+        "pinned": false,
+        "closed": false,
+        "floatingOverflow": false
+      }
+    },
+    "full": {
+      "rect": {
+        "x": 8,
+        "y": 8,
+        "width": 1350,
+        "height": 884
+      },
+      "borderWidth": 0,
+      "projected": true,
+      "original": "{\"x\":683,\"y\":300,\"width\":420,\"height\":500}",
+      "layer": "105",
+      "layout": {
+        "x": 683,
+        "y": 300,
+        "width": 420,
+        "height": 500,
+        "collapsed": false,
+        "pinned": false,
+        "closed": false,
+        "floatingOverflow": false,
+        "viewport": {
+          "x": 8,
+          "y": 8,
+          "width": 1350,
+          "height": 884,
+          "full": true
+        }
+      }
+    },
+    "restored": {
+      "rect": {
+        "x": 683,
+        "y": 300,
+        "width": 420,
+        "height": 500
+      },
+      "borderWidth": 0,
+      "projected": false,
+      "layer": "111",
+      "layout": {
+        "x": 683,
+        "y": 300,
+        "width": 420,
+        "height": 500,
+        "collapsed": false,
+        "pinned": false,
+        "closed": false,
+        "floatingOverflow": false
+      }
+    },
+    "layers": [
+      "111",
+      "111",
+      "111"
+    ]
+  }
+}

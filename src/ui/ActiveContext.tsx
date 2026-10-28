@@ -5,6 +5,7 @@ import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
+import { uiPointerHeld } from "./pointerOwnership";
 
 const fieldSelector = 'input:not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]';
 const controllerSelector = '[data-context-controller],[data-ui-function^="context."],[data-shortcut-runner],omnium-appearance-recovery';
@@ -129,6 +130,9 @@ export function ActiveContextSystem() {
       publish(latest.current, stackAt(latest.current, element));
     };
     const key = (event: KeyboardEvent) => {
+      // The held UI gesture gets first refusal (notably Esc cancellation).
+      // Minimizing here can rerender the source before its drag is restored.
+      if (uiPointerHeld()) return;
       if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
       if (api.current.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
     };

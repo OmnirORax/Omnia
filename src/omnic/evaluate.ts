@@ -1,6 +1,7 @@
+import { snappedAngle } from "./rotation.ts";
 import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params, type RecipeResolver } from "./model.ts";
 import { defaultParams, definition } from "./registry.ts";
-export type StructuralNode = { id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number };
+export type StructuralNode = { id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; highlight?:{fraction:number;start:number;color:string;opacity:number} };
 export type Diagnostic = { code:string; message:string; target?:string; operation?:string };
 export type InterpretationResult = { operation:string; kind:"count"; value:number; scope:string[] };
 export type Evaluation = { results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
@@ -85,6 +86,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
         for(const root of arrays){
           const generation=generations.get(root.id)!;generation.params.count=count;
           for(let i=nodes.length-1;i>=0;i--)if(nodes[i].parent===root.id){
+            if(nodes[i].highlight)diagnostics.push({code:"inapplicable",message:"Count regeneration removed a highlight; place highlighting after count.",operation:prefix+op.id,target:nodes[i].id});
             if(!generations.has(nodes[i].componentId))diagnostics.push({code:"unresolved-link",message:"A connection was removed by regeneration; move it after the count operation or reconnect explicitly.",operation:prefix+op.id,target:nodes[i].id});
             byId.delete(nodes[i].id);nodes.splice(i,1);
           }
@@ -101,9 +103,26 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
           // Omnium knowledge relationship or a change of object identity.
         }
       };
+      const highlight=()=>{
+        const units=affected().filter(node=>node.kind!=="group");
+        const chosen=p.which==="all"?units:units.slice(num(p,"index",1)-1,num(p,"index",1));
+        if(!chosen.length) diagnostics.push({code:"inapplicable",message:"Highlight unit is outside this scope; change its index or targets.",operation:prefix+op.id});
+        for(const node of chosen){
+          if(node.kind==="line"&&num(p,"fraction",1)!==1){diagnostics.push({code:"inapplicable",message:"Fractional highlighting requires a disk or ring.",target:node.id,operation:prefix+op.id});continue;}
+          node.highlight={fraction:num(p,"fraction",1),start:num(p,"start"),color:String(p.color),opacity:num(p,"opacity",1)};
+        }
+      };
       const transform=(kind:"fill"|"size"|"rotate"|"oscillate",override?:Params)=>{
       const p={...defaultParams(definition(kind)!),...op.params,...override};
-      for(const node of affected()){
+      const targets=affected();
+      const primitives=targets.filter(node=>node.kind!=="group");
+      const center=kind==="rotate"&&p.pivot==="center"&&primitives.length?{
+        x:(Math.min(...primitives.map(n=>Math.min(n.x-n.radius,n.x2??n.x)))+Math.max(...primitives.map(n=>Math.max(n.x+n.radius,n.x2??n.x))))/2,
+        y:(Math.min(...primitives.map(n=>Math.min(n.y-n.radius,n.y2??n.y)))+Math.max(...primitives.map(n=>Math.max(n.y+n.radius,n.y2??n.y))))/2
+      }:offset;
+      const rotation=kind==="rotate"?snappedAngle(num(p,"angle"),num(p,"snap"),num(p,"snapOrigin"),String(p.stops??"")):0;
+      if(kind==="rotate"&&p.scope==="region"&&!primitives.some(n=>n.highlight))diagnostics.push({code:"inapplicable",message:"Region rotation needs a preceding highlight operation.",operation:prefix+op.id});
+      for(const node of targets){
         spend();
         if(kind==="fill"){
           node.fill=Boolean(p.fill);node.color=String(p.color);node.opacity=num(p,"opacity",1);
@@ -118,11 +137,15 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
           const generation=generations.get(node.id);if(generation)for(const key of ["radius","spacing","size","length","thickness"])if(typeof generation.params[key]==="number")generation.params[key]=num(generation.params,key)*factor;
         }
         if(kind==="rotate"){
-          const angle=rad(num(p,"angle")),cx=offset.x+num(p,"pivotX"),cy=offset.y+num(p,"pivotY"),cos=Math.cos(angle),sin=Math.sin(angle);
+          if(p.scope==="region"){if(node.highlight)node.highlight={...node.highlight,start:node.highlight.start+rotation};continue;}
+          if(p.scope==="each"&&node.kind==="group")continue;
+          const pivot=p.scope==="each"?{x:(node.x+(node.x2??node.x))/2,y:(node.y+(node.y2??node.y))/2}:p.pivot==="center"?center:offset;
+          const angle=rad(rotation),cx=pivot.x+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotX"):0),cy=pivot.y+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotY"):0),cos=Math.cos(angle),sin=Math.sin(angle);
           const rotate=(x:number,y:number)=>({x:cx+(x-cx)*cos-(y-cy)*sin,y:cy+(x-cx)*sin+(y-cy)*cos});
           const point=rotate(node.x,node.y);node.x=point.x;node.y=point.y;
           if(node.x2!==undefined&&node.y2!==undefined){const end=rotate(node.x2,node.y2);node.x2=end.x;node.y2=end.y;}
-          const generation=generations.get(node.id);if(generation)generation.params.angle=num(generation.params,"angle")+num(p,"angle");
+          const generation=generations.get(node.id);if(generation)generation.params.angle=num(generation.params,"angle")+rotation;
+          if(node.highlight)node.highlight={...node.highlight,start:node.highlight.start+rotation};
         }
         if(kind==="oscillate"){
           motion=true;
@@ -132,7 +155,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       }
       };
       if(!spec.apply)throw Error(`Operator has no evaluator: ${op.operator}`);
-      spec.apply({params:p,setCount,connect,transform,
+      spec.apply({params:p,setCount,connect,highlight,transform,
         select:()=>{selected=affected().map(n=>n.id);},
         extract:()=>{results.push({operation:prefix+op.id,kind:"count",value:affected().filter(n=>n.kind!=="group"&&generations.has(n.componentId)).length,scope:[...targets]});},
       });

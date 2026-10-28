@@ -151,3 +151,61 @@ test('existing Unicode canonical identities remain referenceable and generated s
   const selected=evaluateRecipe(validateRecipe(parent),id=>id===canonical?child:undefined);
   assert.deepEqual(selected.selection,[target]);assert.match(renderSVG(selected),/data-omnic-role=/);
 });
+
+test('Member and Part highlighting is authored geometry with unchanged unit identity/count',()=>{
+  const member=evaluateRecipe(createRecipe('member'));
+  assert.equal(member.properties.count,2);
+  assert.deepEqual(member.nodes.filter(n=>n.highlight).map(n=>n.id),['units:unit:0']);
+  const part=evaluateRecipe(createRecipe('part'));
+  assert.equal(part.properties.count,1);
+  assert.equal(part.nodes.find(n=>n.highlight).highlight.fraction,.5);
+  const svg=renderSVG(part);
+  assert.match(svg,/data-omnic-fraction="0.5"/);assert.match(svg,/<path /);
+  const source=createRecipe('member');source.operations[0].params.index=3;
+  const unavailable=evaluateRecipe(source);
+  assert.equal(unavailable.nodes.filter(n=>n.highlight).length,0);
+  assert.ok(unavailable.diagnostics.some(d=>d.message.includes('outside this scope')));
+});
+test('region, per-unit and group rotations have distinct pivots and saved snapping',()=>{
+  const source=createRecipe('part');source.components[0].params.x=25;
+  source.operations.push(op('turn','rotate',[],{angle:50,snap:30,scope:'region',pivot:'center'}));
+  const region=evaluateRecipe(source).nodes.find(n=>n.highlight);
+  almost(region.x,25);almost(region.highlight.start,60);
+  const pair=createRecipe('member');pair.operations.push(op('turn','rotate',[],{angle:90,scope:'each',pivot:'center'}));
+  const each=evaluateRecipe(pair).nodes.filter(n=>n.kind==='dot');
+  almost(each[0].x,-14);almost(each[0].y,0);almost(each[0].highlight.start,90);
+  pair.operations.at(-1).params.scope='group';
+  const group=evaluateRecipe(pair).nodes.filter(n=>n.kind==='dot');
+  almost(group[0].x,0);almost(group[0].y,-14);almost(group[1].y,14);
+  const restored=evaluateRecipe(validateRecipe(JSON.parse(JSON.stringify(pair))));
+  assert.deepEqual(restored,evaluateRecipe(pair));
+});
+test('angle grids and explicit angle choices reject invalid constraints and avoid stepping drift',async()=>{
+  const {snappedAngle,rotationStops}=await import('../src/omnic/rotation.ts');
+  assert.equal(snappedAngle(50,30),60);assert.equal(snappedAngle(50,30,5),65);
+  assert.equal(snappedAngle(50,30,0,'0,45,180'),45);
+  let angle=0;for(let i=0;i<100;i++)angle=snappedAngle(angle+.1,.1);
+  almost(angle,10);
+  assert.throws(()=>rotationStops('0,,90'));assert.throws(()=>rotationStops('Infinity'));
+  assert.throws(()=>validateRecipe(recipe([dot('a')],[op('bad','rotate',[],{stops:'bad'})])));
+});
+test('operation tools stamp explicit copies into new scopes without modifying shared definitions',async()=>{
+  const {operationTool,applyOperationTool,isOperationTool}=await import('../src/omnic/tools.ts');
+  const tool=operationTool(createRecipe('part').operations[0]);assert.ok(isOperationTool(tool));
+  const before=JSON.stringify(tool);
+  const target=createRecipe('chain');let count=0;
+  const stamped=applyOperationTool(target,tool,['chain'],()=>`copy-${++count}`);
+  assert.equal(stamped.operations.length,1);
+  assert.equal(evaluateRecipe(stamped).nodes.filter(n=>n.highlight).length,5);
+  assert.equal(JSON.stringify(tool),before);assert.equal(target.operations.length,0);
+  assert.throws(()=>applyOperationTool(target,createRecipe('part'),[],()=>`copy-${++count}`));
+});
+test('parameter applicability follows registered scope rules without discarding saved values',async()=>{
+  const {definition,applicableParameters}=await import('../src/omnic/registry.ts');
+  const rotate=definition('rotate');
+  const region=applicableParameters(rotate,{scope:'region',pivot:'custom',pivotX:20,snap:0});
+  assert.ok(!region.some(p=>p.key==='pivotX'||p.key==='pivot'||p.key==='snapOrigin'));
+  const group=applicableParameters(rotate,{scope:'group',pivot:'custom',snap:30});
+  assert.ok(group.some(p=>p.key==='pivotX'));assert.ok(group.some(p=>p.key==='snapOrigin'));
+  assert.ok(!applicableParameters(definition('highlight'),{which:'all',fraction:1}).some(p=>p.key==='index'||p.key==='start'));
+});

@@ -2,7 +2,7 @@ import { normalizeLiveSettings } from "./normalizeLiveSettings";
 import { sameValue } from "../valueEquality.ts";
 import type { ActionHistory, HistoryCategory } from "./actionHistory";
 import { useCallback, useRef, useState, type SetStateAction } from "react";
-import { validateUILayout, type UILayout } from "./layout";
+import { normalizeLiveUILayout, validateUILayout, type UILayout } from "./layout";
 import { normalizeSettings, type WorkspaceSettings } from "../workspaceActions";
 import {
   applySession,
@@ -64,7 +64,7 @@ export function useInterfaceState(
         // Normalization is an ingress boundary, not a reason to rebuild unrelated
         // appearance/layout branches on every ordinary button press.
         const checked = {
-          layout: next.layout === current.layout ? current.layout : validateUILayout(next.layout),
+          layout: normalizeLiveUILayout(next.layout, current.layout),
           settings: normalizeLiveSettings(next.settings, current.settings),
         };
         if (checked.layout === current.layout && checked.settings === current.settings) return;
