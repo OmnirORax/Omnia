@@ -153,6 +153,13 @@ bounds, halving depth, optional direction and position appear in sequence. A
 permanent toolbar or a full settings grid violates the user's explicit correction.
 See OMNIC_WORKBENCH_MODEL.md for the exact contract.
 
+Latest Omnic correction: the **entire Composer is a circular radar**. Editing is
+inside it; icon/category tools live on its rim. Do not retain a rectangular
+Composer containing a separate radial popup, and do not remove the interior in
+favor of a headless world-only controller. Atomnic toggles tools on the same
+recipe/canvas; both on/off modes keep the radar. Only requested setters open
+compact contextual controls. Preserve the library and reusable engine/data paths.
+
 # Responsiveness is a product requirement
 
 ## Optimization delivery baseline (all agents)

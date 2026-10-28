@@ -1,6 +1,23 @@
 import type { Evaluation, StructuralNode } from "./evaluate.ts";
 const esc=(text:string)=>text.replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]!);
 const number=(value:number)=>String(Math.round(value*10000)/10000);
+/** Renderer-node hit testing: use the same evaluated geometry, never raw recipe
+ * coordinates or inferred pixels. Only runs on a pick, not on pointer movement. */
+export function pickStructuralNode(nodes:readonly StructuralNode[],point:{x:number;y:number},role?:string) {
+  if(role){const exact=nodes.find(n=>n.id===role&&n.kind!=='group');if(exact)return exact;}
+  let best:StructuralNode|undefined,score=Infinity;
+  for(const node of nodes){
+    if(node.kind==='group')continue;
+    let distance=Math.hypot(point.x-node.x,point.y-node.y);
+    if(node.kind==='line'){
+      const dx=(node.x2??node.x)-node.x,dy=(node.y2??node.y)-node.y,length=dx*dx+dy*dy;
+      const t=length?Math.max(0,Math.min(1,((point.x-node.x)*dx+(point.y-node.y)*dy)/length)):0;
+      distance=Math.hypot(point.x-node.x-t*dx,point.y-node.y-t*dy);
+    }else distance=node.fill?Math.max(0,distance-node.radius):Math.abs(distance-node.radius);
+    if(distance<=Math.max(2,node.thickness/2)&&distance<score){best=node;score=distance;}
+  }
+  return best;
+}
 export function evaluationBounds(evaluation:Evaluation) {
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const node of evaluation.nodes){

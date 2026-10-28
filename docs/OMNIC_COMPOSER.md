@@ -1,5 +1,14 @@
 # Omnic composer: Stage 1 contract
 
+**Current presentation:** the whole Composer is the circular radar: editing inside,
+tools on its rim. It is not a rectangle containing a radial popup or a headless
+world-only editor. Atomnic on/off shares the same canvas and recipe. Normal
+generators/properties, reference versions, scope, presets, operation tools, motion
+and diagnostics have requested rim entry routes. Data/evaluation/history/library/
+live preview are retained. See the capability guide's current circular-composer
+walkthrough; later Stage 1 layout descriptions below are historical. Browser
+acceptance is pending. Zoom sync is paused following the user's correction.
+
 Current narrow UI change after restoring PR #36: remove the screenshot's Ordered
 operations frame/search/non-oscillation palette and list entries, plus the
 Interpretation frames editor and footer explanation. Keep Semantic oscillation and

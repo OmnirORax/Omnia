@@ -5,6 +5,31 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
+## Latest correction: the Composer itself is the radar
+
+The user rejected the rectangular Composer and clarified: "the whole omnic composer
+window should be the radial", "sort of like a dragonball radar", "inside it is the
+editing environment, while tools are on its rim". This supersedes the earlier
+radial-popup-within-the-Composer delivery. It also corrects the agent's unimplemented
+suggestion of removing the interior in favor of world-only editing. Keep the
+circular editing surface and live Omnium preview; put icon/category tools on its
+rim in BOTH Atomnic modes. Category navigation changes rim contents/icon size,
+never the canvas size. Text belongs in tooltips and requested editors/feedback.
+Atomnic toggles tools on the same recipe, not another environment. Library stays.
+
+The radar reuses the window identity/ownership/history, defaults to a 360px circle,
+and supports square resizing and shape-aware shared viewport projection. Old
+rectangular sizes project without deleting saved layout. Procedural geometry,
+component properties, references/pins, scope, presets, operation tools, motion and
+diagnostics have requested rim routes; generator setters are progressive. Recipes
+are not stripped or made read-only. The Stage 1 rectangular markup is internal
+historical scaffolding, not the app's active entry route.
+
+The Chrome/Omnium size-sync question is PAUSED: the user said "wait nvm" and
+redirected to this correction. Do not infer answers to its pending zoom/reference-
+depth questions. This change does not implement pixel-size synchronization.
+Model/type/build checks are distinct from user acceptance of the radar UI.
+
 ## Latest scope: narrow removal from the restored PR #36
 
 PR #37's broad composer cleanup was rejected and rolled back. The user now

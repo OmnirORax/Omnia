@@ -699,33 +699,57 @@
     },
     {
       "id": "omnic.compose",
-      "title": "Procedural generators and parameters",
-      "where": "Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer. New objects start in Atomnic; switch to Generator controls for this procedural walkthrough.",
-      "behavior": "New work opens a recoverable single-dot world draft without creating an object. Existing dot, ring, line, chain, radial, group and Reference generators use shared parameter controls. Valid changes preview directly in Omnium; canonical definitions change only on save.",
+      "title": "Circular Omnic composer: editing inside, tools on the rim",
+      "where": "Create → New Omnic object, or select an object → Open Omnic composer. Both open the same circular radar.",
+      "behavior": "The whole Composer is a circular radar, not a rectangular window containing a separate radial popup. Its interior is the editing surface; icon-only tool/category controls sit on its rim, with names/current values in tooltips. Tool navigation changes rim contents/icon size without resizing the canvas. Atomnic is an on/off tool toggle inside this same composition. Off exposes normal generator icons; on exposes lattice/dot tools. Existing definitions, save/copy/export/import, live world previews, history, recovery, library references and evaluator budgets are reused. Object categories expose components, progressive parameter editing, scope, presets, reusable operation tools, motion and diagnostics. Only requested controls open a compact contextual editor. The circular frame retains its stable ID, shared ownership/customization/resize/close behavior; old rectangular dimensions are projected rather than deleted.",
       "steps": [
         {
-          "do": "Open New Omnic object, choose a radial construction preset and change Count and Radius.",
-          "expect": "Both the composer and temporary world structure change; no canonical object is created until Save shared or Save copy."
+          "do": "Open an existing ring/line/radial recipe with Atomnic off, or create a new Omnic object.",
+          "expect": "The Composer itself is circular, with the composition inside and symbols on its rim. The old rectangular toolbar/side panels do not appear in either mode."
         },
         {
-          "do": "Add a group and add a generator inside it. Change its parameters.",
-          "expect": "Nested structure appears and can be edited without manually placing units."
+          "do": "Click a rim category, then its symbols; hover for names. Use the right-edge ⠿ button to hide/show tools. Right-click that button or press Esc to step back through categories.",
+          "expect": "The editing surface remains in place and at the same size. Only the rim changes; tool names/settings are tooltip-only until an editor is requested."
+        },
+        {
+          "do": "Toggle Atomnic off (⠒). Open Construction (✎), click Ring (○) or Line (━), then Object (◇) → selected properties (⚙). Adjust each field and advance with Next.",
+          "expect": "Geometry is added to the same recipe and previews in Omnium. Property setters appear one at a time; no old generator window returns. Toggling Atomnic back on preserves all geometry."
+        },
+        {
+          "do": "With Atomnic off, click a visible ring/line/generated unit, then use Object → selected properties; alternatively Object → Structure and right-click a component symbol.",
+          "expect": "The rendered role resolves its authored component, and the requested component parameters appear progressively. References edit their authored use, not a different canonical object."
+        },
+        {
+          "do": "Use Object → Name and save, or Import and export. Save shared/copy or export; use Close composer (× under Object → View and mode), then reopen.",
+          "expect": "Existing lifecycle actions work on this same recipe. Closing restores saved world rendering and preserves recoverable unsaved work; no data is erased by the presentation change."
+        },
+        {
+          "do": "Resize the radar or use shared frame resize W / Shift+W. Right-click its left-edge ◇ frame handle.",
+          "expect": "The frame remains circular; square custom sizes are retained, old rectangular sizes adapt to the circle, and shared frame commands remain available."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
       "sources": [
         "src/omnic/Composer.tsx",
-        "src/omnic/registry.ts"
+        "src/omnic/registry.ts",
+        "src/App.tsx",
+        "src/omnic/AtomnicEditor.tsx",
+        "src/ui/RadialMenu.tsx",
+        "src/ui/FloatingWindow.tsx",
+        "src/ui/FrameChrome.tsx",
+        "src/ui/frameShape.ts",
+        "src/ui/FrameResize.tsx",
+        "src/ui/FrameViewport.tsx"
       ],
       "actions": [
         "omnic.create",
         "omnic.open"
       ],
-      "limits": "Lattice-constrained mouse/sweep construction, exact MS regions and calibrated reading size remain planned. Existing procedural controls are implemented. Browser acceptance has not been recorded.",
-      "status": "Implemented; browser verification pending",
+      "limits": "The editing viewport is circular: saved contents outside its visible boundary are retained and can be brought into view using the existing View extent setting. Geometry is added/configured through existing generators; this does not implement arbitrary freehand ring/line drawing or full MS clipping. Direct Atomnic gestures still require authored dots without enabled geometry-transform operations. The separate library retains its normal window. Chrome/Omnium zoom synchronization is paused pending the user’s intended contract; this change does not claim matching pixel sizes.",
+      "status": "Implemented for review in the open PR; not merged to production",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "User reported the previous build still opened the old rectangular Composer. Circular-radar correction awaits user interaction testing; no unsolicited browser suite.",
+        "automated": "2026-10-28: model checks cover saved circular geometry projection, shared viewport fit and rendered ring/line/generated-role picks. Existing model, type/property/capability/backend and preview checks run for publication; these do not establish browser acceptance."
       },
       "related": [
         "omnic.worldPreview",
@@ -736,8 +760,8 @@
     {
       "id": "omnic.operations",
       "title": "Semantic oscillation entry and preserved operation data",
-      "where": "Composer → Semantic oscillation button. Existing oscillation rows remain selectable; Generator controls edits their parameters.",
-      "behavior": "The shown old Ordered operations frame, search and non-oscillation palette/list entries are removed. Semantic oscillation remains available, including adding/selecting/enabling/reordering/removing existing oscillation applications and their existing parameter/playback workflow. Underlying non-oscillation operations remain in recipes and continue evaluating; the separate Atomnic tools and other composer panels retain PR #36 behavior.",
+      "where": "Circular Omnic radar → Object (◇) → View and mode (⊙) → Semantic oscillation (≈); select its parameters and use Play/pause (▷).",
+      "behavior": "The shown old Ordered operations frame, search and non-oscillation palette/list entries are removed. Semantic oscillation remains available, including adding/selecting/enabling/reordering/removing existing oscillation applications and their existing parameter/playback workflow. Underlying non-oscillation operations remain in recipes and continue evaluating; the separate Atomnic tools and other composer panels retain PR #36 behavior. The active radar uses rim entries for adding/selecting motion and enabling/reordering/removing the selected operation; requested parameter controls are progressive. Old permanent list-row controls are no longer the active entry route.",
       "steps": [
         {
           "do": "Open the composer and inspect the former Ordered operations / Interpretation frames area.",
@@ -808,8 +832,8 @@
     {
       "id": "omnic.motion",
       "title": "Semantic oscillation and playback",
-      "where": "Composer → Semantic oscillation button; its selected operation parameters in Generator controls; toolbar Play/pause.",
-      "behavior": "Oscillation is evaluated at explicit time, paused by default. Only the active bounded composer preview animates; world nodes stay static.",
+      "where": "Circular Omnic radar → Object (◇) → View and mode (⊙) → Semantic oscillation (≈); select its parameters and use Play/pause (▷).",
+      "behavior": "Oscillation is evaluated at explicit time, paused by default. Only the active bounded composer preview animates; world nodes stay static. The active radar uses rim entries for adding/selecting motion and enabling/reordering/removing the selected operation; requested parameter controls are progressive. Old permanent list-row controls are no longer the active entry route.",
       "steps": [
         {
           "do": "Load Semantic oscillation, then press Play.",
@@ -840,8 +864,8 @@
     {
       "id": "omnic.atomnic",
       "title": "Atomnic radial tools, shared geometry and Free / Realistic modes",
-      "where": "Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image.",
-      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction. Content owns context-menu routing: function handlers are preserved by shared projections, and UI-customization fallbacks yield on construction surfaces and contextual controllers. Ungroup dissolves the nearest authored group of each selected atom; promoted children retain identity and world coordinates, with removed-group operation targets and frame scopes expanded to the same children. It is available only when selection belongs to an authored group. Rotation dragging now snaps to the magnitude of the retained step count, matching the Step interval; pointer movement supplies direction. Successive pointer angles accumulate across the turn seam, so a continuous drag can cross a full turn. Zero step holds orientation and negative step retains its signed direction for the one-shot Step action. The function list is now an icon-only radial menu centred at the pointer and clamped to the viewport. Category spheres occupy the outer rim; opening a category replaces the current ring with a smaller one. Hover tooltips expose names/current values. The centre ⠿ shows/hides tools; right-click it or use Esc to step back/close. Eraser, Free/Realistic and the Atomnic toggle sit just inside the rim. Object → Name and save contains the existing name field, Save shared and Save copy; Object → Import and export contains existing file actions; Object → View and mode includes playback/reset/view. In Atomnic, lifecycle buttons/name are projected here instead of a permanent toolbar. Atomnic is a toggle on one recipe, not a new environment: turning it off preserves all dots and reveals other generator controls. Rings/lines/arrays/references can coexist and remain rendered on re-entry; direct Atomnic gestures address authored dots. Free/Realistic switch uses the existing recipe settings: Free permits independent imprint/step and overlap, Realistic enforces touching centre slots and overlap rejection. Switching an incompatible Free construction into Realistic is rejected without changing it. A compact ⠿ button beside construction status opens/closes the menu. Category spheres stop shrinking at 24px for usable targets; only the active category ring is expanded, with six items per ring and excess controls in a ⋯ More tools category.",
+      "where": "Inside the circular Omnic radar: rim categories and inset Atomnic/Free-Realistic/Eraser controls. The active edited world image shares the same draft gestures.",
+      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction. Content owns context-menu routing: function handlers are preserved by shared projections, and UI-customization fallbacks yield on construction surfaces and contextual controllers. Ungroup dissolves the nearest authored group of each selected atom; promoted children retain identity and world coordinates, with removed-group operation targets and frame scopes expanded to the same children. It is available only when selection belongs to an authored group. Rotation dragging now snaps to the magnitude of the retained step count, matching the Step interval; pointer movement supplies direction. Successive pointer angles accumulate across the turn seam, so a continuous drag can cross a full turn. Zero step holds orientation and negative step retains its signed direction for the one-shot Step action. The function list is now an icon-only radial menu centred at the pointer and clamped to the viewport. Category spheres occupy the outer rim; opening a category replaces the current ring with a smaller one. Hover tooltips expose names/current values. The centre ⠿ shows/hides tools; right-click it or use Esc to step back/close. Eraser, Free/Realistic and the Atomnic toggle sit just inside the rim. Object → Name and save contains the existing name field, Save shared and Save copy; Object → Import and export contains existing file actions; Object → View and mode includes playback/reset/view. In Atomnic, lifecycle buttons/name are projected here instead of a permanent toolbar. Atomnic is a toggle on one recipe, not a new environment: turning it off preserves all dots and reveals other generator controls. Rings/lines/arrays/references can coexist and remain rendered on re-entry; direct Atomnic gestures address authored dots. Free/Realistic switch uses the existing recipe settings: Free permits independent imprint/step and overlap, Realistic enforces touching centre slots and overlap rejection. Switching an incompatible Free construction into Realistic is rejected without changing it. A compact ⠿ button beside construction status opens/closes the menu. Category spheres stop shrinking at 24px for usable targets; only the active category ring is expanded, with six items per ring and excess controls in a ⋯ More tools category. Correction: the entire active Composer is now the radar, with the editing canvas inside and tools attached to its rim. It stays circular with Atomnic off. The earlier standalone radial-popup-in-a-rectangular-window presentation is superseded. Category navigation changes the rim without shrinking or replacing the editing canvas.",
       "steps": [
         {
           "do": "Right-click the construction or edited world image. Hover the outer spheres, click a category, then a tool. Click the centre ⠿ twice; use Esc or centre right-click to step outward.",
@@ -864,12 +888,12 @@
           "expect": "Only the composer function/settings flow appears. UI-edit and selected-UI menus do not open over it. Ordinary frame headers and unrelated controls still support UI customization."
         },
         {
-          "do": "Create a new Omnic object. Move the pointer over the local square, click a neighboring slot, then hold and sweep.",
+          "do": "Create a new Omnic object. Move the pointer over the circular editing surface, click a neighboring slot, then hold and sweep.",
           "expect": "A ghost follows legal slots; individual units are placed on a non-overlapping triangular lattice. The world updates before Save shared."
         },
         {
           "do": "Open New Omnic object; inspect the construction, then right-click a unit. Left-click Select; Shift-click another unit, then G and drag. Right-click → Group; right-click Select to change Scope to Macro.",
-          "expect": "No function toolbar is shown initially. Right-click shows only function entries with retained values; Select configuration shows only Scope. Grouped units then move together under Macro."
+          "expect": "Only icon categories are shown on the rim initially. Right-click shows rim tool categories with retained values in tooltips; Select configuration shows only Scope. Grouped units then move together under Macro."
         },
         {
           "do": "Place several units. Right-click → Erase (or E); sweep across separated units, then release. Undo once. Repeat and press Esc before releasing. Right-click Erase to configure Scope only.",
@@ -929,7 +953,9 @@
         "src/ui/radialMenu.css",
         "src/ui/ContextualMasterController.tsx",
         "src/ui/UIField.tsx",
-        "src/omnic/Composer.tsx"
+        "src/omnic/Composer.tsx",
+        "src/ui/frameShape.ts",
+        "src/ui/FloatingWindow.tsx"
       ],
       "actions": [
         "atomnic.draw",
@@ -955,10 +981,10 @@
       "gestures": [
         "atomnic.pointer"
       ],
-      "limits": "128 components/groups and 128 operations; coordinates ±300. Direct gestures address authored dots/groups with highlights; other generators coexist as rendered geometry edited through their generator controls. Enabled non-highlight geometry operators still block direct gestures to avoid editing unevaluated coordinates; file/mode radial controls remain available. Macro gesture scope currently consists of authored dot members, not arbitrary generated geometry. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending. Erase removes complete authored units/groups; it does not carve an intradot region. Explicit operator targets that disappear remain unresolved rather than being silently reassigned. Ungroup removes one nearest authored level per selected atom per invocation; it does not recursively flatten unrelated nested groups. Coordinate limits still apply when parent offsets are promoted. Pointer rotation must be sampled within less than half a turn between events to infer its direction. Radial footprint shrinks from 160px to 100px to 88px, with 32/28/24px spheres; only one category ring is expanded at a time. Tool labels are tooltip-only; requested value/name editors necessarily show their text values. Existing lower composer sections remain available; this does not restore the rejected broad removal.",
+      "limits": "128 components/groups and 128 operations; coordinates ±300. Direct gestures address authored dots/groups with highlights; other generators coexist as rendered geometry edited through their generator controls. Enabled non-highlight geometry operators still block direct gestures to avoid editing unevaluated coordinates; file/mode radial controls remain available. Macro gesture scope currently consists of authored dot members, not arbitrary generated geometry. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending. Erase removes complete authored units/groups; it does not carve an intradot region. Explicit operator targets that disappear remain unresolved rather than being silently reassigned. Ungroup removes one nearest authored level per selected atom per invocation; it does not recursively flatten unrelated nested groups. Coordinate limits still apply when parent offsets are promoted. Pointer rotation must be sampled within less than half a turn between events to infer its direction. The radar defaults to 360px and resizes as a circle; rim icons use 32/28/24px spheres while the canvas stays fixed during category navigation. Tool labels are tooltip-only; requested value/name editors necessarily show their text values. Earlier procedural functions are retained through requested radar controls rather than permanent lower panels.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
-        "browser": "Icon-only radial hierarchy, compact field projection, shared toggle/mixed geometry and Free/Realistic discoverability await user interaction acceptance. No unsolicited browser suite.",
+        "browser": "User clarified that the whole Composer must be a circular radar with editing inside and tools on its rim. This correction awaits user browser acceptance; no browser suite run.",
         "automated": "2026-10-28: shared radial grouping/geometry and mixed-geometry/profile model checks, plus required existing model/type/property/backend/preview checks run for publication. Browser acceptance remains separate."
       },
       "related": [
@@ -1024,7 +1050,7 @@
     {
       "id": "omnic.saving",
       "title": "Shared save, independent copy, drafts and recipe import/export",
-      "where": "Omnic composer toolbar when Atomnic is off; with Atomnic on, right-click → Object (◇) → Name and save (▣), or Import and export (⇅).",
+      "where": "Circular Omnic radar → Object (◇) → Name and save (▣), or Import and export (⇅), in either Atomnic mode.",
       "behavior": "Draft changes preview in the world before saving. Save shared creates unsaved work or updates an existing canonical object; Save copy deliberately creates a new identity. Close restores saved visuals while preserving draft recovery and shared history. Exports retain the existing dependency contracts. Atomnic projects the same existing name field/save/copy/file actions into its radial Object categories. No parallel name store or save implementation is introduced.",
       "steps": [
         {

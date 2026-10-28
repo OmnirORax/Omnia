@@ -14,6 +14,7 @@ import { fitDockRect } from "./docking";
 import { keepFloatingHandleVisible } from "./positioning";
 import { cursorPosition } from "./cursorPosition";
 import { useWindowLayer } from "./useWindowLayer";
+import { circularFrameExtent } from './frameShape';
 export { nextWindowLayer } from "./layers";
 export function FloatingWindow({
   id,
@@ -35,6 +36,7 @@ export function FloatingWindow({
   className = "",
   modal = false,
   onInteract,
+  shape = 'rectangle',
 }: {
   id: string;
   title: string;
@@ -59,6 +61,7 @@ export function FloatingWindow({
   className?: string;
   modal?: boolean;
   onInteract?: () => void;
+  shape?:'rectangle'|'circle';
 }) {
   const ui = useUITracked(ui=>residentRenderSlice(ui,`window:${id}`));
   const { ref, bounds } = useFrameBounds();
@@ -74,13 +77,17 @@ export function FloatingWindow({
   const key = `window:${id}`,
     owner = ownerOf(ui.layout, key),
     host = useDockHost(key);
-  const state = fitWindow(saved, window.innerWidth, window.innerHeight);
+  const circleSize=circularFrameExtent({width:Math.min(saved.width,innerWidth-16),height:Math.min(saved.height,innerHeight-16)},saved,initial);
+  const state = fitWindow(shape==='circle'&&!saved.collapsed?{...saved,width:circleSize,height:circleSize}:saved, window.innerWidth, window.innerHeight);
   const workspace = useDockWorkspace();
   const viewport = { x: 8, y: 8, width: innerWidth-16, height: innerHeight-16 };
   const available = !owner && !openAtCursor && workspace.active ? workspace.floating : viewport;
   const desired = state.collapsed ? { x: saved.x+bounds.x, y: saved.y+bounds.y, width: bounds.width, height: bounds.height } : state;
   const visible = useDockResident(key, saved.floatingOverflow ? keepFloatingHandleVisible(desired, viewport, saved.chrome?.handle) : fitDockRect(desired, available), !saved.closed && !owner && !openAtCursor, saved.floatingOverflow);
   const dockFill = !!host?.classList.contains("ui-dock-fill");
+  // Legacy rectangular geometry projects into the new circle without deleting
+  // saved placement/customization. Square user resizes retain their chosen size.
+  const diameter=Math.min(circularFrameExtent(visible,saved,initial),...(owner&&host?[host.clientWidth,host.clientHeight].filter(size=>size>0):[]));
   const stacked = !dockFill && !!owner && getContainer(ui.layout, owner)?.layoutMode === "stacked";
   useLayoutEffect(() => {
     ui.defaults.set(id, initial);
@@ -105,11 +112,13 @@ export function FloatingWindow({
     const point = cursorPosition();
     ui.update(layout => {
       const current = layout.windows[id] ?? initial;
+      const side=circularFrameExtent({width:Math.min(current.width,innerWidth-16),height:Math.min(current.height,innerHeight-16)},current,initial);
+      const atPointer=fitWindow({...current,...point,...(shape==='circle'?{width:side,height:side}:{}),collapsed:false,closed:false,floatingOverflow:false},innerWidth,innerHeight);
       return {
         ...layout,
         windows: {
           ...layout.windows,
-          [id]: fitWindow({ ...current, ...point, collapsed: false, closed: false, floatingOverflow: false }, innerWidth, innerHeight),
+          [id]: shape==='circle'?{...current,x:atPointer.x,y:atPointer.y,collapsed:false,closed:false,floatingOverflow:false}:atPointer,
         },
       };
     });
@@ -167,24 +176,25 @@ export function FloatingWindow({
         <div className="floating-backdrop" style={{ zIndex: z - 1 }} onClick={onClose} />
       )}
       <Rnd
+        data-ui-frame-shape={shape}
         data-ui-free-placement={openAtCursor ? "viewport" : "workspace"}
-        className={`floating-window ${state.collapsed ? "is-collapsed" : ""} ${stacked ? "ui-stacked-window" : ""} ${owner ? "docked-window" : ""} ${className}`}
+        className={`floating-window ${shape==='circle'?'floating-window-circle ':''}${state.collapsed ? "is-collapsed" : ""} ${stacked ? "ui-stacked-window" : ""} ${owner ? "docked-window" : ""} ${className}`}
         position={
           owner
             ? { x: 0, y: 0 }
             : { x: visible.x, y: visible.y }
         }
         size={{
-          width: stacked ? "100%" : state.collapsed
+          width: shape==='circle'&&!state.collapsed?diameter:stacked ? "100%" : state.collapsed
             ? visible.width
             : owner
               ? Math.min(state.width, host?.clientWidth ?? state.width)
               : visible.width,
-          height: stacked ? "auto" : owner ? state.collapsed ? bounds.height : state.height : visible.height,
+          height: shape==='circle'&&!state.collapsed?diameter:stacked ? "auto" : owner ? state.collapsed ? bounds.height : state.height : visible.height,
         }}
         style={{ position: stacked ? "relative" : owner ? "absolute" : "fixed", zIndex: z }}
-        minWidth={stacked ? 0 : Math.min(state.collapsed ? 40 : 240, visible.width)}
-        minHeight={stacked ? 0 : Math.min(state.collapsed ? 44 : 120, visible.height)}
+        minWidth={stacked ? 0 : Math.min(state.collapsed ? 40 : 240, shape==='circle'?diameter:visible.width)}
+        minHeight={stacked ? 0 : Math.min(state.collapsed ? 44 : 120, shape==='circle'?diameter:visible.height)}
         maxWidth={saved.floatingOverflow && !owner ? undefined : available.width}
         maxHeight={stacked || saved.floatingOverflow && !owner ? undefined : available.height}
         dragHandleClassName="floating-title"
@@ -193,6 +203,7 @@ export function FloatingWindow({
         enableResizing={!state.viewport && !dockFill && !stacked && ui.canMove(key) && !state.collapsed}
         dragGrid={[8, 8]}
         resizeGrid={[8, 8]}
+        lockAspectRatio={shape==='circle'&&!state.collapsed}
         onMouseDown={(event) => {
           // Portal events also bubble through their React owner. A child editor
           // must not raise the library/inspector that opened it above itself.
@@ -208,6 +219,7 @@ export function FloatingWindow({
         resizeHandleComponent={{
           bottomRight: <span className="window-resize-grip" aria-label={`Resize ${label}`} />,
         }}
+        resizeHandleStyles={shape==='circle'?{bottomRight:{right:'14.645%',bottom:'14.645%'}}:undefined}
       >
         <div
           ref={ref}
@@ -245,6 +257,8 @@ export function FloatingWindow({
                 : undefined
             }
             closeLabel={closeLabel}
+            symbol={shape==='circle'?'◇':undefined}
+            tooltip={shape==='circle'?label:undefined}
           />
           <div className="floating-body" hidden={state.collapsed}>
             <UIHomeContext.Provider value={key}>

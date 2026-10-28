@@ -2275,8 +2275,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
         <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
       </FloatingWindow>}
-      {omnicObject && <FloatingWindow id="omnic-composer" title={`Omnic · ${omnicObject.label || "object"}`} width={600} height={650} onClose={() => setOmnicEditorId(null)}>
-        <Suspense fallback={<p>Opening Omnic composer…</p>}><OmnicComposer key={`${workspace.id}:${omnicObject.id}`} workspaceId={workspace.id} presetIds={workspace.library.items.filter(item=>item.preset).map(item=>item.entityId)} entity={omnicObject} objects={document.entities} history={actionHistory} onSave={saveOmnic}
+      {omnicObject && <FloatingWindow id="omnic-composer" shape="circle" title={`Omnic · ${omnicObject.label || "object"}`} width={360} height={360} onClose={() => setOmnicEditorId(null)}>
+        <Suspense fallback={null}><OmnicComposer radar key={`${workspace.id}:${omnicObject.id}`} workspaceId={workspace.id} presetIds={workspace.library.items.filter(item=>item.preset).map(item=>item.entityId)} entity={omnicObject} objects={document.entities} history={actionHistory} onSave={saveOmnic}
           isNew={omnicIsNew} initialRecipe={omnicIsNew ? newOmnicDraft() : undefined} onPreview={previewOmnic}
           onCopy={(recipe,label) => createOmnicObject(recipe,label,omnicIsNew ? undefined : omnicObject.id, omnicIsNew ? omnicNewDraft! : undefined)} onClose={() => setOmnicEditorId(null)} /></Suspense>
       </FloatingWindow>}

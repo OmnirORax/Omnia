@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { radialTree, radialSlot, radialDimensions } from '../src/ui/radialMenuModel.ts';
+import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
   validateUILayout,
@@ -12,6 +13,16 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test('circular frame projection adapts old rectangles and preserves intentional resizes',()=>{
+  const initial={width:360,height:360},legacy={width:600,height:650};
+  assert.equal(circularFrameExtent(legacy,legacy,initial),360);
+  assert.equal(circularFrameExtent({width:480,height:480},{width:480,height:480},initial),480);
+  assert.equal(circularFrameExtent({width:300,height:240},legacy,initial),240);
+  assert.deepEqual(legacy,{width:600,height:650},'projection does not overwrite stored layout');
+  const viewport={x:10,y:20,width:600,height:400};
+  assert.deepEqual(fitFrameShape(viewport,'circle'),{x:110,y:20,width:400,height:400});
+  assert.equal(fitFrameShape(viewport,'rectangle'),viewport,'ordinary frame projections are unchanged');
+});
 test('radial projections group shared categories without changing leaf identities or controls',()=>{
   const save={id:'save',label:'Save',symbol:'▣'},file={id:'file',label:'Files',symbol:'⇅'};
   const action={run:'existing-owner'},field={value:'existing-name'};

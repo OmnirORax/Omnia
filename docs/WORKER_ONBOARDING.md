@@ -598,6 +598,14 @@ existing history owners; bound evaluation and animate only the active composer
 preview. See [OMNIC_COMPOSER.md](OMNIC_COMPOSER.md) for scope, entry paths and deferred
 work. Do not mark acceptance complete before the implementation is verified.
 
+Latest presentation: the whole Composer is a circular radar, with its editing
+surface inside and tools on the rim. Both Atomnic modes share it. This replaces
+the rectangular Composer plus radial popup; it does not remove the editing
+surface or create a separate environment. Procedural controls are requested from
+the rim, with progressive setters. Read OMNIC_WORKBENCH_MODEL.md's latest correction
+before using the historical Stage 1 layout descriptions. Browser/Omnium pixel-size
+synchronization is paused pending the user's next direction.
+
 ## Omnic workspace library (Stage 2)
 
 The first world-workbench slice adds temporary unsaved construction and a transient

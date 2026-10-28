@@ -29,6 +29,7 @@ export function FrameChrome({
   legacyHandleId,
   selected = false,
   onToggle,
+  symbol,
 }: {
   container: string;
   title: string;
@@ -46,6 +47,8 @@ export function FrameChrome({
   legacyHandleId?: string;
   selected?: boolean;
   onToggle?: (event: MouseEvent<HTMLButtonElement>) => void;
+  /** A compact default; saved custom chrome remains authoritative. */
+  symbol?:string;
 }) {
   const [title, renameLabel] = useUILabel(container, defaultTitle);
   const onRename = renameOriginal
@@ -56,7 +59,7 @@ export function FrameChrome({
     legacyHandleId ? `function:${legacyHandleId}` : undefined,
   );
   const ui = useUITracked(ui=>residentRenderSlice(ui,container)),
-    style = state.chrome?.style ?? { mode: "text", geometry: "circle" },
+    style = state.chrome?.style ?? (symbol?{mode:'icon',geometry:'circle',character:symbol}:{ mode: "text", geometry: "circle" }),
     asset = ui.layout.assets.find((a) => a.id === style.assetId);
   const close = onClose ?? (() => ui.update(layout => closeContainer({
     ...layout, windows: { ...Object.fromEntries(ui.defaults), ...layout.windows },

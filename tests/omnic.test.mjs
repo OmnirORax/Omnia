@@ -4,13 +4,23 @@ import { validateRecipe, validateRecipeReferences, LIMITS } from '../src/omnic/m
 import { GENERATORS, OPERATORS } from '../src/omnic/registry.ts';
 import { createRecipe, PRESETS } from '../src/omnic/presets.ts';
 import { evaluateRecipe } from '../src/omnic/evaluate.ts';
-import { renderSVG, evaluationBounds } from '../src/omnic/svg.ts';
+import { renderSVG, evaluationBounds, pickStructuralNode } from '../src/omnic/svg.ts';
 import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings, atomnicEditable, addAtom, legalAtoms } from '../src/omnic/atomnic.ts';
 import { snapTurn, turnDelta } from '../src/properties/halving.ts';
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
 const almost=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+test('normal radar picks follow rendered ring contours, complete line segments and generated roles',()=>{
+  const result=evaluateRecipe(recipe([dot('unit'),{id:'rim',generator:'ring',params:{radius:30}},
+    {id:'line',generator:'line',params:{y:40,length:80}},
+    {id:'array',generator:'chain',params:{count:3,y:-40}}]));
+  assert.equal(pickStructuralNode(result.nodes,{x:30,y:0}).componentId,'rim');
+  assert.equal(pickStructuralNode(result.nodes,{x:0,y:15}),undefined,'empty ring interior does not select its boundary');
+  assert.equal(pickStructuralNode(result.nodes,{x:37,y:40}).componentId,'line');
+  assert.equal(pickStructuralNode(result.nodes,{x:0,y:0}).componentId,'unit');
+  assert.equal(pickStructuralNode(result.nodes,{x:300,y:300},'array:unit:1').componentId,'array','local SVG roles resolve their actual generator');
+});
 
 test('Atomnic toggles tools on one recipe and permits other geometry alongside authored dots',()=>{
   const source=validateRecipe({...recipe([dot('a'),{id:'boundary',generator:'ring',params:{radius:30}},

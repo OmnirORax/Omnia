@@ -1256,3 +1256,12 @@ html[data-ui-hide-names] button[data-ui-caption]:not([data-ui-native-icon])::aft
 .progressive-configuration label{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
 .progressive-navigation{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
 .progressive-configuration .halving-picker{flex-wrap:wrap}
+
+/* Shape presentation belongs to the shared frame, independent of its payload. */
+.floating-window-circle:not(.is-collapsed)>.floating-window-content{position:relative;border:0;border-radius:50%;background:transparent;box-shadow:none}
+.floating-window-circle:not(.is-collapsed){clip-path:circle(50%)}
+.floating-window-circle:not(.is-collapsed)>.floating-window-content>.floating-body{padding:0;overflow:visible;flex:1;display:grid;place-items:stretch}
+.floating-window-circle:not(.is-collapsed)>.floating-window-content>.frame-chrome{position:absolute;left:0;top:50%;width:24px;height:24px;min-height:0;margin:0;transform:translateY(-50%);z-index:2}
+.floating-window-circle:not(.is-collapsed)>.floating-window-content>.frame-chrome .ui-frame-handle{width:24px;height:24px;min-width:0;min-height:0;padding:0}
+.floating-window-circle:not(.is-collapsed)>.floating-window-content>.frame-chrome .ui-frame-handle>button{width:24px;height:24px;padding:0;font-size:15px}
+.floating-window-circle:not(.is-collapsed)>.floating-window-content>.floating-body>.ui-dock-area{position:absolute;inset:0;margin:0;border:0;padding:0;pointer-events:none}
