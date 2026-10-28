@@ -31,6 +31,11 @@ yet a complete meaning, read-order, inheritance or referent-continuity system.
 Do not freeze tentative/obsolete source notes into grammar or duplicate shared
 infrastructure. Existing stage contracts still define delivery scope.
 
+Omnic reading currently has a fixed, maximally zoomed-out size independent of
+Omnium content zoom: it is the meta/reading layer. The source's local/global
+enlargement guidance primarily concerns Omnium content. Exact integration remains
+open to actual mapping use; see the audit's reading-size clarification.
+
 The interface itself is user-arrangeable and customizable. A newly added feature
 should inherit shared behavior rather than arrive as a fixed, isolated widget.
 Stable identity, stored values and user customization must survive rearrangement,

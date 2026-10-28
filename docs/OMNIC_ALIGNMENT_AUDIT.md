@@ -41,8 +41,9 @@ assumptions before changing saved data or UI.
   itself establish a settled language canon.
 - Actual shared structure supplies derived filtering. Manual organization can
   remain, but must not replace structural discovery with repeated tagging.
-- Meaningful detail, zoom, salience and substrate interact. Current renderer
-  pixels/coordinates do not define the final language.
+- Meaningful detail, zoom, salience and substrate interact. The user's clarification
+  below separates Omnium content zoom from fixed-size Omnic reading; current
+  renderer pixels/coordinates do not define the final language.
 - Referential continuity/path matters. A technical ID locates stored work; it
   does not implement semantic identity through change.
 
@@ -63,7 +64,21 @@ not new browser acceptance results.
 | Discovery | `libraryIndex.ts` derives count, generators, operators, boundary/fill/motion and numeric facts, using dependency-aware cached/batched evaluation. | Retain. Extend facts from shared semantic evaluation; active frames, bindings, read order and derivation structure are not current indexed facts. |
 | Expansion | Recipes, references and frozen revisions reconstruct supported structures. | Retain. Geometric reconstruction is not complete meaning-preserving expansion. A fixed expansion does not require replacing the agreed live-reference default with mandatory pins. |
 | Identity/history | Stable IDs, revisions and Undo track stored work. | Retain infrastructure; source/continuity/reference-thread semantics are absent. Do not replace all IDs or claim they solve that language problem. |
-| Rendering/scale | `svg.ts`, `presentation.ts` are derived adapters; scene output is static/budgeted. | Retain. Semantic zoom/detail selection and motion-as-meaning remain incomplete. Simplified output must not pretend to preserve an entire reading. |
+| Rendering/scale | `svg.ts`, `presentation.ts` are derived adapters; scene output is static/budgeted. | Retain adapters/budgets. Omnium content zoom and fixed-size Omnic reading must be distinguished; the current renderer is not proof that separation is implemented. Motion-as-meaning remains incomplete. |
+
+## Reading size versus content zoom
+
+User clarification, 2026-10-28: the local-enlargement versus global-detail guidance
+in chapters 3–3.2 primarily concerns Omnium itself. Omnic acts as the meta/reading
+layer and stays at a fixed, maximally zoomed-out reading size, unaffected when
+zooming into Omnium content. Do not automatically scale its reading size with the
+content camera or apply the content's semantic zoom rules to glyphs.
+
+This is the current design direction, not a claim about implemented rendering.
+The exact Omnic–Omnium relationship and integration will emerge through using
+Omnic to map Omnium. Do not prematurely fix pixel dimensions, anchoring or a
+permanent separation of their underlying models. The source upload remains
+verbatim; this clarification takes precedence over the audit's earlier reading.
 
 ## Constraints for further implementation
 
