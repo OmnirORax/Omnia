@@ -7,6 +7,24 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
+Latest interaction clarification: right-click a target/pattern to discover its
+actual writable DOFs, and show the corresponding freedom adjusters directly as
+buttons around ONE circle. This is not a category tree or a row. Direction being
+writable supplies Rotation; position supplies Move where the executor applies.
+Left-click uses retained action settings; right-click the adjuster opens its
+snap/halving configuration progressively. Start with this slice and let the user
+test it before extending the design. General/file tools are not target DOFs.
+
+Discovery now reads registered writable generator inputs and their intersection
+for multi-target selections. Existing action metadata declares which properties
+its executor adjusts; generic properties use the shared editor and target-scoped
+recipe setter. Realistic atom radius is a substrate setting, so target size is
+exposed in Free. Scalar editor intervals/steps are retained in one shared transient
+Composer editing-session scope, independently of actual values; movement/rotation
+retain existing recipe settings. This is adapter capability discovery, not full
+MS/pixel inference or discovery of arbitrary variables. Operator-only DOFs and
+additional transform executors remain future adapter work.
+
 The user rejected the rectangular Composer and clarified: "the whole omnic composer
 window should be the radial", "sort of like a dragonball radar", "inside it is the
 editing environment, while tools are on its rim". This supersedes the earlier

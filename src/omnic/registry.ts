@@ -2,7 +2,7 @@ import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = { key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
+export type Parameter = { freedom?:{label:string;symbol:string}; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
@@ -14,7 +14,7 @@ const count = number("count","omnic.count","Count",6,1,64,1,[1,2,3,4,6,8,12,16,3
 const radius = number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]);
 const size = number("size","omnic.extent","Unit size",6,.5,100,.5,[1,2,4,8,16,32,64]);
 const fill: Parameter = {key:"fill",property:"omnic.fill",label:"Fill",kind:"toggle",initial:true};
-const angle = number("angle","omnic.angle","Angle",0,-1080,1080,1,[-180,-90,0,90,180,360]);
+const angle:Parameter = {...number("angle","omnic.angle","Angle",0,-1080,1080,1,[-180,-90,0,90,180,360]),freedom:{label:"Rotation",symbol:"🗘"}};
 const thickness = number("thickness","omnic.thickness","Stroke width",2,.25,12,.25);
 const color: Parameter = {key:"color",property:"color",label:"Color",kind:"color",initial:"#60ddec"};
 const opacity = number("opacity","opacity","Opacity",1,0,1,.05);

@@ -7,10 +7,25 @@ import { evaluateRecipe } from '../src/omnic/evaluate.ts';
 import { renderSVG, evaluationBounds, pickStructuralNode } from '../src/omnic/svg.ts';
 import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings, atomnicEditable, addAtom, legalAtoms } from '../src/omnic/atomnic.ts';
 import { snapTurn, turnDelta } from '../src/properties/halving.ts';
+import { targetDegrees, targetDegreeValue, writeTargetDegree } from '../src/omnic/targetDegrees.ts';
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
 const almost=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+test('target freedoms derive from writable generator parameters and applicable operation adapters',()=>{
+  const source=validateRecipe({...recipe([dot('a'),dot('b',20),{id:'rim',generator:'ring',params:{radius:30}}]),atomnic:{mode:'free'}});
+  const adapters=[{id:'move',label:'Move',adjusts:['omnic.coordinate.x','omnic.coordinate.y']},{id:'rotate',label:'Rotate',adjusts:['omnic.angle']}];
+  const dots=targetDegrees(source,['a','b'],adapters);
+  assert.ok(dots.some(d=>d.action==='rotate'));assert.ok(dots.some(d=>d.action==='move'));
+  assert.equal(dots.filter(d=>d.properties.includes('omnic.coordinate.x')||d.properties.includes('omnic.coordinate.y')).length,1);
+  assert.ok(!targetDegrees(source,['rim'],adapters).some(d=>d.action==='rotate'),'no invented rotation when its writable direction is absent');
+  assert.ok(!targetDegrees(source,['a','rim'],adapters).some(d=>d.properties.includes('omnic.angle')),'mixed selection exposes only common freedoms');
+  assert.ok(!targetDegrees(source,['a'],adapters,['omnic.extent']).some(d=>d.properties.includes('omnic.extent')),'profile removes fixed target freedoms');
+  const color=dots.find(d=>d.properties[0]==='color'),next=writeTargetDegree(source,color,'#ff0000');
+  assert.equal(targetDegreeValue(next,color),'#ff0000');assert.equal(next.components[1].params.color,'#ff0000');
+  assert.equal(next.components[2].params.color,source.components[2].params.color,'unselected targets are unchanged');
+  assert.throws(()=>writeTargetDegree({...source,components:source.components.slice(1)},color,'#ffffff'),/no longer exists/,'stale identities never widen the scope');
+});
 test('normal radar picks follow rendered ring contours, complete line segments and generated roles',()=>{
   const result=evaluateRecipe(recipe([dot('unit'),{id:'rim',generator:'ring',params:{radius:30}},
     {id:'line',generator:'line',params:{y:40,length:80}},

@@ -160,6 +160,12 @@ favor of a headless world-only controller. Atomnic toggles tools on the same
 recipe/canvas; both on/off modes keep the radar. Only requested setters open
 compact contextual controls. Preserve the library and reusable engine/data paths.
 
+Target right-click specifically discovers writable DOFs from the active target's
+registered adapters. Present the corresponding adjusters directly around one
+circle, without category/file actions. Left-click uses retained settings;
+right-click that adjuster configures its snaps/halving progressively. Do not
+replace this with another static inventory of tools.
+
 # Responsiveness is a product requirement
 
 ## Optimization delivery baseline (all agents)

@@ -23,6 +23,17 @@ another identity/value owner. Symbol fields open compact contextual editors.
 presentation is replaced by a projection. Names/current values belong in tooltips;
 editors show values only on request.
 
+Target-specific menus use `editableDegrees` over actual writable input adapters,
+not a hardcoded list of available tools. Operation metadata (`adjusts`) maps
+compatible property sets to their existing executors. A flat target ring may
+contain more than six degrees: it scales its geometry to separate buttons instead
+of introducing category/More navigation. The general category renderer remains
+bounded/paged. Shared scalar editors can open directly in step configuration;
+`RangeSettingsScope` retains working intervals/steps through portalled editor
+reopens for one editing session. This is transient widget navigation state, not
+another model-value store. Drag/keyboard/nudge/wheel honor the configured step;
+halving picks still respect hard property precision and bounds.
+
 `RadialMenu` can host an editing surface. Then it fills its circular frame, keeps
 the canvas size fixed while categories change, and attaches tools to the rim.
 Tool visibility does not hide the surface. `FloatingWindow shape="circle"` retains

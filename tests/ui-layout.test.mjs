@@ -46,6 +46,10 @@ test('radial projections group shared categories without changing leaf identitie
     assert.ok(slot.x*extent/100-slot.size/2>=0&&slot.x*extent/100+slot.size/2<=extent);
     assert.ok(slot.y*extent/100-slot.size/2>=0&&slot.y*extent/100+slot.size/2<=extent);
   }
+  for(const count of [6,7,12,16]){
+    const {extent}=radialDimensions(0,count),slots=Array.from({length:count},(_,i)=>radialSlot(i,count,0));
+    for(let i=0;i<count;i++){const a=slots[i],b=slots[(i+1)%count];assert.ok(Math.hypot(a.x-b.x,a.y-b.y)*extent/100>=a.size,'a flat target-DOF ring keeps all buttons separated');}
+  }
 });
 test("live coordinate moves preserve topology validation for other changes", () => {
   const previous = emptyUILayout();

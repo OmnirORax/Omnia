@@ -12,7 +12,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
   useImperativeHandle(navigationRef,()=>({back,open:()=>{setVisible(true);setPath([]);},toggle:()=>setVisible(!visible)}));
   const levels=[items];
   for(const id of path){const next=levels.at(-1)!.find(node=>node.id===id)?.children;if(!next)break;levels.push(next);}
-  const depth=levels.length-1,{extent,radius}=radialDimensions(depth);
+  const depth=levels.length-1,{extent,radius}=radialDimensions(depth,levels.at(-1)!.length);
   return <div className={`radial-menu${children?' radial-menu-editor':''}`} role="group" aria-label="Radial tools" data-context-menu-owner data-ui-search data-ui-name-ignore
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}} style={children?undefined:{width:`min(${extent}px,calc(100vw - 16px),calc(100vh - 16px))`}}>
     {children&&<div className="radial-menu-canvas">{children}</div>}
