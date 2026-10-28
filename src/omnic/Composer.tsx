@@ -295,7 +295,6 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       ...(activeComponent?.reference?[actionEntry('omnic:radar-dependency','Dependency version','#',[radialGroups.object,radialGroups.structure],()=>setRadarPanel({kind:'dependency'}))]:[]),
       actionEntry('omnic:radar-properties','Configure selected component / operation','⚙',[radialGroups.object],()=>setRadarPanel({kind:'parameters',index:0})),
       actionEntry('omnic:radar-presets','Construction presets','❉',[radialGroups.object],()=>setRadarPanel({kind:'presets'})),
-      actionEntry('omnic:radar-scope','Operation scope','◉',[radialGroups.object],()=>setRadarPanel({kind:'scope'})),
       actionEntry('omnic:radar-tools','Reusable operation tools','✥',[radialGroups.object],()=>setRadarPanel({kind:'tools'})),
       actionEntry('omnic:radar-inspect','Derived properties and unresolved constraints','🧰',[radialGroups.inspect],()=>setRadarPanel({kind:'inspect'})),
       actionEntry('omnic:add-operator:oscillate','Semantic oscillation','≈',[radialGroups.motion],()=>addOperation('oscillate')),

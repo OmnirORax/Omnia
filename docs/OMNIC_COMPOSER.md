@@ -2,18 +2,14 @@
 
 **Current presentation:** the whole Composer is the circular radar: editing inside,
 tools on its rim. It is not a rectangle containing a radial popup or a headless
-world-only editor. Atomnic on/off shares the same canvas and recipe. Normal
-generators/properties, reference versions, scope, presets, operation tools, motion
-and diagnostics have requested rim entry routes. Data/evaluation/history/library/
+world-only editor. Atomnic on/off shares the same canvas and recipe. Progressive properties, presets, reusable tools and diagnostics retain rim entry routes. Structure/construction, Motion, dedicated Select/Fill buttons and Operation scope are removed from the radial; reusable commands and saved data remain. Data/evaluation/history/library/
 live preview are retained. See the capability guide's current circular-composer
 walkthrough; later Stage 1 layout descriptions below are historical. Browser
 acceptance is pending. Zoom sync is paused following the user's correction.
 
-Current narrow UI change after restoring PR #36: remove the screenshot's Ordered
+Earlier narrow UI change after restoring PR #36: remove the screenshot's Ordered
 operations frame/search/non-oscillation palette and list entries, plus the
-Interpretation frames editor and footer explanation. Keep Semantic oscillation and
-its existing controls. Preserve existing operation/frame recipe data. All other
-PR #36 composer/Atomnic/library functionality remains. The broader cleanup in
+Interpretation frames editor and footer explanation. Semantic oscillation was retained then; its Motion category is now removed from the radar while saved operations/evaluation remain. Preserve existing operation/frame recipe data. Subsequent presentation changes are described above; library and saved-data compatibility remain. The broader cleanup in
 closed PR #37 was rejected and reverted; do not reapply it. Earlier descriptions
 of those removed controls below are historical implementation context, not their
 current availability. See CAPABILITIES.md for current entry points.
@@ -27,11 +23,7 @@ set the one-shot Step direction while dragging follows the pointer. Unchanged
 snaps skip geometry work. The existing Free/touching constraints still apply.
 
 The function projection is now icon-only and radial: category spheres along the
-rim open progressively smaller category rings. Tooltips name tools/current values;
-right-click a tool opens one setter at a time. Centre ⠿ shows/hides tools;
-right-click/Esc steps back. Eraser, Free/Realistic and Atomnic on/off are inset.
-Object categories reuse name/save/copy/file/playback actions. The inline file/name
-toolbar is replaced only while Atomnic is active. The underlying recipe remains
+rim open progressively smaller child rings around the clicked category itself, recursively. Parent rings and the canvas stay in place. Tooltips name tools/current values; right-click a tool opens one setter at a time. The always-visible eye shows/hides tools (100%/50% opacity); right-click/Esc steps back. The top-middle pen/eraser switch shows the next action. Free/Realistic and Atomnic on/off are inset. Object categories reuse name/save/copy/file actions. The radar replaces the inline toolbar in both modes. The underlying recipe remains
 shared: toggling Atomnic off preserves its dots while other generators add geometry;
 returning keeps that geometry rendered and allows authored-dot gestures. Enabled
 geometry-transform operators still need their evaluated-coordinate adapter before
