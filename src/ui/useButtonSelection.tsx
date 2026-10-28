@@ -1,3 +1,4 @@
+import { ownsContextMenu } from './contextMenuOwnership';
 import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -687,6 +688,7 @@ export function useButtonSelection({
     };
     const preventContext = (event: MouseEvent) => {
       if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      if (ownsContextMenu(event.target)) return;
       const target = event.target as Element, selected = current.current.ids;
       if (!selected.size || target.closest('[role="menu"],.ui-selection-tools,.ui-background-menu,input,textarea,select')) return;
       const item = target.closest<HTMLElement>(selectable);

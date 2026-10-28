@@ -273,3 +273,24 @@ test('activating the front window reuses its layer while other windows still ris
   assert.equal(raiseWindowLayer(raised),raised);
   assert.ok(nextMenuLayer()>raised);
 });
+
+
+test('content right-click ownership preserves function handlers before UI editing fallbacks',async()=>{
+  const {ownsContextMenu,routeContextMenu}=await import('../src/ui/contextMenuOwnership.ts');
+  const event=()=>({defaultPrevented:true,stopped:false,preventDefault(){this.defaultPrevented=true;},stopPropagation(){this.stopped=true;},isPropagationStopped(){return this.stopped;}});
+  const calls=[];
+  // Browser-menu prevention is global, so it cannot distinguish a domain menu.
+  routeContextMenu(event(),e=>{calls.push('rotation-settings');e.stopPropagation();},()=>calls.push('ui-edit'),false);
+  assert.deepEqual(calls,['rotation-settings'],'registered local behavior survives projection outside its original parent');
+  calls.length=0;
+  const contentEvent=event();
+  routeContextMenu(contentEvent,undefined,()=>calls.push('ui-edit'),true);
+  assert.equal(contentEvent.stopped,true);assert.deepEqual(calls,[],'owned menu whitespace never opens a second UI menu');
+  routeContextMenu(event(),undefined,()=>calls.push('ui-edit'),false);
+  assert.deepEqual(calls,['ui-edit'],'ordinary frame/button customization remains available despite defaultPrevented');
+  assert.equal(ownsContextMenu(null),false);assert.equal(ownsContextMenu({}),false);
+  for(const owner of ['data-context-menu-owner','data-context-controller']){
+    const nested={closest:selector=>selector.includes('['+owner+']')?{}:null};
+    assert.equal(ownsContextMenu(nested),true,'descendants inherit ownership from '+owner);
+  }
+});

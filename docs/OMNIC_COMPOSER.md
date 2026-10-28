@@ -481,3 +481,10 @@ and disk radii, not stroke thickness or arbitrary simulated physical laws. Illeg
 pivots/rotations do not deform individual atoms to make them fit. Finer rotations
 usually require Free. No automatic meaning, equal-node relayout, visible circular
 frame/dial authoring or complete MS intradot carving is claimed in this version.
+
+
+The construction surface and contextual MC own their right-click workflow.
+Opening functions, configuring one function or using blank popup space must not
+also open UI-edit menus, including when a containing UI frame is selected. The
+shared function renderer preserves original contextual handlers; normal frame
+chrome and unrelated controls retain their UI customization route.

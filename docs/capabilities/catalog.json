@@ -853,8 +853,12 @@
       "id": "omnic.atomnic",
       "title": "Atomnic placement, selection, contextual DOFs and pivot rotation",
       "where": "Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image.",
-      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction.",
+      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction. Content owns context-menu routing: function handlers are preserved by shared projections, and UI-customization fallbacks yield on construction surfaces and contextual controllers.",
       "steps": [
+        {
+          "do": "Right-click the Atomnic construction, then right-click Rotate or Erase in its function list. Repeat with the containing UI frame selected; also right-click blank menu space.",
+          "expect": "Only the composer function/settings flow appears. UI-edit and selected-UI menus do not open over it. Ordinary frame headers and unrelated controls still support UI customization."
+        },
         {
           "do": "Create a new Omnic object. Move the pointer over the local square, click a neighboring slot, then hold and sweep.",
           "expect": "A ghost follows legal slots; individual units are placed on a non-overlapping triangular lattice. The world updates before Save shared."
@@ -902,7 +906,11 @@
         "src/SpatialWorkspace.tsx",
         "src/ui/ProgressiveConfiguration.tsx",
         "src/ui/UIAction.tsx",
-        "src/properties/HalvingPicker.tsx"
+        "src/properties/HalvingPicker.tsx",
+        "src/ui/contextMenuOwnership.ts",
+        "src/ui/UIWorkspace.tsx",
+        "src/ui/NativeActions.tsx",
+        "src/ui/useButtonSelection.tsx"
       ],
       "actions": [
         "atomnic.draw",
@@ -929,8 +937,8 @@
       "limits": "128 components/groups and 128 operations; coordinates ±300. Authored dot/group recipes plus highlights only; arrays/references/other geometry operations keep Generator controls. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending. Erase removes complete authored units/groups; it does not carve an intradot region. Explicit operator targets that disappear remain unresolved rather than being silently reassigned.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
-        "browser": "User reported the previous full grid/permanent toolbar as unacceptable on 2026-10-28. This progressive correction awaits user interaction testing; no browser suite run.",
-        "automated": "2026-10-28 Eraser extension: swept-segment Micro/Macro/no-hit checks, TypeScript, property/capability contracts, full existing model suite, frozen backend check and self-contained preview build pass (2.89MB). No browser suite or trace; interaction awaits user testing."
+        "browser": "User reported overlapping UI-edit menus on composer right-click. Shared routing correction awaits user browser testing; no browser suite run.",
+        "automated": "2026-10-28 context-menu correction: ownership/handler/fallback regression checks and the full existing model suite pass. Final type/property/capability/self-contained preview checks are part of publication. No browser suite or trace; user interaction acceptance pending."
       },
       "related": [
         "omnic.worldPreview",

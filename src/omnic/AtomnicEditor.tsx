@@ -176,7 +176,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   return <UISection id="atomnic-editor" title="Atomnic">
     {!compatible&&<small role="alert">This recipe uses generated arrays, references or geometry operators. Switch to Generator controls to edit it; Atomnic gestures edit authored dots and groups.</small>}
     <small className="atomnic-status" title="Right-click the construction or edited world image for functions; right-click one function for its configuration.">{tool} · {list.length} units · {selected.size} selected</small>
-    <div className="omnic-preview atomnic-surface" data-atomnic-surface onContextMenu={e=>e.preventDefault()} dangerouslySetInnerHTML={{__html:svg}}
+    <div className="omnic-preview atomnic-surface" data-atomnic-surface data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();}} dangerouslySetInnerHTML={{__html:svg}}
       onPointerDown={event=>{event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);event.currentTarget.setPointerCapture(event.pointerId);api.down(local(event),event.nativeEvent);}}
       onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />
     {message&&<small role="status">{message}</small>}
