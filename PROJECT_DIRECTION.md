@@ -1,5 +1,13 @@
 # Omnia direction
 
+Current Omnic/node work follows the user's
+[workbench mental model](docs/OMNIC_WORKBENCH_MODEL.md): direct world construction,
+modifiable operator presets, fine imprints within minimal lattice units, live
+shared drafts, and progressive framed-node editing. Language and expansion rules
+develop through actual use. The existing canonical/storage/shared-control core
+remains the foundation; the newer lattice manipulation requirement supersedes
+Stage 1's procedural-only interaction restriction.
+
 Workers start with [the system onboarding map](docs/WORKER_ONBOARDING.md). The
 general function/property coupling core is documented in
 [Shared properties](docs/SHARED_PROPERTIES.md); initial visual and nonvisual

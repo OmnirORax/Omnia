@@ -29,10 +29,12 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Investigative frames, variants, layouts and proposals](#graph-frames) | Implemented; browser verification pending | Create / investigative-frame / relationship / external AI proposal panels. |
 | [Camera versus object rotation, trackball and axis lock](#camera-navigation) | Implemented; browser verification pending | World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings. |
 | [Front-on centering, fit, origin, roll and focus navigation](#camera-framing) | Implemented; browser verification pending | MC World view / Active context and navigation catalog; F frames selected front-on. |
-| [Procedural generators and parameters](#omnic-compose) | Implemented; browser verification pending | Create → New Omnic object; or select a node → Inspector → Open Omnic composer. |
+| [Procedural generators and parameters](#omnic-compose) | Implemented; browser verification pending | Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer. New objects start in Atomnic; switch to Generator controls for this procedural walkthrough. |
 | [Ordered operations, role picking, target repair and count extraction](#omnic-operations) | Implemented; user verification pending | Composer → Scope / Ordered operations. |
 | [Interpretive frame declarations](#omnic-frames) | Implemented; browser verification pending | Composer → Interpretation frames. |
 | [Semantic oscillation and playback](#omnic-motion) | Implemented; browser verification pending | Composer → Semantic oscillation preset / Play–pause. |
+| [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) | Implemented for review in the open workbench PR; not merged to production | Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image. |
+| [Live world drafts before saving](#omnic-worldPreview) | Implemented for review; source PR and visual preview do not establish production deployment or browser acceptance | Create → New Omnic object; Open Omnic composer with or without an existing selected object. |
 | [Shared save, independent copy, drafts and recipe import/export](#omnic-saving) | Implemented; browser verification pending | Composer toolbar; Inspector → Show Omnic structure. |
 | [Shared library, multiple atlases and copy provenance](#library-objects) | Implemented; browser verification pending | Create → Omnic library. |
 | [Collections, tags, presets and names](#library-organize) | Implemented; browser verification pending | Omnic library → selected object / Organization. |
@@ -44,6 +46,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Node-linked scenes from imported images and copied prompts](#scene-manual) | Implemented; browser verification pending | Scene panel; select an Omnium node. |
 | [Optional API scene generation](#scene-api) | Implemented; paid generation gated by server configuration | Scene → API generation (optional). |
 | [Click responsiveness and shared rendering work](#performance-clicks) | Earlier lag improvements confirmed; release handoff and live validation follow-up await user testing | Ordinary controls, including Omnic library → Objects → Structural filters. |
+| [Universal halving for numeric value picking](#properties-halving) | Implemented for review; browser acceptance pending | Any shared numeric range control → ½ button. Atomnic contextual DOFs also expose axis and position interval pickers. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -52,19 +55,20 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 
 **Where:** Repository README → capabilities and user guide; bookmark docs/CAPABILITIES.md.
 
-Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance.
+Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance. Delivery batches verified source pushes; local frontend success, backend import checks, GitHub CI and browser acceptance are reported separately. Newer PR commits cancel superseded check runs without interrupting master releases.
 
 **Minimal working test**
 
 1. Open the repository README and follow capabilities and user guide. Search for Interpretive frame declarations. **Expected:** Its location, scoped tri-state behavior and explicit lack of constraint enforcement are visible.
 2. Follow a capability’s numbered test and compare each expected result. **Expected:** You can report the stable capability ID and the failing step without reconstructing chat history.
 3. For contributors: run node --run docs:capabilities, then node --run check:capabilities. **Expected:** The generated guide is current and every registered command/gesture has walkthrough coverage.
+4. Before a shared portable-code delivery, run backend:check locally along with the applicable existing checks; push the completed batch once and inspect its GitHub runs. **Expected:** Deno import incompatibilities are caught before publication. Current PR runs supersede stale runs; master release ordering and all check jobs remain enabled. GitHub outcomes are reported separately from local checks.
 
-**Limits / unavailable behavior:** Repository guide only; no in-app guide viewer yet. Automation checks coverage/freshness, not whether a human walkthrough or browser behavior is correct.
+**Limits / unavailable behavior:** Repository guide only; no in-app guide viewer yet. Automation checks coverage/freshness, not whether a human walkthrough or browser behavior is correct. Cancelling superseded PR runs does not recall sent email or change personal GitHub notification preferences.
 
 **Verification:** browser — Not applicable to repository-only guide generation. Automated — Generator and check command run; model suite validation recorded in delivery.
 
-**Details:** [subsystem guide](capabilities/README.md). **Implementation:** [scripts/capabilities.mjs](../scripts/capabilities.mjs).
+**Details:** [subsystem guide](capabilities/README.md). **Implementation:** [scripts/capabilities.mjs](../scripts/capabilities.mjs), [.github/workflows/backend.yml](../.github/workflows/backend.yml), [.github/workflows/cloudflare-pages.yml](../.github/workflows/cloudflare-pages.yml), [.github/workflows/deploy-pages.yml](../.github/workflows/deploy-pages.yml).
 
 **Related:** [Interpretive frame declarations](#omnic-frames), [Shared library, multiple atlases and copy provenance](#library-objects).
 
@@ -438,22 +442,24 @@ Front-on framing changes the camera, not the object. Fit local/all, return focus
 
 **ID:** `omnic.compose` · **Status:** Implemented; browser verification pending
 
-**Where:** Create → New Omnic object; or select a node → Inspector → Open Omnic composer.
+**Where:** Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer. New objects start in Atomnic; switch to Generator controls for this procedural walkthrough.
 
-Dot, ring, line, chain, radial, group and Reference generators build structures from shared parameter controls. No freehand glyph drawing. An Omnic definition is part of the canonical object.
+New work opens a recoverable single-dot world draft without creating an object. Existing dot, ring, line, chain, radial, group and Reference generators use shared parameter controls. Valid changes preview directly in Omnium; canonical definitions change only on save.
 
 **Minimal working test**
 
-1. Create an Omnic object and choose a radial preset. Change Count and Radius. **Expected:** The procedural structure changes immediately.
+1. Open New Omnic object, choose a radial construction preset and change Count and Radius. **Expected:** Both the composer and temporary world structure change; no canonical object is created until Save shared or Save copy.
 2. Add a group and add a generator inside it. Change its parameters. **Expected:** Nested structure appears and can be edited without manually placing units.
 
-**Limits / unavailable behavior:** Browser acceptance has not been recorded for this guide.
+**Limits / unavailable behavior:** Lattice-constrained mouse/sweep construction, exact MS regions and calibrated reading size remain planned. Existing procedural controls are implemented. Browser acceptance has not been recorded.
 
 **Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
 
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/Composer.tsx](../src/omnic/Composer.tsx), [src/omnic/registry.ts](../src/omnic/registry.ts).
 
 **Command IDs:** `omnic.create`, `omnic.open`.
+
+**Related:** [Live world drafts before saving](#omnic-worldPreview), [Shared save, independent copy, drafts and recipe import/export](#omnic-saving).
 
 <a id="omnic-operations"></a>
 ## Ordered operations, role picking, target repair and count extraction
@@ -524,6 +530,64 @@ Oscillation is evaluated at explicit time, paused by default. Only the active bo
 
 **Command IDs:** `omnic.play`.
 
+<a id="omnic-atomnic"></a>
+## Atomnic placement, selection, contextual DOFs and pivot rotation
+
+**ID:** `omnic.atomnic` · **Status:** Implemented for review in the open workbench PR; not merged to production
+
+**Where:** Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image.
+
+Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction. Content owns context-menu routing: function handlers are preserved by shared projections, and UI-customization fallbacks yield on construction surfaces and contextual controllers.
+
+**Minimal working test**
+
+1. Right-click the Atomnic construction, then right-click Rotate or Erase in its function list. Repeat with the containing UI frame selected; also right-click blank menu space. **Expected:** Only the composer function/settings flow appears. UI-edit and selected-UI menus do not open over it. Ordinary frame headers and unrelated controls still support UI customization.
+2. Create a new Omnic object. Move the pointer over the local square, click a neighboring slot, then hold and sweep. **Expected:** A ghost follows legal slots; individual units are placed on a non-overlapping triangular lattice. The world updates before Save shared.
+3. Open New Omnic object; inspect the construction, then right-click a unit. Left-click Select; Shift-click another unit, then G and drag. Right-click → Group; right-click Select to change Scope to Macro. **Expected:** No function toolbar is shown initially. Right-click shows only function entries with retained values; Select configuration shows only Scope. Grouped units then move together under Macro.
+4. Place several units. Right-click → Erase (or E); sweep across separated units, then release. Undo once. Repeat and press Esc before releasing. Right-click Erase to configure Scope only. **Expected:** The swept segment catches crossed units even during fast pointer movement. Release makes one undoable construction edit; Undo restores the stroke and Esc restores an unaccepted stroke. Macro erases touched owning groups; unrelated identities remain unchanged. Only Scope appears in Erase configuration.
+5. Right-click the construction, then RIGHT-click Draw. Advance through its individual setters: choose Free at Constraints, then choose imprint radius and independent movement step. Confirm and sweep. **Expected:** Exactly one relevant input is visible per step; later setters are unmounted until Next. Fine, overlapping or spaced imprints are possible. Touching mode keeps movement coupled and skips its independent-step setter.
+6. Select a unit/group; right-click the construction, then RIGHT-click Rotate (or press R while the function list is open). Confirm Scope, angular order 1, then step 1. **Expected:** Only one of those setters appears at a time. Final Confirm closes configuration and prompts for the pivot. Ordinary R outside the menu skips setters and uses retained settings. Exact/detected mode choices appear only on right-click during pivot picking.
+7. During pivot picking, right-click → RIGHT-click Detected target. Right-click Axis; choose Top as first boundary, Right as second, then halving depth 1. At the following Position prompt choose depth 2 and axis start. **Expected:** Bounds, depth, optional direction and position appear in sequence. Depth 1 accepts the midpoint without a direction question. Depth 2 requires direction. The reference is retained and the UI returns to the target-picking prompt; unsupported angular precision is rejected rather than rounded silently.
+8. For Member place two units, select one, right-click the construction then RIGHT-click Highlight. Confirm Scope, fraction 1, orientation, contrasting color and opacity in sequence. Repeat on one unit with fraction 1/2 for Part. **Expected:** Only the current highlight setter appears, and confirmation applies the mark. A normal left-click Highlight subsequently uses those retained settings immediately.
+9. Right-click a unit → Property patterns. Hover Size or Color; select a row, combine + and − criteria; use selectionUndo then selectionRedo. **Expected:** Candidate sets glow, ranked registered properties select matching units without comparing absolute position, include/exclude refines the set, and selection history changes no geometry.
+10. Repeat a move or rotation on the active world image. Release, undo the accepted edit, close/reopen, then Save shared. **Expected:** Both editing surfaces use the same draft. Pointer samples stay transient, release records an accepted edit, close restores saved world rendering, reopening recovers work and save publishes the definition.
+
+**Limits / unavailable behavior:** 128 components/groups and 128 operations; coordinates ±300. Authored dot/group recipes plus highlights only; arrays/references/other geometry operations keep Generator controls. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending. Erase removes complete authored units/groups; it does not carve an intradot region. Explicit operator targets that disappear remain unresolved rather than being silently reassigned.
+
+**Verification:** browser — User reported overlapping UI-edit menus on composer right-click. Shared routing correction awaits user browser testing; no browser suite run.. Automated — 2026-10-28 context-menu correction: ownership/handler/fallback regression checks and the full existing model suite pass. Final type/property/capability/self-contained preview checks are part of publication. No browser suite or trace; user interaction acceptance pending..
+
+**Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/AtomnicEditor.tsx](../src/omnic/AtomnicEditor.tsx), [src/omnic/atomnic.ts](../src/omnic/atomnic.ts), [src/omnic/atomnicSettings.ts](../src/omnic/atomnicSettings.ts), [src/appearance/propertyPatterns.ts](../src/appearance/propertyPatterns.ts), [src/ui/transientTimeline.ts](../src/ui/transientTimeline.ts), [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [src/ui/ProgressiveConfiguration.tsx](../src/ui/ProgressiveConfiguration.tsx), [src/ui/UIAction.tsx](../src/ui/UIAction.tsx), [src/properties/HalvingPicker.tsx](../src/properties/HalvingPicker.tsx), [src/ui/contextMenuOwnership.ts](../src/ui/contextMenuOwnership.ts), [src/ui/UIWorkspace.tsx](../src/ui/UIWorkspace.tsx), [src/ui/NativeActions.tsx](../src/ui/NativeActions.tsx), [src/ui/useButtonSelection.tsx](../src/ui/useButtonSelection.tsx).
+
+**Command IDs:** `atomnic.draw`, `atomnic.select`, `atomnic.move`, `atomnic.rotate`, `atomnic.step`, `atomnic.highlight`, `atomnic.fill`, `atomnic.remove`, `atomnic.group`, `atomnic.all`, `atomnic.configure`, `atomnic.confirm`, `atomnic.cancel`, `atomnic.selectionUndo`, `atomnic.selectionRedo`, `atomnic.patterns`, `atomnic.erase`.
+
+**Related:** [Live world drafts before saving](#omnic-worldPreview), [Procedural generators and parameters](#omnic-compose), [Shared save, independent copy, drafts and recipe import/export](#omnic-saving).
+
+<a id="omnic-worldPreview"></a>
+## Live world drafts before saving
+
+**ID:** `omnic.worldPreview` · **Status:** Implemented for review; source PR and visual preview do not establish production deployment or browser acceptance
+
+**Where:** Create → New Omnic object; Open Omnic composer with or without an existing selected object.
+
+New work uses a recoverable temporary world structure. Valid composer inputs preview on selected identities and transitive live uses through a transient renderer bridge. Saved data and pins remain unchanged until an explicit save. Close removes the projection; Reset reverts unsaved edits.
+
+**Minimal working test**
+
+1. Open New Omnic object. Use D and click/sweep the construction view, then the edited world image, before saving. **Expected:** A temporary world structure follows valid edits. No saved entity or placement is created until Save shared. Generator controls remains available for procedural recipes.
+2. Close and reopen the new composer, then reload and open it again. **Expected:** The temporary world preview disappears on close and the unfinished recipe recovers on reopening in the same workspace/atlas.
+3. Enter Glyph name and choose Save shared. **Expected:** One canonical object is created through normal placement/history, at the preview creation context.
+4. Open an object with multiple placements and live Reference users; change its draft without saving. Compare with a revision-pinned Reference. **Expected:** Visible live uses and live dependency chains preview the draft within the shared budget; the pinned expansion stays saved.
+5. Use draft Undo/Redo and Reset draft, then close. Switch atlases while a draft is open. **Expected:** Valid world edits follow the existing draft owner, Reset restores the saved definition, and closing/switching leaves no stale preview in the other atlas.
+6. Open an object with an explicit imported visual override and change its recipe, then close without clearing that override. **Expected:** The structural draft is visible while editing; the original explicit visual returns on close.
+
+**Limits / unavailable behavior:** At most 32 structural world sources at 256px; extra occurrences retain saved rendering and a temporary with no free slot uses the preview-budget placeholder. Inputs are coalesced to 12fps, dependents use 4ms batches, and evaluation is static at time zero. Invalid evaluations keep the last valid preview. Atomnic-compatible authored drafts can now be edited on the world image before saving. Generated arrays/references remain in Generator controls. Frame/dial editing, full MS region picking and reading-size calibration remain pending.
+
+**Verification:** browser — Not run; user acceptance pending. Automated — 2026-10-28: type/capability/property checks and self-contained preview build pass (2.85MB); no browser suite or performance trace..
+
+**Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/worldPreview.ts](../src/omnic/worldPreview.ts), [src/omnic/presentation.ts](../src/omnic/presentation.ts), [src/omnic/Composer.tsx](../src/omnic/Composer.tsx), [src/textScene.ts](../src/textScene.ts), [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [src/App.tsx](../src/App.tsx).
+
+**Related:** [Procedural generators and parameters](#omnic-compose), [Shared save, independent copy, drafts and recipe import/export](#omnic-saving), [Live dependencies, frozen pins, restore and archive pruning](#library-revisions).
+
 <a id="omnic-saving"></a>
 ## Shared save, independent copy, drafts and recipe import/export
 
@@ -531,21 +595,24 @@ Oscillation is evaluated at explicit time, paused by default. Only the active bo
 
 **Where:** Composer toolbar; Inspector → Show Omnic structure.
 
-Save shared updates canonical uses. Save copy creates a new identity. Drafts recover locally and use shared history. Recipe-only exports need their referenced objects; full workspace exports carry dependencies.
+Draft changes preview in the world before saving. Save shared creates unsaved work or updates an existing canonical object; Save copy deliberately creates a new identity. Close restores saved visuals while preserving draft recovery and shared history. Exports retain the existing dependency contracts.
 
 **Minimal working test**
 
-1. Place the same object twice, edit it and Save shared. **Expected:** Both live placements update.
+1. Open a shared object used twice, change its draft, then close without saving. **Expected:** Visible live uses preview the change within the world budget, then restore saved rendering. Reopening recovers the draft.
 2. Save copy and edit the copy. **Expected:** The original stays unchanged.
 3. Leave a draft, close/reopen, then reload. Export/import its recipe. **Expected:** The unfinished draft recovers; imported structure reproduces when dependencies are available.
+4. Start a new unsaved draft, set Glyph name and Save shared. Then open another new draft. **Expected:** The first becomes one canonical object at its creation context; the next has a fresh independent draft identity.
 
-**Limits / unavailable behavior:** Explicit imported asset/character overrides can hide the generated view; Show Omnic structure clears that placement override.
+**Limits / unavailable behavior:** Explicit asset/character overrides are temporarily covered by structural preview and restored on close; Show Omnic structure clears an override permanently. World animation, structural part picking and calibrated reading remain outside this slice.
 
 **Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
 
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/document.ts](../src/omnic/document.ts), [src/omnic/draftHistory.ts](../src/omnic/draftHistory.ts).
 
 **Command IDs:** `omnic.show`, `omnic.save`, `omnic.copy`, `omnic.export`, `omnic.import`, `omnic.reset`.
+
+**Related:** [Live world drafts before saving](#omnic-worldPreview).
 
 <a id="library-objects"></a>
 ## Shared library, multiple atlases and copy provenance
@@ -774,6 +841,28 @@ Render-time function, anchor, owner and icon target lookups share snapshot index
 
 **Related:** [Structural filters, indexing and saved families](#library-filters), [Visual hierarchy, shared properties and Apply/Discard](#appearance-edit).
 
+<a id="properties-halving"></a>
+## Universal halving for numeric value picking
+
+**ID:** `properties.halving` · **Status:** Implemented for review; browser acceptance pending
+
+**Where:** Any shared numeric range control → ½ button. Atomnic contextual DOFs also expose axis and position interval pickers.
+
+Depth is the first prompt. Confirm depth 1 accepts the symmetric midpoint immediately; other depths reveal only the endpoint/direction prompt next. The result applies through the existing property setter. Consumer ranges, precision and history remain authoritative.
+
+**Minimal working test**
+
+1. Open a shared numeric range → ½; enter depth 1 and confirm. **Expected:** Only depth is requested; the midpoint applies without any direction prompt.
+2. Open ½ again; enter depth 3 and confirm, then choose toward either endpoint. **Expected:** Direction appears only after depth; choosing an endpoint applies the corresponding eighth. Consumer precision still applies.
+
+**Limits / unavailable behavior:** Depth 0–16. Integer/step consumers quantize fractional results. Shared numeric controls inherit the sequential picker; bespoke picker families are not all migrated. Atomnic radial picking also enforces its supported angular order.
+
+**Verification:** browser — Progressive depth/direction correction awaits user testing; no browser suite run.. Automated — 2026-10-28 progressive depth/direction correction: type/property/capability checks, full existing model suite and self-contained preview build pass. Browser behavior awaits user testing..
+
+**Details:** [subsystem guide](SHARED_PROPERTIES.md). **Implementation:** [src/properties/halving.ts](../src/properties/halving.ts), [src/properties/HalvingPicker.tsx](../src/properties/HalvingPicker.tsx), [src/ui/RangeControl.tsx](../src/ui/RangeControl.tsx).
+
+**Related:** [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic).
+
 ## Exact registered command inventory
 
 Labels, descriptions and defaults are read from the same catalog as the application. A blank binding means unassigned here; it does not mean unavailable. Scope-specific overrides and saved mouse bindings remain authoritative in the running UI.
@@ -824,6 +913,23 @@ Labels, descriptions and defaults are read from the same catalog as the applicat
 | Workspace settings · `settings` | Unassigned | Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings. Resized windows retain projected bounds and themed borders across focus and minimize/reopen. W restores retained original geometry. Projection styling is independent of React/Rnd wrapper updates. | [Active context, close, minimize, resize and descendants](#interface-context) |
 | Toggle neon appearance · `theme` | Unassigned | Appearance and UI templates preserve supported settings. Custom fonts are imported through the font library. Recovery remains usable when a theme becomes unreadable. | [Themes, templates, fonts and emergency recovery](#appearance-recovery) |
 | Master controller · `appearance` | Unassigned | Visual roles group backgrounds, contours, text and other repeated parts. Selection becomes the exclusive edit scope. Unapplied edits are drafts; deselecting a target rolls its draft back to applied values. | [Visual hierarchy, shared properties and Apply/Discard](#appearance-edit) |
+| Erase Atomnic units · `atomnic.erase` | E | Click or sweep through units to erase them in Micro or Macro scope; cancel restores the stroke and release records one edit. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Atomnic property patterns · `atomnic.patterns` | Unassigned | Reveal matching property sets only when requested from the contextual function list. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Undo Atomnic selection · `atomnic.selectionUndo` | Unassigned | Step back through transient selection without changing the construction. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Redo Atomnic selection · `atomnic.selectionRedo` | Unassigned | Step forward through transient selection without changing the construction. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Draw atoms · `atomnic.draw` | D | Place one unit or sweep a stroke using retained imprint and movement settings. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Select atoms · `atomnic.select` | V | Pick units or their current Macro groups; Shift adds or removes targets. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Move atoms · `atomnic.move` | G | Drag the current Micro or Macro selection. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Rotate atoms · `atomnic.rotate` | R | Use retained rotation settings, pick a pivot, then drag through halving steps. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Rotate one Atomnic step · `atomnic.step` | Unassigned | Pick a pivot and apply the retained rotation step once. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Highlight Atomnic region · `atomnic.highlight` | Unassigned | Apply the retained fractional mark to selected atoms. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Fill Atomnic selection · `atomnic.fill` | Unassigned | Apply retained fill and paint to selected atoms. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Remove Atomnic selection · `atomnic.remove` | Delete | Remove selected authored atoms without reassigning remaining identities. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Group Atomnic selection · `atomnic.group` | Unassigned | Group selected atoms while preserving their world construction coordinates. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Select all atoms · `atomnic.all` | Ctrl+A | Select all editable authored atoms in this construction. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Configure Atomnic operation · `atomnic.configure` | Unassigned | Open the contextual function list at the pointer; right-click one function to configure its inputs in sequence. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Confirm Atomnic configuration · `atomnic.confirm` | Enter | Confirm the current Atomnic configuration step; rotation prompts for a pivot after its last step. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Cancel Atomnic gesture · `atomnic.cancel` | Esc | Cancel an active Atomnic preview or clear its transient selection. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
 | Recover previous workspace · `omnic.workspace.recover` | Unassigned | Restore the durable local backup kept before importing or loading a replacement workspace. | [Local workspace autosave, portability and recovery](#library-persistence) |
 | Save workspace to cloud · `omnic.workspace.saveCloud` | Unassigned | Explicit version-checked save of the shared library and all workspace atlases. | [Explicit workspace cloud save/load and conflicts](#cloud-snapshots) |
 | Load cloud workspace · `omnic.workspace.loadCloud` | Unassigned | Replace local workspace with the cloud snapshot, preserving a local recovery copy and shared Undo. | [Explicit workspace cloud save/load and conflicts](#cloud-snapshots) |
@@ -902,6 +1008,8 @@ Labels, descriptions and defaults are read from the same catalog as the applicat
 
 | Gesture | Binding | Behavior | Walkthrough |
 | --- | --- | --- | --- |
+| Construct and manipulate authored atoms · `atomnic.pointer` | Click / drag / Shift-click / right-click | Draw clicks/sweeps valid placements; Erase clicks/sweeps whole units/groups; Select picks units, Shift-click changes membership; Move drags rigid selections. Right-click opens functions with current values; right-click one function configures one input at a time. Rotation then prompts for a pivot; right-click during that prompt chooses/configures its reference. Available on the local construction surface and edited world image. | [Atomnic placement, selection, contextual DOFs and pivot rotation](#omnic-atomnic) |
+| Pick values by repeated halving · `numeric.halving` | ½ → depth → Enter | Choose depth first; midpoint applies immediately, other depths reveal endpoint direction next. Consumer precision and validation still apply. | [Universal halving for numeric value picking](#properties-halving) |
 | Open protected appearance recovery · `appearance.recovery` | Hold Esc for 2 seconds | Always available, including while editing text or using the selector; this recovery gesture is fixed. | [Themes, templates, fonts and emergency recovery](#appearance-recovery) |
 | Hold initial rotation axis · `world.axisLock` | Ctrl + configured navigation drag | First clear drag chooses horizontal or vertical motion and freezes the rotation axis until Ctrl is released. Orthogonal pointer jitter is ignored; no pivot or target change. | [Camera versus object rotation, trackball and axis lock](#camera-navigation) |
 | Configure that function · `function.configure` | Hold Shift + any configured shortcut; release Shift | Universal configuration modifier. Opens only that function’s adaptive controls. Repeat the shortcut to cycle or hover/focus an option to select it; release Shift to execute once. Right-click an option applies and locks its default; left-click resets to priority 1. Applies to keyboard and mouse shortcuts, present and future. | [Universal Shift configuration](#interface-configure) |

@@ -1,6 +1,7 @@
 import { useCancelValueEdit } from "./ActiveContext";
 import { claimUIPress } from "./pointerOwnership";
 import { rangeValue } from "./rangeMath";
+import { HalvingPicker } from "../properties/HalvingPicker";
 import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref } from "react";
 
 type Edit = "min" | "max" | "value" | "jump";
@@ -22,6 +23,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const value = Math.max(min, Math.min(max, storedValue));
   const resolution = Number(inputProps.step) || 1;
   const [interval, setInterval] = useState({ min, max }), [jump, setJump] = useState(resolution);
+  const [halving, setHalving] = useState(false);
   const [editing, setEditing] = useState<Edit | null>(null), [text, setText] = useState("");
   const low = onMinimumChange ? min : Math.min(value, Math.max(min, interval.min));
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
@@ -120,6 +122,8 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     <button type="button" className="range-end range-end-max" disabled={inputProps.disabled} aria-label={`${label} maximum: ${high}`} title="Select maximum · right-click to edit" onClick={() => choose(high)} onContextMenu={context("max")}>
       <svg data-range-glyph viewBox="0 0 10 32" aria-hidden><path d="M5 3V29" /></svg><span>{high}</span>
     </button>
+    <button type="button" className="range-halving" disabled={inputProps.disabled} title="Pick by repeated halving of the current interval" aria-label={`${label} halving`} onClick={() => setHalving(v => !v)}>½</button>
+    {halving && <HalvingPicker low={low} high={high} label={String(label)} onPick={next => { choose(rangeValue(next, low, high, resolution)); setHalving(false); }} />}
     {editing && <input ref={endpoint} autoFocus className={`range-bound-editor range-edit-${editing}`} type="number" aria-label={`${label} ${editing === "min" ? "minimum" : editing === "max" ? "maximum" : editing}`} value={text}
       min={editing === "jump" ? resolution : editing === "min" ? hardMin : low} max={editing === "max" ? hardMax : editing === "jump" ? Math.max(resolution, hardMax - hardMin) : high} step={resolution}
       onFocus={event => event.currentTarget.select()} onChange={event => setText(event.currentTarget.value)} onBlur={finish}

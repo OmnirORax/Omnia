@@ -453,3 +453,23 @@ Use `useWindowLayer` for floating windows, detached groups and user frames. Repe
 presses on the current front layer are no-ops; other windows still rise. Preserve
 menu priority and DOM ownership. Do not allocate a new layer and rerender all of a
 window's chrome on every grab when its stacking order is already correct.
+
+
+## Content context-menu ownership
+
+A surface with its own right-click workflow declares `data-context-menu-owner`;
+shared `ContextualMasterController` popups already inherit ownership through
+`data-context-controller`. `ui/contextMenuOwnership.ts` supplies the same predicate
+for background UI menus, selected-UI capture and native-action customization.
+Those fallbacks yield on owned content. Local handlers still stop propagation;
+controllers consume unused context-menu bubbling on their own surface.
+
+`FunctionControl` preserves a registered function's original `onContextMenu`
+before applying its UI-customization fallback (except palette projections, whose
+right-click continues to edit the UI item). Consumed local handlers win even when
+a control is moved outside its original parent. Original form-control handlers
+already run inside their wrapper and are not invoked twice. Do not use
+`defaultPrevented` as an ownership signal: document capture globally prevents the
+browser menu before React dispatch. Ordinary frame chrome and unowned controls
+keep existing UI editing. No Omnic-specific IDs, permission changes, listeners per
+function, geometry scans or saved ownership values are needed.

@@ -1,5 +1,6 @@
 import { RENDER_BUDGET } from "./renderBudget";
-import { structuralVisual, omnicAsset, omnicBudgetAsset, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
+import { structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
+import type { OmnicWorldPreview } from "./omnic/worldPreview";
 import { brightHex } from "./appearance/resolve";
 import { connected } from "./appearance/model";
 import { TARGETS } from "./appearance/registry";
@@ -12,7 +13,7 @@ import { arrowLength, binderGap, operatorSize } from "./graph/binderGeometry";
 import { labelLines, labelSize } from "./graph/labels";
 import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
-import { visualObject } from "./visualScene";
+import { visualObject, disposeVisual } from "./visualScene";
 import type { Document } from "./graph/structural";
 import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./graph/assets";
 import { resolveAppearance } from "./graph/appearance";
@@ -129,6 +130,8 @@ export function textSprite(value: string, color: string, selected = false, node 
   return sprite;
 }
 type NodeItem = {
+  hitIndices: number[];
+  omnicSlot: boolean;
   group: THREE.Group;
   sprite: LabelMesh;
   anchor: THREE.Vector3;
@@ -226,16 +229,17 @@ export function buildTextScene(
     if (sprite !== text) group.add(text);
     if (visual) group.add(visual);
     content.add(group);
-    nodeHits.push(sprite);
+    const hitIndices = [nodeHits.length]; nodeHits.push(sprite);
     // Labels remain node targets when a sphere or visual proxy is the main body.
     // Rotated text can visibly extend beyond that body's picking volume.
     if (text !== sprite) {
       text.userData.nodeId = node.id;
       text.userData.baseColor = text.material.color.clone();
       text.userData.hoverOutline = outline;
-      nodeHits.push(text);
+      hitIndices.push(nodeHits.length); nodeHits.push(text);
     }
     nodes.set(node.id, {
+      hitIndices, omnicSlot: !!derivedAsset && omnicPreviews <= OMNIC_SCENE_BUDGET,
       group,
       sprite,
       anchor: group.position.clone(),
@@ -295,6 +299,92 @@ export function buildTextScene(
     });
   }
   let currentTheme = theme, currentPreview: ColorPreview | null | undefined;
+  const nodesByEntity = new Map<string, NodeItem[]>();
+  for (const [id, item] of nodes) {
+    const entityId = placements.get(id)!.entityId;
+    let entries = nodesByEntity.get(entityId);
+    if (!entries) nodesByEntity.set(entityId, entries = []);
+    entries.push(item);
+  }
+  type SavedNode = Pick<NodeItem, 'sprite' | 'visual' | 'visualSize' | 'showText' | 'sphere' | 'depth'>;
+  type DraftNode = { original: SavedNode; hits: LabelMesh[]; proxy: LabelMesh;
+    current?: THREE.Group; pending?: THREE.Group; url?: string };
+  const draftNodes = new Map<NodeItem, DraftNode>();
+  let draftPlanId: string | undefined;
+  let draftPlan: { entityId: string; item: NodeItem }[] = [];
+  let draftBatch: { recipe: OmnicWorldPreview['recipe']; assets: ReturnType<typeof omnicDraftAssets>; cursor: number; editing?:OmnicWorldPreview["editing"] } | undefined;
+  const omnicSlotsAvailable = Math.max(0, OMNIC_SCENE_BUDGET - Math.min(omnicPreviews, OMNIC_SCENE_BUDGET));
+  const clearOmnicDraft = () => {
+    const changed = draftNodes.size > 0;
+    draftPlanId = undefined; draftPlan = []; draftBatch = undefined;
+    for (const [item, entry] of draftNodes) {
+      for (const object of [entry.pending, entry.current, entry.proxy]) if (object) { item.group.remove(object); disposeVisual(object); }
+      Object.assign(item, entry.original);
+      item.hitIndices.forEach((index, i) => { nodeHits[index] = entry.hits[i]; });
+    }
+    draftNodes.clear();
+    if (changed) applyTheme(currentTheme, currentPreview);
+  };
+  /** Replace only affected node visuals. Original meshes remain attached for
+   * reliable restoration/disposal; active picking uses the preview footprint. */
+  function applyOmnicDraft(preview: OmnicWorldPreview | null, requestPaint = requestRender) {
+    if (!preview || preview.temporary) {
+      if (draftNodes.size) { clearOmnicDraft(); requestRender(); }
+      return false;
+    }
+    if (draftPlanId !== preview.entityId) {
+      clearOmnicDraft(); draftPlanId = preview.entityId;
+      let available = omnicSlotsAvailable;
+      for (const entityId of omnicLiveDependents(doc, preview.entityId)) for (const item of nodesByEntity.get(entityId) ?? []) {
+        if (item.omnicSlot) draftPlan.push({ entityId, item });
+        else if (available > 0) { available--; draftPlan.push({ entityId, item }); }
+      }
+    }
+    if (draftBatch?.recipe !== preview.recipe || draftBatch.editing !== preview.editing)
+      draftBatch = { recipe: preview.recipe, assets: omnicDraftAssets(doc, preview.entityId, preview.recipe,preview.editing), cursor: 0, editing:preview.editing };
+    const start = performance.now();
+    while (draftBatch.cursor < draftPlan.length) {
+      const { entityId, item } = draftPlan[draftBatch.cursor++];
+      const asset = draftBatch.assets(entityId);
+      if (!asset || item.group.userData.disposed) continue;
+      let entry = draftNodes.get(item);
+      if (!entry) {
+        const proxy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) as LabelMesh;
+        proxy.userData = { ...item.sprite.userData, visualProxy: true };
+        proxy.visible = false; item.group.add(proxy);
+        entry = { original: { sprite: item.sprite, visual: item.visual, visualSize: item.visualSize,
+          showText: item.showText, sphere: item.sphere, depth: item.depth },
+          hits: item.hitIndices.map(index => nodeHits[index]), proxy };
+        draftNodes.set(item, entry);
+      }
+      if (entry.url === asset.dataUrl) continue;
+      entry.url = asset.dataUrl;
+      if (entry.pending) { item.group.remove(entry.pending); disposeVisual(entry.pending); }
+      const currentEntry = entry;
+      const visual = visualObject({ assetId: asset.id }, [asset], () => new THREE.Group(), () => {
+        if (draftNodes.get(item) !== currentEntry || currentEntry.pending !== visual || item.group.userData.disposed) return;
+        const first = !currentEntry.current;
+        if (currentEntry.current) { item.group.remove(currentEntry.current); disposeVisual(currentEntry.current); }
+        currentEntry.current = visual; currentEntry.pending = undefined;
+        if (currentEntry.original.sprite !== item.text) currentEntry.original.sprite.visible = false;
+        if (currentEntry.original.visual) currentEntry.original.visual.visible = false;
+        item.sprite = currentEntry.proxy; item.visual = visual; item.sphere = false; item.depth = .05;
+        const placement = placements.get(item.sprite.userData.nodeId);
+        item.visualSize = placement?.visual?.size ?? 1.4;
+        item.showText = placement?.visual?.showText ?? false;
+        item.hitIndices.forEach((index, i) => { nodeHits[index] = i && item.showText ? item.text : item.sprite; });
+        visual.visible = true;
+        if (first) requestRender(); else requestPaint();
+      }, { opacity: item.opacity }, RENDER_BUDGET.omnicTextureEdge);
+      visual.visible = false;
+      visual.scale.setScalar(item.visualSize);
+      visual.position.copy(item.visual?.position ?? new THREE.Vector3());
+      currentEntry.pending = visual; item.group.add(visual);
+      if (performance.now() - start >= RENDER_BUDGET.omnicDraftBatchMs) break;
+    }
+    return draftBatch.cursor < draftPlan.length;
+  }
   function applyTheme(next: WorkspaceSettings["appearance"], preview?: ColorPreview | null) {
     currentTheme = next; currentPreview = preview;
     const fallback = next.theme === "neon" ? next.accent : "#dce9fa";
@@ -372,6 +462,7 @@ export function buildTextScene(
     for (const item of nodes.values()) {
       item.group.position.copy(item.anchor);
       item.text.scale.set(item.size.width, item.size.height, 1);
+      item.text.position.set(0, 0, 0);
       const front = depth(item.anchor) > camera.near;
       item.text.visible = item.showText && front;
       if (item.visual) {
@@ -462,5 +553,6 @@ export function buildTextScene(
     }
   }
   applyTheme(theme);
-  return { nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme, updateSelection };
+  return { nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme, updateSelection,
+    applyOmnicDraft, omnicSlotsAvailable };
 }

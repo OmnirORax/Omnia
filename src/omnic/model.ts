@@ -1,9 +1,10 @@
 import { checkedParams, definition, type Value } from "./registry.ts";
+import { ATOMNIC_PARAMETERS } from './atomnicSettings.ts';
 export type Params = Record<string,Value>;
 export type Component = { id:string; generator:string; params:Params; children?:Component[]; reference?:string; referenceRevision?:number };
 export type Application = { id:string; operator:string; targets:string[]; params:Params; enabled:boolean };
 export type Frame = { id:string; property:string; state:"inactive"|"unspecified"|"specified"; value?:Value; scope:string[] };
-export type Recipe = { version:1|2; revision:number; components:Component[]; operations:Application[]; frames:Frame[] };
+export type Recipe = { version:1|2; revision:number; components:Component[]; operations:Application[]; frames:Frame[]; atomnic?:Params };
 export const LIMITS = { components:128, operations:128, frames:64, depth:12, nodes:1024, work:200_000, extent:1_000_000 } as const;
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==="object"&&!Array.isArray(v);
 const identifier=(v:unknown):v is string=>typeof v==="string"&&/^[a-zA-Z0-9_.:/-]{1,200}$/.test(v)&&v!=="__proto__"&&v!=="constructor"&&v!=="prototype";
@@ -37,7 +38,8 @@ export function validateRecipe(input:unknown):Recipe {
     if(state!=="specified"&&value.value!==undefined)throw Error("Inactive/unspecified frames must not contain a specified value.");
     return {id,property:value.property,state,scope:[...value.scope],...(state==="specified"?{value:value.value as Value}:{})};
   });
-  return {version:input.version,revision:Number(input.revision),components,operations,frames};
+  const atomnic=input.atomnic===undefined?undefined:checkedParams(input.atomnic,{id:'atomnic',label:'Atomnic',parameters:ATOMNIC_PARAMETERS});
+  return {version:input.version,revision:Number(input.revision),components,operations,frames,...(atomnic?{atomnic}:{})};
 }
 export function recipeReferences(recipe:Recipe):string[]{const result:string[]=[];const visit=(c:Component)=>{if(c.reference)result.push(c.reference);c.children?.forEach(visit);};recipe.components.forEach(visit);return [...new Set(result)];}
 /** Validate against the complete candidate atlas, including references through

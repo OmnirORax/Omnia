@@ -23,6 +23,8 @@ test("feature commands automatically join the catalog, defaults and saved settin
   assert.equal(loaded.bindings["selector.open"], "", "new defaults cannot steal saved global bindings");
   assert.equal(loaded.bindings["selector.pattern"], "", "same-context saved bindings win over a newly added default");
   assert.equal(loaded.bindings.searchUI, "Q");
+  assert.equal(loaded.bindings["atomnic.draw"], "D", "content editing retains D without conflicting with frame descendants");
+  assert.equal(keyConflict(defaults.bindings, "atomnic.draw", "D"), null);
   assert.ok(FEATURE_GESTURES.some(gesture => gesture.id === "selector.pick"));
   assert.ok(FEATURE_GESTURES.some(gesture => gesture.id === "selector.depth"));
   assert.equal(normalizeSettings({ bindings: { "selector.open": "", "selector.pattern": "Ctrl+Alt+P" } }).bindings["selector.open"], "");
@@ -325,13 +327,15 @@ test("programmatic catalog dispatch executes search without a button binding or 
 test("active MS owns Escape before window actions, then yields once selection is cleared", async () => {
   const { preferredFeatureKey } = await import("../src/workspaceActions.ts");
   const bindings = defaultSettings().bindings;
-  const active = new Set(["selector.cancel", "context.back"]);
+  const active = new Set(["selector.cancel", "atomnic.cancel", "context.back"]);
   assert.equal(preferredFeatureKey(bindings, "", () => true), null);
   assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id)), "selector.cancel");
   assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id), true, true), "selector.cancel");
   active.delete("selector.cancel");
+  assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id)), "atomnic.cancel");
+  active.delete("atomnic.cancel");
   assert.equal(preferredFeatureKey(bindings, "Esc", id => active.has(id)), "context.back");
-  assert.equal(preferredFeatureKey({ ...bindings, "selector.cancel": "" }, "Esc", () => true), "context.back");
+  assert.equal(preferredFeatureKey({ ...bindings, "selector.cancel": "" }, "Esc", id => active.has(id)), "context.back");
   assert.equal(preferredFeatureKey({ ...bindings, "selector.cancel": "P" }, "P", id => id === "selector.cancel"), "selector.cancel");
 });
 

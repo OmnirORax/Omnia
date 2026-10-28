@@ -9,12 +9,34 @@ For the user-facing inventory, locations and reproducible test walkthroughs, sta
 with [CAPABILITIES.md](CAPABILITIES.md). Search it before proposing new work; update
 its source catalog with every user-facing change. See [authoring](capabilities/README.md).
 
+The user confirmed the baseline delivery workflow: push authorized changes to
+`OmnirORax/Omnia`, create/update the open PR, publish the existing self-contained
+GitHack visual artifact and return its fresh commit-pinned link. Do not repeatedly
+ask permission for that routine delivery. Production merge/deployment remains
+separate; preserve backend/privacy boundaries. See the GitHack section of
+[deployment operations](CLOUDFLARE_DEPLOYMENT.md).
+
+Batch delivery pushes to avoid repeated automatic workflow notifications. Before
+pushing shared portable code, include the frozen Deno `backend:check`: frontend
+checks alone do not cover backend imports. Do not repeatedly rerun CI or suppress
+its failures. PR workflows cancel superseded checks; master releases keep their
+existing ordering. CI status is separate from local-build and browser acceptance.
+
 This is a map and a set of contracts, not proof that every feature implements them
 correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it
 from a long chat, an old PR or a contradictory comment.
 
 ## Product and direction
+
+For Omnic and Omnium node/frame work, first read
+[Omnic / Omnium workbench: shared design model](OMNIC_WORKBENCH_MODEL.md).
+It is the current synthesis of the user's construction workflow, minimum-unit
+versus fine-imprint/readability limits, operator presets, lattice manipulation,
+live shared world drafts, proposed node frames and unresolved grammar/layout.
+The goal is an instrument the user can exercise while mapping and writing, not
+prebuilt concept presets or a grammar finalized by the agent. Its progress section
+distinguishes the newer direction from implemented Stage 1/2 scaffolding.
 
 Omnia is an environment for humans and AI to construct and explore structured
 knowledge. **Omnium** is its spatial, genuinely 3D nodegraph workbench. **Omnic** is
@@ -577,6 +599,15 @@ preview. See [OMNIC_COMPOSER.md](OMNIC_COMPOSER.md) for scope, entry paths and d
 work. Do not mark acceptance complete before the implementation is verified.
 
 ## Omnic workspace library (Stage 2)
+
+The first world-workbench slice adds temporary unsaved construction and a transient
+live draft bridge. It previews selected objects and live dependents without graph
+commits or whole-scene rebuilding per sample; pins remain frozen, closing restores
+saved visuals and new work becomes canonical only on save. Existing world budgets
+apply. This does not yet provide lattice mouse construction, Omnic frame/dial
+controls, exact MS regions or calibrated reading size. See
+[the current mental model](OMNIC_WORKBENCH_MODEL.md) and
+[live draft contract](OMNIC_COMPOSER.md#live-world-drafts-first-workbench-slice-2026-10-28).
 
 Read [OMNIC_LIBRARY.md](OMNIC_LIBRARY.md) before changing persistence, library
 organization, revisions or cloud snapshots. The user chose a workspace-wide

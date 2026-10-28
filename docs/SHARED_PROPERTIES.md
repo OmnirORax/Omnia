@@ -1,5 +1,28 @@
 # Universal properties, coupling and generated controllers
 
+## Universal halving method (user requirement, 2026-10-28)
+
+The user explicitly clarified that the **halving method applies to all value
+picking systems**. It is not confined to Omnic, rotation, pivot selection or
+radial axes. Build the applicable mechanism once in shared property/value picking
+and let current/future consumers inherit it through their declared domains.
+
+Angular clarification: start from the right with base six positions; refinement
+order doubles the count 6 → 12 → 24 → 48. Three base steps reaches the opposite
+side. User-facing controls use step/order or fractional addresses, not degrees;
+renderer angle conversion is internal. Positive direction and radius coupling
+remain pending. Do not interpret entering `3` as three halvings of a North–East
+sector unless that interval operation was explicitly selected.
+
+The interaction uses a chosen interval/reference and a quickly entered halving
+depth, with direction/endpoints where needed. Radial examples start with six
+divisions and can refine to 12, 24, 48; position examples include half, quarter
+and eighth along an axis. These examples do not yet settle all indexing and
+direction rules. The exact interpretation of depth, interval branching, valid
+thresholds and mapping to discrete/non-numeric domains remains open. Preserve
+consumer constraints and distinguish picking precision from actual allowed values.
+Do not create separate halving implementations or settings stores per feature.
+
 Status: **shared core implemented; migration is incremental**. Updated 2026-10-22.
 The general registry now drives canonical property lookup, compatible consumer
 coupling, category discovery and generated controller/target projections. Existing
@@ -294,6 +317,12 @@ registry at initialization, with no new DOM/pointer scans or animation work.
 
 ## Active Omnic parameter owner
 
+World draft preview subscribes to the existing composer-owned recipe through
+`omnic/worldPreview.ts`. The transient store carries a render projection only;
+MC setters, draft recovery and chronological history still use the same owner.
+It does not publish parameter samples to App state or commit workspace snapshots
+on pointer movement. See the live draft section in OMNIC_COMPOSER.md.
+
 `omnic/omnic.function.ts` projects generator/operator input metadata into the same
 property pool and declares pure read/write adapters for the `omnic` owner.
 `omnic/propertyAdapter.ts` scopes those inputs to the active component/application;
@@ -307,3 +336,26 @@ Unmounted owners are hidden; settings adapters remain mandatory. The property
 contract build check covers Omnic's channels as well. Specialized consumers should
 use this existing extension path, not add a second setter registry or publish
 parameter samples into application-wide settings/React state.
+
+
+### Shared interval halving
+
+`ui/RangeControl.tsx` offers `properties/HalvingPicker.tsx` automatically for numeric
+consumers. It uses the working interval and applies existing consumer resolution
+and validation after picking. `properties/halving.ts` supplies interval division,
+base-six radial subdivision, top/clockwise turns and snapping. Controls keep only
+picker state; accepted values remain with the registered consumer. Atomnic lends
+its recipe-backed parameters through the existing `omnic.composer` adapter; there
+is no second MC settings owner. Angular order and radius are distinct inputs;
+constraint profiles enforce their own legal combinations. Depth is an initial
+explicit convention (1 = midpoint, then quarter/eighth), not a finalized grammar
+for every future contextual picker.
+
+
+The contextual configuration correction makes `HalvingPicker` sequential: depth
+first, direction only for a non-midpoint result. `UIAction.onConfigure` supplies
+shared right-click-to-configure semantics while ordinary click keeps execution.
+`ProgressiveConfiguration` mounts only the active registered input. Atomnic declares
+per-operation input sequences from its existing parameter keys; durable values
+remain in the same recipe/property adapters. Nested radial reference setup follows
+bounds → depth → optional direction → position, never a simultaneous input grid.

@@ -99,10 +99,10 @@ export function actionScope(id: string): string {
 export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
 export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
 /** Resolve overlapping feature keys by active scope, never listener mount order.
- * An active selector owns its commands before UI frames, then global actions. */
+ * An active selector owns its commands before content editors, UI frames, then global actions. */
 export function preferredFeatureKey(bindings: Record<string, string>, key: string, available: (id: string) => boolean, typing = false, blocked = false): string | null {
   if (!key) return null;
-  const rank = (scope: string) => scope === "visualSelector" ? 2 : scope === "uiContext" ? 1 : 0;
+  const rank = (scope: string) => scope === "visualSelector" ? 3 : scope === "contentEditing" ? 2 : scope === "uiContext" ? 1 : 0;
   const candidates = FEATURE_ACTIONS.filter(action => shortcutBinding(action.id, bindings) === key && available(action.id) &&
     (!typing || "allowTyping" in action && action.allowTyping) && (!blocked || "allowBlocked" in action && action.allowBlocked));
   candidates.sort((a, b) => rank(b.scope) - rank(a.scope));

@@ -232,3 +232,8 @@ held input. Entering a field/blocking dialog, rebinding and selection changes cl
 it. Scene/document replacement cancels its old preview before replacing objects;
 no stale scheduled frame may move a new target. Explicit clicks/programmatic nudge
 commands remain single-step catalog actions.
+
+Content editing commands use the shared `contentEditing` scope, between active MS
+and UI-frame commands. Atomnic uses this scope so its D/Esc do not conflict with
+frame descendants/back during settings migration. Dispatch still checks mounted
+availability, typing, capture and blocked dialogs.

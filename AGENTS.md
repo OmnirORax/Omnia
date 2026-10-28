@@ -15,6 +15,40 @@ to test. Browser acceptance and deployment are never inferred from builds.
 
 # Worker entry rules
 
+The user's standing delivery workflow is to push authorized implementation to
+`OmnirORax/Omnia`, create/update its open pull request, publish the self-contained
+visual build and `source.json` to the existing `preview/githack` artifact branch,
+and provide a fresh commit-pinned GitHack preview. The user explicitly confirmed
+this baseline on 2026-10-28; do not ask again for routine PR/preview publication.
+Preserve the existing public-artifact/private-backend boundary and never include
+workspace data or credentials. Merging/deploying production is a separate action.
+Use a new PR when the preceding PR has merged.
+
+Batch completed work into a single delivery push; do not use incremental pushes or
+CI reruns as a local development loop. Before pushing, run applicable local checks,
+including `backend:check` when shared portable modules change: backend contracts
+import Omnic validators, and Deno resolves type-only imports too. Portable modules
+must use explicit TypeScript extensions. Local frontend success does not imply CI
+success. Check the latest run status once for a delivery, report failures accurately
+and fix their cause locally before another push. Never disable checks or alter user
+notification preferences merely to hide failures. The user handles browser and
+interactive performance acceptance; existing optimization/testing constraints apply.
+
+Every preview handoff must include an inventory of implemented features/functions,
+where to find them and how to use them, distinguishing new changes from existing
+capabilities and planned work. Give the user practical first steps, material limits
+and verification status. Link the complete maintained capability guide; a preview
+URL or change summary alone is insufficient. Keep the user aligned on what the
+particular preview actually contains.
+
+For Omnic or Omnium node/frame work, also read
+[the current workbench mental model](docs/OMNIC_WORKBENCH_MODEL.md). It synthesizes
+the user's 2026-10-28 decisions, open ideas and implementation sequence. Build the
+general world-integrated construction instrument; concept presets do not satisfy
+it. The minimum movable atom, finer operator imprints and smallest visible cue
+are different limits. Preserve the distinction between confirmed behavior and
+exploratory grammar. Direct lattice placement/movement is now explicitly desired.
+
 Read [docs/WORKER_ONBOARDING.md](docs/WORKER_ONBOARDING.md) once when starting work
 or resuming with a fresh context. It supplies the project mental model, system
 boundaries, status map and links to task-specific contracts. Do not reconstruct
@@ -68,6 +102,13 @@ feature-specific scope lists or treat the order as an arbitrary list of options.
 
 # Systemic implementation and future inheritance (all agents)
 
+The user's **halving method** is a universal value-picking requirement, not an
+Omnic-only or radial-selector feature. Implement it through shared value/property
+selection mechanisms so applicable current and future consumers inherit it.
+Radial axes and positions are examples. Exact indexing, endpoint/direction and
+threshold behavior remain to be resolved with the user; do not freeze guessed
+formulas into individual controls. See SHARED_PROPERTIES.md.
+
 Fix the underlying cause in the shared system, not the individual symptom with
 hardcoded IDs, per-component exceptions, duplicated logic or one-off patches.
 Inspect the affected ownership and contracts, consider other affected systems and the
@@ -104,6 +145,13 @@ not only after the user requests a compactness pass.
 Numeric slider controls use `ui/RangeControl.tsx`, the shared spectrum widget.
 Reuse it instead of adding private ranges, arrow steppers or duplicate min/max
 fields. See the UI component contract for its left/right-click semantics.
+
+Omnic contextual interaction is progressive: keep the function list hidden until
+right-click; left-click uses retained values; right-click ONE function reveals one
+relevant setter at a time. Confirm advances and Back/Esc goes back. Pivot, axis
+bounds, halving depth, optional direction and position appear in sequence. A
+permanent toolbar or a full settings grid violates the user's explicit correction.
+See OMNIC_WORKBENCH_MODEL.md for the exact contract.
 
 # Responsiveness is a product requirement
 

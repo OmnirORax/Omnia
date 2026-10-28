@@ -1,3 +1,4 @@
+import { ownsContextMenu, routeContextMenu } from './contextMenuOwnership';
 import {createDragQueries} from './dragQueries';
 import {createRegistrationBatch} from './registrationBatch';
 import {residentRenderSlice} from './renderSubscriptions';
@@ -188,6 +189,7 @@ const FunctionElement=memo(function FunctionElement({
     children?: ReactNode;
     className?: string;
     onMouseEnter?: () => void;
+    onContextMenu?: (event: React.MouseEvent) => void;
   }>;
   const shared = {
     "aria-keyshortcuts": shortcut?.replace(/Ctrl/g, "Control").replace(/Esc/g, "Escape"),
@@ -205,13 +207,15 @@ const FunctionElement=memo(function FunctionElement({
       e.dataTransfer.effectAllowed = "move";
     },
     onContextMenu: (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!palette && ui.selectedFunctions.has(fn.id) && ui.selectedFunctions.size > 1) {
-        ui.selectionMenu(e.clientX, e.clientY);
-        return;
-      }
-      ui.configure(fn.id);
+      routeContextMenu(e, palette || fn.control ? undefined : original.props.onContextMenu, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!palette && ui.selectedFunctions.has(fn.id) && ui.selectedFunctions.size > 1) {
+          ui.selectionMenu(e.clientX, e.clientY);
+          return;
+        }
+        ui.configure(fn.id);
+      }, !palette && ownsContextMenu(e.target));
     },
   };
   const modeClass =
@@ -683,6 +687,7 @@ export function UIWorkspace({
     // Prevent the browser menu everywhere in the app; custom menus still receive this event.
     const prevent = (e: Event) => e.preventDefault();
     const fallback = (e: MouseEvent) => {
+      if (ownsContextMenu(e.target)) return;
       const target = e.target as Element;
       if (
         !target.closest(

@@ -1,5 +1,12 @@
 # Omnic composer: Stage 1 contract
 
+The user's subsequent direction is synthesized in
+[OMNIC_WORKBENCH_MODEL.md](OMNIC_WORKBENCH_MODEL.md). It authorizes progressive
+world-integrated construction, temporary/shared live drafts and lattice-constrained
+mouse placement/movement. This Stage 1 document remains the record of existing
+delivery scope; its procedural-only interaction restriction does not prohibit
+that newer work. See the mental model's progress section for actual delivery.
+
 Status: **Stage 1 implemented for review; browser acceptance pending**. This
 document records the current user agreement and the first implementation. Model
 and build validation are recorded below; browser usability and smoothness remain
@@ -205,10 +212,13 @@ Stop after Stage 1 and report the smallest useful next step.
 
 Open **Create → New Omnic object**, or select an existing node and use
 **Inspector → Open Omnic composer** (also searchable/rebindable catalog actions).
-A new object is a canonical entity with an initial procedural definition. Opening
-an ordinary object starts a recoverable composer draft; Save shared adds/revises
-its structural definition without changing identity. Save copy creates another
-canonical entity and a normal placement in the current creation context.
+New work now starts as a recoverable unsaved draft with one procedural dot and
+a temporary world preview; it creates no canonical entity until saved. Opening
+the composer without a selected object uses that same route. Opening an ordinary
+object starts a recoverable composer draft; Save shared adds/revises its structural
+definition without changing identity. For unsaved work Save shared creates the
+object at its creation context; Save copy deliberately creates another identity.
+See the live-world slice below for bounds and remaining limitations.
 
 The composer supplies procedural dot, ring, line, chain, radial and nested-group
 generators, shared-object references, count/scale/fill/rotation/selection/connection/
@@ -257,6 +267,59 @@ language, translation tooltips and persistent library organization remain unreso
 or deferred. Stage 2 library organization and workspace persistence are now
 implemented for review; their contract and rollout limits are in OMNIC_LIBRARY.md.
 
+
+## Live world drafts: first workbench slice (2026-10-28)
+
+**Create → New Omnic object**, or **Open Omnic composer** with no selection,
+opens one recoverable unsaved draft for the active workspace/atlas. Its seed is
+one procedural dot. A temporary structure appears in the world at the creation
+context without adding an entity, placement or canonical history entry. The
+existing composer supplies the editing controls in this slice. Enter **Glyph name**
+and **Save shared** to create the canonical object there. Completing that draft
+releases its recovery slot; the next new draft has a fresh history owner. An
+unfinished draft reopens/reloads through its own workspace/atlas recovery ID.
+
+Opening a selected object previews its recipe immediately on visible uses and
+transitive **live** dependents. Pinned revisions and paths through frozen pins
+retain their saved definitions. Previews temporarily show the structural view
+over local asset/character overrides; closing restores the original presentation.
+Save shared changes the canonical recipe, not those explicit presentation choices;
+**Show Omnic structure** remains the way to clear an override permanently.
+
+Input samples, draft Undo/Redo, presets, imports and Reset draft update the world
+without writing canonical state. Closing removes the world draft and restores
+saved rendering while retaining the recoverable draft. Reset reloads the saved
+definition (or the single-dot seed for unsaved work). Invalid evaluations retain
+the last valid world preview while the composer reports the error. Save/copy still
+use the existing validated workspace, archive and shared history paths.
+
+The bridge is a session-owned transient store, not another recipe owner. Renderer
+plans use immutable-pool indexes for live dependencies and visible occurrences.
+Updates are coalesced at the existing 12fps Omnic budget, spread dependent work
+over 4ms batches, reuse generated assets,
+replace only affected visuals and retain the last decoded visual until its
+replacement loads. A draft sample does not rebuild the entire scene or pass a
+projected document through graph commits. Pending loads and proxies are disposed
+on replacement, close, atlas switch and scene rebuild.
+
+The shared world budget remains 32 structural sources at 256px. Preview can use
+existing reserved occurrences and free slots; additional occurrences retain saved
+rendering. A new temporary uses a free slot or displays the existing preview-budget
+placeholder. The world remains static at evaluation time zero; Play animates only
+the composer. This is not fixed-size Omnic reading or readability calibration.
+
+Temporary world drafts are edited through the composer and become normal
+selectable graph placements after saving. This slice does not yet implement the
+fixed touching-lattice mouse/sweep interface, arbitrary subset movement, exact
+MS internal-region selection, an Omnic frame/dial UI or the complete node rework.
+Those follow the shared [mental model](OMNIC_WORKBENCH_MODEL.md), rather than
+being inferred as delivered by the preview bridge.
+
+Type/capability/property checks and the self-contained preview build pass (2.85MB).
+No browser suite or performance trace ran; user acceptance is pending. Focus user testing on new draft → world edit →
+close/recover → save, shared uses/live dependencies versus pins, Reset/Undo,
+asset override restoration and atlas-switch cleanup. Build/static results are
+recorded at handoff and do not establish interactive smoothness.
 
 ## Member / Part construction extension (2026-10-28)
 
@@ -322,3 +385,106 @@ Smallest next step: user-test New Omnic object → radial count/rotation → nes
 reuse → Save shared across two placements → Save copy → reload/export/import.
 Resolve observed usability/performance issues as Stage 2 is reviewed. Stage 1
 frame authoring remains explicit scoped records; full interpretation is Stage 3.
+
+
+## Atomnic construction
+
+Implemented for review on the workbench PR; browser interaction and smoothness
+remain user-tested. This extends the first live-world slice. New Omnic object opens
+Atomnic by default. Existing recipes use **Atomnic mode** / **Generator controls**
+to switch. Saved data is preserved. Authoring supports explicit dots and nested
+groups with highlights; arrays, references and other enabled geometry operators
+remain in Generator controls. There is no automatic destructive flattening.
+
+- **D / Draw:** move to preview the next imprint; click places one, hold and sweep
+  places a bounded stroke. The touching-lattice profile uses triangular slots,
+  fixed diameter pitch and no overlap; leave empty slots for gaps. Free separates
+  imprint radius and movement step, permitting gaps, overlaps and fractional steps.
+  Slot grid is omitted above 1,024 visible slots. A stroke samples at most 64 points
+  per event; recipe limits still apply.
+- **E / Erase:** choose Erase from the right-click function list or press E.
+  Click removes a touched unit; sweep erases all crossed units. Micro addresses
+  units, Macro their nearest authored group. Right-click Erase configures only
+  Scope. Hover previews the addressed set. Release accepts one draft-history edit;
+  Esc/cancel restores the pre-stroke recipe. A direct swept-segment test bounds
+  work by unit count and catches units between pointer events. Erasing is whole-unit
+  removal, not intradot carving; explicit dangling operator targets stay diagnostic.
+- **V / Select:** click a unit; Shift-click adds/removes. **Scope** Micro addresses
+  units; Macro addresses their nearest authored group (ungrouped root dots share
+  the construction). Ctrl+A selects all authored units. Context **group** gathers
+  selected units preserving IDs and coordinates; **remove** / Delete deletes them.
+  Context selectionUndo/selectionRedo changes only transient selection. Ordinary
+  shared Undo/Redo changes accepted construction, not each pointer preview.
+- **G / Move:** drag selected units rigidly. A clicked unselected unit becomes the
+  selection. Touching mode snaps the common translation and rejects overlap;
+  Free uses its retained movement step. Invalid samples retain the last valid one.
+- **Right-click:** reveals only the function list, with retained values. No
+  permanent function toolbar appears above the construction. Left-click a function
+  uses its retained settings. Right-click ONE function reveals only its first
+  relevant setter; Next/Confirm advances to the next, Back/Esc goes back. Draw
+  configures constraints, paint target, imprint, step (Free only) and paint inputs
+  in sequence. Select/Move configure their own relevant inputs. View configures only
+  construction extent. Other functions' fields never appear alongside the current one.
+- **R / Rotate:** ordinary invocation skips setters, prompts for a pivot, then
+  permits dragging. Right-click → right-click Rotate (or R with the list open)
+  configures Scope → angular halving order → rotation step count, one at a time.
+  Confirm at the last step enters pivot picking. The retained one-step function
+  follows the same pivot prompt and applies the step without dragging.
+- **Pivot/reference:** during pivot picking, right-click exposes Exact click and
+  Detected target. Left-click selects that retained mode and returns to picking.
+  Right-click Detected target exposes its Axis step; left-click retains the axis
+  and advances to Position, while right-click Axis opens boundary picking. Choose
+  first boundary, second boundary, then halving depth. Midpoint accepts immediately;
+  deeper choices ask direction. The resolved axis advances to position halving.
+  Position 1/2 is target center; quarter/eighth positions request a side. The cursor
+  shows rotation throughout and a pulsing center during target selection. The
+  reference uses the current Micro/Macro bounding box. Top is zero, clockwise
+  positive; order 0/1/2 yields 6/12/24 directions. Exact supported axes are retained;
+  angular precision beyond order 6 is rejected, never silently rounded.
+- **Halving:** shared numeric ranges expose **½**. It first asks depth; depth 1
+  accepts the midpoint with no direction question. Depth 2/3 then asks which endpoint
+  to approach for quarter/eighth. Input Enter confirms each native input step.
+  Consumer validation/resolution still applies. Atomnic axis boundaries can be
+  picked on the radial address ring (up to 48 handles) or cardinal buttons; the axis
+  itself is derived from the bracket and depth, not manually guessed.
+- **Highlight:** right-click Highlight to configure Scope, fraction, mark orientation,
+  color and opacity one at a time, then confirm to apply. Left-click Highlight
+  applies those retained settings immediately. Fraction 1/2 paints a horizontal half
+  at the default orientation; 1 marks the entire unit. Paint values stay
+  independent of canonical semantics. **Fill** applies retained paint/fill to units.
+  Existing Ordered operations shows/removes/reorders marks. Generator controls
+  also supplies reusable copied operation tools, export and detailed operations.
+- **Property patterns:** right-click a unit, then choose Property patterns. Candidates
+  come from registered dot properties, ranked by shared-property similarity;
+  absolute position is excluded. Hover glows candidates; click selects that set;
+  + includes a criterion, − excludes it, Clear criteria removes criteria without
+  discarding the chosen selection. Size, fill, color, opacity, stroke, orientation and evaluated highlight descriptors
+  participate. Orientation include/exclude uses half a current angular step as
+  tolerance, with cyclic wrapping. The shared matcher is renderer-independent;
+  full integration with the global MS geometry/region UI is still pending.
+- **World:** the same gestures address the active edited image in Omnium, including
+  unsaved temporary work. Shared uses continue previewing together within the
+  existing 32-source budget. Selection/pivot/grid/ghost are transient editing
+  feedback, excluded from saved/exported glyph geometry. Close restores saved
+  rendering; unsaved draft recovery and Reset keep their existing behavior.
+
+The construction view extent is fixed while editing and adjustable in DOFs; it
+does not auto-fit each placement. That retained viewport also applies after saving
+and in library thumbnails, so saving does not silently rescale the composition.
+This is not yet the final calibrated reading
+size/max-zoom system. World rendering still uses a 256px texture and 12fps draft
+budget. Direct hit testing addresses the edited identity's image plane; generated
+reference users show live results but are not alternate atom-editing surfaces.
+At most 128 components (groups included), 128 operations and coordinates within
+±300; finite bounded ranges are enforced. Touching mode checks authored centers
+and disk radii, not stroke thickness or arbitrary simulated physical laws. Illegal
+pivots/rotations do not deform individual atoms to make them fit. Finer rotations
+usually require Free. No automatic meaning, equal-node relayout, visible circular
+frame/dial authoring or complete MS intradot carving is claimed in this version.
+
+
+The construction surface and contextual MC own their right-click workflow.
+Opening functions, configuring one function or using blank popup space must not
+also open UI-edit menus, including when a containing UI frame is selected. The
+shared function renderer preserves original contextual handlers; normal frame
+chrome and unrelated controls retain their UI customization route.
