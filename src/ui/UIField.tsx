@@ -9,11 +9,13 @@ export const UIField=memo(function UIField({
   label,
   category = "Settings",
   children,
+  registerOnly = false,
 }: {
   id: string;
   label: string;
   category?: string;
   children: ReactElement;
+  registerOnly?: boolean;
 }) {
   const { registerFunction } = useUITracked(ui=>[ui.registerFunction]), homePath = useContext(UIPathContext), pathKey = JSON.stringify(homePath);
   const [store] = useState(() => ({ element: children, listeners: new Set<() => void>() }));
@@ -35,7 +37,7 @@ export const UIField=memo(function UIField({
       }),
     [registerFunction, id, label, category, store, pathKey, rigidityTarget],
   );
-  return <FunctionControl id={id} />;
+  return registerOnly?null:<FunctionControl id={id} />;
 });
 function LiveField({ id, store }: { id: string; store: { element: ReactElement; listeners: Set<() => void> } }) {
   const ui = useUITracked(ui=>[ui.layout.labels?.[`function:${id}`]]);

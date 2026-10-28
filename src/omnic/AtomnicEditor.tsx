@@ -1,9 +1,9 @@
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Recipe, Component } from './model';
 import { validateRecipe } from './model';
-import { atoms, atomnicSettings, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms, type Point } from './atomnic';
+import { atoms, atomnicSettings, atomnicEditable, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms, type Point } from './atomnic';
 import { ATOMNIC_PARAMETERS, ATOMNIC_OPERATION_INPUTS, type AtomnicConfigAction } from './atomnicSettings';
 import { useOmnicParameterBindings } from './propertyAdapter';
 import { PropertyEditor } from '../appearance/Controls';
@@ -21,14 +21,18 @@ import type { AtomnicInteraction } from './atomnicInteraction';
 import { renderSVG } from './svg';
 import type { Evaluation } from './evaluate';
 import { claimUIPress } from '../ui/pointerOwnership';
+import { FEATURE_ACTIONS } from '../featureActions';
+import { FunctionControl } from '../ui/UIWorkspace';
+import { RadialMenu, type RadialNavigation } from '../ui/RadialMenu';
+import { radialTree, type RadialEntry } from '../ui/radialMenuModel';
 
-type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void};
+type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void;documentEntries?:RadialEntry<ReactNode>[];modeControl?:ReactNode};
 type Panel={kind:'functions'}|{kind:'operation';action:AtomnicConfigAction;index:number}|{kind:'pivotModes'}|{kind:'reference';index:number}|{kind:'axis';stage:'start'|'end'|'halving';start?:number;end?:number}|{kind:'position'}|{kind:'patterns'};
 type Tool='draw'|'erase'|'select'|'move'|'rotate';
 type Gesture={kind:'draw'|'erase'|'move'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number;turn?:number;appliedTurn?:number};
 const uid=()=>crypto.randomUUID();
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
-export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
+export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries=[],modeControl}:Props) {
   const recipeRef=useRef(recipe);recipeRef.current=recipe;
   const [selectionTimeline,setSelectionTimeline]=useState(()=>({states:[new Set<string>()],index:0}));
   const selected=selectionTimeline.states[selectionTimeline.index];
@@ -39,6 +43,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   const [criteria,setCriteria]=useState<PropertyCriterion[]>([]),[pointed,setPointed]=useState<string|null>(null);
   const gesture=useRef<Gesture|null>(null),stepOnly=useRef(false),cursor=useRef<HTMLDivElement>(null);
   const pointer=useRef({x:0,y:0}),lastHover=useRef(0);
+  const radialNavigation=useRef<RadialNavigation>(null);
   const [ghost,setGhost]=useState<Point>();
   const settings=useMemo(()=>atomnicSettings(recipe),[recipe.atomnic]);
   const list=useMemo(()=>atoms(recipe),[recipe.components]);
@@ -78,9 +83,12 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     const walk=(items:Component[]):Component[]=>items.filter(c=>!ids.has(c.id)).map(c=>c.children?{...c,children:walk(c.children)}:c);
     commit(validateRecipe({...recipeRef.current,components:[...walk(recipeRef.current.components),{id:uid(),generator:'group',params:{},children:chosen.map(a=>({...a.component,params:{...a.component.params,x:a.x,y:a.y}}))}]}));
   }catch(failure){error(failure);}};
-  const compatible=recipe.components.every(function supported(c:Component):boolean{return ['dot','group'].includes(c.generator)&&(c.children??[]).every(supported);})&&recipe.operations.every(op=>!op.enabled||op.operator==='highlight');
+  // Atomnic is a tool profile in the same recipe. Other generators remain
+  // rendered; only authored dots are direct Atomnic gesture targets.
+  const compatible=atomnicEditable(recipe);
   const commands=useFeatureActions('atomnicComposer',{
     'atomnic.erase':{enabled:compatible,run:()=>{cancel();setTool('erase');}},
+    'atomnic.constraints':{enabled:compatible,run:()=>input('mode',settings.mode==='free'?'constrained':'free')},
     'atomnic.draw':{enabled:compatible,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,run:()=>{cancel();setTool('select');}},
     'atomnic.move':{enabled:compatible&&selected.size>0,run:()=>{cancel();setTool('move');}},
     'atomnic.rotate':{enabled:compatible&&selected.size>0,run:event=>{if(menu&&event instanceof KeyboardEvent){configureOperation('atomnic.rotate');}else beginRotation();}},
@@ -95,16 +103,16 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     'atomnic.configure':{enabled:compatible,run:()=>{setPanel({kind:'functions'});setMenu({...pointer.current});}},
     'atomnic.patterns':{enabled:compatible&&selected.size>0,run:()=>setPanel({kind:'patterns'})},
     'atomnic.confirm':{enabled:!!menu&&(panel.kind==='operation'||panel.kind==='reference'),run:()=>nextConfiguration()},
-    'atomnic.cancel':{enabled:phase!=='idle'||selected.size>0||!!menu,run:()=>{if(menu&&panel.kind!=='functions')backConfiguration();else if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
+    'atomnic.cancel':{enabled:phase!=='idle'||selected.size>0||!!menu,run:()=>{if(menu&&panel.kind==='functions'&&radialNavigation.current?.back())return;if(menu&&panel.kind!=='functions')backConfiguration();else if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
   });
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if(commands.handle(event)){event.preventDefault();event.stopImmediatePropagation();}};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[]);
   useEffect(()=>{if(tool!=='rotate'&&tool!=='erase')return;const move=(event:PointerEvent)=>{pointer.current={x:event.clientX,y:event.clientY};if(cursor.current)cursor.current.style.transform=`translate(${event.clientX+12}px,${event.clientY+12}px)`;};window.addEventListener('pointermove',move);return()=>window.removeEventListener('pointermove',move);},[tool]);
   const handlers=useRef({down:(_p:Point,_e:PointerEvent)=>{},move:(_p:Point,_e:PointerEvent)=>{},up:(_p:Point,_e:PointerEvent)=>{},cancel});
   handlers.current={
     down:(point,event)=>{
-      if(!compatible)return;
       pointer.current={x:event.clientX,y:event.clientY};const target=hit(point);if(target)setPointed(target.id);
       if(event.button===2){if(target&&!selected.has(target.id))setSelected(scoped(new Set([target.id])));setMenu({...pointer.current});setPanel(phase==='pivot'?{kind:'pivotModes'}:{kind:'functions'});return;}
+      if(!compatible)return;
       if(event.button!==0)return;
       setMenu(null);
       if(phase==='pivot') {
@@ -176,25 +184,28 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   const field=(key:string)=>{const p=ATOMNIC_PARAMETERS.find(p=>p.key===key)!;return <UIField key={key} id={`atomnic:${key}`} label={p.label} category="Atomnic"><label>{p.label}<PropertyEditor property={p.property} label={p.label} disabled={key==='step'&&settings.mode==='constrained'} value={key==='step'&&settings.mode==='constrained'?Number(settings.size)*2:displayed[key]} limits={p.kind==='number'?{min:p.min!,max:p.max!}:undefined} choices={p.options?.map(o=>o.id)} onPreview={v=>input(key,v,true)} onCommit={v=>input(key,v)} /></label></UIField>;};
   const svg=evaluation?renderSVG(evaluation,bridge):'';
   const local=(event:React.PointerEvent<HTMLDivElement>)=>{const box=event.currentTarget.getBoundingClientRect();const edge=Math.min(box.width,box.height);return {x:((event.clientX-box.left-(box.width-edge)/2)/edge-.5)*size,y:((event.clientY-box.top-(box.height-edge)/2)/edge-.5)*size};};
+  const radialActions=FEATURE_ACTIONS.filter(action=>action.owner==='atomnicComposer'&&'radial' in action);
+  const radialControl=(action:typeof radialActions[number])=>{
+    const id=action.id as Parameters<typeof commands.invoke>[0],hasInputs=id in ATOMNIC_OPERATION_INPUTS;
+    const symbol=id==='atomnic.constraints'?(settings.mode==='free'?'⌁':'⊣'):'radial' in action?action.radial.symbol:'◇';
+    return <><UIAction id={`atomnic:context:${id.slice(8)}`} category="Atomnic" label={operationLabel(id)} symbol={symbol} registerOnly
+      disabled={!commands.available(id)} onClick={()=>{commands.invoke(id);if(!['atomnic.configure','atomnic.patterns','atomnic.constraints'].includes(id))setMenu(null);}}
+      onConfigure={hasInputs?()=>configureOperation(id as AtomnicConfigAction):undefined}/>
+      <FunctionControl id={`atomnic:context:${id.slice(8)}`} mirror symbol={symbol} tooltip={`${operationLabel(id)}${hasInputs?' · Left-click uses retained settings; right-click configures':''}`} /></>;
+  };
+  const radialEntries:RadialEntry<ReactNode>[]=radialActions.filter(action=>!('radial' in action&&'inset' in action.radial)).map(action=>({id:action.id,label:operationLabel(action.id),symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:radialControl(action)}));
   return <UISection id="atomnic-editor" title="Atomnic">
-    {!compatible&&<small role="alert">This recipe uses generated arrays, references or geometry operators. Switch to Generator controls to edit it; Atomnic gestures edit authored dots and groups.</small>}
-    <small className="atomnic-status" title="Right-click the construction or edited world image for functions; right-click one function for its configuration.">{tool} · {list.length} units · {selected.size} selected</small>
+    {!compatible&&<small role="alert">An enabled geometry operator changes the displayed construction. Turn Atomnic off to edit it. Other generators can coexist; Atomnic gestures target authored dots.</small>}
+    <div className="omnic-row"><button type="button" className="atomnic-tool-toggle" data-ui-id="atomnic:tools-visibility" aria-label={menu?'Hide tools':'Show tools'} title={menu?'Hide tools':'Show tools'} aria-expanded={!!menu}
+      onClick={event=>{if(menu)setMenu(null);else{setPanel({kind:'functions'});setMenu({x:event.clientX,y:event.clientY});}}}>⠿</button>
+      <small className="atomnic-status" title={`${tool} · ${list.length} units · ${selected.size} selected · Right-click for radial tools; right-click a tool to configure.`}>● {list.length} · ◉ {selected.size}</small></div>
     <div className="omnic-preview atomnic-surface" data-atomnic-surface data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();}} dangerouslySetInnerHTML={{__html:svg}}
       onPointerDown={event=>{event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);event.currentTarget.setPointerCapture(event.pointerId);api.down(local(event),event.nativeEvent);}}
       onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />
     {message&&<small role="status">{message}</small>}
-    <ContextualMasterController title={panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} position={menu} onClose={()=>{setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
-      {panel.kind==='functions'&&<div className="atomnic-functions">
-        {(['draw','erase','select','move','rotate','step','highlight','fill','group','ungroup','remove','all','selectionUndo','selectionRedo','patterns','configure'] as const).map(action=>{
-          const id=`atomnic.${action}` as const;
-          const hasInputs=id in ATOMNIC_OPERATION_INPUTS;
-          const requiresSelection=['move','rotate','step','highlight','fill','group','ungroup','remove','patterns'].includes(action);
-          return <UIAction key={id} id={`atomnic:context:${action}`} category="Atomnic" label={operationLabel(id)}
-            disabled={requiresSelection&&!selected.size||action==='ungroup'&&!list.some(a=>selected.has(a.id)&&a.group!=='@root')||action==='selectionUndo'&&selectionTimeline.index===0||action==='selectionRedo'&&selectionTimeline.index===selectionTimeline.states.length-1}
-            onClick={()=>{commands.invoke(id);if(!['configure','patterns'].includes(action))setMenu(null);}}
-            onConfigure={hasInputs?()=>configureOperation(id as AtomnicConfigAction):undefined} />;
-        })}
-      </div>}
+    <ContextualMasterController title={panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} radial={panel.kind==='functions'} position={menu} onClose={()=>{if(panel.kind==='functions'&&radialNavigation.current?.back())return;setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
+      {panel.kind==='functions'&&<RadialMenu items={radialTree([...radialEntries,...documentEntries])} navigationRef={radialNavigation} onClose={()=>setMenu(null)}
+        inset={<>{radialActions.filter(action=>'radial' in action&&'inset' in action.radial).map(action=><span className="radial-menu-inset" key={action.id}>{radialControl(action)}</span>)}{modeControl&&<span className="radial-menu-inset">{modeControl}</span>}</>} />}
       {panel.kind==='operation'&&<ProgressiveConfiguration label={operationLabel(panel.action)} index={panel.index} count={operationKeys(panel.action).length} onBack={backConfiguration} onNext={nextConfiguration}>
         {field(operationKeys(panel.action)[panel.index])}
       </ProgressiveConfiguration>}
@@ -262,6 +273,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     const count=divisions(Number(settings.order));
     const labels:Record<string,string>={
       'atomnic.erase':`Erase · ${settings.scope}`,
+      'atomnic.constraints':`${settings.mode==='free'?'Free':'Realistic · touching lattice'} · click to switch`,
       'atomnic.draw':`Draw · r ${settings.size} · step ${settings.mode==='constrained'?Number(settings.size)*2:settings.step}`,
       'atomnic.select':`Select · ${settings.scope}`,'atomnic.move':`Move · ${settings.scope}`,
       'atomnic.rotate':`🗘 Rotate · ${settings.steps}/${count}`,'atomnic.step':`🗘 Step · ${settings.steps}/${count}`,

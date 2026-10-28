@@ -24,6 +24,9 @@ import { RENDER_BUDGET } from "../renderBudget";
 import "./composer.css";
 import { AtomnicEditor } from "./AtomnicEditor";
 import type { AtomnicInteraction } from "./atomnicInteraction";
+import { FEATURE_ACTIONS, radialGroups } from '../featureActions';
+import type { RadialEntry } from '../ui/radialMenuModel';
+import type { ReactNode } from 'react';
 
 type ObjectRef = { id: string; label: string; omnic?: Recipe; omnicHistory?: Recipe[] };
 type Props = {
@@ -278,14 +281,19 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   return <div className="omnic-composer">
     <div className="omnic-toolbar">
       <strong>{entity.label || "Omnic object"}</strong><small title={isNew ? "Save shared creates this object at the preview position. Closing removes the world preview and keeps the recoverable draft. World previews use the shared 32-source budget." : "The world previews this draft and its live uses within the shared 32-source budget; other occurrences retain saved rendering. Closing restores saved rendering; Reset draft reverts unsaved work."}>{isNew ? "New · world draft" : dirty ? "World draft · not saved" : `Shared revision ${entity.omnic?.revision ?? 0}`}</small>
-      {["omnic.save", "omnic.copy", "omnic.play", "omnic.export", "omnic.import", "omnic.reset"].map(action => <FunctionControl key={action} id={action} />)}
+      {!atomnicActive&&["omnic.save", "omnic.copy", "omnic.play", "omnic.export", "omnic.import", "omnic.reset"].map(action => <FunctionControl key={action} id={action} />)}
       <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importFile} />
     </div>
-    <UIField id="omnic:copy-name" label={isNew ? "Glyph name" : "Variation name"} category="Omnic"><label>{isNew ? "Glyph name" : "Copy name"} <input value={copyLabel} maxLength={200} onChange={event => setCopyLabel(event.target.value)} /></label></UIField>
+    <UIField id="omnic:copy-name" label={isNew ? "Glyph name" : "Variation name"} category="Omnic" registerOnly={atomnicActive}><label>{isNew ? "Glyph name" : "Copy name"} <input aria-label={isNew?'Glyph name':'Copy name'} value={copyLabel} maxLength={200} onChange={event => setCopyLabel(event.target.value)} /></label></UIField>
     {(error || evaluated.error) && <small role="alert">{error || evaluated.error}</small>}{notice && <small role="status">{notice}</small>}
     {baseRevision !== (entity.omnic?.revision ?? null) && <small role="status">This draft began at shared revision {baseRevision ?? "none"}; the object is now revision {entity.omnic?.revision ?? "none"}. Reset draft loads the current definition. Save shared explicitly replaces it; Save copy preserves both.</small>}
-    <div className="omnic-row"><UIAction id="omnic:atomnic-mode" label={atomnicActive ? "Generator controls" : "Atomnic mode"} category="Omnic" onClick={()=>commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}})} /></div>
-    {atomnicActive && <AtomnicEditor recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge} />}
+    <div className="omnic-row"><UIAction id="omnic:atomnic-mode" label={atomnicActive ? "Atomnic on · turn off (preserve composition)" : "Atomnic off · turn on"} symbol="⠒" category="Omnic" registerOnly={atomnicActive} onClick={()=>commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}})} /></div>
+    {atomnicActive && <AtomnicEditor recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge}
+      modeControl={<FunctionControl id="omnic:atomnic-mode" mirror symbol="⠒" tooltip="Atomnic on · turn off to use other geometry · composition is preserved"/>}
+      documentEntries={([
+        ...FEATURE_ACTIONS.filter(action=>action.owner==='omnicComposer'&&'radial' in action).map(action=>({id:action.id,label:action.label,symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:<FunctionControl id={action.id} mirror symbol={'radial' in action?action.radial.symbol:'◇'} tooltip={action.description}/>})),
+        {id:'omnic:copy-name',label:isNew?'Glyph name':'Variation name',symbol:'✎',group:[radialGroups.object,radialGroups.save],content:<FunctionControl id="omnic:copy-name" mirror symbol="✎" tooltip={`${isNew?'Glyph name':'Copy name'} · ${copyLabel}`}/>},
+      ] satisfies RadialEntry<ReactNode>[])} />}
     {!atomnicActive && <div className="omnic-workbench">
       <div className="omnic-preview-column">
         <div className="omnic-preview" ref={preview} role="img" aria-label="Live Omnic structure" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {

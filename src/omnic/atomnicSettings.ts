@@ -2,7 +2,7 @@ import type { Parameter, Value } from './registry.ts';
 const numeric = (key:string, property:string, label:string, initial:number, min:number, max:number, step=1):Parameter => ({key,property,label,initial,min,max,step,kind:'number'});
 export const ATOMNIC_PARAMETERS: readonly Parameter[] = [
   {key:'active',property:'atomnic.active',label:'Atomnic mode',kind:'toggle',initial:false},
-  {key:'mode',property:'atomnic.mode',label:'Constraints',kind:'select',initial:'constrained',options:[{id:'free',label:'Free'},{id:'constrained',label:'Touching lattice'}]},
+  {key:'mode',property:'atomnic.mode',label:'Constraints',kind:'select',initial:'constrained',options:[{id:'free',label:'Free'},{id:'constrained',label:'Realistic · touching lattice'}]},
   {key:'scope',property:'atomnic.scope',label:'Scope',kind:'select',initial:'micro',options:[{id:'micro',label:'Micro · members'},{id:'macro',label:'Macro · groups'}]},
   {key:'paint',property:'atomnic.paintTarget',label:'Paint target',kind:'select',initial:'brush',options:[{id:'brush',label:'Brush / next mark'},{id:'selection',label:'Selected units'}]},
   numeric('size','omnic.extent','Imprint radius',10,.5,50,.5),

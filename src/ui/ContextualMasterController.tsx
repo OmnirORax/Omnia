@@ -4,9 +4,9 @@ import { useActiveLayer } from "./ActiveContext";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
-export function ContextualMasterController({ title, hint, position, onClose, onWheel, children }: {
+export function ContextualMasterController({ title, hint, position, onClose, onWheel, children, radial = false }: {
   title: string; hint?: string; position: { x: number; y: number } | null;
-  onClose: () => void; onWheel?: (event: WheelEvent) => void; children: ReactNode;
+  onClose: () => void; onWheel?: (event: WheelEvent) => void; children: ReactNode; radial?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   useActiveLayer(!!position, root, onClose);
@@ -19,13 +19,13 @@ export function ContextualMasterController({ title, hint, position, onClose, onW
     const node = root.current; if (!node || !position) return;
     const fit = () => {
       const bounds = node.getBoundingClientRect();
-      node.style.left = `${Math.max(8, Math.min(position.x, innerWidth - bounds.width - 8))}px`;
-      node.style.top = `${Math.max(8, Math.min(position.y, innerHeight - bounds.height - 8))}px`;
+      node.style.left = `${Math.max(8, Math.min(position.x-(radial?bounds.width/2:0), innerWidth - bounds.width - 8))}px`;
+      node.style.top = `${Math.max(8, Math.min(position.y-(radial?bounds.height/2:0), innerHeight - bounds.height - 8))}px`;
     };
     const observer = new ResizeObserver(fit); observer.observe(node); fit();
     window.addEventListener("resize", fit);
     return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
-  }, [position?.x, position?.y]);
+  }, [position?.x, position?.y, radial]);
   useEffect(() => {
     const node = root.current; if (!node) return;
     const preventScroll = (event: globalThis.WheelEvent) => {
@@ -34,10 +34,10 @@ export function ContextualMasterController({ title, hint, position, onClose, onW
     node.addEventListener("wheel", preventScroll, { passive: false });
     return () => node.removeEventListener("wheel", preventScroll);
   }, [!!position, !!onWheel]);
-  return position && createPortal(<div ref={root} className="contextual-master-controller ui-frame-search-popup" data-context-controller data-ui-search data-ui-name-ignore
+  return position && createPortal(<div ref={root} className={`contextual-master-controller ui-frame-search-popup${radial?' contextual-master-controller-radial':''}`} data-context-controller data-ui-search data-ui-name-ignore
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{ left: Math.max(8, Math.min(position.x, innerWidth - 252)), top: Math.max(8, Math.min(position.y, innerHeight - 240)) }}>
-    <strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}{children}
+    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}{children}
   </div>, document.body);
 }

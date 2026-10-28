@@ -27,6 +27,32 @@ Zero holds orientation; one-shot Step still uses the saved sign. Touching-profil
 legality is unchanged. These changes await user interaction acceptance. The broader
 Shift-configuration/MS/frame/zoom gaps documented below remain open.
 
+### Radial tools, one-space toggle and constraints
+
+The next explicit direction replaces Atomnic's rectangular function list with
+icon-only category spheres on a circular rim, matching the supplied ring image.
+Opening a category replaces the active ring with a smaller one. Names/current values appear in tooltips.
+The tool button opens/closes the projection; its centre shows/hides tool spheres,
+and right-click/Esc steps outward. Eraser, Free/Realistic and Atomnic on/off sit
+just inside the rim. Minimize gaps; no permanent file-action toolbar or full grid.
+Right-click ONE function retains progressive configuration. Name/save/copy/file/
+playback use existing field/action identities, discovered from catalog metadata.
+The shared renderer bounds rings/items and supplies overflow categories.
+
+Atomnic toggles tools on the same recipe/world, not another environment. Off
+preserves dots while normal generators add rings/other geometry. On keeps those
+rendered while authored dots remain editable. Generated geometry uses existing
+generator controls; enabled non-highlight geometry operators still block direct
+authored-coordinate gestures pending their adapter. Macro currently consists of
+authored dot members, not arbitrary generated geometry. Full MS integration and
+universal geometry manipulation remain pending.
+
+Free/Realistic is directly available on the rim. Free permits independent imprint/
+step values and overlap; Realistic is the touching-lattice profile, coupling pitch
+to diameter and rejecting invalid slots/overlap/rotations. Incompatible switches
+reject without changing the construction. Full physics/other constraint profiles
+remain pending. This delivery needs user interaction acceptance.
+
 ## Start here
 
 The user needs a general instrument for constructing, applying and revising

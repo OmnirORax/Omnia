@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { radialTree, radialSlot, radialDimensions } from '../src/ui/radialMenuModel.ts';
 import {
   emptyUILayout,
   validateUILayout,
@@ -11,6 +12,30 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test('radial projections group shared categories without changing leaf identities or controls',()=>{
+  const save={id:'save',label:'Save',symbol:'▣'},file={id:'file',label:'Files',symbol:'⇅'};
+  const action={run:'existing-owner'},field={value:'existing-name'};
+  const tree=radialTree([
+    {id:'save-shared',label:'Save shared',symbol:'▣',group:[save],content:action},
+    {id:'name',label:'Name',symbol:'✎',group:[save],content:field},
+    {id:'export',label:'Export',symbol:'⇧',group:[file],content:action},
+  ]);
+  assert.equal(tree.length,2);assert.equal(tree[0].children.length,2);
+  assert.equal(tree[0].children[0].id,'save-shared');assert.equal(tree[0].children[0].content,action);
+  assert.equal(tree[0].children[1].content,field);
+  const many=radialTree(Array.from({length:20},(_,i)=>({id:`tool-${i}`,label:`Tool ${i}`,symbol:'○',content:i})));
+  const leaves=[];const visit=nodes=>{assert.ok(nodes.length<=6);for(const node of nodes)if(node.children)visit(node.children);else leaves.push(node.content);};
+  visit(many);assert.deepEqual(leaves,Array.from({length:20},(_,i)=>i),'overflow remains reachable without crowding');
+  const top=radialSlot(0,6,0),next=radialSlot(1,6,0),inner=radialSlot(0,6,1);
+  assert.equal(top.x,50);assert.ok(top.y<50);assert.ok(next.x>50,'clockwise from top');
+  assert.ok(inner.y>top.y&&inner.size<top.size,'progressively smaller category ring');
+  for(let depth=0;depth<3;depth++)for(let index=0;index<6;index++){
+    const slot=radialSlot(index,6,depth);
+    const {extent}=radialDimensions(depth);
+    assert.ok(slot.x*extent/100-slot.size/2>=0&&slot.x*extent/100+slot.size/2<=extent);
+    assert.ok(slot.y*extent/100-slot.size/2>=0&&slot.y*extent/100+slot.size/2<=extent);
+  }
+});
 test("live coordinate moves preserve topology validation for other changes", () => {
   const previous = emptyUILayout();
   previous.windows.a = { x: 20, y: 30, width: 300, height: 400, collapsed: false, pinned: false };

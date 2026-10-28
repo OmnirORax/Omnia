@@ -6,6 +6,9 @@ import type { PatternObject } from '../appearance/propertyPatterns.ts';
 export type Point={x:number;y:number};
 export type Atom=Point & {id:string;group:string;component:Component;origin:Point;radius:number;values:PatternObject['values']};
 export const atomnicSettings=(recipe:Recipe)=>({...atomnicDefaults(),...recipe.atomnic});
+/** Other generators share the recipe; geometry-transform operators need their
+ * evaluated-coordinate adapter before direct authored-dot gestures are safe. */
+export const atomnicEditable=(recipe:Recipe)=>recipe.operations.every(op=>!op.enabled||op.operator==='highlight');
 export function atoms(recipe:Recipe):Atom[] {
   const result:Atom[]=[];
   const walk=(items:Component[],origin:Point,group:string)=>items.forEach(component=>{

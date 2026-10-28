@@ -36,6 +36,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
         : matchesPointerShortcut(id, current.ui.shortcutBindings ?? {}, event, gestureModifiers);
     },
     invoke: (id: FeatureActionFor<Owner>, input?: ActionInput) => featureActionRuntime.invoke(id, input),
+    available: (id:FeatureActionFor<Owner>) => latest.current.handlers[id].enabled,
     handle: (event: KeyboardEvent | MouseEvent, accepts: (id: FeatureActionFor<Owner>) => boolean = () => true) => {
       // Explicit modified commands take priority over gesture-transparent matches.
       for (const gestureModifiers of [false, true]) for (const definition of definitions) {

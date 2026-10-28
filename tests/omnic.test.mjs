@@ -5,12 +5,41 @@ import { GENERATORS, OPERATORS } from '../src/omnic/registry.ts';
 import { createRecipe, PRESETS } from '../src/omnic/presets.ts';
 import { evaluateRecipe } from '../src/omnic/evaluate.ts';
 import { renderSVG, evaluationBounds } from '../src/omnic/svg.ts';
-import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings } from '../src/omnic/atomnic.ts';
+import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings, atomnicEditable, addAtom, legalAtoms } from '../src/omnic/atomnic.ts';
 import { snapTurn, turnDelta } from '../src/properties/halving.ts';
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
 const almost=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+
+test('Atomnic toggles tools on one recipe and permits other geometry alongside authored dots',()=>{
+  const source=validateRecipe({...recipe([dot('a'),{id:'boundary',generator:'ring',params:{radius:30}},
+    {id:'path',generator:'line',params:{y:40,length:80}},
+    {id:'array',generator:'chain',params:{y:-40,count:3}}]),atomnic:{active:true,mode:'constrained',size:5}});
+  const off=validateRecipe({...source,atomnic:{...source.atomnic,active:false}});
+  assert.deepEqual(evaluateRecipe(off).nodes,evaluateRecipe(source).nodes);
+  assert.equal(atomnicEditable(source),true);
+  const next=addAtom(source,{x:0,y:-10},'b');
+  assert.deepEqual(next.components.filter(c=>c.generator!=='dot'),source.components.filter(c=>c.generator!=='dot'));
+  assert.equal(atoms(next).length,2);
+  const transformed={...next,operations:[op('rotate','rotate',[],{angle:30})]};
+  assert.equal(atomnicEditable(transformed),false,'evaluated transforms still require their coordinate adapter');
+  assert.equal(atomnicEditable({...transformed,operations:[{...transformed.operations[0],enabled:false}]}),true);
+});
+
+test('Free accepts fractional overlapping placements while Realistic rejects incompatible geometry',()=>{
+  const free=validateRecipe({...recipe([dot('a')]),atomnic:{mode:'free',size:5,step:1}});
+  const overlapping=addAtom(free,{x:1,y:0},'b');
+  assert.equal(atoms(overlapping)[1].x,1);assert.equal(legalAtoms(overlapping),true);
+  assert.equal(legalAtoms({...overlapping,atomnic:{...overlapping.atomnic,mode:'constrained'}}),false);
+  const realistic=validateRecipe({...free,atomnic:{...free.atomnic,mode:'constrained'}});
+  const next=addAtom(realistic,{x:1,y:-10},'b');
+  assert.equal(atoms(next)[1].x,0);assert.equal(atoms(next)[1].y,-10);
+  assert.equal(legalAtoms(next),true);
+  assert.throws(()=>rotateAtoms(next,new Set(['b']),{x:0,y:0},1/12),/touching-lattice/);
+  assert.equal(legalAtoms(rotateAtoms(next,new Set(['b']),{x:0,y:0},1/6)),true);
+  assert.deepEqual(atoms(overlapping).map(a=>[a.id,a.x,a.y]),[['a',0,0],['b',1,0]],'rejected realistic candidates do not mutate Free source');
+});
 
 test('retained halving steps govern drag snapping in either direction, including zero',()=>{
   almost(snapTurn(.14,1,2),2/12);

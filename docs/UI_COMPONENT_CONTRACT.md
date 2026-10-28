@@ -9,6 +9,20 @@ sizes. Use accessible tooltips for secondary instructions. Preserve readable tex
 keyboard navigation and usable pointer targets. Contextual projections must fit
 only their relevant controls, with category-specific rows appearing when needed.
 
+`RadialMenu` is a shared icon-only contextual projection. `radialTree` groups
+declared action presentation metadata without changing command IDs or live controls.
+Only the active category ring is expanded, using 32/28/24px spheres in
+160/100/88px footprints, starting at top and proceeding clockwise. At most six
+spheres are drawn per ring; overflow becomes More tools and deeper navigation
+stops shrinking at 24px targets. No pointer-move layout/matching is needed. `ContextualMasterController`
+provides centred/clamped top-layer presentation and existing context-menu ownership.
+Centre left-click toggles tools; centre right-click or Esc steps outward.
+`FunctionControl mirror symbol tooltip` projects the existing action/field without
+another identity/value owner. Symbol fields open compact contextual editors.
+`UIField`/`UIAction registerOnly` retain real registry entries while their inline
+presentation is replaced by a projection. Names/current values belong in tooltips;
+editors show values only on request.
+
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
 Drag pickup measures destination bounds and child slots on demand and caches them

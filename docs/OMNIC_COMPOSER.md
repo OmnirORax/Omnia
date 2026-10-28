@@ -17,6 +17,18 @@ successive angles across full turns; zero holds orientation, negative step count
 set the one-shot Step direction while dragging follows the pointer. Unchanged
 snaps skip geometry work. The existing Free/touching constraints still apply.
 
+The function projection is now icon-only and radial: category spheres along the
+rim open progressively smaller category rings. Tooltips name tools/current values;
+right-click a tool opens one setter at a time. Centre ⠿ shows/hides tools;
+right-click/Esc steps back. Eraser, Free/Realistic and Atomnic on/off are inset.
+Object categories reuse name/save/copy/file/playback actions. The inline file/name
+toolbar is replaced only while Atomnic is active. The underlying recipe remains
+shared: toggling Atomnic off preserves its dots while other generators add geometry;
+returning keeps that geometry rendered and allows authored-dot gestures. Enabled
+geometry-transform operators still need their evaluated-coordinate adapter before
+direct gestures are safe. Free/Realistic uses retained settings; Realistic denotes
+the touching-lattice profile, not a full physical simulation.
+
 The user's subsequent direction is synthesized in
 [OMNIC_WORKBENCH_MODEL.md](OMNIC_WORKBENCH_MODEL.md). It authorizes progressive
 world-integrated construction, temporary/shared live drafts and lattice-constrained
