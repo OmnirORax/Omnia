@@ -480,3 +480,22 @@ must not be described as finished universal inheritance. Fix at shared applicabi
 configuration and hierarchy boundaries; do not add private Shift listeners or
 independent settings stores. The initial full-grid/permanent-toolbar delivery
 violated compactness and progressive interaction; its right-click path was corrected.
+
+
+### Reuse decision and eraser extension
+
+Keep the procedural engine and reusable capabilities: dot/group/line/ring and
+chain/radial generation, references/revision pins, count/size/rotation/fill/marking,
+selection/count inspection/connections, bounded motion, copied operation tools,
+property adapters, history, library/storage and renderers. Retire duplicate UI only
+when its contextual replacement covers its behavior. In particular, Generator
+controls still handles generated arrays/references that Atomnic cannot directly
+manipulate. Different interfaces do not create different concept identities.
+
+Erase adds a pointer tool using the same removal transaction as selected deletion.
+It sweeps whole authored units (Micro) or their nearest groups (Macro), accepts
+one edit on release and reverts an active stroke on cancel. It does not invent
+region-carving semantics. The user withdrew the additional operator-menu request after clarification;
+this extension delivers Eraser only. Existing reusable operators stay available
+through their current routes. Do not infer a broader operator rollout or invent
+settled frame/binder/dial semantics from the earlier illustrative list.

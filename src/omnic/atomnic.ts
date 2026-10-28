@@ -58,6 +58,26 @@ export function selectionScope(list:Atom[],ids:ReadonlySet<string>,macro:boolean
   if(!macro)return new Set(ids);
   const groups=new Set(list.filter(a=>ids.has(a.id)).map(a=>a.group));return new Set(list.filter(a=>groups.has(a.group)).map(a=>a.id));
 }
+/** Shared deletion transaction for selected removal and continuous erasing.
+ * Surviving identities and explicit operator addresses are never reassigned. */
+export function removeAtoms(recipe:Recipe,ids:ReadonlySet<string>):Recipe {
+  if(!ids.size)return recipe;
+  const walk=(items:Component[]):Component[]=>items.filter(c=>!ids.has(c.id)).map(c=>c.children?{...c,children:walk(c.children)}:c);
+  return {...recipe,components:walk(recipe.components)};
+}
+/** Test the swept segment directly: fast pointer movement cannot skip a unit,
+ * and work stays bounded by the recipe limit rather than travel distance. */
+export function atomIdsAlong(list:readonly Atom[],from:Point,to:Point):Set<string> {
+  const dx=to.x-from.x,dy=to.y-from.y,length=dx*dx+dy*dy;
+  return new Set(list.filter(atom=>{
+    const t=length?Math.max(0,Math.min(1,((atom.x-from.x)*dx+(atom.y-from.y)*dy)/length)):0;
+    return Math.hypot(atom.x-from.x-t*dx,atom.y-from.y-t*dy)<=atom.radius;
+  }).map(atom=>atom.id));
+}
+export function eraseAtomsAlong(recipe:Recipe,from:Point,to:Point,macro:boolean):Recipe {
+  const list=atoms(recipe);
+  return removeAtoms(recipe,selectionScope(list,atomIdsAlong(list,from,to),macro));
+}
 export function rotateAtoms(recipe:Recipe,ids:ReadonlySet<string>,pivot:Point,turn:number):Recipe {
   const a=turn*Math.PI*2,c=Math.cos(a),s=Math.sin(a);
   const next=transformAtoms(recipe,ids,p=>({x:pivot.x+(p.x-pivot.x)*c-(p.y-pivot.y)*s,y:pivot.y+(p.x-pivot.x)*s+(p.y-pivot.y)*c}));

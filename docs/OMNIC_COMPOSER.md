@@ -402,6 +402,13 @@ remain in Generator controls. There is no automatic destructive flattening.
   imprint radius and movement step, permitting gaps, overlaps and fractional steps.
   Slot grid is omitted above 1,024 visible slots. A stroke samples at most 64 points
   per event; recipe limits still apply.
+- **E / Erase:** choose Erase from the right-click function list or press E.
+  Click removes a touched unit; sweep erases all crossed units. Micro addresses
+  units, Macro their nearest authored group. Right-click Erase configures only
+  Scope. Hover previews the addressed set. Release accepts one draft-history edit;
+  Esc/cancel restores the pre-stroke recipe. A direct swept-segment test bounds
+  work by unit count and catches units between pointer events. Erasing is whole-unit
+  removal, not intradot carving; explicit dangling operator targets stay diagnostic.
 - **V / Select:** click a unit; Shift-click adds/removes. **Scope** Micro addresses
   units; Macro addresses their nearest authored group (ungrouped root dots share
   the construction). Ctrl+A selects all authored units. Context **group** gathers

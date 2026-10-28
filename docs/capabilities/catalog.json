@@ -853,7 +853,7 @@
       "id": "omnic.atomnic",
       "title": "Atomnic placement, selection, contextual DOFs and pivot rotation",
       "where": "Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image.",
-      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available.",
+      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction.",
       "steps": [
         {
           "do": "Create a new Omnic object. Move the pointer over the local square, click a neighboring slot, then hold and sweep.",
@@ -862,6 +862,10 @@
         {
           "do": "Open New Omnic object; inspect the construction, then right-click a unit. Left-click Select; Shift-click another unit, then G and drag. Right-click → Group; right-click Select to change Scope to Macro.",
           "expect": "No function toolbar is shown initially. Right-click shows only function entries with retained values; Select configuration shows only Scope. Grouped units then move together under Macro."
+        },
+        {
+          "do": "Place several units. Right-click → Erase (or E); sweep across separated units, then release. Undo once. Repeat and press Esc before releasing. Right-click Erase to configure Scope only.",
+          "expect": "The swept segment catches crossed units even during fast pointer movement. Release makes one undoable construction edit; Undo restores the stroke and Esc restores an unaccepted stroke. Macro erases touched owning groups; unrelated identities remain unchanged. Only Scope appears in Erase configuration."
         },
         {
           "do": "Right-click the construction, then RIGHT-click Draw. Advance through its individual setters: choose Free at Constraints, then choose imprint radius and independent movement step. Confirm and sweep.",
@@ -916,16 +920,17 @@
         "atomnic.cancel",
         "atomnic.selectionUndo",
         "atomnic.selectionRedo",
-        "atomnic.patterns"
+        "atomnic.patterns",
+        "atomnic.erase"
       ],
       "gestures": [
         "atomnic.pointer"
       ],
-      "limits": "128 components/groups and 128 operations; coordinates ±300. Authored dot/group recipes plus highlights only; arrays/references/other geometry operations keep Generator controls. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending.",
+      "limits": "128 components/groups and 128 operations; coordinates ±300. Authored dot/group recipes plus highlights only; arrays/references/other geometry operations keep Generator controls. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending. Erase removes complete authored units/groups; it does not carve an intradot region. Explicit operator targets that disappear remain unresolved rather than being silently reassigned.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
         "browser": "User reported the previous full grid/permanent toolbar as unacceptable on 2026-10-28. This progressive correction awaits user interaction testing; no browser suite run.",
-        "automated": "2026-10-28 progressive correction: TypeScript, property/capability contracts, full existing model suite (23 files) and self-contained preview build pass (2.89MB). No browser suite or performance trace. Browser behavior awaits user testing."
+        "automated": "2026-10-28 Eraser extension: swept-segment Micro/Macro/no-hit checks, TypeScript, property/capability contracts, full existing model suite, frozen backend check and self-contained preview build pass (2.89MB). No browser suite or trace; interaction awaits user testing."
       },
       "related": [
         "omnic.worldPreview",

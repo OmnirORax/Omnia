@@ -31,6 +31,7 @@ export function atomnicViewBounds(params?:Record<string,Value>) {
 
 /** Each action declares its applicable input sequence, never a second value store. */
 export const ATOMNIC_OPERATION_INPUTS = {
+  'atomnic.erase':['scope'],
   'atomnic.draw':['mode','paint','size','step','thickness','fill','color','opacity'],
   'atomnic.select':['scope'],
   'atomnic.move':['scope','mode','step'],

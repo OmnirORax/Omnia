@@ -1,6 +1,7 @@
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  {id:'atomnic.erase',owner:'atomnicComposer',scope:'contentEditing',category:'Atomnic',label:'Erase Atomnic units',defaultKey:'E',description:'Click or sweep through units to erase them in Micro or Macro scope; cancel restores the stroke and release records one edit.'},
   {id:'atomnic.patterns',owner:'atomnicComposer',scope:'contentEditing',category:'Atomnic',label:'Atomnic property patterns',defaultKey:'',description:'Reveal matching property sets only when requested from the contextual function list.'},
   {id:'atomnic.selectionUndo',owner:'atomnicComposer',scope:'contentEditing',category:'Atomnic',label:'Undo Atomnic selection',defaultKey:'',description:'Step back through transient selection without changing the construction.'},
   {id:'atomnic.selectionRedo',owner:'atomnicComposer',scope:'contentEditing',category:'Atomnic',label:'Redo Atomnic selection',defaultKey:'',description:'Step forward through transient selection without changing the construction.'},
@@ -136,7 +137,7 @@ export const RECOVERY_GESTURE = { id: "appearance.recovery", category: "Workspac
 export const nativeContextMenuKey = (event: Pick<KeyboardEvent, "key" | "shiftKey" | "ctrlKey" | "metaKey" | "altKey">) =>
   !event.ctrlKey && !event.metaKey && !event.altKey && CONTEXT_MENU_KEYS.some(binding => binding.key === event.key && binding.shift === event.shiftKey);
 export const FEATURE_GESTURES = [
-  {id:'atomnic.pointer',category:'Atomnic',binding:'Click / drag / Shift-click / right-click',label:'Construct and manipulate authored atoms',description:'Draw clicks/sweeps valid placements; Select picks units, Shift-click changes membership; Move drags rigid selections. Right-click opens functions with current values; right-click one function configures one input at a time. Rotation then prompts for a pivot; right-click during that prompt chooses/configures its reference. Available on the local construction surface and edited world image.'},
+  {id:'atomnic.pointer',category:'Atomnic',binding:'Click / drag / Shift-click / right-click',label:'Construct and manipulate authored atoms',description:'Draw clicks/sweeps valid placements; Erase clicks/sweeps whole units/groups; Select picks units, Shift-click changes membership; Move drags rigid selections. Right-click opens functions with current values; right-click one function configures one input at a time. Rotation then prompts for a pivot; right-click during that prompt chooses/configures its reference. Available on the local construction surface and edited world image.'},
   {id:'numeric.halving',category:'Value picking',binding:'½ → depth → Enter',label:'Pick values by repeated halving',description:'Choose depth first; midpoint applies immediately, other depths reveal endpoint direction next. Consumer precision and validation still apply.'},
   RECOVERY_GESTURE,
   { id: "world.axisLock", category: "World navigation", binding: "Ctrl + configured navigation drag", label: "Hold initial rotation axis", description: "First clear drag chooses horizontal or vertical motion and freezes the rotation axis until Ctrl is released. Orthogonal pointer jitter is ignored; no pivot or target change." },
