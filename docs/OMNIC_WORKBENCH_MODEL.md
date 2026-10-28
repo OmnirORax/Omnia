@@ -365,6 +365,12 @@ proposed visible node-frame system. Binder operators are presently annotations.
 
 ## Progress and handoff
 
+Every preview delivery includes the implemented feature/function inventory, entry
+paths, usage steps, material limits and verification status, with a link to the
+complete maintained capability guide. Explain both newly changed and already
+available functions relevant to the workflow, and clearly identify planned work.
+The user explicitly requested this to stay aligned; links alone do not satisfy it.
+
 - Mental-model synthesis and onboarding links: recorded in this change.
 - First implementation slice: live world draft preview and temporary construction
   lifecycle are implemented for review in this change. Opening without a selection

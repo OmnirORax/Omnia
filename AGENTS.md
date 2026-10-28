@@ -24,6 +24,13 @@ Preserve the existing public-artifact/private-backend boundary and never include
 workspace data or credentials. Merging/deploying production is a separate action.
 Use a new PR when the preceding PR has merged.
 
+Every preview handoff must include an inventory of implemented features/functions,
+where to find them and how to use them, distinguishing new changes from existing
+capabilities and planned work. Give the user practical first steps, material limits
+and verification status. Link the complete maintained capability guide; a preview
+URL or change summary alone is insufficient. Keep the user aligned on what the
+particular preview actually contains.
+
 For Omnic or Omnium node/frame work, also read
 [the current workbench mental model](docs/OMNIC_WORKBENCH_MODEL.md). It synthesizes
 the user's 2026-10-28 decisions, open ideas and implementation sequence. Build the
