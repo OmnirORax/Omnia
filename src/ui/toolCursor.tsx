@@ -1,15 +1,14 @@
 import { useId, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { cursorSample, observeCursor, observeCursorContext } from './cursorPosition';
-import { pointerToolZone, observeToolZones, observeToolAim, type ToolCursorScope } from './toolCursorZone';
-import { activeToolCursor, cursorApplies, cursorOrigin } from './toolCursorModel';
+import { cursorSample, observeCursor } from './cursorPosition';
+import { pointerToolZone, observeToolZones } from './toolCursorZone';
+import { activeToolCursor, cursorApplies } from './toolCursorModel';
 export type ToolCursorOptions={zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
 export type ToolCursorRequest=ToolCursorOptions & {key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number}};
-const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,{node:HTMLElement;width:number;height:number}>(),listeners=new Set<()=>void>();
-let currentScope:ToolCursorScope|undefined;
+const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,HTMLElement>(),listeners=new Set<()=>void>();
 let version=0,selected:ToolCursorRequest|null=null;
 const publish=()=>{version++;listeners.forEach(listener=>listener());};
-const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point);currentScope=scope;const next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked));if(next!==selected){selected=next;publish();}};
+const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point),next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked));if(next!==selected){selected=next;publish();}};
 const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
 /** Owners declare active state; transport, priority and clicked-icon inheritance are shared. */
 export function useToolCursor(request:ToolCursorRequest|null){
@@ -25,9 +24,7 @@ export function rememberToolIcon(key:string,source:HTMLElement|null){
   const clone=source.cloneNode(true) as HTMLElement,clones=[clone,...clone.querySelectorAll<HTMLElement>('*')];
   const properties=['color','background','background-clip','-webkit-background-clip','mask-image','-webkit-mask-image','mask-size','mask-repeat','font-family','font-size','font-weight','line-height','display','width','height','filter','opacity','border-radius','fill','stroke','stroke-width','transform'];
   nodes.forEach((node,index)=>{const style=getComputedStyle(node);for(const property of properties)clones[index].style.setProperty(property,style.getPropertyValue(property));});
-  clone.removeAttribute('data-tool-icon');const bounds=source.getBoundingClientRect();
-  if(!bounds.width||!bounds.height)return;
-  snapshots.set(key,{node:clone,width:bounds.width,height:bounds.height});publish();
+  clone.removeAttribute('data-tool-icon');snapshots.set(key,clone);publish();
 }
 /** The website has one active cursor layer; pointer updates only its transform. */
 export function ToolCursorLayer(){
@@ -37,15 +34,13 @@ export function ToolCursorLayer(){
   const snapshot=request?snapshots.get(request.key):undefined;
   useLayoutEffect(()=>{
     if(!captured.current)return;
-    captured.current.replaceChildren(...(snapshot?[snapshot.node.cloneNode(true)]:[]));
+    captured.current.replaceChildren(...(snapshot?[snapshot.cloneNode(true)]:[]));
   },[snapshot,request?.key]);
-  const offset=useRef({x:0,y:0});
-  const current=useRef(request),lastPaint=useRef<{node:HTMLElement;transform:string}|null>(null);current.current=request;
+  const current=useRef(request);current.current=request;
   const paint=()=>{
     const active=current.current,node=root.current;if(!active||!node)return;
-    const p=active.parked??currentScope?.aim?.(active.key)??point.current;
-    const transform=`translate3d(${p.x+offset.current.x}px,${p.y+offset.current.y}px,0)`;
-    if(lastPaint.current?.node!==node||lastPaint.current.transform!==transform){node.style.transform=transform;lastPaint.current={node,transform};}
+    const p=active.parked??point.current,anchor=active.anchor??{x:.5,y:.5};
+    node.style.transform=`translate3d(${p.x-(active.width??28)*anchor.x}px,${p.y-(active.height??28)*anchor.y}px,0)`;
   };
   useLayoutEffect(()=>{
     const follow=(sample=cursorSample())=>{
@@ -58,12 +53,10 @@ export function ToolCursorLayer(){
       }
       if(!selected?.parked)paint();
     };
-    const move=(sample=cursorSample())=>{point.current=sample;if(!current.current?.parked)paint();};
-    const stopPointer=observeCursor(move),stopContext=observeCursorContext(follow),stopZones=observeToolZones(follow),stopAim=observeToolAim(()=>{if(!current.current?.parked)paint();});
-    return()=>{stopPointer();stopContext();stopZones();stopAim();delete document.documentElement.dataset.toolCursor;};
+    const stopPointer=observeCursor(follow),stopZones=observeToolZones(follow);
+    return()=>{stopPointer();stopZones();delete document.documentElement.dataset.toolCursor;};
   },[]);
   useLayoutEffect(()=>{
-    offset.current=request?cursorOrigin({x:0,y:0},request.width??28,request.height??28,request.anchor,request.rotationTurns):{x:0,y:0};
     if(root.current)root.current.style.visibility='visible';paint();
     document.documentElement.toggleAttribute('data-tool-cursor',!!request&&!request.parked);
     return()=>{delete document.documentElement.dataset.toolCursor;};
@@ -72,7 +65,7 @@ export function ToolCursorLayer(){
   if(!request)return null;
   return createPortal(<div ref={root} className={`tool-cursor ${request.className??''}`} aria-hidden="true" data-visual-selector data-tool-cursor-owner={request.key} style={{width:request.width??28,height:request.height??28}}>
     <div className="tool-cursor-icon" style={{transform:request.rotationTurns?`rotate(${request.rotationTurns}turn)`:undefined}}>
-      {snapshot?<div className="tool-cursor-captured"><div ref={captured} style={{width:snapshot.width,height:snapshot.height,flexShrink:0,transform:`scale(${Math.min((request.width??28)/snapshot.width,(request.height??28)/snapshot.height)})`}}/></div>:request.icon}
+      {snapshot?<div ref={captured} className="tool-cursor-captured"/>:request.icon}
     </div>
     {request.badge&&<i className={request.pulse?'tool-cursor-pulse':undefined}>{request.badge}</i>}
   </div>,document.body);

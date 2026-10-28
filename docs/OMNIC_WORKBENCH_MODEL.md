@@ -7,9 +7,7 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
-Performance correction: no continuous per-update checking/monitoring for cursor/brush feedback. Local brush hover is a direct overlay update with cached hits, never a React/world-draft/SVG regeneration path. Resolve cursor applicability only at actual context boundaries; remove preview-wide cursor subscriptions. Preserve the earlier lightweight world feedback cadence and let the user judge responsiveness.
-
-Alignment: tool icons declare a working hotspot, and the active cursor’s working tip must coincide with the operation target/marker. Pen uses the same snapped placement point as its preview; capture scaling, viewport changes and world projection must preserve this. Do not position an icon by its bounding-box corner or maintain a separate cursor offset.
+2026-10-29 correction: revert the last two alignment/performance updates. Keep the earlier implementation and simply centre the brush icon on the actual pointer. Do not reintroduce snapped-marker cursor tracking, preview-wide cursor subscriptions or the reverted feedback rewrite.
 
 Cursor applicability is a global rule: the icon follows the current operation only within its valid zone. Outside the editing area (including tool selection/settings), restore the native cursor. Direct grabs temporarily show Move. Pen is now upper black/lower white, Erase upper white/lower black, per the user’s correction.
 

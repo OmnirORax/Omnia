@@ -14,7 +14,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
   const definitions = FEATURE_ACTIONS.filter(action => action.owner === owner).sort((a, b) => Number(a.scope === "global") - Number(b.scope === "global"));
   const active=definitions.find(action=>!!handlers[action.id as FeatureActionFor<Owner>].cursor&&'toolIcon' in action);
   const cursor=active?handlers[active.id as FeatureActionFor<Owner>].cursor:undefined,cursorKey=JSON.stringify(cursor);
-  const cursorRequest=useMemo(()=>active&&'toolIcon' in active?{key:active.id,icon:<ToolGlyph icon={active.toolIcon}/>,anchor:'hotspot' in active.toolIcon?active.toolIcon.hotspot:undefined,...(typeof cursor==='object'?cursor:{})}:null,[active?.id,cursorKey]);
+  const cursorRequest=useMemo(()=>active&&'toolIcon' in active?{key:active.id,icon:<ToolGlyph icon={active.toolIcon}/>,...(typeof cursor==='object'?cursor:{})}:null,[active?.id,cursorKey]);
   useToolCursor(cursorRequest);
   const configurations = JSON.stringify(definitions.map(action => handlers[action.id as FeatureActionFor<Owner>].configuration !== undefined));
   const availability = JSON.stringify(definitions.map(action => handlers[action.id as FeatureActionFor<Owner>].enabled));

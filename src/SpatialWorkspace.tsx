@@ -1,4 +1,4 @@
-import { setToolCursorAim, setToolCursorZone } from "./ui/toolCursorZone";
+import { setToolCursorZone } from "./ui/toolCursorZone";
 import { createNudgeGesture } from "./navigation/nudgeGesture";
 import type { HeldActions } from "./ui/heldActions";
 import { transformTargets } from "./navigation/transforms";
@@ -781,7 +781,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     const state=stateRef.current,built=textScene.current;if(!state||!built||!ready)return;
     const canvas=state.renderer.domElement,ray=new THREE.Raycaster();
-    type Frame={plane:THREE.Plane;inverse:THREE.Matrix4;matrix:THREE.Matrix4;editing:AtomnicInteraction;pointerId:number};
+    type Frame={plane:THREE.Plane;inverse:THREE.Matrix4;editing:AtomnicInteraction;pointerId:number};
     let held:Frame|null=null;
     let sourceId:string|undefined,placements:ReturnType<typeof built.nodes.get>[]=[];
     let temporaryRoot:THREE.Object3D|undefined;
@@ -802,20 +802,13 @@ export default function SpatialWorkspace(props: Props) {
         const normal=new THREE.Vector3(0,0,1).applyQuaternion(root.getWorldQuaternion(new THREE.Quaternion()));
         const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(normal,origin),point=ray.ray.intersectPlane(plane,new THREE.Vector3());if(!point)continue;
         const inverse=root.matrixWorld.clone().invert(),local=point.clone().applyMatrix4(inverse);
-        if(Math.abs(local.x)<=.5&&Math.abs(local.y)<=.5)return {plane,inverse,matrix:root.matrixWorld.clone(),editing,pointerId:event.pointerId};
+        if(Math.abs(local.x)<=.5&&Math.abs(local.y)<=.5)return {plane,inverse,editing,pointerId:event.pointerId};
       }return null;
     };
     const point=(frame:Frame,event:PointerEvent)=>{
       const rect=measure();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),state.camera);
       const local=(ray.ray.intersectPlane(frame.plane,new THREE.Vector3())??new THREE.Vector3()).applyMatrix4(frame.inverse),b=frame.editing.bounds,edge=Math.max(b.width,b.height);
       return {x:b.x+b.width/2+local.x*edge,y:b.y+b.height/2-local.y*edge};
-    };
-    const aim=(frame:Frame,editing=frame.editing)=>{
-      const target=editing.ghost,key=editing.cursorZone;if(!key)return;
-      if(!target){setToolCursorAim(canvas,key,'atomnic.draw',undefined);return;}
-      const b=editing.bounds,edge=Math.max(b.width,b.height),rect=measure();
-      const screen=new THREE.Vector3((target.x-b.x-b.width/2)/edge,-(target.y-b.y-b.height/2)/edge,0).applyMatrix4(frame.matrix).project(state.camera);
-      setToolCursorAim(canvas,key,'atomnic.draw',{x:rect.left+(screen.x+1)*rect.width/2,y:rect.top+(1-screen.y)*rect.height/2});
     };
     const down=(event:PointerEvent)=>{if(event.target!==canvas||event.button!==0&&event.button!==2)return;invalidate();const frame=locate(event);setToolCursorZone(canvas,frame?.editing.cursorZone);if(!frame)return;
       event.preventDefault();event.stopImmediatePropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);held=frame;canvas.setPointerCapture(event.pointerId);frame.editing.down(point(frame,event),event);};
@@ -824,7 +817,7 @@ export default function SpatialWorkspace(props: Props) {
       const p=point(frame,event),b=frame.editing.bounds,edge=Math.max(b.width,b.height),rect=measure();
       const inside=event.clientX>=rect.left&&event.clientX<=rect.right&&event.clientY>=rect.top&&event.clientY<=rect.bottom&&Math.abs(p.x-b.x-b.width/2)<=edge/2&&Math.abs(p.y-b.y-b.height/2)<=edge/2;
       setToolCursorZone(canvas,inside?frame.editing.cursorZone:undefined);
-      if(held){event.preventDefault();event.stopImmediatePropagation();}frame.editing.move(p,event);if(inside)aim(frame);};
+      if(held){event.preventDefault();event.stopImmediatePropagation();}frame.editing.move(p,event);};
     const up=(event:PointerEvent)=>{const frame=held;if(!frame||frame.pointerId!==event.pointerId)return;event.preventDefault();event.stopImmediatePropagation();held=null;
       frame.editing.up(point(frame,event),event);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);};
     const cancel=()=>{held?.editing.cancel();held=null;setToolCursorZone(canvas,undefined);};

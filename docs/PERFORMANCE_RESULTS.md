@@ -557,17 +557,3 @@ the already-validated topology. Every other edit/import retains full validation.
 Boundary checks cover invalid coordinates, dimensions and dangling membership.
 No local browser profiling or Docker tests were run; quick/calm release, docking
 and Undo remain for the user to test.
-
-
-## Omnic brush feedback regression (2026-10-28)
-
-User reported lag specifically while brush/highlight positions updated. Code
-inspection found pointer ghost/highlight state rerendering the Composer SVG and
-republishing world drafts, plus a new cursor subscription on every world-preview
-update and applicability resolution on each pointer movement. The local path now
-uses a cached hit index and direct, bounded SVG feedback nodes; the main SVG and
-world draft do not update for Composer hover. Cursor transport resolves context at
-boundaries and receives paint-only target updates. The preview-wide cursor
-subscription is removed; world feedback retains its previous bounded cadence.
-No browser trace or suite was run. Local checks are recorded in the delivery;
-interaction sufficiency remains for the user to test.
