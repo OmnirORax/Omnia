@@ -5,7 +5,7 @@
       "id": "guidance.catalog",
       "title": "Capability guide and automatic coverage checks",
       "where": "Repository README → capabilities and user guide; bookmark docs/CAPABILITIES.md.",
-      "behavior": "Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance.",
+      "behavior": "Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance. Delivery batches verified source pushes; local frontend success, backend import checks, GitHub CI and browser acceptance are reported separately. Newer PR commits cancel superseded check runs without interrupting master releases.",
       "steps": [
         {
           "do": "Open the repository README and follow capabilities and user guide. Search for Interpretive frame declarations.",
@@ -18,16 +18,23 @@
         {
           "do": "For contributors: run node --run docs:capabilities, then node --run check:capabilities.",
           "expect": "The generated guide is current and every registered command/gesture has walkthrough coverage."
+        },
+        {
+          "do": "Before a shared portable-code delivery, run backend:check locally along with the applicable existing checks; push the completed batch once and inspect its GitHub runs.",
+          "expect": "Deno import incompatibilities are caught before publication. Current PR runs supersede stale runs; master release ordering and all check jobs remain enabled. GitHub outcomes are reported separately from local checks."
         }
       ],
       "reference": "docs/capabilities/README.md",
       "sources": [
-        "scripts/capabilities.mjs"
+        "scripts/capabilities.mjs",
+        ".github/workflows/backend.yml",
+        ".github/workflows/cloudflare-pages.yml",
+        ".github/workflows/deploy-pages.yml"
       ],
       "actions": [],
       "gestures": [],
       "status": "Implemented; generator and coverage checks verified",
-      "limits": "Repository guide only; no in-app guide viewer yet. Automation checks coverage/freshness, not whether a human walkthrough or browser behavior is correct.",
+      "limits": "Repository guide only; no in-app guide viewer yet. Automation checks coverage/freshness, not whether a human walkthrough or browser behavior is correct. Cancelling superseded PR runs does not recall sent email or change personal GitHub notification preferences.",
       "verification": {
         "browser": "Not applicable to repository-only guide generation",
         "automated": "Generator and check command run; model suite validation recorded in delivery"

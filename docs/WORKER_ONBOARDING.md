@@ -16,6 +16,12 @@ ask permission for that routine delivery. Production merge/deployment remains
 separate; preserve backend/privacy boundaries. See the GitHack section of
 [deployment operations](CLOUDFLARE_DEPLOYMENT.md).
 
+Batch delivery pushes to avoid repeated automatic workflow notifications. Before
+pushing shared portable code, include the frozen Deno `backend:check`: frontend
+checks alone do not cover backend imports. Do not repeatedly rerun CI or suppress
+its failures. PR workflows cancel superseded checks; master releases keep their
+existing ordering. CI status is separate from local-build and browser acceptance.
+
 This is a map and a set of contracts, not proof that every feature implements them
 correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it

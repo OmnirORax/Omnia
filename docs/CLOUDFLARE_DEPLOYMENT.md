@@ -284,3 +284,20 @@ The command builds the current working tree; source.json flags uncommitted sourc
 Prefer committing reviewed changes first for exact provenance. Fresh URLs reduce
 cache confusion, but GitHack/GitHub throttling or availability can still delay
 serving; a successful push is not proof of a successful HTTP response.
+
+
+## PR check noise and portable imports (2026-10-28)
+
+Every PR delivery currently triggers Cloudflare Pages, Backend foundation and
+Legacy Pages build checks. They remain enabled; required-check configuration has
+not been changed. For all three, newer commits cancel superseded PR runs. Master
+and manual release checks are not cancelled by that setting. Batch source changes
+into one verified push; do not manually rerun successful or known-broken commits.
+
+The Atomnic deliveries at `8ff4ec5` and `503457b` passed frontend checks but failed
+both backend-checking workflows on a type import missing `.ts` in
+`src/omnic/atomnicSettings.ts`. Deno checks the portable validator import graph,
+including type-only imports. The repair adds the explicit extension and verifies
+`node --run backend:check` locally before publishing. This is an import
+compatibility repair, not a backend deployment or a reason to disable CI. Local
+checks do not establish the later GitHub run outcome; record that separately.

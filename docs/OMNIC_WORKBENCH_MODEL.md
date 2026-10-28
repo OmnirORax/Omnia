@@ -461,3 +461,22 @@ The user explicitly requested this to stay aligned; links alone do not satisfy i
   do not keep pushing follow-up source into it. Preserve private Cloudflare Access
   and existing backend boundaries; a GitHack visual artifact does not deploy a
   cloud/AI backend or imply hosted cloud snapshot availability.
+
+
+### Constraint audit after the progressive correction (2026-10-28)
+
+The documented rules are requirements, not a claim of complete conformance.
+Current Atomnic right-click configuration is progressive, and action/property
+registration, numeric controls, draft history and render budgets reuse shared
+systems. Browser/performance acceptance is user-owned; no browser suite or trace
+was run for these deliveries.
+
+Known gaps: Shift+Atomnic shortcuts still use the generic coupled MC fallback,
+which exposes the broader Omnic input set rather than the selected operation's
+progressive fields. Micro/Macro scopes cover a unit and nearest authored group,
+not the complete universal contextual hierarchy. Property matching covers authored
+dot descriptors, not full integration with MS geometry/region selection. These
+must not be described as finished universal inheritance. Fix at shared applicability,
+configuration and hierarchy boundaries; do not add private Shift listeners or
+independent settings stores. The initial full-grid/permanent-toolbar delivery
+violated compactness and progressive interaction; its right-click path was corrected.

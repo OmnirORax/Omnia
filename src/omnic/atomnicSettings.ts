@@ -1,4 +1,4 @@
-import type { Parameter, Value } from './registry';
+import type { Parameter, Value } from './registry.ts';
 const numeric = (key:string, property:string, label:string, initial:number, min:number, max:number, step=1):Parameter => ({key,property,label,initial,min,max,step,kind:'number'});
 export const ATOMNIC_PARAMETERS: readonly Parameter[] = [
   {key:'active',property:'atomnic.active',label:'Atomnic mode',kind:'toggle',initial:false},

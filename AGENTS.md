@@ -24,6 +24,16 @@ Preserve the existing public-artifact/private-backend boundary and never include
 workspace data or credentials. Merging/deploying production is a separate action.
 Use a new PR when the preceding PR has merged.
 
+Batch completed work into a single delivery push; do not use incremental pushes or
+CI reruns as a local development loop. Before pushing, run applicable local checks,
+including `backend:check` when shared portable modules change: backend contracts
+import Omnic validators, and Deno resolves type-only imports too. Portable modules
+must use explicit TypeScript extensions. Local frontend success does not imply CI
+success. Check the latest run status once for a delivery, report failures accurately
+and fix their cause locally before another push. Never disable checks or alter user
+notification preferences merely to hide failures. The user handles browser and
+interactive performance acceptance; existing optimization/testing constraints apply.
+
 Every preview handoff must include an inventory of implemented features/functions,
 where to find them and how to use them, distinguishing new changes from existing
 capabilities and planned work. Give the user practical first steps, material limits

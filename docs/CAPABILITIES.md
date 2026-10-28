@@ -55,19 +55,20 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 
 **Where:** Repository README → capabilities and user guide; bookmark docs/CAPABILITIES.md.
 
-Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance.
+Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance. Delivery batches verified source pushes; local frontend success, backend import checks, GitHub CI and browser acceptance are reported separately. Newer PR commits cancel superseded check runs without interrupting master releases.
 
 **Minimal working test**
 
 1. Open the repository README and follow capabilities and user guide. Search for Interpretive frame declarations. **Expected:** Its location, scoped tri-state behavior and explicit lack of constraint enforcement are visible.
 2. Follow a capability’s numbered test and compare each expected result. **Expected:** You can report the stable capability ID and the failing step without reconstructing chat history.
 3. For contributors: run node --run docs:capabilities, then node --run check:capabilities. **Expected:** The generated guide is current and every registered command/gesture has walkthrough coverage.
+4. Before a shared portable-code delivery, run backend:check locally along with the applicable existing checks; push the completed batch once and inspect its GitHub runs. **Expected:** Deno import incompatibilities are caught before publication. Current PR runs supersede stale runs; master release ordering and all check jobs remain enabled. GitHub outcomes are reported separately from local checks.
 
-**Limits / unavailable behavior:** Repository guide only; no in-app guide viewer yet. Automation checks coverage/freshness, not whether a human walkthrough or browser behavior is correct.
+**Limits / unavailable behavior:** Repository guide only; no in-app guide viewer yet. Automation checks coverage/freshness, not whether a human walkthrough or browser behavior is correct. Cancelling superseded PR runs does not recall sent email or change personal GitHub notification preferences.
 
 **Verification:** browser — Not applicable to repository-only guide generation. Automated — Generator and check command run; model suite validation recorded in delivery.
 
-**Details:** [subsystem guide](capabilities/README.md). **Implementation:** [scripts/capabilities.mjs](../scripts/capabilities.mjs).
+**Details:** [subsystem guide](capabilities/README.md). **Implementation:** [scripts/capabilities.mjs](../scripts/capabilities.mjs), [.github/workflows/backend.yml](../.github/workflows/backend.yml), [.github/workflows/cloudflare-pages.yml](../.github/workflows/cloudflare-pages.yml), [.github/workflows/deploy-pages.yml](../.github/workflows/deploy-pages.yml).
 
 **Related:** [Interpretive frame declarations](#omnic-frames), [Shared library, multiple atlases and copy provenance](#library-objects).
 

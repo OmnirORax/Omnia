@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: github-pages-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # New PR commits supersede stale checks; never interrupt master releases.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
