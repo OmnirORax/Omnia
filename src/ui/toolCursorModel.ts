@@ -18,3 +18,14 @@ export function inCursorArea(point:{x:number;y:number},area:CursorArea){
   if(!area.circle)return true;
   return Math.hypot(x-area.width/2,y-area.height/2)<=Math.min(area.width,area.height)/2;
 }
+
+/** CSS rotation is around the frame centre; keep the working hotspot on target. */
+export function cursorOrigin(target:{x:number;y:number},width:number,height:number,anchor={x:.5,y:.5},turns=0){
+  const x=(anchor.x-.5)*width,y=(anchor.y-.5)*height,a=turns*Math.PI*2;
+  return {x:target.x-width/2-x*Math.cos(a)+y*Math.sin(a),y:target.y-height/2-x*Math.sin(a)-y*Math.cos(a)};
+}
+
+export function projectCursorTarget(area:CursorArea,normalized:{x:number;y:number}){
+  const edge=Math.min(area.width,area.height);
+  return {x:area.left+area.width/2+(normalized.x-.5)*edge,y:area.top+area.height/2+(normalized.y-.5)*edge};
+}

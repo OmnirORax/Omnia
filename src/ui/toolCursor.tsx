@@ -1,11 +1,11 @@
 import { useId, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { cursorSample, observeCursor } from './cursorPosition';
-import { pointerToolZone, observeToolZones } from './toolCursorZone';
-import { activeToolCursor, cursorApplies } from './toolCursorModel';
+import { pointerToolZone, observeToolZones, toolCursorAim } from './toolCursorZone';
+import { activeToolCursor, cursorApplies, cursorOrigin } from './toolCursorModel';
 export type ToolCursorOptions={zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
 export type ToolCursorRequest=ToolCursorOptions & {key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number}};
-const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,HTMLElement>(),listeners=new Set<()=>void>();
+const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,{node:HTMLElement;width:number;height:number}>(),listeners=new Set<()=>void>();
 let version=0,selected:ToolCursorRequest|null=null;
 const publish=()=>{version++;listeners.forEach(listener=>listener());};
 const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point),next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked));if(next!==selected){selected=next;publish();}};
@@ -24,7 +24,9 @@ export function rememberToolIcon(key:string,source:HTMLElement|null){
   const clone=source.cloneNode(true) as HTMLElement,clones=[clone,...clone.querySelectorAll<HTMLElement>('*')];
   const properties=['color','background','background-clip','-webkit-background-clip','mask-image','-webkit-mask-image','mask-size','mask-repeat','font-family','font-size','font-weight','line-height','display','width','height','filter','opacity','border-radius','fill','stroke','stroke-width','transform'];
   nodes.forEach((node,index)=>{const style=getComputedStyle(node);for(const property of properties)clones[index].style.setProperty(property,style.getPropertyValue(property));});
-  clone.removeAttribute('data-tool-icon');snapshots.set(key,clone);publish();
+  clone.removeAttribute('data-tool-icon');const bounds=source.getBoundingClientRect();
+  if(!bounds.width||!bounds.height)return;
+  snapshots.set(key,{node:clone,width:bounds.width,height:bounds.height});publish();
 }
 /** The website has one active cursor layer; pointer updates only its transform. */
 export function ToolCursorLayer(){
@@ -34,13 +36,15 @@ export function ToolCursorLayer(){
   const snapshot=request?snapshots.get(request.key):undefined;
   useLayoutEffect(()=>{
     if(!captured.current)return;
-    captured.current.replaceChildren(...(snapshot?[snapshot.cloneNode(true)]:[]));
+    captured.current.replaceChildren(...(snapshot?[snapshot.node.cloneNode(true)]:[]));
   },[snapshot,request?.key]);
-  const current=useRef(request);current.current=request;
+  const current=useRef(request),lastPaint=useRef<{node:HTMLElement;transform:string}|null>(null);current.current=request;
   const paint=()=>{
     const active=current.current,node=root.current;if(!active||!node)return;
-    const p=active.parked??point.current,anchor=active.anchor??{x:0,y:0};
-    node.style.transform=`translate3d(${p.x-(active.width??28)*anchor.x}px,${p.y-(active.height??28)*anchor.y}px,0)`;
+    const p=active.parked??toolCursorAim(point.current,active.zone,active.key)??point.current;
+    const origin=cursorOrigin(p,active.width??28,active.height??28,active.anchor,active.rotationTurns);
+    const transform=`translate3d(${origin.x}px,${origin.y}px,0)`;
+    if(lastPaint.current?.node!==node||lastPaint.current.transform!==transform){node.style.transform=transform;lastPaint.current={node,transform};}
   };
   useLayoutEffect(()=>{
     const follow=(sample=cursorSample())=>{
@@ -65,7 +69,7 @@ export function ToolCursorLayer(){
   if(!request)return null;
   return createPortal(<div ref={root} className={`tool-cursor ${request.className??''}`} aria-hidden="true" data-visual-selector data-tool-cursor-owner={request.key} style={{width:request.width??28,height:request.height??28}}>
     <div className="tool-cursor-icon" style={{transform:request.rotationTurns?`rotate(${request.rotationTurns}turn)`:undefined}}>
-      {snapshot?<div ref={captured} className="tool-cursor-captured"/>:request.icon}
+      {snapshot?<div className="tool-cursor-captured"><div ref={captured} style={{width:snapshot.width,height:snapshot.height,flexShrink:0,transform:`scale(${Math.min((request.width??28)/snapshot.width,(request.height??28)/snapshot.height)})`}}/></div>:request.icon}
     </div>
     {request.badge&&<i className={request.pulse?'tool-cursor-pulse':undefined}>{request.badge}</i>}
   </div>,document.body);

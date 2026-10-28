@@ -7,6 +7,8 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
+Alignment: tool icons declare a working hotspot, and the active cursor’s working tip must coincide with the operation target/marker. Pen uses the same snapped placement point as its preview; capture scaling, viewport changes and world projection must preserve this. Do not position an icon by its bounding-box corner or maintain a separate cursor offset.
+
 Cursor applicability is a global rule: the icon follows the current operation only within its valid zone. Outside the editing area (including tool selection/settings), restore the native cursor. Direct grabs temporarily show Move. Pen is now upper black/lower white, Erase upper white/lower black, per the user’s correction.
 
 Latest presentation: remove the eye/show-hide tool. Root tools hide by default and reveal on hover over their shared circular rim axis; keep them usable through tool/category/editor interaction, then hide on leaving. Do not hide the editing surface or unmount/re-register controls during hover. Explicit target context rings remain visible. One category named Presets contains construction presets and reusable operation tools. Last-position pen/eraser uses the same two-tone silhouette with no underline: Pen upper black/lower white; Erase upper white/lower black. The button offers the next action; the active cursor inherits the icon activated through the global shared tool-cursor system. The purple private cursor is retired.

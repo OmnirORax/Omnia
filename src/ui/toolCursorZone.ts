@@ -1,7 +1,7 @@
 import { useLayoutEffect, type RefObject } from 'react';
-import { inCursorArea, type CursorArea } from './toolCursorModel';
+import { inCursorArea, projectCursorTarget, type CursorArea } from './toolCursorModel';
 export type CursorPoint={x:number;y:number;target:EventTarget|null};
-type Zone={key:string;contains?:(point:CursorPoint)=>boolean};
+type Zone={key:string;area?:CursorArea;aim?:{tool:string;point:{x:number;y:number};relative:boolean};contains?:(point:CursorPoint)=>boolean};
 const zones=new WeakMap<Element,Zone>(),listeners=new Set<()=>void>();
 const notify=()=>listeners.forEach(listener=>listener());
 export function observeToolZones(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};}
@@ -9,6 +9,24 @@ export function observeToolZones(listener:()=>void){listeners.add(listener);retu
 export function setToolCursorZone(element:Element,key:string|undefined){
   if(zones.get(element)?.key===key)return;
   if(key)zones.set(element,{key});else zones.delete(element);notify();
+}
+/** Optional operation feedback point, shared by the marker and cursor. */
+export function setToolCursorAim(target:EventTarget|null,key:string,tool:string,point:{x:number;y:number}|undefined,relative=false){
+  for(let node=target instanceof Element?target:null;node;node=node.parentElement){
+    const zone=zones.get(node);if(!zone||zone.key!==key)continue;
+    if(relative&&!zone.area)return;
+    if(!point){if(zone.aim?.tool===tool){zone.aim=undefined;notify();}return;}
+    if(zone.aim?.tool===tool&&zone.aim.relative===relative&&zone.aim.point.x===point.x&&zone.aim.point.y===point.y)return;
+    zone.aim={tool,point,relative};notify();return;
+  }
+}
+export function toolCursorAim(sample:CursorPoint,key:string|undefined,tool:string){
+  for(let node=sample.target instanceof Element?sample.target:null;node;node=node.parentElement){
+    const zone=zones.get(node),aim=zone?.aim;if(!zone||zone.key!==key||!aim||aim.tool!==tool)continue;
+    if(!aim.relative)return aim.point;
+    const area=zone.area;if(!area)return;
+    return projectCursorTarget(area,aim.point);
+  }
 }
 export function pointerToolZone(point:CursorPoint){
   const target=point.target instanceof Element?point.target:null;
@@ -24,8 +42,8 @@ export function useToolCursorZone(ref:RefObject<HTMLElement|null>,key:string,cir
   useLayoutEffect(()=>{
     const node=ref.current;if(!node)return;
     let area:CursorArea;
-    const measure=()=>{const rect=node.getBoundingClientRect();area={left:rect.left,top:rect.top,width:rect.width,height:rect.height,circle};notify();};
-    const zone={key,contains:(point:CursorPoint)=>inCursorArea(point,area)};
+    const measure=()=>{const rect=node.getBoundingClientRect();area={left:rect.left,top:rect.top,width:rect.width,height:rect.height,circle};zone.area=area;notify();};
+    const zone:Zone={key,contains:(point:CursorPoint)=>inCursorArea(point,area)};
     measure();zones.set(node,zone);notify();
     const observer=new ResizeObserver(measure);observer.observe(node);
     node.addEventListener('pointerenter',measure);window.addEventListener('scroll',measure,true);window.addEventListener('resize',measure);

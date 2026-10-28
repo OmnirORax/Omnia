@@ -145,7 +145,7 @@ live composite tools use `useToolCursor` with their existing symbol component;
 MS keeps its precision anchor/parking and priority above other active tools.
 Never add private cursor emoji/portals, duplicate icon definitions, or per-tool
 pointer listeners. Ordinary motion must not trigger React, layout/style reads,
-storage or history; operation/zone transitions update only the cursor layer. Clicked custom appearance refreshes on the next activation.
+storage or history; operation/zone transitions update only the cursor layer. Clicked custom appearance refreshes on the next activation. Define a tool’s working `toolIcon.hotspot` once; shared placement/rotation uses it for both default and normalized captured icons. Operators with snapped preview targets publish that same target through `setToolCursorAim`; never offset the cursor separately from its marker.
 
 # Compactness is a product requirement
 

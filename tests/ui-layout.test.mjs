@@ -1,5 +1,5 @@
-import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCursorModel.ts";
-import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
+import { activeToolCursor, cursorApplies, inCursorArea, cursorOrigin, projectCursorTarget } from "../src/ui/toolCursorModel.ts";
+import { PEN_SYMBOL, ERASER_SYMBOL, PEN_ERASER_HOTSPOT } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { radialTree, radialSlot, radialDimensions, radialQuickSlot } from '../src/ui/radialMenuModel.ts';
@@ -378,4 +378,17 @@ test('cursor applicability follows operation zones and restores native behavior 
   assert.equal(inCursorArea({x:110,y:110},circle),false,'circular corners/rim are outside editing');
   assert.equal(inCursorArea({x:310,y:200},circle),false,'pointer capture cannot extend applicability');
   assert.equal(inCursorArea({x:110,y:110},{...circle,circle:false}),true);
+});
+
+test('cursor working hotspot lands on the marker target across frame sizes and rotation',()=>{
+  const target=projectCursorTarget({left:100,top:50,width:300,height:300},{x:.6,y:.5});
+  assert.deepEqual(target,{x:280,y:200});
+  for(const size of [20,28,48])for(const turns of [0,.25,.5,-.125]){
+    const anchor=PEN_ERASER_HOTSPOT,origin=cursorOrigin(target,size,size,anchor,turns),a=turns*Math.PI*2;
+    const dx=(anchor.x-.5)*size,dy=(anchor.y-.5)*size;
+    assert.ok(Math.abs(origin.x+size/2+dx*Math.cos(a)-dy*Math.sin(a)-target.x)<1e-8);
+    assert.ok(Math.abs(origin.y+size/2+dx*Math.sin(a)+dy*Math.cos(a)-target.y)<1e-8);
+  }
+  assert.deepEqual(cursorOrigin(target,28,28),{x:266,y:186},'generic glyphs default to their centre');
+  assert.deepEqual(projectCursorTarget({left:0,top:0,width:300,height:200},{x:0,y:0}),{x:50,y:0},'square viewport letterboxing preserves marker projection');
 });

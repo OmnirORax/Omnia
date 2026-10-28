@@ -543,3 +543,12 @@ Leaving a zone restores native controls immediately, even with pointer capture
 cursor selection; ordinary motion only updates its transform. The existing
 capture-phase cursor tracker feeds this transport before domain handlers can
 consume pointer events. It does not install another pointer-move listener.
+
+ToolIcon.hotspot is normalized within its icon frame. Shared cursorOrigin keeps
+that working point on the target through scaling and rotation; generic glyphs
+use their centre. Captured icons normalize to the cursor frame instead of
+retaining toolbar pixel size. Operators may publish the same target used by their
+marker through setToolCursorAim: DOM relative positions use cached surface
+geometry; 3D surfaces publish projected screen coordinates from existing image
+transforms. This is transient cursor feedback, not a second position owner.
+Unchanged snapped positions do not rewrite cursor transforms.
