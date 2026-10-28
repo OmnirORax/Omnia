@@ -7,6 +7,8 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
+Further cleanup: remove the whole Selection, Transform, Fill/marking and toolbox/Inspection category projections, not merely the Select/Fill leaf actions. Remove Configure selected component and the ⠒ rim toggle. Move the existing Free/Realistic control directly beside pen/eraser at top middle; retain registered mode action/settings. Direct target selection and right-click DOFs remain. Reusable command/data owners are preserved.
+
 Latest refinement: category children form a smaller ring around the clicked category itself, recursively, rather than replacing the Omnic dial’s rim. Parent rings stay in place. Remove the dedicated Select button (existing left-click selection remains), Motion category, Fill button and Operation scope picker from the radial. Preserve underlying reusable engines, stored operations and target-derived DOF adjusters.
 
 Rim choices: permanently visible eye, 100% tools shown / 50% hidden. Top-middle pen/eraser switch displays the next action. File 📁, Selection ◌, Inspection 🧰. Motion ⇳ was subsequently removed from the radial. Remove the entire Structure category from the radial presentation, retaining reusable commands/data. Frame/navigation controls do not belong in this radial; contextual Back/Confirm still work. Target DOF discovery is unchanged. Opening right-button release must never activate/dismiss newly appeared controls.

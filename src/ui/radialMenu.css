@@ -2,7 +2,7 @@
 .radial-menu{position:relative;aspect-ratio:1;color:var(--text,#d4e6ef);isolation:isolate}
 .radial-menu-rims{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none;stroke:currentColor;stroke-width:1;opacity:.48}
 .radial-menu-slot{position:absolute;display:grid;place-items:stretch;transform:translate(-50%,-50%)}
-.radial-menu :is(.radial-menu-slot,.radial-menu-inset,.radial-menu-centre)>button{box-sizing:border-box;display:grid;place-items:center;min-width:0;min-height:0;width:100%;height:100%;margin:0;padding:0;border:1px solid currentColor;border-radius:50%;font-size:17px;line-height:1;background:var(--panel-bg,#101923);color:inherit;touch-action:manipulation}
+.radial-menu :is(.radial-menu-slot,.radial-menu-inset,.radial-menu-centre,.radial-menu-quick-control)>button{box-sizing:border-box;display:grid;place-items:center;min-width:0;min-height:0;width:100%;height:100%;margin:0;padding:0;border:1px solid currentColor;border-radius:50%;font-size:17px;line-height:1;background:var(--panel-bg,#101923);color:inherit;touch-action:manipulation}
 .radial-menu button:is(:hover,:focus-visible){outline:1px solid currentColor;outline-offset:1px;filter:brightness(1.35)}
 .radial-menu button[aria-expanded=true]{box-shadow:inset 0 0 0 2px currentColor}
 .radial-menu button[aria-disabled=true]{opacity:.35;cursor:default}
@@ -24,4 +24,6 @@
 .omnic-composer-radar{position:relative;width:100%;height:100%;min-width:0;min-height:0}
 .omnic-radar-feedback{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);max-width:65%;padding:2px 4px;border-radius:4px;font-size:11px;pointer-events:none;background:#050b10;color:#ffe0ab;z-index:3}
 
+.radial-menu-inset.radial-menu-primary{width:auto;display:flex;gap:2px}
 .radial-menu-editor .radial-menu-inset.radial-menu-primary{left:50%;top:12px}
+.radial-menu-quick-control{display:grid;width:24px;height:24px}

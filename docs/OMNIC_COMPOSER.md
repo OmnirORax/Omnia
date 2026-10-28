@@ -2,7 +2,7 @@
 
 **Current presentation:** the whole Composer is the circular radar: editing inside,
 tools on its rim. It is not a rectangle containing a radial popup or a headless
-world-only editor. Atomnic on/off shares the same canvas and recipe. Progressive properties, presets, reusable tools and diagnostics retain rim entry routes. Structure/construction, Motion, dedicated Select/Fill buttons and Operation scope are removed from the radial; reusable commands and saved data remain. Data/evaluation/history/library/
+world-only editor. Atomnic on/off shares the same canvas and recipe. Presets and reusable tools retain rim entry routes; scalar properties are available from target right-click. Structure/construction, Motion, Selection, Transform, Fill/marking, Inspection/toolbox, Configure selected component and Operation scope are removed from the radial; reusable commands and saved data remain. Data/evaluation/history/library/
 live preview are retained. See the capability guide's current circular-composer
 walkthrough; later Stage 1 layout descriptions below are historical. Browser
 acceptance is pending. Zoom sync is paused following the user's correction.
@@ -23,7 +23,7 @@ set the one-shot Step direction while dragging follows the pointer. Unchanged
 snaps skip geometry work. The existing Free/touching constraints still apply.
 
 The function projection is now icon-only and radial: category spheres along the
-rim open progressively smaller child rings around the clicked category itself, recursively. Parent rings and the canvas stay in place. Tooltips name tools/current values; right-click a tool opens one setter at a time. The always-visible eye shows/hides tools (100%/50% opacity); right-click/Esc steps back. The top-middle pen/eraser switch shows the next action. Free/Realistic and Atomnic on/off are inset. Object categories reuse name/save/copy/file actions. The radar replaces the inline toolbar in both modes. The underlying recipe remains
+rim open progressively smaller child rings around the clicked category itself, recursively. Parent rings and the canvas stay in place. Tooltips name tools/current values; right-click a tool opens one setter at a time. The always-visible eye shows/hides tools (100%/50% opacity); right-click/Esc steps back. The top-middle pen/eraser switch shows the next action. Free/Realistic sits directly beside pen/eraser; the ⠒ rim toggle is removed, while its underlying mode action remains in shared search/controller. Object categories reuse name/save/copy/file actions. The radar replaces the inline toolbar in both modes. The underlying recipe remains
 shared: toggling Atomnic off preserves its dots while other generators add geometry;
 returning keeps that geometry rendered and allows authored-dot gestures. Enabled
 geometry-transform operators still need their evaluated-coordinate adapter before
