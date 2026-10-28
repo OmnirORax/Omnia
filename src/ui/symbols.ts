@@ -1,0 +1,2 @@
+/** Default vector silhouettes; saved custom function assets still take priority. */
+export const ERASER_SYMBOL = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M13.5 2a2.5 2.5 0 0 1 3.5 0l5 5a2.5 2.5 0 0 1 0 3.5L12 20.5a3.5 3.5 0 0 1-5 0l-3.5-3.5a3.5 3.5 0 0 1 0-5ZM4.9 13.4a1.5 1.5 0 0 0 0 2.2l3.5 3.5a1.5 1.5 0 0 0 2.2 0l5.2-5.2-5.7-5.7Z"/><path d="M1.5 22h21" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"/></svg>')}`;

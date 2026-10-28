@@ -7,6 +7,7 @@ export const radialGroups = {
   mark:{id:'mark',label:'Marking',symbol:'◒',hidden:true},
   structure:{id:'structure',label:'Structure',symbol:'⠿',hidden:true},
   object:{id:'object',label:'Object',symbol:'◇',flatten:true},
+  presets:{id:'presets',label:'Presets',symbol:'❉'},
   save:{id:'save',label:'Name and save',symbol:'▣'},
   file:{id:'file',label:'File',symbol:'📁'},
   motion:{id:'motion',label:'Motion',symbol:'⇳',hidden:true},
@@ -154,7 +155,7 @@ export const RECOVERY_GESTURE = { id: "appearance.recovery", category: "Workspac
 export const nativeContextMenuKey = (event: Pick<KeyboardEvent, "key" | "shiftKey" | "ctrlKey" | "metaKey" | "altKey">) =>
   !event.ctrlKey && !event.metaKey && !event.altKey && CONTEXT_MENU_KEYS.some(binding => binding.key === event.key && binding.shift === event.shiftKey);
 export const FEATURE_GESTURES = [
-  {id:'atomnic.pointer',category:'Atomnic',binding:'Click / drag / Shift-click / right-click / wheel',label:'Construct and manipulate Omnic targets',description:'Left-drag an existing target to move the current selection; empty-space pen strokes draw, Eraser sweeps remove units, Shift-click changes membership. Right-click during movement settles the move and opens progressive position scope/mode/step settings. Ordinary target right-click shows other writable DOFs. Wheel over the Composer zooms its view; Ctrl+wheel retains browser zoom. Eye shows/hides tools; pen/eraser sits last. Categories open child rings around their own button. Local/world construction gestures share the draft.'},
+  {id:'atomnic.pointer',category:'Atomnic',binding:'Click / drag / Shift-click / right-click / wheel',label:'Construct and manipulate Omnic targets',description:'Left-drag an existing target to move the current selection; empty-space pen strokes draw, Eraser sweeps remove units, Shift-click changes membership. Right-click during movement settles the move and opens progressive position scope/mode/step settings. Ordinary target right-click shows other writable DOFs. Wheel over the Composer zooms its view; Ctrl+wheel retains browser zoom. Tool buttons reveal on hover over their shared circular rim; pen/eraser sits last. Categories open child rings around their own button. Local/world construction gestures share the draft.'},
   {id:'numeric.halving',category:'Value picking',binding:'½ → depth → Enter',label:'Pick values by repeated halving',description:'Choose depth first; midpoint applies immediately, other depths reveal endpoint direction next. Consumer precision and validation still apply.'},
   RECOVERY_GESTURE,
   { id: "world.axisLock", category: "World navigation", binding: "Ctrl + configured navigation drag", label: "Hold initial rotation axis", description: "First clear drag chooses horizontal or vertical motion and freezes the rotation axis until Ctrl is released. Orthogonal pointer jitter is ignored; no pivot or target change." },

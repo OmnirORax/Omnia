@@ -293,8 +293,8 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       ...components.map(c=>actionEntry(`omnic:component:${c.id}`,`${GENERATORS.find(g=>g.id===c.generator)?.label} · ${c.id.slice(0,6)}`,GENERATORS.find(g=>g.id===c.generator)?.symbol??'◇',[radialGroups.object,radialGroups.structure],()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);},()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);setRadarPanel({kind:'parameters',index:0});})),
       ...(activeComponent?[actionEntry(`omnic:remove-component:${activeComponent.id}`,'Remove selected component','×',[radialGroups.object,radialGroups.structure],()=>{commit({...recipe,components:removeComponent(recipe.components,activeComponent.id)});setFocus(null);})]:[]),
       ...(activeComponent?.reference?[actionEntry('omnic:radar-dependency','Dependency version','#',[radialGroups.object,radialGroups.structure],()=>setRadarPanel({kind:'dependency'}))]:[]),
-      actionEntry('omnic:radar-presets','Construction presets','❉',[radialGroups.object],()=>setRadarPanel({kind:'presets'})),
-      actionEntry('omnic:radar-tools','Reusable operation tools','✥',[radialGroups.object],()=>setRadarPanel({kind:'tools'})),
+      actionEntry('omnic:radar-presets','Choose preset','❉',[radialGroups.object,radialGroups.presets],()=>setRadarPanel({kind:'presets'})),
+      actionEntry('omnic:radar-tools','Reusable operation tools','✥',[radialGroups.object,radialGroups.presets],()=>setRadarPanel({kind:'tools'})),
       actionEntry('omnic:add-operator:oscillate','Semantic oscillation','≈',[radialGroups.motion],()=>addOperation('oscillate')),
       ...recipe.operations.filter(op=>op.operator==='oscillate').map(op=>actionEntry(`omnic:operation:${op.id}`,'Edit semantic oscillation','≈',[radialGroups.motion],()=>{setFocus({kind:'operation',id:op.id});setRadarPanel({kind:'parameters',index:0});})),
       ...(activeOperation?[

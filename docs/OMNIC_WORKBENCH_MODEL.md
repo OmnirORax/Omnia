@@ -7,6 +7,8 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
+Latest presentation: remove the eye/show-hide tool. Root tools hide by default and reveal on hover over their shared circular rim axis; keep them usable through tool/category/editor interaction, then hide on leaving. Do not hide the editing surface or unmount/re-register controls during hover. Explicit target context rings remain visible. One category named Presets contains construction presets and reusable operation tools. Last-position pen/eraser uses the supplied eraser silhouette, black when offering Erase and white when offering Pen.
+
 Current direct interaction: remove Procedural X/Y/Move from stationary target rings; left-grab moves the target/selection. Right-click during movement settles it and opens progressive position settings for the next drag. Pen/eraser belongs last after all remaining tools, so toggling Atomnic does not shift their order. Wheel over the Composer replaces its view-zoom button; retain Ctrl+wheel browser behavior, view center and bounded rendering.
 
 Newest correction: promote remaining Object tools directly beside pen/eraser and mode controls, with no Object wrapper. Restore the ⠒ Atomnic on/off tool there; it was removed during the preceding cleanup, leaving only the registered search/controller action. Color should be a circular rainbow wheel matching the supplied reference. Use shared presentation metadata and preserve all existing owners/settings.
@@ -15,7 +17,7 @@ Further cleanup: remove the whole Selection, Transform, Fill/marking and toolbox
 
 Latest refinement: category children form a smaller ring around the clicked category itself, recursively, rather than replacing the Omnic dial’s rim. Parent rings stay in place. Remove the dedicated Select button (existing left-click selection remains), Motion category, Fill button and Operation scope picker from the radial. Preserve underlying reusable engines, stored operations and target-derived DOF adjusters.
 
-Rim choices: permanently visible eye, 100% tools shown / 50% hidden. Top-middle pen/eraser switch displays the next action. File 📁, Selection ◌, Inspection 🧰. Motion ⇳ was subsequently removed from the radial. Remove the entire Structure category from the radial presentation, retaining reusable commands/data. Frame/navigation controls do not belong in this radial; contextual Back/Confirm still work. Target DOF discovery is unchanged. Opening right-button release must never activate/dismiss newly appeared controls.
+Rim choices: hover the shared circular axis to reveal tools; no eye button. Last-position pen/eraser displays the next action using the reference silhouette. File 📁 remains; Selection, Inspection and Motion categories are retired. Remove the entire Structure category from the radial presentation, retaining reusable commands/data. Frame/navigation controls do not belong in this radial; contextual Back/Confirm still work. Target DOF discovery is unchanged. Opening right-button release must never activate/dismiss newly appeared controls.
 
 Latest interaction clarification: right-click a target/pattern to discover its
 actual writable DOFs, and show the corresponding freedom adjusters directly as

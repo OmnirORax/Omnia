@@ -27,3 +27,8 @@
 .radial-menu-inset.radial-menu-primary{width:auto;display:flex;gap:2px}
 .radial-menu-editor .radial-menu-inset.radial-menu-primary{left:50%;top:12px}
 .radial-menu-quick-control{display:grid;width:24px;height:24px}
+
+/* Keep tool residents mounted: revealing the rim never re-registers actions. */
+.radial-menu-editor :is(.radial-menu-slot,.radial-menu-insets){visibility:hidden;opacity:0;pointer-events:none}
+.radial-menu-editor>.radial-menu-rims>.radial-menu-axis{pointer-events:stroke;stroke-width:28px;vector-effect:non-scaling-stroke;stroke:transparent}
+.radial-menu-editor:is([data-tools-open=true],:has(>.radial-menu-rims>.radial-menu-axis:hover),:has(>.radial-menu-rims:focus-visible),:has(>.radial-menu-slot:hover),:has(>.radial-menu-slot :focus-visible),:has(>.radial-menu-slot>[aria-expanded=true])) :is(.radial-menu-slot,.radial-menu-insets){visibility:visible;opacity:1;pointer-events:auto}
