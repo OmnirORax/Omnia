@@ -5,6 +5,20 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
+## Latest scope correction: retire the old composer UI
+
+The user explicitly rejects the prior agent-designed composer interface and its
+assumptions. Remove its generators/presets/parameter-neighbor forms, role/scope and
+tool panels, ordered-operation palette/list, interpretation-frame editor,
+diagnostic lists and playback UI, including mode switches and mounted/detached
+sections. Keep the library/workspace. Keep underlying recipe compatibility,
+IDs/references/rendering, draft/history/save/copy/import/export, world preview and
+the Atomnic interactions designed with the user. New tools are introduced feature
+by feature as needs emerge. Previous notes about retaining Generator controls or
+old composer functions as available UI are superseded. Do not restore those panels
+because their engine code remains useful. Unsupported older recipes stay intact
+and viewable; do not automatically flatten or replace their data.
+
 ## Start here
 
 The user needs a general instrument for constructing, applying and revising
@@ -488,14 +502,13 @@ Keep the procedural engine and reusable capabilities: dot/group/line/ring and
 chain/radial generation, references/revision pins, count/size/rotation/fill/marking,
 selection/count inspection/connections, bounded motion, copied operation tools,
 property adapters, history, library/storage and renderers. Retire duplicate UI only
-when its contextual replacement covers its behavior. In particular, Generator
-controls still handles generated arrays/references that Atomnic cannot directly
-manipulate. Different interfaces do not create different concept identities.
+when its contextual replacement covers its behavior. Generator controls is now explicitly retired; generated arrays/references
+remain intact and view-only until an appropriate new interaction is requested. Different interfaces do not create different concept identities.
 
 Erase adds a pointer tool using the same removal transaction as selected deletion.
 It sweeps whole authored units (Micro) or their nearest groups (Macro), accepts
 one edit on release and reverts an active stroke on cancel. It does not invent
 region-carving semantics. The user withdrew the additional operator-menu request after clarification;
-this extension delivers Eraser only. Existing reusable operators stay available
-through their current routes. Do not infer a broader operator rollout or invent
+this extension delivers Eraser only. Underlying operator implementations remain reusable; their old composer
+authoring routes are now retired by the later scope correction above. Do not infer a broader operator rollout or invent
 settled frame/binder/dial semantics from the earlier illustrative list.

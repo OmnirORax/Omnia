@@ -146,6 +146,16 @@ Numeric slider controls use `ui/RangeControl.tsx`, the shared spectrum widget.
 Reuse it instead of adding private ranges, arrow steppers or duplicate min/max
 fields. See the UI component contract for its left/right-click semantics.
 
+The user explicitly retired the original Omnic composer UI. Do not retain or
+restore Generator controls, presets, parameter/neighbor forms, role/scope/tool
+panels, ordered operations, interpretation frames, diagnostic lists or playback
+controls as mounted/detached/hidden composer UI. Keep the library/workspace and
+saved recipe/evaluator compatibility, plus draft/history/save/copy/import/export,
+live preview and the user-designed Atomnic tools. Build new interactions feature
+by feature from user needs. This explicit scope overrides generic advice to keep
+an old editor available until every operation has a replacement. Read the current
+OMNIC_COMPOSER.md and latest scope correction in OMNIC_WORKBENCH_MODEL.md.
+
 Omnic contextual interaction is progressive: keep the function list hidden until
 right-click; left-click uses retained values; right-click ONE function reveals one
 relevant setter at a time. Confirm advances and Back/Esc goes back. Pivot, axis

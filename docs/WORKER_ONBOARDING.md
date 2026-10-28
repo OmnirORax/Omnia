@@ -27,6 +27,13 @@ correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it
 from a long chat, an old PR or a contradictory comment.
 
+The old agent-designed Omnic composer UI is explicitly retired. The composer is
+now the draft/save shell and user-directed Atomnic tools; library/workspace and
+saved recipe compatibility remain. Do not restore old panels or infer feature
+requirements from them. See the latest correction in OMNIC_WORKBENCH_MODEL.md and
+the rewritten current OMNIC_COMPOSER.md; older Stage 1 statements below are history,
+not authorization to reintroduce the former UI.
+
 ## Product and direction
 
 For Omnic and Omnium node/frame work, first read
@@ -40,8 +47,8 @@ distinguishes the newer direction from implemented Stage 1/2 scaffolding.
 
 Omnia is an environment for humans and AI to construct and explore structured
 knowledge. **Omnium** is its spatial, genuinely 3D nodegraph workbench. **Omnic** is
-a structural language with an unfinished grammar. Its Stage 1 composer is
-implemented for review as an integrated construction/discovery instrument; read
+a structural language with an unfinished grammar. Its original Stage 1 authoring UI is retired; the current user-directed
+construction workbench remains under development. Read
 [the current Omnic contract](OMNIC_COMPOSER.md). Do not invent a finalized grammar,
 infer truth from appearance, or rebuild a 2D editor as part of unrelated work. [Project direction](../PROJECT_DIRECTION.md) gives the broader
 product constraints.

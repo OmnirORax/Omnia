@@ -699,17 +699,21 @@
     },
     {
       "id": "omnic.compose",
-      "title": "Procedural generators and parameters",
-      "where": "Create → New Omnic object; Open Omnic composer without a selection; or select a node → Inspector → Open Omnic composer. New objects start in Atomnic; switch to Generator controls for this procedural walkthrough.",
-      "behavior": "New work opens a recoverable single-dot world draft without creating an object. Existing dot, ring, line, chain, radial, group and Reference generators use shared parameter controls. Valid changes preview directly in Omnium; canonical definitions change only on save.",
+      "title": "Minimal composer and explicit construction tools",
+      "where": "Create → New Omnic object; or library/Inspector → Open Omnic composer.",
+      "behavior": "The composer contains the draft/save shell and Atomnic only. The agent-designed procedural interface has been removed: no mode toggle, generators, presets, parameter/neighbor forms, scope/tool/operation/frame panels, diagnostic lists or playback controls. Library and saved recipe compatibility remain intact. New construction capabilities are added only from user-directed needs.",
       "steps": [
         {
-          "do": "Open New Omnic object, choose a radial construction preset and change Count and Radius.",
-          "expect": "Both the composer and temporary world structure change; no canonical object is created until Save shared or Save copy."
+          "do": "Open New Omnic object and inspect the composer, including after reopening with an older saved UI layout.",
+          "expect": "Only the compact draft/save shell, name and Atomnic surface are present. The old procedural sections are not mounted, including formerly detached panels."
         },
         {
-          "do": "Add a group and add a generator inside it. Change its parameters.",
-          "expect": "Nested structure appears and can be edited without manually placing units."
+          "do": "Right-click the surface to draw/select/erase/move/rotate/mark; save, close and reopen from the library.",
+          "expect": "Confirmed tools still use progressive contextual settings; the saved identity and recoverable-draft lifecycle remain."
+        },
+        {
+          "do": "Open an older generated chain/radial/reference recipe, then export it or inspect it in the library.",
+          "expect": "It still renders and preserves recipe data/IDs. Unsupported recipes are view-only here, without restoring Generator controls or auto-converting them."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -721,13 +725,14 @@
         "omnic.create",
         "omnic.open"
       ],
-      "limits": "Lattice-constrained mouse/sweep construction, exact MS regions and calibrated reading size remain planned. Existing procedural controls are implemented. Browser acceptance has not been recorded.",
-      "status": "Implemented; browser verification pending",
+      "limits": "Current manipulation supports authored dots/groups plus highlights. Older generated/operator recipes remain renderable and portable but lack the retired authoring UI. No data migration or destructive conversion. New window defaults are compact; existing custom geometry is retained.",
+      "status": "Legacy composer UI removed; minimal workbench implemented for review",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "User requested retirement of the shown old composer UI; cleanup awaits user testing.",
+        "automated": "Final model/type/property/capability/preview checks recorded in delivery."
       },
       "related": [
+        "omnic.atomnic",
         "omnic.worldPreview",
         "omnic.saving"
       ],
@@ -735,37 +740,17 @@
     },
     {
       "id": "omnic.operations",
-      "title": "Ordered operations, role picking, target repair and count extraction",
-      "where": "Composer → Scope / Ordered operations.",
-      "behavior": "Count, scale, fill, rotate, select, connect and oscillate run in order. Picked roles scope new operations; flow selection otherwise applies. Missing generated roles remain unresolved until explicitly repaired. Highlight units / region selects a 1-based unit or all scoped units and highlights an exact disk sector/ring arc fraction. Rotate supports highlighted region, each unit and group scopes, target-center/origin/custom pivots, saved snap step/origin and optional allowed angles. Rotate one step is rebindable and inherits Shift configuration. Operation tools are canonical scope-relative recipes, saved from the focused operation and applied as editable snapshots to picked/flow scope.",
+      "title": "Retired ordered-operation composer UI",
+      "where": "Retired from the composer. Existing recipe data remains supported by the evaluator/library.",
+      "behavior": "The old authoring controls and handlers are removed, not merely collapsed. Underlying recipe schemas/evaluation remain for saved-data compatibility and future reuse. Current requested construction tools live in Atomnic; they do not restore this old panel.",
       "steps": [
         {
-          "do": "Add Count followed by Extract count; change Count.",
-          "expect": "The extracted scalar reflects the preceding count operation."
+          "do": "Open the composer and inspect its surface and contextual tools.",
+          "expect": "This retired panel/action is absent, including detached copies formerly mounted by that composer section."
         },
         {
-          "do": "Move Extract count before Count using the order controls.",
-          "expect": "Its scalar now reflects the earlier state."
-        },
-        {
-          "do": "Target a generated unit, shrink count so it disappears, then use picked scope / repair targets.",
-          "expect": "The missing role is reported, never silently redirected, and an explicit replacement repairs it."
-        },
-        {
-          "do": "Open Create → New Omnic object. In Preset choose Member · one of two. Select Highlight units / region in Ordered operations.",
-          "expect": "Two generated dots remain; Unit 1 is highlighted. Change Unit to 2 to move the highlight without drawing or changing unit count."
-        },
-        {
-          "do": "Choose Part · half a unit. Its highlight has fraction 0.5. Add Rotate structure, set Rotate to Highlighted region and Snap step to 30°. Set Angle to 50°.",
-          "expect": "The half highlight rotates to 60°; the dot stays fixed. Together rotates the scoped composition; Each unit rotates each shape about its own center. Earlier operations determine the region available."
-        },
-        {
-          "do": "Set Snap step to 30° and use Rotate one step. Rebind that action in Master controller shortcuts if desired; hold Shift with its configured trigger to edit rotation configuration.",
-          "expect": "Each ordinary invocation advances the angle by its saved snap. Repeated Shift trigger cycles Region → Each unit → Together; release applies. Right-click applies/locks; left-click resets to the first scope. Temporary changed configuration adds a scoped rotation operation and preserves the focused settings."
-        },
-        {
-          "do": "Focus Highlight units / region, set a copy name and choose Save operation as tool. Return to a composition, pick a component or Whole structure, open Reusable tools, choose the saved tool and Stamp copy to scope.",
-          "expect": "The tool is a shared canonical object with no generated units. Applying it adds independently editable operations to the current draft; changing the tool later does not retroactively change stamped operations. Save shared, reopen and Undo/Redo retain authored rules."
+          "do": "Open/export an existing recipe containing these operations or frame records through the retained library/lifecycle controls.",
+          "expect": "Stored data, references and stable identity are preserved; no old authoring UI is mounted."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -775,31 +760,33 @@
         "src/omnic/rotation.ts",
         "src/omnic/tools.ts"
       ],
-      "actions": [
-        "omnic.rotateStep"
-      ],
-      "limits": "Browser acceptance has not been recorded for this guide. Fractions are angular sectors of disks or arc fractions of rings; fractional lines report inapplicable. Whole line highlight works. One highlight layer per primitive (later highlight replaces earlier). Rotation is planar, angles bounded ±1080°, snap step 0–360°, up to 32 allowed-angle values. New rotation operators use target center; legacy operators retain origin/pivot offsets. Tool stamping snapshots operations rather than introducing live executable dependencies. No default rotation shortcut is assigned. Fixed-size world reading integration remains deferred.",
-      "status": "Implemented; user verification pending",
+      "actions": [],
+      "limits": "Historical engine support remains. The retired authoring/playback surface is unavailable; future controls will be designed feature by feature from user requests.",
+      "status": "Composer UI retired by explicit user direction; recipe compatibility retained",
       "verification": {
-        "browser": "New Member/Part, rotation and tool workflows await user interaction testing; no browser suite run.",
-        "automated": "Normal model command passes; 20 focused Omnic engine cases pass directly, including highlighting, rotation, tools and parameter applicability. Production/type/property checks and self-contained preview build pass."
+        "browser": "Retirement awaits user browser confirmation; no browser suite run.",
+        "automated": "Existing engine/recovery tests retained; removal/type/capability/preview checks recorded in delivery."
       },
-      "related": [],
+      "related": [
+        "omnic.compose",
+        "omnic.atomnic",
+        "omnic.saving"
+      ],
       "gestures": []
     },
     {
       "id": "omnic.frames",
-      "title": "Interpretive frame declarations",
-      "where": "Composer → Interpretation frames.",
-      "behavior": "Frames record inactive, active-unspecified or active-specified properties and an explicit scope. They do not yet interpret meaning, enforce constraints or alter geometry.",
+      "title": "Retired interpretation-frame composer UI",
+      "where": "Retired from the composer. Existing recipe data remains supported by the evaluator/library.",
+      "behavior": "The old authoring controls and handlers are removed, not merely collapsed. Underlying recipe schemas/evaluation remain for saved-data compatibility and future reuse. Current requested construction tools live in Atomnic; they do not restore this old panel.",
       "steps": [
         {
-          "do": "Pick part of a composition, add an inactive angle frame, then switch it to active-specified and enter a value.",
-          "expect": "The scoped declaration is recorded; geometry does not rotate."
+          "do": "Open the composer and inspect its surface and contextual tools.",
+          "expect": "This retired panel/action is absent, including detached copies formerly mounted by that composer section."
         },
         {
-          "do": "Save shared, reopen and inspect the frame.",
-          "expect": "Its scope, state and value are retained. Use Rotate structure separately to change geometry."
+          "do": "Open/export an existing recipe containing these operations or frame records through the retained library/lifecycle controls.",
+          "expect": "Stored data, references and stable identity are preserved; no old authoring UI is mounted."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -808,28 +795,32 @@
         "src/omnic/model.ts"
       ],
       "actions": [],
-      "limits": "Constraint enforcement, inheritance and full semantic interpretation belong to Stage 3; unavailable now.",
-      "status": "Implemented; browser verification pending",
+      "limits": "Historical engine support remains. The retired authoring/playback surface is unavailable; future controls will be designed feature by feature from user requests.",
+      "status": "Composer UI retired by explicit user direction; recipe compatibility retained",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Retirement awaits user browser confirmation; no browser suite run.",
+        "automated": "Existing engine/recovery tests retained; removal/type/capability/preview checks recorded in delivery."
       },
-      "related": [],
+      "related": [
+        "omnic.compose",
+        "omnic.atomnic",
+        "omnic.saving"
+      ],
       "gestures": []
     },
     {
       "id": "omnic.motion",
-      "title": "Semantic oscillation and playback",
-      "where": "Composer → Semantic oscillation preset / Play–pause.",
-      "behavior": "Oscillation is evaluated at explicit time, paused by default. Only the active bounded composer preview animates; world nodes stay static.",
+      "title": "Retired composer playback UI",
+      "where": "Retired from the composer. Existing recipe data remains supported by the evaluator/library.",
+      "behavior": "The old authoring controls and handlers are removed, not merely collapsed. Underlying recipe schemas/evaluation remain for saved-data compatibility and future reuse. Current requested construction tools live in Atomnic; they do not restore this old panel.",
       "steps": [
         {
-          "do": "Load Semantic oscillation, then press Play.",
-          "expect": "The selected structure oscillates."
+          "do": "Open the composer and inspect its surface and contextual tools.",
+          "expect": "This retired panel/action is absent, including detached copies formerly mounted by that composer section."
         },
         {
-          "do": "Pause and change amplitude/frequency/axis; play again.",
-          "expect": "Motion reflects those parameters; pause changes playback without removing the operation."
+          "do": "Open/export an existing recipe containing these operations or frame records through the retained library/lifecycle controls.",
+          "expect": "Stored data, references and stable identity are preserved; no old authoring UI is mounted."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -837,23 +828,25 @@
         "src/omnic/Composer.tsx",
         "src/omnic/evaluate.ts"
       ],
-      "actions": [
-        "omnic.play"
-      ],
-      "limits": "256 animated roles / 12fps; hidden/reduced-motion/slow previews pause. Atlas nodes are static.",
-      "status": "Implemented; browser verification pending",
+      "actions": [],
+      "limits": "Historical engine support remains. The retired authoring/playback surface is unavailable; future controls will be designed feature by feature from user requests.",
+      "status": "Composer UI retired by explicit user direction; recipe compatibility retained",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Retirement awaits user browser confirmation; no browser suite run.",
+        "automated": "Existing engine/recovery tests retained; removal/type/capability/preview checks recorded in delivery."
       },
-      "related": [],
+      "related": [
+        "omnic.compose",
+        "omnic.atomnic",
+        "omnic.saving"
+      ],
       "gestures": []
     },
     {
       "id": "omnic.atomnic",
       "title": "Atomnic placement, selection, contextual DOFs and pivot rotation",
-      "where": "Create → New Omnic object opens Atomnic; existing Composer → Atomnic mode. Right-click the local construction surface or active edited world image.",
-      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction. Content owns context-menu routing: function handlers are preserved by shared projections, and UI-customization fallbacks yield on construction surfaces and contextual controllers.",
+      "where": "Create → New Omnic object; or open an authored-dot recipe in the composer. Atomnic is the only construction interface.",
+      "behavior": "Right-click the construction or edited world image reveals only applicable functions with current values. Left-click uses retained settings; right-click ONE function opens only its first relevant setter. Next/Confirm advances one input at a time; Back/Esc goes back. There is no permanent function toolbar or expanded settings grid. Rotation configures scope → angular order → step count, then prompts for a pivot. During pivot picking, right-click reveals exact/detected choices; right-click Detected target to configure axis then position progressively. Existing construction, Free/touching, selection, marking, history and live preview remain available. Erase (E) is a retained tool: click/sweep removes touched units or nearest authored groups in the current Micro/Macro scope. Release accepts one stroke; Esc/pointer cancellation restores its base recipe. Remove-selection and erase share one deletion transaction. Content owns context-menu routing: function handlers are preserved by shared projections, and UI-customization fallbacks yield on construction surfaces and contextual controllers. The old procedural composer panels and Generator-controls toggle are removed; Atomnic stays mounted regardless of legacy active-mode metadata.",
       "steps": [
         {
           "do": "Right-click the Atomnic construction, then right-click Rotate or Erase in its function list. Repeat with the containing UI frame selected; also right-click blank menu space.",
@@ -894,6 +887,10 @@
         {
           "do": "Repeat a move or rotation on the active world image. Release, undo the accepted edit, close/reopen, then Save shared.",
           "expect": "Both editing surfaces use the same draft. Pointer samples stay transient, release records an accepted edit, close restores saved world rendering, reopening recovers work and save publishes the definition."
+        },
+        {
+          "do": "Open an authored-dot recipe saved with atomnic.active=false, and then a generated chain recipe.",
+          "expect": "The authored dots use the current Atomnic tools; the chain remains view-only with a compact status/tooltip. Neither opens the retired interface."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -934,11 +931,11 @@
       "gestures": [
         "atomnic.pointer"
       ],
-      "limits": "128 components/groups and 128 operations; coordinates ±300. Authored dot/group recipes plus highlights only; arrays/references/other geometry operations keep Generator controls. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending. Erase removes complete authored units/groups; it does not carve an intradot region. Explicit operator targets that disappear remain unresolved rather than being silently reassigned.",
+      "limits": "128 components/groups and 128 operations; coordinates ±300. Authored dot/group recipes plus highlights only; arrays/references/other geometry operations remain view-only here; their data/evaluation is retained. Shared matcher currently covers dot properties, not full MS clipping or arbitrary motifs. Axis boundaries use a radial address picker (at most 48 drawn handles) and cardinal shortcuts, with exact supported addresses up to order 6. The selected axis is not manually guessed: boundary halving resolves it. Full world-space radial boundary gestures remain pending. Touching validates center slots/radius overlap, not stroke width or full physics. World budget 32 sources/256px/12fps. Max-zoom calibration and circular frame/dials are pending. Erase removes complete authored units/groups; it does not carve an intradot region. Explicit operator targets that disappear remain unresolved rather than being silently reassigned. The old diagnostic/repair panels and operation list are removed; accepted construction can be undone/reset.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
-        "browser": "User reported overlapping UI-edit menus on composer right-click. Shared routing correction awaits user browser testing; no browser suite run.",
-        "automated": "2026-10-28 context-menu correction: ownership/handler/fallback regression checks and the full existing model suite pass. Final type/property/capability/self-contained preview checks are part of publication. No browser suite or trace; user interaction acceptance pending."
+        "browser": "User requested removing the prior agent-designed composer interface. Minimal-composer cleanup awaits user interaction testing.",
+        "automated": "Existing construction/engine/history checks retained; final model/type/property/capability/preview checks recorded in delivery."
       },
       "related": [
         "omnic.worldPreview",
@@ -954,7 +951,7 @@
       "steps": [
         {
           "do": "Open New Omnic object. Use D and click/sweep the construction view, then the edited world image, before saving.",
-          "expect": "A temporary world structure follows valid edits. No saved entity or placement is created until Save shared. Generator controls remains available for procedural recipes."
+          "expect": "A temporary world structure follows valid edits. No saved entity or placement is created until Save shared. Older procedural recipes remain viewable; their former editor is retired."
         },
         {
           "do": "Close and reopen the new composer, then reload and open it again.",
@@ -987,7 +984,7 @@
         "src/App.tsx"
       ],
       "actions": [],
-      "limits": "At most 32 structural world sources at 256px; extra occurrences retain saved rendering and a temporary with no free slot uses the preview-budget placeholder. Inputs are coalesced to 12fps, dependents use 4ms batches, and evaluation is static at time zero. Invalid evaluations keep the last valid preview. Atomnic-compatible authored drafts can now be edited on the world image before saving. Generated arrays/references remain in Generator controls. Frame/dial editing, full MS region picking and reading-size calibration remain pending.",
+      "limits": "At most 32 structural world sources at 256px; extra occurrences retain saved rendering and a temporary with no free slot uses the preview-budget placeholder. Inputs are coalesced to 12fps, dependents use 4ms batches, and evaluation is static at time zero. Invalid evaluations keep the last valid preview. Atomnic-compatible authored drafts can now be edited on the world image before saving. Generated arrays/references remain viewable, with authoring UI retired. Frame/dial editing, full MS region picking and reading-size calibration remain pending.",
       "status": "Implemented for review; source PR and visual preview do not establish production deployment or browser acceptance",
       "verification": {
         "browser": "Not run; user acceptance pending",
