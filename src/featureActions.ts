@@ -6,7 +6,7 @@ export const radialGroups = {
   transform:{id:'transform',label:'Transform',symbol:'🗘',hidden:true},
   mark:{id:'mark',label:'Marking',symbol:'◒',hidden:true},
   structure:{id:'structure',label:'Structure',symbol:'⠿',hidden:true},
-  object:{id:'object',label:'Object',symbol:'◇'},
+  object:{id:'object',label:'Object',symbol:'◇',flatten:true},
   save:{id:'save',label:'Name and save',symbol:'▣'},
   file:{id:'file',label:'File',symbol:'📁'},
   motion:{id:'motion',label:'Motion',symbol:'⇳',hidden:true},

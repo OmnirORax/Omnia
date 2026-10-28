@@ -7,6 +7,8 @@ that the described capabilities are implemented.
 
 ## Latest correction: the Composer itself is the radar
 
+Newest correction: promote remaining Object tools directly beside pen/eraser and mode controls, with no Object wrapper. Restore the ⠒ Atomnic on/off tool there; it was removed during the preceding cleanup, leaving only the registered search/controller action. Color should be a circular rainbow wheel matching the supplied reference. Use shared presentation metadata and preserve all existing owners/settings.
+
 Further cleanup: remove the whole Selection, Transform, Fill/marking and toolbox/Inspection category projections, not merely the Select/Fill leaf actions. Remove Configure selected component and the ⠒ rim toggle. Move the existing Free/Realistic control directly beside pen/eraser at top middle; retain registered mode action/settings. Direct target selection and right-click DOFs remain. Target Fill uses ◐; target Opacity uses a 50%-faded ⬤. Reusable command/data owners are preserved.
 
 Latest refinement: category children form a smaller ring around the clicked category itself, recursively, rather than replacing the Omnic dial’s rim. Parent rings stay in place. Remove the dedicated Select button (existing left-click selection remains), Motion category, Fill button and Operation scope picker from the radial. Preserve underlying reusable engines, stored operations and target-derived DOF adjusters.

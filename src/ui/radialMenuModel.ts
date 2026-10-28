@@ -1,4 +1,4 @@
-export type RadialGroup={id:string;label:string;symbol:string;hidden?:boolean};
+export type RadialGroup={id:string;label:string;symbol:string;hidden?:boolean;flatten?:boolean};
 export type RadialEntry<T>={id:string;label:string;symbol:string;group?:readonly RadialGroup[];content:T};
 export type RadialNode<T>=RadialGroup & {children?:RadialNode<T>[];content?:T};
 /** Shared presentation grouping; commands/values remain with their existing owner. */
@@ -8,6 +8,7 @@ export function radialTree<T>(entries:readonly RadialEntry<T>[]):RadialNode<T>[]
     if(entry.group?.some(group=>group.hidden))continue;
     let level=roots;
     for(const group of entry.group??[]){
+      if(group.flatten)continue;
       let node=level.find(node=>node.id===group.id&&node.children);
       if(!node){node={...group,children:[]};level.push(node);}
       level=node.children!;
@@ -32,4 +33,10 @@ export function radialDimensions(depth:number,count=6) {
 export function radialSlot(index:number,count:number,depth:number) {
   const {radius,extent,size}=radialDimensions(depth,count),turn=index/count*Math.PI*2;
   return {x:50+Math.sin(turn)*radius/extent*100,y:50-Math.cos(turn)*radius/extent*100,size};
+}
+
+/** Adjacent quick tools follow the circular rim, starting at top clockwise. */
+export function radialQuickSlot(index:number,extent:number,size=24,gap=2) {
+  const radius=Math.max(size,extent/2-size/2-2),angle=index*2*Math.asin(Math.min(1,(size+gap)/(2*radius)));
+  return {x:50+Math.sin(angle)*radius/extent*100,y:50-Math.cos(angle)*radius/extent*100,size};
 }

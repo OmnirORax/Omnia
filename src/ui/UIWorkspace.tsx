@@ -121,7 +121,7 @@ import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
-export const FunctionControl=memo(function FunctionControl({ id, palette = false, mirror = false, symbol, symbolOpacity, tooltip }: { id: string; palette?: boolean; mirror?: boolean; symbol?: string; symbolOpacity?: number; tooltip?: string }) {
+export const FunctionControl=memo(function FunctionControl({ id, palette = false, mirror = false, symbol, symbolOpacity, symbolFill, tooltip }: { id: string; palette?: boolean; mirror?: boolean; symbol?: string; symbolOpacity?: number; symbolFill?: string; tooltip?: string }) {
   const scope = useContext(UIHomeContext), anchor = `${scope}|${id}`;
   const ui = useUITracked(ui=>{
     const index=functionIndex(ui.functions,ui.layout);
@@ -131,7 +131,7 @@ export const FunctionControl=memo(function FunctionControl({ id, palette = false
     item = ui.layout.items[id];
   // A contextual action surface reuses its registered action and styling without
   // relocating the resident or adding another action definition.
-  if (mirror) return fn ? <FunctionElement fn={fn} symbol={symbol} symbolOpacity={symbolOpacity} tooltip={tooltip} projected /> : null;
+  if (mirror) return fn ? <FunctionElement fn={fn} symbol={symbol} symbolOpacity={symbolOpacity} symbolFill={symbolFill} tooltip={tooltip} projected /> : null;
   if (palette) return fn ? <FunctionElement fn={fn} palette /> : null;
   const peers = index.anchors.get(anchor)??[];
   const order = [
@@ -145,7 +145,7 @@ export const FunctionControl=memo(function FunctionControl({ id, palette = false
           key !== id ||
           (!index.owners.has(`function:${id}`) && !item?.anchorId && (!item || item.home));
         return current && visible ? (
-          <FunctionElement key={key} fn={current} nativeAnchor={{ key: anchor, id }} symbol={key===id?symbol:undefined} symbolOpacity={key===id?symbolOpacity:undefined} tooltip={key===id?tooltip:undefined} />
+          <FunctionElement key={key} fn={current} nativeAnchor={{ key: anchor, id }} symbol={key===id?symbol:undefined} symbolOpacity={key===id?symbolOpacity:undefined} symbolFill={key===id?symbolFill:undefined} tooltip={key===id?tooltip:undefined} />
         ) : null;
       })}
     </>
@@ -157,13 +157,13 @@ const FunctionElement=memo(function FunctionElement({
   palette = false,
   resident = false,
   nativeAnchor,
-  symbol, symbolOpacity, tooltip, projected = false,
+  symbol, symbolOpacity, symbolFill, tooltip, projected = false,
 }: {
   fn: UIFunction;
   palette?: boolean;
   resident?: boolean;
   nativeAnchor?: { key: string; id: string };
-  symbol?: string; symbolOpacity?: number; tooltip?: string; projected?:boolean;
+  symbol?: string; symbolOpacity?: number; symbolFill?: string; tooltip?: string; projected?:boolean;
 }) {
   const ui = useUITracked(ui=>{
     const item=ui.layout.items[fn.id],index=functionIndex(ui.functions,ui.layout);
@@ -181,7 +181,7 @@ const FunctionElement=memo(function FunctionElement({
     palette || (resident && style.mode === "text") ? (
       fn.label
     ) : style.mode === "text" ? (
-      (symbol !== undefined && symbolOpacity !== undefined ? <span style={{opacity:symbolOpacity}}>{symbol}</span> : symbol ?? (fn.element.props as { children?: ReactNode }).children ?? fn.label)
+      (symbol !== undefined && (symbolOpacity !== undefined || symbolFill !== undefined) ? <span style={{opacity:symbolOpacity,...(symbolFill?{background:symbolFill,backgroundClip:"text",WebkitBackgroundClip:"text",color:"transparent"}:{})}}>{symbol}</span> : symbol ?? (fn.element.props as { children?: ReactNode }).children ?? fn.label)
     ) : asset ? (
       iconTint.color ? <span className="appearance-icon-mask" style={{ ...iconTint.style, backgroundColor: iconTint.color, maskImage: `url("${asset.dataUrl}")`, WebkitMaskImage: `url("${asset.dataUrl}")` }} /> : <img src={asset.dataUrl} alt="" style={iconTint.style}/>
     ) : (

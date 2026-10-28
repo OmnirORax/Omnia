@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { radialTree, radialSlot, radialDimensions } from '../src/ui/radialMenuModel.ts';
+import { radialTree, radialSlot, radialDimensions, radialQuickSlot } from '../src/ui/radialMenuModel.ts';
 import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
@@ -22,6 +22,21 @@ test('circular frame projection adapts old rectangles and preserves intentional 
   const viewport={x:10,y:20,width:600,height:400};
   assert.deepEqual(fitFrameShape(viewport,'circle'),{x:110,y:20,width:400,height:400});
   assert.equal(fitFrameShape(viewport,'rectangle'),viewport,'ordinary frame projections are unchanged');
+});
+test('quick radial tools stay adjacent on the rim and flattened wrappers preserve descendants',()=>{
+  const leaf={id:'save',label:'Save',symbol:'▣',content:42};
+  const object={id:'object',label:'Object',symbol:'◇',flatten:true},file={id:'file',label:'File',symbol:'📁'};
+  const tree=radialTree([{...leaf,group:[object,file]},{...leaf,id:'retired',group:[object,{...file,hidden:true}]}]);
+  assert.equal(tree.length,1);assert.equal(tree[0].id,'file');assert.equal(tree[0].children[0].content,42);
+  for(const extent of [200,360,600]){
+    const slots=Array.from({length:9},(_,index)=>radialQuickSlot(index,extent));
+    assert.equal(slots[0].x,50);assert.ok(slots[0].y<50);assert.ok(slots[1].x>50);
+    for(let i=0;i<slots.length;i++){
+      const a=slots[i];assert.ok(a.x*extent/100>=a.size/2&&a.x*extent/100<=extent-a.size/2);
+      assert.ok(a.y*extent/100>=a.size/2&&a.y*extent/100<=extent-a.size/2);
+      for(const b of slots.slice(i+1))assert.ok(Math.hypot((a.x-b.x)*extent/100,(a.y-b.y)*extent/100)>=25.99);
+    }
+  }
 });
 test('radial projections group shared categories without changing leaf identities or controls',()=>{
   const save={id:'save',label:'Save',symbol:'▣'},file={id:'file',label:'Files',symbol:'⇅'};
