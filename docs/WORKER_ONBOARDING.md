@@ -16,6 +16,15 @@ from a long chat, an old PR or a contradictory comment.
 
 ## Product and direction
 
+For Omnic and Omnium node/frame work, first read
+[Omnic / Omnium workbench: shared design model](OMNIC_WORKBENCH_MODEL.md).
+It is the current synthesis of the user's construction workflow, minimum-unit
+versus fine-imprint/readability limits, operator presets, lattice manipulation,
+live shared world drafts, proposed node frames and unresolved grammar/layout.
+The goal is an instrument the user can exercise while mapping and writing, not
+prebuilt concept presets or a grammar finalized by the agent. Its progress section
+distinguishes the newer direction from implemented Stage 1/2 scaffolding.
+
 Omnia is an environment for humans and AI to construct and explore structured
 knowledge. **Omnium** is its spatial, genuinely 3D nodegraph workbench. **Omnic** is
 a structural language with an unfinished grammar. Its Stage 1 composer is

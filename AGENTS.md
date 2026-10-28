@@ -15,6 +15,14 @@ to test. Browser acceptance and deployment are never inferred from builds.
 
 # Worker entry rules
 
+For Omnic or Omnium node/frame work, also read
+[the current workbench mental model](docs/OMNIC_WORKBENCH_MODEL.md). It synthesizes
+the user's 2026-10-28 decisions, open ideas and implementation sequence. Build the
+general world-integrated construction instrument; concept presets do not satisfy
+it. The minimum movable atom, finer operator imprints and smallest visible cue
+are different limits. Preserve the distinction between confirmed behavior and
+exploratory grammar. Direct lattice placement/movement is now explicitly desired.
+
 Read [docs/WORKER_ONBOARDING.md](docs/WORKER_ONBOARDING.md) once when starting work
 or resuming with a fresh context. It supplies the project mental model, system
 boundaries, status map and links to task-specific contracts. Do not reconstruct

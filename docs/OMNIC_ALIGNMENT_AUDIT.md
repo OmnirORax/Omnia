@@ -1,5 +1,12 @@
 # Omnic source alignment: Stage 1 and Stage 2
 
+For the subsequent user discussion and authorized workbench rework, read the
+[current shared mental model](OMNIC_WORKBENCH_MODEL.md). It records newer
+clarifications on minimum unit versus visible difference, operator presets,
+direct lattice gestures, live world drafts and provisional node-frame ideas.
+It supersedes earlier interpretations where explicitly corrected; the audit
+below still describes Stage 1/2 reuse and semantic gaps.
+
 Source review, 2026-10-27. An implementation audit and continuity record, not a
 finalized grammar or authorization to replace the current system.
 

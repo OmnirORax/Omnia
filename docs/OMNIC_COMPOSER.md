@@ -1,5 +1,12 @@
 # Omnic composer: Stage 1 contract
 
+The user's subsequent direction is synthesized in
+[OMNIC_WORKBENCH_MODEL.md](OMNIC_WORKBENCH_MODEL.md). It authorizes progressive
+world-integrated construction, temporary/shared live drafts and lattice-constrained
+mouse placement/movement. This Stage 1 document remains the record of existing
+delivery scope; its procedural-only interaction restriction does not prohibit
+that newer work. See the mental model's progress section for actual delivery.
+
 Status: **Stage 1 implemented for review; browser acceptance pending**. This
 document records the current user agreement and the first implementation. Model
 and build validation are recorded below; browser usability and smoothness remain
