@@ -17,8 +17,8 @@ spheres are drawn per ring; overflow becomes More tools and deeper navigation
 stops shrinking at 24px targets. No pointer-move layout/matching is needed. `ContextualMasterController`
 provides centred/clamped top-layer presentation and existing context-menu ownership. Child rings are portalled to escape the circular frame clip. Nested portalled controllers retain their connected parent context layers; the deepest ring is active, and closing it restores its parent so Escape steps outward. Anchors are measured once on click; viewport edges clamp popups.
 The always-visible eye toggles tools at 100%/50% opacity; its right-click or Esc steps outward. Embedded category slots leave the top-middle position for a compact quick-control row: pen/eraser followed by Free/Realistic, with a 2px gap. The separate ⠒ toggle is removed from the active radar. Category metadata may retire a presentation branch without deleting command owners. Contextual controllers opened during a held press consume its trailing contextmenu event before newly appeared controls can interpret it; a fresh pointerdown enables normal interaction.
-`FunctionControl mirror symbol tooltip` projects the existing action/field without
-another identity/value owner. Symbol fields open compact contextual editors.
+`FunctionControl mirror symbol symbolOpacity tooltip` projects the existing action/field without
+another identity/value owner. Optional symbolOpacity fades only the default projected glyph, preserving button availability and saved custom appearances. Writable-input freedom metadata can supply this presentation through DOF discovery. Symbol fields open compact contextual editors.
 `UIField`/`UIAction registerOnly` retain real registry entries while their inline
 presentation is replaced by a projection. Names/current values belong in tooltips;
 editors show values only on request.
