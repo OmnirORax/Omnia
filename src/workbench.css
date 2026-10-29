@@ -1281,3 +1281,7 @@ html[data-tool-cursor],html[data-tool-cursor] *{cursor:none!important}
 .tool-cursor-controls button{padding:3px 5px;min-width:24px;border:1px solid #60ddec66;border-radius:12px;background:#07131ee8;color:var(--text,#d4e6ef);font:inherit}
 .tool-cursor[data-cursor-interactive] .tool-cursor-controls,.tool-cursor[data-cursor-interactive] .tool-cursor-controls *{pointer-events:auto!important;cursor:pointer!important}
 .tool-cursor[popover]{margin:0;padding:0;border:0;background:transparent;overflow:visible;color:var(--text,#d4e6ef)}
+/* Focused drawing/interaction surfaces are not text insertion owners. Native
+   fields opt back in, including numeric configuration popups. */
+body{caret-color:transparent}
+input,textarea,[contenteditable]:not([contenteditable="false"]){caret-color:auto}

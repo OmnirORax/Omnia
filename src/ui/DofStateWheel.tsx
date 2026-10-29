@@ -32,11 +32,11 @@ export function DofStateWheel({property,label,symbol='🗘',domain,value,min,max
  useLayoutEffect(()=>{if(session.receive(value)){activation.current.cancel();setSample(null);}},[value,session]);
  const restore=()=>{hoverTurn.current=undefined;setSample(null);if(session.sampling){const before=session.restore();if(scope.cancelPreview)scope.cancelPreview();else onPreview(before);}};
  const show=(kind:Settings['kind'])=>{activation.current.cancel();restore();setSettings({kind,point:cursorPosition()});};
- const parked=useCursorParking(zone),reference=operation?.selection?.current;
+ const cursorKey=`state:${localZone}`,parked=useCursorParking(cursorKey),reference=operation?.selection?.current;
  const expression=selectionExpression(working.count);
  const countLabel=expression.base?<>{expression.base}<sup>{expression.power}</sup></>:<>{expression.count}</>;
  const controls=<><button type="button" title={label} onClick={()=>show('parameters')}>{symbol}</button><button type="button" title={`${mode.label} · right-click chooses mode`} onClick={()=>show('parameters')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();show('modes');}}>{mode.icon} {mode.label}</button><button type="button" title="Edit mode state count" onClick={()=>show('count')}>{countLabel}</button><button type="button" title="Reference" onClick={()=>show('reference')}>⟴ {picking?'Pick':operation?.selection?.unavailable?'Unavailable':reference?reference.label:'Self'}</button></>;
- const cursor=useMemo(()=>({key:`state:${zone}`,zone,priority:45,icon:<span>{symbol}</span>,width:20,height:20,parked:parked??undefined,controls}),[zone,symbol,parked,working.mode,working.count,reference?.id,operation?.selection?.unavailable,picking]);
+ const cursor=useMemo(()=>({key:cursorKey,zone,priority:45,icon:<span>{symbol}</span>,width:20,height:20,parked:parked??undefined,controls}),[cursorKey,zone,symbol,parked,working.mode,working.count,reference?.id,operation?.selection?.unavailable,picking]);
  useToolCursor(cursor);
  useLayoutEffect(()=>{const node=root.current;if(!node)return;setToolCursorZone(node,zone,true);return()=>setToolCursorZone(node,undefined);},[zone]);
  useContextNavigation({owner:root,cancel:picking?()=>operation?.selection?.cancel():sample!==null?restore:undefined});

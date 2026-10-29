@@ -314,3 +314,11 @@ keyboard residents yield to available scoped features through shared arbitration
 it also captures a wheel preview before native focus/blur can clear hover. Added
 model regressions exercise both failure paths. Both require user retest; neither
 is recorded as browser-accepted from local checks.
+
+
+Further E03 user feedback: Alt appeared conditional; the opener still sometimes
+activated Dial size; a blinking caret appeared during Atomnic pen and object drag.
+The follow-up removes fresh zone/focus gates from explicit Alt parking, captures
+settings-control ownership from the physical press path independently of release
+timing, and styles caret paint off non-text surfaces while restoring native fields.
+These changes await user confirmation; they add no pointer-frame discovery.

@@ -1,3 +1,5 @@
+import {nativeContextMenuKey} from '../featureActions.ts';
+import {contextPressOwnsControl} from './contextMenuOwnership.ts';
 /** UI ownership lasts for the physical press, independently of capture and
  * preview lifetime. Capture loss, Esc and mouse pointercancel are not releases. */
 const physicalPresses=new Set<number>();
@@ -34,7 +36,23 @@ export function cancelUITouch(event: PointerEvent) {
 // Install before component listeners can consume pointerup. Mouse events also
 // recover a cancelled mouse pointer stream; a no-buttons move proves release.
 if (typeof window !== "undefined") {
-  const pressed=(event:PointerEvent)=>physicalPresses.add(event.pointerId);
+  let secondaryPath:EventTarget[]|null=null;
+  const origin=(event:MouseEvent)=>{secondaryPath=event.button===2?event.composedPath():null;};
+  const pressed=(event:PointerEvent)=>{physicalPresses.add(event.pointerId);origin(event);};
+  const context=(event:MouseEvent)=>{
+    const target=event.target instanceof Element?event.target:null;
+    const control=target?.closest('button,input,select,textarea,[role="button"],[data-ui-function],[data-range-control]');
+    if(event.button===2&&!contextPressOwnsControl(secondaryPath,control)){event.preventDefault();event.stopImmediatePropagation();}
+  };
+  const keyboard=(event:KeyboardEvent)=>{if(nativeContextMenuKey(event))secondaryPath=null;};
+  const blur=()=>{secondaryPath=null;};
+  // Compatibility mousedown must not replace the earlier pointerdown origin
+  // if a popup was mounted between the two events. It also covers mouse chords.
+  const mouseOrigin=(event:MouseEvent)=>{if(event.button!==2)secondaryPath=null;else if(!secondaryPath)origin(event);};
+  window.addEventListener('mousedown',mouseOrigin,true);
+  window.addEventListener('contextmenu',context,true);
+  window.addEventListener('keydown',keyboard,true);
+  window.addEventListener('blur',blur);
   const released = (event: MouseEvent) => {if("pointerId" in event)physicalPresses.delete(Number(event.pointerId));else physicalPresses.clear();finishUIPress(event);};
   window.addEventListener("pointerdown",pressed,true);
   const moved = (event: MouseEvent) => {
@@ -46,6 +64,10 @@ if (typeof window !== "undefined") {
   window.addEventListener("mousemove", moved, true);
   window.addEventListener("pointercancel", cancelUITouch, true);
   if (import.meta.hot) import.meta.hot.dispose(() => {
+    window.removeEventListener('mousedown',mouseOrigin,true);
+    window.removeEventListener('contextmenu',context,true);
+    window.removeEventListener('keydown',keyboard,true);
+    window.removeEventListener('blur',blur);
     window.removeEventListener("pointerdown",pressed,true);
     window.removeEventListener("pointerup", released, true);
     window.removeEventListener("mouseup", released, true);

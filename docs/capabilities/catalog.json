@@ -1079,6 +1079,14 @@
         {
           "do": "Hold right-click on empty Composer space, then release. Repeat on a target and in the active edited world image. Use a fresh right-click on Dial size; also test left-click drawing/dragging.",
           "expect": "No menu opens on right-button press. Release opens the tools/target dial once, without opening the centre size field. Fresh settings right-clicks work normally; left-button gestures retain their existing behavior."
+        },
+        {
+          "do": "Right-click empty Composer space, hold and release over the opening dial centre. Repeat in the active world image. Then freshly right-click Dial size.",
+          "expect": "No size field opens from the menu-opening press. A settings context event only reaches controls present in that physical press path; a fresh right-click on the size control works normally."
+        },
+        {
+          "do": "Draw/erase in Atomnic, drag a DOF control, then open an actual numeric/text field and type.",
+          "expect": "Non-text interaction surfaces do not display a blinking insertion caret. Native text and numeric fields retain their visible caret and normal editing."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -1140,7 +1148,7 @@
       "limits": "Detection is adapter-based, not arbitrary pixel/semantic inference. Only common writable generator inputs appear; future adapters must declare actual setters. Specialized drag/pivot executors currently cover authored atoms/groups; normal geometry uses its existing parameter setters. Stationary target menus still use common target inputs; preset menus also discover their own operation inputs. Full MS clipping remains separate work. Realistic fixes target atom size and retains lattice/overlap/rotation constraints; it is not full physics. Scalar range/step preferences last for the editing session, not across closing/reloading; movement/rotation settings remain recipe-backed. Model/component/evaluation/render budgets remain. Chrome/Omnium size synchronization is still paused. Wheel zoom applies to the Composer interior; Omnium camera navigation retains its existing wheel behavior. Right-click during dragging settles the move before configuration; resuming uses a new left drag. Normal component position parameters retain their existing validated ranges. Construction presets insert independent geometry alongside current contents at the chosen canvas point; preset authoring is unchanged. Saved operation presets require an existing selection. Shared properties within a preset are edited together only where supported. Numeric typing Enter accepts the field; a subsequent Enter finishes editing. Preset option overflow uses existing More rings; the detected DOF ring stays flat. Instant persistence here means the recoverable Composer draft; Save shared still publishes the canonical definition. Radial origins are not shifted to fit the viewport, so edge invocation can clip tools. Motion previews use existing animation/work budgets; direct Atomnic construction still requires pausing/disabling unsupported geometry-transform operations.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
-        "browser": "Release-only right-click replacement awaits user testing on the preview; no browser suite run.",
+        "browser": "Press-origin settings guard and non-text caret styling await user retest; no browser suite run.",
         "automated": "Model checks cover target hierarchy/ambiguity/stale scopes, MS/held-gesture priority, deletion scope repair, shared packing, independent insertion and numeric input domains. Type/property/backend/preview checks run before publication."
       },
       "related": [
@@ -2022,12 +2030,16 @@
         {
           "do": "Right-click the mode selector, choose +, configure its step angle and choose a generated state.",
           "expect": "The initial custom rule is a bounded fixed angular step. Its parameters use the math dial; preview and commit share the built-in mode path."
+        },
+        {
+          "do": "Hover several rotation previews, then hold Alt without moving again. Move to and click a parked indicator; release Alt. Repeat after editing a parameter in a native field.",
+          "expect": "Alt parks the active indicator owner after preview redraws and regardless of current hover hit or field focus. Its configuration remains after release. With no active DOF indicators, normal Alt behavior remains; AltGr text entry and higher-priority MS operations are preserved."
         }
       ],
       "limits": "Composer-only experiment: registered cyclic Rotation inputs; other numeric DOFs retain their existing editors. Single-target reference picking supports compatible authored orientations; active rotate/oscillation operators are rejected until an evaluated reference adapter exists. No automatic invitations, Space acceptance, ranking, persistent constraints or arbitrary equation authoring. R edits selected orientation values; legacy pivot-orbit rotation remains on the separate Step action. At most 64 alternatives, with a smaller renderable halving limit.",
       "status": "Implemented experiment for review; not production deployed.",
       "verification": {
-        "browser": "R routing and wheel-surface click commitment fixes await user retest; no browser suite run.",
+        "browser": "Alt owner-parking correction awaits user retest along with the rotation interaction; no browser suite run.",
         "automated": "Generated-state and reference applicability model regression; full local checks recorded at delivery."
       },
       "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",

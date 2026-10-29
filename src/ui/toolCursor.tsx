@@ -2,7 +2,7 @@ import { useId, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } 
 import { createPortal } from 'react-dom';
 import { cursorSample, observeCursor } from './cursorPosition';
 import { pointerToolZone, observeToolZones } from './toolCursorZone';
-import { activeToolCursor, cursorApplies } from './toolCursorModel';
+import { activeToolCursor, cursorApplies, cursorParkingOwner } from './toolCursorModel';
 export type ToolCursorOptions={zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
 export type ToolCursorRequest=ToolCursorOptions & {key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number};controls?:ReactNode};
 const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,HTMLElement>(),listeners=new Set<()=>void>();
@@ -18,18 +18,22 @@ export function useToolCursor(request:ToolCursorRequest|null){
 }
 // Shared cursor configuration gesture: hold Alt to park interactive indicators.
 const parkingListeners=new Set<()=>void>();
-let parking:{point:{x:number;y:number}|null;zone?:string}={point:null};
+let parking:{point:{x:number;y:number}|null;owner?:string}={point:null};
 const publishParking=()=>parkingListeners.forEach(listener=>listener());
 if(typeof window!=='undefined'){
- const down=(event:KeyboardEvent)=>{if(event.key!=='Alt'||event.repeat||parking.point||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return;const point=cursorSample();parking={point,zone:pointerToolZone(point).zone};publishParking();};
- const up=(event:KeyboardEvent)=>{if(event.key==='Alt'&&parking.point){parking={point:null};publishParking();}};
+ const down=(event:KeyboardEvent)=>{
+  if(event.key!=='Alt'||event.repeat||parking.point||event.getModifierState('AltGraph'))return;
+  const owner=cursorParkingOwner(selected,owners.values());if(!owner)return;
+  event.preventDefault();parking={point:cursorSample(),owner};publishParking();
+ };
+ const up=(event:KeyboardEvent)=>{if(event.key==='Alt'&&parking.point){event.preventDefault();parking={point:null};publishParking();}};
  const blur=()=>{parking={point:null};publishParking();};
  window.addEventListener('keydown',down,true);window.addEventListener('keyup',up,true);window.addEventListener('blur',blur);
  if(import.meta.hot)import.meta.hot.dispose(()=>{window.removeEventListener('keydown',down,true);window.removeEventListener('keyup',up,true);window.removeEventListener('blur',blur);});
 }
-export function useCursorParking(zone:string|undefined){
+export function useCursorParking(owner:string){
  const state=useSyncExternalStore(listener=>{parkingListeners.add(listener);return()=>{parkingListeners.delete(listener);};},()=>parking);
- return zone&&state.zone===zone?state.point:null;
+ return state.owner===owner?state.point:null;
 }
 /** Capture only the actual icon, once on activation, including custom appearance.
  * No source layout/style lookup occurs during pointer movement. */

@@ -628,3 +628,25 @@ before native focus/blur can cancel hover. Click consumes the current or capture
 alternative once; pointer exit/cancel discards it. This preserves wheel-surface
 commitment after a previously focused marker blurs, without preventing normal
 focus behavior or persisting hover previews.
+
+
+Alt parking captures the currently displayed interactive cursor owner by its
+unique request key, not a fresh lookup through cursorSample.target: previews may
+replace that cached DOM hit. Only that owner parks, even if several editors share
+a content zone. Alt is an explicit configuration request while an indicator owner is active,
+independent of hover-zone lookup or field focus. Fall back to that registered
+owner when no cursor hit is resolved. Prevent browser-menu defaults during parking
+without stopping propagation; preserve AltGr text entry and higher-priority MS.
+
+
+Context settings also validate the physical press origin through shared
+pointerOwnership: capture the right-press composed path once; a later contextmenu
+on a control only applies if that control was in the original path. This is
+independent of held/released timing and prevents newly mounted Dial size controls
+from receiving a menu opener. Keyboard context-menu invocation clears the pointer
+origin. There is no timer, motion check or feature-specific size exception.
+
+Non-text application surfaces use transparent caret-color; native inputs,
+textareas and editable text explicitly restore auto caret-color. This keeps browser
+insertion/caret-browsing paint off focused interaction surfaces without changing
+text editing, focus, browser preferences or adding polling/selection clearing.

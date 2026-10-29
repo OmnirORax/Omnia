@@ -525,3 +525,31 @@ test('saved button shortcuts yield to active scoped commands before reporting a 
  assert.equal(residentShortcutAction({...saved,'atomnic.rotate':'T'},'T',id=>id==='atomnic.rotate'),'atomnic.rotate','rebound commands use the same arbitration');
  assert.equal(residentShortcutAction(saved,'',()=>true),null);
 });
+
+
+test('Alt cursor parking uses the visible owner rather than a stale preview DOM hit',async()=>{
+ const {cursorParkingOwner,activeToolCursor,cursorApplies}=await import('../src/ui/toolCursorModel.ts');
+ const other={key:'pen',zone:'canvas'},first={key:'wheel:one',zone:'canvas',priority:45,controls:{}},second={key:'wheel:two',zone:'canvas',priority:45,controls:{}};
+ const displayed=activeToolCursor([other,first,second],request=>cursorApplies(request,'canvas'));
+ assert.equal(cursorParkingOwner(displayed),'wheel:two','only the displayed owner parks, even when several controls share a content zone');
+ // Replaced SVG may have detached the cached target. Parking consumes the
+ // previously resolved displayed owner rather than performing new DOM discovery.
+ assert.equal(cursorParkingOwner(displayed),'wheel:two');
+ assert.equal(cursorParkingOwner(null,[other,first,second]),'wheel:two','explicit Alt does not depend on a hover hit or focused field');
+ assert.equal(cursorParkingOwner({key:'MS',priority:100},[first,second]),undefined,'higher-priority MS operation retains precedence');
+ assert.equal(cursorParkingOwner(other),undefined,'ordinary tool cursors do not intercept Alt');
+ assert.equal(cursorParkingOwner(null),undefined,'no active indicator owner means no parking action');
+});
+
+
+test('newly appeared settings controls cannot inherit the opener right-click',async()=>{
+ const {contextPressOwnsControl}=await import('../src/ui/contextMenuOwnership.ts');
+ const canvas={},body={},popup={},sizeRange={},sizeInput={},icon={};
+ const openingPath=[canvas,body];
+ assert.equal(contextPressOwnsControl(openingPath,sizeInput),false,'size input mounted under the release must ignore it');
+ assert.equal(contextPressOwnsControl(openingPath,sizeRange),false);
+ assert.equal(contextPressOwnsControl(openingPath,undefined),true,'the original canvas menu still receives its context event');
+ assert.equal(contextPressOwnsControl([icon,popup,body],sizeInput),false,'another control in the same existing popup cannot receive the press either');
+ assert.equal(contextPressOwnsControl([sizeInput,sizeRange,popup,body],sizeInput),true,'a fresh deliberate settings click works');
+ assert.equal(contextPressOwnsControl(null,sizeInput),true,'keyboard-native context actions remain available');
+});
