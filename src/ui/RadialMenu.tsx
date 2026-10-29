@@ -60,7 +60,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
   const {extent,radius,size}=radialLayout(items);
   const dialStyle=(extent:number,size:number):CSSProperties=>({width:extent,zoom:scale,'--radial-button-size':`${size}px`,'--radial-opacity':RADIAL_GEOMETRY.opacity} as CSSProperties);
   return <>
-    <div ref={root} className={`radial-menu${children?' radial-menu-editor':''}`} role="group" aria-label="Radial tools" data-tools-open={path.length>0||heldOpen} data-context-menu-owner data-ui-search data-ui-name-ignore
+    <div ref={root} className={`radial-menu${children?' radial-menu-editor':''}`} role="group" aria-label="Radial tools" data-tools-open={path.length>0||heldOpen} data-child-open={path.length>0} data-context-menu-owner data-ui-search data-ui-name-ignore
       onContextMenu={event=>{event.preventDefault();event.stopPropagation();}} style={children?undefined:dialStyle(extent,size)}>
       {children&&<div className="radial-menu-canvas">{children}</div>}
       <svg className="radial-menu-rims" viewBox={children?'0 0 160 160':`0 0 ${extent} ${extent}`} aria-hidden={children?undefined:true} tabIndex={children?0:undefined} aria-label={children?"Hover the circular rim or focus it to reveal tools":undefined}>
@@ -82,7 +82,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     {branches.map(({anchor,node},index)=>{
       const depth=index+1,{extent,radius,size}=radialLayout(node.children!,depth);
       return <ContextualMasterController key={`${index}:${node.id}`} radial title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
-        <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner style={dialStyle(extent,size)}
+        <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} style={{...dialStyle(extent,size),...(index<branches.length-1?{opacity:0,pointerEvents:"none" as const}:{})}}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius}/></svg>
           {ring(node.children!,depth)}
