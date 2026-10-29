@@ -1,4 +1,4 @@
-.mathematical-dial{zoom:.5;position:relative}
+.mathematical-dial{zoom:.5;position:relative;display:grid;justify-items:center}
 .mathematical-dial-settings{display:flex;justify-content:center;gap:1px}
 .mathematical-dial .mathematical-dial-settings button{min-width:16px;width:16px;height:16px;padding:0;font-size:11px;line-height:1;border-radius:50%}
 .mathematical-dial-settings [aria-pressed=true]{outline:1px solid currentColor}
@@ -30,7 +30,7 @@
 .tool-cursor.mathematical-dial-cursor{font-size:12px}
 
 /* Meta controls sit below the next outward slot band, outside drawing space. */
-.mathematical-dial-meta{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:26px;display:grid;justify-items:center;gap:2px}
+.mathematical-dial-meta{margin-top:26px;display:grid;justify-items:center;gap:2px}
 .mathematical-dial-settings{gap:3px;width:max-content;max-width:224px;flex-wrap:wrap}
 .mathematical-dial .mathematical-dial-settings button{min-width:32px;width:32px;height:32px;font-size:20px}
 .mathematical-dial .mathematical-dial-readout{min-width:0;width:max-content;height:auto;padding:1px 4px;font-size:22px;line-height:1.1;background:transparent}

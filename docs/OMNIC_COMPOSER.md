@@ -601,3 +601,21 @@ The advance-start-position button is removed. Meta controls are32px logical/16px
 ### MC hierarchy navigation
 
 Composer dials no longer render Back, Next, Confirm or checkmark navigation buttons. Alt+MB4 steps outward and Alt+MB5 advances through the nearest registered stage. Enter confirms via context.confirm; Esc cancels the current gesture/field/preview before stepping outward. Radial centres only drag; returning inward can restore the last stepped-out radial branch. Shared active-layer adapters and nested navigation registration supply these behaviors to applicable systems; no private mouse/key handler is added per dial. Plain MB4/5 history is retained.
+
+
+## Shared relational reference contexts (step 2)
+
+Target/preset DOF editors expose a collapsed ⨮ Reference section. Components store
+`relations.reference` once; `relations.degrees[property]` can override it, use null
+to ignore it, or omit the key to inherit. Stable property/component identities
+survive recipe persistence and chronological history. Self, parent, another local
+component and the composition frame are reference types. Optional feature IDs
+record center/dimensions/boundary/axis intent for later adapters. Context does not
+lock or change geometry. Missing targets remain unresolved and removable; internal
+references remap on preset insertion. External entities, aggregate selection/group
+references, operation-owned contexts, discovery, equations and geometric constraint
+evaluation remain subsequent work. No action ranking is introduced.
+
+Radial popup payloads may declare data-popup-origin on their actual origin area.
+The shared resize-time fitting keeps that centre at the invocation point even
+when compact reference controls expand beside/below the dial; no pointer polling.

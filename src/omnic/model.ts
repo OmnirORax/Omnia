@@ -1,7 +1,8 @@
+import {validateReferenceContext,type ReferenceContext} from './relationalReferences.ts';
 import { checkedParams, definition, type Value } from "./registry.ts";
 import { ATOMNIC_PARAMETERS } from './atomnicSettings.ts';
 export type Params = Record<string,Value>;
-export type Component = { id:string; generator:string; params:Params; children?:Component[]; reference?:string; referenceRevision?:number };
+export type Component = { id:string; generator:string; params:Params; relations?:ReferenceContext; children?:Component[]; reference?:string; referenceRevision?:number };
 export type Application = { id:string; operator:string; targets:string[]; params:Params; enabled:boolean };
 export type Frame = { id:string; property:string; state:"inactive"|"unspecified"|"specified"; value?:Value; scope:string[] };
 export type Recipe = { version:1|2; revision:number; components:Component[]; operations:Application[]; frames:Frame[]; atomnic?:Params };
@@ -18,7 +19,7 @@ export function validateRecipe(input:unknown):Recipe {
   const component=(value:unknown,depth:number):Component=>{
     if(!object(value)||depth>LIMITS.depth||++count>LIMITS.components)throw Error("Omnic component/depth budget exceeded.");
     const id=unique(value.id),spec=definition(String(value.generator),true);if(!spec)throw Error("Unknown Omnic generator.");
-    const result:Component={id,generator:spec.id,params:checkedParams(value.params,spec)};
+    const result:Component={id,generator:spec.id,params:checkedParams(value.params,spec),...(value.relations!==undefined?{relations:validateReferenceContext(value.relations)}:{})};
     if(value.children!==undefined){if(!Array.isArray(value.children)||spec.id!=="group")throw Error("Only groups contain authored components.");result.children=value.children.map(c=>component(c,depth+1));}
     if(spec.id==="reference"){if(typeof value.reference!=="string"||!value.reference.length||value.reference.length>200)throw Error("Missing canonical Omnic reference.");result.reference=value.reference;}
     else if(value.reference!==undefined)throw Error("Only references specify an object identity.");
