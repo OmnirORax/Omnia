@@ -43,7 +43,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     node.addEventListener("wheel", preventScroll, { passive: false });
     return () => node.removeEventListener("wheel", preventScroll);
   }, [!!position, !!onWheel]);
-  return position && createPortal(<div ref={root} className={`contextual-master-controller ui-frame-search-popup${radial?' contextual-master-controller-radial':''}`} data-context-controller data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
+  return position && createPortal(<div ref={root} className={`contextual-master-controller ${radial?'contextual-master-controller-radial':'ui-frame-search-popup'}`} data-context-controller data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
     onPointerDownCapture={event => {
       openingPress.current = false;suppressClick.current=false;
       if(!radial||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-dial-drag]'))return;
