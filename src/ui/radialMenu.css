@@ -72,5 +72,5 @@
 /* Radial shells are geometry carriers, not painted popup surfaces. */
 :root body .contextual-master-controller-radial{position:fixed;display:flex;flex-direction:column;background:none!important;box-shadow:none!important;backdrop-filter:none!important;border:0!important}
 
-/* Transparent child interiors retain hover between controls without a painted disk. */
-.contextual-master-controller-radial .radial-menu-branch{pointer-events:auto;border-radius:50%}
+/* Only the visible rim interior retains hover; the outer layout margin stays clear. */
+.radial-menu-hover-zone{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:auto}
