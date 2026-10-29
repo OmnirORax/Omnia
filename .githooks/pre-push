@@ -1,0 +1,25 @@
+#!/bin/sh
+# Git supplies refs on stdin. Artifact-only publication has no source CI run.
+set -eu
+source_push=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in 0000000000000000000000000000000000000000) continue ;; esac
+  case "$remote_ref" in refs/heads/preview/githack) continue ;; esac
+  source_push=true
+  if [ "$local_sha" != "$(git rev-parse HEAD)" ]; then
+    echo 'Push blocked: check out the source revision being pushed so local checks test that revision.' >&2
+    exit 1
+  fi
+done
+[ "$source_push" = true ] || exit 0
+if [ -n "$(git status --porcelain)" ]; then
+  echo 'Push blocked: commit or isolate working-tree changes before checking the pushed revision.' >&2
+  exit 1
+fi
+node --run test
+node --run build:preview
+node --run backend:check
+if [ -n "$(git status --porcelain)" ]; then
+  echo 'Push blocked: checks changed tracked/generated files; review and commit them, then retry.' >&2
+  exit 1
+fi
