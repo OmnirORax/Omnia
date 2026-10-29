@@ -551,3 +551,7 @@ Radial popup shells pass empty space through, but shared native interactive cont
 Composite value pickers declare `data-ui-popup-interior` on their tight content boundary. The shared radial shell routes pointer input there, and empty-space dismissal excludes that interior; outside canvas clicks retain normal dismissal.
 
 Popup-contained drawing tools may explicitly register their actual content element with setToolCursorZone(element,key,true). This opts that zone into the existing shared cursor resolver within a contextual controller; settings outside that zone remain ordinary pointing. It does not bypass visual-selector ownership or activate a tool globally.
+
+Visual families may declare roleLayout:"within" to retain a single category with automatically generated visual-role children. Dials uses this for Radial menus and ⠒❉: family edits reach both, individual scopes remain independently editable, and global semantic-role/legacy ancestry still applies. Dial carriers/canvases have no registered fill; only actual control surfaces are painted.
+
+Controls with geometry-owned paint declare data-ui-paint-owner, preserving their button identity while excluding generic button surface/contour and theme hover/pressed fills. Their registered renderer parts own appearance, so a rim-only hover cannot acquire a theme background disk.

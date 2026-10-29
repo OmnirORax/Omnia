@@ -19,6 +19,8 @@ export type Instance = { base: string; owner: string; label: string; path?: stri
 export type Target = {
   id: string;
   aliases?: readonly string[];
+  /** Keep an explicit visual family together, generating role groups within it. */
+  roleLayout?: "within";
   parent?: string;
   label: string;
   couplings?: Record<string, string>;

@@ -1354,5 +1354,22 @@ test('mathematical dial exposes named visual parts with shared role detection an
  for(const name of ids){const target=TARGETS.find(t=>t.id===`ui.fields.mathematicalDial.${name}`);assert.ok(target);assert.ok(target.label.includes('⠒❉'));assert.ok(target.aliases.includes('count dial'));assert.ok(target.properties.includes('color'));}
  const hover=TARGETS.find(t=>t.id==='ui.fields.mathematicalDial.hover');
  assert.equal(roleFor(hover),'contour');assert.equal(roleFor(TARGETS.find(t=>t.id==='ui.fields.mathematicalDial.marks')),'indicator');
- assert.ok(TARGETS.find(t=>t.id==='ui.buttons.background').binding.selector.includes(':not(.mathematical-dial-slot)'));
+ assert.ok(TARGETS.find(t=>t.id==='ui.buttons.background').binding.selector.includes(':not([data-ui-paint-owner])'));
+});
+
+
+test('all dial families stay within Dials while retaining shared semantic role ancestry',async()=>{
+ const {TARGETS}=await import('../src/appearance/registry.ts');
+ const {createTargetIndex}=await import('../src/appearance/model.ts');
+ const index=createTargetIndex(TARGETS);
+ assert.ok(!TARGETS.find(t=>t.id==='ui.dials').hidden,'family remains visible with generated role children');
+ for(const id of ['ui.dials.radial.rims','ui.dials.radial.contours','ui.fields.mathematicalDial.contours']){
+  assert.ok(index.path(id).includes('ui.dials'));assert.ok(index.path(id).includes('visual.role.contours'));
+  assert.equal(TARGETS.find(t=>t.id===TARGETS.find(t=>t.id===id).parent).parent,'ui.dials');
+ }
+ const state=emptyController();state.sets[0].selection={all:false,'ui.dials':true};
+ const next=applyValue(state,TARGETS,'color','#123456');
+ assert.equal(next.values['ui.dials.radial.rims'].color,'#123456');
+ assert.equal(next.values['ui.fields.mathematicalDial.contours'].color,'#123456');
+ assert.equal(next.values['ui.buttons.contour'],undefined);
 });

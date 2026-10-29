@@ -561,3 +561,5 @@ Original exploratory context is archived in
 ### ⠒❉ appearance and discovery
 
 The picker is named ⠒❉ (aliases mathematical dial/count dial). It is displayed at50% of its earlier linear size, with a matching12px scoped cursor. Hover previews glow on the slot rim; only committed marks fill. Shared Fields/⠒❉ renderer bindings project automatically into role-based Contours (slot/ring outlines, hover rims) and Indicators (selected marks, base units, direction). Native generic button fills/contours exclude mathematical slot geometry. Search aliases are shared metadata, inherited by visual parts and indexed by global search.
+
+All dials now share the Dials appearance family, with automatically detected role children and individual Radial menus/⠒❉ parts. Select the family for common edits, or right-click a specific dial/part for normal scoped overrides. Original mathematical target IDs and semantic role ancestry are retained.
