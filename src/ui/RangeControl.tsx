@@ -6,6 +6,8 @@ import { rangeValue } from "./rangeMath";
 import { HalvingPicker } from "../properties/HalvingPicker";
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref, type ReactNode } from "react";
 
+/** Layout adapters provide the displayed slider axis; captured once per drag. */
+export const RangeAxis=createContext(0);
 type WorkingRange={min?:number;max?:number;step?:number};
 const RangeSettings=createContext<{values:Record<string,WorkingRange>;change:(key:string,patch:WorkingRange)=>void}|null>(null);
 /** Retain widget working intervals/steps for one editing session, independently
@@ -33,6 +35,7 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min
  * Local working intervals and jump size never alter property validation bounds. */
 export function RangeControl({ value: storedValue, min, max, onValueChange, onMinimumChange, onMaximumChange,
   hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, configuration, configurationKey, ...inputProps }: Props) {
+  const axisAngle=useContext(RangeAxis)*Math.PI/180;
   const value = Math.max(min, Math.min(max, storedValue));
   const resolution = Number(inputProps.step) || 1;
   const scope=useContext(RangeSettings),saved=configurationKey?scope?.values[configurationKey]:undefined;
@@ -46,7 +49,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
-  const drag = useRef<{ id: number; left: number; width: number; low: number; high: number; step: number; before: number; next: number } | null>(null);
+  const drag = useRef<{ id: number; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; before: number; next: number } | null>(null);
   const cancelDrag = () => {
     const active = drag.current;
     if (!active) return;
@@ -60,10 +63,10 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     window.addEventListener("blur", cancel);
     return () => { window.removeEventListener("blur", cancel); };
   }, []);
-  const moveDrag = (clientX: number) => {
+  const moveDrag = (clientX: number,clientY:number) => {
     const active = drag.current;
     if (!active) return;
-    const next = rangeValue(active.low + (clientX - active.left) / active.width * (active.high - active.low), active.low, active.high, active.step);
+    const next = rangeValue(active.low + (((clientX-active.cx)*active.ux+(clientY-active.cy)*active.uy)/active.width+.5) * (active.high - active.low), active.low, active.high, active.step);
     if (next !== active.next) { active.next = next; onValueChange(next); }
   };
   const label = inputProps["aria-label"] ?? "Value";
@@ -108,17 +111,20 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
           claimUIPress(event.pointerId, event.pointerType, event.buttons);
           input.current?.focus({ preventScroll: true });
           const bounds = event.currentTarget.getBoundingClientRect();
-          drag.current = { id: event.pointerId, left: bounds.left, width: Math.max(1, bounds.width), low, high, step: jump, before: value, next: value };
+          const ux=Math.cos(axisAngle),uy=Math.sin(axisAngle),node=event.currentTarget;
+          const projected=Math.abs(ux)*node.offsetWidth+Math.abs(uy)*node.offsetHeight;
+          const scale=projected>0?bounds.width/projected:1;
+          drag.current = { id: event.pointerId,cx:bounds.left+bounds.width/2,cy:bounds.top+bounds.height/2,ux,uy,width:Math.max(1,node.offsetWidth*scale),low,high,step:jump,before:value,next:value };
           event.currentTarget.setPointerCapture(event.pointerId);
-          moveDrag(event.clientX);
+          moveDrag(event.clientX,event.clientY);
         }}
         onPointerMove={event => {
           if (drag.current?.id !== event.pointerId) return;
-          event.stopPropagation(); moveDrag(event.clientX);
+          event.stopPropagation(); moveDrag(event.clientX,event.clientY);
         }}
         onPointerUp={event => {
           if (drag.current?.id !== event.pointerId) return;
-          event.stopPropagation(); moveDrag(event.clientX);
+          event.stopPropagation(); moveDrag(event.clientX,event.clientY);
           const next = drag.current!.next; drag.current = null;
           onValueCommit?.(next);
           event.currentTarget.releasePointerCapture(event.pointerId);

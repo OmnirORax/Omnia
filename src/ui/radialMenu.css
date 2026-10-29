@@ -1,4 +1,4 @@
-.contextual-master-controller-radial{opacity:.7}
+.radial-menu:not(.radial-menu-editor){opacity:var(--radial-opacity,1)}
 .contextual-master-controller.contextual-master-controller-radial{padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none;overflow:visible;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
 .radial-menu{position:relative;aspect-ratio:1;color:var(--text,#d4e6ef);isolation:isolate}
 .radial-menu-rims{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none;stroke:currentColor;stroke-width:1;opacity:.48}
@@ -10,7 +10,7 @@
 .radial-menu-inset{position:absolute;left:61.875%;top:29.43%;width:24px;height:24px;display:grid;transform:translate(-50%,-50%)}
 .radial-menu-inset:nth-child(2){left:61.875%;top:70.57%}.radial-menu-inset:nth-child(3){left:26.25%;top:50%}
 .radial-menu-centre{position:absolute;left:50%;top:50%;display:flex;gap:2px;transform:translate(-50%,-50%)}
-.radial-menu .radial-menu-centre>button{width:24px;height:24px;font-size:15px}
+.radial-menu .radial-menu-centre>button{width:var(--radial-button-size,24px);height:var(--radial-button-size,24px);font-size:15px}
 .radial-menu .ui-shortcut-label{display:none}
 .radial-menu :is(img,.appearance-icon-mask){width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:50%}
 .radial-menu-editor{width:100%;height:100%;aspect-ratio:1;border-radius:50%;background:var(--panel-bg,#0b1420);border:1px solid currentColor;box-sizing:border-box}
@@ -35,7 +35,7 @@
 .radial-menu-editor:is([data-tools-open=true],:has(>.radial-menu-rims>.radial-menu-axis:hover),:has(>.radial-menu-rims:focus-visible),:has(>.radial-menu-slot:hover),:has(>.radial-menu-slot :focus-visible),:has(>.radial-menu-slot>[aria-expanded=true])) :is(.radial-menu-slot,.radial-menu-insets){visibility:visible;opacity:1;pointer-events:auto}
 
 /* Value strips share their DOF button's exact width; no separate settings grid. */
-.radial-menu-setter{position:absolute;left:0;bottom:calc(100% + 2px);width:100%;height:10px;display:flex;align-items:center;z-index:2}
+.radial-menu-setter{position:absolute;width:100%;height:10px;display:flex;align-items:center;z-index:2}
 .radial-menu-setter .range-spectrum{width:100%;min-height:10px;height:10px;padding:0;align-items:center}
 .radial-menu-setter .range-spectrum .range-axis{width:auto;flex:1;min-width:0;height:10px}
 .radial-menu-setter .range-spectrum .range-track{inset:0 3px}
@@ -47,6 +47,9 @@
 .radial-menu-setter .range-spectrum .range-end svg{width:3px;height:10px}
 .radial-menu-setter>button{width:100%;height:8px;padding:0;min-width:0;min-height:0;border:1px solid currentColor;border-radius:2px;opacity:.8;color:inherit;background:currentColor}
 
-.radial-menu-origin{width:24px;height:24px;box-sizing:border-box;border:1px solid currentColor;border-radius:50%;opacity:.5}
+.radial-menu-origin{width:var(--radial-button-size,24px);height:var(--radial-button-size,24px);box-sizing:border-box;border:1px solid currentColor;border-radius:50%;opacity:1}
 
-.radial-menu .radial-menu-centre{opacity:.5}
+.radial-menu .radial-menu-centre{opacity:1}
+
+[data-dial-drag]{cursor:grab;touch-action:none}
+[data-dial-drag]:active{cursor:grabbing}

@@ -6,7 +6,7 @@ import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCur
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { radialTree, radialSlot, radialDimensions, radialQuickSlot } from '../src/ui/radialMenuModel.ts';
+import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout } from '../src/ui/radialMenuModel.ts';
 import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
@@ -91,8 +91,14 @@ test('radial projections group shared categories without changing leaf identitie
   assert.equal(tree[0].children[0].id,'save-shared');assert.equal(tree[0].children[0].content,action);
   assert.equal(tree[0].children[1].content,field);
   const many=radialTree(Array.from({length:20},(_,i)=>({id:`tool-${i}`,label:`Tool ${i}`,symbol:'○',content:i})));
-  const leaves=[];const visit=nodes=>{assert.ok(nodes.length<=6);for(const node of nodes)if(node.children)visit(node.children);else leaves.push(node.content);};
-  visit(many);assert.deepEqual(leaves,Array.from({length:20},(_,i)=>i),'overflow remains reachable without crowding');
+  const leaves=[];const visit=nodes=>{for(const node of nodes)if(node.children)visit(node.children);else leaves.push(node.content);};
+  visit(many);assert.deepEqual(leaves,Array.from({length:20},(_,i)=>i),'all supplied entries retain direct slots; only declared categories nest');
+  assert.equal(many.length,20);assert.ok(many.every(node=>!node.children));
+  const without=radialLayout(many),withSetters=radialLayout(many.map(node=>({...node,setter:'value'})));
+  assert.equal(withSetters.slots[0].setterAngle,-90);
+  assert.ok(withSetters.slots[0].setterY<0,'top setter projects outward from its circle');
+  assert.equal(without.radius,withSetters.radius,'outer setters cannot spread out the button ring');
+  assert.deepEqual(without.slots.map(s=>s.size),withSetters.slots.map(s=>s.size));
   const top=radialSlot(0,6,0),next=radialSlot(1,6,0),inner=radialSlot(0,6,1);
   assert.equal(top.x,50);assert.ok(top.y<50);assert.ok(next.x>50,'clockwise from top');
   assert.ok(radialDimensions(1).radius<radialDimensions(0).radius&&inner.size<top.size,'progressively smaller category ring');

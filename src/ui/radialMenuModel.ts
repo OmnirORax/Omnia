@@ -15,19 +15,26 @@ export function radialTree<T>(entries:readonly RadialEntry<T>[]):RadialNode<T>[]
     }
     level.push({id:entry.id,label:entry.label,symbol:entry.symbol,content:entry.content,setter:entry.setter});
   }
-  // Bound crowding as applicable controls grow; overflow stays reachable.
-  const compact=(nodes:RadialNode<T>[]):RadialNode<T>[]=>{
-    const mapped=nodes.map(node=>node.children?{...node,children:compact(node.children)}:node);
-    return mapped.length<=6?mapped:[...mapped.slice(0,5),{id:`more:${mapped[5].id}`,label:'More tools',symbol:'⋯',children:compact(mapped.slice(5))}];
-  };
-  return compact(roots);
+  return roots;
+}
+/** One visual policy for root, target, preset, MC and category popup dials. */
+export const RADIAL_GEOMETRY={size:32,minimumSize:24,depthStep:4,setterGap:2,opacity:1} as const;
+/** A single snapshot supplies both container and slot geometry. Setters consume
+ * outer extent only; they never push the buttons away from the centre. */
+export function radialLayout<T>(nodes:readonly RadialNode<T>[],depth=0){
+  const setterHeight=nodes.some(node=>node.setter)?radialDimensions(depth,nodes.length).size+RADIAL_GEOMETRY.setterGap:0;
+  const dimensions=radialDimensions(depth,nodes.length,setterHeight);
+  return {...dimensions,slots:nodes.map((_,index)=>{
+    const slot=radialSlot(index,nodes.length,depth,setterHeight),angle=index/nodes.length*Math.PI*2;
+    return {...slot,setterX:slot.size/2+Math.sin(angle)*(slot.size+RADIAL_GEOMETRY.setterGap),setterY:slot.size/2-Math.cos(angle)*(slot.size+RADIAL_GEOMETRY.setterGap),setterAngle:index/nodes.length*360-90};
+  })};
 }
 /** Only the current category expands. Deeper levels stop shrinking at a usable
  * 24px target; the full path remains available to Back. */
 export function radialDimensions(depth:number,count=6,setterHeight=0) {
-  const size=depth===0?32:depth===1?28:24;
+  const size=Math.max(RADIAL_GEOMETRY.minimumSize,RADIAL_GEOMETRY.size-depth*RADIAL_GEOMETRY.depthStep);
   // Fit around the 24px centre, then grow only enough to separate neighbours.
-  const radius=Math.max(12+size/2,count>1?Math.ceil(Math.ceil(size/(2*Math.sin(Math.PI/count)))):0);
+  const radius=Math.max(size,count>1?Math.ceil(size/(2*Math.sin(Math.PI/count))):0);
   return {size,radius,extent:2*(radius+size/2+setterHeight+1)};
 }
 /** Top then clockwise, independent of the active ring's footprint. */

@@ -42,7 +42,7 @@ export function useContextCommands(props:Props){
       const members=memberTargets(props.recipe,ids),group=ids.some(id=>componentIndex(props.recipe).get(id)?.component.generator==='group');
       const degrees=targetDegrees(props.recipe,members,[],fixed,group?'available':'common'),numeric=degrees.filter(d=>targetParameter(d).kind==='number');
       const lengths=numeric.filter(d=>targetParameter(d).unit==='length');
-      const candidates=(list:EditableDegree[],run:(degree:EditableDegree)=>()=>void):CommandDegree[]=>list.map(degree=>({id:degree.id,label:degree.label,symbol:degree.symbol,value:targetDegreeValue(props.recipe,degree),run:run(degree)}));
+      const candidates=(list:EditableDegree[],run:(degree:EditableDegree)=>()=>void):CommandDegree[]=>list.map(degree=>({id:degree.id,label:degree.label,symbol:degree.symbol,group:degree.group,value:targetDegreeValue(props.recipe,degree),run:run(degree)}));
       const resize:TargetCommand={degrees:candidates(lengths,degree=>toggle(`fit:${ids.join('|')}:${degree.id}`,degree,()=>{
         const current=latest.current,evaluation=current.evaluation!;
         const bounds=targetBounds(evaluation,ids);if(!bounds)throw Error('No visible geometry to resize.');

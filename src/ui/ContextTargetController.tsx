@@ -1,3 +1,4 @@
+import { radialTree } from './radialMenuModel';
 import { useSyncExternalStore, useState, useRef, useContext, useMemo } from 'react';
 import { PROPERTY_REGISTRY } from '../appearance/registry';
 import { preparePropertyChanges } from '../properties/registry';
@@ -13,7 +14,7 @@ export function ContextTargetController(){
   const close=()=>contextTargets.choice.set(null);
   const position=useMemo(()=>choice?cursorPosition():null,[choice]);
   return <ContextualMasterController title="Choose DOF" radial position={position} onClose={close}>
-    {choice&&<RadialMenu items={choice.degrees.map(degree=>({id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),content:<button type="button" title={`${degree.label}${degree.value===undefined?'':` · ${degree.value}`}`} aria-label={degree.label} onClick={()=>contextTargets.choose(degree.id)}>{degree.symbol??nameSymbol(degree.id,degree.label)}</button>}))} onClose={close}/>}
+    {choice&&<RadialMenu items={radialTree(choice.degrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),content:<button type="button" title={`${degree.label}${degree.value===undefined?'':` · ${degree.value}`}`} aria-label={degree.label} onClick={()=>contextTargets.choose(degree.id)}>{degree.symbol??nameSymbol(degree.id,degree.label)}</button>})))} onClose={close}/>}
   </ContextualMasterController>;
 }
 

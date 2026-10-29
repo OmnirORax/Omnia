@@ -429,3 +429,13 @@ test('selection sweep collects intervening dots, ring boundaries and lines witho
   assert.equal(structuralIdsAlong(nodes,{x:10,y:0},{x:12,y:0}).has('ring'),false);
   assert.equal(structuralIdsAlong(nodes,{x:-20,y:30},{x:20,y:30}).has('line'),true);
 });
+
+ test('appearance degrees inherit one category in preset, target and MC projections',()=>{
+  const source=createRecipe('nested-rings');
+  const degrees=targetDegrees(source,['rings']);
+  for(const property of ['color','opacity','omnic.fill','omnic.thickness','omnic.strokeProgression','omnic.opacityProgression']){
+    const degree=degrees.find(d=>d.properties.includes(property));
+    assert.equal(degree.group[0].id,'visual');assert.equal(degree.group[0].label,'Appearance');assert.equal(degree.group[0].symbol,'🪄');
+  }
+  assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group,undefined);
+});

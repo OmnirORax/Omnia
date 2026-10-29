@@ -1,6 +1,7 @@
+import type { RadialGroup } from './radialMenuModel.ts';
 import { createTransientStore } from './transientStore.ts';
 import type { ReactNode } from 'react';
-export type CommandDegree={id:string;label:string;symbol?:string;value?:string|number|boolean;run:()=>void};
+export type CommandDegree={id:string;label:string;symbol?:string;group?:readonly RadialGroup[];value?:string|number|boolean;run:()=>void};
 export type TargetCommand={run?:()=>void;degrees?:readonly CommandDegree[];configuration?:ReactNode;available?:boolean};
 export type ContextTarget={id:string;label:string;commands:Readonly<Record<string,TargetCommand>>};
 type TargetSource={owner:string;element:()=>Element|null;read:()=>readonly ContextTarget[]};
