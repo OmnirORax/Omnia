@@ -528,7 +528,29 @@ selecting ⬤ opens the reusable `MathematicalDial` immediately. The shared
 the count slider on this test grid. Existing sliders remain in place elsewhere until interaction acceptance. Six slots default
 to top/clockwise, with base buttons 1/2, direction toggle and a start-slot cycle.
 Each slot independently cycles ● addition / ◉ multiplication / ◎ recursion on
-right-click. For slot n: addition is base*n; base-2 multiplication is n*n; base-2
-recursion is 2^n. Hover is transient, click commits, leaving restores committed
+right-click. For slot n: addition is base*n; multiplication is base*n;
+recursion is base^n (base 2, slot 4 gives 8 or 16 respectively). Hover is transient, click commits, leaving restores committed
 count. Generated dots fill 20 columns, with each subsequent row above; their stable
 indexed roles survive count changes. Base/direction/start/modes are session-local.
+
+
+### Structural marks and provisional mathematics
+
+The dial is a compact structural representation, not labelled conventional number
+buttons arranged in a circle. Slots begin empty; a fill activates a positional
+value. One mark at slot 6 in base 1 means six. Multiple selected slots currently
+add their base-anchored contributions; click toggles a mark, hover previews the
+result and leaving restores the committed count. A changed operation on a selected
+slot is previewed and confirmed by a click before a later click can remove it.
+Exact cross-mark algebra remains exploratory. Multiplication is base times ordinal;
+recursion is base to ordinal. Preserve these latest corrections over older slot-
+squared examples. The longer exploration is a design direction, not permission
+to add unagreed nesting/operation rules. Count must derive from units, positional
+relations and uniform convertible rules. Account for the space cost of marks,
+frames and configuration. Base units and slots use equal visible unit sizes;
+compact packing inherits shared radial geometry. Test domain is 0–128, with 20
+columns and rows growing upward. Start/base/direction/marks remain session-local.
+
+Confirmed example: base 2, slot 4 ◉ plus slot 6 ◎ = 2*4 + 2^6 = 72.
+
+Original exploratory context is archived in [Mathematical dial exploration](omnic/MATHEMATICAL_DIAL_EXPLORATION.md); its unfinished alternatives are not executable contracts.

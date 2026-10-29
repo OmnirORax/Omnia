@@ -1847,7 +1847,7 @@
       "id": "omnic.mathematical-count-dial",
       "title": "Mathematical count dial experiment",
       "where": "Composer → right-click empty space → ⬤ Mathematical count preset opens its mathematical count dial immediately. On an existing test grid, right-click target → Units → Count opens the same dial.",
-      "behavior": "Reusable MathematicalDial emits transient previews and explicit value commits through the shared property owner. Six slots start at top clockwise by default. Base 1 yields 1–6; base 2 yields 2,4,6,8,10,12. Right-click a slot cycles ● addition → ◉ multiplication → ◎ recursion for that slot. Multiplication in base 2 yields n×n; recursion yields 2^n, not an exponent tower. Modes other than addition require base 2. Hover/focus previews the total count, left-click commits, leaving the dial restores its last committed value. Buttons 1/2 switch base, ↻/↺ changes direction, and ⌖ advances the starting position clockwise. The ⬤ preset uses a count-grid generator that fills 20 touching dots per row left-to-right, then starts the next row above. Count, size, paint and position use shared registered properties and target setters. Existing constructions remain alongside the inserted preset.",
+      "behavior": "Reusable MathematicalDial emits transient previews and explicit value commits through the shared property owner. Six slots start at top clockwise by default. Base 1 yields 1–6; base 2 yields 2,4,6,8,10,12. Right-click a slot cycles ● addition → ◉ multiplication → ◎ recursion for that slot. Operations are anchored to the selected base: multiplication is base×n (base 2, slot 4 = 8); recursion is base^n (base 2, slot 4 = 16), not an exponent tower. Modes other than addition require base 2. Slots start as empty outlines, with no printed slot numerals or prefilled operation glyphs. One fill activates the positional value: slot 6 in base 1 contributes six with one mark. Selected contributions accumulate by addition for this prototype; clicking a selected slot removes it. Hover/focus previews the resulting total and fill pattern, left-click commits, leaving restores committed marks/count. Empty selection is zero. The exact algebra between marks is explicitly work in progress. Base-1 layout packs six touching slot circles around one base unit; base 2 displays two same-size base units and expands only for their footprint, using shared radial geometry. Operation mode is shown through concentric outlines; settings are compact symbol buttons. Buttons 1/2 switch base, ↻/↺ changes direction, and ⌖ advances the starting position clockwise. The ⬤ preset uses a count-grid generator that fills 20 touching dots per row left-to-right, then starts the next row above. Count, size, paint and position use shared registered properties and target setters. Existing constructions remain alongside the inserted preset.",
       "steps": [
         {
           "do": "Right-click empty Composer space, choose ⬤, then open Units → Count. Hover slot 6 in base 1, then leave the dial without clicking.",
@@ -1855,14 +1855,14 @@
         },
         {
           "do": "Choose base 2. Right-click slot 6 once, hover it, and left-click it.",
-          "expect": "Slot 6 becomes ◉ and previews/commits 36 dots: 20 in the bottom row and 16 in the row above."
+          "expect": "Slot 6 becomes ◉ and previews/commits 12 dots. Its multiplication is anchored to base 2, not slot squared."
         },
         {
           "do": "Right-click slot 6 again, hover it, then click. Change direction and starting position.",
-          "expect": "◎ previews/commits 64 dots: three full rows and four in the next row. Ordering follows configured start and direction."
+          "expect": "Changing the selected slot to ◎ previews/commits 64 dots: three full rows and four in the next row. Clicking confirms the changed operation; clicking again removes its mark. Ordering follows configured start and direction."
         }
       ],
-      "limits": "Prototype uses six slots and existing count domain 1–64. Start, direction, base and slot modes are session-local. Existing sliders are retained; the mathematical picker replaces the test grid count slider in both preset and target editing; other properties retain sliders. Base-1 multiplication/recursion do not preview or commit. Browser interaction acceptance pending.",
+      "limits": "Prototype uses six slots and test-grid count domain 0–128. Other generators retain their existing domains. Start, direction, base and slot modes are session-local. A multiplication mark at slot 4 and recursion mark at slot 6 in base 2 sum to 8+64=72. Existing sliders are retained; Base changes clear the session mark representation. Multiplication/recursion across marks are provisional; active contributions currently add. The mathematical picker replaces the test grid count slider in both preset and target editing; other properties retain sliders. Base-1 multiplication/recursion do not preview or commit. Browser interaction acceptance pending.",
       "verification": {
         "browser": "Pending user interaction acceptance.",
         "automated": "Preview build and backend imports checked locally; no browser suite run."

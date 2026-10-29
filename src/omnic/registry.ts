@@ -23,7 +23,7 @@ const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,
 const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),freedom:{label:"Position Y",symbol:"⊕Y",group:[POSITION_FREEDOM_GROUP]}};
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
-  {id:"count-grid",label:"Count grid",symbol:"⬤",parameters:[{...count,initial:1,picker:"mathematical"},size,...paint,x,y]},
+  {id:"count-grid",label:"Count grid",symbol:"⬤",parameters:[{...count,initial:0,min:0,max:128,picker:"mathematical"},size,...paint,x,y]},
   {id:"dot",label:"Dot / disk",symbol:"●",parameters:[size,angle,...paint,x,y]},
   {id:"ring",label:"Ring / boundary",symbol:"○",parameters:[radius,{...fill,initial:false},thickness,color,opacity,x,y]},
   {id:"rings",label:"Nested rings",symbol:"◎",parameters:[count,{...radius,label:"Innermost radius",initial:20},

@@ -31,10 +31,10 @@ export function radialLayout<T>(nodes:readonly RadialNode<T>[],depth=0){
 }
 /** Only the current category expands. Deeper levels stop shrinking at a usable
  * 24px target; the full path remains available to Back. */
-export function radialDimensions(depth:number,count=6,setterHeight=0) {
+export function radialDimensions(depth:number,count=6,setterHeight=0,centreSize?:number) {
   const size=Math.max(RADIAL_GEOMETRY.minimumSize,RADIAL_GEOMETRY.size-depth*RADIAL_GEOMETRY.depthStep);
   // Fit around the 24px centre, then grow only enough to separate neighbours.
-  const radius=Math.max(size,count>1?Math.ceil(size/(2*Math.sin(Math.PI/count))):0);
+  const radius=Math.max(((centreSize??size)+size)/2,count>1?Math.ceil(size/(2*Math.sin(Math.PI/count))):0);
   return {size,radius,extent:2*(radius+size/2+setterHeight+1)};
 }
 /** Top then clockwise, independent of the active ring's footprint. */
