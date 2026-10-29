@@ -3,7 +3,7 @@ export type ActiveContextEntry = { kind: "frame"; key: string; element?: HTMLEle
   { kind: "field" | "layer"; element: HTMLElement };
 export type ActiveContextStack = readonly ActiveContextEntry[];
 export type ActiveContextStore = TransientStore<ActiveContextStack>;
-export type ContextLayer = { parent?: string; close: () => void; dismiss?: () => void };
+export type ContextLayer = { parent?: string; close: () => void; dismiss?: () => void; cancel?:()=>void;advance?:()=>void; confirm?:()=>void };
 export const UI_CANCEL_EDIT = "omnium:cancel-value-edit";
 /** One level only, even when the same physical key repeats. */
 export const parentContext = (stack: ActiveContextStack): ActiveContextStack => stack.slice(0, -1);
@@ -30,4 +30,12 @@ export function dismissContextDials(layers:Iterable<ContextLayer>):boolean {
   const open=[...layers].filter(layer=>layer.dismiss);
   for(const layer of open.reverse())layer.dismiss!();
   return open.length>0;
+}
+
+/** Shared navigation resolves the nearest layer that actually supports the action. */
+export function contextLayerAction(stack:ActiveContextStack,layers:ReadonlyMap<HTMLElement,ContextLayer>,action:'advance'|'confirm'|'cancel'):(()=>void)|undefined{
+ for(const entry of [...stack].reverse())if(entry.kind==='layer'){
+  const layer=layers.get(entry.element),handler=action==='confirm'?layer?.confirm??layer?.advance:layer?.[action];
+  if(handler)return handler;
+ }
 }

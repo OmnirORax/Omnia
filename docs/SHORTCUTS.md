@@ -237,3 +237,7 @@ Content editing commands use the shared `contentEditing` scope, between active M
 and UI-frame commands. Atomnic uses this scope so its D/Esc do not conflict with
 frame descendants/back during settings migration. Dispatch still checks mounted
 availability, typing, capture and blocked dialogs.
+
+## Contextual hierarchy navigation
+
+MC owns context.previous (Alt+MB4), context.next (Alt+MB5), and context.confirm (Enter). Escape retains context.back. Plain side buttons retain configured mouse history. Active layers declare advance/confirm adapters; nested editors register their current callbacks with useContextNavigation rather than rendering Back/Confirm controls. The innermost stage receives navigation, native field Enter stays local, and registered active gestures cancel before stepping outward. Omnic adopts this for preset, DOF, sequential and halving editors; dial centres drag only.

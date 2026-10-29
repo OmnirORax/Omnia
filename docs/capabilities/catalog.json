@@ -48,7 +48,7 @@
       "id": "interface.context",
       "title": "Active context, close, minimize, resize and descendants",
       "where": "Master controller → Active context. Click the intended frame first.",
-      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings. Resized windows retain projected bounds and themed borders across focus and minimize/reopen. W restores retained original geometry. Projection styling is independent of React/Rnd wrapper updates. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at full opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings. Registered geometry surfaces now supply target adapters to the same commands and shortcuts; frame-only controls remain frame-only. MC discovers contextual controls from the command catalog rather than a parallel geometry toolbar. Delete selection and Compact are projected there. Popup/value-field Escape still precedes geometry scope and its parent frame.",
+      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings. Resized windows retain projected bounds and themed borders across focus and minimize/reopen. W restores retained original geometry. Projection styling is independent of React/Rnd wrapper updates. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at full opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings. Registered geometry surfaces now supply target adapters to the same commands and shortcuts; frame-only controls remain frame-only. MC discovers contextual controls from the command catalog rather than a parallel geometry toolbar. Delete selection and Compact are projected there. Popup/value-field Escape still precedes geometry scope and its parent frame. Shared active layers expose advance/confirm callbacks. Alt+MB4 steps outward, Alt+MB5 advances the nearest declared stage, Enter confirms, and Escape cancels or steps outward. Plain MB4/5 retain configured history behavior. Omnic dials have no Back/Confirm/checkmark navigation buttons; their centers only drag. Native input Enter remains local.",
       "steps": [
         {
           "do": "Open a frame, click a value field, edit it, then press Esc.",
@@ -88,7 +88,10 @@
         "context.float",
         "context.close",
         "context.minimize",
-        "context.descendants"
+        "context.descendants",
+        "context.previous",
+        "context.next",
+        "context.confirm"
       ],
       "limits": "Website viewport sizing, not OS/browser fullscreen. Pinned frames reject resizing. Projected frames use W restore before dragging, under the existing rigidity policy. User acceptance pending.",
       "status": "Implemented; browser verification pending",

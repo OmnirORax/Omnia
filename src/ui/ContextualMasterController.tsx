@@ -1,25 +1,32 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode, type WheelEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent } from "react";
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
-import { ContextStage, usePopupAnchor } from './ContextStage';
+import { ContextStage, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
 import { claimUIPress, physicalPointerHeld } from "./pointerOwnership";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
-export function ContextualMasterController({ title, hint, position, onClose, onDismiss, onWheel, children, stage, radial = false, anchored = false }: {
+export function ContextualMasterController({ title, hint, position, onClose, onDismiss, onAdvance, onConfirm, onWheel, children, stage, radial = false, anchored = false }: {
   title: string; hint?: string; position: { x: number; y: number } | null;
-  onClose: () => void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean; anchored?:boolean;
+  onClose: () => void; onAdvance?:()=>void;onConfirm?:()=>void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean; anchored?:boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const navigation=useRef(new Map<symbol,ContextNavigation>());const [,refreshNavigation]=useState(0);
+  const registerNavigation=useCallback((value:ContextNavigation)=>{const key=Symbol();navigation.current.set(key,value);refreshNavigation(n=>n+1);return()=>{navigation.current.delete(key);refreshNavigation(n=>n+1);};},[]);
+  const nestedNavigation=()=>{let selected:ContextNavigation|undefined;for(const candidate of navigation.current.values()){
+    const a=selected?.owner?.current,b=candidate.owner?.current;
+    if(!selected||!a||b&&a.contains(b))selected=candidate;
+  }return selected;};
+
   const popup=usePopupAnchor(position,stage??title);
   const anchor=anchored?position:popup.anchor,nextStage=anchored?null:popup.nextStage;
   const openingPress = useRef(false);
   const offset=useRef({x:0,y:0}),drag=useRef<{id:number;x:number;y:number;before:{x:number;y:number};handle:HTMLElement;moved:boolean}|null>(null),suppressClick=useRef(false);
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
-  const closeLayer=()=>{if(drag.current)cancelDrag();else onClose();};
+  const closeLayer=()=>{if(drag.current)cancelDrag();else (nestedNavigation()?.back??onClose)();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
   useLayoutEffect(() => { openingPress.current = !!position && physicalPointerHeld(); }, [!!position,anchor?.x,anchor?.y,stage]);
-  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined));
+  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{cancel:nestedNavigation()?.cancel,advance:nestedNavigation()?.advance??onAdvance,confirm:nestedNavigation()?.confirm??onConfirm??nestedNavigation()?.advance??onAdvance});
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
     node.setAttribute("popover", "manual"); node.showPopover();
@@ -74,6 +81,6 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{left:anchor!.x,top:anchor!.y}}>
-    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}>{children}</ContextStage.Provider>
+    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextNavigationRegistry.Provider value={registerNavigation}>{children}</ContextNavigationRegistry.Provider></ContextStage.Provider>
   </div>, document.body);
 }

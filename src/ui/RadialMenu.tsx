@@ -1,3 +1,4 @@
+import {useContextNavigation} from './ContextStage';
 import { radialScale } from './radialMenuState';
 import { uiPointerHeld } from './pointerOwnership';
 import { RangeControl, RangeAxis, RangeGestureTarget, type RangeGesture } from './RangeControl';
@@ -6,7 +7,7 @@ import type { RadialNode } from './radialMenuModel';
 import { radialLayout, RADIAL_GEOMETRY, radialQuickSlot } from './radialMenuModel';
 import { ContextualMasterController } from './ContextualMasterController';
 import './radialMenu.css';
-export type RadialNavigation={back:()=>boolean;open:()=>void};
+export type RadialNavigation={back:()=>boolean;forward:()=>boolean;open:()=>void};
 type CategoryAnchor={id:string;x:number;y:number};
 export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigationChange,quickItems,quickEnd,heldOpen=false}: {
   items:RadialNode<ReactNode>[];inset?:ReactNode;onClose:()=>void;navigationRef?:Ref<RadialNavigation>;children?:ReactNode;onNavigationChange?:(nested:boolean)=>void;quickItems?:ReactNode[];quickEnd?:ReactNode[];heldOpen?:boolean;
@@ -22,7 +23,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     const observer=new ResizeObserver(measure);observer.observe(node);measure();
     return()=>observer.disconnect();
   },[!!quickItems,!!children]);
-  const [path,setPath]=useState<CategoryAnchor[]>([]);
+  const [path,setPath]=useState<CategoryAnchor[]>([]),outward=useRef<CategoryAnchor[]|null>(null);
   const childAnchor=(owner:HTMLElement,slot:HTMLElement,childExtent:number):CategoryAnchor=>{
     const ownerBox=owner.getBoundingClientRect(),slotBox=slot.getBoundingClientRect();
     const ox=ownerBox.left+ownerBox.width/2,oy=ownerBox.top+ownerBox.height/2;
@@ -37,8 +38,10 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
   const leaveChildren=()=>{keepChildren();hoverTimer.current=setTimeout(()=>{if(!uiPointerHeld())setPath([]);},120);};
   useEffect(()=>()=>{if(hoverTimer.current)clearTimeout(hoverTimer.current);},[]);
   useEffect(()=>{onNavigationChange?.(path.length>0);},[path.length,onNavigationChange]);
-  const back=()=>{if(path.length){setPath(path.slice(0,-1));return true;}return false;};
-  useImperativeHandle(navigationRef,()=>({back,open:()=>setPath([])}));
+  const back=()=>{if(path.length){outward.current=path;setPath(path.slice(0,-1));return true;}return false;};
+  const forward=()=>{if(outward.current&&outward.current.length>path.length){setPath(outward.current);outward.current=null;return true;}return false;};
+  useContextNavigation({owner:root,back:path.length?()=>{back();}:undefined,advance:()=>{forward();}});
+  useImperativeHandle(navigationRef,()=>({back,forward,open:()=>setPath([])}));
   const branches:{anchor:CategoryAnchor;node:RadialNode<ReactNode>}[]=[];
   let level=items;
   for(const anchor of path){const node=level.find(node=>node.id===anchor.id);if(!node?.children)break;branches.push({anchor,node});level=node.children;}
@@ -92,15 +95,14 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     </div>
     {branches.map(({anchor,node},index)=>{
       const depth=index+1,{extent,radius,size}=radialLayout(node.children!,depth);
-      return <ContextualMasterController key={`${index}:${node.id}`} radial anchored title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
+      return <ContextualMasterController key={`${index}:${node.id}`} radial anchored title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onAdvance={forward} onClose={()=>{outward.current=path;setPath(path.slice(0,index));}}>
         <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} data-radial-extent={extent} data-radial-outer={radius+size/2} style={dialStyle(extent,size)}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <span className="radial-menu-hover-zone" aria-hidden="true" style={{width:radius*2,height:radius*2}}/>
           <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle fill="none" cx={extent/2} cy={extent/2} r={radius}/></svg>
           {ring(node.children!,depth)}
           {children&&index===0&&sizeControl}
-          <div className="radial-menu-centre"><button type="button" data-dial-drag aria-label={`Back from ${node.label}`} style={node.symbol.length>2?{fontSize:10}:undefined} title={`${node.label} · Back`}
-            onClick={()=>setPath(path.slice(0,index))} onContextMenu={event=>{event.preventDefault();event.stopPropagation();setPath(path.slice(0,index));}} /></div>
+          <span className="radial-menu-centre radial-menu-origin" role="button" tabIndex={0} data-dial-drag title="Drag dial" aria-label="Drag dial"/>
         </div>
       </ContextualMasterController>;
     })}

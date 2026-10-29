@@ -565,3 +565,7 @@ The picker is named ⠒❉ (aliases mathematical dial/count dial). It is display
 All dials now share the Dials appearance family, with automatically detected role children and individual Radial menus/⠒❉ parts. Select the family for common edits, or right-click a specific dial/part for normal scoped overrides. Original mathematical target IDs and semantic role ancestry are retained.
 
 The advance-start-position button is removed. Meta controls are32px logical/16px displayed and sit below the outward candidate band; start remains top, with direction independently switchable.
+
+### MC hierarchy navigation
+
+Composer dials no longer render Back, Next, Confirm or checkmark navigation buttons. Alt+MB4 steps outward and Alt+MB5 advances through the nearest registered stage. Enter confirms via context.confirm; Esc cancels the current gesture/field/preview before stepping outward. Radial centres only drag; returning inward can restore the last stepped-out radial branch. Shared active-layer adapters and nested navigation registration supply these behaviors to applicable systems; no private mouse/key handler is added per dial. Plain MB4/5 history is retained.

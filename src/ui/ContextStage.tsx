@@ -1,4 +1,4 @@
-import { createContext, useContext, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useLayoutEffect, useState, useCallback, useRef, type RefObject } from 'react';
 import { cursorPosition } from './cursorPosition';
 import { uiPointerHeld } from './pointerOwnership';
 /** Shared editors announce logical stage changes, never value/hover updates. */
@@ -19,4 +19,13 @@ export function usePopupAnchor(position:{x:number;y:number}|null,identity?:strin
   useLayoutEffect(()=>{if(!position)setStage(undefined);},[!!position]);
   useLayoutEffect(()=>{if(previous.current!==identity&&position)nextStage();previous.current=identity;},[identity,!!position,nextStage]);
   return {anchor:stage?.key===key?stage.point:position,nextStage};
+}
+
+export type ContextNavigation={owner?:RefObject<HTMLElement|null>;cancel?:()=>void;back?:()=>void;advance?:()=>void;confirm?:()=>void};
+export const ContextNavigationRegistry=createContext<((navigation:ContextNavigation)=>()=>void)|null>(null);
+/** Nested editors lend navigation to the shared popup/MC instead of rendering copies. */
+export function useContextNavigation(navigation:ContextNavigation){
+ const register=useContext(ContextNavigationRegistry),latest=useRef(navigation);latest.current=navigation;
+ useLayoutEffect(()=>register?.({owner:navigation.owner,cancel:navigation.cancel?()=>latest.current.cancel?.():undefined,back:navigation.back?()=>latest.current.back?.():undefined,advance:navigation.advance?()=>latest.current.advance?.():undefined,confirm:navigation.confirm?()=>latest.current.confirm?.():undefined}),[register,navigation.owner,!!navigation.cancel,!!navigation.back,!!navigation.advance,!!navigation.confirm]);
+ return !!register;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
-import { activeFrame, parentContext, contextStackFromScopes, dismissContextDials, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
+import { activeFrame, parentContext, contextLayerAction, contextStackFromScopes, dismissContextDials, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
@@ -59,7 +59,8 @@ export function useCancelValueEdit<T extends HTMLElement>(ref: RefObject<T | nul
   }, [ref, identity]);
 }
 /** Shared popup adapters add a real intermediate level, including portalled ones. */
-export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string, dismiss?:()=>void) {
+export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string, dismiss?:()=>void, navigation?:{cancel?:()=>void;advance?:()=>void;confirm?:()=>void}) {
+  const nav=useRef(navigation);nav.current=navigation;
   const ui = useOptionalUITracked(()=>[]), current = useRef(close), dismissal=useRef(dismiss); current.current = close;dismissal.current=dismiss;
   useLayoutEffect(()=>{
     const node=ref.current;if(!open||!node)return;
@@ -75,7 +76,7 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
     const node = ref.current;
     if (!ui || !open || !node) return;
     const saved = ui.activeContext.getSnapshot(), owner = parent ?? activeFrame(saved)?.key;
-    ui.contextLayers.set(node, { parent: owner, close: () => current.current(),dismiss:dismiss?()=>dismissal.current?.():undefined });
+    ui.contextLayers.set(node, { parent: owner, close: () => current.current(),dismiss:dismiss?()=>dismissal.current?.():undefined,cancel:navigation?.cancel?()=>nav.current?.cancel?.():undefined,advance:navigation?.advance?()=>nav.current?.advance?.():undefined,confirm:navigation?.confirm?()=>nav.current?.confirm?.():undefined });
     const focused = document.activeElement;
     // Nested portalled controllers retain their existing context ancestors.
     // Rebuilding only the frame chain drops the parent popup from Esc/Back.
@@ -89,7 +90,7 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
       const stack = ui.activeContext.getSnapshot(), index = stack.findIndex(entry => entry.kind === "layer" && entry.element === node);
       if (index >= 0) publish(ui, stack.slice(0, index));
     };
-  }, [open, ui?.activeContext, parent, ref, !!dismiss]);
+  }, [open, ui?.activeContext, parent, ref, !!dismiss,!!navigation?.cancel,!!navigation?.advance,!!navigation?.confirm]);
 }
 
 export function ActiveContextSystem() {
@@ -104,9 +105,10 @@ export function ActiveContextSystem() {
   };
   const back = () => {
     const current = latest.current, entries = current.activeContext.getSnapshot(), top = entries.at(-1);
+    const cancel=contextLayerAction(entries,current.contextLayers,'cancel');if(cancel){cancel();return;}
     if (!top || popField()) return;
     if (top.kind === "layer") {
-      current.contextLayers.get(top.element)?.close(); focusParent(current, parentContext(entries));
+      current.contextLayers.get(top.element)?.close();
     } else if (top.kind === "frame") {
       const frame = current.frameActions.get(top.key);
       if (frame && frame.onChange({ collapsed: true }) !== false) focusParent(current, parentContext(entries));
@@ -115,14 +117,20 @@ export function ActiveContextSystem() {
   const close = () => {
     const current = latest.current, entries = current.activeContext.getSnapshot(), top = entries.at(-1);
     if (!top || popField()) return;
-    if (top.kind === "layer") { current.contextLayers.get(top.element)?.close(); focusParent(current, parentContext(entries)); }
+    if (top.kind === "layer") { current.contextLayers.get(top.element)?.close(); }
     else if (top.kind === "frame") {
       const action = current.frameActions.get(top.key)?.onClose;
       if (action && action() !== false) focusParent(current, parentContext(entries));
     }
   };
+  const confirmAction=contextLayerAction(stack,ui.contextLayers,'confirm');
+  const advance=()=>contextLayerAction(latest.current.activeContext.getSnapshot(),latest.current.contextLayers,'advance')?.();
+  const confirm=()=>contextLayerAction(latest.current.activeContext.getSnapshot(),latest.current.contextLayers,'confirm')?.();
   const frame = activeFrame(stack), actions = frame && ui.frameActions.get(frame.key);
   const shortcuts = useFeatureActions("activeContext", {
+    "context.previous": { enabled:stack.length>0,run:back },
+    "context.next": { enabled:stack.length>0,run:advance },
+    "context.confirm": { enabled:!!confirmAction,run:confirm },
     "context.back": { enabled: stack.length > 0, run: back },
     "context.close": { enabled: stack.length > 0, run: close },
     "context.float": { enabled: !!frame && ui.canMove(frame.key), run: () => {
@@ -142,6 +150,7 @@ export function ActiveContextSystem() {
   const api = useRef(shortcuts); api.current = shortcuts;
   useEffect(() => {
     const activate = (event: Event) => {
+      if(event instanceof PointerEvent&&api.current.handle(event)){claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;}
       let element = event.target instanceof Element ? event.target : null;
       if(event instanceof PointerEvent&&event.button===0&&!event.ctrlKey&&!event.metaKey&&latest.current.contextLayers.size>0&&element&&!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-ui-popup-interior],[data-omnic-role]')&&dismissContextDials(latest.current.contextLayers.values())) {
         claimUIPress(event.pointerId,event.pointerType,event.buttons);
@@ -156,7 +165,7 @@ export function ActiveContextSystem() {
     const key = (event: KeyboardEvent) => {
       // The held UI gesture gets first refusal (notably Esc cancellation).
       // Minimizing here can rerender the source before its drag is restored.
-      if (uiPointerHeld()) return;
+      if (uiPointerHeld()&&!contextLayerAction(latest.current.activeContext.getSnapshot(),latest.current.contextLayers,'cancel'))return;
       if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
       if (api.current.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
