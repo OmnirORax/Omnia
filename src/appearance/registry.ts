@@ -248,7 +248,7 @@ part("ui.scrollbars.track", "ui.scrollbars", "Track", { legacy: "background" }, 
 branch("ui.popups", "ui", "Menus / tooltips / notices");
 part("ui.popups.background", "ui.popups", "Background", {
   selector:
-    ".ui-frame-search-popup,.spatial-menu,.ui-background-menu,.ui-shortcut-notice,.node-options",
+    ".ui-frame-search-popup:not(.contextual-master-controller-radial),.spatial-menu,.ui-background-menu,.ui-shortcut-notice,.node-options",
   css: "background-color",
   legacy: "windowBackground",
 });
