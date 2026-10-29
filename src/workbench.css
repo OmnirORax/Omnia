@@ -1277,7 +1277,3 @@ html[data-tool-cursor],html[data-tool-cursor] *{cursor:none!important}
 @media(prefers-reduced-motion:reduce){.tool-cursor-pulse{animation:none}}
 
 .tool-cursor.visual-selector-cursor{color:var(--omnium-accent,#60ddec)}
-
-/* Drawing and tool surfaces are not text insertion contexts. */
-[data-ui-gesture-owner="content"]{caret-color:transparent}
-[data-ui-gesture-owner="content"] :is(input,textarea,[contenteditable="true"]){caret-color:auto}

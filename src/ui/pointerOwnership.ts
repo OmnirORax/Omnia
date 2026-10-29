@@ -38,7 +38,6 @@ if (typeof window !== "undefined") {
   const released = (event: MouseEvent) => {if("pointerId" in event)physicalPresses.delete(Number(event.pointerId));else physicalPresses.clear();finishUIPress(event);};
   window.addEventListener("pointerdown",pressed,true);
   const moved = (event: MouseEvent) => {
-    if(event.buttons===0)physicalPresses.clear();
     if (held.size) finishUIPress(event);
   };
   window.addEventListener("pointerup", released, true);

@@ -19,8 +19,8 @@ const angle:Parameter = {...number("angle","omnic.angle","Angle",0,-1080,1080,1,
 const thickness:Parameter = {...number("thickness","omnic.thickness","Stroke width",2,.25,12,.25),unit:'length',freedom:{label:"Stroke width",symbol:"━",group:[UNIT_FREEDOM_GROUP]}};
 const color: Parameter = {key:"color",property:"color",label:"Color",kind:"color",initial:"#60ddec",freedom:{label:"Color",symbol:"⬤",group:[VISUAL_FREEDOM_GROUP],symbolFill:"conic-gradient(#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)"}};
 const opacity:Parameter = {...number("opacity","opacity","Opacity",1,0,1,.05),freedom:{label:"Opacity",symbol:"⬤",symbolOpacity:.5,group:[VISUAL_FREEDOM_GROUP]}};
-const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,1),freedom:{label:"Position X",symbol:"⊕",group:[POSITION_FREEDOM_GROUP]}};
-const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),freedom:{label:"Position Y",symbol:"⊕",group:[POSITION_FREEDOM_GROUP]}};
+const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,1),freedom:{label:"Position X",symbol:"⟊",group:[POSITION_FREEDOM_GROUP]}};
+const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),freedom:{label:"Position Y",symbol:"⟊",group:[POSITION_FREEDOM_GROUP]}};
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
   {id:"dot",label:"Dot / disk",symbol:"●",parameters:[size,angle,...paint,x,y]},
@@ -28,7 +28,7 @@ export const GENERATORS: readonly Definition[] = [
   {id:"rings",label:"Nested rings",symbol:"◎",parameters:[count,{...radius,label:"Innermost radius",initial:20},
     {...number("spacing","omnic.spacing","Radial gap",20,0,100,.5),unit:"length",freedom:{label:"Radial gap",symbol:"↔",group:[POSITION_FREEDOM_GROUP]}},
     {...number("growth","omnic.ringGrowth","Gap progression",1,.25,2,.05,[.5,1,2]),freedom:{label:"Gap progression",symbol:"↔",group:[POSITION_FREEDOM_GROUP]}},
-    {...number("drift","omnic.ringDrift","Centre offset per ring",0,0,100,.5),unit:"length",freedom:{label:"Centre offset",symbol:"⊕",group:[POSITION_FREEDOM_GROUP]}},angle,
+    {...number("drift","omnic.ringDrift","Centre offset per ring",0,0,100,.5),unit:"length",freedom:{label:"Centre offset",symbol:"⟊",group:[POSITION_FREEDOM_GROUP]}},angle,
     {...fill,initial:false},thickness,color,opacity,
     {...number("thicknessGrowth","omnic.strokeProgression","Stroke progression",1,.25,2,.05),freedom:{label:"Stroke progression",symbol:"≋",group:[UNIT_FREEDOM_GROUP]}},
     {...number("opacityGrowth","omnic.opacityProgression","Opacity progression",1,0,1,.05),freedom:{label:"Opacity progression",symbol:"◍",group:[VISUAL_FREEDOM_GROUP]}},x,y]},
