@@ -14,7 +14,7 @@ const parameters = [...GENERATORS, ...OPERATORS].flatMap(definition => definitio
 const families = new Map<string, Parameter[]>();
 for (const parameter of parameters) families.set(parameter.property, [...(families.get(parameter.property) ?? []), parameter]);
 const labels: Record<string,string> = {
-  "omnic.extent":"Geometric extent", "omnic.coordinate.x":"Procedural X", "omnic.coordinate.y":"Procedural Y", "omnic.angle":"Angle / phase",
+  "omnic.extent":"Geometric extent", "omnic.coordinate.x":"Position X", "omnic.coordinate.y":"Position Y", "omnic.angle":"Angle / phase",
 };
 export const OMNIC_PARAMETERS: readonly Parameter[] = [...families.values()].map(group => group[0]);
 export function activeParameter(state: OmnicParameterState, property: string) {

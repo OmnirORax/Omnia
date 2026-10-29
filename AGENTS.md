@@ -378,3 +378,5 @@ Popup dials use the single `radialLayout` / `RADIAL_GEOMETRY` policy through `Ra
 Editing surfaces declare `data-ui-gesture-owner="content"`; the shared interface selector must yield ordinary modifier presses within that boundary unless interface-selection mode is explicitly enabled. Reuse `contentOwnsPointer`; preserve MS priority and already-prevented events. Do not fix content selection by adding more per-feature global pointer listeners.
 
 Preset DOFs declare applicable shared property inputs; discover with editableDegrees and reuse shared target setters/editors. Never add a separate adjustment handler for each preset when the property already exists. Contextual popup opening presses must not activate newly appeared controls on release.
+
+Direct manipulation and property editing are complementary. A draggable property must remain discoverable in shared DOF editors; do not hide writable position inputs merely because a drag gesture also edits them. Position X/Y reuse the shared coordinate definitions, Relations grouping and target setter for every generator.

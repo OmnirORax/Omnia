@@ -3,7 +3,7 @@ import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = { unit?:string; directManipulation?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
+export type Parameter = { unit?:string; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
@@ -19,8 +19,8 @@ const angle:Parameter = {...number("angle","omnic.angle","Angle",0,-1080,1080,1,
 const thickness:Parameter = {...number("thickness","omnic.thickness","Stroke width",2,.25,12,.25),unit:'length',freedom:{label:"Stroke width",symbol:"━",group:[UNIT_FREEDOM_GROUP]}};
 const color: Parameter = {key:"color",property:"color",label:"Color",kind:"color",initial:"#60ddec",freedom:{label:"Color",symbol:"⬤",group:[VISUAL_FREEDOM_GROUP],symbolFill:"conic-gradient(#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)"}};
 const opacity:Parameter = {...number("opacity","opacity","Opacity",1,0,1,.05),freedom:{label:"Opacity",symbol:"⬤",symbolOpacity:.5,group:[VISUAL_FREEDOM_GROUP]}};
-const x:Parameter = {...number("x","omnic.coordinate.x","Procedural X",0,-300,300,1),directManipulation:true,freedom:{label:"Position",symbol:"⟊",group:[POSITION_FREEDOM_GROUP]}};
-const y:Parameter = {...number("y","omnic.coordinate.y","Procedural Y",0,-300,300,1),directManipulation:true,freedom:{label:"Position",symbol:"⟊",group:[POSITION_FREEDOM_GROUP]}};
+const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,1),freedom:{label:"Position X",symbol:"⟊",group:[POSITION_FREEDOM_GROUP]}};
+const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),freedom:{label:"Position Y",symbol:"⟊",group:[POSITION_FREEDOM_GROUP]}};
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
   {id:"dot",label:"Dot / disk",symbol:"●",parameters:[size,angle,...paint,x,y]},
@@ -93,5 +93,5 @@ export function checkedParams(input: unknown, spec: Definition): Record<string,V
 /** Active editors and MC lend the same metadata-defined relevant inputs. */
 export function applicableParameters(spec:Definition,params:Record<string,Value>):readonly Parameter[]{
   const values={...defaultParams(spec),...params};
-  return spec.parameters.filter(parameter=>!parameter.directManipulation&&(!parameter.when||parameter.when(values)));
+  return spec.parameters.filter(parameter=>!parameter.when||parameter.when(values));
 }
