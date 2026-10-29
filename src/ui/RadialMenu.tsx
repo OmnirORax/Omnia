@@ -90,7 +90,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     </div>
     {branches.map(({anchor,node},index)=>{
       const depth=index+1,{extent,radius,size}=radialLayout(node.children!,depth);
-      return <ContextualMasterController key={`${index}:${node.id}`} radial title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
+      return <ContextualMasterController key={`${index}:${node.id}`} radial anchored title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
         <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} style={dialStyle(extent,size)}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <span className="radial-menu-hover-zone" aria-hidden="true" style={{width:radius*2,height:radius*2}}/>

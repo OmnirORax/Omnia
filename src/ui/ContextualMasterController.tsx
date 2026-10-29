@@ -6,12 +6,13 @@ import { claimUIPress, uiPointerHeld } from "./pointerOwnership";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
-export function ContextualMasterController({ title, hint, position, onClose, onDismiss, onWheel, children, stage, radial = false }: {
+export function ContextualMasterController({ title, hint, position, onClose, onDismiss, onWheel, children, stage, radial = false, anchored = false }: {
   title: string; hint?: string; position: { x: number; y: number } | null;
-  onClose: () => void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean;
+  onClose: () => void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean; anchored?:boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  const {anchor,nextStage}=usePopupAnchor(position,stage??title);
+  const popup=usePopupAnchor(position,stage??title);
+  const anchor=anchored?position:popup.anchor,nextStage=anchored?null:popup.nextStage;
   const openingPress = useRef(false);
   const offset=useRef({x:0,y:0}),drag=useRef<{id:number;x:number;y:number;before:{x:number;y:number};handle:HTMLElement;moved:boolean}|null>(null),suppressClick=useRef(false);
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
