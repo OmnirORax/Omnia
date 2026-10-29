@@ -315,6 +315,10 @@ policy index and MS pattern index share this ancestry. Grouping compiles from th
 registry at initialization, with no new DOM/pointer scans or animation work.
 
 
+## Preset DOF discovery
+
+`editableDegrees` defaults to common writable inputs across a selected target set. Its explicit `available` coverage projects the union for a compound preset, keeping each property scoped only to owners that actually expose it. Omnic's target adapter resolves both components and applications through their existing applicable parameter definitions; conditional inputs are rediscovered from the candidate recipe. The ordinary stationary target menu retains common coverage. Preset edits use the existing recipe sample/live-preview owner and confirm once into draft history. There is no new property/value registry.
+
 ## Active Omnic parameter owner
 
 World draft preview subscribes to the existing composer-owned recipe through

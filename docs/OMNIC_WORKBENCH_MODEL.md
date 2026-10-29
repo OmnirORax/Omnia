@@ -5,13 +5,19 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
-## Latest correction: the Composer itself is the radar
+## Latest correction: empty-space presets and radial DOF setters
+
+2026-10-29: right-click empty Composer/edited-world space → preset radial → choose a preset → **all detected DOFs together around one radial**. Each has a horizontal value setter immediately above its circle, the same width. They do not appear one at a time. Numeric strips reuse the shared slider; DOF right-click configures snap/step. Enter/✓ confirms a single draft edit; Back/Esc leaves a property editor before dismissing/reverting the preview. Detection comes from existing applicable generator/operator inputs; future registered inputs inherit it. No pointer polling or cursor changes are introduced.
+
+Presets moves off the rim. Existing construction presets retain replacement behavior; saved operation tools apply to the previously selected scope. This slice does not add stamping/insertion or new presets. Interaction acceptance remains with the user.
+
+## Earlier correction: the Composer itself is the radar
 
 2026-10-29 correction: revert the last two alignment/performance updates. Keep the earlier implementation and simply centre the brush icon on the actual pointer. Do not reintroduce snapped-marker cursor tracking, preview-wide cursor subscriptions or the reverted feedback rewrite.
 
 Cursor applicability is a global rule: the icon follows the current operation only within its valid zone. Outside the editing area (including tool selection/settings), restore the native cursor. Direct grabs temporarily show Move. Pen is now upper black/lower white, Erase upper white/lower black, per the user’s correction.
 
-Latest presentation: remove the eye/show-hide tool. Root tools hide by default and reveal on hover over their shared circular rim axis; keep them usable through tool/category/editor interaction, then hide on leaving. Do not hide the editing surface or unmount/re-register controls during hover. Explicit target context rings remain visible. One category named Presets contains construction presets and reusable operation tools. Last-position pen/eraser uses the same two-tone silhouette with no underline: Pen upper black/lower white; Erase upper white/lower black. The button offers the next action; the active cursor inherits the icon activated through the global shared tool-cursor system. The purple private cursor is retired.
+Latest presentation: remove the eye/show-hide tool. Root tools hide by default and reveal on hover over their shared circular rim axis; keep them usable through tool/category/editor interaction, then hide on leaving. Do not hide the editing surface or unmount/re-register controls during hover. Explicit target context rings remain visible. Presets is no longer a rim category: right-click empty editing space to open existing construction/workspace presets and saved operation tools. Last-position pen/eraser uses the same two-tone silhouette with no underline: Pen upper black/lower white; Erase upper white/lower black. The button offers the next action; the active cursor inherits the icon activated through the global shared tool-cursor system. The purple private cursor is retired.
 
 Current direct interaction: remove Procedural X/Y/Move from stationary target rings; left-grab moves the target/selection. Right-click during movement settles it and opens progressive position settings for the next drag. Pen/eraser belongs last after all remaining tools, so toggling Atomnic does not shift their order. Wheel over the Composer replaces its view-zoom button; retain Ctrl+wheel browser behavior, view center and bounded rendering.
 

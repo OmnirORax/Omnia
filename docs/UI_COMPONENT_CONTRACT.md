@@ -9,7 +9,7 @@ sizes. Use accessible tooltips for secondary instructions. Preserve readable tex
 keyboard navigation and usable pointer targets. Contextual projections must fit
 only their relevant controls, with category-specific rows appearing when needed.
 
-`RadialMenu` is a shared icon-only contextual projection. `radialTree` groups
+`RadialMenu` is a shared icon-only contextual projection. A `RadialEntry`/`RadialNode` may supply an optional `setter`: it renders as a horizontal strip directly above that node's button, at the same width. Rings reserve the strip's footprint when sizing/separating slots. Numeric strips project the existing `PropertyEditor`/`RangeControl`, retaining validation, right-click value/bounds editing and session step settings; the DOF's configuration editor exposes full halving/step controls. This adds no pointer listeners or per-motion discovery. The empty-space Omnic preset menu uses this shared projection. `radialTree` groups
 declared action presentation metadata without changing command IDs or live controls.
 Categories open child rings around the centre of the clicked category button, leaving the parent ring and Composer canvas in place. Deeper categories repeat this anchoring; one branch per level is expanded, using 32/28/24px spheres in
 160/100/88px footprints, starting at top and proceeding clockwise. At most six

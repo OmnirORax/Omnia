@@ -32,3 +32,16 @@
 .radial-menu-editor :is(.radial-menu-slot,.radial-menu-insets){visibility:hidden;opacity:0;pointer-events:none}
 .radial-menu-editor>.radial-menu-rims>.radial-menu-axis{pointer-events:stroke;stroke-width:28px;vector-effect:non-scaling-stroke;stroke:transparent}
 .radial-menu-editor:is([data-tools-open=true],:has(>.radial-menu-rims>.radial-menu-axis:hover),:has(>.radial-menu-rims:focus-visible),:has(>.radial-menu-slot:hover),:has(>.radial-menu-slot :focus-visible),:has(>.radial-menu-slot>[aria-expanded=true])) :is(.radial-menu-slot,.radial-menu-insets){visibility:visible;opacity:1;pointer-events:auto}
+
+/* Value strips share their DOF button's exact width; no separate settings grid. */
+.radial-menu-setter{position:absolute;left:0;bottom:calc(100% + 2px);width:100%;height:10px;display:flex;align-items:center;z-index:2}
+.radial-menu-setter .range-spectrum{width:100%;min-height:10px;height:10px;padding:0;align-items:center}
+.radial-menu-setter .range-spectrum .range-axis{width:auto;flex:1;min-width:0;height:10px}
+.radial-menu-setter .range-spectrum .range-track{inset:0 3px}
+.radial-menu-setter .range-spectrum .range-track::before{top:4px;left:0;right:0}
+.radial-menu-setter .range-spectrum .range-current i{width:6px;height:6px;top:2px;left:-3px}
+.radial-menu-setter .range-spectrum .range-spectrum-input{height:10px;inset:0;width:100%!important}
+.radial-menu-setter .range-spectrum :is(.range-end>span,.range-current>span,.range-nudge,.range-halving){display:none}
+.radial-menu-setter .range-spectrum .range-end{width:3px;height:10px;overflow:hidden}
+.radial-menu-setter .range-spectrum .range-end svg{width:3px;height:10px}
+.radial-menu-setter>button{width:100%;height:8px;padding:0;min-width:0;min-height:0;border:1px solid currentColor;border-radius:2px;opacity:.8;color:inherit;background:currentColor}

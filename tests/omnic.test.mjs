@@ -26,6 +26,23 @@ test('target freedoms derive from writable generator parameters and applicable o
   assert.equal(next.components[2].params.color,source.components[2].params.color,'unselected targets are unchanged');
   assert.throws(()=>writeTargetDegree({...source,components:source.components.slice(1)},color,'#ffffff'),/no longer exists/,'stale identities never widen the scope');
 });
+test('preset discovery includes every applicable component and operation freedom without widening writes',()=>{
+  const source=validateRecipe(createRecipe('part'));
+  const ids=[...source.components.map(c=>c.id),...source.operations.map(o=>o.id)];
+  const degrees=targetDegrees(source,ids,[],[],'available');
+  const fraction=degrees.find(d=>d.id==='omnic.regionFraction');
+  assert.ok(fraction,'operator-only freedoms are detected alongside geometry');
+  assert.ok(degrees.some(d=>d.id==='omnic.extent'));
+  assert.ok(!targetDegrees(source,ids).some(d=>d.id==='omnic.regionFraction'),'ordinary multi-target menus retain common-only discovery');
+  const next=writeTargetDegree(source,fraction,.25);
+  assert.equal(targetDegreeValue(next,fraction),.25);
+  assert.equal(next.components[0].params.fraction,undefined,'only the applicable owner is written');
+  assert.equal(source.operations[0].params.fraction,.5,'preview writes do not mutate the prior draft');
+  assert.ok(targetDegrees(next,ids,[],[],'available').some(d=>d.id==='omnic.regionAngle'));
+  const whole=writeTargetDegree(next,fraction,1);
+  assert.ok(!targetDegrees(whole,ids,[],[],'available').some(d=>d.id==='omnic.regionAngle'),'conditional freedoms disappear when inapplicable');
+  assert.throws(()=>writeTargetDegree({...source,operations:[]},fraction,.2),/no longer exists/);
+});
 test('normal radar picks follow rendered ring contours, complete line segments and generated roles',()=>{
   const result=evaluateRecipe(recipe([dot('unit'),{id:'rim',generator:'ring',params:{radius:30}},
     {id:'line',generator:'line',params:{y:40,length:80}},
