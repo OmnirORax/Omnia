@@ -74,7 +74,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
       {children&&<div className="radial-menu-canvas">{children}</div>}
       <svg className="radial-menu-rims" viewBox={children?'0 0 160 160':`0 0 ${extent} ${extent}`} aria-hidden={children?undefined:true} tabIndex={children?0:undefined} aria-label={children?"Hover the circular rim or focus it to reveal tools":undefined}>
         {children&&<circle cx="80" cy="80" r={Math.max(0,80-(quickItems?26:34)/quickExtent*160)} vectorEffect="non-scaling-stroke"/>}
-        <circle className={children?"radial-menu-axis":undefined} cx={children?80:extent/2} cy={children?80:extent/2} r={children?Math.max(0,80-(quickItems?14:18)/quickExtent*160):radius}/>
+        <circle fill="none" className={children?"radial-menu-axis":undefined} cx={children?80:extent/2} cy={children?80:extent/2} r={children?Math.max(0,80-(quickItems?14:18)/quickExtent*160):radius}/>
       </svg>
       {quickItems?.map((content,index)=>{
         const slot=radialQuickSlot(index,quickExtent);
@@ -93,7 +93,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
       return <ContextualMasterController key={`${index}:${node.id}`} radial title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
         <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} style={dialStyle(extent,size)}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
-          <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius}/></svg>
+          <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle fill="none" cx={extent/2} cy={extent/2} r={radius}/></svg>
           {ring(node.children!,depth)}
           {children&&index===0&&sizeControl}
           <div className="radial-menu-centre"><button type="button" data-dial-drag aria-label={`Back from ${node.label}`} style={node.symbol.length>2?{fontSize:10}:undefined} title={`${node.label} · Back`}
