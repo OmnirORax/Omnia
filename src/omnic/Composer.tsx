@@ -1,3 +1,4 @@
+import { MathematicalDial } from '../ui/MathematicalDial';
 import { radialTree } from '../ui/radialMenuModel';
 import { DegreeSetter } from './DegreeSetter';
 import { useContextCommands } from './useContextCommands';
@@ -88,7 +89,7 @@ function PresetDegreeEditor({recipe,degree,configure,onPreview,onCommit,onBack,o
   const values=useMemo(()=>({[parameter.key]:value}),[parameter.key,value]);
   useOmnicParameterBindings(values,next=>onCommit(next[parameter.key]),parameters);
   return <div className="progressive-configuration">
-    <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>
+    {parameter.picker==='mathematical'&&!configure?<MathematicalDial value={Number(value)} min={parameter.min!} max={parameter.max!} onPreview={onPreview} onCommit={onCommit}/>:<PropertyEditor property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>}
     <div className="progressive-navigation"><button type="button" title="Back to all preset freedoms" onClick={onBack}>↩</button><button type="button" title="Done · Enter" onClick={onConfirm}>✓</button></div>
   </div>;
 }

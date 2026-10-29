@@ -37,6 +37,10 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
         radius+=gap;gap*=num(p,"growth",1);
       }
     }
+    if(component.generator==="count-grid"){
+      const count=num(p,"count",1),size=num(p,"size",6),pitch=size*2;
+      for(let i=0;i<count;i++)point(`:unit:${i}`,root.x+(i%20)*pitch,root.y-Math.floor(i/20)*pitch,"dot",size);
+    }
     if(component.generator==="line"){
       const a=rad(num(p,"angle")),half=num(p,"length",80)/2,dx=Math.cos(a)*half,dy=Math.sin(a)*half;
       const line=point(":shape",root.x-dx,root.y-dy,"line");line.x2=root.x+dx;line.y2=root.y+dy;
@@ -91,7 +95,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       const affected=()=>targetNodes(targets,roots,prefix+op.id);
       const setCount=(count:number)=>{
         if(!Number.isInteger(count)||count<1||count>64)throw Error("Unsupported count range.");
-        const arrays=affected().filter(node=>{const kind=generations.get(node.id)?.component.generator;return kind==="chain"||kind==="radial"||kind==="rings";});
+        const arrays=affected().filter(node=>{const kind=generations.get(node.id)?.component.generator;return kind==="chain"||kind==="radial"||kind==="rings"||kind==="count-grid";});
         if(!arrays.length)diagnostics.push({code:"inapplicable",message:"Count requires a count-based generator.",operation:prefix+op.id});
         for(const root of arrays){
           const generation=generations.get(root.id)!;generation.params.count=count;

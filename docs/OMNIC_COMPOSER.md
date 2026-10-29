@@ -518,3 +518,16 @@ Opening functions, configuring one function or using blank popup space must not
 also open UI-edit menus, including when a containing UI frame is selected. The
 shared function renderer preserves original contextual handlers; normal frame
 chrome and unrelated controls retain their UI customization route.
+
+## Mathematical count dial prototype
+
+The ⬤ Mathematical count preset uses `count-grid`, sharing count/size/paint/position
+properties and owner setters. Its count input declares `picker: "mathematical"`;
+the requested preset field projects the reusable `MathematicalDial`. Existing
+sliders remain in place elsewhere until interaction acceptance. Six slots default
+to top/clockwise, with base buttons 1/2, direction toggle and a start-slot cycle.
+Each slot independently cycles ● addition / ◉ multiplication / ◎ recursion on
+right-click. For slot n: addition is base*n; base-2 multiplication is n*n; base-2
+recursion is 2^n. Hover is transient, click commits, leaving restores committed
+count. Generated dots fill 20 columns, with each subsequent row above; their stable
+indexed roles survive count changes. Base/direction/start/modes are session-local.
