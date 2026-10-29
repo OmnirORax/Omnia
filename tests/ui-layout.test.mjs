@@ -57,7 +57,8 @@ test('radial projections group shared categories without changing leaf identitie
   visit(many);assert.deepEqual(leaves,Array.from({length:20},(_,i)=>i),'overflow remains reachable without crowding');
   const top=radialSlot(0,6,0),next=radialSlot(1,6,0),inner=radialSlot(0,6,1);
   assert.equal(top.x,50);assert.ok(top.y<50);assert.ok(next.x>50,'clockwise from top');
-  assert.ok(inner.y>top.y&&inner.size<top.size,'progressively smaller category ring');
+  assert.ok(radialDimensions(1).radius<radialDimensions(0).radius&&inner.size<top.size,'progressively smaller category ring');
+  assert.ok(radialDimensions(0,6).radius<=36,'sparse dials pack against their centre rather than a fixed 64px radius');
   for(let depth=0;depth<3;depth++)for(let index=0;index<6;index++){
     const slot=radialSlot(index,6,depth);
     const {extent}=radialDimensions(depth);

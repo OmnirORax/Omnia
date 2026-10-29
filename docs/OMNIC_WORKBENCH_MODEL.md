@@ -5,7 +5,11 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
-## Latest correction: empty-space presets and radial DOF setters
+## Latest correction: compact dials and no procedural controls
+
+2026-10-29: icons on every contextual dial belong close around the middle circle; remove oversized fixed radii at the shared layout boundary. Preserve separation and the above-button value strips. Remove Procedural X/Y from all Composer-generated editors and DOF menus, including presets. These inputs remain internal adapters for direct dragging and saved-recipe compatibility; custom pivot controls are separate from procedural position controls.
+
+## Earlier correction: empty-space presets and radial DOF setters
 
 2026-10-29: right-click empty Composer/edited-world space → preset radial → choose a preset → **all detected DOFs together around one radial**. Each has a horizontal value setter immediately above its circle, the same width. They do not appear one at a time. Numeric strips reuse the shared slider; DOF right-click configures snap/step. Enter/✓ confirms a single draft edit; Back/Esc leaves a property editor before dismissing/reverting the preview. Detection comes from existing applicable generator/operator inputs; future registered inputs inherit it. No pointer polling or cursor changes are introduced.
 

@@ -16,8 +16,8 @@ test('target freedoms derive from writable generator parameters and applicable o
   const source=validateRecipe({...recipe([dot('a'),dot('b',20),{id:'rim',generator:'ring',params:{radius:30}}]),atomnic:{mode:'free'}});
   const adapters=[{id:'move',label:'Move',adjusts:['omnic.coordinate.x','omnic.coordinate.y']},{id:'rotate',label:'Rotate',adjusts:['omnic.angle']}];
   const dots=targetDegrees(source,['a','b'],adapters);
-  assert.ok(dots.some(d=>d.action==='rotate'));assert.ok(dots.some(d=>d.action==='move'));
-  assert.equal(dots.filter(d=>d.properties.includes('omnic.coordinate.x')||d.properties.includes('omnic.coordinate.y')).length,1);
+  assert.ok(dots.some(d=>d.action==='rotate'));assert.ok(!dots.some(d=>d.action==='move'),'position is direct manipulation, not a procedural menu');
+  assert.equal(dots.filter(d=>d.properties.includes('omnic.coordinate.x')||d.properties.includes('omnic.coordinate.y')).length,0);
   assert.ok(!targetDegrees(source,['rim'],adapters).some(d=>d.action==='rotate'),'no invented rotation when its writable direction is absent');
   assert.ok(!targetDegrees(source,['a','rim'],adapters).some(d=>d.properties.includes('omnic.angle')),'mixed selection exposes only common freedoms');
   assert.ok(!targetDegrees(source,['a'],adapters,['omnic.extent']).some(d=>d.properties.includes('omnic.extent')),'profile removes fixed target freedoms');
@@ -33,6 +33,7 @@ test('preset discovery includes every applicable component and operation freedom
   const fraction=degrees.find(d=>d.id==='omnic.regionFraction');
   assert.ok(fraction,'operator-only freedoms are detected alongside geometry');
   assert.ok(degrees.some(d=>d.id==='omnic.extent'));
+  assert.ok(!degrees.some(d=>d.id==='omnic.coordinate.x'||d.id==='omnic.coordinate.y'),'preset menus also omit procedural position inputs');
   assert.ok(!targetDegrees(source,ids).some(d=>d.id==='omnic.regionFraction'),'ordinary multi-target menus retain common-only discovery');
   const next=writeTargetDegree(source,fraction,.25);
   assert.equal(targetDegreeValue(next,fraction),.25);

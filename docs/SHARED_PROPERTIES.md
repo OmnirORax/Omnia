@@ -317,7 +317,7 @@ registry at initialization, with no new DOM/pointer scans or animation work.
 
 ## Preset DOF discovery
 
-`editableDegrees` defaults to common writable inputs across a selected target set. Its explicit `available` coverage projects the union for a compound preset, keeping each property scoped only to owners that actually expose it. Omnic's target adapter resolves both components and applications through their existing applicable parameter definitions; conditional inputs are rediscovered from the candidate recipe. The ordinary stationary target menu retains common coverage. Preset edits use the existing recipe sample/live-preview owner and confirm once into draft history. There is no new property/value registry.
+`editableDegrees` defaults to common writable inputs across a selected target set. Its explicit `available` coverage projects the union for a compound preset, keeping each property scoped only to owners that actually expose it. Omnic's target adapter resolves both components and applications through their existing applicable parameter definitions; conditional inputs are rediscovered from the candidate recipe. The ordinary stationary target menu retains common coverage. Generator inputs marked `directManipulation` remain in validation/storage/translation adapters but are omitted by `applicableParameters` from generated Composer controls and DOF discovery. Procedural X/Y use this declaration; custom pivot inputs remain contextual. Preset edits use the existing recipe sample/live-preview owner and confirm once into draft history. There is no new property/value registry.
 
 ## Active Omnic parameter owner
 

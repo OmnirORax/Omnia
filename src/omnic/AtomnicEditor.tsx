@@ -141,7 +141,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries
         if(ids.length){
           const atomTargets=ids.every(id=>list.some(atom=>atom.id===id));
           const adapters=compatible&&atomTargets?FEATURE_ACTIONS.flatMap(action=>'adjusts' in action?[{id:action.id,label:action.label,symbol:action.radial.symbol,adjusts:action.adjusts}]:[]):[];
-          setDegrees(targetDegrees(recipeRef.current,ids,adapters,['omnic.coordinate.x','omnic.coordinate.y',...(isAtomnic&&atomTargets&&settings.mode==='constrained'?['omnic.extent']:[])]));setPanel({kind:'target'});
+          setDegrees(targetDegrees(recipeRef.current,ids,adapters,isAtomnic&&atomTargets&&settings.mode==='constrained'?['omnic.extent']:[]));setPanel({kind:'target'});
         }else {setPanel({kind:'functions'});if(onEmptyContext)onEmptyContext();else if(radar)radialNavigation.current?.open();}
         return;
       }

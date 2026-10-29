@@ -25,9 +25,10 @@ export function radialTree<T>(entries:readonly RadialEntry<T>[]):RadialNode<T>[]
 /** Only the current category expands. Deeper levels stop shrinking at a usable
  * 24px target; the full path remains available to Back. */
 export function radialDimensions(depth:number,count=6,setterHeight=0) {
-  const base=depth===0?{extent:160,radius:64,size:32}:depth===1?{extent:100,radius:34,size:28}:{extent:88,radius:30,size:24};
-  const radius=Math.max(base.radius,count>1?Math.ceil((base.size+2+setterHeight)/(2*Math.sin(Math.PI/count))):0);
-  return {...base,radius,extent:Math.max(base.extent,2*(radius+base.size/2+setterHeight))};
+  const size=depth===0?32:depth===1?28:24;
+  // Fit around the 24px centre, then grow only enough to separate neighbours.
+  const radius=Math.max(12+size/2+2+setterHeight,count>1?Math.ceil((size+2+setterHeight)/(2*Math.sin(Math.PI/count))):0);
+  return {size,radius,extent:2*(radius+size/2+setterHeight)};
 }
 /** Top then clockwise, independent of the active ring's footprint. */
 export function radialSlot(index:number,count:number,depth:number,setterHeight=0) {
