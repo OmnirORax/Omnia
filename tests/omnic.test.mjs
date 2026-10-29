@@ -186,7 +186,7 @@ test('ungroup dissolves multiple nearest levels only when selected and retains l
 });
 
 test('all starter generators and presets reconstruct deterministically without drawing or renderer objects',()=>{
-  assert.deepEqual(GENERATORS.map(g=>g.id),['dot','ring','line','chain','radial','group','reference']);
+  assert.deepEqual(GENERATORS.map(g=>g.id),['dot','ring','rings','line','chain','radial','group','reference']);
   for(const preset of PRESETS){
     const source=createRecipe(preset.id), before=JSON.stringify(source), a=evaluateRecipe(source),b=evaluateRecipe(validateRecipe(JSON.parse(before)));
     assert.deepEqual(a,b);assert.equal(JSON.stringify(source),before);assert.equal(renderSVG(a),renderSVG(b));
@@ -407,4 +407,25 @@ test('direct target translation preserves group geometry, scope and profile lega
   assert.throws(()=>translateTargets(recipe,new Set(['stale']),{x:1,y:0}),/no longer exists/);
   const dot={...recipe,atomnic:{mode:'constrained',size:10},components:[{id:'dot',generator:'dot',params:{size:10,x:0,y:0}}]};
   assert.throws(()=>translateTargets(dot,new Set(['dot']),{x:1,y:0}),/Realistic/);
+});
+
+test('nested rings expose bounded count, spacing, drift and visual progression',()=>{
+  const source=createRecipe('nested-rings');
+  const initial=evaluateRecipe(source).nodes.filter(n=>n.kind==='ring');
+  assert.deepEqual(initial.map(n=>n.radius),[20,40,60]);
+  source.components[0].params={count:4,radius:10,spacing:5,growth:2,drift:3,angle:90,thickness:2,thicknessGrowth:1.5,opacity:.8,opacityGrowth:.5,fill:false};
+  const rings=evaluateRecipe(source).nodes.filter(n=>n.kind==='ring');
+  assert.deepEqual(rings.map(n=>n.radius),[10,15,25,45]);
+  assert.deepEqual(rings.map(n=>n.y),[0,3,6,9]);
+  almost(rings[3].thickness,6.75);almost(rings[3].opacity,.1);
+  source.components[0].params={count:64,growth:2,spacing:100};
+  assert.throws(()=>evaluateRecipe(source),/extent/);
+});
+
+test('selection sweep collects intervening dots, ring boundaries and lines without filling ring holes',async()=>{
+  const {structuralIdsAlong}=await import('../src/omnic/svg.ts');
+  const nodes=evaluateRecipe(recipe([dot('a',-20),dot('b',20),{id:'ring',generator:'ring',params:{radius:40,fill:false}},{id:'line',generator:'line',params:{length:80,angle:90}}])).nodes;
+  assert.deepEqual([...structuralIdsAlong(nodes,{x:-60,y:0},{x:60,y:0})].sort(),['a','b','line','ring']);
+  assert.equal(structuralIdsAlong(nodes,{x:10,y:0},{x:12,y:0}).has('ring'),false);
+  assert.equal(structuralIdsAlong(nodes,{x:-20,y:30},{x:20,y:30}).has('line'),true);
 });

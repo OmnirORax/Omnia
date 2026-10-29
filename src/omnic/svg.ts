@@ -18,6 +18,24 @@ export function pickStructuralNode(nodes:readonly StructuralNode[],point:{x:numb
   }
   return best;
 }
+/** Exact segment sweep over rendered primitives, called only during selection gestures. */
+export function structuralIdsAlong(nodes:readonly StructuralNode[],a:{x:number;y:number},b:{x:number;y:number}):Set<string>{
+  const distance=(p:typeof a,u:typeof a,v:typeof a)=>{const dx=v.x-u.x,dy=v.y-u.y,d=dx*dx+dy*dy,t=d?Math.max(0,Math.min(1,((p.x-u.x)*dx+(p.y-u.y)*dy)/d)):0;return Math.hypot(p.x-u.x-t*dx,p.y-u.y-t*dy);};
+  const cross=(u:typeof a,v:typeof a,w:typeof a)=>(v.x-u.x)*(w.y-u.y)-(v.y-u.y)*(w.x-u.x);
+  const ids=new Set<string>();
+  for(const n of nodes){
+    if(n.kind==='group')continue;
+    const c={x:n.x,y:n.y},t=Math.max(2,n.thickness/2);
+    let hit=false;
+    if(n.kind==='line'){
+      const d={x:n.x2??n.x,y:n.y2??n.y};
+      const intersects=Math.max(Math.min(a.x,b.x),Math.min(c.x,d.x))<=Math.min(Math.max(a.x,b.x),Math.max(c.x,d.x))&&Math.max(Math.min(a.y,b.y),Math.min(c.y,d.y))<=Math.min(Math.max(a.y,b.y),Math.max(c.y,d.y))&&cross(a,b,c)*cross(a,b,d)<=0&&cross(c,d,a)*cross(c,d,b)<=0;
+      hit=intersects||Math.min(distance(a,c,d),distance(b,c,d),distance(c,a,b),distance(d,a,b))<=t;
+    }else{const nearest=distance(c,a,b),furthest=Math.max(Math.hypot(a.x-c.x,a.y-c.y),Math.hypot(b.x-c.x,b.y-c.y));hit=nearest<=n.radius+t&&(n.fill||furthest>=n.radius-t);}
+    if(hit)ids.add(n.componentId);
+  }
+  return ids;
+}
 export function evaluationBounds(evaluation:Evaluation) {
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const node of evaluation.nodes){

@@ -27,6 +27,16 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
     const {root,component,params:p}=generation;
     const point=(suffix:string,x:number,y:number,kind:StructuralNode["kind"],radius=0)=>push({...base(root.id+suffix,root.componentId,root.id,p,x,y),kind,radius});
     if(component.generator==="dot"||component.generator==="ring")point(":shape",root.x,root.y,component.generator,num(p,component.generator==="ring"?"radius":"size",6));
+    if(component.generator==="rings"){
+      let radius=num(p,"radius",20),gap=num(p,"spacing",20);
+      const angle=rad(num(p,"angle")),drift=num(p,"drift"),count=num(p,"count",3);
+      for(let i=0;i<count;i++){
+        const node=point(`:unit:${i}`,root.x+Math.cos(angle)*drift*i,root.y+Math.sin(angle)*drift*i,"ring",radius);
+        node.thickness*=Math.pow(num(p,"thicknessGrowth",1),i);
+        node.opacity*=Math.pow(num(p,"opacityGrowth",1),i);
+        radius+=gap;gap*=num(p,"growth",1);
+      }
+    }
     if(component.generator==="line"){
       const a=rad(num(p,"angle")),half=num(p,"length",80)/2,dx=Math.cos(a)*half,dy=Math.sin(a)*half;
       const line=point(":shape",root.x-dx,root.y-dy,"line");line.x2=root.x+dx;line.y2=root.y+dy;
@@ -81,8 +91,8 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       const affected=()=>targetNodes(targets,roots,prefix+op.id);
       const setCount=(count:number)=>{
         if(!Number.isInteger(count)||count<1||count>64)throw Error("Unsupported count range.");
-        const arrays=affected().filter(node=>{const kind=generations.get(node.id)?.component.generator;return kind==="chain"||kind==="radial";});
-        if(!arrays.length)diagnostics.push({code:"inapplicable",message:"Count requires a chain or radial generator.",operation:prefix+op.id});
+        const arrays=affected().filter(node=>{const kind=generations.get(node.id)?.component.generator;return kind==="chain"||kind==="radial"||kind==="rings";});
+        if(!arrays.length)diagnostics.push({code:"inapplicable",message:"Count requires a count-based generator.",operation:prefix+op.id});
         for(const root of arrays){
           const generation=generations.get(root.id)!;generation.params.count=count;
           for(let i=nodes.length-1;i>=0;i--)if(nodes[i].parent===root.id){

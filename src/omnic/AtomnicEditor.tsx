@@ -19,7 +19,7 @@ import { UIField } from '../ui/UIField';
 import { UISection } from '../ui/UISection';
 import { useFeatureActions } from '../ui/useFeatureActions';
 import type { AtomnicInteraction } from './atomnicInteraction';
-import { renderSVG } from './svg';
+import { structuralIdsAlong, renderSVG } from './svg';
 import type { Evaluation } from './evaluate';
 import { claimUIPress } from '../ui/pointerOwnership';
 import { FEATURE_ACTIONS } from '../featureActions';
@@ -36,7 +36,7 @@ import { nameSymbol } from '../ui/nameSymbols';
 type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void;onSelect?:(ids:readonly string[])=>void;activateTarget?:()=>void;bindParameters?:boolean;documentEntries?:RadialEntry<ReactNode>[];modeControl?:ReactNode;radar?:boolean;extraPanel?:ReactNode;closePanel?:()=>void;dismissPanel?:()=>void;onEmptyContext?:(point:Point)=>void;confirmPanel?:()=>void;panelRadial?:boolean;panelStage?:string;presentationBounds?:{x:number;y:number;width:number;height:number};normalSelection?:string[];onPickGeometry?:(point:Point,role?:string)=>readonly string[]|void;surfaceRef?:Ref<HTMLDivElement>;markupRef?:RefObject<string>};
 type Panel={kind:'functions'|'target'}|{kind:'degree';degree:EditableDegree;configure:boolean}|{kind:'operation';action:AtomnicConfigAction;index:number;fromTarget?:boolean}|{kind:'pivotModes'}|{kind:'reference';index:number}|{kind:'axis';stage:'start'|'end'|'halving';start?:number;end?:number}|{kind:'position'}|{kind:'patterns'};
 type Tool='draw'|'erase'|'select'|'move'|'rotate';
-type Gesture={kind:'draw'|'erase'|'move'|'translate'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number;turn?:number;appliedTurn?:number;appliedDelta?:Point;bounds?:{x:number;y:number;width:number;height:number}};
+type Gesture={kind:'select'|'draw'|'erase'|'move'|'translate'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number;turn?:number;appliedTurn?:number;appliedDelta?:Point;bounds?:{x:number;y:number;width:number;height:number}};
 const uid=()=>crypto.randomUUID();
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
 export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activateTarget,bindParameters=true,documentEntries=[],modeControl,radar=false,extraPanel,closePanel,dismissPanel,onEmptyContext,confirmPanel,panelRadial=false,panelStage,presentationBounds,normalSelection=[],onPickGeometry,surfaceRef,markupRef}:Props) {
@@ -150,6 +150,12 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         }else {setPanel({kind:'functions'});if(onEmptyContext)onEmptyContext(point);else if(radar)radialNavigation.current?.open();}
         return;
       }
+      if(event.button===0&&event.ctrlKey){
+        setMenu(null);const ids=new Set([...normalSelection,...selectedRef.current]);
+        for(const id of structuralIdsAlong(evaluation?.nodes??[],point,point))ids.add(id);
+        gesture.current={kind:'select',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids,angle:0};
+        selectedRef.current=ids;setSelected(ids);return;
+      }
       if(event.button===0&&!target){
         const ids=onPickGeometry?.(point,role);
         if(Array.isArray(ids)&&ids.length){setSelectionTimeline(previous=>appendTransient(previous,new Set<string>()));setMenu(null);setCursorOperation('move');gesture.current={kind:'translate',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:new Set(ids),angle:0,bounds};return;}
@@ -193,6 +199,11 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     move:(point,event)=>{
       pointer.current={x:event.clientX,y:event.clientY};
       const active=gesture.current;
+      if(active?.kind==='select'){
+        const hits=structuralIdsAlong(evaluation?.nodes??[],active.last,point);let changed=false;
+        for(const id of hits)if(!active.ids.has(id)){active.ids.add(id);changed=true;}
+        active.last=point;if(changed){selectedRef.current=new Set(active.ids);setSelected(new Set(active.ids));}return;
+      }
       if(!isAtomnic&&active?.kind!=='translate')return;if(!active){if(tool==='draw'&&performance.now()-lastHover.current>83){lastHover.current=performance.now();setGhost(placementPoint(point,settings));}else if(tool==='erase'&&performance.now()-lastHover.current>83){lastHover.current=performance.now();setHovered([...scoped(atomIdsAlong(list,point,point))]);}return;}
       try {
         let next=active.next,appliedDelta:Point|undefined;
