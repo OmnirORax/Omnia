@@ -1,4 +1,4 @@
-.contextual-master-controller-radial{opacity:.5}
+.contextual-master-controller-radial{opacity:.7}
 .contextual-master-controller.contextual-master-controller-radial{padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none;overflow:visible;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
 .radial-menu{position:relative;aspect-ratio:1;color:var(--text,#d4e6ef);isolation:isolate}
 .radial-menu-rims{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none;stroke:currentColor;stroke-width:1;opacity:.48}
