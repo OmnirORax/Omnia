@@ -495,22 +495,21 @@ test('nested popup surfaces own their events even when React bubbles through a p
 });
 
 
-test('popup opening press survives release until its trailing contextmenu finishes',async()=>{
- const {createPhysicalPressTracker}=await import('../src/ui/pointerOwnership.ts');
- const press=createPhysicalPressTracker();
- press.down(1,2);
- assert.equal(press.opening(),true);
- press.up(1);
- assert.equal(press.held(),false,'physical release must still reach gesture ownership');
- assert.equal(press.opening(),true,'a popup mounted/repositioned after release must reject the trailing contextmenu');
- const finish=press.context();
- assert.equal(press.opening(),true,'the tail is still opening the popup during contextmenu dispatch');
- finish();
- assert.equal(press.opening(),false,'keyboard-opened popups do not inherit a completed press');
- press.down(1,2);press.up(1);const stale=press.context();press.down(1,2);stale();
- assert.equal(press.opening(),true,'an older dispatch cannot clear a newer opening press');
- press.up(1);press.down(1,0);press.up(1);
- assert.equal(press.opening(),false,'a fresh primary gesture clears an abandoned secondary tail');
- press.down(1,2);press.reset();
- assert.equal(press.opening(),false,'leaving the window clears abandoned physical state');
+test('secondary menus activate once on release in either native contextmenu order',async()=>{
+ const {createSecondaryRelease}=await import('../src/ui/secondaryRelease.ts');
+ const click=createSecondaryRelease();
+ click.press('press');
+ assert.equal(click.context(),undefined,'press-time contextmenu must not expose controls');
+ assert.equal(click.release('release'),'release');
+ assert.equal(click.context(),undefined,'the same click cannot open settings again');
+ click.press('press');
+ assert.equal(click.release('release'),undefined,'wait for native contextmenu when it follows release');
+ assert.equal(click.context(),'release');
+ assert.equal(click.context(),undefined);
+ click.press('cancelled');click.cancel();
+ assert.equal(click.release('release'),undefined);
+ assert.equal(click.context(),undefined);
+ click.press('abandoned');click.press('new');
+ assert.equal(click.context(),undefined);
+ assert.equal(click.release('latest'),'latest','new press replaces abandoned state');
 });
