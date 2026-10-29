@@ -544,3 +544,5 @@ Leaving a zone restores native controls immediately, even with pointer capture
 cursor selection; ordinary motion only updates its transform. The existing
 capture-phase cursor tracker feeds this transport before domain handlers can
 consume pointer events. It does not install another pointer-move listener.
+
+Content gesture ownership: editing surfaces declare `data-ui-gesture-owner="content"` (shared contextual popups inherit it). `useButtonSelection` consults `contentOwnsPointer` before claiming a press; ordinary modifier gestures reach the editor, while explicitly enabled interface-selection mode retains its override. Respect already-prevented presses. MS priority and existing physical-press ownership stay unchanged; no new global listener, motion matching or discovery is added.

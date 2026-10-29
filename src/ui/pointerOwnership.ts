@@ -49,3 +49,9 @@ if (typeof window !== "undefined") {
     window.removeEventListener("pointercancel", cancelUITouch, true);
   });
 }
+
+/** Content editors keep ordinary gestures; explicit interface selection can still
+ * select their containing controls. No DOM discovery or pointer polling. */
+export function contentOwnsPointer(target:{closest:(selector:string)=>unknown}|null,interfaceSelection=false):boolean{
+  return !interfaceSelection&&!!target?.closest('[data-ui-gesture-owner="content"]');
+}
