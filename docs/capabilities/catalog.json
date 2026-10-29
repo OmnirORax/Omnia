@@ -5,7 +5,7 @@
       "id": "guidance.catalog",
       "title": "Capability guide and automatic coverage checks",
       "where": "Repository README → capabilities and user guide; bookmark docs/CAPABILITIES.md.",
-      "behavior": "Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance. Delivery batches verified source pushes; local frontend success, backend import checks, GitHub CI and browser acceptance are reported separately. Newer PR commits cancel superseded check runs without interrupting master releases.",
+      "behavior": "Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance. Delivery requires a passing local model/architecture suite before preview pushes, and requested behavior changes update matching assertions. Delivery batches verified source pushes; local frontend success, backend import checks, GitHub CI and browser acceptance are reported separately. Newer PR commits cancel superseded check runs without interrupting master releases.",
       "steps": [
         {
           "do": "Open the repository README and follow capabilities and user guide. Search for Interpretive frame declarations.",

@@ -380,3 +380,5 @@ Editing surfaces declare `data-ui-gesture-owner="content"`; the shared interface
 Preset DOFs declare applicable shared property inputs; discover with editableDegrees and reuse shared target setters/editors. Never add a separate adjustment handler for each preset when the property already exists. Contextual popup opening presses must not activate newly appeared controls on release.
 
 Direct manipulation and property editing are complementary. A draggable property must remain discoverable in shared DOF editors; do not hide writable position inputs merely because a drag gesture also edits them. Position X/Y reuse the shared coordinate definitions, Relations grouping and target setter for every generator.
+
+Before every implementation delivery push/preview, run the existing model/architecture suite (`node --run test`) and wait for its exit status, alongside the required build/backend checks. Requested behavior changes must update stale assertions in the same delivery. A successful frontend build is not sufficient to publish. Do not rerun GitHub workflows as a development loop or silence notification settings; fix the underlying failed checks locally.

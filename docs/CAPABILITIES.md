@@ -59,7 +59,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 
 **Where:** Repository README → capabilities and user guide; bookmark docs/CAPABILITIES.md.
 
-Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance. Delivery batches verified source pushes; local frontend success, backend import checks, GitHub CI and browser acceptance are reported separately. Newer PR commits cancel superseded check runs without interrupting master releases.
+Reviewed walkthroughs explain features, exact entry points, limitations and observable tests. The command/gesture inventory regenerates from the application registries. Builds and model checks reject missing command coverage and stale generated guidance. Delivery requires a passing local model/architecture suite before preview pushes, and requested behavior changes update matching assertions. Delivery batches verified source pushes; local frontend success, backend import checks, GitHub CI and browser acceptance are reported separately. Newer PR commits cancel superseded check runs without interrupting master releases.
 
 **Minimal working test**
 
