@@ -549,3 +549,5 @@ Content gesture ownership: editing surfaces declare `data-ui-gesture-owner="cont
 
 Radial popup shells pass empty space through, but shared native interactive controls (buttons, fields, role buttons and range controls) must explicitly receive pointer events. This applies to new picker contents automatically, not only RadialMenu slot wrappers. Pointer input must not fall through a new picker to the editing canvas and trigger empty-space dismissal.
 Composite value pickers declare `data-ui-popup-interior` on their tight content boundary. The shared radial shell routes pointer input there, and empty-space dismissal excludes that interior; outside canvas clicks retain normal dismissal.
+
+Popup-contained drawing tools may explicitly register their actual content element with setToolCursorZone(element,key,true). This opts that zone into the existing shared cursor resolver within a contextual controller; settings outside that zone remain ordinary pointing. It does not bypass visual-selector ownership or activate a tool globally.

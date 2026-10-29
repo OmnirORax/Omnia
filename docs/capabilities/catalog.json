@@ -1847,30 +1847,26 @@
       "id": "omnic.mathematical-count-dial",
       "title": "Mathematical count dial experiment",
       "where": "Composer → right-click empty space → ⬤ Mathematical count preset opens its mathematical count dial immediately. On an existing test grid, right-click target → Units → Count opens the same dial.",
-      "behavior": "Slots are empty until activated. Each independently toggles on right-click between ● normal (base × ordinal) and ◎ recursion (base^(ordinal+1)); ◉ is removed. Base 2: slot 2 normal=4, slot 6 normal=12, slot 6 recursion=128. Active slot contributions add. Right-clicking an active slot immediately commits its recalculated total while retaining its mark; right-clicking an empty slot previews its new contribution without selecting it. Left-click adds/removes marks; hover previews the resulting total and leaving restores committed state. Base changes recalculate active contributions when valid. Packing computes the maximum non-overlapping slot circles from circumference, holding slot size fixed: base-1 minimum fits 6 and base-2 minimum fits 9. Ring size is not adjustable: geometry uses the minimum radius enclosing the base units and fitting the slot units. Base 2 therefore has a fixed ring and nine slots. Start and direction remain configurable. Other mathematical interaction rules remain provisional. Base 2 is the default. ◎+ adds an enclosing outer ring order; ◎− removes the outer order and its selected contributions. Each new slot-centre radius is the previous radius plus one unit diameter, enclosing its slots without overlap. Base 2 orders fit 9,15,21,… slots by the same circumference calculation. Every ring currently uses the chosen base and its own local slot ordinal; cross-order inheritance/other algebra remains unfinished. Unused slots reveal only while hovering their circular ring band (or keyboard focus); selected marks remain visible. Each constructed ring shows its start/direction arrow at top clockwise by default. One additional invisible outward slot band permits placing an extra mark beyond the current outer rim. Only that actual outward activation unlocks Add ring. Clicking it encloses the already placed mark and hides Add ring until another outward mark is placed. Normal marks on constructed rings never unlock addition. The candidate band has no drawn rim and does not enlarge the active ring layout. Holding left-click and sweeping fills every crossed slot once, including fast crossings between pointer events. Existing filled slots remain filled during a sweep. Layout is measured/cached at gesture start; moves use bounded segment arithmetic and only update previews when marks change. Release commits one history edit; cancellation restores the prior count. Simple clicks retain toggle behavior. Recursion uses an explicit +1 exponent offset: base2 slot1=2²=4, slot3=2⁴=16, slot6=2⁷=128.",
+      "behavior": "The mathematical dial is a brush-based positional value editor. Right-click anywhere in its drawing area cycles the cursor between ● normal and ◎ recursion only: it never edits slot mode, fill or count. Native pointing returns over settings and outside the drawing area via the shared cursor resolver; this popup explicitly registers its drawing zone. Moving over a slot previews painting it with the current brush mode; left-click fills it with that mode. Holding left-click sweeps through crossed slots, stamping the same brush into each. Painting an existing mark with another mode replaces its contribution; same-mode painting is idempotent, never deselects. Existing marks outside the stroke retain their modes. Preview, click, sweep and sums use one shared arithmetic/brush policy. Normal slot n = base*n; recursion = base^(n+1), with base2 slot1=4, slot3=16 and slot6=128. Selected contributions add; normal slot4 plus recursive slot6 gives136. Geometry is cached once per drag and release commits one history change; cancel restores committed marks/count. Slots begin empty and unused positions reveal only on ring-band hover or keyboard focus. Base2 is default; the fixed minimum ring fits9 equal-size slots, outer orders fit15,21,… via circumference. Only activating a mark beyond the current outer rim unlocks Add ring; enclosing it hides the button again. Rings keep their start/direction arrow, default top/clockwise. Count-grid draws20 dots per row, continuing upward. Exact cross-order mathematics remains provisional.",
       "steps": [
         {
-          "do": "Choose ⬤, select base 2. Hover slot 2, then slot 6.",
-          "expect": "The compact ring contains nine slots; previews show 4 then 12 dots."
+          "do": "Open ⬤. On an empty first slot in base2, right-click once without moving.",
+          "expect": "Cursor changes ● to ◎; no mark is committed and existing slot modes/count are unchanged."
         },
         {
-          "do": "Select slot 6, then right-click it.",
-          "expect": "Its mark remains active; mode switches directly to ◎ and count becomes 128. Right-click again restores ● and 12."
+          "do": "Move onto slot1, then left-click. Switch cursor to ●, move onto slot2 and left-click.",
+          "expect": "Recursion preview and committed first mark contribute4; the normal second mark contributes4; total8."
         },
         {
-          "do": "With slot 6 recursive and selected, select slot 4 normal.",
-          "expect": "Total becomes 136. The base-2 ring stays fixed, with nine tightly packed slots and no radius slider."
+          "do": "With the cursor in ◎ mode, hold left-click and sweep across both marked slots, then release. Move the cursor away.",
+          "expect": "Both inherit recursion, totaling4+8=12, retained after release; other marks retain their modes. One Undo restores the prior numeric count."
         },
         {
-          "do": "Hover the band just outside the outer rim and activate an outward slot. Click the newly available Add ring. Repeat.",
-          "expect": "Only outward activation reveals Add ring. Enclosing preserves the mark, shows the new rim/start arrow, and hides Add ring until a further outward mark is activated. Unused slots hide after hover leaves."
-        },
-        {
-          "do": "Hold left-click on an empty slot and sweep through several others, including a quick crossing and a return pass. Release, then Undo.",
-          "expect": "Each crossed slot fills once; returning does not toggle it off. Count previews during the drag, release commits, and one Undo restores the pre-drag count."
+          "do": "Hover outside the outer rim, paint an outward mark, then click Add ring.",
+          "expect": "Only outward painting unlocks the button; enclosing retains that mark and hides Add ring until another outward mark is painted."
         }
       ],
-      "limits": "Rendered test-grid count domain is 0–512. Unselected modes can toggle even if their prospective value exceeds this domain, but out-of-range counts cannot be activated. An active mode/base change outside the domain is rejected. Up to four ring orders keep rendering bounded. Ring geometry is constrained by base-unit enclosure; no size adjustment. A base change that cannot house existing marked ordinals is rejected. Slots and configuration remain session-local. Existing non-test count inputs retain their previous editors. Browser acceptance pending.",
+      "limits": "Rendered test-grid count domain0–512; values outside it cannot be painted. Base1 recursion remains unsupported. At most four ring orders. Mark representation and brush settings remain session-local; undo/reopening currently restores the numeric property, not the complete expression. No slider replacement outside the test count input. Browser interaction acceptance pending.",
       "verification": {
         "browser": "Pending user interaction acceptance.",
         "automated": "Preview build and backend imports checked locally; no browser suite run."

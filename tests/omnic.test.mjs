@@ -479,3 +479,37 @@ test('mathematical fill sweep covers crossed slots without toggling or mutating 
  assert.equal(fillMathematicalSlots(after,slots,{x:100,y:0},{x:0,y:0}),after);
  assert.equal(fillMathematicalSlots(after,slots,{x:0,y:20},{x:20,y:20}),after);
 });
+
+
+test('all mathematical slots use the confirmed rule through sum, property write and rendered grid',async()=>{
+ const {mathematicalSlotValue,mathematicalSelectionValue,radialSlotCapacity}=await import('../src/properties/mathematicalDial.ts');
+ for(const base of [1,2])for(let order=0;order<4;order++){
+  const size=24,radius=(base+1)*size/2+order*size,count=radialSlotCapacity(radius,size);
+  for(let ordinal=1;ordinal<=count;ordinal++)for(const mode of ['normal','recursion']){
+   const expected=mode==='normal'?base*ordinal:base**(ordinal+1),key=`${order}:${ordinal}`;
+   assert.equal(mathematicalSlotValue(base,ordinal,mode),expected);
+   const selection=[{key,ordinal,mode}],sum=mathematicalSelectionValue(base,selection);
+   if(base===1&&mode==='recursion'){assert.ok(Number.isNaN(sum));continue;}
+   assert.equal(sum,expected);assert.equal(mathematicalSelectionValue(base,[...selection,...selection]),expected);
+   if(expected<=512){const source=createRecipe('count-grid'),degree=targetDegrees(source,['count-grid']).find(d=>d.id==='omnic.count');
+    const next=writeTargetDegree(source,degree,sum);assert.equal(targetDegreeValue(next,degree),expected);assert.equal(evaluateRecipe(next).nodes.filter(n=>n.kind==='dot').length,expected);}
+  }
+ }
+ const pair=[{key:'normal',ordinal:4,mode:'normal'},{key:'recursion',ordinal:6,mode:'recursion'}];
+ assert.equal(mathematicalSelectionValue(2,pair),136);
+ assert.equal(mathematicalSelectionValue(2,pair.filter(s=>s.key!=='normal')),128);
+ assert.equal(mathematicalSelectionValue(2,[]),0);
+});
+
+
+test('mathematical brush stamps its mode only into visited slots and preview does not mutate marks',async()=>{
+ const {paintMathematicalSlots,mathematicalSelectionValue}=await import('../src/properties/mathematicalDial.ts');
+ const original={selected:['0:0','0:1'],modes:{'0:0':'normal','0:1':'normal'}},before=JSON.stringify(original);
+ const value=marks=>mathematicalSelectionValue(2,marks.selected.map(key=>({key,ordinal:Number(key.split(':')[1])+1,mode:marks.modes[key]??'normal'})));
+ assert.equal(value(original),6);
+ const preview=paintMathematicalSlots(original,['0:0'],'recursion');
+ assert.equal(value(preview),8);assert.equal(preview.modes['0:1'],'normal');assert.equal(JSON.stringify(original),before);
+ const swept=paintMathematicalSlots(original,['0:0','0:1'],'recursion');assert.equal(value(swept),12);
+ assert.equal(paintMathematicalSlots(swept,['0:0','0:1'],'recursion'),swept);
+ assert.equal(value(paintMathematicalSlots(swept,['0:0'],'normal')),10);
+});

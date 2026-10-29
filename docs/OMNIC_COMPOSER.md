@@ -519,45 +519,41 @@ also open UI-edit menus, including when a containing UI frame is selected. The
 shared function renderer preserves original contextual handlers; normal frame
 chrome and unrelated controls retain their UI customization route.
 
-## Mathematical count dial prototype (current)
+## Mathematical count dial prototype (current brush design)
 
-The ⬤ preset immediately opens its mathematical Count picker; preset and target
-editing share DegreeValueEditor, selected through input metadata. Sliders remain
-for other DOFs. Slots start empty: one fill activates its positional value, so one
-mark at base-1 slot 6 represents six. Marks accumulate; left-click toggles them.
-Hover previews the resulting count and leaving restores committed state.
+The ⬤ preset immediately opens the shared metadata-selected Count picker.
+Right-click in the drawing area changes only the active cursor brush ●/◎. It
+must never change a slot, mode assignment or count. Moving previews applying that
+brush; left-click fills a slot and stamps its mode, and holding left-click sweeps
+that mode across crossed slots. Painting an existing mark replaces its mode;
+same-mode painting is idempotent, not deselection. Other marks retain their modes.
+The obsolete per-slot right-click cycling and click-toggle paths are removed.
 
-Base 2 is the default. Every slot independently right-click toggles ● normal
-(base*ordinal) / ◎ recursion (base^ordinal). ◉ is retired. An active mode change
-immediately commits its recalculated contribution; an empty mode change previews
-without selecting. Base 2 examples: normal slot2=4, normal slot6=12, recursive
-slot6=64; normal slot4 plus recursive slot6 sums to72. Base1 recursion remains
-unsupported. Base changes retain marked ordinals and recalculate when valid.
+Normal slot n contributes base*n; recursive slot n contributes base^(n+1).
+Base2: slot1 recursive=4, slot3 recursive=16, slot6 recursive=128. Contributions
+add; normal slot4 plus recursive slot6 totals136. All paths use the shared pure
+slot/sum/brush policy in properties/mathematicalDial.ts. Geometry is cached at
+stroke start, fast segments collect intervening slots, and release commits one
+history edit. Cancelling restores the numeric property. Current expression and
+brush remain session-local; Undo/reopening does not yet restore the full marked
+representation. Do not imply otherwise from numeric-owner history coverage.
 
-Ring size is constrained, not adjustable. Base units and slots have equal visible
-size. Circumference determines the maximum non-overlapping circle capacity, using
-floor(pi/asin(unitDiameter/(2*slotCentreRadius))). Base2's minimum ring fits9;
-base1 fits6. ◎+ adds an enclosing ring around the preceding slot band; ◎− removes
-its marks and contributions while preserving inner orders. New radii add one unit
-diameter, giving base2 capacities9,15,21,… . Four orders bound rendering. Each ring
-currently shares the selected base and restarts local slot ordinals; inherited
-bases and further cross-ring algebra remain work in progress, not implied rules.
-Start and direction are shared across orders. Rings/modes/marks are session-local.
+The shared website cursor resolver renders ●/◎ only in the explicitly registered
+popup drawing zone, returning to ordinary pointing over settings/outside. Other
+popups remain blocked from tool cursors unless they explicitly opt in.
 
-The count-grid renderer shares count/size/paint/position definitions and setters;
-it fills20 columns before continuing upward. Its0–512 domain supports ninth-slot
-recursion with bounded output; out-of-range active edits are rejected. The reusable
-pure slot arithmetic/packing policy lives in properties/mathematicalDial.ts.
+Slots start empty; unused positions reveal on hover/keyboard focus, while marks
+remain visible. Rings are fixed by enclosing equal-size base units, not manually
+resized. Base2 is default, fitting9 slots; outer orders fit15,21,… according to
+maximum non-overlapping circle capacity. An invisible outward candidate band has
+no rim. Painting a mark outside the current outer rim unlocks Add ring; enclosing
+it preserves the mark and hides the button until another outward mark is painted.
+At most four orders. Each ring shares the base and restarts local ordinals; exact
+cross-order algebra remains exploratory. Start/direction arrows default top/CW.
 
-The exploration is direction, not finalized algebra: count derives from structural
-units/positions and uniform convertible rules; account for marks, frames and
-configuration space. Original source is archived in
+The count-grid renderer uses shared count/size/paint/position properties, with20
+columns and rows upward. Domain0–512 bounds rendering; higher results cannot be
+painted. Base1 recursion remains unsupported. Other DOF sliders are retained.
+
+Original exploratory context is archived in
 [Mathematical dial exploration](omnic/MATHEMATICAL_DIAL_EXPLORATION.md).
-
-### Progressive outer ring activation
-
-Unused slots reveal on ring-band hover or keyboard focus; selected marks stay visible. An extra candidate band beyond the outer rim has no drawn ring. Only activating an outward mark unlocks Add ring. Enclosing preserves it and hides Add ring until another outward mark is placed. Ordinary inner selections do not unlock it. Rings show start/direction arrows, default top/clockwise. Candidate slots overflow the compact active layout without reserving an empty larger disk.
-
-### Recursion offset and fill sweep (latest)
-
-The recursion exponent is ordinal+1, overriding earlier base^ordinal examples: one recursion on base2 is2²=4; ordinal3 is2⁴=16; ordinal6 is2⁷=128. Normal contributions stay base*ordinal. Holding left-click fills every crossed slot, with deduplication and segment intersection for fast movement. Geometry is measured once per drag, previews are transient, release commits one owner/history transaction and cancellation restores the committed value. A plain click still toggles a slot. Rendering remains bounded to the test target domain0–512; shifted recursive values outside it remain unselectable.
