@@ -133,7 +133,7 @@ export function ActiveContextSystem() {
   useEffect(() => {
     const activate = (event: Event) => {
       let element = event.target instanceof Element ? event.target : null;
-      if(event instanceof PointerEvent&&event.button===0&&latest.current.contextLayers.size>0&&element&&!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-omnic-role]')&&dismissContextDials(latest.current.contextLayers.values())) {
+      if(event instanceof PointerEvent&&event.button===0&&!event.ctrlKey&&!event.metaKey&&latest.current.contextLayers.size>0&&element&&!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-omnic-role]')&&dismissContextDials(latest.current.contextLayers.values())) {
         claimUIPress(event.pointerId,event.pointerType,event.buttons);
         event.preventDefault();event.stopImmediatePropagation();return;
       }

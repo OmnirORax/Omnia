@@ -150,8 +150,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         }else {setPanel({kind:'functions'});if(onEmptyContext)onEmptyContext(point);else if(radar)radialNavigation.current?.open();}
         return;
       }
-      if(event.button===0&&event.ctrlKey){
-        setMenu(null);const ids=new Set([...normalSelection,...selectedRef.current]);
+      if(event.button===0&&(event.ctrlKey||event.metaKey)){
+        dismissPanel?.();setMenu(null);const ids=new Set([...normalSelection,...selectedRef.current]);
         for(const id of structuralIdsAlong(evaluation?.nodes??[],point,point))ids.add(id);
         gesture.current={kind:'select',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids,angle:0};
         selectedRef.current=ids;setSelected(ids);return;
