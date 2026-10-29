@@ -1,6 +1,7 @@
+import { radialScale } from './radialMenuState';
 import { uiPointerHeld } from './pointerOwnership';
-import { RangeAxis } from './RangeControl';
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref, type CSSProperties } from 'react';
+import { RangeControl, RangeAxis } from './RangeControl';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type Ref, type CSSProperties } from 'react';
 import type { RadialNode } from './radialMenuModel';
 import { radialLayout, RADIAL_GEOMETRY, radialQuickSlot } from './radialMenuModel';
 import { ContextualMasterController } from './ContextualMasterController';
@@ -10,6 +11,8 @@ type CategoryAnchor={id:string;x:number;y:number};
 export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigationChange,quickItems,quickEnd,heldOpen=false}: {
   items:RadialNode<ReactNode>[];inset?:ReactNode;onClose:()=>void;navigationRef?:Ref<RadialNavigation>;children?:ReactNode;onNavigationChange?:(nested:boolean)=>void;quickItems?:ReactNode[];quickEnd?:ReactNode[];heldOpen?:boolean;
 }) {
+  const scale=useSyncExternalStore(radialScale.subscribe,radialScale.getSnapshot);
+  const sizeControl=<span className="radial-menu-setter radial-menu-scale" title="Dial size · 1×–2×"><RangeControl aria-label="Dial size" configurationKey="ui.dial.scale" value={scale} min={1} max={2} step={.05} onValueChange={radialScale.set}/></span>;
   const root=useRef<HTMLDivElement>(null),[quickExtent,setQuickExtent]=useState(360);
   useLayoutEffect(()=>{
     const node=root.current;if(!node||!children&&!quickItems)return;
@@ -43,7 +46,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     </span>;
   });};
   const {extent,radius,size}=radialLayout(items);
-  const dialStyle=(extent:number,size:number):CSSProperties=>({width:extent,'--radial-button-size':`${size}px`,'--radial-opacity':RADIAL_GEOMETRY.opacity} as CSSProperties);
+  const dialStyle=(extent:number,size:number):CSSProperties=>({width:extent,zoom:scale,'--radial-button-size':`${size}px`,'--radial-opacity':RADIAL_GEOMETRY.opacity} as CSSProperties);
   return <>
     <div ref={root} className={`radial-menu${children?' radial-menu-editor':''}`} role="group" aria-label="Radial tools" data-tools-open={path.length>0||heldOpen} data-context-menu-owner data-ui-search data-ui-name-ignore
       onContextMenu={event=>{event.preventDefault();event.stopPropagation();}} style={children?undefined:dialStyle(extent,size)}>
@@ -62,7 +65,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
         return <span className="radial-menu-slot" key={`end:${index}`} style={{left:`${slot.x}%`,top:`${slot.y}%`,width:slot.size,height:slot.size}}>{content}</span>;
       })}
       {!quickItems&&inset&&<div className="radial-menu-insets">{inset}</div>}
-      {!children&&<span className="radial-menu-centre radial-menu-origin" data-dial-drag title="Drag dial" aria-label="Drag dial"/>}
+      {!children&&<><span className="radial-menu-centre radial-menu-origin" role="button" tabIndex={0} data-dial-drag title="Drag dial" aria-label="Drag dial"/>{sizeControl}</>}
     </div>
     {branches.map(({anchor,node},index)=>{
       const depth=index+1,{extent,radius,size}=radialLayout(node.children!,depth);
@@ -71,6 +74,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius}/></svg>
           {ring(node.children!,depth)}
+          {sizeControl}
           <div className="radial-menu-centre"><button type="button" data-dial-drag aria-label={`Back from ${node.label}`} style={node.symbol.length>2?{fontSize:10}:undefined} title={`${node.label} · Back`}
             onClick={()=>setPath(path.slice(0,index))} onContextMenu={event=>{event.preventDefault();event.stopPropagation();setPath(path.slice(0,index));}}>{node.symbol}</button></div>
         </div>
