@@ -27,8 +27,8 @@ export function radialTree<T>(entries:readonly RadialEntry<T>[]):RadialNode<T>[]
 export function radialDimensions(depth:number,count=6,setterHeight=0) {
   const size=depth===0?32:depth===1?28:24;
   // Fit around the 24px centre, then grow only enough to separate neighbours.
-  const radius=Math.max(12+size/2+2+setterHeight,count>1?Math.ceil((size+2+setterHeight)/(2*Math.sin(Math.PI/count))):0);
-  return {size,radius,extent:2*(radius+size/2+setterHeight)};
+  const radius=Math.max(12+size/2,count>1?Math.ceil(Math.ceil(size/(2*Math.sin(Math.PI/count)))):0);
+  return {size,radius,extent:2*(radius+size/2+setterHeight+1)};
 }
 /** Top then clockwise, independent of the active ring's footprint. */
 export function radialSlot(index:number,count:number,depth:number,setterHeight=0) {

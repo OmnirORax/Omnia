@@ -16,6 +16,10 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     return()=>observer.disconnect();
   },[!!quickItems,!!children]);
   const [path,setPath]=useState<CategoryAnchor[]>([]);
+  const hoverTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const keepChildren=()=>{if(hoverTimer.current)clearTimeout(hoverTimer.current);};
+  const leaveChildren=()=>{keepChildren();hoverTimer.current=setTimeout(()=>setPath([]),120);};
+  useEffect(()=>()=>{if(hoverTimer.current)clearTimeout(hoverTimer.current);},[]);
   useEffect(()=>{onNavigationChange?.(path.length>0);},[path.length,onNavigationChange]);
   const back=()=>{if(path.length){setPath(path.slice(0,-1));return true;}return false;};
   useImperativeHandle(navigationRef,()=>({back,open:()=>setPath([])}));
@@ -26,8 +30,8 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     const quick=depth===0&&!!quickItems;
     const slot=quick?radialQuickSlot(index+quickItems.length,quickExtent):radialSlot(index,nodes.length,depth,nodes.some(node=>node.setter)?12:0);
     const turn=(index+(embedded ? .5 : 0))/nodes.length*Math.PI*2,s=Math.sin(turn),c=Math.cos(turn),edge=slot.size/2+2;
-    return <span key={node.id} className="radial-menu-slot" style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}}>
-      {node.setter&&<span className="radial-menu-setter">{node.setter}</span>}
+    return <span key={node.id} className="radial-menu-slot" style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}} onMouseEnter={event=>{keepChildren();if(node.children){const bounds=event.currentTarget.getBoundingClientRect();if(bounds)setPath([...path.slice(0,depth),{id:node.id,x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2}]);}}} onMouseLeave={leaveChildren}>
+      {node.setter&&<span className="radial-menu-setter" style={{transform:`rotate(${index/nodes.length*360}deg)`,transformOrigin:`50% ${slot.size/2+12}px`}}>{node.setter}</span>}
       {node.children?<button type="button" data-ui-id={`radial:${node.id}`} aria-label={node.label} title={node.label} aria-haspopup="true" aria-expanded={path[depth]?.id===node.id} style={node.symbol.length>2?{fontSize:10}:undefined}
         onClick={event=>{
           if(path[depth]?.id===node.id){setPath(path.slice(0,depth));return;}
@@ -60,7 +64,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     {branches.map(({anchor,node},index)=>{
       const depth=index+1,{extent,radius}=radialDimensions(depth,node.children!.length,node.children!.some(node=>node.setter)?12:0);
       return <ContextualMasterController key={`${index}:${node.id}`} radial title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
-        <div className="radial-menu radial-menu-branch" role="group" aria-label={node.label} data-context-menu-owner style={{width:`min(${extent}px,calc(100vw - 16px),calc(100vh - 16px))`}}
+        <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner style={{width:`min(${extent}px,calc(100vw - 16px),calc(100vh - 16px))`}}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius}/></svg>
           {ring(node.children!,depth)}
