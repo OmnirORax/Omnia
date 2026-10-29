@@ -439,5 +439,5 @@ test('selection sweep collects intervening dots, ring boundaries and lines witho
   }
   for(const property of ['omnic.count','omnic.fill','omnic.thickness','omnic.strokeProgression'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'●●');
   assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group[0].symbol,'⨮');
-  for(const property of ['omnic.spacing','omnic.ringDrift','omnic.ringGrowth','omnic.angle'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'⟊');
+  for(const property of ['omnic.spacing','omnic.ringDrift','omnic.ringGrowth','omnic.angle'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'⨮');
 });
