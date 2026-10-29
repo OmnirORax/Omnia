@@ -11,6 +11,7 @@ export const radialGroups = {
   presets:{id:'presets',label:'Presets',symbol:'❉'},
   save:{id:'save',label:'Name and save',symbol:'▣'},
   file:{id:'file',label:'File',symbol:'📁'},
+  mfx:{id:'mfx',label:'mfx',symbol:'mfx'},
   motion:{id:'motion',label:'Motion',symbol:'⇳',hidden:true},
   inspect:{id:'inspect',label:'Inspection',symbol:'🧰',hidden:true},
   view:{id:'view',label:'View and mode',symbol:'⊙',flatten:true},

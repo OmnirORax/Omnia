@@ -51,7 +51,7 @@ const operatorDefinitions: Definition[] = [
     ],apply:ctx=>ctx.transform("rotate")},
   {id:"select",label:"Select structural roles",parameters:[],output:"selection",apply:ctx=>ctx.select()},
   {id:"connect",label:"Connect selected roles",parameters:[thickness,color],preconditions:["At least two primitive roles"],apply:ctx=>ctx.connect()},
-  {id:"oscillate",label:"Semantic oscillation",parameters:[number("amplitude","omnic.amplitude","Amplitude",10,0,60,1),number("frequency","omnic.frequency","Frequency (Hz)",1,.1,4,.1),number("phase","omnic.angle","Phase",0,-1080,1080,1),{key:"axis",property:"omnic.axis",label:"Axis",kind:"select",initial:"y",options:[{id:"x",label:"X"},{id:"y",label:"Y"}]}],apply:ctx=>ctx.transform("oscillate")},
+  {id:"oscillate",label:"Oscillation",symbol:"≈",category:"mfx",parameters:[number("amplitude","omnic.amplitude","Amplitude",10,0,60,1),number("frequency","omnic.frequency","Frequency (Hz)",1,.1,4,.1),number("phase","omnic.angle","Phase",0,-1080,1080,1),{key:"axis",property:"omnic.axis",label:"Axis",kind:"select",initial:"y",options:[{id:"x",label:"X"},{id:"y",label:"Y"}]}],apply:ctx=>ctx.transform("oscillate")},
   {id:"inspect",label:"Extract unit count",parameters:[],output:"property",apply:ctx=>ctx.extract()},
 ];
 for (const item of operatorDefinitions) {

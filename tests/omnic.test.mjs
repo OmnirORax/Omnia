@@ -211,14 +211,27 @@ test('count extraction is nonvisual and internal connections do not increase uni
   assert.equal(source.components.length,1,'evaluation never writes canonical object/relationship lists');
 });
 
+test('Line and Ring presets are independent and oscillation belongs to motion effects',()=>{
+  assert.deepEqual(createRecipe('line').components.map(c=>c.generator),['line']);
+  assert.deepEqual(createRecipe('boundary').components.map(c=>c.generator),['ring']);
+  assert.ok(!PRESETS.some(p=>p.id==='oscillation'));
+  const effect=OPERATORS.find(o=>o.id==='oscillate');assert.equal(effect.category,'mfx');
+  for(const preset of ['line','boundary','radial','chain','nested']){
+    const source=createRecipe(preset),targets=source.components.map(c=>c.id);
+    const before=evaluateRecipe(source),after=evaluateRecipe({...source,operations:[op('motion','oscillate',targets,{amplitude:10,frequency:1,axis:'y'})]},undefined,.25);
+    assert.equal(after.motion,true);assert.equal(after.properties.count,before.properties.count);
+    for(const node of before.nodes){const moved=after.nodes.find(n=>n.id===node.id);almost(moved.y,node.y+10);}
+  }
+});
 test('semantic oscillation is deterministic at explicit time and paused at time zero',()=>{
-  const source=createRecipe('oscillation'),zero=evaluateRecipe(source),quarter=evaluateRecipe(source,undefined,.25),again=evaluateRecipe(source,undefined,.25);
+  const source=recipe([dot('disk')],[op('oscillation','oscillate',['disk'],{amplitude:15,frequency:1,axis:'y'})]),zero=evaluateRecipe(source),quarter=evaluateRecipe(source,undefined,.25),again=evaluateRecipe(source,undefined,.25);
   assert.equal(zero.motion,true);almost(zero.nodes.find(n=>n.kind==='dot').y,0);almost(quarter.nodes.find(n=>n.kind==='dot').y,15);
   assert.deepEqual(quarter,again);assert.throws(()=>evaluateRecipe(source,undefined,Infinity),/time/);
 });
 
 test('SVG adapter is self-contained, deterministic, bounded and exposes stable role addresses',()=>{
-  const result=evaluateRecipe(createRecipe('boundary')),svg=renderSVG(result),bounds=evaluationBounds(result);
+  const source=createRecipe('boundary');source.components.push(...createRecipe('radial').components);
+  const result=evaluateRecipe(source),svg=renderSVG(result),bounds=evaluationBounds(result);
   assert.ok(svg.startsWith('<svg xmlns='));assert.match(svg,/data-omnic-role="radial:unit:0"/);assert.match(svg,/data-omnic-component="radial"/);
   assert.ok(!/<script|href=|foreignObject|filter=/.test(svg));assert.ok(bounds.width>120&&bounds.height>120);
   assert.equal(svg,renderSVG(result));

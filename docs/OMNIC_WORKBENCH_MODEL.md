@@ -5,9 +5,15 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
-## Latest correction: empty click dismisses dials; remove close icons
+## Latest correction: immediate presets, mfx, click-centred dials
 
-2026-10-29: left-click empty space to close every open dial, including nested categories and requested dial editors. Consume that dismissal press so it does not draw or start a world gesture. Remove all ×/close buttons from dials; keep the middle circle as an origin marker. Esc/category Back still navigate progressively. Unconfirmed preset previews revert on empty-space dismissal. Use the existing shared ActiveContext pointerdown path; no pointer polling or new per-dial listeners.
+2026-10-29: choosing a preset immediately keeps it in the recoverable draft. Accepted settings persist as ordinary edits. Enter/✓ only finishes editing; dismissing the dial must not remove the chosen composition. Save shared remains the canonical save action. Line and Ring are standalone choices; Ring is no longer bundled with an array. Oscillation is a reusable motion effect applicable to any selected geometry, under the category whose name/icon is **mfx**, currently the only effect. Discover effects via existing operator metadata and reuse the existing operation engine and radial DOF editors.
+
+Every radial centre appears exactly at its invocation point, including nested category clicks; do not shift it to fit viewport edges. Centre markers/category-centre buttons are always 50% opaque. Keyboard category activation anchors at the category centre. Edge invocation may clip tools. No pointer-following or new tracking is needed.
+
+## Earlier correction: empty click dismisses dials; remove close icons
+
+2026-10-29: left-click empty space to close every open dial, including nested categories and requested dial editors. Consume that dismissal press so it does not draw or start a world gesture. Remove all ×/close buttons from dials; keep the middle circle as an origin marker. Esc/category Back still navigate progressively. Chosen presets and accepted settings persist after empty-space dismissal. Use the existing shared ActiveContext pointerdown path; no pointer polling or new per-dial listeners.
 
 ## Earlier correction: compact dials and no procedural controls
 
@@ -15,7 +21,7 @@ that the described capabilities are implemented.
 
 ## Earlier correction: empty-space presets and radial DOF setters
 
-2026-10-29: right-click empty Composer/edited-world space → preset radial → choose a preset → **all detected DOFs together around one radial**. Each has a horizontal value setter immediately above its circle, the same width. They do not appear one at a time. Numeric strips reuse the shared slider; DOF right-click configures snap/step. Enter/✓ confirms a single draft edit; Back/Esc leaves a property editor before dismissing/reverting the preview. Detection comes from existing applicable generator/operator inputs; future registered inputs inherit it. No pointer polling or cursor changes are introduced.
+2026-10-29: right-click empty Composer/edited-world space → preset radial → choose a preset → **all detected DOFs together around one radial**. Each has a horizontal value setter immediately above its circle, the same width. They do not appear one at a time. Numeric strips reuse the shared slider; DOF right-click configures snap/step. Choice commits immediately; accepted settings use draft history. Enter/✓ finishes editing; Back/Esc leaves a property editor before dismissing the dial without removing the preset. Detection comes from existing applicable generator/operator inputs; future registered inputs inherit it. No pointer polling or cursor changes are introduced.
 
 Presets moves off the rim. Existing construction presets retain replacement behavior; saved operation tools apply to the previously selected scope. This slice does not add stamping/insertion or new presets. Interaction acceptance remains with the user.
 

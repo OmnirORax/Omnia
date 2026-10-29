@@ -28,12 +28,11 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     const turn=(index+(embedded ? .5 : 0))/nodes.length*Math.PI*2,s=Math.sin(turn),c=Math.cos(turn),edge=slot.size/2+2;
     return <span key={node.id} className="radial-menu-slot" style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}}>
       {node.setter&&<span className="radial-menu-setter">{node.setter}</span>}
-      {node.children?<button type="button" data-ui-id={`radial:${node.id}`} aria-label={node.label} title={node.label} aria-haspopup="true" aria-expanded={path[depth]?.id===node.id}
+      {node.children?<button type="button" data-ui-id={`radial:${node.id}`} aria-label={node.label} title={node.label} aria-haspopup="true" aria-expanded={path[depth]?.id===node.id} style={node.symbol.length>2?{fontSize:10}:undefined}
         onClick={event=>{
           if(path[depth]?.id===node.id){setPath(path.slice(0,depth));return;}
-          // Measure only the clicked category, never on hover or pointer movement.
-          const bounds=event.currentTarget.getBoundingClientRect();
-          setPath([...path.slice(0,depth),{id:node.id,x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2}]);
+          const bounds=event.detail===0?event.currentTarget.getBoundingClientRect():null;
+          setPath([...path.slice(0,depth),{id:node.id,x:bounds?bounds.left+bounds.width/2:event.clientX,y:bounds?bounds.top+bounds.height/2:event.clientY}]);
         }}>{node.symbol}</button>:node.content}
     </span>;
   });
@@ -65,7 +64,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius}/></svg>
           {ring(node.children!,depth)}
-          <div className="radial-menu-centre"><button type="button" aria-label={`Back from ${node.label}`} title={`${node.label} · Back`}
+          <div className="radial-menu-centre"><button type="button" aria-label={`Back from ${node.label}`} style={node.symbol.length>2?{fontSize:10}:undefined} title={`${node.label} · Back`}
             onClick={()=>setPath(path.slice(0,index))} onContextMenu={event=>{event.preventDefault();event.stopPropagation();setPath(path.slice(0,index));}}>{node.symbol}</button></div>
         </div>
       </ContextualMasterController>;

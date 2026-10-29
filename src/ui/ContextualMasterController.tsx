@@ -22,8 +22,8 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     const node = root.current; if (!node || !position) return;
     const fit = () => {
       const bounds = node.getBoundingClientRect();
-      node.style.left = `${Math.max(8, Math.min(position.x-(radial?bounds.width/2:0), innerWidth - bounds.width - 8))}px`;
-      node.style.top = `${Math.max(8, Math.min(position.y-(radial?bounds.height/2:0), innerHeight - bounds.height - 8))}px`;
+      node.style.left = `${radial?position.x-bounds.width/2:Math.max(8,Math.min(position.x,innerWidth-bounds.width-8))}px`;
+      node.style.top = `${radial?position.y-bounds.height/2:Math.max(8,Math.min(position.y,innerHeight-bounds.height-8))}px`;
     };
     const observer = new ResizeObserver(fit); observer.observe(node); fit();
     window.addEventListener("resize", fit);
@@ -46,7 +46,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     }}
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
-    style={{ left: Math.max(8, Math.min(position.x, innerWidth - 252)), top: Math.max(8, Math.min(position.y, innerHeight - 240)) }}>
+    style={{left:radial?position.x:Math.max(8,Math.min(position.x,innerWidth-252)),top:radial?position.y:Math.max(8,Math.min(position.y,innerHeight-240))}}>
     {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}{children}
   </div>, document.body);
 }
