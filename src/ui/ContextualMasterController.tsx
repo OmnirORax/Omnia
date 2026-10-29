@@ -18,7 +18,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
   const closeLayer=()=>{if(drag.current)cancelDrag();else onClose();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
-  useLayoutEffect(() => { openingPress.current = !!position && uiPointerHeld(); }, [!!position]);
+  useLayoutEffect(() => { openingPress.current = !!position && uiPointerHeld(); }, [!!position,anchor?.x,anchor?.y,stage]);
   useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined));
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
@@ -57,7 +57,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
       if(!active.moved&&Math.hypot(dx,dy)<3)return;active.moved=true;
       offset.current={x:active.before.x+dx,y:active.before.y+dy};event.currentTarget.style.translate=`${offset.current.x}px ${offset.current.y}px`;
     }}
-    onPointerUpCapture={event=>{const active=drag.current;if(!active||active.id!==event.pointerId)return;
+    onPointerUpCapture={event=>{if(openingPress.current){event.preventDefault();event.stopPropagation();return;}const active=drag.current;if(!active||active.id!==event.pointerId)return;
       event.stopPropagation();drag.current=null;
       if(!active.moved&&active.handle.tagName==='BUTTON')active.handle.click();
       suppressClick.current=true;
@@ -65,7 +65,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     }}
     onPointerCancel={cancelDrag}
     onLostPointerCapture={()=>{if(drag.current)cancelDrag();}}
-    onClickCapture={event=>{if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
+    onClickCapture={event=>{if(openingPress.current&&event.detail>0){openingPress.current=false;event.preventDefault();event.stopPropagation();return;}if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
     onContextMenuCapture={event => {
       // A popup opened on pointerdown must not interpret that same press
       // again when the browser dispatches contextmenu at its new contents.
