@@ -534,7 +534,7 @@ the compact dial. Presets show their DOF radial first, including ⬤. Small inli
 value buttons open requested dials for progressive controls. Full dials are never
 mounted permanently alongside every field. They retain the half-size geometry;
 meta controls overflow below the ring, keeping its centre at the invoking cursor.
-Right-clicking a DOF still opens existing snap/step configuration.
+Right-clicking a numeric DOF opens the experimental dial editing-rule configuration.
 
 ± is available when the domain permits negatives. It reverses the active raw
 number/sign; subsequent marks use that sign. Slot notation currently represents
@@ -601,3 +601,22 @@ The advance-start-position button is removed. Meta controls are32px logical/16px
 ### MC hierarchy navigation
 
 Composer dials no longer render Back, Next, Confirm or checkmark navigation buttons. Alt+MB4 steps outward and Alt+MB5 advances through the nearest registered stage. Enter confirms via context.confirm; Esc cancels the current gesture/field/preview before stepping outward. Radial centres only drag; returning inward can restore the last stepped-out radial branch. Shared active-layer adapters and nested navigation registration supply these behaviors to applicable systems; no private mouse/key handler is added per dial. Plain MB4/5 history is retained.
+
+
+### E01: shared increment editing rule
+
+Composer numeric editors configure Value or Increment through the same dial.
+Increment uses `anchor + signed index * amount`; numeral slot arithmetic itself
+is unchanged. Rule/amount use the existing per-property session working-step
+scope, and the amount is edited by a requested child math dial. No property
+changes merely from configuration; hover and paint use existing previews/setters.
+Clear marks, exact entry, rule change, external owner updates and reopening
+rebase the anchor. Repeated previews do not increment the previous sample.
+
+Target and preset numeric DOF right-clicks now open rule configuration instead of
+the legacy jump-value field. Other numeric DOFs inherit the same PropertyEditor
+projection. Active adapters lend their real resolution alongside limits. Existing
+sliders outside Composer retain their behavior. The experiment is not yet a
+reference/rule binding system, does not affect direct dragging/commands, and
+does not persist mathematical expressions. See the living master plan and
+capability omnic.editing-rules for exact steps, limitations and pending acceptance.

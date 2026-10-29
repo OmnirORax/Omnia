@@ -11,8 +11,19 @@ export const RangeAxis=createContext(0);
 export type RangeGesture={start:(id:number,x:number,y:number)=>boolean;move:(x:number,y:number)=>void;finish:(x:number,y:number)=>void;cancel:()=>void};
 /** An owning DOF icon may lend its press to this same slider gesture. */
 export const RangeGestureTarget=createContext<MutableRefObject<RangeGesture|null>|null>(null);
-type WorkingRange={min?:number;max?:number;step?:number};
+type WorkingRange={min?:number;max?:number;step?:number;editingRule?:'value'|'increment'};
 const RangeSettings=createContext<{values:Record<string,WorkingRange>;change:(key:string,patch:WorkingRange)=>void}|null>(null);
+/** Both legacy ranges and the Composer dial borrow the same working-step input.
+ * This is session configuration, never another property-value/history owner. */
+export function useWorkingEditingRule(key:string|undefined,step:number,min:number,max:number){
+ const scope=useContext(RangeSettings),[local,setLocal]=useState<WorkingRange>({});
+ const saved=key&&scope?scope.values[key]??{}:local;
+ const change=(patch:WorkingRange)=>{if(key&&scope)scope.change(key,patch);else setLocal(before=>({...before,...patch}));};
+ const minimum=step>0&&Number.isFinite(step)?step:1,maximum=Math.max(minimum,max-min);
+ return {kind:saved.editingRule??'value',amount:Math.max(minimum,Math.min(maximum,saved.step??minimum)),minimum,maximum,
+  onKindChange:(kind:'value'|'increment')=>change({editingRule:kind}),
+  onAmountChange:(amount:number)=>{if(Number.isFinite(amount)&&amount>=minimum&&amount<=maximum)change({step:amount});}};
+}
 /** Retain widget working intervals/steps for one editing session, independently
  * of target values. Portalled editors inherit the same scope automatically. */
 export function RangeSettingsScope({children}:{children:ReactNode}) {

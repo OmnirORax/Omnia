@@ -577,3 +577,22 @@ semantics. Empty editor opening/base choices do not reset a value. Scratch marks
 can be cleared without editing the property. Incoming owner changes invalidate
 stale marks/previews; closing clears the Composer's transient sample. Decimal
 notation, equations, persistent rule encoding and a wider rollout remain deferred.
+
+
+Composer E01 rule configuration is projected by PropertyEditor/MathematicalValueControl
+for all numeric consumers. The existing step configuration entry opens a small
+rule radial; outside-Composer RangeControl configuration stays unchanged. The
+shared working-range session owns both existing step and the experimental Value/
+Increment mode, preventing independent jump/rule settings. Active target limits
+may lend their declared step resolution. MathematicalDial consumes that config;
+a child amount dial has no editing-rule controls of its own. Pure rule evaluation
+uses a frozen anchor and signed numeral index; property owners enforce validity,
+preview and history as before. Do not interpret this experimental configuration
+as a persisted mathematical constraint or automatically extend it to dragging.
+
+Nested popup/dial events use ownsPointerSurface in the shared pointer-ownership
+module. React portals preserve logical event ancestry; parent controllers must
+yield opening-press suppression and centre dragging to the nearest actual popup.
+Parent math dials also yield slot capture/hover to child amount dials, so a
+configuration stroke cannot paint the parent property. No new global listeners
+or layout reads are introduced by this boundary check.

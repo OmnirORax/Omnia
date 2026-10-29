@@ -60,3 +60,9 @@ if (typeof window !== "undefined") {
 export function contentOwnsPointer(target:{closest:(selector:string)=>unknown}|null,interfaceSelection=false):boolean{
   return !interfaceSelection&&!!target?.closest('[data-ui-gesture-owner="content"]');
 }
+
+/** React portal events bubble through logical parents. Only the nearest actual
+ * surface may interpret a press; parent dials must yield to child popups. */
+export function ownsPointerSurface(surface:unknown,target:{closest:(selector:string)=>unknown}|null,selector:string):boolean{
+  return !!surface&&!!target&&target.closest(selector)===surface;
+}

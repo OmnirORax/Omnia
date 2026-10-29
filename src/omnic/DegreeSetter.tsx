@@ -12,7 +12,7 @@ export function DegreeSetter({recipe,degree,onPreview,onCommit,onOpen}: {recipe:
   if(degree.action)return <button type="button" aria-label={`Configure ${degree.label}`} title={`Configure ${degree.label}`} onClick={onOpen}/>;
   if(parameter.kind==='number'&&numericEditor.mathematical)return <button type="button" aria-label={`Open ${degree.label} dial`} title={`Open ${degree.label} dial`} onClick={onOpen}>⠒❉</button>;
   if(parameter.kind==='color')return <SpectrumSetter value={String(value)} onPreview={onPreview} onCommit={onCommit}/>;
-  if(parameter.kind==='number')return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} limits={{min:parameter.min!,max:parameter.max!}} onPreview={onPreview} onCommit={onCommit}/>;
+  if(parameter.kind==='number')return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} limits={{min:parameter.min!,max:parameter.max!,step:parameter.step}} onPreview={onPreview} onCommit={onCommit}/>;
   return <button type="button" aria-label={`${degree.label}: ${value}`} title={`${degree.label} · ${value}`} style={{opacity:value===false ? .3 : 1}} onClick={()=>{
     if(parameter.kind==='toggle')onCommit(!value);
     else if(parameter.kind==='select'&&parameter.options?.length){const options=parameter.options;onCommit(options[(options.findIndex(option=>option.id===value)+1)%options.length].id);}
@@ -31,5 +31,5 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 /** One metadata-selected value editor for preset and selected-target requests. */
 export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit}:{recipe:Recipe;degree:EditableDegree;configure?:boolean;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void}){
  const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree);
- return <PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>;
+ return <PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!,step:parameter.step}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>;
 }

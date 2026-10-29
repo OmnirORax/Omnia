@@ -37,3 +37,8 @@
 .mathematical-value-control{display:inline-flex;width:max-content;max-width:100%}
 .mathematical-value-control>button{min-width:0;width:max-content;max-width:100%;padding:2px 4px;white-space:nowrap;font-size:inherit;line-height:1.2}
 .mathematical-dial-exact{width:8ch;min-width:0;max-width:100%}
+
+.mathematical-dial .mathematical-dial-rule{width:max-content;min-width:0;padding:1px 5px;font-size:20px;line-height:1.1}
+
+.radial-menu .radial-menu-slot>button.mathematical-rule-choice{font-size:15px;line-height:1;grid-template-rows:16px 10px;align-content:center;gap:0}
+.mathematical-rule-choice small{font-size:9px;line-height:1}

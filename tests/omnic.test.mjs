@@ -554,3 +554,31 @@ test('raw numeral preview cancellation follows owner changes and chronological u
  assert.equal(history.travel('redo'),1);assert.equal(session.restore(),-6);
  assert.equal(session.receive(2),true,'external setter invalidates scratch state even after Redo');assert.equal(session.restore(),2);stop();
 });
+
+test('one editing-rule context previews signed indices across size and position without drift',async()=>{
+ const {mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const {createActionHistory}=await import('../src/ui/actionHistory.ts');
+ for(const property of ['omnic.extent','omnic.coordinate.x']){
+  let current=validateRecipe({...recipe([dot('a',10),dot('other',30)]),atomnic:{mode:'free'}});
+  const degree=targetDegrees(current,['a']).find(d=>d.id===property),parameter=targetParameter(degree),anchor=Number(targetDegreeValue(current,degree));
+  const rule={kind:'increment',amount:2},context={anchor,index:3,rule},value=mathematicalEditValue(context);
+  assert.equal(value,anchor+6);
+  const session=mathematicalValueSession(anchor),history=createActionHistory();
+  const stop=history.register('rule-edit',{read:()=>current,write:next=>{current=next;session.receive(Number(targetDegreeValue(current,degree)));}});
+  const sample=writeTargetDegree(current,degree,session.preview(value));
+  assert.equal(targetDegreeValue(sample,degree),anchor+6);assert.equal(targetDegreeValue(current,degree),anchor);assert.equal(history.candidates('undo').length,0);
+  for(let repeat=0;repeat<20;repeat++)assert.equal(mathematicalEditValue(context),value,'hover samples always evaluate from the frozen anchor');
+  assert.equal(session.restore(),anchor);
+  assert.equal(mathematicalValueAllowed(mathematicalEditValue({...context,index:-2}),parameter),true);
+  const before=current;current=writeTargetDegree(current,degree,session.commit(value));history.record('rule-edit',before,current,['omnium'],['omnium']);
+  assert.deepEqual(current.components[1],before.components[1]);assert.equal(history.candidates('undo').length,1);
+  assert.equal(history.travel('undo'),1);assert.equal(targetDegreeValue(current,degree),anchor);
+  assert.equal(history.travel('redo'),1);assert.equal(targetDegreeValue(current,degree),value);stop();
+ }
+ assert.equal(mathematicalEditValue({anchor:.1,index:2,rule:{kind:'increment',amount:.1}}),.3);
+ assert.equal(mathematicalEditValue({anchor:12,index:0,rule:{kind:'increment',amount:2}}),12);
+ assert.equal(mathematicalEditValue({anchor:12,index:-3,rule:{kind:'value'}}),-3,'raw number meaning remains unchanged');
+ for(const amount of [0,-1,Infinity,NaN])assert.ok(Number.isNaN(mathematicalEditValue({anchor:1,index:1,rule:{kind:'increment',amount}})));
+ assert.ok(Number.isNaN(mathematicalEditValue({anchor:1,index:.5,rule:{kind:'increment',amount:1}})));
+ assert.equal(mathematicalValueAllowed(mathematicalEditValue({anchor:99,index:2,rule:{kind:'increment',amount:2}}),{min:.5,max:100}),false,'invalid candidates are rejected rather than clamped into a different step');
+});

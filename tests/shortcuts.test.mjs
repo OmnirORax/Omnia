@@ -482,3 +482,14 @@ test('shared MC stage navigation resolves nearest applicable layer and retains f
  assert.deepEqual(calls,['inner','outer','cancel']);assert.deepEqual(stack,before);
  assert.equal(contextLayerAction([],layers,'confirm'),undefined);
 });
+
+test('nested popup surfaces own their events even when React bubbles through a parent',async()=>{
+ const {ownsPointerSurface}=await import('../src/ui/pointerOwnership.ts');
+ const parent={},child={},parentMath={},childMath={};
+ const childTarget={closest:selector=>selector==='[data-context-controller]'?child:selector==='.mathematical-dial'?childMath:null};
+ assert.equal(ownsPointerSurface(parent,childTarget,'[data-context-controller]'),false,'parent must not start dragging or suppress a child click');
+ assert.equal(ownsPointerSurface(child,childTarget,'[data-context-controller]'),true);
+ assert.equal(ownsPointerSurface(parentMath,childTarget,'.mathematical-dial'),false,'amount-slot painting must not edit the parent property');
+ assert.equal(ownsPointerSurface(childMath,childTarget,'.mathematical-dial'),true);
+ assert.equal(ownsPointerSurface(parent,null,'[data-context-controller]'),false);
+});

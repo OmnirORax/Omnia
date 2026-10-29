@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNo
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
 import { ContextStage, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
-import { claimUIPress, physicalPointerHeld } from "./pointerOwnership";
+import { claimUIPress, physicalPointerHeld, ownsPointerSurface } from "./pointerOwnership";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
@@ -21,6 +21,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   const popup=usePopupAnchor(position,stage??title);
   const anchor=anchored?position:popup.anchor,nextStage=anchored?null:popup.nextStage;
   const openingPress = useRef(false);
+  const owns=(target:EventTarget|null)=>ownsPointerSurface(root.current,target instanceof Element?target:null,'[data-context-controller]');
   const offset=useRef({x:0,y:0}),drag=useRef<{id:number;x:number;y:number;before:{x:number;y:number};handle:HTMLElement;moved:boolean}|null>(null),suppressClick=useRef(false);
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
   const closeLayer=()=>{if(drag.current)cancelDrag();else (nestedNavigation()?.back??onClose)();};
@@ -53,6 +54,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   }, [!!position, !!onWheel]);
   return position && createPortal(<div ref={root} className={`contextual-master-controller ${radial?'contextual-master-controller-radial':'ui-frame-search-popup'}`} data-context-controller data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
     onPointerDownCapture={event => {
+      if(!owns(event.target))return;
       openingPress.current = false;suppressClick.current=false;
       if(!radial||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-dial-drag]'))return;
       event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);
@@ -64,7 +66,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
       if(!active.moved&&Math.hypot(dx,dy)<3)return;active.moved=true;
       offset.current={x:active.before.x+dx,y:active.before.y+dy};event.currentTarget.style.translate=`${offset.current.x}px ${offset.current.y}px`;
     }}
-    onPointerUpCapture={event=>{if(openingPress.current){event.preventDefault();event.stopPropagation();return;}const active=drag.current;if(!active||active.id!==event.pointerId)return;
+    onPointerUpCapture={event=>{if(!owns(event.target))return;if(openingPress.current){event.preventDefault();event.stopPropagation();return;}const active=drag.current;if(!active||active.id!==event.pointerId)return;
       event.stopPropagation();drag.current=null;
       if(!active.moved&&active.handle.tagName==='BUTTON')active.handle.click();
       suppressClick.current=true;
@@ -72,8 +74,9 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     }}
     onPointerCancel={cancelDrag}
     onLostPointerCapture={()=>{if(drag.current)cancelDrag();}}
-    onClickCapture={event=>{if(openingPress.current&&event.detail>0){openingPress.current=false;event.preventDefault();event.stopPropagation();return;}if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
+    onClickCapture={event=>{if(!owns(event.target))return;if(openingPress.current&&event.detail>0){openingPress.current=false;event.preventDefault();event.stopPropagation();return;}if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
     onContextMenuCapture={event => {
+      if(!owns(event.target))return;
       // A popup opened on pointerdown must not interpret that same press
       // again when the browser dispatches contextmenu at its new contents.
       if (openingPress.current) { event.preventDefault(); event.stopPropagation(); }

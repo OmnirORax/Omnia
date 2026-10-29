@@ -408,6 +408,15 @@ implement the entire module roadmap at once or expose another manual reference
 form as a substitute for the shared architecture. Initial rollout stays Composer
 only; ranking remains excluded.
 
-The user owns the Math Dial's future mathematical-rule design. Leave that part
-to them; implement the surrounding shared infrastructure and integration without
-inventing notation/equations or creating a competing math-rule system.
+“Leave math to the dial” means editing rules are configured through ⠒❉ (e.g.
+increments, halving, doubling, double every N steps). Shared code implements and
+evaluates those rules; the user is not responsible for coding them. Reuse the
+dial's configuration/mode interaction and one shared rule model/evaluator through
+the existing property setters. Do not create competing slider-rule settings or
+change existing numeral semantics implicitly. Iterate bounded rule experiments.
+
+Global-system UI experiments use minimal text without ambiguous icons. Keep
+short icon-plus-label controls where needed (e.g. ⟴ Reference). Put secondary
+explanations in tooltips/accessibility metadata; omit redundant captions, repeated
+headings and instructional paragraphs. Icon-only remains a long-term direction,
+not a requirement to remove useful labels now.
