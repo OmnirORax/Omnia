@@ -1911,6 +1911,42 @@
         "omnic.atomnic",
         "controls.spectrum"
       ]
+    },
+    {
+      "id": "omnic.reference-context",
+      "title": "Shared object and DOF reference contexts",
+      "where": "Composer → target or preset numeric DOF → ⨮ Reference.",
+      "behavior": "Choose one reference context for the selected authored components. Each DOF can inherit, ignore or override it. References address self, parent, another authored component or the composition frame, optionally identifying center, dimensions, boundary or an axis. Context edits use recipe history and persistence. Choosing/removing a context preserves realized geometry. Missing references remain explicitly unresolved. Preset insertion remaps internal component references.",
+      "steps": [
+        {
+          "do": "Create two components. Open a DOF on the first and expand ⨮ Reference. Choose the second as Object reference context.",
+          "expect": "Geometry stays unchanged; other DOFs inherit the same reference."
+        },
+        {
+          "do": "Open another DOF and choose Ignore reference, then Self, then Use object reference.",
+          "expect": "Only that DOF changes reference policy; it returns to the shared reference when inheritance is restored."
+        },
+        {
+          "do": "Save/reopen or Undo/Redo the context change. Remove the referenced component.",
+          "expect": "Stored context and history survive; deletion reports Reference unavailable and preserves the target geometry."
+        }
+      ],
+      "limits": "Step 2 reference identities/context only. No equation, automatic discovery, snapping or persistent geometry constraint yet. Other authored components within this recipe are supported; external canonical entities and groups/selections as aggregate references are deferred. Feature selectors record descriptors for later geometric adapters. Operation-owned DOF context is deferred.",
+      "verification": {
+        "browser": "Pending user verification; no browser suite run.",
+        "automated": "Model coverage for inheritance/override/ignore, geometry preservation, missing identities, serialization and preset remapping; local checks required before publication."
+      },
+      "status": "Implemented for review; not production deployed.",
+      "reference": "docs/OMNIC_COMPOSER.md",
+      "sources": [
+        "src/omnic/relationalReferences.ts",
+        "src/omnic/ReferenceControls.tsx"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "omnic.mathematical-count-dial"
+      ]
     }
   ]
 }

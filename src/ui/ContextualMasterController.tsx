@@ -36,6 +36,8 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     const node = root.current; if (!node || !position) return;
     const fit = () => {
       const bounds = node.getBoundingClientRect();
+      const origin=radial?node.querySelector<HTMLElement>('[data-popup-origin]')?.getBoundingClientRect():undefined;
+      if(origin){node.style.left=`${anchor!.x-(origin.left+origin.width/2-bounds.left)}px`;node.style.top=`${anchor!.y-(origin.top+origin.height/2-bounds.top)}px`;return;}
       node.style.left = `${radial?anchor!.x-bounds.width/2:anchor!.x}px`;
       node.style.top = `${radial?anchor!.y-bounds.height/2:anchor!.y}px`;
     };

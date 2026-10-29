@@ -10,3 +10,5 @@
 .atomnic-axis-picker [role=button]{cursor:pointer}
 .atomnic-axis-picker [role=button]:is(:hover,:focus){filter:brightness(1.8);outline:1px solid currentColor}
 .omnic-composer .atomnic-tool-toggle{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:50%}
+
+.omnic-reference-context{display:grid;gap:2px;font-size:11px;margin-top:4px}.omnic-reference-context label{display:flex;gap:3px;align-items:center}.omnic-reference-context select{width:auto;max-width:140px;min-width:0;padding:1px;font-size:11px}.omnic-reference-context small{opacity:.7}

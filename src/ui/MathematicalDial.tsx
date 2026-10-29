@@ -91,7 +91,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  };
  useCancelValueEdit(textInput,closeExact,!!exact);
  const openExact=()=>{restore();textFinished.current=false;setExact({point:cursorPosition(),text:String(session.restore())});};
- return <div data-ui-popup-interior className="mathematical-dial" style={{width:extent,height:extent}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={restore}
+ return <div data-ui-popup-interior className="mathematical-dial" style={{width:extent}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={restore}
   onPointerDownCapture={event=>{
    suppressClick.current=false;
    if(disabled||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-math-slot]'))return;
@@ -112,7 +112,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   }}
   onPointerCancel={cancel} onLostPointerCapture={()=>{if(drag.current)cancel();}}
   onClickCapture={event=>{if(suppressClick.current&&event.detail>0){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}>
-  <div ref={ringRef} className="mathematical-dial-ring" style={{width:extent,height:extent}} onContextMenu={event=>{
+  <div ref={ringRef} data-popup-origin className="mathematical-dial-ring" style={{width:extent,height:extent}} onContextMenu={event=>{
    event.preventDefault();event.stopPropagation();if(disabled||drag.current)return;
    const next=brush==='normal'?'recursion':'normal';setBrush(next);if(hover.current)preview(hover.current.key,next);
   }}>

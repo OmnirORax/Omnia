@@ -1,3 +1,4 @@
+import {ReferenceControls} from './ReferenceControls';
 import { RangeControl } from '../ui/RangeControl';
 import type { Recipe } from './model';
 import type { EditableDegree } from '../properties/editableDegrees';
@@ -31,5 +32,5 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 /** One metadata-selected value editor for preset and selected-target requests. */
 export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit}:{recipe:Recipe;degree:EditableDegree;configure?:boolean;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void}){
  const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree);
- return <PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>;
+ return <><PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/><ReferenceControls degree={degree}/></>;
 }

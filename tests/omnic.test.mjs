@@ -554,3 +554,20 @@ test('raw numeral preview cancellation follows owner changes and chronological u
  assert.equal(history.travel('redo'),1);assert.equal(session.restore(),-6);
  assert.equal(session.receive(2),true,'external setter invalidates scratch state even after Redo');assert.equal(session.restore(),2);stop();
 });
+
+test('reference contexts share identity across DOFs without changing realized geometry',async()=>{
+ const {setReferenceContext,resolvedReference}=await import('../src/omnic/relationalReferences.ts');
+ const source=validateRecipe({...recipe([dot('a'),{id:'b',generator:'ring',params:{radius:30}}]),atomnic:{mode:'free'}});
+ const bound=validateRecipe(setReferenceContext(source,['a'],{kind:'object',object:'b',feature:'center'}));
+ for(const property of ['omnic.coordinate.x','omnic.extent'])assert.equal(resolvedReference(bound,'a',property).id,'b');
+ assert.deepEqual(evaluateRecipe(bound),evaluateRecipe(source));
+ const ignored=setReferenceContext(bound,['a'],null,'omnic.extent');assert.equal(resolvedReference(ignored,'a','omnic.extent').status,'ignored');assert.equal(resolvedReference(ignored,'a','omnic.coordinate.x').id,'b');
+ const override=setReferenceContext(ignored,['a'],{kind:'self'},'omnic.extent');assert.equal(resolvedReference(override,'a','omnic.extent').id,'a');
+ assert.equal(resolvedReference(setReferenceContext(override,['a'],undefined,'omnic.extent'),'a','omnic.extent').id,'b');
+ const missing=deleteComponents(bound,new Set(['b']));assert.equal(resolvedReference(missing,'a','omnic.extent').status,'unresolved');assert.equal(missing.components[0].params.size,5);
+ const detached=setReferenceContext(bound,['a'],undefined);assert.deepEqual(evaluateRecipe(detached),evaluateRecipe(bound));
+ const restored=validateRecipe(JSON.parse(JSON.stringify(bound)));assert.equal(resolvedReference(restored,'a').id,'b');
+ let n=0;const inserted=insertConstruction(source,bound,{x:0,y:0},()=>`new-${++n}`);assert.equal(resolvedReference(inserted.recipe,inserted.roots[0]).id,inserted.roots[1]);
+ assert.throws(()=>setReferenceContext(source,['a'],{kind:'object',object:'missing'}),/no longer exists/);
+ assert.throws(()=>validateRecipe({...source,components:[{...source.components[0],relations:{reference:{kind:'object'}}}]}),/identity/);
+});

@@ -51,6 +51,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [MC commands inherit the active geometry target](#interface-targets) | Implemented for review in the open PR; not merged to production | Click geometry in the Omnic radar or its edited world image, then MC → Active context; retained shortcuts Delete, F, M, W and D use the same commands. |
 | [Child controls open at the invoking cursor point](#interface-child-placement) | Implemented for review in the open PR; not merged to production | Shared contextual MC, DOF/property stages, numeric/halving editors, context submenus and frame/global search. |
 | [⠒❉ shared raw-number dial (Composer)](#omnic-mathematical-count-dial) | Implemented on PR preview; not production deployed. | Composer → right-click a target → hover its existing category → click any numeric DOF. Presets → choose a construction → choose a numeric DOF. Progressive numeric fields use a compact ⠒❉ value button. Search: ⠒❉ or mathematical dial. |
+| [Shared object and DOF reference contexts](#omnic-reference-context) | Implemented for review; not production deployed. | Composer → target or preset numeric DOF → ⨮ Reference. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1018,6 +1019,29 @@ The shared popup anchor captures the invocation position. A radial centres on it
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/ui/MathematicalDial.tsx](../src/ui/MathematicalDial.tsx), [src/ui/MathematicalValueControl.tsx](../src/ui/MathematicalValueControl.tsx), [src/ui/NumericEditorScope.tsx](../src/ui/NumericEditorScope.tsx), [src/properties/mathematicalDial.ts](../src/properties/mathematicalDial.ts), [src/appearance/Controls.tsx](../src/appearance/Controls.tsx), [src/omnic/DegreeSetter.tsx](../src/omnic/DegreeSetter.tsx), [src/omnic/registry.ts](../src/omnic/registry.ts).
 
 **Related:** [Target-derived radial DOF adjusters in the Omnic radar](#omnic-atomnic), [Horizontal spectrum slider](#controls-spectrum).
+
+<a id="omnic-reference-context"></a>
+## Shared object and DOF reference contexts
+
+**ID:** `omnic.reference-context` · **Status:** Implemented for review; not production deployed.
+
+**Where:** Composer → target or preset numeric DOF → ⨮ Reference.
+
+Choose one reference context for the selected authored components. Each DOF can inherit, ignore or override it. References address self, parent, another authored component or the composition frame, optionally identifying center, dimensions, boundary or an axis. Context edits use recipe history and persistence. Choosing/removing a context preserves realized geometry. Missing references remain explicitly unresolved. Preset insertion remaps internal component references.
+
+**Minimal working test**
+
+1. Create two components. Open a DOF on the first and expand ⨮ Reference. Choose the second as Object reference context. **Expected:** Geometry stays unchanged; other DOFs inherit the same reference.
+2. Open another DOF and choose Ignore reference, then Self, then Use object reference. **Expected:** Only that DOF changes reference policy; it returns to the shared reference when inheritance is restored.
+3. Save/reopen or Undo/Redo the context change. Remove the referenced component. **Expected:** Stored context and history survive; deletion reports Reference unavailable and preserves the target geometry.
+
+**Limits / unavailable behavior:** Step 2 reference identities/context only. No equation, automatic discovery, snapping or persistent geometry constraint yet. Other authored components within this recipe are supported; external canonical entities and groups/selections as aggregate references are deferred. Feature selectors record descriptors for later geometric adapters. Operation-owned DOF context is deferred.
+
+**Verification:** browser — Pending user verification; no browser suite run.. Automated — Model coverage for inheritance/override/ignore, geometry preservation, missing identities, serialization and preset remapping; local checks required before publication..
+
+**Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/relationalReferences.ts](../src/omnic/relationalReferences.ts), [src/omnic/ReferenceControls.tsx](../src/omnic/ReferenceControls.tsx).
+
+**Related:** [⠒❉ shared raw-number dial (Composer)](#omnic-mathematical-count-dial).
 
 ## Exact registered command inventory
 
