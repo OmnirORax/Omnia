@@ -56,12 +56,11 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
         return <span className="radial-menu-slot" key={`end:${index}`} style={{left:`${slot.x}%`,top:`${slot.y}%`,width:slot.size,height:slot.size}}>{content}</span>;
       })}
       {!quickItems&&inset&&<div className="radial-menu-insets">{inset}</div>}
-      {!children&&<div className="radial-menu-centre"><button type="button" aria-label="Close tools" title="Close tools · Esc steps outward" onClick={onClose}
-        onContextMenu={event=>{event.preventDefault();event.stopPropagation();if(!back())onClose();}}>×</button></div>}
+      {!children&&<span className="radial-menu-centre radial-menu-origin" aria-hidden="true"/>}
     </div>
     {branches.map(({anchor,node},index)=>{
       const depth=index+1,{extent,radius}=radialDimensions(depth,node.children!.length,node.children!.some(node=>node.setter)?12:0);
-      return <ContextualMasterController key={`${index}:${node.id}`} radial title={node.label} position={anchor} onClose={()=>setPath(path.slice(0,index))}>
+      return <ContextualMasterController key={`${index}:${node.id}`} radial title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
         <div className="radial-menu radial-menu-branch" role="group" aria-label={node.label} data-context-menu-owner style={{width:`min(${extent}px,calc(100vw - 16px),calc(100vh - 16px))`}}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius}/></svg>

@@ -45,3 +45,5 @@
 .radial-menu-setter .range-spectrum .range-end{width:3px;height:10px;overflow:hidden}
 .radial-menu-setter .range-spectrum .range-end svg{width:3px;height:10px}
 .radial-menu-setter>button{width:100%;height:8px;padding:0;min-width:0;min-height:0;border:1px solid currentColor;border-radius:2px;opacity:.8;color:inherit;background:currentColor}
+
+.radial-menu-origin{width:24px;height:24px;box-sizing:border-box;border:1px solid currentColor;border-radius:50%;opacity:.5}

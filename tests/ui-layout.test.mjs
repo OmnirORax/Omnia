@@ -1,3 +1,4 @@
+import { dismissContextDials } from "../src/ui/activeContextModel.ts";
 import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCursorModel.ts";
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
@@ -15,6 +16,15 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test('empty-space dismissal closes nested dials without closing unrelated context layers',()=>{
+  const calls=[],layers=new Map();
+  layers.set('other',{close:()=>calls.push('unrelated')});
+  layers.set('parent',{close:()=>{},dismiss:()=>calls.push('parent')});
+  layers.set('child',{close:()=>{},dismiss:()=>{calls.push('child');layers.delete('parent');}});
+  assert.equal(dismissContextDials(layers.values()),true);
+  assert.deepEqual(calls,['child','parent'],'all opened dial callbacks survive descendant cleanup');
+  assert.equal(dismissContextDials([{close:()=>calls.push('unrelated')}]),false);
+});
 test('circular frame projection adapts old rectangles and preserves intentional resizes',()=>{
   const initial={width:360,height:360},legacy={width:600,height:650};
   assert.equal(circularFrameExtent(legacy,legacy,initial),360);

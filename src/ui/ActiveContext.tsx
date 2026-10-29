@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
-import { activeFrame, parentContext, contextStackFromScopes, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
+import { activeFrame, parentContext, contextStackFromScopes, dismissContextDials, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
-import { uiPointerHeld } from "./pointerOwnership";
+import { claimUIPress, uiPointerHeld } from "./pointerOwnership";
 
 const fieldSelector = 'input:not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]';
 const controllerSelector = '[data-context-controller],[data-ui-function^="context."],[data-shortcut-runner],omnium-appearance-recovery';
@@ -57,13 +57,13 @@ export function useCancelValueEdit<T extends HTMLElement>(ref: RefObject<T | nul
   }, [ref, identity]);
 }
 /** Shared popup adapters add a real intermediate level, including portalled ones. */
-export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string) {
-  const ui = useOptionalUITracked(()=>[]), current = useRef(close); current.current = close;
+export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string, dismiss?:()=>void) {
+  const ui = useOptionalUITracked(()=>[]), current = useRef(close), dismissal=useRef(dismiss); current.current = close;dismissal.current=dismiss;
   useLayoutEffect(() => {
     const node = ref.current;
     if (!ui || !open || !node) return;
     const saved = ui.activeContext.getSnapshot(), owner = parent ?? activeFrame(saved)?.key;
-    ui.contextLayers.set(node, { parent: owner, close: () => current.current() });
+    ui.contextLayers.set(node, { parent: owner, close: () => current.current(),dismiss:dismiss?()=>dismissal.current?.():undefined });
     const focused = document.activeElement;
     // Nested portalled controllers retain their existing context ancestors.
     // Rebuilding only the frame chain drops the parent popup from Esc/Back.
@@ -77,7 +77,7 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
       const stack = ui.activeContext.getSnapshot(), index = stack.findIndex(entry => entry.kind === "layer" && entry.element === node);
       if (index >= 0) publish(ui, stack.slice(0, index));
     };
-  }, [open, ui?.activeContext, parent, ref]);
+  }, [open, ui?.activeContext, parent, ref, !!dismiss]);
 }
 
 export function ActiveContextSystem() {
@@ -130,6 +130,10 @@ export function ActiveContextSystem() {
   useEffect(() => {
     const activate = (event: Event) => {
       let element = event.target instanceof Element ? event.target : null;
+      if(event instanceof PointerEvent&&event.button===0&&latest.current.contextLayers.size>0&&element&&!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-omnic-role]')&&dismissContextDials(latest.current.contextLayers.values())) {
+        claimUIPress(event.pointerId,event.pointerType,event.buttons);
+        event.preventDefault();event.stopImmediatePropagation();return;
+      }
       while (element && !(element instanceof HTMLElement)) element = element.parentElement;
       if (!(element instanceof HTMLElement) || element.closest(controllerSelector)) return;
       publish(latest.current, stackAt(latest.current, element));

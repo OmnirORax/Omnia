@@ -5,14 +5,14 @@ import { uiPointerHeld } from "./pointerOwnership";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
-export function ContextualMasterController({ title, hint, position, onClose, onWheel, children, radial = false }: {
+export function ContextualMasterController({ title, hint, position, onClose, onDismiss, onWheel, children, radial = false }: {
   title: string; hint?: string; position: { x: number; y: number } | null;
-  onClose: () => void; onWheel?: (event: WheelEvent) => void; children: ReactNode; radial?: boolean;
+  onClose: () => void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode; radial?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const openingPress = useRef(false);
   useLayoutEffect(() => { openingPress.current = !!position && uiPointerHeld(); }, [!!position]);
-  useActiveLayer(!!position, root, onClose);
+  useActiveLayer(!!position, root, onClose,undefined,onDismiss??(radial?onClose:undefined));
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
     node.setAttribute("popover", "manual"); node.showPopover();

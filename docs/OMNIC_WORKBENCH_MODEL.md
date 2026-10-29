@@ -5,7 +5,11 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
-## Latest correction: compact dials and no procedural controls
+## Latest correction: empty click dismisses dials; remove close icons
+
+2026-10-29: left-click empty space to close every open dial, including nested categories and requested dial editors. Consume that dismissal press so it does not draw or start a world gesture. Remove all ×/close buttons from dials; keep the middle circle as an origin marker. Esc/category Back still navigate progressively. Unconfirmed preset previews revert on empty-space dismissal. Use the existing shared ActiveContext pointerdown path; no pointer polling or new per-dial listeners.
+
+## Earlier correction: compact dials and no procedural controls
 
 2026-10-29: icons on every contextual dial belong close around the middle circle; remove oversized fixed radii at the shared layout boundary. Preserve separation and the above-button value strips. Remove Procedural X/Y from all Composer-generated editors and DOF menus, including presets. These inputs remain internal adapters for direct dragging and saved-recipe compatibility; custom pivot controls are separate from procedural position controls.
 
