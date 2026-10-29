@@ -306,3 +306,11 @@ Long-term: active DOF → reference/domain → configurable mathematical generat
 → selectable valid states → actual preview → explicit commit, shared across
 appropriate DOFs and input paths. Persistent derivations, rules/equations and
 richer geometric domains remain later iterations, not hidden assumptions here.
+
+
+E03 first user feedback: R was intercepted by a saved node-button shortcut, and
+clicking a preview did not reliably apply it. The follow-up makes arbitrary saved
+keyboard residents yield to available scoped features through shared arbitration;
+it also captures a wheel preview before native focus/blur can clear hover. Added
+model regressions exercise both failure paths. Both require user retest; neither
+is recorded as browser-accepted from local checks.

@@ -676,3 +676,21 @@ test('explicit cyclic references use compatible declared orientation and keep so
  const transformed=validateRecipe({...source,operations:[op('turn','rotate',['b'],{angle:20})]});
  assert.equal(selectionReference(transformed,degree,'b'),undefined,'unsupported evaluated orientation is not guessed from raw input');
 });
+
+
+test('state click applies its captured preview even when native focus cancels hover first',async()=>{
+ const {createStateActivation,selectionValue}=await import('../src/properties/stateSelection.ts');
+ const press=createStateActivation();
+ let hover=.5;press.press(hover);
+ hover=undefined; // native pointerdown moves focus; previous button blur restores sample
+ const chosen=press.take(hover);
+ assert.equal(chosen,.5);
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:0}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection),parameter=targetParameter(degree);
+ const value=selectionValue(chosen,parameter.selection.north,parameter.selection,parameter.min,parameter.max);
+ const committed=writeTargetDegree(source,degree,value);
+ assert.equal(targetDegreeValue(committed,degree),90,'click commits south through the real property owner');
+ assert.equal(press.take(),undefined,'the same click cannot commit twice');
+ press.press(.25);assert.equal(press.take(.75),.75,'a still-current preview takes precedence');
+ press.press(.5);press.cancel();assert.equal(press.take(),undefined,'leaving or cancellation discards the press');
+});

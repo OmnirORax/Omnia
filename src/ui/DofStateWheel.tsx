@@ -1,5 +1,5 @@
 import {useEffect,useContext,useId,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {selectionTurns,selectionValue,selectionExpression,selectionLayout,nearestSelectionTurn,maximumSelectionStates,type CyclicSelection,type StateSelectionMode} from '../properties/stateSelection';
+import {selectionTurns,selectionValue,selectionExpression,selectionLayout,nearestSelectionTurn,createStateActivation,maximumSelectionStates,type CyclicSelection,type StateSelectionMode} from '../properties/stateSelection';
 import {mathematicalValueSession} from '../properties/mathematicalDial';
 import {useWorkingSelection} from './RangeControl';
 import {useNumericEditor,useNumericOperation,NumericToolZone} from './NumericEditorScope';
@@ -18,6 +18,7 @@ type Settings={kind:'modes'|'parameters'|'count'|'step'|'reference';point:{x:num
  * selected outcome. Domain metadata supplies units/origin; setters own edits. */
 export function DofStateWheel({property,label,symbol='🗘',domain,value,min,max,configure=false,onPreview,onCommit}:{property:string;label:string;symbol?:string;domain:CyclicSelection;value:number;min:number;max:number;configure?:boolean;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
  const localZone=useId(),contentZone=useContext(NumericToolZone),zone=contentZone??localZone;
+ const activation=useRef(createStateActivation());
  const wheelBounds=useRef<DOMRect|null>(null),hoverTurn=useRef<number|undefined>(undefined);
  const root=useRef<HTMLDivElement>(null),scope=useNumericEditor(),operation=useNumericOperation();
  const working=useWorkingSelection(property,domain.period),mode=modes[working.mode];
@@ -28,9 +29,9 @@ export function DofStateWheel({property,label,symbol='🗘',domain,value,min,max
  const pickCancel=useRef(operation?.selection?.cancel);pickCancel.current=operation?.selection?.cancel;
  const alive=useRef(true),callbacks=useRef({onPreview,cancel:scope.cancelPreview});callbacks.current={onPreview,cancel:scope.cancelPreview};
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;if(pickingRef.current)pickCancel.current?.();if(session.sampling){const before=session.restore();if(callbacks.current.cancel)callbacks.current.cancel();else callbacks.current.onPreview(before);}};},[session]);
- useLayoutEffect(()=>{if(session.receive(value))setSample(null);},[value,session]);
+ useLayoutEffect(()=>{if(session.receive(value)){activation.current.cancel();setSample(null);}},[value,session]);
  const restore=()=>{hoverTurn.current=undefined;setSample(null);if(session.sampling){const before=session.restore();if(scope.cancelPreview)scope.cancelPreview();else onPreview(before);}};
- const show=(kind:Settings['kind'])=>{restore();setSettings({kind,point:cursorPosition()});};
+ const show=(kind:Settings['kind'])=>{activation.current.cancel();restore();setSettings({kind,point:cursorPosition()});};
  const parked=useCursorParking(zone),reference=operation?.selection?.current;
  const expression=selectionExpression(working.count);
  const countLabel=expression.base?<>{expression.base}<sup>{expression.power}</sup></>:<>{expression.count}</>;
@@ -50,9 +51,11 @@ export function DofStateWheel({property,label,symbol='🗘',domain,value,min,max
  const pickReference=async()=>{restore();setSettings(null);if(!operation?.selection)return;setPicking(true);await operation.selection.pick();if(alive.current)setPicking(false);};
  return <div ref={root} className="dof-state-editor" data-ui-popup-interior onMouseLeave={restore}>
   <div className="dof-state-wheel" role="group" aria-label={`${label} states`}
+   onPointerDownCapture={event=>{if(event.button===0&&!settings&&!picking&&!parked)activation.current.press(hoverTurn.current);}}
+   onPointerCancel={()=>activation.current.cancel()}
    onPointerEnter={event=>{wheelBounds.current=event.currentTarget.getBoundingClientRect();}}
    onPointerMove={event=>{if(settings||picking||parked)return;const box=wheelBounds.current;if(!box)return;const dx=event.clientX-box.left-box.width/2,dy=event.clientY-box.top-box.height/2,r=Math.hypot(dx,dy);if(r<box.width/10||r>box.width/2){restore();return;}const turn=nearestSelectionTurn(turns,Math.atan2(dx,-dy)/(2*Math.PI)-referenceTurn);if(turn!==undefined)preview(turn);}}
-   onPointerLeave={restore} onClick={event=>{if(event.target instanceof Element&&event.target.closest('button,[data-dial-drag]'))return;if(hoverTurn.current!==undefined)apply(hoverTurn.current);}}>
+   onPointerLeave={()=>{activation.current.cancel();restore();}} onClick={event=>{if(event.target instanceof Element&&event.target.closest('button,[data-dial-drag]')){activation.current.cancel();return;}const turn=activation.current.take(hoverTurn.current);if(turn!==undefined)apply(turn);}}>
    <svg viewBox="0 0 180 180" aria-hidden="true"><circle cx="90" cy="90" r="72"/>{turns.map(turn=>{const angle=(turn+referenceTurn)*Math.PI*2;return <line key={turn} x1="90" y1="90" x2={90+Math.sin(angle)*72} y2={90-Math.cos(angle)*72}/>;})}</svg>
    {turns.map((turn,i)=>{const a=(turn+referenceTurn)*Math.PI*2,n=selectionValue(turn,origin,domain,min,max);return <button key={turn} type="button" disabled={n===undefined||picking} className="dof-state-slot" style={{left:`${50+Math.sin(a)*40}%`,top:`${50-Math.cos(a)*40}%`,width:slots[i].diameter,height:slots[i].diameter}} aria-label={`${label} ${n} degrees`} title={`${i} · ${n}°`} data-preview={sample===n} onMouseEnter={()=>preview(turn)} onMouseLeave={restore} onFocus={()=>preview(turn)} onBlur={restore} onClick={()=>apply(turn)}/>;})}
    <output className="dof-state-readout" data-dial-drag role="button" tabIndex={0} title="Drag dial">{symbol} {Math.round((sample??value)*1e5)/1e5}°</output>

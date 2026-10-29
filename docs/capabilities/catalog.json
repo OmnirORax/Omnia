@@ -2004,6 +2004,14 @@
           "expect": "The wheel opens immediately with ✣ Symmetry · 2³. Hover previews; leaving restores the last committed angle. Left-click commits. Undo restores the previous angle."
         },
         {
+          "do": "With a saved node-button shortcut also bound to R, select a compatible Composer target and press R. Then close Composer and use the node shortcut in its own context.",
+          "expect": "The available scoped Rotation action wins inside Composer without a missing-node notice. The saved node binding remains intact and resumes when no scoped R action applies."
+        },
+        {
+          "do": "Click one rotation marker, then hover another angle between markers and left-click the wheel surface. Move away, dismiss and reopen the wheel; Undo once.",
+          "expect": "The clicked preview remains committed despite the previous marker losing focus before click. Reopening retains the angle and Undo restores the preceding committed angle."
+        },
+        {
           "do": "Click 2³ and edit the state count using the math dial. Dismiss its configuration, right-click Symmetry and choose Halving.",
           "expect": "The generated alternatives update without editing geometry until a state is chosen. Halving offers successively halved fractions from north. Settings remain open after a parameter commit until dismissed."
         },
@@ -2019,7 +2027,7 @@
       "limits": "Composer-only experiment: registered cyclic Rotation inputs; other numeric DOFs retain their existing editors. Single-target reference picking supports compatible authored orientations; active rotate/oscillation operators are rejected until an evaluated reference adapter exists. No automatic invitations, Space acceptance, ranking, persistent constraints or arbitrary equation authoring. R edits selected orientation values; legacy pivot-orbit rotation remains on the separate Step action. At most 64 alternatives, with a smaller renderable halving limit.",
       "status": "Implemented experiment for review; not production deployed.",
       "verification": {
-        "browser": "Awaiting user testing; no browser suite run.",
+        "browser": "R routing and wheel-surface click commitment fixes await user retest; no browser suite run.",
         "automated": "Generated-state and reference applicability model regression; full local checks recorded at delivery."
       },
       "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",
@@ -2028,7 +2036,9 @@
         "src/properties/stateSelection.ts",
         "src/omnic/selectionReference.ts",
         "src/omnic/OperationScope.tsx",
-        "src/ui/toolCursor.tsx"
+        "src/ui/toolCursor.tsx",
+        "src/workspaceActions.ts",
+        "src/ui/UIWorkspace.tsx"
       ],
       "actions": [],
       "gestures": [

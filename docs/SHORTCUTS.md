@@ -241,3 +241,12 @@ availability, typing, capture and blocked dialogs.
 ## Contextual hierarchy navigation
 
 MC owns context.previous (Alt+MB4), context.next (Alt+MB5), and context.confirm (Enter). Escape retains context.back. Plain side buttons retain configured mouse history. Active layers declare advance/confirm adapters; nested editors register their current callbacks with useContextNavigation rather than rendering Back/Confirm controls. The innermost stage receives navigation, native field Enter stays local, and registered active gestures cancel before stepping outward. Omnic adopts this for preset, DOF, sequential and halving editors; dial centres drag only.
+
+
+Saved arbitrary `button:` residents participate in scoped arbitration before their
+DOM/fallback runner consumes input. `residentShortcutAction` reuses
+`preferredFeatureKey`: an available selector/content/context feature yields the
+resident runner and is dispatched by its existing feature owner. With no applicable
+scoped feature, the saved resident retains its binding and normal availability
+notice. This prevents an unavailable node resident from stealing Composer R, without
+rewriting saved assignments, overriding explicit clears, or adding private keys.

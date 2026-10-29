@@ -37,3 +37,14 @@ export function nearestSelectionTurn(turns:readonly number[],turn:number){
  for(const candidate of turns){const delta=Math.abs(((turn-candidate+.5)%1+1)%1-.5);if(delta<distance){distance=delta;found=candidate;}}
  return found;
 }
+
+/** Pointerdown precedes native focus/blur. Preserve the visible alternative
+ * across that focus change until click consumes it or the gesture is cancelled. */
+export function createStateActivation(){
+ let pressed:number|undefined;
+ return {
+  press(turn:number|undefined){pressed=turn;},
+  take(current?:number){const turn=current??pressed;pressed=undefined;return turn;},
+  cancel(){pressed=undefined;},
+ };
+}

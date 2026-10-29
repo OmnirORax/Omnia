@@ -621,3 +621,10 @@ first press never exposes a dial beneath that same press. It emits once, without
 release-suppression timers. Left-click drawing, selection and dragging retain their
 existing press/move/release handling. Do not restore press-time right-click menu
 activation or the failed pending-context tracker in pointerOwnership.
+
+
+Generated-state surfaces capture their preview alternative on primary pointerdown
+before native focus/blur can cancel hover. Click consumes the current or captured
+alternative once; pointer exit/cancel discards it. This preserves wheel-surface
+commitment after a previously focused marker blurs, without preventing normal
+focus behavior or persisting hover previews.

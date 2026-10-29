@@ -513,3 +513,15 @@ test('secondary menus activate once on release in either native contextmenu orde
  assert.equal(click.context(),undefined);
  assert.equal(click.release('latest'),'latest','new press replaces abandoned state');
 });
+
+
+test('saved button shortcuts yield to active scoped commands before reporting a missing resident',async()=>{
+ const {residentShortcutAction}=await import('../src/workspaceActions.ts');
+ const saved=normalizeSettings({bindings:{'button:context:node:edit':'R'}}).bindings;
+ assert.equal(saved['atomnic.rotate'],'R','different scopes retain their bindings');
+ assert.equal(residentShortcutAction(saved,'R',id=>id==='atomnic.rotate'),'atomnic.rotate');
+ assert.equal(residentShortcutAction(saved,'R',()=>false),'button:context:node:edit','saved node binding remains usable outside the content operation');
+ assert.equal(residentShortcutAction({...saved,'atomnic.rotate':''},'R',()=>true),'button:context:node:edit','explicit clears are respected');
+ assert.equal(residentShortcutAction({...saved,'atomnic.rotate':'T'},'T',id=>id==='atomnic.rotate'),'atomnic.rotate','rebound commands use the same arbitration');
+ assert.equal(residentShortcutAction(saved,'',()=>true),null);
+});
