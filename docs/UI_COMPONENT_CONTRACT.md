@@ -557,3 +557,23 @@ Visual families may declare roleLayout:"within" to retain a single category with
 Controls with geometry-owned paint declare data-ui-paint-owner, preserving their button identity while excluding generic button surface/contour and theme hover/pressed fills. Their registered renderer parts own appearance, so a rim-only hover cannot acquire a theme background disk.
 
 Contextual editors declare shared advance/confirm adapters; useContextNavigation lets their innermost stage override Back/advance/confirm and advertise cancellation during a gesture. MC routes catalog Alt+MB4/5 and Enter to that scope, preserving native text-field confirmation and MS priority. Intermediate stage changes retain the existing active layer instead of prematurely focusing the parent frame. Root popup lifecycle cleanup removes closed layers. Composer-local navigation buttons are retired; generic progressive/halving controls hide those buttons when this shared context is present.
+
+
+### Composer-scoped mathematical numbers
+
+`NumericEditorScope` opts the Omnic Composer into the shared ⠒❉ raw-number editor.
+`PropertyEditor` resolves this projection once for all numeric consumers. A small
+`MathematicalValueControl` button opens a requested popup; an already requested
+DOF stage uses the same control inline. Default property editors outside Composer
+keep their current presentation. Never repeat the editor selection per preset or
+create new per-DOF number stores. Consumer metadata supplies ranges and integer
+constraints; values, preview and history remain with existing setters/owners.
+
+The dial remains half-size, with its meta controls positioned beyond the measured
+ring rather than enlarging its anchor box. ± supports signed values where legal;
+slot notation is still integral. Exact native value entry remains available from
+the readout, preserving fractional property editing without adding decimal-dial
+semantics. Empty editor opening/base choices do not reset a value. Scratch marks
+can be cleared without editing the property. Incoming owner changes invalidate
+stale marks/previews; closing clears the Composer's transient sample. Decimal
+notation, equations, persistent rule encoding and a wider rollout remain deferred.

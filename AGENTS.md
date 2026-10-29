@@ -386,3 +386,13 @@ Before every implementation delivery push/preview, run the existing model/archit
 Install the checked-in source pre-push gate with `node --run hooks:install` on each checkout. Never bypass it with --no-verify or a temporary hooksPath. It blocks source pushes until model tests, preview build and backend type checks pass on a clean HEAD. GitHack artifact-only refs skip repeated source checks. Local failures never reach GitHub or send workflow emails. User-confirmed handoff: once local checks pass, push and hand over the preview without waiting for CI. Report CI as pending when applicable. Remote infrastructure/deployment failures cannot be ruled out by local checks.
 
 Shared popup navigation is owned by MC: Alt+MB4 previous level, Alt+MB5 next applicable stage, Enter confirmation, Esc cancellation/outward stepping. Editors register useContextNavigation callbacks on their own DOM scope so nearest nested stage wins. Preserve MS/native field/held-gesture priority. Do not reintroduce Back/Confirm/checkmark buttons on Omnic dials; centres drag only. Plain side-button history remains unchanged.
+
+
+⠒❉ is the shared raw-number system/control, with Count as its first test consumer.
+Current rollout is restricted to Omnic Composer through NumericEditorScope and
+PropertyEditor; keep it compact and requested, and retain outside editors. All
+numeric Composer DOFs inherit the same dial and existing owner setters. Signed
+whole-number notation is enabled; decimal notation, reference equations/rules and
+action/candidate ranking are deferred. Preserve existing exact fractional entry.
+Do not restore count-only picker flags or implement private math per preset/DOF.
+See OMNIC_COMPOSER.md and UI_COMPONENT_CONTRACT.md for the current scope.

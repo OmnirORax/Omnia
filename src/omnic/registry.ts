@@ -3,7 +3,7 @@ import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = { unit?:string; picker?:"mathematical"; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
+export type Parameter = { unit?:string; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
@@ -11,7 +11,7 @@ export type OperatorContext = {
 };
 export type Definition = { id: string; label: string; symbol?: string; parameters: readonly Parameter[]; description?: string; input?: readonly string[]; output?: "structure"|"selection"|"property"; category?: string; preconditions?: readonly string[]; apply?: (context:OperatorContext) => void };
 const number = (key: string, property: string, label: string, initial: number, min: number, max: number, step = .1, thresholds?:number[]): Parameter => ({key,property,label,kind:"number",initial,min,max,step,thresholds});
-const count:Parameter = {...number("count","omnic.count","Count",6,1,64,1,[1,2,3,4,6,8,12,16,32,64]),freedom:{label:"Count",symbol:"●●",group:[UNIT_FREEDOM_GROUP]}};
+const count:Parameter = {...number("count","omnic.count","Count",6,1,64,1,[1,2,3,4,6,8,12,16,32,64]),integer:true,freedom:{label:"Count",symbol:"●●",group:[UNIT_FREEDOM_GROUP]}};
 const radius:Parameter = {...number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]),unit:'length',freedom:{label:"Radius",symbol:"⊖",group:[RELATION_FREEDOM_GROUP]}};
 const size:Parameter = {...number("size","omnic.extent","Unit size",6,.5,100,.5,[1,2,4,8,16,32,64]),unit:'length',freedom:{label:'Size',symbol:'●⬤',group:[UNIT_FREEDOM_GROUP]}};
 const fill: Parameter = {key:"fill",property:"omnic.fill",label:"Fill",kind:"toggle",initial:true,freedom:{label:"Fill",symbol:"◐",group:[UNIT_FREEDOM_GROUP]}};
@@ -23,7 +23,7 @@ const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,
 const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),freedom:{label:"Position Y",symbol:"⊕Y",group:[POSITION_FREEDOM_GROUP]}};
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
-  {id:"count-grid",label:"Count grid",symbol:"⬤",parameters:[{...count,initial:0,min:0,max:512,picker:"mathematical"},size,...paint,x,y]},
+  {id:"count-grid",label:"Count grid",symbol:"⬤",parameters:[{...count,initial:0,min:0,max:512},size,...paint,x,y]},
   {id:"dot",label:"Dot / disk",symbol:"●",parameters:[size,angle,...paint,x,y]},
   {id:"ring",label:"Ring / boundary",symbol:"○",parameters:[radius,{...fill,initial:false},thickness,color,opacity,x,y]},
   {id:"rings",label:"Nested rings",symbol:"◎",parameters:[count,{...radius,label:"Innermost radius",initial:20},
@@ -43,7 +43,7 @@ const select = (key:string, property:string, label:string, initial:string, optio
 const operatorDefinitions: Definition[] = [
   {id:"highlight",label:"Highlight units / region",parameters:[
     select("which","omnic.unitSelection","Units","index",[{id:"index",label:"One unit"},{id:"all",label:"All scoped units"}]),
-    {...number("index","omnic.unitIndex","Unit (1-based)",1,1,1024,1),when:p=>p.which==="index"},
+    {...number("index","omnic.unitIndex","Unit (1-based)",1,1,1024,1),integer:true,when:p=>p.which==="index"},
     number("fraction","omnic.regionFraction","Highlighted fraction",1,0,1,.05,[.25,.5,1]),
     {...number("start","omnic.regionAngle","Region start (°)",0,-1080,1080,1),when:p=>Number(p.fraction)>0&&Number(p.fraction)<1},
     {...color,initial:"#ffffff"},opacity],output:"structure",apply:ctx=>ctx.highlight()},
@@ -80,7 +80,7 @@ export function checkedParams(input: unknown, spec: Definition): Record<string,V
   const params:Record<string,Value> = {};
   for (const [key,value] of Object.entries(input)) {
     const p=spec.parameters.find(p=>p.key===key); if(!p) throw Error(`Unknown parameter ${spec.id}.${key}`);
-    if (p.kind==="number" && (typeof value!=="number" || !Number.isFinite(value) || value < p.min! || value > p.max! || ((["count","index"].includes(p.key) || spec.id === "atomnic" && ["order","steps","axis"].includes(p.key)) && !Number.isInteger(value)))) throw Error(`Unsupported range: ${spec.id}.${key}`);
+    if (p.kind==="number" && (typeof value!=="number" || !Number.isFinite(value) || value < p.min! || value > p.max! || (p.integer && !Number.isInteger(value)))) throw Error(`Unsupported range: ${spec.id}.${key}`);
     if (p.kind==="toggle" && typeof value!=="boolean") throw Error(`Expected boolean: ${key}`);
     if (p.kind==="color" && (typeof value!=="string" || !/^#[\da-f]{6}$/i.test(value))) throw Error(`Expected RGB color: ${key}`);
     if (p.kind==="select" && !p.options?.some(o=>o.id===value)) throw Error(`Unsupported choice: ${key}`);

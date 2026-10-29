@@ -54,3 +54,13 @@ test('an inactive Omnic parameter cannot introduce an unrelated recipe field',()
   binding.commit(preparePropertyChanges(PROPERTY_REGISTRY,'omnic.count',3,['omnic.composer']));
   assert.equal(writes,0);assert.deepEqual(params,{angle:45});
 });
+
+test('whole-number domains are declared once and shared by numeral editing and recipe adapters',()=>{
+ for(const property of ['omnic.count','omnic.unitIndex','halving.angularOrder','halving.turnSteps','halving.axisStep'])assert.equal(PROPERTY_REGISTRY.property(property).integer,true);
+ for(const property of ['omnic.coordinate.x','omnic.extent','omnic.angle','opacity'])assert.ok(!PROPERTY_REGISTRY.property(property).integer);
+ for(const spec of [...GENERATORS,...OPERATORS])for(const parameter of spec.parameters.filter(p=>p.integer)){
+  assert.equal(parameter.kind,'number');
+  const input=Math.min(parameter.max,Math.max(parameter.min,parameter.initial+0.25));
+  assert.equal(commitOmnicParameter({},parameter,input)[parameter.key],Math.round(input));
+ }
+});

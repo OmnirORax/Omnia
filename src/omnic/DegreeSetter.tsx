@@ -1,15 +1,16 @@
-import { MathematicalDial } from '../ui/MathematicalDial';
 import { RangeControl } from '../ui/RangeControl';
 import type { Recipe } from './model';
 import type { EditableDegree } from '../properties/editableDegrees';
 import { targetParameter, targetDegreeValue } from './targetDegrees';
 import { PropertyEditor } from '../appearance/Controls';
+import { useNumericEditor } from '../ui/NumericEditorScope';
 /** The compact strip is the same shared numeric editor, with its secondary
  * controls available through the DOF's existing right-click configuration. */
 export function DegreeSetter({recipe,degree,onPreview,onCommit,onOpen}: {recipe:Recipe;degree:EditableDegree;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void;onOpen:()=>void}) {
   const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree);
-  if(parameter.picker==='mathematical')return <button type="button" aria-label={`Open ${degree.label} dial`} title={`Open ${degree.label} dial`} onClick={onOpen}>●●</button>;
+  const numericEditor=useNumericEditor();
   if(degree.action)return <button type="button" aria-label={`Configure ${degree.label}`} title={`Configure ${degree.label}`} onClick={onOpen}/>;
+  if(parameter.kind==='number'&&numericEditor.mathematical)return <button type="button" aria-label={`Open ${degree.label} dial`} title={`Open ${degree.label} dial`} onClick={onOpen}>⠒❉</button>;
   if(parameter.kind==='color')return <SpectrumSetter value={String(value)} onPreview={onPreview} onCommit={onCommit}/>;
   if(parameter.kind==='number')return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} limits={{min:parameter.min!,max:parameter.max!}} onPreview={onPreview} onCommit={onCommit}/>;
   return <button type="button" aria-label={`${degree.label}: ${value}`} title={`${degree.label} · ${value}`} style={{opacity:value===false ? .3 : 1}} onClick={()=>{
@@ -30,6 +31,5 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 /** One metadata-selected value editor for preset and selected-target requests. */
 export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit}:{recipe:Recipe;degree:EditableDegree;configure?:boolean;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void}){
  const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree);
- if(parameter.picker==='mathematical'&&!configure)return <MathematicalDial value={Number(value)} min={parameter.min!} max={parameter.max!} onPreview={onPreview} onCommit={onCommit}/>;
- return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>;
+ return <PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>;
 }

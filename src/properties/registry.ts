@@ -8,6 +8,7 @@ export type PropertyDefinition = {
   id: string; label: string; kind: "color" | "number" | "select" | "toggle" | "text";
   maxLength?: number; multiline?: boolean;
   numericRange?: NumericRangeRule;
+  integer?: boolean;
   min?: number; max?: number; step?: number; initial: PropertyValue; neutral?: PropertyValue;
   options?: readonly { id: string; label: string }[];
   category?: Category; unit?: string;
@@ -35,12 +36,15 @@ export function validateValue(property: PropertyDefinition, value: unknown): Pro
   if (property.kind === "text") return typeof value === "string" && value.length <= (property.maxLength ?? 4000) ? value : undefined;
   if (property.kind === "toggle") return typeof value === "boolean" ? value : undefined;
   if (property.kind === "color") return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
-  if (property.kind === "number") return typeof value === "number" && Number.isFinite(value)
-    ? Math.max(property.min!, Math.min(property.max!, value)) : undefined;
+  if (property.kind === "number") {
+    if(typeof value!=="number"||!Number.isFinite(value))return undefined;
+    const min=property.integer?Math.ceil(property.min!):property.min!,max=property.integer?Math.floor(property.max!):property.max!;
+    return min>max?undefined:Math.max(min,Math.min(max,property.integer?Math.round(value):value));
+  }
   return property.options?.some(option => option.id === value) ? value as string : undefined;
 }
 const contract = (property: PropertyDefinition) => JSON.stringify({ numericRange: property.numericRange, kind: property.kind, unit: property.unit, maxLength: property.maxLength, multiline: property.multiline,
-  min: property.min, max: property.max, step: property.step, channelOf: property.channelOf, previewActivation: property.previewActivation,
+  min: property.min, max: property.max, step: property.step, integer: !!property.integer, channelOf: property.channelOf, previewActivation: property.previewActivation,
   options: property.options?.map(option => option.id).sort() });
 export function createPropertyRegistry() {
   const definitions: PropertyDefinition[] = [], consumers: CoupledConsumer[] = [], categories: Category[] = [];
