@@ -1,3 +1,4 @@
+import type {StateSelectionMode} from '../properties/stateSelection';
 import { cursorPosition } from './cursorPosition';
 import { ContextualMasterController } from './ContextualMasterController';
 import { useCancelValueEdit } from "./ActiveContext";
@@ -11,7 +12,7 @@ export const RangeAxis=createContext(0);
 export type RangeGesture={start:(id:number,x:number,y:number)=>boolean;move:(x:number,y:number)=>void;finish:(x:number,y:number)=>void;cancel:()=>void};
 /** An owning DOF icon may lend its press to this same slider gesture. */
 export const RangeGestureTarget=createContext<MutableRefObject<RangeGesture|null>|null>(null);
-type WorkingRange={min?:number;max?:number;step?:number;editingRule?:'value'|'increment'};
+type WorkingRange={min?:number;max?:number;step?:number;editingRule?:'value'|'increment';selectionMode?:StateSelectionMode;selectionCount?:number;selectionStep?:number};
 const RangeSettings=createContext<{values:Record<string,WorkingRange>;change:(key:string,patch:WorkingRange)=>void}|null>(null);
 /** Both legacy ranges and the Composer dial borrow the same working-step input.
  * This is session configuration, never another property-value/history owner. */
@@ -23,6 +24,15 @@ export function useWorkingEditingRule(key:string|undefined,step:number,min:numbe
  return {kind:saved.editingRule??'value',amount:Math.max(minimum,Math.min(maximum,saved.step??minimum)),minimum,maximum,
   onKindChange:(kind:'value'|'increment')=>change({editingRule:kind}),
   onAmountChange:(amount:number)=>{if(Number.isFinite(amount)&&amount>=minimum&&amount<=maximum)change({step:amount});}};
+}
+/** Selection-mode preferences share the existing session property scope. */
+export function useWorkingSelection(key:string,period:number){
+ const scope=useContext(RangeSettings),[local,setLocal]=useState<WorkingRange>({});
+ const saved=scope?.values[key]??local;
+ const change=(patch:WorkingRange)=>{if(scope)scope.change(key,patch);else setLocal(before=>({...before,...patch}));};
+ return {mode:saved.selectionMode??'symmetry' as StateSelectionMode,count:saved.selectionCount??8,step:saved.selectionStep??period/8,
+  modeChange:(selectionMode:StateSelectionMode)=>change({selectionMode}),
+  countChange:(selectionCount:number)=>change({selectionCount}),stepChange:(selectionStep:number)=>change({selectionStep})};
 }
 /** Retain widget working intervals/steps for one editing session, independently
  * of target values. Portalled editors inherit the same scope automatically. */

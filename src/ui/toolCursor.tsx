@@ -4,7 +4,7 @@ import { cursorSample, observeCursor } from './cursorPosition';
 import { pointerToolZone, observeToolZones } from './toolCursorZone';
 import { activeToolCursor, cursorApplies } from './toolCursorModel';
 export type ToolCursorOptions={zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
-export type ToolCursorRequest=ToolCursorOptions & {key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number}};
+export type ToolCursorRequest=ToolCursorOptions & {key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number};controls?:ReactNode};
 const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,HTMLElement>(),listeners=new Set<()=>void>();
 let version=0,selected:ToolCursorRequest|null=null;
 const publish=()=>{version++;listeners.forEach(listener=>listener());};
@@ -15,6 +15,21 @@ export function useToolCursor(request:ToolCursorRequest|null){
   const owner=useId();
   useLayoutEffect(()=>{owners.delete(owner);if(request)owners.set(owner,request);refresh();},[owner,request]);
   useLayoutEffect(()=>()=>{if(owners.delete(owner))refresh();},[owner]);
+}
+// Shared cursor configuration gesture: hold Alt to park interactive indicators.
+const parkingListeners=new Set<()=>void>();
+let parking:{point:{x:number;y:number}|null;zone?:string}={point:null};
+const publishParking=()=>parkingListeners.forEach(listener=>listener());
+if(typeof window!=='undefined'){
+ const down=(event:KeyboardEvent)=>{if(event.key!=='Alt'||event.repeat||parking.point||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return;const point=cursorSample();parking={point,zone:pointerToolZone(point).zone};publishParking();};
+ const up=(event:KeyboardEvent)=>{if(event.key==='Alt'&&parking.point){parking={point:null};publishParking();}};
+ const blur=()=>{parking={point:null};publishParking();};
+ window.addEventListener('keydown',down,true);window.addEventListener('keyup',up,true);window.addEventListener('blur',blur);
+ if(import.meta.hot)import.meta.hot.dispose(()=>{window.removeEventListener('keydown',down,true);window.removeEventListener('keyup',up,true);window.removeEventListener('blur',blur);});
+}
+export function useCursorParking(zone:string|undefined){
+ const state=useSyncExternalStore(listener=>{parkingListeners.add(listener);return()=>{parkingListeners.delete(listener);};},()=>parking);
+ return zone&&state.zone===zone?state.point:null;
 }
 /** Capture only the actual icon, once on activation, including custom appearance.
  * No source layout/style lookup occurs during pointer movement. */
@@ -36,6 +51,12 @@ export function ToolCursorLayer(){
     if(!captured.current)return;
     captured.current.replaceChildren(...(snapshot?[snapshot.cloneNode(true)]:[]));
   },[snapshot,request?.key]);
+  // Interactive parked controls must share the popup top layer, rather than
+  // falling behind the editor's popover despite a large z-index.
+  useLayoutEffect(()=>{const node=root.current;if(!node||!request?.controls)return;
+    node.setAttribute('popover','manual');node.showPopover();
+    return()=>{node.hidePopover();node.removeAttribute('popover');};
+  },[!!request,!!request?.controls]);
   const current=useRef(request);current.current=request;
   const paint=()=>{
     const active=current.current,node=root.current;if(!active||!node)return;
@@ -63,10 +84,11 @@ export function ToolCursorLayer(){
   },[request]);
   useLayoutEffect(()=>()=>{snapshots.clear();},[]);
   if(!request)return null;
-  return createPortal(<div ref={root} className={`tool-cursor ${request.className??''}`} aria-hidden="true" data-visual-selector data-tool-cursor-owner={request.key} style={{width:request.width??28,height:request.height??28}}>
+  return createPortal(<div ref={root} className={`tool-cursor ${request.className??''}`} aria-hidden={request.controls?undefined:true} data-cursor-interactive={request.parked&&request.controls?true:undefined} data-visual-selector data-tool-cursor-owner={request.key} style={{width:request.width??28,height:request.height??28}}>
     <div className="tool-cursor-icon" style={{transform:request.rotationTurns?`rotate(${request.rotationTurns}turn)`:undefined}}>
       {snapshot?<div ref={captured} className="tool-cursor-captured"/>:request.icon}
     </div>
+    {request.controls&&<div className="tool-cursor-controls">{request.controls}</div>}
     {request.badge&&<i className={request.pulse?'tool-cursor-pulse':undefined}>{request.badge}</i>}
   </div>,document.body);
 }

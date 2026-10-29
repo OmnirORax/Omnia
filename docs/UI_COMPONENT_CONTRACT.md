@@ -598,15 +598,20 @@ configuration stroke cannot paint the parent property. No new global listeners
 or layout reads are introduced by this boundary check.
 
 
-E02 numeric reference context uses NumericOperationScope alongside the existing
-NumericEditorScope. The owner/renderer supplies a minimal ⟴ Reference control and
-a valid contextual Match action. Accepting context preserves geometry; the dial
-performs preview/commit with its normal session and callbacks. Match preparation
-uses committed geometry, with bounded verified probes only when context changes;
-no scene reads on pointer movement. A separate committed evaluation is reused for
-normal rendering so context snapshots do not track hover projections. Keep labels
-short, use tooltips for quantity/formula/reasons, and do not reintroduce reference
-forms. This is session context and a transient action, not a persisted constraint.
+The E02 explicit Reference/Match numeric controls have been removed. Cyclic
+DOF inputs declare `selection` metadata; DegreeValueEditor projects DofStateWheel
+instead of the raw numeric editor. A pure state generator supplies mode alternatives;
+Math Dial edits its parameters. Session mode settings reuse RangeSettingsScope.
+Existing preview/commit owners remain authoritative. Reference context is supplied
+through NumericOperationScope; UI does not discover scene objects or infer units.
+
+ToolCursorLayer transports active DOF indicators with the same no-React pointer
+updates as other tool cursors. Shared useCursorParking captures the point on Alt
+transition; only parked controls receive pointer events. Interactive indicators use
+the popover top layer so editor popovers cannot cover them. Their clicked settings
+open via ContextualMasterController at the invocation point and survive Alt release.
+Ordinary fields and controls restore the native cursor. No private cursor portal,
+per-motion layout read or per-preset mode implementation.
 
 
 Composer canvas right-click menus (including the active world-preview bridge)

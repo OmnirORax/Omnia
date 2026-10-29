@@ -421,11 +421,11 @@ explanations in tooltips/accessibility metadata; omit redundant captions, repeat
 headings and instructional paragraphs. Icon-only remains a long-term direction,
 not a requirement to remove useful labels now.
 
-E02 is an unaccepted experiment: shared numeric operation context (state owner,
-target/property, scope, domain, measured quantity, reference and transient Match)
-with Omnic geometry adapters. Current target/preset scalar editors consume it;
-other entry paths remain pending. Input measurement metadata drives applicability;
-keep UI geometry-free, use committed snapshots and bounded verified probes, and
-revalidate candidate identities/owner on commit. Only Match uses the retained
-reference; Value/Increment retain their previous basis. Session context is not a
-durable constraint. Do not revive PR #41 forms/schema or claim full integration.
+E02's manual Reference → Rule → Match numeric UI was rejected and removed.
+Its pure measurement/candidate models remain reusable infrastructure. E03 is the
+current unaccepted interaction experiment: activate a DOF → select its generated
+states; current mode and expression explicit; Alt parks cursor DOF/mode/reference
+indicators for configuration. Rotation is the first cyclic domain adapter. See
+the living master plan and capability omnic.dof-state-wheel. Do not revive the
+abandoned automatic invitation/Space-acceptance or mandatory Match-menu proposals.
+Math dial configures rule variables; it does not replace the state selector.

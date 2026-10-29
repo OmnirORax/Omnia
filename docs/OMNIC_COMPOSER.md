@@ -455,11 +455,10 @@ remain in Generator controls. There is no automatic destructive flattening.
   configures constraints, paint target, imprint, step (Free only) and paint inputs
   in sequence. Select/Move configure their own relevant inputs. View configures only
   construction extent. Other functions' fields never appear alongside the current one.
-- **R / Rotate:** ordinary invocation skips setters, prompts for a pivot, then
-  permits dragging. Right-click → right-click Rotate (or R with the list open)
-  configures Scope → angular halving order → rotation step count, one at a time.
-  Confirm at the last step enters pivot picking. The retained one-step function
-  follows the same pivot prompt and applies the step without dragging.
+- **R / Rotate:** opens the generated-state selector for selected compatible
+  authored Rotation inputs. Hover previews and click applies. Its explicit mode
+  starts at ✣ Symmetry · 2³. See E03 below. The separate Step action retains the
+  older pivot workflow described next.
 - **Pivot/reference:** during pivot picking, right-click exposes Exact click and
   Detected target. Left-click selects that retained mode and returns to picking.
   Right-click Detected target exposes its Axis step; left-click retains the axis
@@ -622,19 +621,24 @@ does not persist mathematical expressions. See the living master plan and
 capability omnic.editing-rules for exact steps, limitations and pending acceptance.
 
 
-### E02: shared reference measurement and transient Match
+### E03: rotation state selection and mode configuration
 
-Preset and scalar target DOF editors now lend their existing property identity and
-adapter to a common operation context. A cached committed-geometry snapshot offers
-a small ⟴ Reference cue for a compatible overlapping component. Acceptance stores
-only a session reference, preserving geometry. The same component reference can
-serve center X/Y and declared radius/line-length DOFs independently.
+R on a compatible authored selection, or target/preset Rotation, opens the shared
+cyclic state wheel. Default ✣ Symmetry · 2³ offers eight states from north clockwise;
+hover previews, click applies, leaving restores the last committed angle. Click
+2³ to edit state count with the math dial; right-click mode chooses Symmetry,
+Halving or + Step, while left-click configures its variables. Settings remain
+open after a parameter commit until dismissed. Hold Alt to park the active
+DOF/mode/reference cursor indicators, click one, release Alt and configure.
 
-Rule → ≡ Match previews an evaluated reference-derived result and commits once
-through existing setters/history. It resolves local coordinates and supported
-render transforms with bounded, verified probes. Committed identity/quantity is
-revalidated on click; stale or invalid candidates cannot replay cached scalars.
-Disable the cue to return to self-based editing without moving geometry. Missing
-references remain unavailable and removable. No dropdown inventory, durable recipe
-fields, automatic dependency or persistent constraint is introduced. See the
-master plan's E02 record and capability omnic.operation-context for scope/limits.
+Reference → ⨮ Match starts a canvas object pick. Compatible authored orientation
+becomes the wheel reference; no geometry changes until a state is chosen. Self
+restores north. Missing references remain unavailable. Initially single-target,
+no active rotate/oscillation operators, no persistent constraints. Existing owner
+setters, legality, samples and chronological Undo/Redo remain authoritative.
+R edits authored orientation values; the separate Step action retains the older
+pivot/orbit workflow. Other numeric DOFs retain their existing editor.
+
+The older E02 Reference → Rule → Match numeric UI is removed. Its pure measured
+context models remain groundwork. See E03 in the living master plan and capability
+omnic.dof-state-wheel for test steps and explicit experiment limits.

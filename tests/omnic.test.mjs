@@ -634,3 +634,45 @@ test('reference discovery preserves chosen identity and candidate evaluation res
  const distant=validateRecipe({...source,components:source.components.map(c=>c.id==='a'?{...c,params:{...c.params,x:-200}}:c)});
  assert.equal(referenceForOperation(operationGeometry(distant,evaluateRecipe(distant)),'a','radius'),undefined,'initial discovery is limited to overlapping bounds');
 });
+
+test('cyclic DOF state rules preserve north, fractions and configurable expression',async()=>{
+ const {selectionTurns,selectionValue,selectionExpression,selectionLayout,nearestSelectionTurn}=await import('../src/properties/stateSelection.ts');
+ const symmetric=selectionTurns('symmetry',8,45,360);
+ assert.deepEqual(symmetric,[0,.125,.25,.375,.5,.625,.75,.875]);
+ assert.equal(nearestSelectionTurn(symmetric,.49),.5);
+ assert.equal(nearestSelectionTurn(symmetric,-.01),0,'north seam wraps');
+ assert.equal(nearestSelectionTurn([],0),undefined);
+ assert.deepEqual(selectionExpression(8),{base:2,power:3,count:8});
+ assert.deepEqual(selectionExpression(7),{count:7});
+ assert.deepEqual(selectionTurns('halving',5,45,360),[0,.5,.25,.125,.0625]);
+ assert.deepEqual(selectionTurns('step',8,90,360),[0,.25,.5,.75],'repeated cyclic states are not duplicated');
+ assert.deepEqual(selectionTurns('symmetry',65,45,360),[]);
+ assert.deepEqual(selectionTurns('halving',9,45,360),[],'imperceptible binary alternatives are not stacked');
+ assert.deepEqual(selectionTurns('step',8,0,360),[]);
+ const source=validateRecipe(recipe([{id:'line',generator:'line',params:{length:40}}]));
+ const degree=targetDegrees(source,['line']).find(d=>targetParameter(d).selection),input=targetParameter(degree);
+ const north=selectionValue(symmetric[0],input.selection.north,input.selection,input.min,input.max);
+ const south=selectionValue(symmetric[4],input.selection.north,input.selection,input.min,input.max);
+ assert.equal(north,-90);assert.equal(south,90);
+ const northNode=evaluateRecipe(writeTargetDegree(source,degree,north)).nodes.find(n=>n.kind==='line');
+ const southRecipe=writeTargetDegree(source,degree,south),southNode=evaluateRecipe(southRecipe).nodes.find(n=>n.kind==='line');
+ almost(northNode.x2,northNode.x);assert.ok(northNode.y2<northNode.y,'north is north in the actual renderer');
+ assert.ok(southNode.y2>southNode.y,'four steps is south in the actual renderer');
+ assert.equal(targetDegreeValue(source,degree),0,'generating and previewing does not mutate the source');
+ assert.equal(selectionValue(.5,1000,input.selection,input.min,input.max),undefined,'out-of-domain states are unavailable, never clamped');
+ const dense=selectionLayout(selectionTurns('halving',8,45,360),72);
+ assert.ok(dense.at(-1).diameter<dense[1].diameter,'dense fractional marks shrink with their spacing');
+});
+
+test('explicit cyclic references use compatible declared orientation and keep source geometry unchanged',async()=>{
+ const {selectionReference}=await import('../src/omnic/selectionReference.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:-20}},{id:'b',generator:'chain',params:{angle:35}},{id:'ring',generator:'ring',params:{}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection);
+ assert.deepEqual(selectionReference(source,degree,'b'),{id:'b',label:'b',value:35});
+ assert.equal(selectionReference(source,degree,'a'),undefined);
+ assert.equal(selectionReference(source,degree,'ring'),undefined);
+ assert.equal(selectionReference(source,degree,'deleted'),undefined);
+ assert.equal(targetDegreeValue(source,degree),-20,'choosing context does not perform a match or write geometry');
+ const transformed=validateRecipe({...source,operations:[op('turn','rotate',['b'],{angle:20})]});
+ assert.equal(selectionReference(transformed,degree,'b'),undefined,'unsupported evaluated orientation is not guessed from raw input');
+});

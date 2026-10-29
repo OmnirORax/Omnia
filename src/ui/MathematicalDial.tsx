@@ -1,4 +1,3 @@
-import type {NumericReferenceControl} from './NumericEditorScope';
 import {useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
 import {mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,canAddMathematicalRing,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
@@ -17,8 +16,8 @@ type Point={x:number;y:number};
 type Stroke={id:number;last:Point;slots:MathematicalStrokeSlot[];visited:readonly string[];before:MathematicalMarks;next:MathematicalMarks;brush:MathematicalSlotMode};
 /** Shared raw-number surface. The consumer supplies its domain and real setters.
  * Right-click chooses a brush; only left-click/held painting writes slot modes. */
-export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,reference,onPreview,onCommit,onCancelPreview}:{
- value:number;min:number;max:number;integer?:boolean;label?:string;disabled?:boolean;configure?:boolean;reference?:NumericReferenceControl;
+export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,onPreview,onCommit,onCancelPreview}:{
+ value:number;min:number;max:number;integer?:boolean;label?:string;disabled?:boolean;configure?:boolean;
  editing?:{kind:'value'|'increment';amount:number;minimum:number;maximum:number;onKindChange:(kind:'value'|'increment')=>void;onAmountChange:(amount:number)=>void};
  onPreview:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
 }){
@@ -146,7 +145,6 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   </div>
   <div className="mathematical-dial-meta">
    <button type="button" disabled={disabled} className="mathematical-dial-readout" aria-label={`${label} value: ${value}`} title={`${label} · ${value} · click or right-click to type an exact value`} onClick={openExact} onContextMenu={event=>{event.preventDefault();event.stopPropagation();openExact();}}><output aria-live="polite">{value}</output></button>
-   {reference&&<button type="button" className="mathematical-dial-reference" disabled={disabled} aria-label={`${label} reference context`} aria-pressed={reference.active} title={reference.description} onClick={()=>{restore();reference.toggle();}}>⟴ Reference</button>}
    {editing&&<button type="button" className="mathematical-dial-rule" disabled={disabled} aria-label={`${label} editing rule`} title={editing.kind==='increment'?`Increment from ${anchor.current} by ${editing.amount} per selected step; click chooses rule, right-click sets amount`:'Absolute value; click to configure editing rule'} onClick={()=>{restore();setRulePopup({point:cursorPosition(),stage:'modes'});}} onContextMenu={event=>{event.preventDefault();event.stopPropagation();restore();setAmountSample(null);setRulePopup({point:cursorPosition(),stage:editing.kind==='increment'?'amount':'modes'});}}>Rule {editing.kind==='increment'?'+':'='}</button>}
    <div className="mathematical-dial-settings">
     {([1,2] as const).map(n=><button type="button" disabled={disabled} key={n} title={`Base ${n}`} aria-pressed={base===n} onClick={()=>changeBase(n)}>{n}</button>)}
@@ -165,7 +163,6 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    {rulePopup.stage==='amount'?<MathematicalDial value={amountSample??editing.amount} min={editing.minimum} max={editing.maximum} integer={integer} label="Increment" onPreview={setAmountSample} onCancelPreview={()=>setAmountSample(null)} onCommit={amount=>{setAmountSample(null);editing.onAmountChange(amount);}}/>:<div ref={ruleChoices}><RadialMenu onClose={()=>setRulePopup(null)} items={[
     {id:'value',label:'Value',symbol:'=',content:<button type="button" className="mathematical-rule-choice" title="Use selected number as the absolute property value" aria-label="Absolute value rule" aria-pressed={editing.kind==='value'} onClick={()=>{editing.onKindChange('value');setRulePopup(null);}}><span aria-hidden="true">=</span><small>Value</small></button>},
     {id:'increment',label:'Increment',symbol:'+',content:<button type="button" className="mathematical-rule-choice" title="Use selected number as steps from the current property value; right-click configures amount" aria-label="Increment rule" aria-pressed={editing.kind==='increment'} onClick={()=>{editing.onKindChange('increment');setRulePopup(null);}} onContextMenu={event=>{event.preventDefault();event.stopPropagation();editing.onKindChange('increment');setAmountSample(null);setRulePopup({point:cursorPosition(),stage:'amount'});}}><span aria-hidden="true">+</span><small>Step</small></button>},
-    ...(reference?.active&&reference.match?[{id:'match',label:'Match',symbol:'≡',content:<button type="button" className="mathematical-rule-choice" title={reference.match.description} aria-label="Match reference measurement" onMouseEnter={()=>{if(valid(reference.match!.value))previewValue(reference.match!.value);}} onMouseLeave={restore} onFocus={()=>{if(valid(reference.match!.value))previewValue(reference.match!.value);}} onBlur={restore} onClick={()=>{const n=reference.match!.resolve();if(n!==undefined&&valid(n)){anchor.current=n;commit(emptyMarks(),n);setRulePopup(null);}}}><span aria-hidden="true">≡</span><small>Match</small></button>}]:[]),
     ...(editing.kind==='increment'?[{id:'amount',label:'Increment amount',symbol:'Δ',content:<button type="button" className="mathematical-rule-choice" title={`Increment amount: ${editing.amount}`} aria-label="Configure increment amount" onClick={()=>{setAmountSample(null);setRulePopup({point:cursorPosition(),stage:'amount'});}}><span aria-hidden="true">Δ</span><small>Amount</small></button>}]:[]),
    ]}/></div>}
   </ContextualMasterController>}

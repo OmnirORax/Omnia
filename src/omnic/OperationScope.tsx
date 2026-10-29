@@ -1,26 +1,40 @@
-import {createContext,useContext,useMemo,useRef,useState,type ReactNode} from 'react';
+import {createContext,useContext,useMemo,useRef,useState,useEffect,type ReactNode} from 'react';
 import {LIMITS,type Recipe,type RecipeResolver} from './model';
 import type {Evaluation} from './evaluate';
 import type {EditableDegree} from '../properties/editableDegrees';
-import {NumericOperationScope,type NumericReferenceControl} from '../ui/NumericEditorScope';
+import {NumericOperationScope,type SelectionReference,type NumericReferenceControl} from '../ui/NumericEditorScope';
 import {targetParameter} from './targetDegrees';
-import {operationGeometry,referenceForOperation,matchForOperation,resolveMatch,type OperationGeometry} from './operationContext';
+import {selectionReference} from './selectionReference';
+import {operationGeometry,type OperationGeometry} from './operationContext';
 
-type Scope={snapshot:OperationGeometry|null;resolve?:RecipeResolver;references:ReadonlyMap<string,string>;choose:(target:string,reference?:string)=>void;read:()=>Recipe;error:(error:unknown)=>void};
+type Scope={snapshot:OperationGeometry|null;resolve?:RecipeResolver;references:ReadonlyMap<string,string>;choose:(target:string,reference?:string)=>void;read:()=>Recipe;error:(error:unknown)=>void;pick:(degree:EditableDegree)=>Promise<SelectionReference|undefined>;accept:(id:string)=>boolean;picking:boolean;cancelPick:()=>void};
 const Context=createContext<Scope|null>(null);
 /** Session reference choices are context, not durable property values or locks. */
 export function OperationReferenceScope({recipe,evaluation,resolve,read,error,children,stateOwner}:{stateOwner:string;recipe:Recipe;evaluation:Evaluation|null;resolve?:RecipeResolver;read:()=>Recipe;error:(error:unknown)=>void;children:ReactNode}){
+ const pending=useRef<{degree:EditableDegree;finish:(value:SelectionReference|undefined)=>void}|undefined>(undefined);
+ const [picking,setPicking]=useState(false);
+ const cancelPick=()=>{pending.current?.finish(undefined);pending.current=undefined;setPicking(false);};
+ useEffect(()=>()=>{pending.current?.finish(undefined);},[]);
  const [references,setReferences]=useState<ReadonlyMap<string,string>>(()=>new Map());
  const snapshot=useMemo(()=>evaluation?operationGeometry(recipe,evaluation,stateOwner):null,[recipe,evaluation,stateOwner]);
  const callbacks=useRef({read,error});callbacks.current={read,error};
- const value=useMemo<Scope>(()=>({snapshot,resolve,references,read:()=>callbacks.current.read(),error:e=>callbacks.current.error(e),choose:(target,reference)=>{
+ const value=useMemo<Scope>(()=>({snapshot,resolve,references,picking,cancelPick,
+ pick:degree=>{pending.current?.finish(undefined);setPicking(true);return new Promise(finish=>{pending.current={degree,finish};});},
+ accept:id=>{
+  const request=pending.current;if(!request)return false;
+  const reference=selectionReference(callbacks.current.read(),request.degree,id);if(!reference)return false;
+  request.finish(reference);pending.current=undefined;setPicking(false);
+  for(const t of request.degree.targets)setReferences(before=>new Map(before).set(t.id,id));
+  return true;
+ },read:()=>callbacks.current.read(),error:e=>callbacks.current.error(e),choose:(target,reference)=>{
   if(!snapshot?.components.has(target))return;
   setReferences(before=>{const next=new Map(before);if(reference)next.set(target,reference);else next.delete(target);
    if(next.size>LIMITS.components)for(const id of next.keys()){if(!snapshot.components.has(id))next.delete(id);if(next.size<=LIMITS.components)break;}
    return next;});
- }}),[snapshot,resolve,references]);
+ }}),[snapshot,resolve,references,picking]);
  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
+export const useOperationReferencePicker=()=>useContext(Context);
 /** Preset and selected-target DOFs share one adapter into the global operation
  * contract. Reference measurement snapshots never follow hover samples. */
 export function OperationDegreeScope({degree,children}:{degree:EditableDegree;children:ReactNode}){
@@ -29,18 +43,10 @@ export function OperationDegreeScope({degree,children}:{degree:EditableDegree;ch
   const snapshot=scope?.snapshot;
   if(!scope||!snapshot||ids.length!==1||degree.properties.length!==1||!snapshot.components.has(ids[0]))return;
   const target=ids[0],retained=scope.references.get(target),parameter=targetParameter(degree);
-  const id=parameter.measurement?referenceForOperation(snapshot,target,parameter.measurement,retained):retained;
-  if(!id)return;
-  const ref=snapshot.components.get(id)?.component;
-  const active=retained!==undefined;
-  const candidate=active?matchForOperation(snapshot,ids,property,id,scope.resolve):undefined;
-  const measurement=parameter.measurement?snapshot.views.get(id)?.measurements.get(parameter.measurement):undefined;
-  const name=ref?`${ref.generator} · ${id.slice(0,6)}`:'Unavailable reference';
-  return {active,description:`${name}${measurement?` · ${measurement.quantity}: ${measurement.value}`:''} · ${active?'click to clear context; Match uses this reference, Value/Step keep their current basis':'click to use as reference; geometry stays unchanged'}${active&&!candidate?' · no valid Match candidate for this DOF':''}`,
-   toggle:()=>scope.choose(target,active?undefined:id),
-   ...(candidate?{match:{value:candidate.value,description:`Match ${candidate.context.measurement.quantity} to ${candidate.context.reference.id} (${candidate.context.reference.value}); derived ${property} = ${candidate.value}. One-time result.`,resolve:()=>{
-    try{return resolveMatch(scope.read(),candidate,scope.resolve,snapshot.stateOwner).value;}catch(error){scope.error(error);return;}
-   }}}:{})};
+  if(!parameter.selection)return;
+  const current=retained?selectionReference(snapshot.recipe,degree,retained):undefined;
+  return {selection:{current,unavailable:!!retained&&!current,pick:()=>scope.pick(degree),clear:()=>scope.choose(target),cancel:scope.cancelPick}};
+
  },[scope,key,property]);
  return <NumericOperationScope.Provider value={reference}>{children}</NumericOperationScope.Provider>;
 }

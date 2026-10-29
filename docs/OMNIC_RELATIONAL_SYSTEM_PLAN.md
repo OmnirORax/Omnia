@@ -126,44 +126,20 @@ For every experiment record:
 | Raw numeric ⠒❉ integration | Accepted initial step; keep Composer-only rollout and current signed/raw scope | PR #40; user: “1 already fixed” |
 | Manual object/per-DOF reference form | Discarded in full; reference discovery and contextual interaction need global design | Closed, unmerged PR #41; explicit user rollback request |
 | E01: dial-configured increment rule | Implemented for testing; user acceptance pending. Shared rule context contains anchor, signed index and rule/amount; preset and target numeric editors consume it through existing setters. Full operation context/reference integration remains pending. | Current branch; see capability omnic.editing-rules |
-| E02: reference-measurement operation context | Implemented for testing, not accepted. Pure shared numeric context/candidate contract; committed-geometry adapter; session ⟴ context and contextual one-time Match through existing target/preset numeric editors. | Current branch; capability omnic.operation-context |
+| E02: reference-measurement operation context | Manual Reference → Rule → Match interaction rejected and removed. Pure measurement/candidate infrastructure retained. | User feedback; capability omnic.operation-context |
+| E03: activate DOF → select generated state | Implemented for testing, not accepted. Rotation wheel, explicit mode/expression, Alt-parked cursor indicators and deliberate reference picking. | Current branch; capability omnic.dof-state-wheel |
 
 ## Next experimental decision
 
-E02 is now implemented for user testing (see its record below). Review its
-reference/Match separation, quantities, scope and responsiveness before broadening
-it. Value/Increment still use E01 self/previous-value semantics; only Match consumes
-the retained reference in this experiment. The following audit is recorded as the
-work leading to E02, not a mandate to repeat it:
+E03 tests the latest clarified interaction below. Review its activation,
+preview/commit, mode parameters, parked indicators and reference configuration
+before extending to additional DOF domains. Do not add more automatic invitations
+or revive mandatory manual Reference → Rule → Match steps.
 
-Audit how current property edits and commands identify target, DOF and scope.
-Locate the smallest shared insertion boundary for operation context and reference
-resolution. Propose a small *usable* experiment there, including its interaction
-entry paths, before introducing another reference UI or persistence schema.
-
-E01 exercises only the additive-generator integration and explicit-control layer.
-It is implemented for user testing, not accepted as the final workflow. Do not
-continue by merely adding more rule buttons. After its feedback, the next shared
-experiment should connect target/active DOF, scope, actual reference measurement,
-geometry and limits to candidate generation/preview at the common property/action
-boundary. Audit that boundary first; do not introduce per-gesture context stores.
-
-The starting-value anchor in E01 is a self/previous-value snapshot. It is not yet
-an object/feature reference with a maintained derivation. A future candidate must
-carry its reference and measured quantity, DOF, generator parameters and validity;
-a persistent binding additionally retains that derivation and its dependencies.
-Transient calculation and persistent locking remain separate.
-
-Keep the default interaction immediate/contextual, with explicit dial configuration
-as refinement. Use applicability and valid geometry to reveal the next meaningful
-freedom, preserving the active operation family. Show few alternatives on demand.
-Use stable proximity-based snap activation/hysteresis without reintroducing an
-operation-ranking or learning system. Limits distinguish hard invalidity from
-soft overridable stopping points; rendering visibility alone does not delete DOFs.
-
-The implementation order may change based on findings. Do not march through this
-module table automatically, implement the whole system in one PR, or treat a
-single dot-inside-circle demonstration as proof of universal inheritance.
+The shared operation/reference/rule/preview architecture remains the destination.
+A cyclic rotation slice is a test of that structure, not the definition of every
+DOF. Each domain must declare how its valid states are generated and rendered.
+Math-dial numeral encoding remains separate from the editing rule being configured.
 
 ## Open decisions
 
@@ -224,7 +200,11 @@ reference resolution and more rule families remain separate experimental work.
 The source/alignment review itself introduced no runtime changes; E02 below is the subsequent authorized experiment.
 
 
-## E02 — reference-measurement operation context
+## E02 — reference-measurement operation context (superseded UI)
+
+The following records the original experiment. Its manual numeric Reference/Match
+UI has been removed after user rejection; pure measurement models remain. E03
+below records the current interaction. Do not implement this older workflow again.
 
 Hypothesis: a shared operation context can connect the same target/property owner
 to actual reference measurements and a reproducible mathematical candidate across
@@ -271,3 +251,58 @@ references; arbitrary feature inference; direct-drag/MC-command consumers; magne
 snaps, soft/perceptual thresholds, additional generators or alternative UI. The
 shared pure contract is the extension point for those future experiments. Do not
 claim full global integration or promote E02 to accepted before user feedback.
+
+
+## E03 — DOF activation, generated states and cursor configuration
+
+Latest confirmed interaction replaces the intervening suggestions, Space-acceptance
+and right-click Dial/Match-menu proposals. Users already know their active DOF.
+Activate it directly (R or Rotation): immediately show the states generated by its
+current mode. Self is the default reference. For cyclic rotation, north is the
+origin and positive steps proceed clockwise; eight equal states are explicitly
+shown as **✣ Symmetry · 2³**, not just 8. Hover/focus previews geometry; left-click
+commits the state. The state selector remains available for further choices.
+
+The active DOF, mode and relation reference are compact cursor indicators. Hold
+Alt to park them, click one, release Alt and configure; settings remain open until
+dismissed. Right-clicking the mode chooses another rule. Left-clicking it edits
+its variables, and clicking 2³ directly opens the mathematical dial for state
+count. The current number dial produces numeric parameters; it is not a general
+expression AST. Powers of two are displayed as 2 with a superscript exponent.
+
+First modes: symmetry (`i / count`), halving (`0, 1/2, 1/4, ...`) and + Step, the
+initial configurable rule (`i * step` modulo period). The latter is not arbitrary
+equation authoring. All share one pure generator and domain validation. Metadata
+on actual registered inputs declares a cyclic period and the scalar representing
+north; no list of preset IDs chooses the editor. Target/preset Rotation and R use
+the same DegreeValueEditor/DofStateWheel and existing writes/preview/history.
+Other numeric inputs retain the existing math editor until their domain adapters
+are designed. No universal semantics are guessed for them.
+
+Reference configuration offers Self or ⨮ Match, then an actual geometry click.
+The reference-picking bridge reuses the Composer/world-preview click adapter;
+no reference dropdown, hover-time discovery or background scanning. Initial
+reference scope is a single authored target and compatible declared orientation.
+Choosing context preserves geometry; choosing a state later applies its offset.
+No persistent dependency. Missing references remain unavailable and can be cleared.
+Scenes with enabled rotation/oscillation operators are conservatively unavailable
+for reference matching until evaluated orientation measurement is implemented.
+
+Rendering/interaction limits: 64 symmetry/step alternatives, 8 halving alternatives
+so dense fractions remain distinguishable. Angular spacing sizes marks; rule
+changes compute layout, pointer movement only previews a changed alternative.
+R now edits the selected authored orientation; the old pivot/orbit path remains
+through the separate Atomnic Step action. Multi-target common Rotation applies
+one scalar to those owners; multi-target reference picking is pending.
+
+Acceptance experiment: create two differently oriented lines, select one and R;
+preview north/south and commit/Undo; configure 2³ and modes; park indicators with
+Alt; pick the other line as reference and choose its zero-offset state; clear
+reference. Repeat Rotation through preset/target DOFs. Test popup lifetime,
+Esc/outside cancellation and cursor/native-field behavior. Model checks validate
+generated states and actual north/south rendering, but do not establish usability.
+
+Long-term: active DOF → reference/domain → configurable mathematical generator
+→ selectable valid states → actual preview → explicit commit, shared across
+appropriate DOFs and input paths. Persistent derivations, rules/equations and
+richer geometric domains remain later iterations, not hidden assumptions here.

@@ -1,0 +1,9 @@
+.dof-state-editor{position:relative;width:180px;height:180px;color:var(--text,#d4e6ef)}
+.dof-state-wheel{width:180px;height:180px;position:relative}
+.dof-state-wheel svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none;stroke:#60ddec77;stroke-width:1}
+.dof-state-wheel svg line{stroke:#60ddec44}
+.dof-state-slot{position:absolute;transform:translate(-50%,-50%);width:15px;height:15px;min-width:0;padding:0;border:1px solid #83e8f3;border-radius:50%;background:#071521}
+.dof-state-slot:hover,.dof-state-slot:focus-visible,.dof-state-slot[data-preview=true]{box-shadow:0 0 7px #60ddec;background:#60ddec55}
+.dof-state-readout{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:11px;pointer-events:auto;white-space:nowrap;cursor:grab;min-width:28px;min-height:28px;display:grid;place-items:center}
+.dof-state-mode{position:absolute;top:100%;left:50%;transform:translateX(-50%);white-space:nowrap;display:flex;justify-content:center;gap:3px}
+.dof-state-mode button{border:1px solid #60ddec66;border-radius:12px;background:#07131ee8;color:inherit;font-size:12px;padding:3px 7px}
