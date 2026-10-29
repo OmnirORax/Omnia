@@ -1,7 +1,21 @@
 /** UI ownership lasts for the physical press, independently of capture and
  * preview lifetime. Capture loss, Esc and mouse pointercancel are not releases. */
-const physicalPresses=new Set<number>();
-export const physicalPointerHeld=()=>physicalPresses.size>0;
+/** Secondary contextmenu may arrive after pointerup has cleared held buttons.
+ * Keep that tail associated with its press until dispatch completes. */
+export function createPhysicalPressTracker(){
+  const held=new Set<number>();let pendingContext:number|undefined,sequence=0;
+  return {
+    down(id:number,button:number){held.add(id);sequence++;pendingContext=button===2?sequence:undefined;},
+    up(id?:number){if(id===undefined)held.clear();else held.delete(id);},
+    context(){const press=pendingContext;return()=>{if(pendingContext===press)pendingContext=undefined;};},
+    reset(){held.clear();pendingContext=undefined;},
+    held:()=>held.size>0,
+    opening:()=>held.size>0||pendingContext!==undefined,
+  };
+}
+const physicalPresses=createPhysicalPressTracker();
+export const physicalPointerHeld=physicalPresses.held;
+export const popupOpeningPress=physicalPresses.opening;
 const held = new Map<number, { kind: string; buttons: number }>();
 const listeners = new Set<(active: boolean) => void>();
 const notify = () => listeners.forEach(listener => listener(held.size > 0));
@@ -34,8 +48,14 @@ export function cancelUITouch(event: PointerEvent) {
 // Install before component listeners can consume pointerup. Mouse events also
 // recover a cancelled mouse pointer stream; a no-buttons move proves release.
 if (typeof window !== "undefined") {
-  const pressed=(event:PointerEvent)=>physicalPresses.add(event.pointerId);
-  const released = (event: MouseEvent) => {if("pointerId" in event)physicalPresses.delete(Number(event.pointerId));else physicalPresses.clear();finishUIPress(event);};
+  const pressed=(event:PointerEvent)=>physicalPresses.down(event.pointerId,event.button);
+  const released = (event: MouseEvent) => {if("pointerId" in event)physicalPresses.up(Number(event.pointerId));else physicalPresses.up();finishUIPress(event);};
+  // Clear after dispatch, so popups mounted by the contextmenu itself also
+  // recognize its origin. No timing window or motion-time checks.
+  const context=()=>queueMicrotask(physicalPresses.context());
+  const reset=()=>physicalPresses.reset();
+  window.addEventListener("contextmenu",context,true);
+  window.addEventListener("blur",reset);
   window.addEventListener("pointerdown",pressed,true);
   const moved = (event: MouseEvent) => {
     if (held.size) finishUIPress(event);
@@ -46,6 +66,8 @@ if (typeof window !== "undefined") {
   window.addEventListener("mousemove", moved, true);
   window.addEventListener("pointercancel", cancelUITouch, true);
   if (import.meta.hot) import.meta.hot.dispose(() => {
+    window.removeEventListener("contextmenu",context,true);
+    window.removeEventListener("blur",reset);
     window.removeEventListener("pointerdown",pressed,true);
     window.removeEventListener("pointerup", released, true);
     window.removeEventListener("mouseup", released, true);

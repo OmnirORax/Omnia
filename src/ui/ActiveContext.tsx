@@ -7,7 +7,7 @@ import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
 import { ACTIONS } from '../workspaceActions';
 import { contextTargets } from './contextTargets';
-import { claimUIPress, uiPointerHeld, physicalPointerHeld } from "./pointerOwnership";
+import { claimUIPress, uiPointerHeld, popupOpeningPress } from "./pointerOwnership";
 
 const fieldSelector = 'input:not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]';
 const controllerSelector = '[data-context-controller],[data-ui-function^="context."],[data-shortcut-runner],omnium-appearance-recovery';
@@ -64,7 +64,7 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
   const ui = useOptionalUITracked(()=>[]), current = useRef(close), dismissal=useRef(dismiss); current.current = close;dismissal.current=dismiss;
   useLayoutEffect(()=>{
     const node=ref.current;if(!open||!node)return;
-    let opening=physicalPointerHeld();
+    let opening=popupOpeningPress();
     const fresh=()=>{opening=false;};
     const consume=(event:Event)=>{if(!opening)return;if(event instanceof MouseEvent&&event.type==='click'&&event.detail===0)return;event.preventDefault();event.stopImmediatePropagation();};
     node.addEventListener('pointerdown',fresh,true);

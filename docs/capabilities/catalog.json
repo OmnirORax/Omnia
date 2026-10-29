@@ -1075,6 +1075,10 @@
         {
           "do": "Create a line, then right-click another empty point and insert Ring or a saved preset. Open one of its DOFs; dismiss and undo the insertion.",
           "expect": "Both structures coexist. The new preset is independently selected and editable; its internal marks/effects stay scoped to it. A child setter appears at the invoking click. Dismissal keeps both structures; Undo removes only the insertion."
+        },
+        {
+          "do": "Right-click empty Composer space and release over the newly opened dial centre. Then right-click the Dial size control with a fresh press.",
+          "expect": "The opening release leaves the tools dial open without opening Dial size value. A new right-click opens size settings normally; empty-space dismissal and Atomnic drawing still work."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -1136,7 +1140,7 @@
       "limits": "Detection is adapter-based, not arbitrary pixel/semantic inference. Only common writable generator inputs appear; future adapters must declare actual setters. Specialized drag/pivot executors currently cover authored atoms/groups; normal geometry uses its existing parameter setters. Stationary target menus still use common target inputs; preset menus also discover their own operation inputs. Full MS clipping remains separate work. Realistic fixes target atom size and retains lattice/overlap/rotation constraints; it is not full physics. Scalar range/step preferences last for the editing session, not across closing/reloading; movement/rotation settings remain recipe-backed. Model/component/evaluation/render budgets remain. Chrome/Omnium size synchronization is still paused. Wheel zoom applies to the Composer interior; Omnium camera navigation retains its existing wheel behavior. Right-click during dragging settles the move before configuration; resuming uses a new left drag. Normal component position parameters retain their existing validated ranges. Construction presets insert independent geometry alongside current contents at the chosen canvas point; preset authoring is unchanged. Saved operation presets require an existing selection. Shared properties within a preset are edited together only where supported. Numeric typing Enter accepts the field; a subsequent Enter finishes editing. Preset option overflow uses existing More rings; the detected DOF ring stays flat. Instant persistence here means the recoverable Composer draft; Save shared still publishes the canonical definition. Radial origins are not shifted to fit the viewport, so edge invocation can clip tools. Motion previews use existing animation/work budgets; direct Atomnic construction still requires pausing/disabling unsupported geometry-transform operations.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
-        "browser": "MC target routing, multi-DOF prompts, insertion retention and shared child placement await user testing. No browser suite run.",
+        "browser": "Opening-release regression fix awaits user testing on the preview; no browser suite run.",
         "automated": "Model checks cover target hierarchy/ambiguity/stale scopes, MS/held-gesture priority, deletion scope repair, shared packing, independent insertion and numeric input domains. Type/property/backend/preview checks run before publication."
       },
       "related": [

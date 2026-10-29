@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNo
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
 import { ContextStage, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
-import { claimUIPress, physicalPointerHeld, ownsPointerSurface } from "./pointerOwnership";
+import { claimUIPress, popupOpeningPress, ownsPointerSurface } from "./pointerOwnership";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
@@ -26,7 +26,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
   const closeLayer=()=>{if(drag.current)cancelDrag();else (nestedNavigation()?.back??onClose)();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
-  useLayoutEffect(() => { openingPress.current = !!position && physicalPointerHeld(); }, [!!position,anchor?.x,anchor?.y,stage]);
+  useLayoutEffect(() => { openingPress.current = !!position && (openingPress.current || popupOpeningPress()); }, [!!position,anchor?.x,anchor?.y,stage]);
   useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{cancel:nestedNavigation()?.cancel,advance:nestedNavigation()?.advance??onAdvance,confirm:nestedNavigation()?.confirm??onConfirm??nestedNavigation()?.advance??onAdvance});
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
