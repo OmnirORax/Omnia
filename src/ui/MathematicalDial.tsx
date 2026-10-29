@@ -17,7 +17,7 @@ export function MathematicalDial({value,min,max,onPreview,onCommit}:{value:numbe
  const preview=(index:number)=>{const n=total(toggled(index));if(validTotal(n)){setHovered(index);onPreview(n);}else restore();};
  const resetRepresentation=()=>{restore();setSelected([]);};
  const displayed=hovered===null?selected:toggled(hovered);
- return <div className="mathematical-dial" style={{width:geometry.extent}} title={`Count: ${value}`} onMouseLeave={restore} role="group" aria-label="Mathematical count dial">
+ return <div data-ui-popup-interior className="mathematical-dial" style={{width:geometry.extent}} title={`Count: ${value}`} onMouseLeave={restore} role="group" aria-label="Mathematical count dial">
   <div className="mathematical-dial-ring" style={{width:geometry.extent,height:geometry.extent}}>
    <span className="mathematical-dial-base" aria-label={`Base ${base}`} style={{width:base*geometry.size,height:base*geometry.size}}>{Array.from({length:base},(_,i)=><i key={i} style={{width:geometry.size,height:geometry.size}}/>)}</span>
    <output className="mathematical-dial-value" aria-live="polite">{value}</output>

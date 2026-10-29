@@ -64,7 +64,7 @@
 
 /* Empty popup dial area must not intercept editing on the canvas below. */
 .contextual-master-controller-radial,.contextual-master-controller-radial .radial-menu{pointer-events:none}
-.contextual-master-controller-radial :is(.radial-menu-slot,.radial-menu-centre,.radial-menu-scale){pointer-events:auto}
+.contextual-master-controller-radial :is(.radial-menu-slot,.radial-menu-centre,.radial-menu-scale,button,input,select,textarea,[role="button"],[data-range-control],[data-ui-popup-interior]){pointer-events:auto}
 
 /* Rim geometry has no surface, independent of inherited SVG icon paint. */
 .radial-menu-rims>circle{fill:none}

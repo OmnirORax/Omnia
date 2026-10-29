@@ -546,3 +546,6 @@ capture-phase cursor tracker feeds this transport before domain handlers can
 consume pointer events. It does not install another pointer-move listener.
 
 Content gesture ownership: editing surfaces declare `data-ui-gesture-owner="content"` (shared contextual popups inherit it). `useButtonSelection` consults `contentOwnsPointer` before claiming a press; ordinary modifier gestures reach the editor, while explicitly enabled interface-selection mode retains its override. Respect already-prevented presses. MS priority and existing physical-press ownership stay unchanged; no new global listener, motion matching or discovery is added.
+
+Radial popup shells pass empty space through, but shared native interactive controls (buttons, fields, role buttons and range controls) must explicitly receive pointer events. This applies to new picker contents automatically, not only RadialMenu slot wrappers. Pointer input must not fall through a new picker to the editing canvas and trigger empty-space dismissal.
+Composite value pickers declare `data-ui-popup-interior` on their tight content boundary. The shared radial shell routes pointer input there, and empty-space dismissal excludes that interior; outside canvas clicks retain normal dismissal.
