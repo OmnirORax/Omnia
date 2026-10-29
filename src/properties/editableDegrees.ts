@@ -1,6 +1,8 @@
 /** A target adapter declares actual writable inputs, not inferred pixel traits.
  * Applicable operation adapters may combine inputs into one freedom adjuster. */
 export const VISUAL_FREEDOM_GROUP={id:"visual",label:"Appearance",symbol:"🪄"} as const;
+export const UNIT_FREEDOM_GROUP={id:"units",label:"Units / fill",symbol:"●●"} as const;
+export const POSITION_FREEDOM_GROUP={id:"position",label:"Position",symbol:"⟊"} as const;
 export type FreedomGroup={id:string;label:string;symbol:string};
 export type FreedomPresentation={label:string;symbol:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[]};
 export type EditableInput={key:string;property:string;label:string;freedom?:FreedomPresentation};
