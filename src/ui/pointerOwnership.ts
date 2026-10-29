@@ -1,8 +1,6 @@
 /** UI ownership lasts for the physical press, independently of capture and
  * preview lifetime. Capture loss, Esc and mouse pointercancel are not releases. */
 const physicalPresses=new Set<number>();
-let pressSequence=0;
-export const pointerPressSequence=()=>pressSequence;
 export const physicalPointerHeld=()=>physicalPresses.size>0;
 const held = new Map<number, { kind: string; buttons: number }>();
 const listeners = new Set<(active: boolean) => void>();
@@ -36,7 +34,7 @@ export function cancelUITouch(event: PointerEvent) {
 // Install before component listeners can consume pointerup. Mouse events also
 // recover a cancelled mouse pointer stream; a no-buttons move proves release.
 if (typeof window !== "undefined") {
-  const pressed=(event:PointerEvent)=>{pressSequence++;physicalPresses.add(event.pointerId);};
+  const pressed=(event:PointerEvent)=>physicalPresses.add(event.pointerId);
   const released = (event: MouseEvent) => {if("pointerId" in event)physicalPresses.delete(Number(event.pointerId));else physicalPresses.clear();finishUIPress(event);};
   window.addEventListener("pointerdown",pressed,true);
   const moved = (event: MouseEvent) => {

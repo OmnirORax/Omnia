@@ -7,7 +7,7 @@ import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
 import { ACTIONS } from '../workspaceActions';
 import { contextTargets } from './contextTargets';
-import { claimUIPress, uiPointerHeld, pointerPressSequence } from "./pointerOwnership";
+import { claimUIPress, uiPointerHeld, physicalPointerHeld } from "./pointerOwnership";
 
 const fieldSelector = 'input:not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]';
 const controllerSelector = '[data-context-controller],[data-ui-function^="context."],[data-shortcut-runner],omnium-appearance-recovery';
@@ -63,13 +63,12 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
   const ui = useOptionalUITracked(()=>[]), current = useRef(close), dismissal=useRef(dismiss); current.current = close;dismissal.current=dismiss;
   useLayoutEffect(()=>{
     const node=ref.current;if(!open||!node)return;
-    const openingSequence=pointerPressSequence();
-    let opening=true;
-    const fresh=()=>{if(pointerPressSequence()!==openingSequence)opening=false;};
+    let opening=physicalPointerHeld();
+    const fresh=()=>{opening=false;};
     const consume=(event:Event)=>{if(!opening)return;if(event instanceof MouseEvent&&event.type==='click'&&event.detail===0)return;event.preventDefault();event.stopImmediatePropagation();};
-    window.addEventListener('pointerdown',fresh,true);
-    for(const type of ['click','contextmenu'])node.addEventListener(type,consume,true);
-    return()=>{window.removeEventListener('pointerdown',fresh,true);for(const type of ['click','contextmenu'])node.removeEventListener(type,consume,true);};
+    node.addEventListener('pointerdown',fresh,true);
+    for(const type of ['pointerup','mouseup','click','contextmenu'])node.addEventListener(type,consume,true);
+    return()=>{node.removeEventListener('pointerdown',fresh,true);for(const type of ['pointerup','mouseup','click','contextmenu'])node.removeEventListener(type,consume,true);};
   },[open,ref]);
 
   useLayoutEffect(() => {
