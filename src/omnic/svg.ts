@@ -36,6 +36,15 @@ export function structuralIdsAlong(nodes:readonly StructuralNode[],a:{x:number;y
   }
   return ids;
 }
+/** Components intersecting the normalized rectangular selection marquee. */
+export function structuralIdsInRect(nodes:readonly StructuralNode[],a:{x:number;y:number},b:{x:number;y:number}):Set<string>{
+  const left=Math.min(a.x,b.x),right=Math.max(a.x,b.x),top=Math.min(a.y,b.y),bottom=Math.max(a.y,b.y),ids=new Set<string>();
+  for(const n of nodes){if(n.kind==='group')continue;const t=Math.max(2,n.thickness/2);let hit=false;
+    if(n.kind==='line')hit=Math.max(Math.min(n.x,n.x2??n.x),left)-t<=Math.min(Math.max(n.x,n.x2??n.x),right)&&Math.max(Math.min(n.y,n.y2??n.y),top)-t<=Math.min(Math.max(n.y,n.y2??n.y),bottom);
+    else{const nx=Math.max(left,Math.min(right,n.x)),ny=Math.max(top,Math.min(bottom,n.y)),nearest=Math.hypot(nx-n.x,ny-n.y),furthest=Math.max(...[[left,top],[left,bottom],[right,top],[right,bottom]].map(([x,y])=>Math.hypot(x!-n.x,y!-n.y)));hit=nearest<=n.radius+t&&(n.fill||furthest>=n.radius-t);}
+    if(hit)ids.add(n.componentId);
+  }return ids;
+}
 export function evaluationBounds(evaluation:Evaluation) {
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const node of evaluation.nodes){
@@ -69,10 +78,12 @@ function element(node:StructuralNode,selected:boolean) {
   return `<g opacity="${number(node.opacity)}" data-omnic-role="${esc(node.id)}" data-omnic-highlighted="true" data-omnic-fraction="${number(mark.fraction)}">${base.replace(`opacity="${number(node.opacity)}"`,'opacity="1"')}${overlay}</g>`;
 }
 /** Self-contained output adapter only. SVG markup never becomes recipe identity. */
-export function renderSVG(evaluation:Evaluation, feedback?:{gridPitch?:number;ghost?:{x:number;y:number;radius:number;color:string};bounds?:{x:number;y:number;width:number;height:number}; selected?:readonly string[]; hovered?:readonly string[]; pivot?:{x:number;y:number}|null}):string {
+export function renderSVG(evaluation:Evaluation, feedback?:{gridPitch?:number;ghost?:{x:number;y:number;radius:number;color:string};bounds?:{x:number;y:number;width:number;height:number}; selected?:readonly string[]; hovered?:readonly string[]; pivot?:{x:number;y:number}|null;selectionBox?:{x:number;y:number;width:number;height:number}|null}):string {
   const bounds=feedback?.bounds??evaluationBounds(evaluation),selected=new Set(evaluation.selection);
   const picked=new Set(feedback?.selected),hovered=new Set(feedback?.hovered);
   const outlines=evaluation.nodes.filter(n=>n.kind!=='group'&&(picked.has(n.componentId)||hovered.has(n.componentId))).map(n=>`<circle pointer-events="none" cx="${number(n.x)}" cy="${number(n.y)}" r="${number(n.radius+1.5)}" stroke="${hovered.has(n.componentId)?'#ffe45c':'#56ffa0'}" fill="none" stroke-width="0.75"/>`).join('');
+  const selection=feedback?.selectionBox;
+  const selectionMark=selection?`<rect pointer-events="none" x="${number(selection.x)}" y="${number(selection.y)}" width="${number(selection.width)}" height="${number(selection.height)}" fill="#3ab9ff" fill-opacity=".12" stroke="#70d9ff" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`:"";
   const grid:string[]=[];
   const pitch=feedback?.gridPitch;
   if(pitch&&Math.ceil(bounds.width/(pitch*.866))*Math.ceil(bounds.height/pitch)<1024){
@@ -83,5 +94,5 @@ export function renderSVG(evaluation:Evaluation, feedback?:{gridPitch?:number;gh
   }
   const ghost=feedback?.ghost?`<circle pointer-events="none" cx="${number(feedback.ghost.x)}" cy="${number(feedback.ghost.y)}" r="${number(feedback.ghost.radius)}" fill="${esc(feedback.ghost.color)}" opacity=".3"/>`:'';
   const pivot=feedback?.pivot?`<path pointer-events="none" stroke="#ffe45c" stroke-width="0.75" d="M ${number(feedback.pivot.x-3)} ${number(feedback.pivot.y)} h 6 M ${number(feedback.pivot.x)} ${number(feedback.pivot.y-3)} v 6"/>`:'';
-  return `<svg xmlns="http://www.w3.org/2000/svg" data-omnic-structure="true" width="256" height="256" preserveAspectRatio="xMidYMid meet" viewBox="${[bounds.x,bounds.y,bounds.width,bounds.height].map(number).join(" ")}" role="img" aria-label="Omnic structural composition">${grid.join("")}${evaluation.nodes.map(n=>element(n,selected.has(n.id))).join("")}${ghost}${outlines}${pivot}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" data-omnic-structure="true" width="256" height="256" preserveAspectRatio="xMidYMid meet" viewBox="${[bounds.x,bounds.y,bounds.width,bounds.height].map(number).join(" ")}" role="img" aria-label="Omnic structural composition">${grid.join("")}${evaluation.nodes.map(n=>element(n,selected.has(n.id))).join("")}${ghost}${outlines}${pivot}${selectionMark}</svg>`;
 }

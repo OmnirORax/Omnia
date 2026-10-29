@@ -19,7 +19,7 @@ import { UIField } from '../ui/UIField';
 import { UISection } from '../ui/UISection';
 import { useFeatureActions } from '../ui/useFeatureActions';
 import type { AtomnicInteraction } from './atomnicInteraction';
-import { structuralIdsAlong, renderSVG } from './svg';
+import { structuralIdsInRect, renderSVG } from './svg';
 import type { Evaluation } from './evaluate';
 import { claimUIPress } from '../ui/pointerOwnership';
 import { FEATURE_ACTIONS } from '../featureActions';
@@ -48,7 +48,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const [selectionTimeline,setSelectionTimeline]=useState(()=>({states:[new Set<string>()],index:0}));
   const selected=selectionTimeline.states[selectionTimeline.index];
   const setSelected=(next:Set<string>)=>{onSelect?.([...next]);setSelectionTimeline(previous=>appendTransient(previous,next));};
-  const [hovered,setHovered]=useState<string[]>([]);
+  const [hovered,setHovered]=useState<string[]>([]),[selectionBox,setSelectionBox]=useState<{x:number;y:number;width:number;height:number}|null>(null);
   const [tool,setTool]=useState<Tool>('draw'),[phase,setPhase]=useState('idle'),[pivot,setPivot]=useState<Point|null>(null);
   const [cursorOperation,setCursorOperation]=useState<'move'|null>(null);
   const pointerTool=cursorOperation??tool;
@@ -93,7 +93,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const degreeValues=useMemo(()=>degree?{[degree.targets[0].input.key]:targetDegreeValue(recipe,degree)}:displayed,[degree,recipe,displayed]);
   useOmnicParameterBindings(degreeValues,next=>{if(degree){changeDegree(degree,next[degree.targets[0].input.key]);return;}for(const key of Object.keys(next))if(next[key]!==displayed[key])input(key,next[key]);},degree?degreeParameters:bindParameters&&isAtomnic&&!extraPanel&&!normalSelection.length?ATOMNIC_PARAMETERS:[]);
   const beginRotation=(step=false)=>{if(!selectedRef.current.size){setMessage('Select atoms before rotating.');return;}stepOnly.current=step;setTool('rotate');setMenu(null);setPanel({kind:'functions'});setPhase('pivot');setMessage('Pick the pivot: exact click or detected target.');};
-  const cancel=()=>{setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
+  const cancel=()=>{setCursorOperation(null);setSelectionBox(null);const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
   const mark=()=>{try{const targets=[...scoped(selectedRef.current)].map(id=>`${id}:shape`);if(!targets.length)return;
     commit({...recipeRef.current,operations:[...recipeRef.current.operations,{id:uid(),operator:'highlight',targets,enabled:true,
       params:{which:'all',fraction:Number(settings.fraction),start:Number(settings.markTurn)*360,color:String(settings.color),opacity:Number(settings.opacity)}}]});
@@ -152,7 +152,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       }
       if(event.button===0&&(event.ctrlKey||event.metaKey)){
         dismissPanel?.();setMenu(null);const ids=new Set([...normalSelection,...selectedRef.current]);
-        for(const id of structuralIdsAlong(evaluation?.nodes??[],point,point))ids.add(id);
+        for(const id of structuralIdsInRect(evaluation?.nodes??[],point,point))ids.add(id);setSelectionBox({x:point.x,y:point.y,width:0,height:0});
         gesture.current={kind:'select',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids,angle:0};
         selectedRef.current=ids;setSelected(ids);return;
       }
@@ -200,7 +200,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       pointer.current={x:event.clientX,y:event.clientY};
       const active=gesture.current;
       if(active?.kind==='select'){
-        const hits=structuralIdsAlong(evaluation?.nodes??[],active.last,point);let changed=false;
+        const left=Math.min(active.start.x,point.x),top=Math.min(active.start.y,point.y),width=Math.abs(point.x-active.start.x),height=Math.abs(point.y-active.start.y);setSelectionBox({x:left,y:top,width,height});
+        const hits=structuralIdsInRect(evaluation?.nodes??[],active.start,point);let changed=false;
         for(const id of hits)if(!active.ids.has(id)){active.ids.add(id);changed=true;}
         active.last=point;if(changed){selectedRef.current=new Set(active.ids);setSelected(new Set(active.ids));}return;
       }
@@ -232,10 +233,10 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         if(commit(next,true)){active.next=next;active.last=point;if(appliedDelta)active.appliedDelta=appliedDelta;if(active.kind==='rotate')active.appliedTurn=snapTurn(active.turn??0,Number(settings.order),Number(settings.steps));setMessage('');}
       }catch(failure){error(failure);}
     },
-    up:(_point,event)=>{if(event.buttons&1)return;setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active){if(active.next!==active.base)commit(active.next);if(active.kind==='erase'){const remaining=new Set(atoms(active.next).map(a=>a.id));const nextSelected=new Set([...selectedRef.current].filter(id=>remaining.has(id)));if(nextSelected.size!==selectedRef.current.size)setSelected(nextSelected);}if(active.kind==='rotate')setPhase('idle');}},cancel,
+    up:(_point,event)=>{if(event.buttons&1)return;setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active?.kind==='select')setSelectionBox(null);if(active){if(active.next!==active.base)commit(active.next);if(active.kind==='erase'){const remaining=new Set(atoms(active.next).map(a=>a.id));const nextSelected=new Set([...selectedRef.current].filter(id=>remaining.has(id)));if(nextSelected.size!==selectedRef.current.size)setSelected(nextSelected);}if(active.kind==='rotate')setPhase('idle');}},cancel,
   };
   const api=useMemo(()=>({select:(ids:readonly string[])=>handlers.current.select(ids),context:(event:MouseEvent)=>openMovingPosition(event.clientX,event.clientY),down:(p:Point,e:PointerEvent)=>handlers.current.down(p,e),move:(p:Point,e:PointerEvent)=>handlers.current.move(p,e),up:(p:Point,e:PointerEvent)=>handlers.current.up(p,e),cancel:()=>handlers.current.cancel()}),[]);
-  const bridge=useMemo<AtomnicInteraction>(()=>({...api,bounds,cursorZone,gridPitch:isAtomnic&&settings.mode==='constrained'?Number(settings.size)*2:undefined,ghost:isAtomnic&&tool==='draw'&&ghost?{...ghost,radius:Number(settings.size),color:String(settings.color)}:undefined,selected:isAtomnic&&selected.size?[...selected]:normalSelection,hovered:isAtomnic?hovered:[],pivot:isAtomnic?pivot:null,phase:isAtomnic?(phase==='idle'?tool:phase):'select'}),[api,bounds,cursorZone,selected,hovered,pivot,phase,tool,ghost,settings.mode,settings.size,settings.color,isAtomnic,normalSelection]);
+  const bridge=useMemo<AtomnicInteraction>(()=>({...api,bounds,cursorZone,gridPitch:isAtomnic&&settings.mode==='constrained'?Number(settings.size)*2:undefined,selectionBox:gesture.current?.kind==='select'?selectionBox:null,ghost:isAtomnic&&tool==='draw'&&ghost?{...ghost,radius:Number(settings.size),color:String(settings.color)}:undefined,selected:isAtomnic&&selected.size?[...selected]:normalSelection,hovered:isAtomnic?hovered:[],pivot:isAtomnic?pivot:null,phase:isAtomnic?(phase==='idle'?tool:phase):'select'}),[api,bounds,cursorZone,selected,selectionBox,hovered,pivot,phase,tool,ghost,settings.mode,settings.size,settings.color,isAtomnic,normalSelection]);
   useEffect(()=>{onBridge(radar||compatible?bridge:null);},[bridge,onBridge,compatible,radar]);useEffect(()=>()=>{onBridge(null);},[onBridge]);
   const beforeUnmount=useRef(cancel);beforeUnmount.current=cancel;
   useEffect(()=>{const stop=()=>{if(gesture.current)beforeUnmount.current();};window.addEventListener('blur',stop);return()=>{window.removeEventListener('blur',stop);};},[]);
