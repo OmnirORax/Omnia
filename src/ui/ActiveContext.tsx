@@ -5,6 +5,8 @@ import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
+import { ACTIONS } from '../workspaceActions';
+import { contextTargets } from './contextTargets';
 import { claimUIPress, uiPointerHeld } from "./pointerOwnership";
 
 const fieldSelector = 'input:not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]';
@@ -83,6 +85,7 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
 export function ActiveContextSystem() {
   const ui = useUI(), latest = useRef(ui); latest.current = ui;
   const stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot);
+  useLayoutEffect(()=>{contextTargets.setIntermediate(stack.at(-1)?.kind==='layer'||stack.at(-1)?.kind==='field');},[stack]);
   const popField = () => {
     const current = latest.current, entries = current.activeContext.getSnapshot(), field = entries.at(-1);
     if (field?.kind !== "field") return false;
@@ -136,7 +139,9 @@ export function ActiveContextSystem() {
       }
       while (element && !(element instanceof HTMLElement)) element = element.parentElement;
       if (!(element instanceof HTMLElement) || element.closest(controllerSelector)) return;
-      publish(latest.current, stackAt(latest.current, element));
+      const next=stackAt(latest.current,element);
+      contextTargets.context(activeFrame(next)?.key,element,next.at(-1)?.kind==='layer'||next.at(-1)?.kind==='field');
+      publish(latest.current,next);
     };
     const key = (event: KeyboardEvent) => {
       // The held UI gesture gets first refusal (notably Esc cancellation).
@@ -163,11 +168,13 @@ export function ActiveContextSystem() {
 /** Remote actions preserve the target while the user interacts with the controller. */
 export function ActiveContextControls() {
   const ui = useUI(), stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot), top = stack.at(-1);
-  const label = top?.kind === "frame" ? ui.frameActions.get(top.key)?.title ?? top.key : top?.element.getAttribute("aria-label") ?? (top?.kind === "field" ? "Value field" : "Popup");
+  useSyncExternalStore(contextTargets.subscribe,contextTargets.getSnapshot);
+  const target=contextTargets.targets()[0];
+  const label = target?.label ?? (top?.kind === "frame" ? ui.frameActions.get(top.key)?.title ?? top.key : top?.element.getAttribute("aria-label") ?? (top?.kind === "field" ? "Value field" : "Popup"));
   return <div data-context-controller onPointerDown={event => {
     if ((event.target as Element).closest("button")) event.preventDefault();
   }}><UISection id="active-context-actions" title="Active context">
     <p role="status">{top ? label : "Click a frame to activate it"}</p>
-    {["focus", "context.back", "context.search", "context.close", "context.minimize", "context.resize", "context.float", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
+    {ACTIONS.filter(action=>action.category==='Active context'||'contextControl' in action&&(action.contextControl===true||contextTargets.active())).filter(action=>!('contextual' in action)||!contextTargets.override(action.id)||contextTargets.available(action.id)).map(action=><FunctionControl key={action.id} id={action.id} mirror/>)}
   </UISection></div>;
 }

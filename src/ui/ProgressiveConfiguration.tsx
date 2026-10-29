@@ -1,3 +1,4 @@
+import { useContextStage } from './ContextStage';
 import type { ReactNode } from 'react';
 
 /** Navigation only. The caller mounts exactly the current registered input and
@@ -5,6 +6,7 @@ import type { ReactNode } from 'react';
 export function ProgressiveConfiguration({label,index,count,onBack,onNext,children}: {
   label:string; index:number; count:number; onBack:()=>void; onNext:()=>void; children:ReactNode;
 }) {
+  useContextStage(`${label}:${index}`);
   return <div className="progressive-configuration" data-configuration-step={index}>
     <small>{label} · {index+1}/{count}</small>
     {children}

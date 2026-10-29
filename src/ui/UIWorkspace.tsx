@@ -1,3 +1,4 @@
+import { ContextTargetController } from './ContextTargetController';
 import { ToolCursorLayer, rememberToolIcon } from "./toolCursor";
 import { ToolGlyph, toolIconFor } from "./toolIcon";
 import { ownsContextMenu, routeContextMenu } from './contextMenuOwnership';
@@ -1713,7 +1714,7 @@ export function UIWorkspace({
       <ValueFieldBehavior />
       <CustomControls />
       <NamePresentation />
-      <ToolCursorLayer/>
+      <ToolCursorLayer/><ContextTargetController/>
       {children}
       {search && <GlobalSearch {...search} />}
       <div hidden ref={shortcutRunners} aria-hidden="true">

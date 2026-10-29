@@ -1,3 +1,6 @@
+import { insertConstruction } from '../src/omnic/tools.ts';
+import { deleteComponents, memberTargets, rootTargets } from '../src/omnic/componentTargets.ts';
+import { compactGeometry, targetBounds, targetLevels, fitDegreeValue } from '../src/omnic/contextGeometry.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateRecipe, validateRecipeReferences, LIMITS } from '../src/omnic/model.ts';
@@ -7,7 +10,7 @@ import { evaluateRecipe } from '../src/omnic/evaluate.ts';
 import { renderSVG, evaluationBounds, pickStructuralNode } from '../src/omnic/svg.ts';
 import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings, atomnicEditable, addAtom, legalAtoms } from '../src/omnic/atomnic.ts';
 import { snapTurn, turnDelta } from '../src/properties/halving.ts';
-import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets } from '../src/omnic/targetDegrees.ts';
+import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets, targetParameter } from '../src/omnic/targetDegrees.ts';
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
@@ -43,6 +46,55 @@ test('preset discovery includes every applicable component and operation freedom
   const whole=writeTargetDegree(next,fraction,1);
   assert.ok(!targetDegrees(whole,ids,[],[],'available').some(d=>d.id==='omnic.regionAngle'),'conditional freedoms disappear when inapplicable');
   assert.throws(()=>writeTargetDegree({...source,operations:[]},fraction,.2),/no longer exists/);
+});
+test('construction insertion retains existing objects and remaps independent internal scopes',()=>{
+  const source=validateRecipe({...createRecipe('part'),frames:[{id:'frame',property:'part',state:'unspecified',scope:['unit:shape']}]});
+  const existing=validateRecipe(createRecipe('line')),before=JSON.stringify(existing);let n=0;
+  const a=insertConstruction(existing,source,{x:30,y:-20},()=>`copy-${++n}`);
+  const b=insertConstruction(a.recipe,source,{x:-30,y:20},()=>`copy-${++n}`);
+  assert.equal(b.recipe.components.length,3);assert.equal(b.recipe.components[0].id,'line');
+  assert.equal(a.recipe.components[1].params.x,30);assert.equal(a.recipe.components[1].params.y,-20);
+  assert.deepEqual(a.recipe.operations[0].targets,a.roots);
+  assert.deepEqual(a.recipe.frames[0].scope,[`${a.roots[0]}:shape`]);
+  assert.notEqual(a.roots[0],b.roots[0]);assert.ok(!a.ids.includes(a.recipe.frames[0].id),'non-editable frame identities do not erase detected preset DOFs');
+  assert.equal(JSON.stringify(existing),before,'prior draft snapshot remains available to Undo');
+  assert.equal(source.components[0].id,'unit','the library preset is not mutated');
+  assert.doesNotThrow(()=>evaluateRecipe(b.recipe));
+});
+test('MC geometry scopes preserve hierarchy and deletion never widens explicit operations',()=>{
+  const source=validateRecipe(recipe([{id:'group',generator:'group',params:{},children:[dot('a'),dot('b',20)]},dot('a:b',60)],
+    [op('only-a','highlight',['a:shape']),op('pair','highlight',['a:shape','b:shape']),op('colon-owner','highlight',['a:b:shape'])]));
+  const before=JSON.stringify(source),next=deleteComponents(source,new Set(['a']));
+  assert.deepEqual(rootTargets(source,['group','a']),['group']);
+  assert.deepEqual(memberTargets(source,['group']),['a','b']);
+  assert.deepEqual(targetLevels(source,['a']),[['a'],['group'],['group','a:b']]);
+  assert.ok(!next.operations.some(item=>item.id==='only-a'));
+  assert.deepEqual(next.operations.find(item=>item.id==='pair').targets,['b:shape']);
+  assert.deepEqual(next.operations.find(item=>item.id==='colon-owner').targets,['a:b:shape']);
+  const groupRemoved=deleteComponents(source,new Set(['group']));assert.deepEqual(groupRemoved.components.map(c=>c.id),['a:b']);
+  assert.equal(JSON.stringify(source),before,'selection operations retain the prior undo snapshot');
+  const mixed=validateRecipe(recipe([dot('a'),{id:'line',generator:'line',params:{length:80}}]));
+  const extent=targetDegrees(mixed,['a','line']).find(d=>d.id==='omnic.extent');
+  assert.equal(targetParameter(extent).min,1);assert.equal(targetParameter(extent).max,100);
+});
+test('MC edge fit respects off-centre geometry, independent thickness and selected DOF bounds',()=>{
+  const area={x:-100,y:-100,width:200,height:200};
+  const source=validateRecipe({...recipe([dot('a',50)]),atomnic:{mode:'free'}}),evaluation=evaluateRecipe(source);
+  const size=targetDegrees(source,['a']).find(d=>d.id==='omnic.extent');
+  almost(fitDegreeValue(source,evaluation,size,['a'],area),49);
+  const line=validateRecipe({...createRecipe('line'),atomnic:{mode:'free'}}),lineResult=evaluateRecipe(line);
+  const width=targetDegrees(line,['line']).find(d=>d.id==='omnic.thickness');
+  almost(fitDegreeValue(line,lineResult,width,['line'],area),12);
+});
+test('MC compact reuses bounded packing for components and group members while preserving constraints',()=>{
+  const source=validateRecipe({...recipe([dot('a',-60),dot('b',60)]),atomnic:{mode:'free'}});
+  const area={x:-100,y:-100,width:200,height:200},result=compactGeometry(source,evaluateRecipe(source),['a','b'],area);
+  assert.ok(targetBounds(evaluateRecipe(result),['a','b']).width<targetBounds(evaluateRecipe(source),['a','b']).width);
+  assert.deepEqual(result.components.map(c=>c.id),['a','b']);assert.equal(result.components[0].params.size,5);
+  const group=validateRecipe({...recipe([{id:'g',generator:'group',params:{},children:source.components}]),atomnic:{mode:'free'}});
+  assert.doesNotThrow(()=>compactGeometry(group,evaluateRecipe(group),['g'],area));
+  const large=validateRecipe({...recipe(Array.from({length:33},(_,i)=>dot(`d${i}`,i*5))),atomnic:{mode:'free'}});
+  assert.throws(()=>compactGeometry(large,evaluateRecipe(large),large.components.map(c=>c.id),area),/32/);
 });
 test('normal radar picks follow rendered ring contours, complete line segments and generated roles',()=>{
   const result=evaluateRecipe(recipe([dot('unit'),{id:'rim',generator:'ring',params:{radius:30}},

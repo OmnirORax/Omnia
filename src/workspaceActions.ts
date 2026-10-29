@@ -1,3 +1,5 @@
+import { contextTargets } from './ui/contextTargets.ts';
+import { uiPointerHeld } from './ui/pointerOwnership.ts';
 import { validateValue } from "./properties/registry.ts";
 import { PROPERTY_REGISTRY, loadController } from "./appearance/registry.ts";
 import type { Controller, Value } from "./appearance/model";
@@ -8,7 +10,7 @@ import { normalizeFont, type FontId } from "./fonts.ts";
 import { FEATURE_ACTIONS, featureActionRuntime } from "./featureActions.ts";
 
 export const ACTIONS = [
-  { id: "searchUI", category: "Workspace", label: "Global UI search", defaultKey: "Ctrl+Alt+S" },
+  { id: "searchUI", contextControl:true, category: "Workspace", label: "Global UI search", defaultKey: "Ctrl+Alt+S" },
   { id: "ui:devMode", category: "UI editing", label: "UI edit mode", defaultKey: "" },
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },
   { id: "ui:createFrame", category: "Workspace", label: "Create UI frame", defaultKey: "" },
@@ -16,12 +18,12 @@ export const ACTIONS = [
   { id: "ui:undo", configuration: "history", category: "UI history", label: "Undo UI", defaultKey: "" },
   { id: "ui:redo", configuration: "history", category: "UI history", label: "Redo UI", defaultKey: "" },
   { id: "ui:select", category: "UI editing", label: "Select UI buttons", defaultKey: "" },
-  { id: "ui:compact", category: "UI editing", label: "Compact selected UI", defaultKey: "" },
+  { id: "ui:compact", contextual:true, category: "UI editing", label: "Compact selected UI", defaultKey: "" },
   { id: "ui:align", category: "UI editing", label: "Align UI", defaultKey: "" },
-  { id: "selectAll", category: "Selection", label: "Select visible nodes", defaultKey: "Ctrl+A" },
-  { id: "deleteSelected", category: "Selection", label: "Delete selected concepts and subnodes", defaultKey: "Delete" },
+  { id: "selectAll", contextual:true, category: "Selection", label: "Select visible nodes", defaultKey: "Ctrl+A" },
+  { id: "deleteSelected", contextControl:"target", contextual:true, category: "Selection", label: "Delete selection", defaultKey: "Delete" },
   { id: "shortcuts", category: "Workspace", label: "Toggle shortcut display", defaultKey: "Ctrl+/" },
-  { id: "focus", category: "Navigation", label: "Frame selected front-on", defaultKey: "F" },
+  { id: "focus", contextControl:true, contextual:true, category: "Navigation", label: "Frame selected front-on", defaultKey: "F" },
   { id: "isolateFocus", category: "Navigation", label: "Focus context only", defaultKey: "" },
   { id: "fitLocal", category: "Navigation", label: "Fit local system", defaultKey: "Ctrl+Alt+F" },
   { id: "fitAll", category: "Navigation", label: "Fit entire atlas", defaultKey: "" },
@@ -33,8 +35,8 @@ export const ACTIONS = [
   { id: "newNode", category: "Structure creation", label: "New node", defaultKey: "N" },
   { id: "newChild", category: "Structure creation", label: "New child", defaultKey: "Ctrl+Alt+N" },
   { id: "connect", category: "Relationships", label: "Connect from selected", defaultKey: "L" },
-  { id: "expand", category: "Expansion", label: "Expand or collapse selected", defaultKey: "E" },
-  { id: "expandAll", category: "Expansion", label: "Expand or collapse entire subtree", defaultKey: "Ctrl+Alt+E" },
+  { id: "expand", contextual:true, category: "Expansion", label: "Expand or collapse selected", defaultKey: "E" },
+  { id: "expandAll", contextual:true, category: "Expansion", label: "Expand or collapse entire subtree", defaultKey: "Ctrl+Alt+E" },
   { id: "toggleSnap", category: "Spatial editing", label: "Toggle snapping", defaultKey: "G" },
   { id: "nudgeLeft", category: "Spatial editing", label: "Move selected node left", defaultKey: "ArrowLeft" },
   { id: "nudgeRight", category: "Spatial editing", label: "Move selected node right", defaultKey: "ArrowRight" },
@@ -43,9 +45,9 @@ export const ACTIONS = [
   { id: "axisX", category: "Spatial editing", label: "Constrain drag to X", defaultKey: "X" },
   { id: "axisY", category: "Spatial editing", label: "Constrain drag to Y", defaultKey: "Y" },
   { id: "axisZ", category: "Spatial editing", label: "Constrain drag to Z", defaultKey: "Z" },
-  { id: "compactSelected", category: "Spatial editing", label: "Compact selected subsystem", defaultKey: "" },
-  { id: "compactFrame", category: "Spatial editing", label: "Compact current frame", defaultKey: "" },
-  { id: "compactAll", category: "Spatial editing", label: "Compact selected / all", defaultKey: "" },
+  { id: "compactSelected", contextual:true, category: "Spatial editing", label: "Compact selected subsystem", defaultKey: "" },
+  { id: "compactFrame", contextual:true, category: "Spatial editing", label: "Compact current frame", defaultKey: "" },
+  { id: "compactAll", contextControl:"target", contextual:true, category: "Spatial editing", label: "Compact selected / all", defaultKey: "" },
   { id: "undo", configuration: "history", category: "History", label: "Undo", defaultKey: "Ctrl+Z" },
   { id: "redo", configuration: "history", category: "History", label: "Redo", defaultKey: "Ctrl+Y" },
   { id: "cancel", category: "Workspace", label: "Cancel or close menu", defaultKey: "Esc" },
@@ -105,7 +107,8 @@ export function preferredFeatureKey(bindings: Record<string, string>, key: strin
   const rank = (scope: string) => scope === "visualSelector" ? 3 : scope === "contentEditing" ? 2 : scope === "uiContext" ? 1 : 0;
   const candidates = FEATURE_ACTIONS.filter(action => shortcutBinding(action.id, bindings) === key && available(action.id) &&
     (!typing || "allowTyping" in action && action.allowTyping) && (!blocked || "allowBlocked" in action && action.allowBlocked));
-  candidates.sort((a, b) => rank(b.scope) - rank(a.scope));
+  const priority=(action:typeof candidates[number])=>action.scope==='visualSelector'?4:'contextual' in action&&contextTargets.override(action.id)&&!uiPointerHeld()?3:rank(action.scope);
+  candidates.sort((a,b)=>priority(b)-priority(a));
   return candidates[0]?.id ?? null;
 }
 export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;

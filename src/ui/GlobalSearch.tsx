@@ -1,3 +1,4 @@
+import { cursorPosition } from './cursorPosition';
 import { useActiveLayer } from "./ActiveContext";
 import { transientReveal, type RevealSession } from './transientReveal';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -18,13 +19,7 @@ export type GlobalSearchProps = {
 const focusable = (element: HTMLElement) => element.matches("button,input,select,textarea,a,[contenteditable=true]") ? element : element.querySelector<HTMLElement>("input,select,textarea,button,a,[contenteditable=true]");
 type Point = { x: number; y: number };
 export function GlobalSearch(props: GlobalSearchProps) {
-  const cursor = useRef<Point>({ x: innerWidth / 2, y: innerHeight / 3 });
-  useEffect(() => {
-    const track = (event: PointerEvent) => { cursor.current = { x: event.clientX, y: event.clientY }; };
-    document.addEventListener("pointermove", track, true); document.addEventListener("pointerdown", track, true);
-    return () => { document.removeEventListener("pointermove", track, true); document.removeEventListener("pointerdown", track, true); };
-  }, []);
-  return props.open ? <SearchSession {...props} origin={cursor.current} /> : null;
+  return props.open ? <SearchSession {...props} origin={cursorPosition()} /> : null;
 }
 function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps & { origin: Point }) {
   const ui = useUI(), appearance=useAppearance(),id = useId();
@@ -43,10 +38,8 @@ function SearchSession({ onClose, onPreview, onKeep, origin }: GlobalSearchProps
   };
   useLayoutEffect(() => {
     const fit = () => setPosition(point => { const next = clamp(point); return next.x === point.x && next.y === point.y ? point : next; });
-    const observer = new ResizeObserver(fit);
-    if (popup.current) observer.observe(popup.current);
-    window.addEventListener("resize", fit); fit();
-    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
+    window.addEventListener("resize",fit);
+    return()=>window.removeEventListener("resize",fit);
   }, []);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearHover = () => { if (hoverTimer.current !== null) clearTimeout(hoverTimer.current); hoverTimer.current = null; };

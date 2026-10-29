@@ -1,3 +1,6 @@
+import { createContextTargets, contextTargets } from '../src/ui/contextTargets.ts';
+import { preferredFeatureKey } from '../src/workspaceActions.ts';
+import { claimUIPress, finishUIPress } from '../src/ui/pointerOwnership.ts';
 import { dismissContextDials } from "../src/ui/activeContextModel.ts";
 import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCursorModel.ts";
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
@@ -16,6 +19,31 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test('shared target routing chooses the nearest supported scope and asks before multi-DOF execution',()=>{
+  const registry=createContextTargets(),calls=[],element={contains:target=>target==='canvas'};
+  let targets=[{id:'member',label:'Member',commands:{deleteSelected:{run:()=>calls.push('delete member')}}},
+    {id:'group',label:'Group',commands:{resize:{degrees:[{id:'radius',label:'Radius',run:()=>calls.push('radius')},{id:'width',label:'Width',run:()=>calls.push('width')}]}}}];
+  const source=registry.register({owner:'composer',element:()=>element,read:()=>targets});
+  registry.context('composer','canvas');assert.equal(registry.active(),true);
+  assert.equal(registry.invoke('deleteSelected'),true);assert.deepEqual(calls,['delete member']);
+  assert.equal(registry.available('context.close'),false,'unsupported Close never becomes geometry deletion');
+  registry.invoke('resize');assert.equal(calls.length,1,'ambiguous operation does not execute');
+  assert.equal(registry.choice.getSnapshot().degrees.length,2);registry.choose('width');assert.equal(calls.at(-1),'width');
+  registry.invoke('resize');targets=[{id:'other',label:'Other',commands:{resize:{degrees:[{id:'radius',label:'Radius',run:()=>calls.push('wrong target')}]}}}];
+  assert.equal(registry.choose('radius'),false,'stale choices never affect a replacement target');
+  registry.invoke('resize');assert.equal(calls.at(-1),'wrong target','one compatible DOF executes directly');
+  registry.context('composer',null,true);assert.equal(registry.override('context.back'),false,'field/popup Escape retains priority');
+  registry.context('other','canvas');assert.equal(registry.active(),false,'leaving the surface restores existing context behavior');source.dispose();
+});
+test('shared MC shortcuts own selected geometry while MS and held-gesture cancellation keep priority',()=>{
+  const source=contextTargets.register({owner:'composer',element:()=>null,read:()=>[{id:'target',label:'Geometry',commands:{}}]});source.activate();
+  try{
+    assert.equal(preferredFeatureKey({},'D',id=>['context.descendants','atomnic.draw'].includes(id)),'context.descendants');
+    assert.equal(preferredFeatureKey({'selector.pattern':'D'},'D',id=>['selector.pattern','context.descendants','atomnic.draw'].includes(id)),'selector.pattern');
+    claimUIPress(999,'mouse',1);
+    assert.equal(preferredFeatureKey({},'Esc',id=>['context.back','atomnic.cancel'].includes(id)),'atomnic.cancel');
+  }finally{finishUIPress({pointerId:999,pointerType:'mouse',buttons:0});source.dispose();}
+});
 test('empty-space dismissal closes nested dials without closing unrelated context layers',()=>{
   const calls=[],layers=new Map();
   layers.set('other',{close:()=>calls.push('unrelated')});

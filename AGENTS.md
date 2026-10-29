@@ -366,3 +366,9 @@ Repeated UI controls should use scoped `useUITracked` subscriptions rather than
 subscribing to the full UI context. Preserve current event handlers and actual
 render dependencies; appearance readers keep snapshot identity. Read the scoped
 subscription section in UI_COMPONENT_CONTRACT.md before extending this path.
+
+# Shared MC targets and child-stage placement (2026-10-29)
+
+Reuse `ui/contextTargets.ts` / `useContextTargets` for active geometry and future non-frame targets. Existing catalog commands retain IDs/shortcuts; declare `contextual` routing and MC presentation metadata, then expose actual capabilities/compatible DOFs from the adapter. Multiple compatible DOFs MUST go through the shared ambiguity prompt before execution; do not create private pickers or shortcut handlers. One compatible DOF may run directly. Reuse shared property bindings, Shift configuration and history; MS/held-gesture priority remains authoritative. Omnic Close is unsupported; Delete is the existing `deleteSelected` command. The user's final correction retains nearest-edge Minimize/Maximize; Expand/Compress changes a numeric DOF, not visibility or marker compression.
+
+Every next-stage/child application popup opens at the invoking cursor point through `ContextStage`/`usePopupAnchor` and shared popup widgets. Field/page identity changes may reanchor; value/hover updates must not, and held slider gestures suppress it. Same-title custom stages declare a stable stage key. Do not add pointer tracking, update-time discovery or private positioning. Browser-native dialogs and resident-window placement are separate. New construction presets insert alongside existing contents through `insertConstruction`, preserving earlier geometry and canonical references while remapping fresh internal IDs/scopes.

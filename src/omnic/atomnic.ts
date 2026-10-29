@@ -1,3 +1,4 @@
+import { deleteComponents } from './componentTargets.ts';
 import type { Component, Params, Recipe } from './model.ts';
 import { validateRecipe } from './model.ts';
 import { atomnicDefaults } from './atomnicSettings.ts';
@@ -88,9 +89,7 @@ export function ungroupAtoms(recipe:Recipe,ids:ReadonlySet<string>):Recipe {
 /** Shared deletion transaction for selected removal and continuous erasing.
  * Surviving identities and explicit operator addresses are never reassigned. */
 export function removeAtoms(recipe:Recipe,ids:ReadonlySet<string>):Recipe {
-  if(!ids.size)return recipe;
-  const walk=(items:Component[]):Component[]=>items.filter(c=>!ids.has(c.id)).map(c=>c.children?{...c,children:walk(c.children)}:c);
-  return {...recipe,components:walk(recipe.components)};
+  return deleteComponents(recipe,ids);
 }
 /** Test the swept segment directly: fast pointer movement cannot skip a unit,
  * and work stays bounded by the recipe limit rather than travel distance. */

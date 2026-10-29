@@ -12,6 +12,11 @@ export function targetDegrees(recipe:Recipe,ids:readonly string[],adjusters:read
   if(!ids.length||ids.some(id=>!index.has(id)))return [];
   return editableDegrees(ids.map(id=>{const item=index.get(id)!;const spec='generator' in item?definition(item.generator,true)!:definition(item.operator)!;return {id,inputs:applicableParameters(spec,item.params).filter(input=>!fixed.includes(input.property))};}),adjusters,coverage);
 }
+/** One legal editor domain for every owner of the selected shared property. */
+export function targetParameter(degree:EditableDegree):Parameter {
+  const first=degree.targets[0].input as Parameter,inputs=degree.targets.map(target=>target.input as Parameter);
+  return first.kind==='number'?{...first,min:Math.max(...inputs.map(input=>input.min!)),max:Math.min(...inputs.map(input=>input.max!)),step:Math.max(...inputs.map(input=>input.step??1))}:first;
+}
 export function targetDegreeValue(recipe:Recipe,degree:EditableDegree):Value {
   const target=degree.targets[0],component=[...components(recipe.components),...recipe.operations].find(item=>item.id===target.id)!;
   return component?.params[target.input.key]??(target.input as Parameter).initial;

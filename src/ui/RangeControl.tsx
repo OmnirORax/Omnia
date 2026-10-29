@@ -1,3 +1,5 @@
+import { cursorPosition } from './cursorPosition';
+import { ContextualMasterController } from './ContextualMasterController';
 import { useCancelValueEdit } from "./ActiveContext";
 import { claimUIPress } from "./pointerOwnership";
 import { rangeValue } from "./rangeMath";
@@ -38,6 +40,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const interval={min:saved?.min??localInterval.min,max:saved?.max??localInterval.max};
   const jump=Math.max(resolution,Math.min(saved?.step??localJump,Math.max(resolution,hardMax-hardMin)));
   const [halving, setHalving] = useState(false);
+  const [popupPoint,setPopupPoint]=useState<{x:number;y:number}|null>(()=>configuration==='step'?cursorPosition():null);
   const [editing, setEditing] = useState<Edit | null>(configuration==='step'?'jump':null), [text, setText] = useState(configuration==='step'?String(jump):'');
   const low = onMinimumChange ? min : Math.min(value, Math.max(min, interval.min));
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
@@ -64,7 +67,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     if (next !== active.next) { active.next = next; onValueChange(next); }
   };
   const label = inputProps["aria-label"] ?? "Value";
-  const edit = (which: Edit) => { cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
+  const edit = (which: Edit) => { setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
   const choose = (next: number) => { onValueChange(next); onValueCommit?.(next); };
   const cancel = () => { cancelled.current = true; setEditing(null); };
   useCancelValueEdit(endpoint, cancel, editing);
@@ -136,14 +139,14 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     <button type="button" className="range-end range-end-max" disabled={inputProps.disabled} aria-label={`${label} maximum: ${high}`} title="Select maximum · right-click to edit" onClick={() => choose(high)} onContextMenu={context("max")}>
       <svg data-range-glyph viewBox="0 0 10 32" aria-hidden><path d="M5 3V29" /></svg><span>{high}</span>
     </button>
-    <button type="button" className="range-halving" disabled={inputProps.disabled} title="Pick by repeated halving of the current interval" aria-label={`${label} halving`} onClick={() => setHalving(v => !v)}>½</button>
-    {halving && <HalvingPicker low={low} high={high} label={String(label)} onPick={next => { choose(rangeValue(next, low, high, resolution)); setHalving(false); }} />}
-    {editing && <input ref={endpoint} autoFocus className={`range-bound-editor range-edit-${editing}`} type="number" aria-label={`${label} ${editing === "min" ? "minimum" : editing === "max" ? "maximum" : editing}`} value={text}
+    <button type="button" className="range-halving" disabled={inputProps.disabled} title="Pick by repeated halving of the current interval" aria-label={`${label} halving`} onClick={() => {setPopupPoint(cursorPosition());setHalving(v => !v);}}>½</button>
+    {halving && <ContextualMasterController title={`${label} halving`} position={popupPoint} onClose={()=>setHalving(false)} onWheel={event=>event.stopPropagation()}><HalvingPicker low={low} high={high} label={String(label)} onPick={next => { choose(rangeValue(next, low, high, resolution)); setHalving(false); }} /></ContextualMasterController>}
+    {editing && <ContextualMasterController title={`${label} ${editing}`} position={popupPoint} onClose={cancel} onWheel={event=>event.stopPropagation()}><input ref={endpoint} autoFocus className={`range-bound-editor range-edit-${editing}`} type="number" aria-label={`${label} ${editing === "min" ? "minimum" : editing === "max" ? "maximum" : editing}`} value={text}
       min={editing === "jump" ? resolution : editing === "min" ? hardMin : low} max={editing === "max" ? hardMax : editing === "jump" ? Math.max(resolution, hardMax - hardMin) : high} step={resolution}
       onFocus={event => event.currentTarget.select()} onChange={event => setText(event.currentTarget.value)} onBlur={finish}
       onKeyDown={event => {
         if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); finish(); }
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-      }} />}
+      }} /></ContextualMasterController>}
   </span>;
 }

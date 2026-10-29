@@ -48,7 +48,7 @@
       "id": "interface.context",
       "title": "Active context, close, minimize, resize and descendants",
       "where": "Master controller → Active context. Click the intended frame first.",
-      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings. Resized windows retain projected bounds and themed borders across focus and minimize/reopen. W restores retained original geometry. Projection styling is independent of React/Rnd wrapper updates. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at 50% opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings.",
+      "behavior": "Actions target the clicked/focused frame. Esc steps out one field/popup level before minimizing; active MS has priority. W resizes/restores, M minimizes/restores, X closes, D toggles descendants, subject to saved bindings. Resized windows retain projected bounds and themed borders across focus and minimize/reopen. W restores retained original geometry. Projection styling is independent of React/Rnd wrapper updates. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at 50% opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings. Registered geometry surfaces now supply target adapters to the same commands and shortcuts; frame-only controls remain frame-only. MC discovers contextual controls from the command catalog rather than a parallel geometry toolbar. Delete selection and Compact are projected there. Popup/value-field Escape still precedes geometry scope and its parent frame.",
       "steps": [
         {
           "do": "Open a frame, click a value field, edit it, then press Esc.",
@@ -97,7 +97,9 @@
         "automated": "281 model checks and type/build checks"
       },
       "related": [
-        "interface.configure"
+        "interface.configure",
+        "interface.targets",
+        "interface.child-placement"
       ],
       "gestures": []
     },
@@ -213,7 +215,9 @@
         "browser": "Focused isolated Chromium drag checks passed live payload, no persistence during movement, release commit, one-step Undo, Esc cancellation without minimizing, docking and one-step docking Undo. User hardware frame-skipping verification pending.",
         "automated": "279 model checks, including cached docking/ownership/pinning/context policy equivalence and invalidation on changed snapshots; build/type checks"
       },
-      "related": [],
+      "related": [
+        "interface.targets"
+      ],
       "gestures": [
         "ui.context",
         "ui.rename"
@@ -371,7 +375,7 @@
       "id": "controls.spectrum",
       "title": "Horizontal spectrum slider",
       "where": "Numeric property editors, including history Steps and visual parameters.",
-      "behavior": "Drag anywhere on the track. Left-click endpoints selects min/max; right-click endpoints edits working limits. Right-click the dot types a value; right-click arrows changes jump size. Working limits cannot override hard renderer/semantic bounds.",
+      "behavior": "Drag anywhere on the track. Left-click endpoints selects min/max; right-click endpoints edits working limits. Right-click the dot types a value; right-click arrows changes jump size. Working limits cannot override hard renderer/semantic bounds. Manual value, limit and jump editors plus the halving picker open as shared child popups at the invoking cursor point. Value/hover updates do not move them.",
       "steps": [
         {
           "do": "Drag from an empty point on the track, rather than the dot.",
@@ -384,6 +388,10 @@
         {
           "do": "Select an endpoint and undo the completed property edit.",
           "expect": "The value reaches the supported endpoint; undo restores the prior committed setting."
+        },
+        {
+          "do": "Right-click the dot, an endpoint or nudge arrow, then open ½. Repeat inside a different MC/property editor.",
+          "expect": "The requested editor opens at the triggering pointer position through the shared popup system. Editing/dragging does not make its parent follow the pointer; Esc leaves the field/popup before its parent."
         }
       ],
       "reference": "docs/UI_COMPONENT_CONTRACT.md",
@@ -394,10 +402,12 @@
       "limits": "Browser acceptance has not been recorded for this guide.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
+        "browser": "Shared child placement and portalled numeric/halving editors await user acceptance; no browser suite run.",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
-      "related": [],
+      "related": [
+        "interface.child-placement"
+      ],
       "gestures": []
     },
     {
@@ -537,7 +547,9 @@
         "browser": "Not recorded",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
-      "related": [],
+      "related": [
+        "interface.targets"
+      ],
       "gestures": []
     },
     {
@@ -585,7 +597,9 @@
         "browser": "Not recorded",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
-      "related": [],
+      "related": [
+        "interface.targets"
+      ],
       "gestures": []
     },
     {
@@ -698,14 +712,16 @@
         "browser": "Not recorded",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
-      "related": [],
+      "related": [
+        "interface.targets"
+      ],
       "gestures": []
     },
     {
       "id": "omnic.compose",
       "title": "Circular Omnic composer: editing inside, tools on the rim",
       "where": "Create → New Omnic object, or select an object → Open Omnic composer. Both open the same circular radar.",
-      "behavior": "The whole Composer is a circular radar with editing inside and icon tools along its rim. Root tools are hidden by default: hover the shared circular rim axis to reveal them, then move onto a tool. There is no eye/show-hide button. Tools stay revealed while a child category or requested editor is open; keyboard focus on the rim/tools also reveals them. Hover reveal uses CSS without pointer-move matching or recipe/history writes, and registered controls remain mounted. Free/Realistic, ⠒ Atomnic, name/save, File and reset are adjacent rim tools, with pen/eraser last so toggling Atomnic does not shift preceding tools. Presets opens on right-click of empty editing space, not on the rim; it contains existing construction presets, workspace presets and saved operation tools. Categories open smaller child rings at the category click, retaining parent rings/canvas; portals escape frame clipping. Dial centres stay exactly at the invocation point. Atomnic off/on preserves the same recipe and geometry. Direct left-drag moves existing targets; right-click during movement settles it and opens position settings. Wheel over the interior zooms the view (40–1000 extent), preserving browser Ctrl+wheel. Save/copy/import/export, live world drafts, history, recovery and library owners remain shared. Retired Object/Structure/Selection/Transform/Fill-marking/Motion/Inspection wrappers, Configure selected component, Operation scope and View zoom buttons remain absent. Color is a rainbow wheel, Fill ◐ and Opacity a faded ⬤. The last-position pen/eraser button uses the supplied eraser silhouette with upper white/lower black when offering Erase, reversed for Pen. Active cursors now inherit the activated tool icon through the website-wide shared cursor system. The purple hardcoded eraser cursor is removed. Button and cursor share the same two-tone no-underline silhouette; the button offers the next action while the cursor represents the active action. Tool cursor inheritance is now limited to the currently applicable operation zone. Leaving the editing circle for the tool rim or settings restores the normal cursor; returning restores the retained tool. Direct grabs show Move while held, then restore the retained operation. Edited-world image hit tests supply the same boundary rule. Empty-space right-click opens the preset radial. Choosing a preset shows all its currently applicable DOFs together around one circle, with a horizontal setter strip exactly the width of each button directly above it. Numeric strips use the shared slider; categorical strips cycle choices, toggles switch on/off, and color strips open the shared color editor. DOF right-click opens shared snap/step configuration. Choosing a preset commits it immediately to the draft. Accepted property changes persist independently; Enter/✓ only finishes editing. Esc/back or empty-space dismissal closes the dial without removing the chosen preset. Contextual dials at every category depth now pack icons around the centre button, using only the space required for the centre, neighbouring icons and any value strips. Fixed oversized dial radii are removed. Procedural X/Y inputs no longer appear in preset or target DOF menus or generated Composer parameter editors; position remains available by direct left-drag and its existing movement settings. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at 50% opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings. Line and Ring are standalone presets; Ring no longer inserts an array. Oscillation is removed from construction presets and appears as the sole current motion effect under the rim category labelled/iconed mfx. Effects are discovered from operator metadata. Applying mfx → Oscillation uses selected geometry (the whole composition when no selection exists), adds no new geometry and opens the same radial DOF settings. Reopening the same target effect retains its operation identity/settings. The existing bounded animation preview is started when allowed. Dial centres anchor exactly at their opening click; centre markers stay 50% opaque.",
+      "behavior": "The whole Composer is a circular radar with editing inside and icon tools along its rim. Root tools are hidden by default: hover the shared circular rim axis to reveal them, then move onto a tool. There is no eye/show-hide button. Tools stay revealed while a child category or requested editor is open; keyboard focus on the rim/tools also reveals them. Hover reveal uses CSS without pointer-move matching or recipe/history writes, and registered controls remain mounted. Free/Realistic, ⠒ Atomnic, name/save, File and reset are adjacent rim tools, with pen/eraser last so toggling Atomnic does not shift preceding tools. Presets opens on right-click of empty editing space, not on the rim; it contains existing construction presets, workspace presets and saved operation tools. Categories open smaller child rings at the category click, retaining parent rings/canvas; portals escape frame clipping. Dial centres stay exactly at the invocation point. Atomnic off/on preserves the same recipe and geometry. Direct left-drag moves existing targets; right-click during movement settles it and opens position settings. Wheel over the interior zooms the view (40–1000 extent), preserving browser Ctrl+wheel. Save/copy/import/export, live world drafts, history, recovery and library owners remain shared. Retired Object/Structure/Selection/Transform/Fill-marking/Motion/Inspection wrappers, Configure selected component, Operation scope and View zoom buttons remain absent. Color is a rainbow wheel, Fill ◐ and Opacity a faded ⬤. The last-position pen/eraser button uses the supplied eraser silhouette with upper white/lower black when offering Erase, reversed for Pen. Active cursors now inherit the activated tool icon through the website-wide shared cursor system. The purple hardcoded eraser cursor is removed. Button and cursor share the same two-tone no-underline silhouette; the button offers the next action while the cursor represents the active action. Tool cursor inheritance is now limited to the currently applicable operation zone. Leaving the editing circle for the tool rim or settings restores the normal cursor; returning restores the retained tool. Direct grabs show Move while held, then restore the retained operation. Edited-world image hit tests supply the same boundary rule. Empty-space right-click opens the preset radial. Choosing a preset shows all its currently applicable DOFs together around one circle, with a horizontal setter strip exactly the width of each button directly above it. Numeric strips use the shared slider; categorical strips cycle choices, toggles switch on/off, and color strips open the shared color editor. DOF right-click opens shared snap/step configuration. Choosing a preset commits it immediately to the draft. Accepted property changes persist independently; Enter/✓ only finishes editing. Esc/back or empty-space dismissal closes the dial without removing the chosen preset. Contextual dials at every category depth now pack icons around the centre button, using only the space required for the centre, neighbouring icons and any value strips. Fixed oversized dial radii are removed. Procedural X/Y inputs no longer appear in preset or target DOF menus or generated Composer parameter editors; position remains available by direct left-drag and its existing movement settings. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at 50% opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings. Line and Ring are standalone presets; Ring no longer inserts an array. Oscillation is removed from construction presets and appears as the sole current motion effect under the rim category labelled/iconed mfx. Effects are discovered from operator metadata. Applying mfx → Oscillation uses selected geometry (the whole composition when no selection exists), adds no new geometry and opens the same radial DOF settings. Reopening the same target effect retains its operation identity/settings. The existing bounded animation preview is started when allowed. Dial centres anchor exactly at their opening click; centre markers stay 50% opaque. New constructions and workspace presets now insert alongside previous contents at the empty-space click. Internal component/operation/frame identities and scopes are remapped; external object references retain canonical identity. Only the inserted structure becomes selected. MC Active context uses existing Delete, F focus, M edge-fit/restore, W edge-fit/restore, D numeric expansion/compression and Compact commands through a shared target adapter. Multiple compatible DOFs open one shared radial choice before execution; one compatible DOF runs directly. Selected geometry lends existing properties to MC through the common property bindings. Close is not geometry deletion and is unavailable there.",
       "steps": [
         {
           "do": "Open an existing ring/line/radial recipe with Atomnic off, or create a new Omnic object.",
@@ -777,7 +793,7 @@
         },
         {
           "do": "Choose a preset, adjust and release a value strip, then dismiss with empty-space click or Esc. Reopen the target settings, finish with Enter/✓, then undo.",
-          "expect": "Selection immediately commits the preset; each accepted setting uses the existing history owner. Enter/✓ closes editing. Undo restores the preceding edit. Dismissal keeps the chosen composition. Construction presets retain their existing replace-draft behavior; saved operation tools apply to the existing selected scope and require a selection."
+          "expect": "Selection immediately commits the preset; each accepted setting uses the existing history owner. Enter/✓ closes editing. Undo restores the preceding edit. Dismissal keeps both earlier contents and the newly chosen composition. Construction presets insert alongside the existing draft; saved operation tools apply to the existing selected scope and require a selection."
         },
         {
           "do": "Right-click a target, open an empty-space preset and browse nested preset categories. Inspect all DOFs after selecting a preset.",
@@ -789,7 +805,7 @@
         },
         {
           "do": "Right-click empty space and choose Line; dismiss the dial. Repeat with Ring.",
-          "expect": "Line creates a standalone line; Ring creates a standalone ring with no array. Each choice remains in the draft immediately, including after opening a setting or dismissing its dial. Existing draft replacement semantics remain."
+          "expect": "Line creates a standalone line; Ring creates a standalone ring with no array. Each choice remains in the draft immediately, including after opening a setting or dismissing its dial. Earlier objects remain unchanged; each insertion has independent internal identities."
         },
         {
           "do": "Select a line, ring, dot, array or group. Reveal the rim and open mfx → Oscillation. Adjust amplitude/frequency/axis, dismiss, then reopen for the same target.",
@@ -798,6 +814,10 @@
         {
           "do": "Right-click empty space or a target at a known pointer location; repeat near an edge and open a nested category.",
           "expect": "The radial centre appears at the invocation point rather than being shifted by viewport fitting. The centre marker/category centre stays at 50% opacity. Edge invocation may place some tools outside the viewport; reopen farther inside for access."
+        },
+        {
+          "do": "Create a line, then right-click another empty point and insert Ring or a saved preset. Open one of its DOFs; dismiss and undo the insertion.",
+          "expect": "Both structures coexist. The new preset is independently selected and editable; its internal marks/effects stay scoped to it. A child setter appears at the invoking click. Dismissal keeps both structures; Undo removes only the insertion."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -821,15 +841,17 @@
         "omnic.create",
         "omnic.open"
       ],
-      "limits": "The editing viewport is circular: saved contents outside its visible boundary are retained and can be brought into view using the existing View extent setting. Geometry is added/configured through existing generators; this does not implement arbitrary freehand ring/line drawing or full MS clipping. Direct Atomnic gestures still require authored dots without enabled geometry-transform operations. The separate library retains its normal window. Chrome/Omnium zoom synchronization is paused pending the user’s intended contract; this change does not claim matching pixel sizes. Wheel zoom applies to the Composer interior; Omnium camera navigation retains its existing wheel behavior. Right-click during dragging settles the move before configuration; resuming uses a new left drag. Normal component position parameters retain their existing validated ranges. Existing construction presets replace the draft on confirmation; this does not implement stamping/insertion or new preset authoring. Saved operation presets require an existing selection. Shared properties within a preset are edited together only where supported. Numeric typing Enter accepts the field; a subsequent Enter finishes editing. Preset option overflow uses existing More rings; the detected DOF ring stays flat. Instant persistence here means the recoverable Composer draft; Save shared still publishes the canonical definition. Radial origins are not shifted to fit the viewport, so edge invocation can clip tools. Motion previews use existing animation/work budgets; direct Atomnic construction still requires pausing/disabling unsupported geometry-transform operations.",
+      "limits": "The editing viewport is circular: saved contents outside its visible boundary are retained and can be brought into view using the existing View extent setting. Geometry is added/configured through existing generators; this does not implement arbitrary freehand ring/line drawing or full MS clipping. Direct Atomnic gestures still require authored dots without enabled geometry-transform operations. The separate library retains its normal window. Chrome/Omnium zoom synchronization is paused pending the user’s intended contract; this change does not claim matching pixel sizes. Wheel zoom applies to the Composer interior; Omnium camera navigation retains its existing wheel behavior. Right-click during dragging settles the move before configuration; resuming uses a new left drag. Normal component position parameters retain their existing validated ranges. Construction presets insert independent geometry alongside current contents at the chosen canvas point; preset authoring is unchanged. Saved operation presets require an existing selection. Shared properties within a preset are edited together only where supported. Numeric typing Enter accepts the field; a subsequent Enter finishes editing. Preset option overflow uses existing More rings; the detected DOF ring stays flat. Instant persistence here means the recoverable Composer draft; Save shared still publishes the canonical definition. Radial origins are not shifted to fit the viewport, so edge invocation can clip tools. Motion previews use existing animation/work budgets; direct Atomnic construction still requires pausing/disabling unsupported geometry-transform operations.",
       "status": "Implemented for review in the open PR; not merged to production",
       "verification": {
-        "browser": "Immediate preset retention, standalone Line/Ring, mfx scope/reopening, exact click anchoring and 50% centre markers await user testing. No browser suite run.",
-        "automated": "Model coverage verifies independent Line/Ring presets, mfx classification and oscillation on lines/rings/arrays/groups without geometry replacement. Existing discovery, direct movement and nested dismissal checks retained; type/property/backend/preview checks run before publication."
+        "browser": "MC target routing, multi-DOF prompts, insertion retention and shared child placement await user testing. No browser suite run.",
+        "automated": "Model checks cover target hierarchy/ambiguity/stale scopes, MS/held-gesture priority, deletion scope repair, shared packing, independent insertion and numeric input domains. Type/property/backend/preview checks run before publication."
       },
       "related": [
         "omnic.worldPreview",
-        "omnic.saving"
+        "omnic.saving",
+        "interface.targets",
+        "interface.child-placement"
       ],
       "gestures": []
     },
@@ -903,17 +925,17 @@
     },
     {
       "id": "omnic.motion",
-      "title": "Semantic oscillation and playback",
-      "where": "Motion category removed from the active circular radar; existing saved oscillations and playback engine retained.",
-      "behavior": "Semantic oscillation data/evaluation and registered Play/pause command remain reusable. The Motion category and its add/edit/play controls are removed from the radar at user request. Opening/saving/exporting existing motion recipes does not delete their stored operations. No replacement motion authoring UI is introduced.",
+      "title": "mfx: oscillation and playback",
+      "where": "Reveal the Composer rim → mfx → Oscillation. Select target geometry first; no selection applies to the current composition.",
+      "behavior": "Oscillation is an ordinary registered motion effect applicable to existing geometry, not a construction preset. The mfx category is discovered from operator metadata and currently contains Oscillation. Choosing it reuses or adds a scoped operation, opens shared radial DOFs and starts the existing bounded preview when allowed. Accepted settings persist; replay/play-pause and saved recipes retain their existing identity.",
       "steps": [
         {
-          "do": "Open the radar and inspect its categories.",
-          "expect": "Motion and its radial actions are absent."
+          "do": "Select a line, ring, group or several units; open mfx → Oscillation.",
+          "expect": "The selected construction remains; a scoped effect is applied and its DOFs appear. No replacement disk or separate oscillation construction is created."
         },
         {
-          "do": "Load an existing oscillation recipe, then save/export it.",
-          "expect": "Its stored oscillation operation remains intact; removal of presentation controls does not rewrite saved content."
+          "do": "Adjust the effect and dismiss; reopen mfx → Oscillation for the same targets.",
+          "expect": "The existing effect and settings are reused. Play/pause retains its existing command and budget safeguards."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -925,9 +947,9 @@
         "omnic.play"
       ],
       "limits": "256 animated roles / 12fps; hidden/reduced-motion/slow previews pause. Atlas nodes are static.",
-      "status": "Radial presentation removed; existing engine and saved data preserved",
+      "status": "Implemented for review in the open PR; browser acceptance pending",
       "verification": {
-        "browser": "Radial removal awaits user verification; no browser suite run.",
+        "browser": "mfx scope, settings and playback await user testing. No browser suite run.",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
       "related": [],
@@ -937,7 +959,7 @@
       "id": "omnic.atomnic",
       "title": "Target-derived radial DOF adjusters in the Omnic radar",
       "where": "Right-click a rendered pattern in the radar interior or active edited Omnium image. General creation/file controls remain on the radar rim.",
-      "behavior": "Left-click/drag an existing target moves the current selection; Shift-click changes membership, and empty-space pen strokes draw. Authored atoms retain Micro/Macro and Free/Realistic legality: Free decouples imprint/step; Realistic uses the touching triangular lattice and rejects illegal placements without changing geometry. Normal components translate through registered position adapters. Right-click during movement settles the move and opens progressive scope → constraints → step settings for the next drag. Stationary target right-click discovers other common writable DOFs in one flat ring, without file/category actions or Procedural X/Y/Move buttons. Rotation uses retained settings and scope → angular halving order → steps → pivot → drag, with optional exact/detected target, axis interval and position configuration. Scalar adjusters use the shared PropertyEditor; right-click opens step configuration. Working ranges/steps survive editor reopening within the current Composer session; accepted edits reuse draft/history/live preview. Color uses a rainbow wheel, Fill ◐ and Opacity a 50%-faded ⬤ (symbol only). Root tools are hidden until hovering their shared circular rim axis or focusing it by keyboard; there is no eye button. Moving onto a tool preserves reveal, and open child categories/requested root editors keep it revealed. Contextual target rings remain visible after explicit right-click. Free/Realistic and ⠒ Atomnic precede the promoted tools; pen/eraser is last. Presets is available by right-clicking empty editing space; it contains construction presets and reusable operation tools. Pen/eraser uses the reference eraser silhouette with upper white/lower black for Erase, reversed for Pen. Categories open around their own button; retired general categories stay removed. Wheel zoom over the Composer preserves center, limits extent to 40–1000, coalesces previews to 12fps and settles one edit per burst. Ctrl+wheel retains browser zoom. The opening-press guard prevents immediate popup dismissal on release. Geometry, library, save/copy/import/export, recovery and existing saved operation/frame data remain preserved. Active cursors now inherit the activated tool icon through the website-wide shared cursor system. The purple hardcoded eraser cursor is removed. Button and cursor share the same two-tone no-underline silhouette; the button offers the next action while the cursor represents the active action. Tool cursor inheritance is now limited to the currently applicable operation zone. Leaving the editing circle for the tool rim or settings restores the normal cursor; returning restores the retained tool. Direct grabs show Move while held, then restore the retained operation. Edited-world image hit tests supply the same boundary rule. Empty-space right-click opens the preset radial. Choosing a preset shows all its currently applicable DOFs together around one circle, with a horizontal setter strip exactly the width of each button directly above it. Numeric strips use the shared slider; categorical strips cycle choices, toggles switch on/off, and color strips open the shared color editor. DOF right-click opens shared snap/step configuration. Choosing a preset commits it immediately to the draft. Accepted property changes persist independently; Enter/✓ only finishes editing. Esc/back or empty-space dismissal closes the dial without removing the chosen preset. Contextual dials at every category depth now pack icons around the centre button, using only the space required for the centre, neighbouring icons and any value strips. Fixed oversized dial radii are removed. Procedural X/Y inputs no longer appear in preset or target DOF menus or generated Composer parameter editors; position remains available by direct left-drag and its existing movement settings. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at 50% opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings. Line and Ring are standalone presets; Ring no longer inserts an array. Oscillation is removed from construction presets and appears as the sole current motion effect under the rim category labelled/iconed mfx. Effects are discovered from operator metadata. Applying mfx → Oscillation uses selected geometry (the whole composition when no selection exists), adds no new geometry and opens the same radial DOF settings. Reopening the same target effect retains its operation identity/settings. The existing bounded animation preview is started when allowed. Dial centres anchor exactly at their opening click; centre markers stay 50% opaque.",
+      "behavior": "Left-click/drag an existing target moves the current selection; Shift-click changes membership, and empty-space pen strokes draw. Authored atoms retain Micro/Macro and Free/Realistic legality: Free decouples imprint/step; Realistic uses the touching triangular lattice and rejects illegal placements without changing geometry. Normal components translate through registered position adapters. Right-click during movement settles the move and opens progressive scope → constraints → step settings for the next drag. Stationary target right-click discovers other common writable DOFs in one flat ring, without file/category actions or Procedural X/Y/Move buttons. Rotation uses retained settings and scope → angular halving order → steps → pivot → drag, with optional exact/detected target, axis interval and position configuration. Scalar adjusters use the shared PropertyEditor; right-click opens step configuration. Working ranges/steps survive editor reopening within the current Composer session; accepted edits reuse draft/history/live preview. Color uses a rainbow wheel, Fill ◐ and Opacity a 50%-faded ⬤ (symbol only). Root tools are hidden until hovering their shared circular rim axis or focusing it by keyboard; there is no eye button. Moving onto a tool preserves reveal, and open child categories/requested root editors keep it revealed. Contextual target rings remain visible after explicit right-click. Free/Realistic and ⠒ Atomnic precede the promoted tools; pen/eraser is last. Presets is available by right-clicking empty editing space; it contains construction presets and reusable operation tools. Pen/eraser uses the reference eraser silhouette with upper white/lower black for Erase, reversed for Pen. Categories open around their own button; retired general categories stay removed. Wheel zoom over the Composer preserves center, limits extent to 40–1000, coalesces previews to 12fps and settles one edit per burst. Ctrl+wheel retains browser zoom. The opening-press guard prevents immediate popup dismissal on release. Geometry, library, save/copy/import/export, recovery and existing saved operation/frame data remain preserved. Active cursors now inherit the activated tool icon through the website-wide shared cursor system. The purple hardcoded eraser cursor is removed. Button and cursor share the same two-tone no-underline silhouette; the button offers the next action while the cursor represents the active action. Tool cursor inheritance is now limited to the currently applicable operation zone. Leaving the editing circle for the tool rim or settings restores the normal cursor; returning restores the retained tool. Direct grabs show Move while held, then restore the retained operation. Edited-world image hit tests supply the same boundary rule. Empty-space right-click opens the preset radial. Choosing a preset shows all its currently applicable DOFs together around one circle, with a horizontal setter strip exactly the width of each button directly above it. Numeric strips use the shared slider; categorical strips cycle choices, toggles switch on/off, and color strips open the shared color editor. DOF right-click opens shared snap/step configuration. Choosing a preset commits it immediately to the draft. Accepted property changes persist independently; Enter/✓ only finishes editing. Esc/back or empty-space dismissal closes the dial without removing the chosen preset. Contextual dials at every category depth now pack icons around the centre button, using only the space required for the centre, neighbouring icons and any value strips. Fixed oversized dial radii are removed. Procedural X/Y inputs no longer appear in preset or target DOF menus or generated Composer parameter editors; position remains available by direct left-drag and its existing movement settings. Left-clicking empty space dismisses all open contextual dials and requested dial editors, consuming that press so it does not also draw or begin a world gesture. Dial ×/close buttons are removed; the middle circle remains an unlabelled origin marker at 50% opacity. Category Back and Escape still step outward. Controls and rendered target roles retain their own click handling. Empty-space dismissal preserves chosen presets and accepted settings. Line and Ring are standalone presets; Ring no longer inserts an array. Oscillation is removed from construction presets and appears as the sole current motion effect under the rim category labelled/iconed mfx. Effects are discovered from operator metadata. Applying mfx → Oscillation uses selected geometry (the whole composition when no selection exists), adds no new geometry and opens the same radial DOF settings. Reopening the same target effect retains its operation identity/settings. The existing bounded animation preview is started when allowed. Dial centres anchor exactly at their opening click; centre markers stay 50% opaque. New constructions and workspace presets now insert alongside previous contents at the empty-space click. Internal component/operation/frame identities and scopes are remapped; external object references retain canonical identity. Only the inserted structure becomes selected. MC Active context uses existing Delete, F focus, M edge-fit/restore, W edge-fit/restore, D numeric expansion/compression and Compact commands through a shared target adapter. Multiple compatible DOFs open one shared radial choice before execution; one compatible DOF runs directly. Selected geometry lends existing properties to MC through the common property bindings. Close is not geometry deletion and is unavailable there.",
       "steps": [
         {
           "do": "Create a new Omnic object and right-click its dot. Repeat on an authored group in Macro scope.",
@@ -1025,7 +1047,7 @@
         },
         {
           "do": "Choose a preset, adjust and release a value strip, then dismiss with empty-space click or Esc. Reopen the target settings, finish with Enter/✓, then undo.",
-          "expect": "Selection immediately commits the preset; each accepted setting uses the existing history owner. Enter/✓ closes editing. Undo restores the preceding edit. Dismissal keeps the chosen composition. Construction presets retain their existing replace-draft behavior; saved operation tools apply to the existing selected scope and require a selection."
+          "expect": "Selection immediately commits the preset; each accepted setting uses the existing history owner. Enter/✓ closes editing. Undo restores the preceding edit. Dismissal keeps both earlier contents and the newly chosen composition. Construction presets insert alongside the existing draft; saved operation tools apply to the existing selected scope and require a selection."
         },
         {
           "do": "Right-click a target, open an empty-space preset and browse nested preset categories. Inspect all DOFs after selecting a preset.",
@@ -1037,7 +1059,7 @@
         },
         {
           "do": "Right-click empty space and choose Line; dismiss the dial. Repeat with Ring.",
-          "expect": "Line creates a standalone line; Ring creates a standalone ring with no array. Each choice remains in the draft immediately, including after opening a setting or dismissing its dial. Existing draft replacement semantics remain."
+          "expect": "Line creates a standalone line; Ring creates a standalone ring with no array. Each choice remains in the draft immediately, including after opening a setting or dismissing its dial. Earlier objects remain unchanged; each insertion has independent internal identities."
         },
         {
           "do": "Select a line, ring, dot, array or group. Reveal the rim and open mfx → Oscillation. Adjust amplitude/frequency/axis, dismiss, then reopen for the same target.",
@@ -1046,6 +1068,10 @@
         {
           "do": "Right-click empty space or a target at a known pointer location; repeat near an edge and open a nested category.",
           "expect": "The radial centre appears at the invocation point rather than being shifted by viewport fitting. The centre marker/category centre stays at 50% opacity. Edge invocation may place some tools outside the viewport; reopen farther inside for access."
+        },
+        {
+          "do": "Create a line, then right-click another empty point and insert Ring or a saved preset. Open one of its DOFs; dismiss and undo the insertion.",
+          "expect": "Both structures coexist. The new preset is independently selected and editable; its internal marks/effects stay scoped to it. A child setter appears at the invoking click. Dismissal keeps both structures; Undo removes only the insertion."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -1104,16 +1130,18 @@
       "gestures": [
         "atomnic.pointer"
       ],
-      "limits": "Detection is adapter-based, not arbitrary pixel/semantic inference. Only common writable generator inputs appear; future adapters must declare actual setters. Specialized drag/pivot executors currently cover authored atoms/groups; normal geometry uses its existing parameter setters. Stationary target menus still use common target inputs; preset menus also discover their own operation inputs. Full MS clipping remains separate work. Realistic fixes target atom size and retains lattice/overlap/rotation constraints; it is not full physics. Scalar range/step preferences last for the editing session, not across closing/reloading; movement/rotation settings remain recipe-backed. Model/component/evaluation/render budgets remain. Chrome/Omnium size synchronization is still paused. Wheel zoom applies to the Composer interior; Omnium camera navigation retains its existing wheel behavior. Right-click during dragging settles the move before configuration; resuming uses a new left drag. Normal component position parameters retain their existing validated ranges. Existing construction presets replace the draft on confirmation; this does not implement stamping/insertion or new preset authoring. Saved operation presets require an existing selection. Shared properties within a preset are edited together only where supported. Numeric typing Enter accepts the field; a subsequent Enter finishes editing. Preset option overflow uses existing More rings; the detected DOF ring stays flat. Instant persistence here means the recoverable Composer draft; Save shared still publishes the canonical definition. Radial origins are not shifted to fit the viewport, so edge invocation can clip tools. Motion previews use existing animation/work budgets; direct Atomnic construction still requires pausing/disabling unsupported geometry-transform operations.",
+      "limits": "Detection is adapter-based, not arbitrary pixel/semantic inference. Only common writable generator inputs appear; future adapters must declare actual setters. Specialized drag/pivot executors currently cover authored atoms/groups; normal geometry uses its existing parameter setters. Stationary target menus still use common target inputs; preset menus also discover their own operation inputs. Full MS clipping remains separate work. Realistic fixes target atom size and retains lattice/overlap/rotation constraints; it is not full physics. Scalar range/step preferences last for the editing session, not across closing/reloading; movement/rotation settings remain recipe-backed. Model/component/evaluation/render budgets remain. Chrome/Omnium size synchronization is still paused. Wheel zoom applies to the Composer interior; Omnium camera navigation retains its existing wheel behavior. Right-click during dragging settles the move before configuration; resuming uses a new left drag. Normal component position parameters retain their existing validated ranges. Construction presets insert independent geometry alongside current contents at the chosen canvas point; preset authoring is unchanged. Saved operation presets require an existing selection. Shared properties within a preset are edited together only where supported. Numeric typing Enter accepts the field; a subsequent Enter finishes editing. Preset option overflow uses existing More rings; the detected DOF ring stays flat. Instant persistence here means the recoverable Composer draft; Save shared still publishes the canonical definition. Radial origins are not shifted to fit the viewport, so edge invocation can clip tools. Motion previews use existing animation/work budgets; direct Atomnic construction still requires pausing/disabling unsupported geometry-transform operations.",
       "status": "Implemented for review in the open workbench PR; not merged to production",
       "verification": {
-        "browser": "Immediate preset retention, standalone Line/Ring, mfx scope/reopening, exact click anchoring and 50% centre markers await user testing. No browser suite run.",
-        "automated": "Model coverage verifies independent Line/Ring presets, mfx classification and oscillation on lines/rings/arrays/groups without geometry replacement. Existing discovery, direct movement and nested dismissal checks retained; type/property/backend/preview checks run before publication."
+        "browser": "MC target routing, multi-DOF prompts, insertion retention and shared child placement await user testing. No browser suite run.",
+        "automated": "Model checks cover target hierarchy/ambiguity/stale scopes, MS/held-gesture priority, deletion scope repair, shared packing, independent insertion and numeric input domains. Type/property/backend/preview checks run before publication."
       },
       "related": [
         "omnic.worldPreview",
         "omnic.compose",
-        "omnic.saving"
+        "omnic.saving",
+        "interface.targets",
+        "interface.child-placement"
       ]
     },
     {
@@ -1713,6 +1741,106 @@
       "related": [
         "omnic.atomnic",
         "selector.core"
+      ]
+    },
+    {
+      "id": "interface.targets",
+      "title": "MC commands inherit the active geometry target",
+      "where": "Click geometry in the Omnic radar or its edited world image, then MC → Active context; retained shortcuts Delete, F, M, W and D use the same commands.",
+      "behavior": "Shared target adapters resolve supported operations from the selected members to enclosing groups and the composition. Existing command IDs, shortcut configuration, MC projection, property pool and draft/history owners are reused. Delete removes selected construction while preserving unrelated identities, repairs explicit operation/frame scopes without turning an emptied scope into all, and is undoable. F fits the construction view to the active scope. M fits a compatible length DOF to nearest sibling/parent/view edges and restores its previous value on repeat; W uses the same edge-fit/restore operation. D doubles a selected numeric DOF (or compresses when already at its bound), then restores its prior value on repeat. M/W/D ask which DOF when several qualify; this disambiguation is global in the target-command runtime, not Composer-specific. One qualifying DOF executes directly. Compact reuses shared packing on selected authored components/group members. MC edits common/declared group-member properties through existing setters. Close does not apply to geometry; clicking the parent frame restores existing frame actions. MS keeps first shortcut priority; active held gestures retain Escape cancellation. Shift uses the existing configuration router: cycles/hover select a DOF, release applies, right-click applies/locks its priority, left-click resets priority 1. Normal multi-DOF invocation still asks.",
+      "steps": [
+        {
+          "do": "Select a normal line/ring or several Atomnic members. Open MC → Active context.",
+          "expect": "MC names the geometry scope and projects supported existing controls, including Delete selection. Geometry properties come from registered inputs. No second Composer frame toolbar is added; Close is unavailable for geometry."
+        },
+        {
+          "do": "Press D or click Expand/compress. Choose a numeric DOF from the radial, then repeat the operation on the same DOF.",
+          "expect": "When several DOFs qualify, nothing changes before the choice. Choosing performs bounded numeric inflation; repeating restores the previous value. A single compatible DOF runs directly. Changing selection before choosing prevents the stale operation from affecting a replacement target."
+        },
+        {
+          "do": "Use M and select a size/radius/thickness/spacing DOF where available. Repeat to restore, then W to use the same edge-fit/restore operation.",
+          "expect": "M uses nearest surrounding edges and validated numeric bounds. W uses the same supported edge-fit operation. Exact values remain editable through MC properties or target DOF controls. Geometry constraints may reject an illegal edit without altering the construction."
+        },
+        {
+          "do": "Hold Shift and press D or M; cycle or hover choices, release Shift. Right-click a choice in configuration, then reopen configuration and left-click to reset.",
+          "expect": "The existing shared gesture applies once; right-click retains its priority in the shared function-value settings, and left-click restores priority 1. Normal invocation continues to ask when ambiguous."
+        },
+        {
+          "do": "Select multiple components or a group and use Compact; then Delete selection and Undo. Press Esc through selection/group/composition contexts; click frame chrome and use its existing commands.",
+          "expect": "Supported targets compact through the shared packing helper. Delete changes construction, not window visibility; Undo restores it. Esc steps through narrower contexts first. Frame commands retain their original behavior once frame chrome is active."
+        }
+      ],
+      "reference": "docs/UI_COMPONENT_CONTRACT.md",
+      "sources": [
+        "src/ui/contextTargets.ts",
+        "src/ui/useContextTargets.ts",
+        "src/ui/ContextTargetController.tsx",
+        "src/ui/useFeatureActions.tsx",
+        "src/ui/ActiveContext.tsx",
+        "src/ui/targetChoice.function.ts",
+        "src/omnic/useContextCommands.tsx",
+        "src/omnic/componentTargets.ts",
+        "src/omnic/contextGeometry.ts",
+        "src/omnic/targetDegrees.ts"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Implemented for review in the open PR; not merged to production",
+      "limits": "This integrates MC with authored Omnic geometry, not the full MS clipping/selection engine. Expansion currently uses a bounded factor-two toggle; exact value/step/halving adjustments remain in the shared property editor. M uses evaluated rectangular sibling/parent/view edges and consumer numeric bounds; the circular viewport may clip corners. Parameter/property permissions and Realistic lattice constraints remain authoritative. Compact is limited to 32 authored targets, rejects illegal Realistic results and does not unpack generated array units into new identities. Shift priority retains the existing ordinal 1–10 domain. View-fit extent retains 40–1000. Target adapters for other systems opt into this common mechanism by declaring their actual capabilities. Edge fit is limited to 256 evaluated roles and uses a bounded three-snapshot linear solution with final verification; nonlinear/identity-changing transforms reject without a partial edit.",
+      "verification": {
+        "browser": "Pending user interaction acceptance; no browser suite run.",
+        "automated": "Models cover nearest scope, zero/one/many DOFs, stale choice cancellation, source cleanup, MS and gesture shortcut precedence, nested deletion scopes, independent insertion and shared packing. Type/property/backend/preview checks run before publication."
+      },
+      "related": [
+        "omnic.compose",
+        "omnic.atomnic",
+        "interface.context",
+        "interface.child-placement"
+      ]
+    },
+    {
+      "id": "interface.child-placement",
+      "title": "Child controls open at the invoking cursor point",
+      "where": "Shared contextual MC, DOF/property stages, numeric/halving editors, context submenus and frame/global search.",
+      "behavior": "The shared popup anchor captures the invocation position. A radial centres on it; a rectangular child starts there. Shared PropertyEditor and ProgressiveConfiguration announce only logical field/page changes, so successive setters open at the new click. Same-title custom stages may declare a stable stage key. Context menus, submenus and search use the existing shared cursor source. Ordinary value/hover updates do not reposition an open popup, and a held slider gesture cannot trigger reanchoring when conditional controls appear. No pointer polling, new pointer listeners or broad DOM scans are introduced. Viewport fitting does not displace an opening popup from its invocation point.",
+      "steps": [
+        {
+          "do": "Open a preset DOF radial, click a DOF, then move the cursor and advance a configuration step.",
+          "expect": "The child field appears at its own invoking click; the next page uses its invoking click too. Parent/tool identity and retained values stay intact."
+        },
+        {
+          "do": "Open a numeric value/limit/jump editor and halving picker, a context submenu, and frame/global search from different pointer positions.",
+          "expect": "Shared child popups start at the invoking cursor point across these systems. Moving the pointer or changing a value does not make the existing popup follow it."
+        },
+        {
+          "do": "Drag a slider that reveals a conditional control, then release. Open a popup near a viewport edge.",
+          "expect": "The held gesture keeps its original geometry; the popup does not jump during dragging. Edge invocation preserves the origin and may clip content; reopening farther inside restores access."
+        }
+      ],
+      "reference": "docs/UI_COMPONENT_CONTRACT.md",
+      "sources": [
+        "src/ui/ContextStage.tsx",
+        "src/ui/ContextualMasterController.tsx",
+        "src/ui/ContextMenu.tsx",
+        "src/ui/ContextSubmenu.tsx",
+        "src/ui/FrameSearch.tsx",
+        "src/ui/GlobalSearch.tsx",
+        "src/ui/RangeControl.tsx",
+        "src/ui/ProgressiveConfiguration.tsx",
+        "src/appearance/Controls.tsx"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Implemented for review in the open PR; not merged to production",
+      "limits": "This is the shared application-popup contract. Browser-native color/select dialogs remain browser controlled. Resident window placements and explicit user dragging are separate from transient child opening. Popups may extend outside the viewport at edge invocation. No browser acceptance is inferred from static/model checks.",
+      "verification": {
+        "browser": "Pending user verification of popup placement and numeric/halving interactions. No browser suite run.",
+        "automated": "Type/property/model/backend/preview checks run before publication; placement and readability require user testing."
+      },
+      "related": [
+        "interface.targets",
+        "controls.spectrum",
+        "omnic.compose"
       ]
     }
   ]

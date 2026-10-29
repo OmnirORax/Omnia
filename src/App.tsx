@@ -9,6 +9,7 @@ import { createOmnicPreviewStore, newOmnicDraft, unsavedOmnicId, completeOmnicDr
 import { createHeldActions } from "./ui/heldActions";
 import { transformPlacements } from "./navigation/transforms";
 import { functionShortcutBinding } from "./workspaceActions";
+import { contextTargets } from './ui/contextTargets';
 import { invokeCatalogAction } from "./workspaceActions";
 import { SearchController } from "./ui/SearchController";
 import { ShortcutConfiguration } from "./ui/ShortcutConfiguration";
@@ -1054,6 +1055,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     }
   }
   function runAction(action: ActionId, steps?: number) {
+    const definition=ACTIONS.find(item=>item.id===action);
+    if(definition&&'contextual' in definition&&contextTargets.owns()){contextTargets.invoke(action);return;}
     if (isFeatureAction(action)) { featureActionRuntime.invoke(action); return; }
     switch (action) {
       case "searchUI": setSearchOpen(true); break;

@@ -66,7 +66,7 @@ export function ShortcutConfiguration({ mouse, bindings }: { mouse: WorkspaceSet
   const id = request?.id.replace(/^button:/, ""), fn = ui.functions.find(fn => fn.id === id);
   const spec = ACTIONS.find(action => action.id === id);
   return <ContextualMasterController title={fn?.label ?? spec?.label ?? id ?? "Configuration"} position={request?.position ?? null} onClose={close}>
-    {request && <ConfigurationInteractionBoundary id={request.id} gesture={gesture} close={close} key={`${request.id}:${request.token}`}><div className="action-configuration">
+    {request && <ConfigurationInteractionBoundary bindings={bindings} id={request.id} gesture={gesture} close={close} key={`${request.id}:${request.token}`}><div className="action-configuration">
       {fn?.configuration ?? <CoupledActionConfiguration id={id ?? request.id} bindings={bindings} />}
     </div></ConfigurationInteractionBoundary>}
   </ContextualMasterController>;

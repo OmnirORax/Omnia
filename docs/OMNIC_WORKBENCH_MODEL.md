@@ -5,7 +5,17 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
-## Latest correction: immediate presets, mfx, click-centred dials
+## Current implementation: shared MC targets, disambiguation and additive construction
+
+2026-10-29: Omnic registers actual geometry capabilities with the common target-command adapter. Reuse the existing MC command IDs and shortcuts: Delete selection, F focus, M nearest-edge minimize/maximize with restore, W edge-fit/restore, D numeric expansion/compression, Compact and progressive Esc. Close is not geometry deletion. The user's final clarification retains M against nearest edges; expand/compress means inflating/deflating the selected DOF, not replacing a group with a marker. Current expansion is a bounded factor-two toggle with restoration; exact steps remain adjustable in the shared property control.
+
+Global MC rule: when a function has multiple compatible detected DOFs, invocation asks which DOF before applying anything. A single compatible DOF executes directly. The shared target runtime and radial prompt implement this once; future adapters supply capabilities, not private pickers or shortcuts. Existing Shift configuration still owns cycling/hover/release/lock/reset. MS keeps priority and held gestures retain cancellation priority. This slice integrates MC; it does not replace the full MS geometry engine.
+
+Creating/choosing a preset inserts alongside current contents at the chosen empty-space point, with fresh internal IDs and remapped local scopes. Preserve external canonical references and earlier geometry. Do not return to replacement semantics. Choices/accepted settings stick immediately in the recoverable draft; Save shared publishes the canonical definition.
+
+Global child-placement rule: next-stage/child controls open at the invoking cursor point, through shared popup primitives. Radials centre there; rectangular children start there. Property and progressive editors announce logical stage changes; value/hover updates never move the popup, and held slider gestures suppress reanchoring. No added pointer polling or discovery scans. Native browser pickers and resident window placement are separate.
+
+## Earlier correction: immediate presets, mfx, click-centred dials
 
 2026-10-29: choosing a preset immediately keeps it in the recoverable draft. Accepted settings persist as ordinary edits. Enter/✓ only finishes editing; dismissing the dial must not remove the chosen composition. Save shared remains the canonical save action. Line and Ring are standalone choices; Ring is no longer bundled with an array. Oscillation is a reusable motion effect applicable to any selected geometry, under the category whose name/icon is **mfx**, currently the only effect. Discover effects via existing operator metadata and reuse the existing operation engine and radial DOF editors.
 
@@ -23,7 +33,7 @@ Every radial centre appears exactly at its invocation point, including nested ca
 
 2026-10-29: right-click empty Composer/edited-world space → preset radial → choose a preset → **all detected DOFs together around one radial**. Each has a horizontal value setter immediately above its circle, the same width. They do not appear one at a time. Numeric strips reuse the shared slider; DOF right-click configures snap/step. Choice commits immediately; accepted settings use draft history. Enter/✓ finishes editing; Back/Esc leaves a property editor before dismissing the dial without removing the preset. Detection comes from existing applicable generator/operator inputs; future registered inputs inherit it. No pointer polling or cursor changes are introduced.
 
-Presets moves off the rim. Existing construction presets retain replacement behavior; saved operation tools apply to the previously selected scope. This slice does not add stamping/insertion or new presets. Interaction acceptance remains with the user.
+Presets moves off the rim. Construction presets now insert alongside existing contents; saved operation tools apply to the previously selected scope. This slice does not add stamping/insertion or new presets. Interaction acceptance remains with the user.
 
 ## Earlier correction: the Composer itself is the radar
 
