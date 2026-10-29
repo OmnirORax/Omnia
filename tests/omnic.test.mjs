@@ -441,3 +441,18 @@ test('selection sweep collects intervening dots, ring boundaries and lines witho
   assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group[0].symbol,'⨮');
   for(const property of ['omnic.spacing','omnic.ringDrift','omnic.ringGrowth','omnic.angle'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'⨮');
 });
+
+
+test('mathematical slot rules anchor normal and recursion to base and pack circumference',async()=>{
+ const {mathematicalSlotValue,radialSlotCapacity}=await import('../src/properties/mathematicalDial.ts');
+ assert.equal(mathematicalSlotValue(2,2,'normal'),4);
+ assert.equal(mathematicalSlotValue(2,6,'normal'),12);
+ assert.equal(mathematicalSlotValue(2,6,'recursion'),64);
+ assert.equal(mathematicalSlotValue(2,9,'recursion'),512);
+ assert.equal(mathematicalSlotValue(2,4,'normal')+mathematicalSlotValue(2,6,'recursion'),72);
+ assert.equal(radialSlotCapacity(24,24),6);
+ assert.equal(radialSlotCapacity(36,24),9);
+ assert.equal(radialSlotCapacity(60,24),15);
+ assert.equal(radialSlotCapacity(84,24),21);
+ for(const radius of [24,36,48,60,72,84]){const count=radialSlotCapacity(radius,24);assert.ok(2*radius*Math.sin(Math.PI/count)>=24-1e-8);assert.ok(2*radius*Math.sin(Math.PI/(count+1))<24);}
+});

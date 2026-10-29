@@ -519,38 +519,37 @@ also open UI-edit menus, including when a containing UI frame is selected. The
 shared function renderer preserves original contextual handlers; normal frame
 chrome and unrelated controls retain their UI customization route.
 
-## Mathematical count dial prototype
+## Mathematical count dial prototype (current)
 
-The ⬤ Mathematical count preset uses `count-grid`, sharing count/size/paint/position
-properties and owner setters. Its count input declares `picker: "mathematical"`;
-selecting ⬤ opens the reusable `MathematicalDial` immediately. The shared
-`DegreeValueEditor` projects it for both preset and target requests, replacing
-the count slider on this test grid. Existing sliders remain in place elsewhere until interaction acceptance. Six slots default
-to top/clockwise, with base buttons 1/2, direction toggle and a start-slot cycle.
-Each slot independently cycles ● addition / ◉ multiplication / ◎ recursion on
-right-click. For slot n: addition is base*n; multiplication is base*n;
-recursion is base^n (base 2, slot 4 gives 8 or 16 respectively). Hover is transient, click commits, leaving restores committed
-count. Generated dots fill 20 columns, with each subsequent row above; their stable
-indexed roles survive count changes. Base/direction/start/modes are session-local.
+The ⬤ preset immediately opens its mathematical Count picker; preset and target
+editing share DegreeValueEditor, selected through input metadata. Sliders remain
+for other DOFs. Slots start empty: one fill activates its positional value, so one
+mark at base-1 slot 6 represents six. Marks accumulate; left-click toggles them.
+Hover previews the resulting count and leaving restores committed state.
 
+Base 2 is the default. Every slot independently right-click toggles ● normal
+(base*ordinal) / ◎ recursion (base^ordinal). ◉ is retired. An active mode change
+immediately commits its recalculated contribution; an empty mode change previews
+without selecting. Base 2 examples: normal slot2=4, normal slot6=12, recursive
+slot6=64; normal slot4 plus recursive slot6 sums to72. Base1 recursion remains
+unsupported. Base changes retain marked ordinals and recalculate when valid.
 
-### Structural marks and provisional mathematics
+Ring size is constrained, not adjustable. Base units and slots have equal visible
+size. Circumference determines the maximum non-overlapping circle capacity, using
+floor(pi/asin(unitDiameter/(2*slotCentreRadius))). Base2's minimum ring fits9;
+base1 fits6. ◎+ adds an enclosing ring around the preceding slot band; ◎− removes
+its marks and contributions while preserving inner orders. New radii add one unit
+diameter, giving base2 capacities9,15,21,… . Four orders bound rendering. Each ring
+currently shares the selected base and restarts local slot ordinals; inherited
+bases and further cross-ring algebra remain work in progress, not implied rules.
+Start and direction are shared across orders. Rings/modes/marks are session-local.
 
-The dial is a compact structural representation, not labelled conventional number
-buttons arranged in a circle. Slots begin empty; a fill activates a positional
-value. One mark at slot 6 in base 1 means six. Multiple selected slots currently
-add their base-anchored contributions; click toggles a mark, hover previews the
-result and leaving restores the committed count. A changed operation on a selected
-slot is previewed and confirmed by a click before a later click can remove it.
-Exact cross-mark algebra remains exploratory. Multiplication is base times ordinal;
-recursion is base to ordinal. Preserve these latest corrections over older slot-
-squared examples. The longer exploration is a design direction, not permission
-to add unagreed nesting/operation rules. Count must derive from units, positional
-relations and uniform convertible rules. Account for the space cost of marks,
-frames and configuration. Base units and slots use equal visible unit sizes;
-compact packing inherits shared radial geometry. Test domain is 0–128, with 20
-columns and rows growing upward. Start/base/direction/marks remain session-local.
+The count-grid renderer shares count/size/paint/position definitions and setters;
+it fills20 columns before continuing upward. Its0–512 domain supports ninth-slot
+recursion with bounded output; out-of-range active edits are rejected. The reusable
+pure slot arithmetic/packing policy lives in properties/mathematicalDial.ts.
 
-Confirmed example: base 2, slot 4 ◉ plus slot 6 ◎ = 2*4 + 2^6 = 72.
-
-Original exploratory context is archived in [Mathematical dial exploration](omnic/MATHEMATICAL_DIAL_EXPLORATION.md); its unfinished alternatives are not executable contracts.
+The exploration is direction, not finalized algebra: count derives from structural
+units/positions and uniform convertible rules; account for marks, frames and
+configuration space. Original source is archived in
+[Mathematical dial exploration](omnic/MATHEMATICAL_DIAL_EXPLORATION.md).
