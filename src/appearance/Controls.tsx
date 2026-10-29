@@ -1,3 +1,4 @@
+import { useContextStage } from '../ui/ContextStage';
 import { numericRange } from "../properties/numericRange";
 import { RangeControl } from "../ui/RangeControl";
 import { useCancelValueEdit } from "../ui/ActiveContext";
@@ -23,6 +24,7 @@ function TextPropertyInput({ value, onCommit, disabled, label, maxLength, multil
 }
 /** One editor implementation is shared by the controller, rows and contextual UI. */
 export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { previewTargets?: RegisteredTarget[] }) {
+  useContextStage(`${props.property}:${props.configuration??'value'}`);
   const ctx = useAppearance();
   const [hover, setHover] = useState(false), [focus, setFocus] = useState(false);
   const targets = useRef(props.previewTargets); targets.current = props.previewTargets;

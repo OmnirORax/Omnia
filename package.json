@@ -28,7 +28,8 @@
     "backend:ready": "node scripts/backend-ready.mjs",
     "preview:githack": "node scripts/publish-githack.mjs",
     "docs:capabilities": "node scripts/capabilities.mjs",
-    "check:capabilities": "node scripts/capabilities.mjs --check"
+    "check:capabilities": "node scripts/capabilities.mjs --check",
+    "hooks:install": "git config --local core.hooksPath .githooks"
   },
   "dependencies": {
     "@iconify-json/lucide": "1.2.146",

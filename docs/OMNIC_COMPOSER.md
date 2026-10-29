@@ -518,3 +518,50 @@ Opening functions, configuring one function or using blank popup space must not
 also open UI-edit menus, including when a containing UI frame is selected. The
 shared function renderer preserves original contextual handlers; normal frame
 chrome and unrelated controls retain their UI customization route.
+
+## Mathematical count dial prototype (current brush design)
+
+The ⬤ preset immediately opens the shared metadata-selected Count picker.
+Right-click in the drawing area changes only the active cursor brush ●/◎. It
+must never change a slot, mode assignment or count. Moving previews applying that
+brush; left-click fills a slot and stamps its mode, and holding left-click sweeps
+that mode across crossed slots. Painting an existing mark replaces its mode;
+same-mode painting is idempotent, not deselection. Other marks retain their modes.
+The obsolete per-slot right-click cycling and click-toggle paths are removed.
+
+Normal slot n contributes base*n; recursive slot n contributes base^(n+1).
+Base2: slot1 recursive=4, slot3 recursive=16, slot6 recursive=128. Contributions
+add; normal slot4 plus recursive slot6 totals136. All paths use the shared pure
+slot/sum/brush policy in properties/mathematicalDial.ts. Geometry is cached at
+stroke start, fast segments collect intervening slots, and release commits one
+history edit. Cancelling restores the numeric property. Current expression and
+brush remain session-local; Undo/reopening does not yet restore the full marked
+representation. Do not imply otherwise from numeric-owner history coverage.
+
+The shared website cursor resolver renders ●/◎ only in the explicitly registered
+popup drawing zone, returning to ordinary pointing over settings/outside. Other
+popups remain blocked from tool cursors unless they explicitly opt in.
+
+Slots start empty; unused positions reveal on hover/keyboard focus, while marks
+remain visible. Rings are fixed by enclosing equal-size base units, not manually
+resized. Base2 is default, fitting9 slots; outer orders fit15,21,… according to
+maximum non-overlapping circle capacity. An invisible outward candidate band has
+no rim. Painting a mark outside the current outer rim unlocks Add ring; enclosing
+it preserves the mark and hides the button until another outward mark is painted.
+At most four orders. Each ring shares the base and restarts local ordinals; exact
+cross-order algebra remains exploratory. Start/direction arrows default top/CW.
+
+The count-grid renderer uses shared count/size/paint/position properties, with20
+columns and rows upward. Domain0–512 bounds rendering; higher results cannot be
+painted. Base1 recursion remains unsupported. Other DOF sliders are retained.
+
+Original exploratory context is archived in
+[Mathematical dial exploration](omnic/MATHEMATICAL_DIAL_EXPLORATION.md).
+
+### ⠒❉ appearance and discovery
+
+The picker is named ⠒❉ (aliases mathematical dial/count dial). It is displayed at50% of its earlier linear size, with a matching12px scoped cursor. Hover previews glow on the slot rim; only committed marks fill. Shared Fields/⠒❉ renderer bindings project automatically into role-based Contours (slot/ring outlines, hover rims) and Indicators (selected marks, base units, direction). Native generic button fills/contours exclude mathematical slot geometry. Search aliases are shared metadata, inherited by visual parts and indexed by global search.
+
+All dials now share the Dials appearance family, with automatically detected role children and individual Radial menus/⠒❉ parts. Select the family for common edits, or right-click a specific dial/part for normal scoped overrides. Original mathematical target IDs and semantic role ancestry are retained.
+
+The advance-start-position button is removed. Meta controls are32px logical/16px displayed and sit below the outward candidate band; start remains top, with direction independently switchable.

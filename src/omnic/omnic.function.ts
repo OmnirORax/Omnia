@@ -14,7 +14,7 @@ const parameters = [...GENERATORS, ...OPERATORS].flatMap(definition => definitio
 const families = new Map<string, Parameter[]>();
 for (const parameter of parameters) families.set(parameter.property, [...(families.get(parameter.property) ?? []), parameter]);
 const labels: Record<string,string> = {
-  "omnic.extent":"Geometric extent", "omnic.coordinate.x":"Procedural X", "omnic.coordinate.y":"Procedural Y", "omnic.angle":"Angle / phase",
+  "omnic.extent":"Geometric extent", "omnic.coordinate.x":"Position X", "omnic.coordinate.y":"Position Y", "omnic.angle":"Angle / phase",
 };
 export const OMNIC_PARAMETERS: readonly Parameter[] = [...families.values()].map(group => group[0]);
 export function activeParameter(state: OmnicParameterState, property: string) {
@@ -37,7 +37,7 @@ export function checkedParameter(parameter: Parameter, input: PropertyValue): Pr
 const inputs = Object.fromEntries([...families].map(([property, group]) => {
   const first = group[0];
   const definition: PropertyDefinition | undefined = PROPERTY_REGISTRY.property(property) ? undefined : {
-    id:property, label:labels[property] ?? first.label, kind:first.kind, initial:first.initial,
+    id:property, label:labels[property] ?? first.label, kind:first.kind, initial:first.initial,...(first.unit?{unit:first.unit}:{}),
     category:{id:"omnic",label:"Omnic structure"},
     ...(first.kind === "number" ? {min:Math.min(...group.map(p=>p.min!)),max:Math.max(...group.map(p=>p.max!)),step:Math.min(...group.map(p=>p.step ?? 1))} : {}),
     ...(first.options ? {options:first.options} : {}),

@@ -1,7 +1,10 @@
+import { radialTree } from '../ui/radialMenuModel';
+import { DegreeSetter, DegreeValueEditor } from './DegreeSetter';
+import { useContextCommands } from './useContextCommands';
 import { atomnicViewBounds } from './atomnicSettings.ts';
 import { functionInputValue } from "../properties/runtimeInputs";
 import { OMNIC_CONSUMER } from "./omnic.function";
-import { operationTool, isOperationTool, applyOperationTool } from "./tools";
+import { operationTool, isOperationTool, applyOperationTool, insertConstruction } from "./tools";
 import { snappedAngle, rotationStops } from "./rotation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { closedComposerDraft, forgetClosedComposerDraft, preserveClosedComposerHistory } from "./draftHistory";
@@ -28,6 +31,11 @@ import { FEATURE_ACTIONS, radialGroups } from '../featureActions';
 import type { RadialEntry, RadialGroup } from '../ui/radialMenuModel';
 import type { ReactNode } from 'react';
 import { ProgressiveConfiguration } from '../ui/ProgressiveConfiguration';
+import { RadialMenu } from '../ui/RadialMenu';
+
+import { VISUAL_FREEDOM_GROUP, type EditableDegree } from '../properties/editableDegrees';
+import { targetDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
+import { nameSymbol } from '../ui/nameSymbols';
 import { RangeSettingsScope } from '../ui/RangeControl';
 
 type ObjectRef = { id: string; label: string; omnic?: Recipe; omnicHistory?: Recipe[] };
@@ -38,7 +46,7 @@ type Props = {
   onSave: (recipe: Recipe, label?: string) => void; onCopy: (recipe: Recipe, label: string) => void; onClose: () => void;
 };
 type Focus = { kind: "component" | "operation"; id: string };
-type RadarPanel={kind:'parameters';index:number}|{kind:'reference'|'dependency'|'presets'|'scope'|'tools'|'inspect'};
+type RadarPanel={kind:'parameters';index:number}|{kind:'reference'|'dependency'|'presets'|'scope'|'inspect'};
 const storageKey = (id: string) => `omnium.omnic.draft.v1:${id}`;
 const normalizedHistory = (recipe: Recipe) => ({ ...recipe, revision: 0 });
 const allComponents = (components: readonly Component[]): Component[] => components.flatMap(component => [component, ...allComponents(component.children ?? [])]);
@@ -70,9 +78,26 @@ function Parameters({ scope, spec, params, thresholds, change }: {
   </UIField>)}</div>;
 }
 
+/** A requested preset freedom borrows the existing contextual property adapter. */
+function PresetDegreeEditor({recipe,degree,configure,onPreview,onCommit,onBack,onConfirm}: {
+  recipe:Recipe;degree:EditableDegree;configure?:boolean;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void;onBack:()=>void;onConfirm:()=>void;
+}) {
+  const parameter=targetParameter(degree);
+  const value=targetDegreeValue(recipe,degree);
+  const parameters=useMemo(()=>[parameter],[parameter]);
+  const values=useMemo(()=>({[parameter.key]:value}),[parameter.key,value]);
+  useOmnicParameterBindings(values,next=>onCommit(next[parameter.key]),parameters);
+  return <div className="progressive-configuration">
+    <DegreeValueEditor recipe={recipe} degree={degree} configure={configure} onPreview={onPreview} onCommit={onCommit}/>
+    <div className="progressive-navigation"><button type="button" title="Back to all preset freedoms" onClick={onBack}>↩</button><button type="button" title="Done · Enter" onClick={onConfirm}>✓</button></div>
+  </div>;
+}
+
 /** The composer owns a recoverable local draft, not a second canonical object.
  * Accepted changes use the shared journal; samples and animation stay transient. */
 export function OmnicComposer({ entity, objects, history, onSave, onCopy, workspaceId, presetIds=[], isNew=false, initialRecipe, onPreview,radar=false }: Props) {
+  const presetPoint=useRef({x:0,y:0});
+  const [presetSession,setPresetSession]=useState<{ids:string[];degree?:string;configure?:boolean}|null>(null);
   const [radarPanel,setRadarPanel]=useState<RadarPanel|null>(null);
   const [atomnicBridge,setAtomnicBridge]=useState<AtomnicInteraction|null>(null);
   const draftId=workspaceId?`${workspaceId}:${entity.id}`:entity.id;
@@ -121,6 +146,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const html = useMemo(() => !radar&&evaluated.result ? renderSVG(evaluated.result).replace(/viewBox="[^"]*"/, `viewBox="${viewBox}"`) : "", [evaluated.result,viewBox,radar]);
   const presentationBounds=useMemo(()=>{const [x,y,width,height]=viewBox.split(' ').map(Number);return {x,y,width,height};},[viewBox]);
   const htmlRef = useRef(html); htmlRef.current = html;
+  const targetContext=useContextCommands({recipe,resolve,evaluation:evaluated.result,selection:picked,select:ids=>{setPicked([...ids]);setFocus(ids[0]?{kind:'component',id:ids[0]}:null);if(!ids.length){setRadarPanel(null);setPresetSession(null);}},commit:(next,temporary)=>commit(next,temporary),surface:preview,bridge:atomnicBridge,error:setError});
   const components = useMemo(() => allComponents(recipe.components), [recipe.components]);
   const componentDepths = useMemo(() => {
     const depths = new Map<string,number>();
@@ -164,7 +190,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       : { ...current, operations: current.operations.map(operation => operation.id === focus.id ? { ...operation, params } : operation) }, temporary);
   };
   const activeParameters=useMemo(()=>spec?applicableParameters(spec,active?.params??{}):[],[spec,active?.params]);
-  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), atomnicActive&&radarPanel?.kind!=='parameters'?[]:activeParameters);
+  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), radar||presetSession||atomnicActive&&radarPanel?.kind!=='parameters'?[]:activeParameters);
   const parameter = (field: Parameter, value: string | number | boolean, temporary: boolean) => {
     if (active) changeParams(commitOmnicParameter(active.params, field, value), temporary);
   };
@@ -284,8 +310,30 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       try { return { value, recipe: candidate, html: renderSVG(evaluateRecipe(candidate, resolve)) }; } catch { return null; }
     }).filter((candidate): candidate is { value: number; recipe: Recipe; html: string } => candidate !== null);
   }, [recipe, active, spec, neighborParameter, thresholds, resolve, evaluated.result,radar]);
+  const choosePreset=(source:Recipe)=>{
+      try {
+        const tool=isOperationTool(source);
+        const targets=atomnicActive?[...(atomnicBridge?.selected??[])]:picked;
+        if(tool&&!targets.length)throw Error('Select a target before applying an operation preset.');
+        const inserted=tool?undefined:insertConstruction(recipeRef.current,source,presetPoint.current,id);
+        const next=inserted?.recipe??applyOperationTool(recipeRef.current,source,targets,id);
+        const ids=inserted?.ids??next.operations.slice(recipeRef.current.operations.length).map(op=>op.id);
+        if(commit(next)){if(radar){const initial=targetDegrees(next,ids,[],[],'available').find(degree=>targetParameter(degree).picker==='mathematical');setPresetSession({ids,...(initial?{degree:initial.id}:{})});}if(inserted){setPicked(inserted.roots);atomnicBridge?.select?.(inserted.roots);setFocus({kind:'component',id:inserted.roots[0]});}setError('');}
+      }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
+    };
   if(radar) {
     const actionEntry=(key:string,label:string,symbol:string,group:readonly RadialGroup[],run:()=>void,configure?:()=>void):RadialEntry<ReactNode>=>({id:key,label,symbol,group,content:<><UIAction registerOnly id={key} label={label} symbol={symbol} category="Omnic" onClick={run} onConfigure={configure}/><FunctionControl id={key} mirror symbol={symbol} tooltip={`${label}${configure?' · Right-click configures':''}`}/></>});
+    const openEffect=(effect:Definition)=>{
+      try {
+        const selected=atomnicActive&&atomnicBridge?.selected.length?[...atomnicBridge.selected]:picked;
+        const targets=selected.length?selected:recipe.components.map(c=>c.id);
+        if(!targets.length)throw Error('Create or select a target before applying a motion effect.');
+        const existing=recipe.operations.find(op=>op.operator===effect.id&&op.targets.length===targets.length&&op.targets.every(target=>targets.includes(target)));
+        const next=existing?validateRecipe({...recipe,operations:recipe.operations.map(op=>op.id===existing.id?{...op,enabled:true}:op)}):applyOperationTool(recipe,operationTool({id:id(),operator:effect.id,params:defaultParams(effect),targets:[],enabled:true}),targets,id);
+        const operationId=existing?.id??next.operations.at(-1)!.id;
+        if(commit(next)){setPresetSession({ids:[operationId]});setRadarPanel({kind:'presets'});if(!playing)togglePlay();}
+      }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
+    };
     const entries:RadialEntry<ReactNode>[]=[
       ...FEATURE_ACTIONS.filter(action=>action.owner==='omnicComposer'&&'radial' in action).map(action=>({id:action.id,label:action.label,symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:<FunctionControl id={action.id} mirror symbol={'radial' in action?action.radial.symbol:'◇'} tooltip={action.description}/>})),
       {id:'omnic:copy-name',label:isNew?'Glyph name':'Copy name',symbol:'✎',group:[radialGroups.object,radialGroups.save],content:<FunctionControl id="omnic:copy-name" mirror symbol="✎" tooltip={`${isNew?'Glyph name':'Copy name'} · ${copyLabel}`}/>},
@@ -293,10 +341,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       ...components.map(c=>actionEntry(`omnic:component:${c.id}`,`${GENERATORS.find(g=>g.id===c.generator)?.label} · ${c.id.slice(0,6)}`,GENERATORS.find(g=>g.id===c.generator)?.symbol??'◇',[radialGroups.object,radialGroups.structure],()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);},()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);setRadarPanel({kind:'parameters',index:0});})),
       ...(activeComponent?[actionEntry(`omnic:remove-component:${activeComponent.id}`,'Remove selected component','×',[radialGroups.object,radialGroups.structure],()=>{commit({...recipe,components:removeComponent(recipe.components,activeComponent.id)});setFocus(null);})]:[]),
       ...(activeComponent?.reference?[actionEntry('omnic:radar-dependency','Dependency version','#',[radialGroups.object,radialGroups.structure],()=>setRadarPanel({kind:'dependency'}))]:[]),
-      actionEntry('omnic:radar-presets','Choose preset','❉',[radialGroups.object,radialGroups.presets],()=>setRadarPanel({kind:'presets'})),
-      actionEntry('omnic:radar-tools','Reusable operation tools','✥',[radialGroups.object,radialGroups.presets],()=>setRadarPanel({kind:'tools'})),
-      actionEntry('omnic:add-operator:oscillate','Semantic oscillation','≈',[radialGroups.motion],()=>addOperation('oscillate')),
-      ...recipe.operations.filter(op=>op.operator==='oscillate').map(op=>actionEntry(`omnic:operation:${op.id}`,'Edit semantic oscillation','≈',[radialGroups.motion],()=>{setFocus({kind:'operation',id:op.id});setRadarPanel({kind:'parameters',index:0});})),
+      ...OPERATORS.filter(effect=>effect.category==='mfx').map(effect=>actionEntry(`omnic:add-operator:${effect.id}`,effect.label,effect.symbol??'≈',[VISUAL_FREEDOM_GROUP,radialGroups.mfx],()=>openEffect(effect))),
       ...(activeOperation?[
         actionEntry(`omnic:enable-operation:${activeOperation.id}`,activeOperation.enabled?'Disable operation':'Enable operation',activeOperation.enabled?'◉':'○',[radialGroups.motion],()=>changeOperation(activeOperation.id,{enabled:!activeOperation.enabled})),
         actionEntry(`omnic:earlier-operation:${activeOperation.id}`,'Move operation earlier','↑',[radialGroups.motion],()=>reorder(activeOperation.id,-1)),
@@ -307,14 +352,23 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     const fields=spec?applicableParameters(spec,active?.params??{}):[];
     const currentIndex=radarPanel?.kind==='parameters'?Math.min(radarPanel.index,Math.max(0,fields.length-1)):0;
     const currentField=fields[currentIndex];
-    const panel=radarPanel?.kind==='parameters'?spec&&active&&currentField?<ProgressiveConfiguration label={spec.label} index={currentIndex} count={fields.length} onBack={()=>currentIndex?setRadarPanel({kind:'parameters',index:currentIndex-1}):setRadarPanel(null)} onNext={()=>currentIndex+1<fields.length?setRadarPanel({kind:'parameters',index:currentIndex+1}):setRadarPanel(null)}>
+    const legacyPanel=radarPanel?.kind==='parameters'?spec&&active&&currentField?<ProgressiveConfiguration label={spec.label} index={currentIndex} count={fields.length} onBack={()=>currentIndex?setRadarPanel({kind:'parameters',index:currentIndex-1}):setRadarPanel(null)} onNext={()=>currentIndex+1<fields.length?setRadarPanel({kind:'parameters',index:currentIndex+1}):setRadarPanel(null)}>
       <Parameters scope={active.id} spec={{...spec,parameters:[currentField]}} params={active.params} thresholds={thresholds} change={parameter}/>
-    </ProgressiveConfiguration>:<small>Right-click a component in the editing surface.</small>:radarPanel?.kind==='dependency'&&activeComponent?.reference?<UIField id="omnic:dependency-version" label="Dependency version" category="Omnic"><label>Dependency version<select aria-label="Dependency version" value={activeComponent.referenceRevision??'live'} onChange={event=>commit({...recipe,version:2,components:updateComponents(recipe.components,activeComponent.id,component=>{const {referenceRevision:_,...rest}=component;return event.target.value==='live'?rest:{...rest,referenceRevision:Number(event.target.value)};})})}><option value="live">Live definition</option>{objects.find(o=>o.id===activeComponent.reference)?.omnicHistory?.map(r=><option key={r.revision} value={r.revision}>Pinned r{r.revision}</option>)}</select></label></UIField>:radarPanel?.kind==='reference'?<label>Reuse object<select value={reference} onChange={event=>setReference(event.target.value)}><option value="">Choose…</option>{objects.filter(o=>o.id!==entity.id&&o.omnic).map(o=><option key={o.id} value={o.id}>{o.label||o.id}</option>)}</select><button type="button" disabled={!reference} onClick={()=>{addGenerator('reference');setRadarPanel(null);}}>✓</button></label>:radarPanel?.kind==='presets'?<UIField id="omnic:preset" label="Construction preset" category="Omnic"><label>Preset<select value="" onChange={event=>{const saved=event.target.value.startsWith('saved:')?objects.find(o=>o.id===event.target.value.slice(6))?.omnic:undefined;const next=saved?validateRecipe(saved):createRecipe(event.target.value);commit(next);setFocus(next.components[0]?{kind:'component',id:next.components[0].id}:null);setPicked([]);setRadarPanel(null);}}><option value="" disabled>Choose…</option>{PRESETS.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}{objects.filter(o=>o.omnic&&presetIds.includes(o.id)).map(o=><option key={o.id} value={`saved:${o.id}`}>{o.label||o.id}</option>)}</select></label></UIField>:radarPanel?.kind==='scope'?<div className="omnic-list"><div className="omnic-row"><UIAction id="omnic:pick-all" label="Whole structure" symbol="⦿" category="Omnic" onClick={()=>setPicked(recipe.components.map(c=>c.id))}/><UIAction id="omnic:pick-flow" label="Use flow selection" symbol="◌" category="Omnic" onClick={()=>setPicked([])}/></div><select aria-label="Operation scope" multiple size={Math.min(6,roles.length)} value={picked} onChange={event=>setPicked([...event.target.selectedOptions].map(o=>o.value))}>{roles.map(role=><option key={role.id} value={role.id}>{role.id}</option>)}</select>{activeOperation&&<UIAction id="omnic:apply-picked-scope" label="Use picked scope / repair targets" symbol="✓" category="Omnic" onClick={()=>changeOperation(activeOperation.id,{targets:[...picked]})}/>}</div>:radarPanel?.kind==='tools'?<div className="omnic-row"><select aria-label="Saved operation tool" value={toolId} onChange={event=>setToolId(event.target.value)}><option value="">Choose tool…</option>{objects.filter(o=>o.omnic&&isOperationTool(o.omnic)).map(o=><option key={o.id} value={o.id}>{o.label||o.id}</option>)}</select><button type="button" title="Stamp copy to scope" onClick={()=>{try{const tool=objects.find(o=>o.id===toolId)?.omnic;if(!tool)throw Error('Choose a saved operation tool.');commit(applyOperationTool(recipe,tool,picked,id));}catch(f){setError(f instanceof Error?f.message:String(f));}}}>✥</button>{activeOperation&&<button type="button" title="Save operation as reusable tool" onClick={()=>{try{onCopy(operationTool(activeOperation),copyLabel.trim()||'Omnic tool');}catch(f){setError(f instanceof Error?f.message:String(f));}}}>▣</button>}</div>:radarPanel?.kind==='inspect'?<div className="omnic-list"><output>● {evaluated.result?.properties.count??0} · ◉ {picked.length} · r{recipe.revision}</output>{evaluated.result?.results.map((r,i)=><output key={i}>{r.kind}: {r.value}</output>)}{evaluated.result?.diagnostics.map((d,i)=><small key={i}>{d.message}</small>)}</div>:undefined;
+    </ProgressiveConfiguration>:<small>Right-click a component in the editing surface.</small>:radarPanel?.kind==='dependency'&&activeComponent?.reference?<UIField id="omnic:dependency-version" label="Dependency version" category="Omnic"><label>Dependency version<select aria-label="Dependency version" value={activeComponent.referenceRevision??'live'} onChange={event=>commit({...recipe,version:2,components:updateComponents(recipe.components,activeComponent.id,component=>{const {referenceRevision:_,...rest}=component;return event.target.value==='live'?rest:{...rest,referenceRevision:Number(event.target.value)};})})}><option value="live">Live definition</option>{objects.find(o=>o.id===activeComponent.reference)?.omnicHistory?.map(r=><option key={r.revision} value={r.revision}>Pinned r{r.revision}</option>)}</select></label></UIField>:radarPanel?.kind==='reference'?<label>Reuse object<select value={reference} onChange={event=>setReference(event.target.value)}><option value="">Choose…</option>{objects.filter(o=>o.id!==entity.id&&o.omnic).map(o=><option key={o.id} value={o.id}>{o.label||o.id}</option>)}</select><button type="button" disabled={!reference} onClick={()=>{addGenerator('reference');setRadarPanel(null);}}>✓</button></label>:radarPanel?.kind==='scope'?<div className="omnic-list"><div className="omnic-row"><UIAction id="omnic:pick-all" label="Whole structure" symbol="⦿" category="Omnic" onClick={()=>setPicked(recipe.components.map(c=>c.id))}/><UIAction id="omnic:pick-flow" label="Use flow selection" symbol="◌" category="Omnic" onClick={()=>setPicked([])}/></div><select aria-label="Operation scope" multiple size={Math.min(6,roles.length)} value={picked} onChange={event=>setPicked([...event.target.selectedOptions].map(o=>o.value))}>{roles.map(role=><option key={role.id} value={role.id}>{role.id}</option>)}</select>{activeOperation&&<UIAction id="omnic:apply-picked-scope" label="Use picked scope / repair targets" symbol="✓" category="Omnic" onClick={()=>changeOperation(activeOperation.id,{targets:[...picked]})}/>}</div>:radarPanel?.kind==='inspect'?<div className="omnic-list"><output>● {evaluated.result?.properties.count??0} · ◉ {picked.length} · r{recipe.revision}</output>{evaluated.result?.results.map((r,i)=><output key={i}>{r.kind}: {r.value}</output>)}{evaluated.result?.diagnostics.map((d,i)=><small key={i}>{d.message}</small>)}</div>:undefined;
+    const closePreset=()=>{setSample(null);setPresetSession(null);setRadarPanel(null);};
+    const confirmPreset=()=>{if(presetSession&&(!sample||commit(recipeRef.current))){setPresetSession(null);setRadarPanel(null);}};
+    const presetDegrees=presetSession?targetDegrees(recipe,presetSession.ids,[],[],'available'):[];
+    const presetDegree=presetDegrees.find(degree=>degree.id===presetSession?.degree);
+    const changePresetDegree=(degree:EditableDegree,value:string|number|boolean,temporary=false)=>{try{commit(writeTargetDegree(recipeRef.current,degree,value),temporary);}catch(failure){setError(failure instanceof Error?failure.message:String(failure));}};
+    const presetOpen=radarPanel?.kind==='presets';
+    const presetOptions=presetOpen&&!presetSession?[...PRESETS.map(p=>({id:p.id,label:p.label,symbol:p.symbol??GENERATORS.find(g=>g.id===p.recipe.components[0]?.generator)?.symbol??'❉',recipe:p.recipe})),...objects.filter(o=>o.omnic&&(presetIds.includes(o.id)||isOperationTool(o.omnic))).map(o=>({id:`saved:${o.id}`,label:o.label||o.id,symbol:isOperationTool(o.omnic!)?'✥':'❉',recipe:o.omnic!}))]:[];
+    const presetPanel=presetSession?presetDegree?<PresetDegreeEditor key={`${presetDegree.id}:${presetSession.configure}`} recipe={recipe} degree={presetDegree} configure={presetSession.configure} onPreview={value=>changePresetDegree(presetDegree,value,true)} onCommit={value=>changePresetDegree(presetDegree,value)} onBack={()=>setPresetSession({...presetSession,degree:undefined})} onConfirm={confirmPreset}/>:<RadialMenu items={radialTree([...presetDegrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changePresetDegree(degree,value,true)} onCommit={value=>changePresetDegree(degree,value)} onOpen={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})}/>,content:<><UIAction registerOnly id={`omnic:preset-dof:${degree.id}`} category="Omnic" label={degree.label} onClick={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})} onConfigure={()=>setPresetSession({...presetSession,degree:degree.id,configure:true})}/><FunctionControl id={`omnic:preset-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${targetDegreeValue(recipe,degree)} · Right-click configures snaps`}/></>})),{id:'omnic:preset-confirm',label:'Done · Enter',symbol:'✓',content:<button type="button" title="Done · Enter" aria-label="Done" onClick={confirmPreset}>✓</button>}])} onClose={closePreset}/>:<RadialMenu items={presetOptions.map(option=>({id:option.id,label:option.label,symbol:option.symbol,group:[],content:<button type="button" title={option.label} aria-label={option.label} onClick={()=>choosePreset(option.recipe)}>{option.symbol}</button>}))} onClose={closePreset}/>;
+    const panel=presetOpen?<form style={{display:'contents'}} onSubmit={event=>{event.preventDefault();confirmPreset();}} onKeyDown={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&event.target.type==='range'){event.preventDefault();event.stopPropagation();confirmPreset();}}}>{presetPanel}<button type="submit" hidden disabled={!presetSession}/></form>:legacyPanel;
     return <RangeSettingsScope><div className="omnic-composer-radar">
       <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importFile}/>
       <UIField id="omnic:copy-name" label={isNew?'Glyph name':'Copy name'} category="Omnic" registerOnly><label>{isNew?'Glyph name':'Copy name'} <input aria-label={isNew?'Glyph name':'Copy name'} value={copyLabel} maxLength={200} onChange={event=>setCopyLabel(event.target.value)}/></label></UIField>
       <UIAction id="omnic:atomnic-mode" label={atomnicActive?'Atomnic on · turn off':'Atomnic off · turn on'} category="Omnic" registerOnly onClick={()=>{setRadarPanel(null);commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}});}}/>
-      <AtomnicEditor radar recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge} surfaceRef={preview} markupRef={htmlRef} presentationBounds={presentationBounds} normalSelection={picked} documentEntries={entries} modeControl={<FunctionControl id="omnic:atomnic-mode" mirror symbol="⠒" symbolOpacity={atomnicActive?1:.5} tooltip={`Atomnic ${atomnicActive?'on':'off'} · toggle without replacing the composition`}/>} extraPanel={panel} closePanel={()=>setRadarPanel(null)}
+      <AtomnicEditor radar onSelect={ids=>{setPicked([...ids]);setFocus(ids[0]?{kind:'component',id:ids[0]}:null);}} activateTarget={targetContext.activate} bindParameters={targetContext.active} recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge} surfaceRef={preview} markupRef={htmlRef} presentationBounds={presentationBounds} normalSelection={picked} documentEntries={entries} modeControl={<FunctionControl id="omnic:atomnic-mode" mirror symbol="⠒" symbolOpacity={atomnicActive?1:.5} tooltip={`Atomnic ${atomnicActive?'on':'off'} · toggle without replacing the composition`}/>} extraPanel={panel} panelStage={presetSession?.degree??(presetSession?'preset-dofs':radarPanel?.kind)} dismissPanel={()=>{if(presetOpen)closePreset();else setRadarPanel(null);}} panelRadial={presetOpen&&(!presetDegree||targetParameter(presetDegree).picker==='mathematical'&&!presetSession?.configure)} confirmPanel={presetSession?confirmPreset:undefined} onEmptyContext={point=>{presetPoint.current=point;setSample(null);setPresetSession(null);setRadarPanel({kind:'presets'});}} closePanel={()=>{if(presetOpen){if(presetSession?.degree){setPresetSession({...presetSession,degree:undefined});return;}closePreset();}else setRadarPanel(null);}}
         onPickGeometry={(point,role)=>{const node=pickStructuralNode(evaluated.result?.nodes??[],point,role);const component=node&&(components.find(c=>c.id===node.componentId)??components.find(c=>node.id.startsWith(`${c.id}:ref:`)));if(component){const ids=picked.includes(component.id)?picked:[component.id];setFocus({kind:'component',id:component.id});setPicked(ids);return ids;}return [];}}/>
       {(error||evaluated.error||notice)&&<small className="omnic-radar-feedback" role={error||evaluated.error?'alert':'status'}>{error||evaluated.error||notice}</small>}
     </div></RangeSettingsScope>;
@@ -352,7 +406,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
           <select aria-label="Neighbor parameter" value={neighborParameter.key} onChange={event => setNeighborKey(event.target.value)}>{spec?.parameters.filter(parameter => parameter.kind === "number").map(parameter => <option value={parameter.key} key={parameter.key}>{parameter.label}</option>)}</select>
           {neighbors.map(neighbor => <button type="button" key={neighbor.value} title={`Use ${neighborParameter.label} ${neighbor.value}`} onClick={() => commit(neighbor.recipe)}><span aria-hidden="true" dangerouslySetInnerHTML={{ __html: neighbor.html }} /><small>{neighbor.value}</small></button>)}
         </div>}
-        <UIField id="omnic:preset" label="Construction preset" category="Omnic"><label title="Load a procedural draft into this object; Save shared commits it.">Preset <select value="" onChange={event => { const saved=event.target.value.startsWith('saved:')?objects.find(object=>object.id===event.target.value.slice(6))?.omnic:undefined;const next = saved?validateRecipe(saved):createRecipe(event.target.value); commit(next); setFocus(next.components[0] ? { kind:"component",id:next.components[0].id } : null); setPicked([]); }}><option value="" disabled>Choose…</option><optgroup label="Built-in">{PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label}</option>)}</optgroup><optgroup label="Workspace presets">{objects.filter(object=>object.omnic&&presetIds.includes(object.id)).map(object=><option value={`saved:${object.id}`} key={object.id}>{object.label||object.id}</option>)}</optgroup></select></label></UIField>
+        <UIField id="omnic:preset" label="Construction preset" category="Omnic"><label title="Insert a preset alongside existing contents; Save shared publishes the definition.">Preset <select value="" onChange={event => { const saved=event.target.value.startsWith('saved:')?objects.find(object=>object.id===event.target.value.slice(6))?.omnic:undefined;choosePreset(saved?validateRecipe(saved):createRecipe(event.target.value)); }}><option value="" disabled>Choose…</option><optgroup label="Built-in">{PRESETS.map(preset => <option value={preset.id} key={preset.id}>{preset.label}</option>)}</optgroup><optgroup label="Workspace presets">{objects.filter(object=>object.omnic&&presetIds.includes(object.id)).map(object=><option value={`saved:${object.id}`} key={object.id}>{object.label||object.id}</option>)}</optgroup></select></label></UIField>
       </div>
       <div className="omnic-edit-column">
         <UISection id="omnic-structure" title="Structure">

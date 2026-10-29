@@ -307,7 +307,7 @@ export function buildTextScene(
     entries.push(item);
   }
   type SavedNode = Pick<NodeItem, 'sprite' | 'visual' | 'visualSize' | 'showText' | 'sphere' | 'depth'>;
-  type DraftNode = { original: SavedNode; hits: LabelMesh[]; proxy: LabelMesh;
+  type DraftNode = { original: SavedNode; hits: LabelMesh[]; proxy: LabelMesh; spriteVisible:boolean; visualVisible?:boolean;
     current?: THREE.Group; pending?: THREE.Group; url?: string };
   const draftNodes = new Map<NodeItem, DraftNode>();
   let draftPlanId: string | undefined;
@@ -320,6 +320,8 @@ export function buildTextScene(
     for (const [item, entry] of draftNodes) {
       for (const object of [entry.pending, entry.current, entry.proxy]) if (object) { item.group.remove(object); disposeVisual(object); }
       Object.assign(item, entry.original);
+      item.sprite.visible=entry.spriteVisible;
+      if(item.visual&&entry.visualVisible!==undefined)item.visual.visible=entry.visualVisible;
       item.hitIndices.forEach((index, i) => { nodeHits[index] = entry.hits[i]; });
     }
     draftNodes.clear();
@@ -355,7 +357,7 @@ export function buildTextScene(
         proxy.visible = false; item.group.add(proxy);
         entry = { original: { sprite: item.sprite, visual: item.visual, visualSize: item.visualSize,
           showText: item.showText, sphere: item.sphere, depth: item.depth },
-          hits: item.hitIndices.map(index => nodeHits[index]), proxy };
+          hits: item.hitIndices.map(index => nodeHits[index]), proxy, spriteVisible:item.sprite.visible, visualVisible:item.visual?.visible };
         draftNodes.set(item, entry);
       }
       if (entry.url === asset.dataUrl) continue;
@@ -373,6 +375,9 @@ export function buildTextScene(
         const placement = placements.get(item.sprite.userData.nodeId);
         item.visualSize = placement?.visual?.size ?? 1.4;
         item.showText = placement?.visual?.showText ?? false;
+        const footprint=visualFootprint(item.size,{character:"visual",size:item.visualSize,showText:item.showText});
+        item.sprite.scale.set(footprint.width,footprint.height,item.depth);
+        item.sprite.visible=currentEntry.spriteVisible;
         item.hitIndices.forEach((index, i) => { nodeHits[index] = i && item.showText ? item.text : item.sprite; });
         visual.visible = true;
         if (first) requestRender(); else requestPaint();

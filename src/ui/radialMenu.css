@@ -1,3 +1,4 @@
+.radial-menu:not(.radial-menu-editor){opacity:var(--radial-opacity,1)}
 .contextual-master-controller.contextual-master-controller-radial{padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none;overflow:visible;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}
 .radial-menu{position:relative;aspect-ratio:1;color:var(--text,#d4e6ef);isolation:isolate}
 .radial-menu-rims{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none;stroke:currentColor;stroke-width:1;opacity:.48}
@@ -9,11 +10,11 @@
 .radial-menu-inset{position:absolute;left:61.875%;top:29.43%;width:24px;height:24px;display:grid;transform:translate(-50%,-50%)}
 .radial-menu-inset:nth-child(2){left:61.875%;top:70.57%}.radial-menu-inset:nth-child(3){left:26.25%;top:50%}
 .radial-menu-centre{position:absolute;left:50%;top:50%;display:flex;gap:2px;transform:translate(-50%,-50%)}
-.radial-menu .radial-menu-centre>button{width:24px;height:24px;font-size:15px}
+.radial-menu .radial-menu-centre>button{width:var(--radial-button-size,24px);height:var(--radial-button-size,24px);font-size:15px}
 .radial-menu .ui-shortcut-label{display:none}
 .radial-menu :is(img,.appearance-icon-mask){width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;border-radius:50%}
-.radial-menu-editor{width:100%;height:100%;aspect-ratio:1;border-radius:50%;background:var(--panel-bg,#0b1420);border:1px solid currentColor;box-sizing:border-box}
-.radial-menu-canvas{position:absolute;inset:30px;overflow:hidden;border-radius:50%;background:#050b10;z-index:0}
+.radial-menu-editor{width:100%;height:100%;aspect-ratio:1;border-radius:50%;background:transparent;border:1px solid currentColor;box-sizing:border-box}
+.radial-menu-canvas{position:absolute;inset:30px;overflow:hidden;border-radius:50%;background:transparent;z-index:0}
 .radial-menu-editor>.radial-menu-rims{opacity:.2}
 .radial-menu-editor>.radial-menu-slot,.radial-menu-editor .radial-menu-inset,.radial-menu-editor>.radial-menu-centre{z-index:1}
 .radial-menu-editor>.radial-menu-centre{left:calc(100% - 48px);top:50%}
@@ -32,3 +33,44 @@
 .radial-menu-editor :is(.radial-menu-slot,.radial-menu-insets){visibility:hidden;opacity:0;pointer-events:none}
 .radial-menu-editor>.radial-menu-rims>.radial-menu-axis{pointer-events:stroke;stroke-width:28px;vector-effect:non-scaling-stroke;stroke:transparent}
 .radial-menu-editor:is([data-tools-open=true],:has(>.radial-menu-rims>.radial-menu-axis:hover),:has(>.radial-menu-rims:focus-visible),:has(>.radial-menu-slot:hover),:has(>.radial-menu-slot :focus-visible),:has(>.radial-menu-slot>[aria-expanded=true])) :is(.radial-menu-slot,.radial-menu-insets){visibility:visible;opacity:1;pointer-events:auto}
+
+/* Value strips share their DOF button's exact width; no separate settings grid. */
+.radial-menu-setter{position:absolute;width:100%;height:10px;display:flex;align-items:center;z-index:2}
+.radial-menu-setter .range-spectrum{width:100%;min-height:10px;height:10px;padding:0;align-items:center}
+.radial-menu-setter .range-spectrum .range-axis{width:auto;flex:1;min-width:0;height:10px}
+.radial-menu-setter .range-spectrum .range-track{inset:0 3px}
+.radial-menu-setter .range-spectrum .range-track::before{top:4px;left:0;right:0}
+.radial-menu-setter .range-spectrum .range-current i{width:6px;height:6px;top:2px;left:-3px}
+.radial-menu-setter .range-spectrum .range-spectrum-input{height:10px;inset:0;width:100%!important}
+.radial-menu-setter .range-spectrum :is(.range-end>span,.range-current>span,.range-nudge,.range-halving){display:none}
+.radial-menu-setter .range-spectrum .range-end{width:3px;height:10px;overflow:hidden}
+.radial-menu-setter .range-spectrum .range-end svg{width:3px;height:10px}
+.radial-menu-setter>button{width:100%;height:8px;padding:0;min-width:0;min-height:0;border:1px solid currentColor;border-radius:2px;opacity:.8;color:inherit;background:currentColor}
+
+.radial-menu-origin{width:var(--radial-button-size,24px);height:var(--radial-button-size,24px);box-sizing:border-box;border:1px solid currentColor;border-radius:50%;opacity:1}
+
+.radial-menu .radial-menu-centre{opacity:1}
+
+[data-dial-drag]{cursor:grab;touch-action:none}
+[data-dial-drag]:active{cursor:grabbing}
+
+.radial-menu-setter.radial-menu-scale{left:50%;top:50%;width:calc(var(--radial-button-size,32px) - 8px);transform:translate(-50%,-50%);z-index:4}
+
+.radial-menu-slot>.radial-menu-setter{visibility:hidden;opacity:0;pointer-events:none}
+.radial-menu-slot[data-adjusting=true]>.radial-menu-setter{visibility:visible;opacity:1;pointer-events:auto}
+
+/* Radial popup shells stay clear under every theme; controls own their surfaces. */
+:root .contextual-master-controller.contextual-master-controller-radial{background:transparent;backdrop-filter:none;box-shadow:none}
+
+/* Empty popup dial area must not intercept editing on the canvas below. */
+.contextual-master-controller-radial,.contextual-master-controller-radial .radial-menu{pointer-events:none}
+.contextual-master-controller-radial :is(.radial-menu-slot,.radial-menu-centre,.radial-menu-scale,button,input,select,textarea,[role="button"],[data-range-control],[data-ui-popup-interior]){pointer-events:auto}
+
+/* Rim geometry has no surface, independent of inherited SVG icon paint. */
+.radial-menu-rims>circle{fill:none}
+
+/* Radial shells are geometry carriers, not painted popup surfaces. */
+:root body .contextual-master-controller-radial{position:fixed;display:flex;flex-direction:column;background:none!important;box-shadow:none!important;backdrop-filter:none!important;border:0!important}
+
+/* Only the visible rim interior retains hover; the outer layout margin stays clear. */
+.radial-menu-hover-zone{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:auto}

@@ -428,7 +428,7 @@ export function MasterController({ bindings, visualStatus, history, children: vi
     );
   };
   return (
-    <section data-appearance-editor className="appearance-controller" aria-label="Master controller"
+    <section data-context-controller data-appearance-editor className="appearance-controller" aria-label="Master controller"
       onPointerLeave={() => {
         const target = targets.find(target => target.id === hovered.current);
         if (target) reveal(target, false);

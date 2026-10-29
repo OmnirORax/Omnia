@@ -1,3 +1,4 @@
+import { cursorPosition } from './cursorPosition';
 import { registerFrameSearch } from "./frameSearchActions";
 import { useActiveLayer } from "./ActiveContext";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -78,12 +79,8 @@ export function FrameSearch({ container, title, expand, renderToggle = true }: {
   }), [container]);
   useLayoutEffect(() => {
     if (!open) return;
-    const place = () => {
-      const anchor = toggle.current?.getClientRects().length ? toggle.current : rootFor(container)?.querySelector<HTMLElement>("[data-ui-chrome]") ?? rootFor(container);
-      const bounds = anchor?.getBoundingClientRect(); if (!bounds) return;
-      const width = Math.min(320, innerWidth - 16), available = innerHeight - bounds.bottom - 8;
-      setPosition({ left: Math.max(8, Math.min(bounds.left, innerWidth - width - 8)), top: available >= 150 ? bounds.bottom + 4 : Math.max(8, bounds.top - Math.min(360, bounds.top - 12)), height: Math.max(120, Math.min(360, available >= 150 ? available : bounds.top - 12)) });
-    };
+    const point=cursorPosition();
+    const place=()=>setPosition({left:point.x,top:point.y,height:Math.max(120,Math.min(360,innerHeight-point.y-8))});
     place(); input.current?.focus();
     const outside = (event: PointerEvent) => { if ((event.target as Element).closest?.("[data-context-controller]")) return; if (!popup.current?.contains(event.target as Node) && !toggle.current?.contains(event.target as Node)) close(); };
     document.addEventListener("pointerdown", outside, true); window.addEventListener("resize", place); window.addEventListener("scroll", place, true);

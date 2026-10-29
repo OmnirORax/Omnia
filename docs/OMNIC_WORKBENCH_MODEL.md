@@ -5,13 +5,43 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
-## Latest correction: the Composer itself is the radar
+## Current implementation: shared MC targets, disambiguation and additive construction
+
+2026-10-29: Omnic registers actual geometry capabilities with the common target-command adapter. Reuse the existing MC command IDs and shortcuts: Delete selection, F focus, M nearest-edge minimize/maximize with restore, W edge-fit/restore, D numeric expansion/compression, Compact and progressive Esc. Close is not geometry deletion. The user's final clarification retains M against nearest edges; expand/compress means inflating/deflating the selected DOF, not replacing a group with a marker. Current expansion is a bounded factor-two toggle with restoration; exact steps remain adjustable in the shared property control.
+
+Global MC rule: when a function has multiple compatible detected DOFs, invocation asks which DOF before applying anything. A single compatible DOF executes directly. The shared target runtime and radial prompt implement this once; future adapters supply capabilities, not private pickers or shortcuts. Existing Shift configuration still owns cycling/hover/release/lock/reset. MS keeps priority and held gestures retain cancellation priority. This slice integrates MC; it does not replace the full MS geometry engine.
+
+Creating/choosing a preset inserts alongside current contents at the chosen empty-space point, with fresh internal IDs and remapped local scopes. Preserve external canonical references and earlier geometry. Do not return to replacement semantics. Choices/accepted settings stick immediately in the recoverable draft; Save shared publishes the canonical definition.
+
+Global child-placement rule: next-stage/child controls open at the invoking cursor point, through shared popup primitives. Radials centre there; rectangular children start there. Property and progressive editors announce logical stage changes; value/hover updates never move the popup, and held slider gestures suppress reanchoring. No added pointer polling or discovery scans. Native browser pickers and resident window placement are separate.
+
+## Earlier correction: immediate presets, mfx, click-centred dials
+
+2026-10-29: choosing a preset immediately keeps it in the recoverable draft. Accepted settings persist as ordinary edits. Enter/✓ only finishes editing; dismissing the dial must not remove the chosen composition. Save shared remains the canonical save action. Line and Ring are standalone choices; Ring is no longer bundled with an array. Oscillation is a reusable motion effect applicable to any selected geometry, under the category whose name/icon is **mfx**, currently the only effect. Discover effects via existing operator metadata and reuse the existing operation engine and radial DOF editors.
+
+Every radial centre appears exactly at its invocation point, including nested category clicks; do not shift it to fit viewport edges. Centre markers/category-centre buttons are always 50% opaque. Keyboard category activation anchors at the category centre. Edge invocation may clip tools. No pointer-following or new tracking is needed.
+
+## Earlier correction: empty click dismisses dials; remove close icons
+
+2026-10-29: left-click empty space to close every open dial, including nested categories and requested dial editors. Consume that dismissal press so it does not draw or start a world gesture. Remove all ×/close buttons from dials; keep the middle circle as an origin marker. Esc/category Back still navigate progressively. Chosen presets and accepted settings persist after empty-space dismissal. Use the existing shared ActiveContext pointerdown path; no pointer polling or new per-dial listeners.
+
+## Earlier correction: compact dials and no procedural controls
+
+2026-10-29: icons on every contextual dial belong close around the middle circle; remove oversized fixed radii at the shared layout boundary. Preserve separation and the above-button value strips. Remove Procedural X/Y from all Composer-generated editors and DOF menus, including presets. These inputs remain internal adapters for direct dragging and saved-recipe compatibility; custom pivot controls are separate from procedural position controls.
+
+## Earlier correction: empty-space presets and radial DOF setters
+
+2026-10-29: right-click empty Composer/edited-world space → preset radial → choose a preset → **all detected DOFs together around one radial**. Each has a horizontal value setter immediately above its circle, the same width. They do not appear one at a time. Numeric strips reuse the shared slider; DOF right-click configures snap/step. Choice commits immediately; accepted settings use draft history. Enter/✓ finishes editing; Back/Esc leaves a property editor before dismissing the dial without removing the preset. Detection comes from existing applicable generator/operator inputs; future registered inputs inherit it. No pointer polling or cursor changes are introduced.
+
+Presets moves off the rim. Construction presets now insert alongside existing contents; saved operation tools apply to the previously selected scope. This slice does not add stamping/insertion or new presets. Interaction acceptance remains with the user.
+
+## Earlier correction: the Composer itself is the radar
 
 2026-10-29 correction: revert the last two alignment/performance updates. Keep the earlier implementation and simply centre the brush icon on the actual pointer. Do not reintroduce snapped-marker cursor tracking, preview-wide cursor subscriptions or the reverted feedback rewrite.
 
 Cursor applicability is a global rule: the icon follows the current operation only within its valid zone. Outside the editing area (including tool selection/settings), restore the native cursor. Direct grabs temporarily show Move. Pen is now upper black/lower white, Erase upper white/lower black, per the user’s correction.
 
-Latest presentation: remove the eye/show-hide tool. Root tools hide by default and reveal on hover over their shared circular rim axis; keep them usable through tool/category/editor interaction, then hide on leaving. Do not hide the editing surface or unmount/re-register controls during hover. Explicit target context rings remain visible. One category named Presets contains construction presets and reusable operation tools. Last-position pen/eraser uses the same two-tone silhouette with no underline: Pen upper black/lower white; Erase upper white/lower black. The button offers the next action; the active cursor inherits the icon activated through the global shared tool-cursor system. The purple private cursor is retired.
+Latest presentation: remove the eye/show-hide tool. Root tools hide by default and reveal on hover over their shared circular rim axis; keep them usable through tool/category/editor interaction, then hide on leaving. Do not hide the editing surface or unmount/re-register controls during hover. Explicit target context rings remain visible. Presets is no longer a rim category: right-click empty editing space to open existing construction/workspace presets and saved operation tools. Last-position pen/eraser uses the same two-tone silhouette with no underline: Pen upper black/lower white; Erase upper white/lower black. The button offers the next action; the active cursor inherits the icon activated through the global shared tool-cursor system. The purple private cursor is retired.
 
 Current direct interaction: remove Procedural X/Y/Move from stationary target rings; left-grab moves the target/selection. Right-click during movement settles it and opens progressive position settings for the next drag. Pen/eraser belongs last after all remaining tools, so toggling Atomnic does not shift their order. Wheel over the Composer replaces its view-zoom button; retain Ctrl+wheel browser behavior, view center and bounded rendering.
 

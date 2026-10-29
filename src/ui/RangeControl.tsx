@@ -1,9 +1,16 @@
+import { cursorPosition } from './cursorPosition';
+import { ContextualMasterController } from './ContextualMasterController';
 import { useCancelValueEdit } from "./ActiveContext";
 import { claimUIPress } from "./pointerOwnership";
 import { rangeValue } from "./rangeMath";
 import { HalvingPicker } from "../properties/HalvingPicker";
-import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref, type ReactNode, type MutableRefObject } from "react";
 
+/** Layout adapters provide the displayed slider axis; captured once per drag. */
+export const RangeAxis=createContext(0);
+export type RangeGesture={start:(id:number,x:number,y:number)=>boolean;move:(x:number,y:number)=>void;finish:(x:number,y:number)=>void;cancel:()=>void};
+/** An owning DOF icon may lend its press to this same slider gesture. */
+export const RangeGestureTarget=createContext<MutableRefObject<RangeGesture|null>|null>(null);
 type WorkingRange={min?:number;max?:number;step?:number};
 const RangeSettings=createContext<{values:Record<string,WorkingRange>;change:(key:string,patch:WorkingRange)=>void}|null>(null);
 /** Retain widget working intervals/steps for one editing session, independently
@@ -31,6 +38,8 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min
  * Local working intervals and jump size never alter property validation bounds. */
 export function RangeControl({ value: storedValue, min, max, onValueChange, onMinimumChange, onMaximumChange,
   hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, configuration, configurationKey, ...inputProps }: Props) {
+  const externalGesture=useContext(RangeGestureTarget),track=useRef<HTMLSpanElement>(null);
+  const axisAngle=useContext(RangeAxis)*Math.PI/180;
   const value = Math.max(min, Math.min(max, storedValue));
   const resolution = Number(inputProps.step) || 1;
   const scope=useContext(RangeSettings),saved=configurationKey?scope?.values[configurationKey]:undefined;
@@ -38,12 +47,13 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const interval={min:saved?.min??localInterval.min,max:saved?.max??localInterval.max};
   const jump=Math.max(resolution,Math.min(saved?.step??localJump,Math.max(resolution,hardMax-hardMin)));
   const [halving, setHalving] = useState(false);
+  const [popupPoint,setPopupPoint]=useState<{x:number;y:number}|null>(()=>configuration==='step'?cursorPosition():null);
   const [editing, setEditing] = useState<Edit | null>(configuration==='step'?'jump':null), [text, setText] = useState(configuration==='step'?String(jump):'');
   const low = onMinimumChange ? min : Math.min(value, Math.max(min, interval.min));
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
-  const drag = useRef<{ id: number; left: number; width: number; low: number; high: number; step: number; before: number; next: number } | null>(null);
+  const drag = useRef<{ id: number; origin?:{x:number;y:number}; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; before: number; next: number } | null>(null);
   const cancelDrag = () => {
     const active = drag.current;
     if (!active) return;
@@ -57,14 +67,27 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     window.addEventListener("blur", cancel);
     return () => { window.removeEventListener("blur", cancel); };
   }, []);
-  const moveDrag = (clientX: number) => {
+  const moveDrag = (clientX: number,clientY:number) => {
     const active = drag.current;
     if (!active) return;
-    const next = rangeValue(active.low + (clientX - active.left) / active.width * (active.high - active.low), active.low, active.high, active.step);
+    if(active.origin){const dx=clientX-active.origin.x,dy=clientY-active.origin.y,length=Math.hypot(dx,dy);if(length<3)return;active.ux=dx/length;active.uy=dy/length;const fraction=active.high===active.low?.5:(active.before-active.low)/(active.high-active.low);active.cx=active.origin.x-(fraction-.5)*active.width*active.ux;active.cy=active.origin.y-(fraction-.5)*active.width*active.uy;delete active.origin;}
+    const next = rangeValue(active.low + (((clientX-active.cx)*active.ux+(clientY-active.cy)*active.uy)/active.width+.5) * (active.high - active.low), active.low, active.high, active.step);
     if (next !== active.next) { active.next = next; onValueChange(next); }
   };
+  const startDrag=(id:number,x:number,y:number,relative=false)=>{
+    const node=track.current;if(!node||inputProps.disabled||drag.current)return false;
+    const bounds=node.getBoundingClientRect(),ux=Math.cos(axisAngle),uy=Math.sin(axisAngle);
+    const projected=Math.abs(ux)*node.offsetWidth+Math.abs(uy)*node.offsetHeight;
+    const scale=projected>0?bounds.width/projected:1,width=Math.max(1,node.offsetWidth*scale);
+    const fraction=high===low?.5:(value-low)/(high-low);
+    drag.current={id,...(relative?{origin:{x,y}}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,before:value,next:value};
+    claimUIPress(id);return true;
+  };
+  const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);const next=drag.current!.next;drag.current=null;onValueCommit?.(next);};
+  const gestureAPI=useRef<RangeGesture>(null!);gestureAPI.current={start:(id,x,y)=>startDrag(id,x,y,true),move:moveDrag,finish:finishDrag,cancel:cancelDrag};
+  useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel()};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
   const label = inputProps["aria-label"] ?? "Value";
-  const edit = (which: Edit) => { cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
+  const edit = (which: Edit) => { setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
   const choose = (next: number) => { onValueChange(next); onValueCommit?.(next); };
   const cancel = () => { cancelled.current = true; setEditing(null); };
   useCancelValueEdit(endpoint, cancel, editing);
@@ -98,24 +121,23 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
       <button type="button" className="range-nudge range-nudge-left" disabled={inputProps.disabled} aria-label={`Decrease ${label} by ${jump}`} title={`Decrease by ${jump} · right-click to set jump`} onClick={() => choose(rangeValue(value - jump, low, high, resolution))} onContextMenu={context("jump")}>
         <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M13 6L1 16L13 26" /></svg>
       </button>
-      <span className="range-track"
+      <span ref={track} className="range-track"
         onPointerDown={event => {
           if (event.button !== 0 || inputProps.disabled || drag.current) return;
           event.preventDefault(); event.stopPropagation();
           claimUIPress(event.pointerId, event.pointerType, event.buttons);
           input.current?.focus({ preventScroll: true });
-          const bounds = event.currentTarget.getBoundingClientRect();
-          drag.current = { id: event.pointerId, left: bounds.left, width: Math.max(1, bounds.width), low, high, step: jump, before: value, next: value };
+          startDrag(event.pointerId,event.clientX,event.clientY);
           event.currentTarget.setPointerCapture(event.pointerId);
-          moveDrag(event.clientX);
+          moveDrag(event.clientX,event.clientY);
         }}
         onPointerMove={event => {
           if (drag.current?.id !== event.pointerId) return;
-          event.stopPropagation(); moveDrag(event.clientX);
+          event.stopPropagation(); moveDrag(event.clientX,event.clientY);
         }}
         onPointerUp={event => {
           if (drag.current?.id !== event.pointerId) return;
-          event.stopPropagation(); moveDrag(event.clientX);
+          event.stopPropagation(); moveDrag(event.clientX,event.clientY);
           const next = drag.current!.next; drag.current = null;
           onValueCommit?.(next);
           event.currentTarget.releasePointerCapture(event.pointerId);
@@ -136,14 +158,14 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     <button type="button" className="range-end range-end-max" disabled={inputProps.disabled} aria-label={`${label} maximum: ${high}`} title="Select maximum · right-click to edit" onClick={() => choose(high)} onContextMenu={context("max")}>
       <svg data-range-glyph viewBox="0 0 10 32" aria-hidden><path d="M5 3V29" /></svg><span>{high}</span>
     </button>
-    <button type="button" className="range-halving" disabled={inputProps.disabled} title="Pick by repeated halving of the current interval" aria-label={`${label} halving`} onClick={() => setHalving(v => !v)}>½</button>
-    {halving && <HalvingPicker low={low} high={high} label={String(label)} onPick={next => { choose(rangeValue(next, low, high, resolution)); setHalving(false); }} />}
-    {editing && <input ref={endpoint} autoFocus className={`range-bound-editor range-edit-${editing}`} type="number" aria-label={`${label} ${editing === "min" ? "minimum" : editing === "max" ? "maximum" : editing}`} value={text}
+    <button type="button" className="range-halving" disabled={inputProps.disabled} title="Pick by repeated halving of the current interval" aria-label={`${label} halving`} onClick={() => {setPopupPoint(cursorPosition());setHalving(v => !v);}}>½</button>
+    {halving && <ContextualMasterController title={`${label} halving`} position={popupPoint} onClose={()=>setHalving(false)} onWheel={event=>event.stopPropagation()}><HalvingPicker low={low} high={high} label={String(label)} onPick={next => { choose(rangeValue(next, low, high, resolution)); setHalving(false); }} /></ContextualMasterController>}
+    {editing && <ContextualMasterController title={`${label} ${editing}`} position={popupPoint} onClose={cancel} onWheel={event=>event.stopPropagation()}><input ref={endpoint} autoFocus className={`range-bound-editor range-edit-${editing}`} type="number" aria-label={`${label} ${editing === "min" ? "minimum" : editing === "max" ? "maximum" : editing}`} value={text}
       min={editing === "jump" ? resolution : editing === "min" ? hardMin : low} max={editing === "max" ? hardMax : editing === "jump" ? Math.max(resolution, hardMax - hardMin) : high} step={resolution}
       onFocus={event => event.currentTarget.select()} onChange={event => setText(event.currentTarget.value)} onBlur={finish}
       onKeyDown={event => {
         if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); finish(); }
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-      }} />}
+      }} /></ContextualMasterController>}
   </span>;
 }

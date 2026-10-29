@@ -3,7 +3,7 @@ export type ActiveContextEntry = { kind: "frame"; key: string; element?: HTMLEle
   { kind: "field" | "layer"; element: HTMLElement };
 export type ActiveContextStack = readonly ActiveContextEntry[];
 export type ActiveContextStore = TransientStore<ActiveContextStack>;
-export type ContextLayer = { parent?: string; close: () => void };
+export type ContextLayer = { parent?: string; close: () => void; dismiss?: () => void };
 export const UI_CANCEL_EDIT = "omnium:cancel-value-edit";
 /** One level only, even when the same physical key repeats. */
 export const parentContext = (stack: ActiveContextStack): ActiveContextStack => stack.slice(0, -1);
@@ -23,4 +23,11 @@ export function contextStackFromScopes(scopes: readonly { element: HTMLElement; 
   }
   if (field && stack.length) stack.push({ kind: "field", element: field });
   return stack;
+}
+
+/** Empty-space dismissal closes every opted-in dial, deepest first. */
+export function dismissContextDials(layers:Iterable<ContextLayer>):boolean {
+  const open=[...layers].filter(layer=>layer.dismiss);
+  for(const layer of open.reverse())layer.dismiss!();
+  return open.length>0;
 }

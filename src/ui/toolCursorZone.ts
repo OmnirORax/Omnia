@@ -1,23 +1,22 @@
 import { useLayoutEffect, type RefObject } from 'react';
 import { inCursorArea, type CursorArea } from './toolCursorModel';
 export type CursorPoint={x:number;y:number;target:EventTarget|null};
-type Zone={key:string;contains?:(point:CursorPoint)=>boolean};
+type Zone={key:string;allowPopup?:boolean;contains?:(point:CursorPoint)=>boolean};
 const zones=new WeakMap<Element,Zone>(),listeners=new Set<()=>void>();
 const notify=()=>listeners.forEach(listener=>listener());
 export function observeToolZones(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};}
 /** Canvas/3D adapters publish their existing hit-test result; no extra raycast. */
-export function setToolCursorZone(element:Element,key:string|undefined){
+export function setToolCursorZone(element:Element,key:string|undefined,allowPopup=false){
   if(zones.get(element)?.key===key)return;
-  if(key)zones.set(element,{key});else zones.delete(element);notify();
+  if(key)zones.set(element,{key,allowPopup});else zones.delete(element);notify();
 }
 export function pointerToolZone(point:CursorPoint){
   const target=point.target instanceof Element?point.target:null;
   const blocked=!target||!!target.closest('[data-context-controller],[data-visual-selector]');
-  if(blocked)return {blocked:true,zone:undefined};
   for(let node:Element|null=target;node;node=node.parentElement){
-    const zone=zones.get(node);if(zone&&(!zone.contains||zone.contains(point)))return {blocked:false,zone:zone.key};
+    const zone=zones.get(node);if(zone&&(!blocked||zone.allowPopup)&&!target?.closest('[data-visual-selector]')&&(!zone.contains||zone.contains(point)))return {blocked:false,zone:zone.key};
   }
-  return {blocked:false,zone:undefined};
+  return {blocked,zone:undefined};
 }
 /** Cache geometry on registration/resize/scroll, never on pointer movement. */
 export function useToolCursorZone(ref:RefObject<HTMLElement|null>,key:string,circle=false){

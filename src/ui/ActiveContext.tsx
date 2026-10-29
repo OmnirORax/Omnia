@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
-import { activeFrame, parentContext, contextStackFromScopes, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
+import { activeFrame, parentContext, contextStackFromScopes, dismissContextDials, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
-import { uiPointerHeld } from "./pointerOwnership";
+import { ACTIONS } from '../workspaceActions';
+import { contextTargets } from './contextTargets';
+import { claimUIPress, uiPointerHeld, physicalPointerHeld } from "./pointerOwnership";
 
 const fieldSelector = 'input:not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]';
 const controllerSelector = '[data-context-controller],[data-ui-function^="context."],[data-shortcut-runner],omnium-appearance-recovery';
@@ -57,13 +59,23 @@ export function useCancelValueEdit<T extends HTMLElement>(ref: RefObject<T | nul
   }, [ref, identity]);
 }
 /** Shared popup adapters add a real intermediate level, including portalled ones. */
-export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string) {
-  const ui = useOptionalUITracked(()=>[]), current = useRef(close); current.current = close;
+export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string, dismiss?:()=>void) {
+  const ui = useOptionalUITracked(()=>[]), current = useRef(close), dismissal=useRef(dismiss); current.current = close;dismissal.current=dismiss;
+  useLayoutEffect(()=>{
+    const node=ref.current;if(!open||!node)return;
+    let opening=physicalPointerHeld();
+    const fresh=()=>{opening=false;};
+    const consume=(event:Event)=>{if(!opening)return;if(event instanceof MouseEvent&&event.type==='click'&&event.detail===0)return;event.preventDefault();event.stopImmediatePropagation();};
+    node.addEventListener('pointerdown',fresh,true);
+    for(const type of ['pointerup','mouseup','click','contextmenu'])node.addEventListener(type,consume,true);
+    return()=>{node.removeEventListener('pointerdown',fresh,true);for(const type of ['pointerup','mouseup','click','contextmenu'])node.removeEventListener(type,consume,true);};
+  },[open,ref]);
+
   useLayoutEffect(() => {
     const node = ref.current;
     if (!ui || !open || !node) return;
     const saved = ui.activeContext.getSnapshot(), owner = parent ?? activeFrame(saved)?.key;
-    ui.contextLayers.set(node, { parent: owner, close: () => current.current() });
+    ui.contextLayers.set(node, { parent: owner, close: () => current.current(),dismiss:dismiss?()=>dismissal.current?.():undefined });
     const focused = document.activeElement;
     // Nested portalled controllers retain their existing context ancestors.
     // Rebuilding only the frame chain drops the parent popup from Esc/Back.
@@ -77,12 +89,13 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
       const stack = ui.activeContext.getSnapshot(), index = stack.findIndex(entry => entry.kind === "layer" && entry.element === node);
       if (index >= 0) publish(ui, stack.slice(0, index));
     };
-  }, [open, ui?.activeContext, parent, ref]);
+  }, [open, ui?.activeContext, parent, ref, !!dismiss]);
 }
 
 export function ActiveContextSystem() {
   const ui = useUI(), latest = useRef(ui); latest.current = ui;
   const stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot);
+  useLayoutEffect(()=>{contextTargets.setIntermediate(stack.at(-1)?.kind==='layer'||stack.at(-1)?.kind==='field');},[stack]);
   const popField = () => {
     const current = latest.current, entries = current.activeContext.getSnapshot(), field = entries.at(-1);
     if (field?.kind !== "field") return false;
@@ -130,9 +143,15 @@ export function ActiveContextSystem() {
   useEffect(() => {
     const activate = (event: Event) => {
       let element = event.target instanceof Element ? event.target : null;
+      if(event instanceof PointerEvent&&event.button===0&&!event.ctrlKey&&!event.metaKey&&latest.current.contextLayers.size>0&&element&&!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-ui-popup-interior],[data-omnic-role]')&&dismissContextDials(latest.current.contextLayers.values())) {
+        claimUIPress(event.pointerId,event.pointerType,event.buttons);
+        event.preventDefault();event.stopImmediatePropagation();return;
+      }
       while (element && !(element instanceof HTMLElement)) element = element.parentElement;
       if (!(element instanceof HTMLElement) || element.closest(controllerSelector)) return;
-      publish(latest.current, stackAt(latest.current, element));
+      const next=stackAt(latest.current,element);
+      contextTargets.context(activeFrame(next)?.key,element,next.at(-1)?.kind==='layer'||next.at(-1)?.kind==='field');
+      publish(latest.current,next);
     };
     const key = (event: KeyboardEvent) => {
       // The held UI gesture gets first refusal (notably Esc cancellation).
@@ -159,11 +178,13 @@ export function ActiveContextSystem() {
 /** Remote actions preserve the target while the user interacts with the controller. */
 export function ActiveContextControls() {
   const ui = useUI(), stack = useSyncExternalStore(ui.activeContext.subscribe, ui.activeContext.getSnapshot), top = stack.at(-1);
-  const label = top?.kind === "frame" ? ui.frameActions.get(top.key)?.title ?? top.key : top?.element.getAttribute("aria-label") ?? (top?.kind === "field" ? "Value field" : "Popup");
+  useSyncExternalStore(contextTargets.subscribe,contextTargets.getSnapshot);
+  const target=contextTargets.targets()[0];
+  const label = target?.label ?? (top?.kind === "frame" ? ui.frameActions.get(top.key)?.title ?? top.key : top?.element.getAttribute("aria-label") ?? (top?.kind === "field" ? "Value field" : "Popup"));
   return <div data-context-controller onPointerDown={event => {
     if ((event.target as Element).closest("button")) event.preventDefault();
   }}><UISection id="active-context-actions" title="Active context">
     <p role="status">{top ? label : "Click a frame to activate it"}</p>
-    {["focus", "context.back", "context.search", "context.close", "context.minimize", "context.resize", "context.float", "context.descendants", "searchUI"].map(id => <FunctionControl key={id} id={id} mirror />)}
+    {ACTIONS.filter(action=>action.category==='Active context'||'contextControl' in action&&(action.contextControl===true||contextTargets.active())).filter(action=>!('contextual' in action)||!contextTargets.override(action.id)||contextTargets.available(action.id)).map(action=><FunctionControl key={action.id} id={action.id} mirror/>)}
   </UISection></div>;
 }

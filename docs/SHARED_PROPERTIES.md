@@ -315,6 +315,14 @@ policy index and MS pattern index share this ancestry. Grouping compiles from th
 registry at initialization, with no new DOM/pointer scans or animation work.
 
 
+## Active geometry MC bindings
+
+Selected Omnic targets lend their real degree/value adapters to MC through the existing contextual bindings. Groups inherit supported member inputs; numeric editors intersect member domains. Values remain in the recipe owner and use its setters/history. Input `unit: length` declares dimensions applicable to edge fit/size operations; it is projected into the shared property definition. Runtime target/DOF disambiguation is not another property or value pool. The shared Shift choice priority is a discovered settings function (`ui.target.choice`) reusing `operation.level` and the existing `functionValues` owner.
+
+## Preset DOF discovery
+
+`editableDegrees` defaults to common writable inputs across a selected target set. Its explicit `available` coverage projects the union for a compound preset, keeping each property scoped only to owners that actually expose it. Omnic's target adapter resolves both components and applications through their existing applicable parameter definitions; conditional inputs are rediscovered from the candidate recipe. The ordinary stationary target menu retains common coverage. Generator inputs marked `directManipulation` remain in validation/storage/translation adapters but are omitted by `applicableParameters` from generated Composer controls and DOF discovery. Procedural X/Y use this declaration; custom pivot inputs remain contextual. Preset choice commits immediately through existing draft history. Sliders use recipe samples while dragging and commit through the same owner on acceptance; finishing/dismissing the dial does not gate persistence. There is no new property/value registry.
+
 ## Active Omnic parameter owner
 
 World draft preview subscribes to the existing composer-owned recipe through

@@ -1,4 +1,3 @@
-import { atomnicViewBounds } from './atomnicSettings.ts';
 import { isOperationTool } from "./tools.ts";
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import type { Document, Placement } from "../graph/structural.ts";
@@ -60,7 +59,7 @@ function recipeAsset(entityId: string, recipe: Recipe, resolve: RecipeResolver, 
   let dataUrl=cache.get(stamp);
   if(!dataUrl){
     let svg:string;
-    try { svg=renderSVG(evaluateRecipe(recipe,resolve,0),feedback??{bounds:atomnicViewBounds(recipe.atomnic)}); } catch { return {...omnicBudgetAsset,id:`omnic:${entityId}`}; }
+    try { svg=renderSVG(evaluateRecipe(recipe,resolve,0),feedback); } catch { return {...omnicBudgetAsset,id:`omnic:${entityId}`}; }
     // Renderer output uses ASCII escapes for identifiers; UTF-8 encoding stays portable.
     const bytes=new TextEncoder().encode(svg);let binary='';for(const b of bytes)binary+=String.fromCharCode(b);
     dataUrl=`data:image/svg+xml;base64,${btoa(binary)}`;

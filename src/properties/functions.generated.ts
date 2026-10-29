@@ -10,5 +10,6 @@ import function6 from "../omnic/omnic.function.ts";
 import function7 from "../scene/scene.function.ts";
 import function8 from "../ui/resize.function.ts";
 import function9 from "../ui/search.function.ts";
-export const CONFIGURABLE_FUNCTIONS = [function0, function1, function2, function3, function4, function5, function6, function7, function8, function9] as const;
+import function10 from "../ui/targetChoice.function.ts";
+export const CONFIGURABLE_FUNCTIONS = [function0, function1, function2, function3, function4, function5, function6, function7, function8, function9, function10] as const;
 initializeFunctions(CONFIGURABLE_FUNCTIONS);

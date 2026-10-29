@@ -1,3 +1,4 @@
+import { contentOwnsPointer } from '../src/ui/pointerOwnership.ts';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyUILayout, validateUILayout } from "../src/ui/layout.ts";
@@ -173,4 +174,12 @@ test("alignment avoids unselected obstacles, distribution expands cramped spacin
   assert.throws(() => arrangeButtons(boxes, target, "bottom", { area, bounds: Object.fromEntries(boxes.map(box => [box.id, { ...area, x: 280, width: 100 }])) }), /without overlap/);
   const constrained = arrangeButtons(boxes, target, "distributeX", { area, bounds: Object.fromEntries(boxes.map(box => [box.id, { ...area, x: 290, width: 250 }])) });
   assert.ok(constrained.every(box => box.x >= 290 && box.x + box.width <= 540));
+});
+
+test('content editors own Ctrl-drag until interface selection is explicitly activated',()=>{
+  const content={closest:selector=>selector==='[data-ui-gesture-owner="content"]'?{}:null};
+  const chrome={closest:()=>null};
+  assert.equal(contentOwnsPointer(content,false),true,'ordinary content press must reach its editor rather than UI marquee');
+  assert.equal(contentOwnsPointer(content,true),false,'explicit interface selection retains its intentional override');
+  assert.equal(contentOwnsPointer(chrome,false),false,'interface controls retain modifier selection');
 });

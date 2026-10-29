@@ -1,6 +1,7 @@
+import type { PropertyBindings } from '../properties/CoupledProperties';
 import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } from "react";
 import type { ConfigurationGesture, ConfigurationInteraction } from "./configurationGesture";
-export const ConfigurationInteractionContext = createContext<{ id: string; gesture: ConfigurationGesture; close: () => void } | null>(null);
+export const ConfigurationInteractionContext = createContext<{ id: string; gesture: ConfigurationGesture; close: () => void;bindings?:PropertyBindings } | null>(null);
 /** Renderers supply choices/behavior only; the shared router owns every gesture. */
 export function useConfigurationInteraction(interaction: ConfigurationInteraction) {
   const context = useContext(ConfigurationInteractionContext), latest = useRef(interaction); latest.current = interaction;
@@ -10,9 +11,9 @@ export function useConfigurationInteraction(interaction: ConfigurationInteractio
   }), [context?.gesture, context?.id]);
   return context;
 }
-export function ConfigurationInteractionBoundary({ id, gesture, close, children }: { id: string; gesture: ConfigurationGesture; close: () => void; children: ReactNode }) {
+export function ConfigurationInteractionBoundary({ id, gesture, close, bindings, children }: { id: string; gesture: ConfigurationGesture; close: () => void; children: ReactNode;bindings?:PropertyBindings }) {
   const optionFor=(target:EventTarget)=>target instanceof Element?target.closest<HTMLElement>("[data-configuration-option]"):null;
-  return <ConfigurationInteractionContext.Provider value={{ id, gesture, close }}>
+  return <ConfigurationInteractionContext.Provider value={{ id, gesture, close,bindings }}>
     <div onPointerOverCapture={event=>{
       const option=optionFor(event.target);
       if(option&&!(event.relatedTarget instanceof Node&&option.contains(event.relatedTarget)))gesture.select(Number(option.dataset.configurationOption));

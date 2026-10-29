@@ -1,8 +1,12 @@
+import { createContextTargets, contextTargets } from '../src/ui/contextTargets.ts';
+import { preferredFeatureKey } from '../src/workspaceActions.ts';
+import { claimUIPress, finishUIPress } from '../src/ui/pointerOwnership.ts';
+import { dismissContextDials } from "../src/ui/activeContextModel.ts";
 import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCursorModel.ts";
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { radialTree, radialSlot, radialDimensions, radialQuickSlot } from '../src/ui/radialMenuModel.ts';
+import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout } from '../src/ui/radialMenuModel.ts';
 import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
@@ -15,6 +19,40 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test('shared target routing chooses the nearest supported scope and asks before multi-DOF execution',()=>{
+  const registry=createContextTargets(),calls=[],element={contains:target=>target==='canvas'};
+  let targets=[{id:'member',label:'Member',commands:{deleteSelected:{run:()=>calls.push('delete member')}}},
+    {id:'group',label:'Group',commands:{resize:{degrees:[{id:'radius',label:'Radius',run:()=>calls.push('radius')},{id:'width',label:'Width',run:()=>calls.push('width')}]}}}];
+  const source=registry.register({owner:'composer',element:()=>element,read:()=>targets});
+  registry.context('composer','canvas');assert.equal(registry.active(),true);
+  assert.equal(registry.invoke('deleteSelected'),true);assert.deepEqual(calls,['delete member']);
+  assert.equal(registry.available('context.close'),false,'unsupported Close never becomes geometry deletion');
+  registry.invoke('resize');assert.equal(calls.length,1,'ambiguous operation does not execute');
+  assert.equal(registry.choice.getSnapshot().degrees.length,2);registry.choose('width');assert.equal(calls.at(-1),'width');
+  registry.invoke('resize');targets=[{id:'other',label:'Other',commands:{resize:{degrees:[{id:'radius',label:'Radius',run:()=>calls.push('wrong target')}]}}}];
+  assert.equal(registry.choose('radius'),false,'stale choices never affect a replacement target');
+  registry.invoke('resize');assert.equal(calls.at(-1),'wrong target','one compatible DOF executes directly');
+  registry.context('composer',null,true);assert.equal(registry.override('context.back'),false,'field/popup Escape retains priority');
+  registry.context('other','canvas');assert.equal(registry.active(),false,'leaving the surface restores existing context behavior');source.dispose();
+});
+test('shared MC shortcuts own selected geometry while MS and held-gesture cancellation keep priority',()=>{
+  const source=contextTargets.register({owner:'composer',element:()=>null,read:()=>[{id:'target',label:'Geometry',commands:{}}]});source.activate();
+  try{
+    assert.equal(preferredFeatureKey({},'D',id=>['context.descendants','atomnic.draw'].includes(id)),'context.descendants');
+    assert.equal(preferredFeatureKey({'selector.pattern':'D'},'D',id=>['selector.pattern','context.descendants','atomnic.draw'].includes(id)),'selector.pattern');
+    claimUIPress(999,'mouse',1);
+    assert.equal(preferredFeatureKey({},'Esc',id=>['context.back','atomnic.cancel'].includes(id)),'atomnic.cancel');
+  }finally{finishUIPress({pointerId:999,pointerType:'mouse',buttons:0});source.dispose();}
+});
+test('empty-space dismissal closes nested dials without closing unrelated context layers',()=>{
+  const calls=[],layers=new Map();
+  layers.set('other',{close:()=>calls.push('unrelated')});
+  layers.set('parent',{close:()=>{},dismiss:()=>calls.push('parent')});
+  layers.set('child',{close:()=>{},dismiss:()=>{calls.push('child');layers.delete('parent');}});
+  assert.equal(dismissContextDials(layers.values()),true);
+  assert.deepEqual(calls,['child','parent'],'all opened dial callbacks survive descendant cleanup');
+  assert.equal(dismissContextDials([{close:()=>calls.push('unrelated')}]),false);
+});
 test('circular frame projection adapts old rectangles and preserves intentional resizes',()=>{
   const initial={width:360,height:360},legacy={width:600,height:650};
   assert.equal(circularFrameExtent(legacy,legacy,initial),360);
@@ -53,11 +91,18 @@ test('radial projections group shared categories without changing leaf identitie
   assert.equal(tree[0].children[0].id,'save-shared');assert.equal(tree[0].children[0].content,action);
   assert.equal(tree[0].children[1].content,field);
   const many=radialTree(Array.from({length:20},(_,i)=>({id:`tool-${i}`,label:`Tool ${i}`,symbol:'○',content:i})));
-  const leaves=[];const visit=nodes=>{assert.ok(nodes.length<=6);for(const node of nodes)if(node.children)visit(node.children);else leaves.push(node.content);};
-  visit(many);assert.deepEqual(leaves,Array.from({length:20},(_,i)=>i),'overflow remains reachable without crowding');
+  const leaves=[];const visit=nodes=>{for(const node of nodes)if(node.children)visit(node.children);else leaves.push(node.content);};
+  visit(many);assert.deepEqual(leaves,Array.from({length:20},(_,i)=>i),'all supplied entries retain direct slots; only declared categories nest');
+  assert.equal(many.length,20);assert.ok(many.every(node=>!node.children));
+  const without=radialLayout(many),withSetters=radialLayout(many.map(node=>({...node,setter:'value'})));
+  assert.equal(withSetters.slots[0].setterAngle,-90);
+  assert.ok(withSetters.slots[0].setterY<0,'top setter projects outward from its circle');
+  assert.equal(without.radius,withSetters.radius,'outer setters cannot spread out the button ring');
+  assert.deepEqual(without.slots.map(s=>s.size),withSetters.slots.map(s=>s.size));
   const top=radialSlot(0,6,0),next=radialSlot(1,6,0),inner=radialSlot(0,6,1);
   assert.equal(top.x,50);assert.ok(top.y<50);assert.ok(next.x>50,'clockwise from top');
-  assert.ok(inner.y>top.y&&inner.size<top.size,'progressively smaller category ring');
+  assert.ok(radialDimensions(1).radius<radialDimensions(0).radius&&inner.size<top.size,'progressively smaller category ring');
+  assert.ok(radialDimensions(0,6).radius<=36,'sparse dials pack against their centre rather than a fixed 64px radius');
   for(let depth=0;depth<3;depth++)for(let index=0;index<6;index++){
     const slot=radialSlot(index,6,depth);
     const {extent}=radialDimensions(depth);
@@ -67,6 +112,17 @@ test('radial projections group shared categories without changing leaf identitie
   for(const count of [6,7,12,16]){
     const {extent}=radialDimensions(0,count),slots=Array.from({length:count},(_,i)=>radialSlot(i,count,0));
     for(let i=0;i<count;i++){const a=slots[i],b=slots[(i+1)%count];assert.ok(Math.hypot(a.x-b.x,a.y-b.y)*extent/100>=a.size,'a flat target-DOF ring keeps all buttons separated');}
+  }
+});
+test('radial outer value strips preserve compact button separation',()=>{
+  for(const count of [6,12,24]){
+    const {extent}=radialDimensions(0,count,12);
+    const slots=Array.from({length:count},(_,i)=>radialSlot(i,count,0,12));
+    for(let i=0;i<count;i++){
+      const a=slots[i],b=slots[(i+1)%count];
+      assert.ok(a.y*extent/100-a.size/2-12>=-1e-8);
+      assert.ok(Math.hypot(a.x-b.x,a.y-b.y)*extent/100>=a.size-1e-9);
+    }
   }
 });
 test("live coordinate moves preserve topology validation for other changes", () => {

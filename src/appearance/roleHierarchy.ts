@@ -28,10 +28,12 @@ export function groupVisualRoles<T extends VisualTarget>(source: readonly T[]): 
     ensure(root, "all", group.label);
     // The existing detection path supplies system identity/caption automatically.
     const system = ancestors.find(id => id !== "all" && !(group.id === "visual.role.text" && id === "text"));
-    const parent = system ? `${root}.${system}` : root;
-    if (system) ensure(parent, root, byId.get(system)?.label ?? system);
+    const family=ancestors.find(id=>byId.get(id)?.roleLayout==='within');
+    const parent = family ? `${family}.${root}` : system ? `${root}.${system}` : root;
+    if(family)ensure(parent,family,group.label);
+    else if (system) ensure(parent, root, byId.get(system)?.label ?? system);
     const owner = target.parent && byId.get(target.parent);
-    target.legacyAncestors = ancestors;
+    target.legacyAncestors = [...new Set([...(target.legacyAncestors??[]),...ancestors.flatMap(id=>byId.get(id)?.legacyAncestors??[]),...ancestors,...(family?[root]:[])])];
     target.parent = parent;
     if (owner && owner.id !== "all" && owner.id !== system) {
       const generic = /^(background|area background|outer contour|contour)$/i.test(target.label);
@@ -40,14 +42,14 @@ export function groupVisualRoles<T extends VisualTarget>(source: readonly T[]): 
   }
   // Retain old IDs/policies, hiding only structural branches whose visible
   // children were all regrouped. This also supports old saved targeting rules.
-  const visibleParents = new Set(result.filter(t => !t.hidden).map(t => t.parent));
+  const visibleParents = new Set([...generated.values(),...result].filter(t => !t.hidden).map(t => t.parent));
   let changed = true;
   while (changed) {
     changed = false;
     for (const target of result) if (target.parent && !target.properties && !target.hidden && !visibleParents.has(target.id)) {
       target.hidden = true; changed = true;
     }
-    if (changed) { visibleParents.clear(); for (const t of result) if (!t.hidden) visibleParents.add(t.parent); }
+    if (changed) { visibleParents.clear(); for (const t of [...generated.values(),...result]) if (!t.hidden) visibleParents.add(t.parent); }
   }
   return [...generated.values(), ...result];
 }

@@ -111,6 +111,7 @@ const part = (
     id,
     parent,
     label,
+    ...(entries.find(target=>target.id===parent)?.aliases?{aliases:entries.find(target=>target.id===parent)!.aliases}:{}),
     properties: [...new Set(properties)],
     binding,
     effectKinds:
@@ -196,6 +197,42 @@ part("ui.toggles.indicator", "ui.toggles", "Selection indicator", {
   css: "accent-color",
   legacy: "accent",
 });
+branch("ui.dials", "all", "Dials");
+entries.at(-1)!.roleLayout="within";
+entries.at(-1)!.aliases=["radial menus","radial controls","dials"];
+branch("ui.dials.radial", "ui.dials", "Radial menus");
+part("ui.dials.radial.rims", "ui.dials.radial", "Ring outlines", {
+ selector:".radial-menu-rims",css:"stroke",role:"contour",legacy:"accent",
+});
+part("ui.dials.radial.contours", "ui.dials.radial", "Control outlines", {
+ selector:".radial-menu-slot button,.radial-menu-centre button,.radial-menu-inset button,.radial-menu-quick-control button,.radial-menu-origin",css:"border-color",legacy:"accent",
+});
+part("ui.dials.radial.surfaces", "ui.dials.radial", "Control fills", {
+ selector:".radial-menu-slot button,.radial-menu-centre button,.radial-menu-inset button,.radial-menu-quick-control button",css:"background-color",legacy:"controlBackground",
+});
+part("ui.dials.radial.icons", "ui.dials.radial", "Control symbols", {
+ selector:".radial-menu-slot button,.radial-menu-centre button,.radial-menu-inset button,.radial-menu-quick-control button",css:"color",role:"icon",legacy:"accent",
+});
+branch("ui.fields.mathematicalDial", "ui.dials", "⠒❉");
+entries.at(-1)!.legacyAncestors=["ui","ui.contents","ui.fields"];
+entries.at(-1)!.aliases=["mathematical dial","count dial"];
+part("ui.fields.mathematicalDial.contours", "ui.fields.mathematicalDial", "Rims / slot outlines", {
+  selector: ".mathematical-dial-ring,.mathematical-dial-order-rim,.mathematical-dial-slot,.mathematical-dial-mark",
+  css: "border-color", legacy: "accent",
+});
+part("ui.fields.mathematicalDial.hover", "ui.fields.mathematicalDial", "Hover rims", {
+  selector: '.mathematical-dial-slot:is(:hover,:focus-visible,[data-preview="true"])', css: "--mathematical-hover-ink", role: "contour", legacy: "accent",
+});
+part("ui.fields.mathematicalDial.marks", "ui.fields.mathematicalDial", "Selected marks", {
+  selector: '.mathematical-dial-slot[data-selected="true"]:not([data-preview="true"]) .mathematical-dial-mark',
+  css: "background-color", role: "indicator", legacy: "accent",
+});
+part("ui.fields.mathematicalDial.base", "ui.fields.mathematicalDial", "Base units", {
+  selector: ".mathematical-dial-base i", css: "background-color", role: "indicator", legacy: "accent",
+});
+part("ui.fields.mathematicalDial.direction", "ui.fields.mathematicalDial", "Start / direction", {
+  selector: ".mathematical-dial-start-arrow", css: "color", role: "indicator", legacy: "accent",
+});
 branch("ui.sliders", "ui.fields", "Sliders");
 part("ui.sliders.fill", "ui.sliders", "Filled track / thumb", {
   selector: 'input[type="range"]:not(.range-spectrum-input),progress,meter',
@@ -214,12 +251,12 @@ part("ui.swatches", "ui.fields", "Color swatch contours", {
 });
 branch("ui.buttons", "ui.contents", "Buttons / action controls");
 part("ui.buttons.background", "ui.buttons", "Background", {
-  selector: "button:not(.appearance-target):not(.appearance-lock)",
+  selector: "button:not(.appearance-target):not(.appearance-lock):not([data-ui-paint-owner]):not(.radial-menu button)",
   css: "background-color",
   legacy: "controlBackground",
 });
 part("ui.buttons.contour", "ui.buttons", "Contour", {
-  selector: "button",
+  selector: "button:not([data-ui-paint-owner]):not(.radial-menu button)",
   css: "border-color",
   legacy: "accent",
 });
@@ -248,7 +285,7 @@ part("ui.scrollbars.track", "ui.scrollbars", "Track", { legacy: "background" }, 
 branch("ui.popups", "ui", "Menus / tooltips / notices");
 part("ui.popups.background", "ui.popups", "Background", {
   selector:
-    ".ui-frame-search-popup,.spatial-menu,.ui-background-menu,.ui-shortcut-notice,.node-options",
+    ".ui-frame-search-popup:not(.contextual-master-controller-radial),.spatial-menu,.ui-background-menu,.ui-shortcut-notice,.node-options",
   css: "background-color",
   legacy: "windowBackground",
 });

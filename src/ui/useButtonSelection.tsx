@@ -1,3 +1,4 @@
+import { contentOwnsPointer } from './pointerOwnership';
 import { ownsContextMenu } from './contextMenuOwnership';
 import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
@@ -458,6 +459,7 @@ export function useButtonSelection({
     let pendingMove: PointerEvent | null = null;
     const cancelMove = () => { cancelAnimationFrame(moveFrame); moveFrame = 0; pendingMove = null; };
     const down = (e: PointerEvent) => {
+      if(e.defaultPrevented)return;
       if (e.button !== 0) {
         if (gesture.current && (e.button === 3 || e.button === 4)) cancel();
         return;
@@ -466,6 +468,7 @@ export function useButtonSelection({
         state = current.current,
         additive = e.ctrlKey || e.metaKey,
         range = e.shiftKey;
+      if(contentOwnsPointer(target,state.mode))return;
       const button = target.closest<HTMLElement>(selectable),
         id = button ? idOf(button) : undefined,
         selectedPress = !!id && state.ids.has(id),
