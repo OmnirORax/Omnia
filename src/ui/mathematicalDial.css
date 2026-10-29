@@ -29,3 +29,7 @@
 .mathematical-dial-slot::after{content:'';position:absolute;inset:-1px;border:1px solid var(--mathematical-hover-ink,currentColor);border-radius:50%;box-shadow:0 0 5px var(--mathematical-hover-ink,currentColor);opacity:0;pointer-events:none}
 .mathematical-dial-slot:is(:hover,:focus-visible,[data-preview=true])::after{opacity:1}
 .tool-cursor.mathematical-dial-cursor{font-size:12px}
+
+/* Meta controls sit below the next outward slot band, outside drawing space. */
+.mathematical-dial-settings{margin-top:26px;gap:3px;width:max-content;max-width:none;flex-wrap:nowrap}
+.mathematical-dial .mathematical-dial-settings button{min-width:32px;width:32px;height:32px;font-size:20px}

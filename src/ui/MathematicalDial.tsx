@@ -7,7 +7,7 @@ import {useToolCursor} from './toolCursor';
 import {setToolCursorZone} from './toolCursorZone';
 /** Right-click chooses a brush. Only left-click/held painting writes slot modes. */
 export function MathematicalDial({value,min,max,onPreview,onCommit}:{value:number;min:number;max:number;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
- const [base,setBase]=useState<1|2>(2),[clockwise,setClockwise]=useState(true),[start,setStart]=useState(0),[orders,setOrders]=useState(1),[brush,setBrush]=useState<MathematicalSlotMode>('normal');
+ const [base,setBase]=useState<1|2>(2),[clockwise,setClockwise]=useState(true),[start]=useState(0),[orders,setOrders]=useState(1),[brush,setBrush]=useState<MathematicalSlotMode>('normal');
  const [marks,setMarks]=useState<MathematicalMarks>({selected:[],modes:{}}),[sample,setSample]=useState<MathematicalMarks|null>(null);
  const ringRef=useRef<HTMLDivElement>(null),zone=useId();
  useLayoutEffect(()=>{const node=ringRef.current;if(!node)return;setToolCursorZone(node,zone,true);return()=>setToolCursorZone(node,undefined);},[zone]);
@@ -44,7 +44,6 @@ export function MathematicalDial({value,min,max,onPreview,onCommit}:{value:numbe
  <div className="mathematical-dial-settings">
   {([1,2] as const).map(n=><button type="button" key={n} title={`Base ${n}`} aria-pressed={base===n} onClick={()=>changeBase(n)}>{n}</button>)}
   <button type="button" title="Reading direction" onClick={()=>{restore();setClockwise(!clockwise);}}>{clockwise?'↻':'↺'}</button>
-  <button type="button" title="Starting position" onClick={()=>{restore();setStart((start+1/rings[0].count)%1);}}>⌖</button>
   {canAddMathematicalRing(orders,marks.selected.map(key=>Number(key.split(':')[0])))&&<button type="button" title="Add outer ring" onClick={()=>{restore();setOrders(orders+1);}}>◎+</button>}
   <button type="button" title="Remove outer ring" disabled={orders===1} onClick={()=>{if(orders>1){commit({...marks,selected:marks.selected.filter(key=>Number(key.split(':')[0])<orders-1)});setOrders(orders-1);}}}>◎−</button>
  </div>
