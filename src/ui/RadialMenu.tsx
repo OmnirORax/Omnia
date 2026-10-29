@@ -23,6 +23,13 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     return()=>observer.disconnect();
   },[!!quickItems,!!children]);
   const [path,setPath]=useState<CategoryAnchor[]>([]);
+  const childAnchor=(owner:HTMLElement,slot:HTMLElement,childExtent:number):CategoryAnchor=>{
+    const ownerBox=owner.getBoundingClientRect(),slotBox=slot.getBoundingClientRect();
+    const ox=ownerBox.left+ownerBox.width/2,oy=ownerBox.top+ownerBox.height/2;
+    const x=slotBox.left+slotBox.width/2,y=slotBox.top+slotBox.height/2,dx=x-ox,dy=y-oy,length=Math.hypot(dx,dy)||1;
+    const distance=ownerBox.width/2+childExtent*scale/2+2;
+    return {id:'',x:ox+dx/length*distance,y:oy+dy/length*distance};
+  };
   const hoverTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const keepChildren=()=>{if(hoverTimer.current)clearTimeout(hoverTimer.current);};
   const leaveChildren=()=>{keepChildren();hoverTimer.current=setTimeout(()=>{if(!uiPointerHeld())setPath([]);},120);};
@@ -47,13 +54,15 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
       onPointerUp={event=>{const active=adjustment.current;if(active?.id!==gestureKey||active.pointer!==event.pointerId)return;event.stopPropagation();active.api.finish(event.clientX,event.clientY);adjustment.current=null;setAdjusting(null);suppressAdjustmentClick.current=true;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}}
       onLostPointerCapture={()=>{if(adjustment.current?.id===gestureKey){adjustment.current.api.cancel();adjustment.current=null;setAdjusting(null);}}}
       onPointerCancel={()=>{if(adjustment.current?.id===gestureKey){adjustment.current.api.cancel();adjustment.current=null;setAdjusting(null);}}}
-      onClickCapture={event=>{if(suppressAdjustmentClick.current){suppressAdjustmentClick.current=false;event.preventDefault();event.stopPropagation();}}} style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}} onMouseEnter={event=>{keepChildren();if(node.children){const bounds=event.currentTarget.getBoundingClientRect();if(bounds)setPath([...path.slice(0,depth),{id:node.id,x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2}]);}}} onMouseLeave={leaveChildren}>
+      onClickCapture={event=>{if(suppressAdjustmentClick.current){suppressAdjustmentClick.current=false;event.preventDefault();event.stopPropagation();}}} style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}} onMouseEnter={event=>{keepChildren();if(node.children){const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialLayout(node.children!,depth+1);
+        if(owner){const anchor=childAnchor(owner,event.currentTarget,layout.extent);setPath([...path.slice(0,depth),{...anchor,id:node.id}]);}}}} onMouseLeave={leaveChildren}>
       {node.setter&&<span className="radial-menu-setter" style={{left:layout.slots[index].setterX,top:layout.slots[index].setterY,transform:`translate(-50%,-50%) rotate(${layout.slots[index].setterAngle}deg)`}}><RangeGestureTarget.Provider value={gestureTarget}><RangeAxis.Provider value={layout.slots[index].setterAngle}>{node.setter}</RangeAxis.Provider></RangeGestureTarget.Provider></span>}
       {node.children?<button type="button" data-ui-id={`radial:${node.id}`} aria-label={node.label} title={node.label} aria-haspopup="true" aria-expanded={path[depth]?.id===node.id} style={node.symbol.length>2?{fontSize:10}:undefined}
         onClick={event=>{
           if(path[depth]?.id===node.id){setPath(path.slice(0,depth));return;}
-          const bounds=event.detail===0?event.currentTarget.getBoundingClientRect():null;
-          setPath([...path.slice(0,depth),{id:node.id,x:bounds?bounds.left+bounds.width/2:event.clientX,y:bounds?bounds.top+bounds.height/2:event.clientY}]);
+          const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialLayout(node.children!,depth+1);
+          if(!owner)return;const anchor=childAnchor(owner,event.currentTarget,layout.extent);
+          setPath([...path.slice(0,depth),{...anchor,id:node.id}]);
         }}>{node.symbol}</button>:node.content}
     </span>;
   });};
@@ -82,7 +91,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     {branches.map(({anchor,node},index)=>{
       const depth=index+1,{extent,radius,size}=radialLayout(node.children!,depth);
       return <ContextualMasterController key={`${index}:${node.id}`} radial title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onClose={()=>setPath(path.slice(0,index))}>
-        <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} style={{...dialStyle(extent,size),...(index<branches.length-1?{opacity:0,pointerEvents:"none" as const}:{})}}
+        <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} style={dialStyle(extent,size)}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius}/></svg>
           {ring(node.children!,depth)}

@@ -58,6 +58,3 @@
 
 .radial-menu-slot>.radial-menu-setter{visibility:hidden;opacity:0;pointer-events:none}
 .radial-menu-slot[data-adjusting=true]>.radial-menu-setter{visibility:visible;opacity:1;pointer-events:auto}
-
-/* A child replaces its parent in the same axis; only the deepest open ring is visible. */
-.radial-menu[data-child-open=true]{opacity:0;pointer-events:none}
