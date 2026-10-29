@@ -36,13 +36,14 @@ export function mathematicalSelectionValue(base:number,activations:readonly Math
 }
 
 export type MathematicalDomain={min:number;max:number;integer?:boolean};
-export type MathematicalEditingRule={kind:'value'}|{kind:'increment';amount:number};
+export type MathematicalEditingRule={kind:'value'}|{kind:'increment';amount:number}|{kind:'match';reference:number;measurement:number;response:number};
 export type MathematicalEditContext={anchor:number;index:number;rule:MathematicalEditingRule};
 /** Numeral selection and the rule governing an edit are independent. Re-evaluate
  * from a frozen starting value, never from the preceding hover/paint sample. */
 export function mathematicalEditValue({anchor,index,rule}:MathematicalEditContext){
  if(!Number.isSafeInteger(index)||!Number.isFinite(anchor))return NaN;
  if(rule.kind==='value')return index;
+ if(rule.kind==='match')return Number.isFinite(rule.reference)&&Number.isFinite(rule.measurement)&&Number.isFinite(rule.response)&&rule.response!==0?anchor+(rule.reference-rule.measurement)/rule.response:NaN;
  if(!Number.isFinite(rule.amount)||rule.amount<=0)return NaN;
  return index===0?anchor:Number((anchor+index*rule.amount).toPrecision(15));
 }
@@ -64,6 +65,7 @@ export function mathematicalValueSession(value:number){
   commit(next:number){committed=expected=next;sampling=false;return next;},
   restore(){expected=committed;sampling=false;return committed;},
   get sampling(){return sampling;},
+  get expected(){return expected;},
  };
 }
 

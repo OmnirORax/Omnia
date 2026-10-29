@@ -3,7 +3,7 @@ import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = { unit?:string; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
+export type Parameter = { unit?:string; measurement?:'center-x'|'center-y'|'radius'|'length'; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
@@ -12,15 +12,15 @@ export type OperatorContext = {
 export type Definition = { id: string; label: string; symbol?: string; parameters: readonly Parameter[]; description?: string; input?: readonly string[]; output?: "structure"|"selection"|"property"; category?: string; preconditions?: readonly string[]; apply?: (context:OperatorContext) => void };
 const number = (key: string, property: string, label: string, initial: number, min: number, max: number, step = .1, thresholds?:number[]): Parameter => ({key,property,label,kind:"number",initial,min,max,step,thresholds});
 const count:Parameter = {...number("count","omnic.count","Count",6,1,64,1,[1,2,3,4,6,8,12,16,32,64]),integer:true,freedom:{label:"Count",symbol:"●●",group:[UNIT_FREEDOM_GROUP]}};
-const radius:Parameter = {...number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]),unit:'length',freedom:{label:"Radius",symbol:"⊖",group:[RELATION_FREEDOM_GROUP]}};
-const size:Parameter = {...number("size","omnic.extent","Unit size",6,.5,100,.5,[1,2,4,8,16,32,64]),unit:'length',freedom:{label:'Size',symbol:'●⬤',group:[UNIT_FREEDOM_GROUP]}};
+const radius:Parameter = {...number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]),unit:'length',measurement:'radius',freedom:{label:"Radius",symbol:"⊖",group:[RELATION_FREEDOM_GROUP]}};
+const size:Parameter = {...number("size","omnic.extent","Unit size",6,.5,100,.5,[1,2,4,8,16,32,64]),unit:'length',measurement:'radius',freedom:{label:'Size',symbol:'●⬤',group:[UNIT_FREEDOM_GROUP]}};
 const fill: Parameter = {key:"fill",property:"omnic.fill",label:"Fill",kind:"toggle",initial:true,freedom:{label:"Fill",symbol:"◐",group:[UNIT_FREEDOM_GROUP]}};
 const angle:Parameter = {...number("angle","omnic.angle","Angle",0,-1080,1080,1,[-180,-90,0,90,180,360]),freedom:{label:"Rotation",symbol:"🗘",group:[POSITION_FREEDOM_GROUP]}};
 const thickness:Parameter = {...number("thickness","omnic.thickness","Stroke width",2,.25,12,.25),unit:'length',freedom:{label:"Stroke width",symbol:"━",group:[UNIT_FREEDOM_GROUP]}};
 const color: Parameter = {key:"color",property:"color",label:"Color",kind:"color",initial:"#60ddec",freedom:{label:"Color",symbol:"⬤",group:[VISUAL_FREEDOM_GROUP],symbolFill:"conic-gradient(#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)"}};
 const opacity:Parameter = {...number("opacity","opacity","Opacity",1,0,1,.05),freedom:{label:"Opacity",symbol:"⬤",symbolOpacity:.5,group:[VISUAL_FREEDOM_GROUP]}};
-const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,1),freedom:{label:"Position X",symbol:"⊕X",group:[POSITION_FREEDOM_GROUP]}};
-const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),freedom:{label:"Position Y",symbol:"⊕Y",group:[POSITION_FREEDOM_GROUP]}};
+const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,1),measurement:'center-x',freedom:{label:"Position X",symbol:"⊕X",group:[POSITION_FREEDOM_GROUP]}};
+const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),measurement:'center-y',freedom:{label:"Position Y",symbol:"⊕Y",group:[POSITION_FREEDOM_GROUP]}};
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
   {id:"count-grid",label:"Count grid",symbol:"⬤",parameters:[{...count,initial:0,min:0,max:512},size,...paint,x,y]},
@@ -33,7 +33,7 @@ export const GENERATORS: readonly Definition[] = [
     {...fill,initial:false},thickness,color,opacity,
     {...number("thicknessGrowth","omnic.strokeProgression","Stroke progression",1,.25,2,.05),freedom:{label:"Stroke progression",symbol:"≋",group:[UNIT_FREEDOM_GROUP]}},
     {...number("opacityGrowth","omnic.opacityProgression","Opacity progression",1,0,1,.05),freedom:{label:"Opacity progression",symbol:"◍",group:[VISUAL_FREEDOM_GROUP]}},x,y]},
-  {id:"line",label:"Continuous line",symbol:"━",parameters:[{...number("length","omnic.extent","Length",80,1,300,1),unit:"length",freedom:{label:"Length",symbol:"↔",group:[UNIT_FREEDOM_GROUP]}},angle,thickness,color,opacity,x,y]},
+  {id:"line",label:"Continuous line",symbol:"━",parameters:[{...number("length","omnic.extent","Length",80,1,300,1),unit:"length",measurement:"length",freedom:{label:"Length",symbol:"↔",group:[UNIT_FREEDOM_GROUP]}},angle,thickness,color,opacity,x,y]},
   {id:"chain",label:"Discrete chain",symbol:"⠒",parameters:[count,size,{...number("spacing","omnic.spacing","Spacing",18,1,100,1),unit:"length",freedom:{label:"Spacing",symbol:"↔",group:[POSITION_FREEDOM_GROUP]}},angle,...paint,x,y]},
   {id:"radial",label:"Radial array",symbol:"❉",parameters:[count,radius,size,angle,...paint,x,y]},
   {id:"group",label:"Nested group",symbol:"⠿",parameters:[x,y]},

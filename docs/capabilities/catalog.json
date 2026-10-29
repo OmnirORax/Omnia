@@ -1955,6 +1955,51 @@
         "omnic.mathematical-count-dial",
         "controls.spectrum"
       ]
+    },
+    {
+      "id": "omnic.operation-context",
+      "title": "Experimental reference-measurement context and Match preview",
+      "where": "Composer → preset or scalar target DOF editor → ⟴ Reference cue when an overlapping compatible component is available. Accept the cue, then Rule → ≡ Match.",
+      "behavior": "The shared numeric operation context identifies target/property addresses, scope, legal domain, measured quantity, actual rendered reference measurement, rule and transient binding mode. Reference relevance is discovered once from cached committed geometry; accepting ⟴ establishes only session context and changes no property. The same reference identity is reused across applicable DOFs on that component. Match appears contextually in the existing dial rule radial when an active reference supplies a compatible, valid measurement. Hover previews the real one-time result through existing property setters; leaving cancels it. Clicking re-resolves the rule against the latest committed recipe and applies one property edit. The candidate retains target/property identity, reference/feature identity, measured quantity and Match derivation, not only a scalar. Clearing the reference preserves realized geometry. Missing references stay explicit in the cue tooltip and can be cleared; they are never silently replaced by a closer component. The first adapters expose evaluated center X/Y, circle radius and line length through existing input metadata. Pure renderer-independent candidate calculation is reused by the Omnic geometry adapter. Bounded probes convert measurements into writable local parameters and verify the resulting render, including parent offsets and supported transforms. No manual reference lists or new saved recipe schema are introduced. Only Match consumes the reference in E02; Value/Increment retain their existing self/previous-value basis. Candidate commitments validate state-owner identity as well as live target/reference identities. Reference choices are bounded to the component budget, pruning retired target choices as needed.",
+      "steps": [
+        {
+          "do": "In Free mode, create two overlapping Line presets of different lengths (for example 40 and 80). Open Length on the shorter line through its preset DOF radial or stationary target right-click.",
+          "expect": "A small ⟴ Reference cue offers the compatible line. The cue tooltip identifies its quantity and value. Discovery/probes create no edits."
+        },
+        {
+          "do": "Click ⟴ Reference, then Rule. Hover ≡ Match and move away, then hover and click it.",
+          "expect": "Accepting reference alone preserves geometry. Match hover previews length 80; leaving restores 40. Clicking commits the match once. Undo/Redo follows ordinary property history."
+        },
+        {
+          "do": "Open Position X or Y on that same target and open Rule again.",
+          "expect": "The reference context is still active without rebinding. Match aligns the evaluated center coordinate using the correct writable local coordinate, including supported parent offsets/transforms."
+        },
+        {
+          "do": "Click the active ⟴ Reference cue to return to self-based editing, or delete the reference then reopen the target DOF.",
+          "expect": "Clearing context keeps realized values. A deleted reference is reported as unavailable and has no Match action; it does not silently bind to a replacement."
+        }
+      ],
+      "limits": "E02 experiment awaiting user acceptance. One authored component per operation; preset and scalar target DOF editors consume the context. Discovery uses overlapping evaluated bounds as relevance only, not proof of containment/tangency. Only center-X/Y, declared circle radius (first generated circle for a radius input) and declared line length are integrated. Quantity/unit mismatches are excluded. Initial offer is nearest compatible overlapping component; alternative navigation, selection aggregates, external canonical-object references, operation-owned DOFs, MC-command/direct-gesture consumption and magnetic dragging are deferred. Context is Composer-session-only; committed Match is transient and does not maintain a dependency or persist derivation in the recipe. Geometry snapshots update on committed changes, not hover. Match calibration is limited to 256 evaluated roles, static scenes and valid bounded probes; singular/nonlinear/unverifiable or illegal results are unavailable. Existing consumer ranges and Free/Realistic legality remain authoritative. No ranking/learning, soft-limit system or general constraint solver is added. Rule basis is explicit: retaining a reference does not make every existing generator reference-relative yet.",
+      "verification": {
+        "browser": "Pending user testing of relevance, reference retention, reference/Match separation, compactness, parent coordinate behavior and Undo. No browser suite run.",
+        "automated": "Focused tests cover compatible quantities, identity/derivation, stale-reference re-evaluation/deletion, parent coordinate conversion, rendered radius/length transforms, validity rejection and preservation of selected reference identity; full local model/build/backend checks required before publication."
+      },
+      "status": "Implemented experiment for review; not accepted or production deployed.",
+      "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",
+      "sources": [
+        "src/properties/operationContext.ts",
+        "src/omnic/operationContext.ts",
+        "src/omnic/OperationScope.tsx",
+        "src/omnic/registry.ts",
+        "src/ui/NumericEditorScope.tsx",
+        "src/ui/MathematicalDial.tsx"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "omnic.editing-rules",
+        "omnic.mathematical-count-dial"
+      ]
     }
   ]
 }

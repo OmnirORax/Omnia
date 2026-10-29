@@ -420,3 +420,12 @@ short icon-plus-label controls where needed (e.g. ⟴ Reference). Put secondary
 explanations in tooltips/accessibility metadata; omit redundant captions, repeated
 headings and instructional paragraphs. Icon-only remains a long-term direction,
 not a requirement to remove useful labels now.
+
+E02 is an unaccepted experiment: shared numeric operation context (state owner,
+target/property, scope, domain, measured quantity, reference and transient Match)
+with Omnic geometry adapters. Current target/preset scalar editors consume it;
+other entry paths remain pending. Input measurement metadata drives applicability;
+keep UI geometry-free, use committed snapshots and bounded verified probes, and
+revalidate candidate identities/owner on commit. Only Match uses the retained
+reference; Value/Increment retain their previous basis. Session context is not a
+durable constraint. Do not revive PR #41 forms/schema or claim full integration.

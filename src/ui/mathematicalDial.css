@@ -42,3 +42,6 @@
 
 .radial-menu .radial-menu-slot>button.mathematical-rule-choice{font-size:15px;line-height:1;grid-template-rows:16px 10px;align-content:center;gap:0}
 .mathematical-rule-choice small{font-size:9px;line-height:1}
+
+.mathematical-dial .mathematical-dial-reference{width:max-content;min-width:0;padding:1px 5px;font-size:20px;line-height:1.1}
+.mathematical-dial-reference[aria-pressed=true]{outline:1px solid currentColor}

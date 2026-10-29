@@ -582,3 +582,55 @@ test('one editing-rule context previews signed indices across size and position 
  assert.ok(Number.isNaN(mathematicalEditValue({anchor:1,index:.5,rule:{kind:'increment',amount:1}})));
  assert.equal(mathematicalValueAllowed(mathematicalEditValue({anchor:99,index:2,rule:{kind:'increment',amount:2}}),{min:.5,max:100}),false,'invalid candidates are rejected rather than clamped into a different step');
 });
+
+test('shared operation contexts resolve actual reference quantities and preserve derivations',async()=>{
+ const {operationGeometry,referenceForOperation,matchForOperation,resolveMatch}=await import('../src/omnic/operationContext.ts');
+ const {measurementsAgree}=await import('../src/properties/operationContext.ts');
+ const source=validateRecipe({...recipe([dot('a',12),{id:'b',generator:'ring',params:{x:20,radius:30}}]),atomnic:{mode:'free'}});
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ assert.equal(referenceForOperation(geometry,'a','center-x'),'b');
+ for(const property of ['omnic.coordinate.x','omnic.coordinate.y','omnic.extent']){
+  const candidate=matchForOperation(geometry,['a'],property,'b');assert.ok(candidate,property);
+  assert.equal(candidate.rule.kind,'match');assert.equal(candidate.context.reference.owner,'b');assert.equal(candidate.context.targets[0].property,property);assert.equal(candidate.context.binding,'transient');
+  const degree=targetDegrees(source,['a']).find(d=>d.id===property),next=writeTargetDegree(source,degree,candidate.value),result=operationGeometry(next,evaluateRecipe(next));
+  const quantity=candidate.context.measurement.quantity;
+  assert.ok(measurementsAgree(result.views.get('a').measurements.get(quantity).value,result.views.get('b').measurements.get(quantity).value));
+  assert.deepEqual(next.components[1],source.components[1]);assert.deepEqual(source.components[0].params,{x:12,y:0,size:5},'discovery/probes never mutate the original recipe');
+ }
+ const candidate=matchForOperation(geometry,['a'],'omnic.extent','b');
+ const updated=validateRecipe({...source,components:source.components.map(c=>c.id==='b'?{...c,params:{...c.params,radius:40}}:c)});
+ assert.equal(resolveMatch(updated,candidate).value,40,'commit re-evaluates reference identity instead of using the old scalar');
+ assert.throws(()=>resolveMatch(deleteComponents(source,new Set(['b'])),candidate),/no longer valid/);
+ assert.throws(()=>resolveMatch(source,candidate,undefined,'another-owner'),/another state owner/);
+});
+
+test('geometric operation adapters handle parent coordinates and transformed radius/length',async()=>{
+ const {operationGeometry,matchForOperation}=await import('../src/omnic/operationContext.ts');
+ const nested=validateRecipe({...recipe([{id:'ga',generator:'group',params:{x:50},children:[dot('a',10)]},{id:'gb',generator:'group',params:{x:100},children:[dot('b',20)]}]),atomnic:{mode:'free'}});
+ const aligned=matchForOperation(operationGeometry(nested,evaluateRecipe(nested)),['a'],'omnic.coordinate.x','b');assert.ok(aligned);almost(aligned.value,70);
+ const scaled=validateRecipe({...recipe([dot('a'),{id:'b',generator:'ring',params:{radius:30}}],[op('scale','size',['b'],{factor:3})]),atomnic:{mode:'free'}});
+ const radius=matchForOperation(operationGeometry(scaled,evaluateRecipe(scaled)),['a'],'omnic.extent','b');assert.ok(radius);almost(radius.value,90,'rendered radius, not the untransformed parameter');
+ const lines=validateRecipe({...recipe([{id:'a',generator:'line',params:{length:10,angle:90}},{id:'b',generator:'line',params:{length:80,angle:35}}]),atomnic:{mode:'free'}});
+ const length=matchForOperation(operationGeometry(lines,evaluateRecipe(lines)),['a'],'omnic.extent','b');assert.ok(length);almost(length.value,80);
+ const tooLarge=validateRecipe({...scaled,components:scaled.components.map(c=>c.id==='b'?{...c,params:{radius:100}}:c)});
+ assert.equal(matchForOperation(operationGeometry(tooLarge,evaluateRecipe(tooLarge)),['a'],'omnic.extent','b'),undefined,'invalid matches do not clamp into unrelated values');
+ assert.equal(matchForOperation(operationGeometry(nested,evaluateRecipe(nested)),['a','b'],'omnic.coordinate.x','gb'),undefined,'aggregate scope is explicitly deferred');
+});
+
+test('reference discovery preserves chosen identity and candidate evaluation respects quantity and scope',async()=>{
+ const {operationGeometry,referenceForOperation,matchForOperation}=await import('../src/omnic/operationContext.ts');
+ const {deriveMatchCandidate}=await import('../src/properties/operationContext.ts');
+ const source=validateRecipe({...recipe([dot('a'),{id:'near',generator:'ring',params:{radius:30,x:10}},{id:'far',generator:'ring',params:{radius:40,x:20}}]),atomnic:{mode:'free'}});
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ assert.equal(referenceForOperation(geometry,'a','center-x'),'near');
+ assert.equal(referenceForOperation(geometry,'a','center-x','far'),'far','retained context wins over a closer new encounter');
+ assert.equal(referenceForOperation(geometry,'a','center-x','missing'),'missing','missing contexts do not silently retarget');
+ const candidate=matchForOperation(geometry,['a'],'omnic.extent','near');assert.ok(candidate);
+ const context=candidate.context;
+ assert.equal(deriveMatchCandidate({...context,reference:{...context.reference,quantity:'area'}},{value:6,measurement:6,reference:30}),undefined,'radius is never confused with area');
+ assert.equal(deriveMatchCandidate({...context,reference:{...context.reference,unit:'pixels'}},{value:6,measurement:6,reference:30}),undefined,'screen thresholds do not become geometric units');
+ assert.equal(deriveMatchCandidate(context,{value:5,measurement:5,reference:30}),undefined,'a zero-size probe cannot establish a response');
+ assert.equal(matchForOperation(geometry,['a'],'omnic.count','near'),undefined,'undeclared DOFs do not inherit guessed geometry measurements');
+ const distant=validateRecipe({...source,components:source.components.map(c=>c.id==='a'?{...c,params:{...c.params,x:-200}}:c)});
+ assert.equal(referenceForOperation(operationGeometry(distant,evaluateRecipe(distant)),'a','radius'),undefined,'initial discovery is limited to overlapping bounds');
+});

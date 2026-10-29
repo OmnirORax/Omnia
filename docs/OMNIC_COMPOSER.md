@@ -620,3 +620,21 @@ sliders outside Composer retain their behavior. The experiment is not yet a
 reference/rule binding system, does not affect direct dragging/commands, and
 does not persist mathematical expressions. See the living master plan and
 capability omnic.editing-rules for exact steps, limitations and pending acceptance.
+
+
+### E02: shared reference measurement and transient Match
+
+Preset and scalar target DOF editors now lend their existing property identity and
+adapter to a common operation context. A cached committed-geometry snapshot offers
+a small ⟴ Reference cue for a compatible overlapping component. Acceptance stores
+only a session reference, preserving geometry. The same component reference can
+serve center X/Y and declared radius/line-length DOFs independently.
+
+Rule → ≡ Match previews an evaluated reference-derived result and commits once
+through existing setters/history. It resolves local coordinates and supported
+render transforms with bounded, verified probes. Committed identity/quantity is
+revalidated on click; stale or invalid candidates cannot replay cached scalars.
+Disable the cue to return to self-based editing without moving geometry. Missing
+references remain unavailable and removable. No dropdown inventory, durable recipe
+fields, automatic dependency or persistent constraint is introduced. See the
+master plan's E02 record and capability omnic.operation-context for scope/limits.

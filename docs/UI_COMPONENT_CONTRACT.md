@@ -596,3 +596,14 @@ yield opening-press suppression and centre dragging to the nearest actual popup.
 Parent math dials also yield slot capture/hover to child amount dials, so a
 configuration stroke cannot paint the parent property. No new global listeners
 or layout reads are introduced by this boundary check.
+
+
+E02 numeric reference context uses NumericOperationScope alongside the existing
+NumericEditorScope. The owner/renderer supplies a minimal ⟴ Reference control and
+a valid contextual Match action. Accepting context preserves geometry; the dial
+performs preview/commit with its normal session and callbacks. Match preparation
+uses committed geometry, with bounded verified probes only when context changes;
+no scene reads on pointer movement. A separate committed evaluation is reused for
+normal rendering so context snapshots do not track hover projections. Keep labels
+short, use tooltips for quantity/formula/reasons, and do not reintroduce reference
+forms. This is session context and a transient action, not a persisted constraint.

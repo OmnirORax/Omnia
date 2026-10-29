@@ -126,24 +126,40 @@ For every experiment record:
 | Raw numeric ⠒❉ integration | Accepted initial step; keep Composer-only rollout and current signed/raw scope | PR #40; user: “1 already fixed” |
 | Manual object/per-DOF reference form | Discarded in full; reference discovery and contextual interaction need global design | Closed, unmerged PR #41; explicit user rollback request |
 | E01: dial-configured increment rule | Implemented for testing; user acceptance pending. Shared rule context contains anchor, signed index and rule/amount; preset and target numeric editors consume it through existing setters. Full operation context/reference integration remains pending. | Current branch; see capability omnic.editing-rules |
+| E02: reference-measurement operation context | Implemented for testing, not accepted. Pure shared numeric context/candidate contract; committed-geometry adapter; session ⟴ context and contextual one-time Match through existing target/preset numeric editors. | Current branch; capability omnic.operation-context |
 
 ## Next experimental decision
+
+E02 is now implemented for user testing (see its record below). Review its
+reference/Match separation, quantities, scope and responsiveness before broadening
+it. Value/Increment still use E01 self/previous-value semantics; only Match consumes
+the retained reference in this experiment. The following audit is recorded as the
+work leading to E02, not a mandate to repeat it:
 
 Audit how current property edits and commands identify target, DOF and scope.
 Locate the smallest shared insertion boundary for operation context and reference
 resolution. Propose a small *usable* experiment there, including its interaction
 entry paths, before introducing another reference UI or persistence schema.
 
-The next shared operation-context experiment should carry an editing-rule
-configuration from the dial into a shared code evaluator. Start with one bounded
-rule exercised by two applicable DOFs/entry paths, then test and revise before
-adding families. Candidate configuration includes rule parameters, step/index,
-reference quantity or starting value and domain limits. Establish step/anchor
-semantics explicitly; do not derive them from arbitrary pointer-update counts.
-Increment, halving, doubling and doubling every two steps illustrate desired rule
-families, not separate per-DOF implementations or an approved full implementation
-batch. Use the dial's existing configuration/mode pattern for access; no manual
-reference inventory or independent legacy jump-settings system.
+E01 exercises only the additive-generator integration and explicit-control layer.
+It is implemented for user testing, not accepted as the final workflow. Do not
+continue by merely adding more rule buttons. After its feedback, the next shared
+experiment should connect target/active DOF, scope, actual reference measurement,
+geometry and limits to candidate generation/preview at the common property/action
+boundary. Audit that boundary first; do not introduce per-gesture context stores.
+
+The starting-value anchor in E01 is a self/previous-value snapshot. It is not yet
+an object/feature reference with a maintained derivation. A future candidate must
+carry its reference and measured quantity, DOF, generator parameters and validity;
+a persistent binding additionally retains that derivation and its dependencies.
+Transient calculation and persistent locking remain separate.
+
+Keep the default interaction immediate/contextual, with explicit dial configuration
+as refinement. Use applicability and valid geometry to reveal the next meaningful
+freedom, preserving the active operation family. Show few alternatives on demand.
+Use stable proximity-based snap activation/hysteresis without reintroducing an
+operation-ranking or learning system. Limits distinguish hard invalidity from
+soft overridable stopping points; rendering visibility alone does not delete DOFs.
 
 The implementation order may change based on findings. Do not march through this
 module table automatically, implement the whole system in one PR, or treat a
@@ -185,3 +201,73 @@ Explicit limits: session configuration rather than saved rule constraints; only
 Value/Increment; no rule consumption in direct dragging/commands yet; no reference
 discovery, persistence dependencies or ranking. General operation-context wiring,
 reference resolution and more rule families remain separate experimental work.
+
+
+## Alignment audit against latest cleaned source
+
+- Aligned E01 subset: one additive generator across actual numeric DOFs, dial
+  configuration backed by shared arithmetic, domain checks, real outcome preview,
+  existing setters/history and compact explicit controls.
+- Pending: reference/feature-derived candidates; finite target/container geometry;
+  universal operation-context entry paths; contextual discovery; stable snap
+  activation; geometric/perceptual/representational/user/context limits; persisted
+  derivations and dependency maintenance preserving established constraints.
+- Explicit configuration (current Rule menu) is level 3 of the source interaction
+  model. The final ordinary workflow should expose immediate/contextual freedoms
+  through geometry and current action. A growing list of configurable operations
+  alone would miss the intended direction.
+- Universal architecture remains gesture-independent. Positioning inside a circle
+  is an experimental validation example, not a specialized system definition.
+- Experimental gesture proposals and the source's ranking passages do not override
+  earlier explicit user corrections or constitute accepted implementation results.
+
+The source/alignment review itself introduced no runtime changes; E02 below is the subsequent authorized experiment.
+
+
+## E02 — reference-measurement operation context
+
+Hypothesis: a shared operation context can connect the same target/property owner
+to actual reference measurements and a reproducible mathematical candidate across
+different DOFs, without reference forms or per-preset arithmetic.
+
+`properties/operationContext.ts` defines renderer-independent target/property
+addresses plus state-owner identity, scope, domain, measured quantity/unit, reference identity/measurement
+and transient binding mode. Candidates retain that context and a Match rule.
+`omnic/operationContext.ts` adapts existing editableDegrees/setters, input
+measurement metadata and evaluated geometry. The current declarations cover
+center X/Y, circle radius and line length. Radius and area are not interchangeable;
+size/length aliases preserve their actual renderer measurement.
+
+Committed evaluation is shared between rendering and one cached geometry snapshot.
+Discovery considers compatible overlapping component bounds when a DOF is active,
+independently of whether it was reached from a preset or stationary target. This
+is relevance, not an assertion of containment or user intent. Accepting the small
+⟴ Reference cue retains the component identity in session context only. Other
+DOFs on that component reuse it. A retained reference is preserved even when a
+closer alternative appears or the object becomes unavailable. Clearing preserves
+realized geometry. No recipe relation schema from rejected PR #41 is restored.
+
+With a valid active measurement, the existing dial Rule radial offers ≡ Match.
+Hover previews the actual result and leaving cancels. Clicking re-evaluates the
+reference against the latest committed recipe and commits through the existing
+setter/history. The UI performs no feature lookup or arithmetic of its own.
+Bounded probes account for writable local coordinates versus evaluated parent/
+transform coordinates, and the resulting render must satisfy the measurement.
+Reference choice and one-time Match remain independent; no persistent lock.
+
+Acceptance to test: two overlapping lines with different lengths; retain reference
+through Length → Position X/Y; distinguish cue acceptance from Match preview and
+commit; cancel/Undo/Redo; disable or remove the reference. Model tests additionally
+exercise transformed circle radius and local parent-coordinate conversion.
+
+Restrictions are deliberate for this experiment: one authored component, declared
+quantities only, overlapping-bounds discovery, static scenes and at most 256
+evaluated roles for calibration. Probes/final results must pass existing setters,
+domain/legality and floating-point measurement verification. Unsupported/singular
+responses produce no Match. Snapshot/probe work does not run on pointer movement.
+
+Not delivered: persistent rule storage/dependency evaluation; aggregate/external
+references; arbitrary feature inference; direct-drag/MC-command consumers; magnetic
+snaps, soft/perceptual thresholds, additional generators or alternative UI. The
+shared pure contract is the extension point for those future experiments. Do not
+claim full global integration or promote E02 to accepted before user feedback.

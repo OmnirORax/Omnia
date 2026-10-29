@@ -9,3 +9,10 @@ export function NumericEditorScope({children,cancelPreview}:{children:ReactNode;
  const value=useMemo(()=>({mathematical:true,cancelPreview:()=>cancel.current()}),[]);
  return <NumericEditorContext.Provider value={value}>{children}</NumericEditorContext.Provider>;
 }
+
+
+/** A state/renderer adapter lends a resolved reference and candidate to the shared
+ * number editor. UI contains no object lookup or feature-specific arithmetic. */
+export type NumericReferenceControl={active:boolean;description:string;toggle:()=>void;match?:{value:number;description:string;resolve:()=>number|undefined}};
+export const NumericOperationScope=createContext<NumericReferenceControl|undefined>(undefined);
+export const useNumericOperation=()=>useContext(NumericOperationScope);

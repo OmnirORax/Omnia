@@ -377,3 +377,14 @@ Within Composer, the shared property editor projects ⠒❉ through NumericEdito
 other surfaces keep their existing editors. This scope changes presentation only,
 never property identity, storage, values or owner history. See the number-editor
 contract in UI_COMPONENT_CONTRACT.md.
+
+
+Geometry measurements are adapter metadata on existing Omnic Parameter inputs,
+not additional writable properties. The same shared property (e.g. geometric
+extent) can map to circle radius or line length through its actual renderer.
+E02 projects current target/property addresses, domain, measured quantity and
+reference into properties/operationContext.ts. It does not maintain another DOF
+inventory. NumericOperationScope lends the resolved context/action to shared
+number controls; UI controls never infer geometry. New supported inputs declare
+their actual measurement once and inherit contextual projection. New measurement
+kinds need a real renderer adapter; do not guess from names or pixels.

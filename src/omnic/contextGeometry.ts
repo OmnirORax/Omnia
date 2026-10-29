@@ -13,7 +13,10 @@ function targetNodes(evaluation:Evaluation,ids:readonly string[]){
   return evaluation.nodes.filter(node=>node.kind!=='group'&&inside(node));
 }
 export function targetBounds(evaluation:Evaluation,ids:readonly string[]):ResizeRect|undefined{
-  const nodes=targetNodes(evaluation,ids);if(!nodes.length)return;
+  return primitiveBounds(targetNodes(evaluation,ids));
+}
+export function primitiveBounds(nodes:readonly StructuralNode[]):ResizeRect|undefined{
+  if(!nodes.length)return;
   const minX=Math.min(...nodes.map(node=>Math.min(node.x-node.radius-node.thickness/2,(node.x2??node.x)-node.thickness/2))),maxX=Math.max(...nodes.map(node=>Math.max(node.x+node.radius+node.thickness/2,(node.x2??node.x)+node.thickness/2)));
   const minY=Math.min(...nodes.map(node=>Math.min(node.y-node.radius-node.thickness/2,(node.y2??node.y)-node.thickness/2))),maxY=Math.max(...nodes.map(node=>Math.max(node.y+node.radius+node.thickness/2,(node.y2??node.y)+node.thickness/2)));
   return {x:minX,y:minY,width:Math.max(.001,maxX-minX),height:Math.max(.001,maxY-minY)};
