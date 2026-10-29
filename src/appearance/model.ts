@@ -18,6 +18,7 @@ export type Rule = { all?: boolean; properties?: string[] };
 export type Instance = { base: string; owner: string; label: string; path?: string[]; part?: PartScope };
 export type Target = {
   id: string;
+  aliases?: readonly string[];
   parent?: string;
   label: string;
   couplings?: Record<string, string>;

@@ -1,14 +1,14 @@
 /** Search documents are prepared once per catalog snapshot, never on hover. */
 export const normalizeSearch = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 type Entry = {
-  key: string; label: string; heading?: string;
+  key: string; label: string; heading?: string; aliases?:readonly string[];
   appearance?: { target: string; property?: string };
   appearanceProperties?: { id: string; label: string }[];
 };
 export function prepareSearchResults<T extends Entry>(entries: T[], shortcut: (entry: T) => string = () => "") {
   return entries.map(entry => ({ entry, label: normalizeSearch(entry.label),
-    direct: normalizeSearch(`${entry.label} ${shortcut(entry)}`),
-    full: normalizeSearch(`${entry.heading ?? ""} ${entry.label} ${shortcut(entry)}`),
+    direct: normalizeSearch(`${entry.label} ${(entry.aliases??[]).join(" ")} ${shortcut(entry)}`),
+    full: normalizeSearch(`${entry.heading ?? ""} ${entry.label} ${(entry.aliases??[]).join(" ")} ${shortcut(entry)}`),
     properties: entry.appearanceProperties?.map(property => ({ ...property, text: normalizeSearch(property.label) })) }));
 }
 /** A category match is a destination, not a request for all its property combinations.

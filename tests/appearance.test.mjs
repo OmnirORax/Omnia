@@ -1346,3 +1346,13 @@ test('restoring a deselected local part retains the applied value despite a draf
   assert.equal(read(targets.find(t=>t.id===id),'color'),baseline(targets.find(t=>t.id===id),'color'));
   assert.equal(next.values['text.nodes'].color,'#abcdef');
 });
+
+
+test('mathematical dial exposes named visual parts with shared role detection and search aliases',async()=>{
+ const {TARGETS}=await import('../src/appearance/registry.ts');
+ const ids=['contours','hover','marks','base','direction'];
+ for(const name of ids){const target=TARGETS.find(t=>t.id===`ui.fields.mathematicalDial.${name}`);assert.ok(target);assert.ok(target.label.includes('⠒❉'));assert.ok(target.aliases.includes('count dial'));assert.ok(target.properties.includes('color'));}
+ const hover=TARGETS.find(t=>t.id==='ui.fields.mathematicalDial.hover');
+ assert.equal(roleFor(hover),'contour');assert.equal(roleFor(TARGETS.find(t=>t.id==='ui.fields.mathematicalDial.marks')),'indicator');
+ assert.ok(TARGETS.find(t=>t.id==='ui.buttons.background').binding.selector.includes(':not(.mathematical-dial-slot)'));
+});

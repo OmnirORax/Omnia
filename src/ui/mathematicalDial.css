@@ -1,4 +1,4 @@
-.mathematical-dial{display:grid;gap:2px;justify-items:center}
+.mathematical-dial{zoom:.5;display:grid;gap:2px;justify-items:center}
 .mathematical-dial-settings{display:flex;justify-content:center;gap:1px}
 .mathematical-dial .mathematical-dial-settings button{min-width:16px;width:16px;height:16px;padding:0;font-size:11px;line-height:1;border-radius:50%}
 .mathematical-dial-settings [aria-pressed=true]{outline:1px solid currentColor}
@@ -8,7 +8,7 @@
 .mathematical-dial-mark{position:absolute;inset:0;border-radius:50%;pointer-events:none}
 .mathematical-dial-slot[data-mode="recursion"] .mathematical-dial-mark{inset:4px;border:3px double currentColor}
 .mathematical-dial-slot[data-selected=true] .mathematical-dial-mark{background:currentColor}
-.mathematical-dial-slot[data-preview=true] .mathematical-dial-mark{opacity:.5}
+.mathematical-dial-slot[data-preview=true] .mathematical-dial-mark{background:transparent;opacity:1}
 .mathematical-dial-slot[data-start=true]::before{content:'';position:absolute;left:50%;bottom:100%;width:3px;height:3px;background:currentColor;border-radius:50%}
 .mathematical-dial-base{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;outline:1px solid currentColor;border-radius:50%;pointer-events:none}
 .mathematical-dial-base i{display:block;flex-shrink:0;background:currentColor;border-radius:50%;box-sizing:border-box;border:1px solid currentColor}
@@ -24,3 +24,8 @@
 .mathematical-dial-slot[data-start=true]::before{display:none}
 
 .mathematical-dial-hover-band{overflow:visible}.mathematical-dial-settings{position:relative;z-index:1;gap:0}
+
+/* Preview indicates the candidate through the rim, never a painted disk. */
+.mathematical-dial-slot::after{content:'';position:absolute;inset:-1px;border:1px solid var(--mathematical-hover-ink,currentColor);border-radius:50%;box-shadow:0 0 5px var(--mathematical-hover-ink,currentColor);opacity:0;pointer-events:none}
+.mathematical-dial-slot:is(:hover,:focus-visible,[data-preview=true])::after{opacity:1}
+.tool-cursor.mathematical-dial-cursor{font-size:12px}

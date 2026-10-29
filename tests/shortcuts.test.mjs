@@ -452,3 +452,11 @@ test('pointed configuration selection applies once on Shift release without lock
   gesture.begin('resize',false);register();gesture.select(1);assert.equal(gesture.finish(),false);assert.deepEqual(applied,[2]);
   gesture.lock();assert.equal(locked,1);assert.deepEqual(applied,[2,1]);assert.equal(gesture.finish(),false);
 });
+
+
+test('symbol named visual controls remain searchable by shared aliases without renaming',async()=>{
+ const {prepareSearchResults,matchSearchResults}=await import('../src/ui/searchMatching.ts');
+ const entries=[{key:'math',label:'⠒❉',aliases:['mathematical dial','count dial']}],index=prepareSearchResults(entries);
+ for(const query of ['⠒❉','mathematical dial','count dial'])assert.equal(matchSearchResults(index,query)[0].key,'math');
+ assert.equal(entries[0].label,'⠒❉');
+});

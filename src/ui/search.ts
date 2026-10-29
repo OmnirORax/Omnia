@@ -7,7 +7,7 @@ import type { AppearanceLocation } from '../appearance/Context';
 import { APPEARANCE_HIERARCHY_ID } from '../appearance/propertyTree';
 
 export type SearchReveal = { path: string[] };
-export type GlobalResult = SearchResult & { heading: string; home: string; available: boolean; container?: string; appearance?:AppearanceLocation; appearanceProperties?: { id: string; label: string }[] };
+export type GlobalResult = SearchResult & { heading: string; aliases?:readonly string[]; home: string; available: boolean; container?: string; appearance?:AppearanceLocation; appearanceProperties?: { id: string; label: string }[] };
 const titles: Record<string, string> = {
   [`window:${APPEARANCE_HIERARCHY_ID}`]: "Visual hierarchy",
   "window:theme": "Master controller", "window:settings": "Workspace settings",
@@ -99,7 +99,7 @@ export function globalControls(ui: UIContextValue, appearanceTargets:RegisteredT
   const propertyNames = new Map(PROPERTIES.map(property => [property.id, ui.layout.labels?.[`window:property:master:${property.id}`] ?? property.label]));
   for (const target of appearanceTargets.filter(target => !target.hidden && !target.instance)) {
     const parents = ancestry(appearanceTargets, target.id).slice(1, -1);
-    results.push({ key: `appearance:${target.id}`, label: target.label,
+    results.push({ key: `appearance:${target.id}`, label: target.label, aliases: target.aliases,
       heading: [...hierarchyPath.map(key => searchTitle(ui, key)), ...parents.map(id => targetIndex.get(id)!.label)].join(" › "),
       home: hierarchy, path: hierarchyPath, available: true, appearance: { target: target.id },
       appearanceProperties: target.properties?.map(id => ({ id, label: propertyNames.get(id) ?? id })) });
