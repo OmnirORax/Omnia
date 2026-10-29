@@ -10,7 +10,7 @@ export function DegreeSetter({recipe,degree,onPreview,onCommit,onOpen}: {recipe:
   if(degree.action)return <button type="button" aria-label={`Configure ${degree.label}`} title={`Configure ${degree.label}`} onClick={onOpen}/>;
   if(parameter.kind==='color')return <SpectrumSetter value={String(value)} onPreview={onPreview} onCommit={onCommit}/>;
   if(parameter.kind==='number')return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} limits={{min:parameter.min!,max:parameter.max!}} onPreview={onPreview} onCommit={onCommit}/>;
-  return <button type="button" aria-label={`${degree.label}: ${value}`} title={`${degree.label} · ${value}`} style={parameter.kind==='color'?{background:String(value)}:{opacity:value===false ? .3 : 1}} onClick={()=>{
+  return <button type="button" aria-label={`${degree.label}: ${value}`} title={`${degree.label} · ${value}`} style={{opacity:value===false ? .3 : 1}} onClick={()=>{
     if(parameter.kind==='toggle')onCommit(!value);
     else if(parameter.kind==='select'&&parameter.options?.length){const options=parameter.options;onCommit(options[(options.findIndex(option=>option.id===value)+1)%options.length].id);}
     else onOpen();
