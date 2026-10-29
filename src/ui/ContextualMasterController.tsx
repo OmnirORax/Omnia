@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode, type WheelEvent } f
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
 import { ContextStage, usePopupAnchor } from './ContextStage';
-import { claimUIPress, uiPointerHeld } from "./pointerOwnership";
+import { claimUIPress, physicalPointerHeld } from "./pointerOwnership";
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
@@ -18,7 +18,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
   const closeLayer=()=>{if(drag.current)cancelDrag();else onClose();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
-  useLayoutEffect(() => { openingPress.current = !!position && uiPointerHeld(); }, [!!position,anchor?.x,anchor?.y,stage]);
+  useLayoutEffect(() => { openingPress.current = !!position && physicalPointerHeld(); }, [!!position,anchor?.x,anchor?.y,stage]);
   useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined));
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;

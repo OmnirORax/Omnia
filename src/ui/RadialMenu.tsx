@@ -100,7 +100,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
           {ring(node.children!,depth)}
           {children&&index===0&&sizeControl}
           <div className="radial-menu-centre"><button type="button" data-dial-drag aria-label={`Back from ${node.label}`} style={node.symbol.length>2?{fontSize:10}:undefined} title={`${node.label} · Back`}
-            onClick={()=>setPath(path.slice(0,index))} onContextMenu={event=>{event.preventDefault();event.stopPropagation();setPath(path.slice(0,index));}}>{node.symbol}</button></div>
+            onClick={()=>setPath(path.slice(0,index))} onContextMenu={event=>{event.preventDefault();event.stopPropagation();setPath(path.slice(0,index));}} /></div>
         </div>
       </ContextualMasterController>;
     })}
