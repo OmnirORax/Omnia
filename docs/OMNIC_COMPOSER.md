@@ -557,3 +557,7 @@ configuration space. Original source is archived in
 ### Progressive outer ring activation
 
 Unused slots reveal on ring-band hover or keyboard focus; selected marks stay visible. An extra candidate band beyond the outer rim has no drawn ring. Only activating an outward mark unlocks Add ring. Enclosing preserves it and hides Add ring until another outward mark is placed. Ordinary inner selections do not unlock it. Rings show start/direction arrows, default top/clockwise. Candidate slots overflow the compact active layout without reserving an empty larger disk.
+
+### Recursion offset and fill sweep (latest)
+
+The recursion exponent is ordinal+1, overriding earlier base^ordinal examples: one recursion on base2 is2²=4; ordinal3 is2⁴=16; ordinal6 is2⁷=128. Normal contributions stay base*ordinal. Holding left-click fills every crossed slot, with deduplication and segment intersection for fast movement. Geometry is measured once per drag, previews are transient, release commits one owner/history transaction and cancellation restores the committed value. A plain click still toggles a slot. Rendering remains bounded to the test target domain0–512; shifted recursive values outside it remain unselectable.

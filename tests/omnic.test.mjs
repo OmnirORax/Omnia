@@ -447,9 +447,11 @@ test('mathematical slot rules anchor normal and recursion to base and pack circu
  const {mathematicalSlotValue,radialSlotCapacity}=await import('../src/properties/mathematicalDial.ts');
  assert.equal(mathematicalSlotValue(2,2,'normal'),4);
  assert.equal(mathematicalSlotValue(2,6,'normal'),12);
- assert.equal(mathematicalSlotValue(2,6,'recursion'),64);
- assert.equal(mathematicalSlotValue(2,9,'recursion'),512);
- assert.equal(mathematicalSlotValue(2,4,'normal')+mathematicalSlotValue(2,6,'recursion'),72);
+ assert.equal(mathematicalSlotValue(2,1,'recursion'),4);
+ assert.equal(mathematicalSlotValue(2,3,'recursion'),16);
+ assert.equal(mathematicalSlotValue(2,6,'recursion'),128);
+ assert.equal(mathematicalSlotValue(2,9,'recursion'),1024);
+ assert.equal(mathematicalSlotValue(2,4,'normal')+mathematicalSlotValue(2,6,'recursion'),136);
  assert.equal(radialSlotCapacity(24,24),6);
  assert.equal(radialSlotCapacity(36,24),9);
  assert.equal(radialSlotCapacity(60,24),15);
@@ -466,4 +468,14 @@ test('mathematical outer ring activation requires an extra mark beyond the curre
  assert.equal(canAddMathematicalRing(2,[0,1]),false);
  assert.equal(canAddMathematicalRing(2,[0,1,2]),true);
  assert.equal(canAddMathematicalRing(4,[4]),false);
+});
+
+
+test('mathematical fill sweep covers crossed slots without toggling or mutating earlier marks',async()=>{
+ const {fillMathematicalSlots}=await import('../src/properties/mathematicalDial.ts');
+ const slots=[{key:'a',x:20,y:0,radius:5},{key:'b',x:50,y:0,radius:5},{key:'c',x:80,y:0,radius:5},{key:'off',x:50,y:30,radius:5}];
+ const before=['c'],after=fillMathematicalSlots(before,slots,{x:0,y:0},{x:100,y:0});
+ assert.deepEqual(new Set(after),new Set(['a','b','c']));assert.deepEqual(before,['c']);
+ assert.equal(fillMathematicalSlots(after,slots,{x:100,y:0},{x:0,y:0}),after);
+ assert.equal(fillMathematicalSlots(after,slots,{x:0,y:20},{x:20,y:20}),after);
 });
