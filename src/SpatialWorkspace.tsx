@@ -1,3 +1,4 @@
+import { setToolCursorZone } from "./ui/toolCursorZone";
 import { createNudgeGesture } from "./navigation/nudgeGesture";
 import type { HeldActions } from "./ui/heldActions";
 import { transformTargets } from "./navigation/transforms";
@@ -809,14 +810,18 @@ export default function SpatialWorkspace(props: Props) {
       const local=(ray.ray.intersectPlane(frame.plane,new THREE.Vector3())??new THREE.Vector3()).applyMatrix4(frame.inverse),b=frame.editing.bounds,edge=Math.max(b.width,b.height);
       return {x:b.x+b.width/2+local.x*edge,y:b.y+b.height/2-local.y*edge};
     };
-    const down=(event:PointerEvent)=>{if(event.target!==canvas||event.button!==0&&event.button!==2)return;invalidate();const frame=locate(event);if(!frame)return;
+    const down=(event:PointerEvent)=>{if(event.target!==canvas||event.button!==0&&event.button!==2)return;invalidate();const frame=locate(event);setToolCursorZone(canvas,frame?.editing.cursorZone);if(!frame)return;
       event.preventDefault();event.stopImmediatePropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);held=frame;canvas.setPointerCapture(event.pointerId);frame.editing.down(point(frame,event),event);};
-    const move=(event:PointerEvent)=>{const frame=held??(event.target===canvas?locate(event):null);if(!frame)return;
-      if(held){event.preventDefault();event.stopImmediatePropagation();}frame.editing.move(point(frame,event),event);};
+    const move=(event:PointerEvent)=>{const frame=held??(event.target===canvas?locate(event):null);
+      if(!frame){setToolCursorZone(canvas,undefined);return;}
+      const p=point(frame,event),b=frame.editing.bounds,edge=Math.max(b.width,b.height),rect=measure();
+      const inside=event.clientX>=rect.left&&event.clientX<=rect.right&&event.clientY>=rect.top&&event.clientY<=rect.bottom&&Math.abs(p.x-b.x-b.width/2)<=edge/2&&Math.abs(p.y-b.y-b.height/2)<=edge/2;
+      setToolCursorZone(canvas,inside?frame.editing.cursorZone:undefined);
+      if(held){event.preventDefault();event.stopImmediatePropagation();}frame.editing.move(p,event);};
     const up=(event:PointerEvent)=>{const frame=held;if(!frame||frame.pointerId!==event.pointerId)return;event.preventDefault();event.stopImmediatePropagation();held=null;
       frame.editing.up(point(frame,event),event);if(canvas.hasPointerCapture(event.pointerId))canvas.releasePointerCapture(event.pointerId);};
-    const cancel=()=>{held?.editing.cancel();held=null;};
-    const context=(event:MouseEvent)=>{if(event.target===canvas&&props.omnicPreview.getSnapshot()?.editing){event.preventDefault();event.stopImmediatePropagation();}};
+    const cancel=()=>{held?.editing.cancel();held=null;setToolCursorZone(canvas,undefined);};
+    const context=(event:MouseEvent)=>{if(event.target===canvas&&props.omnicPreview.getSnapshot()?.editing){event.preventDefault();event.stopImmediatePropagation();(held?.editing??props.omnicPreview.getSnapshot()?.editing)?.context?.(event);}};
     window.addEventListener('scroll',invalidate,true);window.addEventListener('resize',invalidate);
     window.addEventListener('pointerdown',down,true);window.addEventListener('pointermove',move,true);window.addEventListener('pointerup',up,true);window.addEventListener('pointercancel',cancel,true);window.addEventListener('contextmenu',context,true);window.addEventListener('blur',cancel);
     return()=>{cancel();observer.disconnect();window.removeEventListener('scroll',invalidate,true);window.removeEventListener('resize',invalidate);window.removeEventListener('pointerdown',down,true);window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerup',up,true);window.removeEventListener('pointercancel',cancel,true);window.removeEventListener('contextmenu',context,true);window.removeEventListener('blur',cancel);};

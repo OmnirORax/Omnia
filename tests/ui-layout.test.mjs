@@ -1,5 +1,9 @@
+import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCursorModel.ts";
+import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { radialTree, radialSlot, radialDimensions, radialQuickSlot } from '../src/ui/radialMenuModel.ts';
+import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
   validateUILayout,
@@ -11,6 +15,60 @@ import {
   fitWindow,
   nearestSlot,
 } from "../src/ui/layout.ts";
+test('circular frame projection adapts old rectangles and preserves intentional resizes',()=>{
+  const initial={width:360,height:360},legacy={width:600,height:650};
+  assert.equal(circularFrameExtent(legacy,legacy,initial),360);
+  assert.equal(circularFrameExtent({width:480,height:480},{width:480,height:480},initial),480);
+  assert.equal(circularFrameExtent({width:300,height:240},legacy,initial),240);
+  assert.deepEqual(legacy,{width:600,height:650},'projection does not overwrite stored layout');
+  const viewport={x:10,y:20,width:600,height:400};
+  assert.deepEqual(fitFrameShape(viewport,'circle'),{x:110,y:20,width:400,height:400});
+  assert.equal(fitFrameShape(viewport,'rectangle'),viewport,'ordinary frame projections are unchanged');
+});
+test('quick radial tools stay adjacent on the rim and flattened wrappers preserve descendants',()=>{
+  const leaf={id:'save',label:'Save',symbol:'▣',content:42};
+  const object={id:'object',label:'Object',symbol:'◇',flatten:true},file={id:'file',label:'File',symbol:'📁'};
+  const tree=radialTree([{...leaf,group:[object,file]},{...leaf,id:'retired',group:[object,{...file,hidden:true}]}]);
+  assert.equal(tree.length,1);assert.equal(tree[0].id,'file');assert.equal(tree[0].children[0].content,42);
+  for(const extent of [200,360,600]){
+    const slots=Array.from({length:9},(_,index)=>radialQuickSlot(index,extent));
+    assert.equal(slots[0].x,50);assert.ok(slots[0].y<50);assert.ok(slots[1].x>50);
+    for(let i=0;i<slots.length;i++){
+      const a=slots[i];assert.ok(a.x*extent/100>=a.size/2&&a.x*extent/100<=extent-a.size/2);
+      assert.ok(a.y*extent/100>=a.size/2&&a.y*extent/100<=extent-a.size/2);
+      for(const b of slots.slice(i+1))assert.ok(Math.hypot((a.x-b.x)*extent/100,(a.y-b.y)*extent/100)>=25.99);
+    }
+  }
+});
+test('radial projections group shared categories without changing leaf identities or controls',()=>{
+  const save={id:'save',label:'Save',symbol:'▣'},file={id:'file',label:'Files',symbol:'⇅'};
+  const action={run:'existing-owner'},field={value:'existing-name'};
+  const tree=radialTree([
+    {id:'save-shared',label:'Save shared',symbol:'▣',group:[save],content:action},
+    {id:'name',label:'Name',symbol:'✎',group:[save],content:field},
+    {id:'export',label:'Export',symbol:'⇧',group:[file],content:action},
+  ]);
+  assert.deepEqual(radialTree([{id:'hidden',label:'Hidden',symbol:'○',group:[{id:'retired',label:'Retired',symbol:'○',hidden:true}],content:action}]),[], 'retired radial categories expose no entries while preserving command owners');
+  assert.equal(tree.length,2);assert.equal(tree[0].children.length,2);
+  assert.equal(tree[0].children[0].id,'save-shared');assert.equal(tree[0].children[0].content,action);
+  assert.equal(tree[0].children[1].content,field);
+  const many=radialTree(Array.from({length:20},(_,i)=>({id:`tool-${i}`,label:`Tool ${i}`,symbol:'○',content:i})));
+  const leaves=[];const visit=nodes=>{assert.ok(nodes.length<=6);for(const node of nodes)if(node.children)visit(node.children);else leaves.push(node.content);};
+  visit(many);assert.deepEqual(leaves,Array.from({length:20},(_,i)=>i),'overflow remains reachable without crowding');
+  const top=radialSlot(0,6,0),next=radialSlot(1,6,0),inner=radialSlot(0,6,1);
+  assert.equal(top.x,50);assert.ok(top.y<50);assert.ok(next.x>50,'clockwise from top');
+  assert.ok(inner.y>top.y&&inner.size<top.size,'progressively smaller category ring');
+  for(let depth=0;depth<3;depth++)for(let index=0;index<6;index++){
+    const slot=radialSlot(index,6,depth);
+    const {extent}=radialDimensions(depth);
+    assert.ok(slot.x*extent/100-slot.size/2>=0&&slot.x*extent/100+slot.size/2<=extent);
+    assert.ok(slot.y*extent/100-slot.size/2>=0&&slot.y*extent/100+slot.size/2<=extent);
+  }
+  for(const count of [6,7,12,16]){
+    const {extent}=radialDimensions(0,count),slots=Array.from({length:count},(_,i)=>radialSlot(i,count,0));
+    for(let i=0;i<count;i++){const a=slots[i],b=slots[(i+1)%count];assert.ok(Math.hypot(a.x-b.x,a.y-b.y)*extent/100>=a.size,'a flat target-DOF ring keeps all buttons separated');}
+  }
+});
 test("live coordinate moves preserve topology validation for other changes", () => {
   const previous = emptyUILayout();
   previous.windows.a = { x: 20, y: 30, width: 300, height: 400, collapsed: false, pinned: false };
@@ -293,4 +351,31 @@ test('content right-click ownership preserves function handlers before UI editin
     const nested={closest:selector=>selector.includes('['+owner+']')?{}:null};
     assert.equal(ownsContextMenu(nested),true,'descendants inherit ownership from '+owner);
   }
+});
+
+test('shared active cursor gives MS priority, restores other tools, and pen/erase icons reverse both halves',()=>{
+  const pen={priority:0,key:'pen'},erase={priority:0,key:'erase'},selector={priority:100,key:'selector'};
+  assert.equal(activeToolCursor([pen,erase]),erase);
+  assert.equal(activeToolCursor([pen,selector,erase]),selector);
+  assert.equal(activeToolCursor([erase]),erase);assert.equal(activeToolCursor([]),null);
+  const svg=url=>decodeURIComponent(url.slice(url.indexOf(',')+1));
+  const fills=url=>[...svg(url).matchAll(/<path fill="(#[a-z0-9]+)"/g)].map(match=>match[1]);
+  assert.deepEqual(fills(PEN_SYMBOL),['#000','#fff']);assert.deepEqual(fills(ERASER_SYMBOL),['#fff','#000']);
+  assert.equal((svg(PEN_SYMBOL).match(/<path/g)||[]).length,2,'two body halves only, no underline');
+});
+
+test('cursor applicability follows operation zones and restores native behavior outside them',()=>{
+  const pen={priority:0,key:'pen',zone:'composer-a'},other={priority:1,key:'other',zone:'composer-b'},selector={priority:100,key:'selector',zone:'*'};
+  const pick=(zone,blocked=false)=>activeToolCursor([pen,other],request=>cursorApplies(request,zone,blocked));
+  assert.equal(pick('composer-a'),pen);assert.equal(pick('composer-b'),other);
+  assert.equal(pick(undefined),null,'toolbars and other controls keep their native cursor');
+  assert.equal(pick('composer-a',true),null,'settings controllers suspend tools');
+  assert.equal(cursorApplies({},'composer-a'),false,'unscoped tools never leak globally');
+  assert.equal(cursorApplies(selector,undefined),true);assert.equal(cursorApplies(selector,undefined,true),false);
+  assert.equal(cursorApplies({...selector,parked:{x:0,y:0}},undefined,true),true,'parked MS remains a stationary marker');
+  const circle={left:100,top:100,width:200,height:200,circle:true};
+  assert.equal(inCursorArea({x:200,y:200},circle),true);
+  assert.equal(inCursorArea({x:110,y:110},circle),false,'circular corners/rim are outside editing');
+  assert.equal(inCursorArea({x:310,y:200},circle),false,'pointer capture cannot extend applicability');
+  assert.equal(inCursorArea({x:110,y:110},{...circle,circle:false}),true);
 });

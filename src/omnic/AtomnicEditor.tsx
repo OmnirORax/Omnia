@@ -1,15 +1,14 @@
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useId, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import type { Recipe, Component } from './model';
 import { validateRecipe } from './model';
-import { atoms, atomnicSettings, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, type Point } from './atomnic';
+import { atoms, atomnicSettings, atomnicEditable, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms, type Point } from './atomnic';
 import { ATOMNIC_PARAMETERS, ATOMNIC_OPERATION_INPUTS, type AtomnicConfigAction } from './atomnicSettings';
 import { useOmnicParameterBindings } from './propertyAdapter';
 import { PropertyEditor } from '../appearance/Controls';
 import { rankedPropertyPatterns, matchingProperties, type PropertyCriterion } from '../appearance/propertyPatterns';
 import { PROPERTY_REGISTRY } from '../properties/catalog';
-import { divisions, directionTurn, snapTurn, turnStep } from '../properties/halving';
+import { divisions, directionTurn, snapTurn, turnStep, turnDelta } from '../properties/halving';
 import { HalvingPicker } from '../properties/HalvingPicker';
 import { ContextualMasterController } from '../ui/ContextualMasterController';
 import { UIAction } from '../ui/UIAction';
@@ -21,29 +20,50 @@ import type { AtomnicInteraction } from './atomnicInteraction';
 import { renderSVG } from './svg';
 import type { Evaluation } from './evaluate';
 import { claimUIPress } from '../ui/pointerOwnership';
+import { FEATURE_ACTIONS } from '../featureActions';
+import { FunctionControl } from '../ui/UIWorkspace';
+import { RadialMenu, type RadialNavigation } from '../ui/RadialMenu';
+import { radialTree, type RadialEntry } from '../ui/radialMenuModel';
+import { cursorPosition } from '../ui/cursorPosition';
+import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets } from './targetDegrees';
+import type { EditableDegree } from '../properties/editableDegrees';
+import type { Parameter } from './registry';
+import { useToolCursorZone } from '../ui/toolCursorZone';
+import { nameSymbol } from '../ui/nameSymbols';
 
-type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void};
-type Panel={kind:'functions'}|{kind:'operation';action:AtomnicConfigAction;index:number}|{kind:'pivotModes'}|{kind:'reference';index:number}|{kind:'axis';stage:'start'|'end'|'halving';start?:number;end?:number}|{kind:'position'}|{kind:'patterns'};
+type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void;documentEntries?:RadialEntry<ReactNode>[];modeControl?:ReactNode;radar?:boolean;extraPanel?:ReactNode;closePanel?:()=>void;presentationBounds?:{x:number;y:number;width:number;height:number};normalSelection?:string[];onPickGeometry?:(point:Point,role?:string)=>readonly string[]|void;surfaceRef?:Ref<HTMLDivElement>;markupRef?:RefObject<string>};
+type Panel={kind:'functions'|'target'}|{kind:'degree';degree:EditableDegree;configure:boolean}|{kind:'operation';action:AtomnicConfigAction;index:number;fromTarget?:boolean}|{kind:'pivotModes'}|{kind:'reference';index:number}|{kind:'axis';stage:'start'|'end'|'halving';start?:number;end?:number}|{kind:'position'}|{kind:'patterns'};
 type Tool='draw'|'erase'|'select'|'move'|'rotate';
-type Gesture={kind:'draw'|'erase'|'move'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number};
+type Gesture={kind:'draw'|'erase'|'move'|'translate'|'rotate';base:Recipe;next:Recipe;start:Point;last:Point;ids:Set<string>;angle:number;turn?:number;appliedTurn?:number;appliedDelta?:Point;bounds?:{x:number;y:number;width:number;height:number}};
 const uid=()=>crypto.randomUUID();
 const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
-export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
+export function AtomnicEditor({recipe,evaluation,commit,onBridge,documentEntries=[],modeControl,radar=false,extraPanel,closePanel,presentationBounds,normalSelection=[],onPickGeometry,surfaceRef,markupRef}:Props) {
+  const localSurface=useRef<HTMLDivElement>(null),cursorZone=useId();
+  useToolCursorZone(localSurface,cursorZone,radar);
+  const attachSurface=useCallback((node:HTMLDivElement|null)=>{localSurface.current=node;if(typeof surfaceRef==='function')surfaceRef(node);else if(surfaceRef)surfaceRef.current=node;},[surfaceRef]);
+  const wheelDelta=useRef(0),wheelTimer=useRef<ReturnType<typeof setTimeout>|null>(null),wheelEnd=useRef<ReturnType<typeof setTimeout>|null>(null);
   const recipeRef=useRef(recipe);recipeRef.current=recipe;
   const [selectionTimeline,setSelectionTimeline]=useState(()=>({states:[new Set<string>()],index:0}));
   const selected=selectionTimeline.states[selectionTimeline.index];
   const setSelected=(next:Set<string>)=>setSelectionTimeline(previous=>appendTransient(previous,next));
   const [hovered,setHovered]=useState<string[]>([]);
   const [tool,setTool]=useState<Tool>('draw'),[phase,setPhase]=useState('idle'),[pivot,setPivot]=useState<Point|null>(null);
+  const [cursorOperation,setCursorOperation]=useState<'move'|null>(null);
+  const pointerTool=cursorOperation??tool;
   const [menu,setMenu]=useState<{x:number;y:number}|null>(null),[panel,setPanel]=useState<Panel>({kind:'functions'}),[message,setMessage]=useState('');
   const [criteria,setCriteria]=useState<PropertyCriterion[]>([]),[pointed,setPointed]=useState<string|null>(null);
-  const gesture=useRef<Gesture|null>(null),stepOnly=useRef(false),cursor=useRef<HTMLDivElement>(null);
+  const [degrees,setDegrees]=useState<EditableDegree[]>([]);
+  const gesture=useRef<Gesture|null>(null),stepOnly=useRef(false);
   const pointer=useRef({x:0,y:0}),lastHover=useRef(0);
+  const radialNavigation=useRef<RadialNavigation>(null);
+  const [radialContext,setRadialContext]=useState(false);
+  useLayoutEffect(()=>{if(extraPanel)setMenu(cursorPosition());},[!!extraPanel]);
   const [ghost,setGhost]=useState<Point>();
   const settings=useMemo(()=>atomnicSettings(recipe),[recipe.atomnic]);
   const list=useMemo(()=>atoms(recipe),[recipe.components]);
   const selectedRef=useRef(selected);selectedRef.current=selected;
-  const size=Number(settings.viewSize),bounds=useMemo(()=>({x:-size/2,y:-size/2,width:size,height:size}),[size]);
+  const size=Number(settings.viewSize),localBounds=useMemo(()=>({x:-size/2,y:-size/2,width:size,height:size}),[size]);
+  const bounds=gesture.current?.bounds??presentationBounds??localBounds,isAtomnic=!radar||!!recipe.atomnic?.active;
   const error=(failure:unknown)=>setMessage(failure instanceof Error?failure.message:String(failure));
   const scoped=(ids:ReadonlySet<string>)=>selectionScope(atoms(recipeRef.current),ids,settings.scope==='macro');
   const hit=(point:Point)=>{let result:typeof list[number]|undefined;let best=Infinity;for(const atom of atoms(recipeRef.current)){const d=distance(point,atom);if(d<=atom.radius+2&&d<best){result=atom;best=d;}}return result;};
@@ -66,9 +86,12 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   const first=list.find(a=>selected.has(a.id));
   const editingMark=panel.kind==='operation'&&panel.action==='atomnic.highlight';
   const displayed=useMemo(()=>{const values={...settings};if(first&&settings.paint==='selection'&&!editingMark)for(const key of ['size','fill','color','opacity','thickness'])values[key]=first.component.params[key]??values[key];return values;},[settings,first,editingMark]);
-  useOmnicParameterBindings(displayed,next=>{for(const key of Object.keys(next))if(next[key]!==displayed[key])input(key,next[key]);},ATOMNIC_PARAMETERS);
+  const degree=panel.kind==='degree'?panel.degree:undefined;
+  const degreeParameters=useMemo(()=>degree?[degree.targets[0].input as Parameter]:[],[degree]);
+  const degreeValues=useMemo(()=>degree?{[degree.targets[0].input.key]:targetDegreeValue(recipe,degree)}:displayed,[degree,recipe,displayed]);
+  useOmnicParameterBindings(degreeValues,next=>{if(degree){changeDegree(degree,next[degree.targets[0].input.key]);return;}for(const key of Object.keys(next))if(next[key]!==displayed[key])input(key,next[key]);},degree?degreeParameters:isAtomnic&&!extraPanel?ATOMNIC_PARAMETERS:[]);
   const beginRotation=(step=false)=>{if(!selectedRef.current.size){setMessage('Select atoms before rotating.');return;}stepOnly.current=step;setTool('rotate');setMenu(null);setPanel({kind:'functions'});setPhase('pivot');setMessage('Pick the pivot: exact click or detected target.');};
-  const cancel=()=>{const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
+  const cancel=()=>{setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
   const mark=()=>{try{const targets=[...scoped(selectedRef.current)].map(id=>`${id}:shape`);if(!targets.length)return;
     commit({...recipeRef.current,operations:[...recipeRef.current.operations,{id:uid(),operator:'highlight',targets,enabled:true,
       params:{which:'all',fraction:Number(settings.fraction),start:Number(settings.markTurn)*360,color:String(settings.color),opacity:Number(settings.opacity)}}]});
@@ -78,32 +101,56 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     const walk=(items:Component[]):Component[]=>items.filter(c=>!ids.has(c.id)).map(c=>c.children?{...c,children:walk(c.children)}:c);
     commit(validateRecipe({...recipeRef.current,components:[...walk(recipeRef.current.components),{id:uid(),generator:'group',params:{},children:chosen.map(a=>({...a.component,params:{...a.component.params,x:a.x,y:a.y}}))}]}));
   }catch(failure){error(failure);}};
-  const compatible=recipe.components.every(function supported(c:Component):boolean{return ['dot','group'].includes(c.generator)&&(c.children??[]).every(supported);})&&recipe.operations.every(op=>!op.enabled||op.operator==='highlight');
+  // Atomnic is a tool profile in the same recipe. Other generators remain
+  // rendered; only authored dots are direct Atomnic gesture targets.
+  const compatible=isAtomnic&&atomnicEditable(recipe);
   const commands=useFeatureActions('atomnicComposer',{
-    'atomnic.erase':{enabled:compatible,run:()=>{cancel();setTool('erase');}},
-    'atomnic.draw':{enabled:compatible,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,run:()=>{cancel();setTool('select');}},
-    'atomnic.move':{enabled:compatible&&selected.size>0,run:()=>{cancel();setTool('move');}},
-    'atomnic.rotate':{enabled:compatible&&selected.size>0,run:event=>{if(menu&&event instanceof KeyboardEvent){configureOperation('atomnic.rotate');}else beginRotation();}},
+    'atomnic.erase':{enabled:compatible,cursor:compatible&&pointerTool==='erase'?{zone:cursorZone}:false,run:()=>{cancel();setTool('erase');}},
+    'atomnic.constraints':{enabled:true,run:()=>input('mode',settings.mode==='free'?'constrained':'free')},
+    'atomnic.draw':{enabled:compatible,cursor:compatible&&pointerTool==='draw'?{zone:cursorZone}:false,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,cursor:compatible&&pointerTool==='select'?{zone:cursorZone}:false,run:()=>{cancel();setTool('select');}},
+    'atomnic.move':{enabled:compatible&&selected.size>0,cursor:(compatible||gesture.current?.kind==='translate')&&pointerTool==='move'?{zone:cursorZone}:false,run:()=>{cancel();setTool('move');}},
+    'atomnic.rotate':{enabled:compatible&&selected.size>0,cursor:compatible&&pointerTool==='rotate'?{zone:cursorZone,rotationTurns:turnStep(Number(settings.order),Number(settings.steps)),badge:phase==='pivot'?'●':undefined,pulse:phase==='pivot'}:false,run:event=>{if(menu&&event instanceof KeyboardEvent){configureOperation('atomnic.rotate');}else beginRotation();}},
     'atomnic.step':{enabled:compatible&&selected.size>0,run:()=>beginRotation(true)},
     'atomnic.highlight':{enabled:compatible&&selected.size>0,run:mark},
     'atomnic.fill':{enabled:compatible&&selected.size>0,run:()=>{const ids=scoped(selectedRef.current);commit(mapAtoms(recipeRef.current,c=>ids.has(c.id)?{...c,params:{...c.params,fill:Boolean(settings.fill),color:String(settings.color),opacity:Number(settings.opacity)}}:c));}},
     'atomnic.remove':{enabled:compatible&&selected.size>0,run:remove},'atomnic.group':{enabled:compatible&&selected.size>0,run:group},
+    'atomnic.ungroup':{enabled:compatible&&list.some(a=>selected.has(a.id)&&a.group!=='@root'),run:()=>{try{commit(ungroupAtoms(recipeRef.current,selectedRef.current));}catch(failure){error(failure);}}},
     'atomnic.all':{enabled:compatible,run:()=>{setSelected(new Set(list.map(a=>a.id)));setTool('select');}},
     'atomnic.selectionUndo':{enabled:selectionTimeline.index>0,run:()=>setSelectionTimeline(previous=>stepTransient(previous,-1))},
     'atomnic.selectionRedo':{enabled:selectionTimeline.index<selectionTimeline.states.length-1,run:()=>setSelectionTimeline(previous=>stepTransient(previous,1))},
-    'atomnic.configure':{enabled:compatible,run:()=>{setPanel({kind:'functions'});setMenu({...pointer.current});}},
-    'atomnic.patterns':{enabled:compatible&&selected.size>0,run:()=>setPanel({kind:'patterns'})},
+    'atomnic.configure':{enabled:true,run:()=>{if(radar)configureOperation('atomnic.configure');else{setPanel({kind:'functions'});setMenu({...pointer.current});}}},
+    'atomnic.patterns':{enabled:compatible&&selected.size>0,run:()=>{setPanel({kind:'patterns'});setMenu(cursorPosition());}},
     'atomnic.confirm':{enabled:!!menu&&(panel.kind==='operation'||panel.kind==='reference'),run:()=>nextConfiguration()},
-    'atomnic.cancel':{enabled:phase!=='idle'||selected.size>0||!!menu,run:()=>{if(menu&&panel.kind!=='functions')backConfiguration();else if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
+    'atomnic.cancel':{enabled:phase!=='idle'||selected.size>0||!!menu||!!extraPanel||radialContext,run:()=>{if(extraPanel){closePanel?.();return;}if((radar&&radialContext&&!menu||menu&&panel.kind==='functions')&&radialNavigation.current?.back())return;if(menu&&panel.kind!=='functions')backConfiguration();else if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
   });
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if(commands.handle(event)){event.preventDefault();event.stopImmediatePropagation();}};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[]);
-  useEffect(()=>{if(tool!=='rotate'&&tool!=='erase')return;const move=(event:PointerEvent)=>{pointer.current={x:event.clientX,y:event.clientY};if(cursor.current)cursor.current.style.transform=`translate(${event.clientX+12}px,${event.clientY+12}px)`;};window.addEventListener('pointermove',move);return()=>window.removeEventListener('pointermove',move);},[tool]);
   const handlers=useRef({down:(_p:Point,_e:PointerEvent)=>{},move:(_p:Point,_e:PointerEvent)=>{},up:(_p:Point,_e:PointerEvent)=>{},cancel});
   handlers.current={
     down:(point,event)=>{
+      if(wheelTimer.current){clearTimeout(wheelTimer.current);wheelTimer.current=null;wheelDelta.current=0;}
+      if(wheelEnd.current){clearTimeout(wheelEnd.current);wheelEnd.current=null;commit(recipeRef.current);}
+      setGhost(undefined);pointer.current={x:event.clientX,y:event.clientY};const target=hit(point);if(target)setPointed(target.id);
+      const role=event.target instanceof Element?event.target.closest('[data-omnic-role]')?.getAttribute('data-omnic-role')??undefined:undefined;
+      if(event.button===2){
+        if(openMovingPosition(event.clientX,event.clientY))return;
+        closePanel?.();setMenu({...pointer.current});
+        if(phase==='pivot'){setPanel({kind:'pivotModes'});return;}
+        let ids:string[]=[];
+        if(isAtomnic&&target){const chosen=selected.has(target.id)?scoped(selected):scoped(new Set([target.id]));selectedRef.current=chosen;setSelected(chosen);ids=[...chosen];}
+        else {const picked=onPickGeometry?.(point,role);if(Array.isArray(picked))ids=picked;}
+        if(ids.length){
+          const atomTargets=ids.every(id=>list.some(atom=>atom.id===id));
+          const adapters=compatible&&atomTargets?FEATURE_ACTIONS.flatMap(action=>'adjusts' in action?[{id:action.id,label:action.label,symbol:action.radial.symbol,adjusts:action.adjusts}]:[]):[];
+          setDegrees(targetDegrees(recipeRef.current,ids,adapters,['omnic.coordinate.x','omnic.coordinate.y',...(isAtomnic&&atomTargets&&settings.mode==='constrained'?['omnic.extent']:[])]));setPanel({kind:'target'});
+        }else {setPanel({kind:'functions'});if(radar)radialNavigation.current?.open();}
+        return;
+      }
+      if(event.button===0&&!target){
+        const ids=onPickGeometry?.(point,role);
+        if(Array.isArray(ids)&&ids.length){setMenu(null);setCursorOperation('move');gesture.current={kind:'translate',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:new Set(ids),angle:0,bounds};return;}
+        if(!isAtomnic)return;
+      }
       if(!compatible)return;
-      pointer.current={x:event.clientX,y:event.clientY};const target=hit(point);if(target)setPointed(target.id);
-      if(event.button===2){if(target&&!selected.has(target.id))setSelected(scoped(new Set([target.id])));setMenu({...pointer.current});setPanel(phase==='pivot'?{kind:'pivotModes'}:{kind:'functions'});return;}
       if(event.button!==0)return;
       setMenu(null);
       if(phase==='pivot') {
@@ -122,48 +169,58 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
         return;
       }
       if(tool==='erase'){const base=recipeRef.current,next=eraseAtomsAlong(base,point,point,settings.scope==='macro');gesture.current={kind:'erase',base,next,start:point,last:point,ids:new Set(),angle:0};if(next!==base)commit(next,true);return;}
-      if(target&&(event.shiftKey||tool!=='draw')) {
+      if(target) {
         let ids=new Set(selectedRef.current);const picked=scoped(new Set([target.id]));
         if(event.shiftKey)for(const id of picked){if(ids.has(id))ids.delete(id);else ids.add(id);}
         else if(!ids.has(target.id))ids=picked;
-        setSelected(ids);
-        if(event.shiftKey||tool==='select')return;
+        selectedRef.current=ids;setSelected(ids);
+        if(event.shiftKey)return;
         const kind=tool==='rotate'?'rotate':'move';if(kind==='rotate'&&!pivot){beginRotation();return;}
-        gesture.current={kind,base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:scoped(ids),angle:pivot?directionTurn(point.x-pivot.x,point.y-pivot.y):0};return;
+        if(kind==='move')setCursorOperation('move');
+        gesture.current={kind,base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:scoped(ids),bounds,angle:pivot?directionTurn(point.x-pivot.x,point.y-pivot.y):0};return;
       }
       if(tool==='rotate'&&pivot&&selected.size){gesture.current={kind:'rotate',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:scoped(selectedRef.current),angle:directionTurn(point.x-pivot.x,point.y-pivot.y)};return;}
       if(tool==='draw') {
-        if(target)setSelected(scoped(new Set([target.id])));
         const base=recipeRef.current;try{const next=addAtom(base,point,uid());gesture.current={kind:'draw',base,next,start:point,last:point,ids:new Set(),angle:0};commit(next,true);}catch(failure){error(failure);}return;
       }
       if(!event.shiftKey)setSelected(new Set());
     },
     move:(point,event)=>{
-      pointer.current={x:event.clientX,y:event.clientY};if(cursor.current)cursor.current.style.transform=`translate(${event.clientX+12}px,${event.clientY+12}px)`;
-      const active=gesture.current;if(!active){if(tool==='draw'&&performance.now()-lastHover.current>83){lastHover.current=performance.now();setGhost(placementPoint(point,settings));}else if(tool==='erase'&&performance.now()-lastHover.current>83){lastHover.current=performance.now();setHovered([...scoped(atomIdsAlong(list,point,point))]);}return;}
+      pointer.current={x:event.clientX,y:event.clientY};
+      const active=gesture.current;
+      if(!isAtomnic&&active?.kind!=='translate')return;if(!active){if(tool==='draw'&&performance.now()-lastHover.current>83){lastHover.current=performance.now();setGhost(placementPoint(point,settings));}else if(tool==='erase'&&performance.now()-lastHover.current>83){lastHover.current=performance.now();setHovered([...scoped(atomIdsAlong(list,point,point))]);}return;}
       try {
-        let next=active.next;
+        let next=active.next,appliedDelta:Point|undefined;
         if(active.kind==='erase'){next=eraseAtomsAlong(active.next,active.last,point,settings.scope==='macro');}
         else if(active.kind==='draw') {
           const count=Math.min(64,Math.max(1,Math.ceil(distance(point,active.last)/Math.max(.25,Number(settings.mode==='constrained'?Number(settings.size)*2:settings.step)/2))));
           for(let i=1;i<=count;i++)next=addAtom(next,{x:active.last.x+(point.x-active.last.x)*i/count,y:active.last.y+(point.y-active.last.y)*i/count},uid());
+        } else if(active.kind==='translate') {
+          const delta=placementPoint({x:point.x-active.start.x,y:point.y-active.start.y},{...settings,mode:'free'});
+          if(delta.x===(active.appliedDelta?.x??0)&&delta.y===(active.appliedDelta?.y??0))return;appliedDelta=delta;
+          const b=active.bounds!;
+          const base={...active.base,atomnic:{...active.base.atomnic,viewSize:Math.max(b.width,b.height),viewX:b.x+b.width/2,viewY:b.y+b.height/2}};
+          next=translateTargets(base,active.ids,delta);
         } else if(active.kind==='move') {
           const delta=placementPoint({x:point.x-active.start.x,y:point.y-active.start.y},settings);
+          if(delta.x===(active.appliedDelta?.x??0)&&delta.y===(active.appliedDelta?.y??0))return;appliedDelta=delta;
           next=transformAtoms(active.base,active.ids,a=>({x:a.x+delta.x,y:a.y+delta.y}));
         } else if(pivot) {
-          let turn=directionTurn(point.x-pivot.x,point.y-pivot.y)-active.angle;
-          if(turn>.5)turn-=1;if(turn<-.5)turn+=1;
-          next=rotateAtoms(active.base,active.ids,pivot,snapTurn(turn,Number(settings.order)));
+          const direction=directionTurn(point.x-pivot.x,point.y-pivot.y);
+          active.turn=(active.turn??0)+turnDelta(active.angle,direction);active.angle=direction;
+          const turn=snapTurn(active.turn,Number(settings.order),Number(settings.steps));
+          if(turn===(active.appliedTurn??0))return;
+          next=rotateAtoms(active.base,active.ids,pivot,turn);
         }
         if(next===active.next){active.last=point;return;}
-        if(commit(next,true)){active.next=next;active.last=point;setMessage('');}
+        if(commit(next,true)){active.next=next;active.last=point;if(appliedDelta)active.appliedDelta=appliedDelta;if(active.kind==='rotate')active.appliedTurn=snapTurn(active.turn??0,Number(settings.order),Number(settings.steps));setMessage('');}
       }catch(failure){error(failure);}
     },
-    up:()=>{const active=gesture.current;gesture.current=null;if(active){if(active.next!==active.base)commit(active.next);if(active.kind==='erase'){const remaining=new Set(atoms(active.next).map(a=>a.id));const nextSelected=new Set([...selectedRef.current].filter(id=>remaining.has(id)));if(nextSelected.size!==selectedRef.current.size)setSelected(nextSelected);}if(active.kind==='rotate')setPhase('idle');}},cancel,
+    up:(_point,event)=>{if(event.buttons&1)return;setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active){if(active.next!==active.base)commit(active.next);if(active.kind==='erase'){const remaining=new Set(atoms(active.next).map(a=>a.id));const nextSelected=new Set([...selectedRef.current].filter(id=>remaining.has(id)));if(nextSelected.size!==selectedRef.current.size)setSelected(nextSelected);}if(active.kind==='rotate')setPhase('idle');}},cancel,
   };
-  const api=useMemo(()=>({down:(p:Point,e:PointerEvent)=>handlers.current.down(p,e),move:(p:Point,e:PointerEvent)=>handlers.current.move(p,e),up:(p:Point,e:PointerEvent)=>handlers.current.up(p,e),cancel:()=>handlers.current.cancel()}),[]);
-  const bridge=useMemo<AtomnicInteraction>(()=>({...api,bounds,gridPitch:settings.mode==='constrained'?Number(settings.size)*2:undefined,ghost:tool==='draw'&&ghost?{...ghost,radius:Number(settings.size),color:String(settings.color)}:undefined,selected:[...selected],hovered,pivot,phase:phase==='idle'?tool:phase}),[api,bounds,selected,hovered,pivot,phase,tool,ghost,settings.mode,settings.size,settings.color]);
-  useEffect(()=>{onBridge(compatible?bridge:null);},[bridge,onBridge,compatible]);useEffect(()=>()=>{onBridge(null);},[onBridge]);
+  const api=useMemo(()=>({context:(event:MouseEvent)=>openMovingPosition(event.clientX,event.clientY),down:(p:Point,e:PointerEvent)=>handlers.current.down(p,e),move:(p:Point,e:PointerEvent)=>handlers.current.move(p,e),up:(p:Point,e:PointerEvent)=>handlers.current.up(p,e),cancel:()=>handlers.current.cancel()}),[]);
+  const bridge=useMemo<AtomnicInteraction>(()=>({...api,bounds,cursorZone,gridPitch:isAtomnic&&settings.mode==='constrained'?Number(settings.size)*2:undefined,ghost:isAtomnic&&tool==='draw'&&ghost?{...ghost,radius:Number(settings.size),color:String(settings.color)}:undefined,selected:isAtomnic?[...selected]:normalSelection,hovered:isAtomnic?hovered:[],pivot:isAtomnic?pivot:null,phase:isAtomnic?(phase==='idle'?tool:phase):'select'}),[api,bounds,cursorZone,selected,hovered,pivot,phase,tool,ghost,settings.mode,settings.size,settings.color,isAtomnic,isAtomnic?null:normalSelection]);
+  useEffect(()=>{onBridge(radar||compatible?bridge:null);},[bridge,onBridge,compatible,radar]);useEffect(()=>()=>{onBridge(null);},[onBridge]);
   const beforeUnmount=useRef(cancel);beforeUnmount.current=cancel;
   useEffect(()=>{const stop=()=>{if(gesture.current)beforeUnmount.current();};window.addEventListener('blur',stop);return()=>{window.removeEventListener('blur',stop);};},[]);
   const target=list.find(a=>a.id===pointed)??first;
@@ -171,27 +228,63 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
   const patternTarget=patternObjects.find(a=>a.id===target?.id);
   const patterns=useMemo(()=>patternTarget?rankedPropertyPatterns(patternObjects,patternTarget):[],[patternObjects,patternTarget]);
   const field=(key:string)=>{const p=ATOMNIC_PARAMETERS.find(p=>p.key===key)!;return <UIField key={key} id={`atomnic:${key}`} label={p.label} category="Atomnic"><label>{p.label}<PropertyEditor property={p.property} label={p.label} disabled={key==='step'&&settings.mode==='constrained'} value={key==='step'&&settings.mode==='constrained'?Number(settings.size)*2:displayed[key]} limits={p.kind==='number'?{min:p.min!,max:p.max!}:undefined} choices={p.options?.map(o=>o.id)} onPreview={v=>input(key,v,true)} onCommit={v=>input(key,v)} /></label></UIField>;};
+  const zoom=useRef((_delta:number)=>{});
+  zoom.current=delta=>{
+    if(gesture.current)return;
+    const extent=Math.max(bounds.width,bounds.height),next=Math.max(40,Math.min(1000,extent*Math.exp(Math.max(-2,Math.min(2,delta*.0015)))));
+    if(next===extent)return;
+    commit({...recipeRef.current,atomnic:{...recipeRef.current.atomnic,viewSize:next,viewX:bounds.x+bounds.width/2,viewY:bounds.y+bounds.height/2}},true);
+    if(wheelEnd.current)clearTimeout(wheelEnd.current);
+    wheelEnd.current=setTimeout(()=>{wheelEnd.current=null;commit(recipeRef.current);},180);
+  };
+  useEffect(()=>{
+    const node=localSurface.current;if(!node)return;
+    const wheel=(event:WheelEvent)=>{if(event.ctrlKey)return;event.preventDefault();event.stopPropagation();wheelDelta.current+=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?node.clientHeight:1);
+      if(!wheelTimer.current)wheelTimer.current=setTimeout(()=>{wheelTimer.current=null;const delta=wheelDelta.current;wheelDelta.current=0;zoom.current(delta);},83);
+    };
+    node.addEventListener('wheel',wheel,{passive:false});
+    return()=>{node.removeEventListener('wheel',wheel);if(wheelTimer.current)clearTimeout(wheelTimer.current);if(wheelEnd.current)clearTimeout(wheelEnd.current);};
+  },[]);
   const svg=evaluation?renderSVG(evaluation,bridge):'';
-  const local=(event:React.PointerEvent<HTMLDivElement>)=>{const box=event.currentTarget.getBoundingClientRect();const edge=Math.min(box.width,box.height);return {x:((event.clientX-box.left-(box.width-edge)/2)/edge-.5)*size,y:((event.clientY-box.top-(box.height-edge)/2)/edge-.5)*size};};
-  return <UISection id="atomnic-editor" title="Atomnic">
-    {!compatible&&<small role="alert">This recipe uses generated arrays, references or geometry operators. Switch to Generator controls to edit it; Atomnic gestures edit authored dots and groups.</small>}
-    <small className="atomnic-status" title="Right-click the construction or edited world image for functions; right-click one function for its configuration.">{tool} · {list.length} units · {selected.size} selected</small>
-    <div className="omnic-preview atomnic-surface" data-atomnic-surface data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();}} dangerouslySetInnerHTML={{__html:svg}}
+  if(markupRef)markupRef.current=svg;
+  const local=(event:React.PointerEvent<HTMLDivElement>)=>{const box=event.currentTarget.getBoundingClientRect();const edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);return {x:bounds.x+bounds.width/2+((event.clientX-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((event.clientY-box.top-(box.height-edge)/2)/edge-.5)*scale};};
+  const radialActions=FEATURE_ACTIONS.filter(action=>action.owner==='atomnicComposer'&&'radial' in action&&!('adjusts' in action)&&(isAtomnic||['atomnic.configure','atomnic.constraints'].includes(action.id)));
+  const radialControl=(action:typeof radialActions[number])=>{
+    const displayedAction=action.id==='atomnic.erase'&&tool==='erase'?FEATURE_ACTIONS.find(action=>action.id==='atomnic.draw')!:action;
+    const id=displayedAction.id as Parameters<typeof commands.invoke>[0],hasInputs=id in ATOMNIC_OPERATION_INPUTS;
+    const symbol=id==='atomnic.constraints'?(settings.mode==='free'?'⌁':'⊣'):'radial' in displayedAction?displayedAction.radial.symbol:'◇';
+    return <><UIAction id={`atomnic:context:${id.slice(8)}`} category="Atomnic" label={operationLabel(id)} symbol={symbol} tool={'toolIcon' in displayedAction?id:undefined} registerOnly
+      disabled={!commands.available(id)} onClick={()=>{commands.invoke(id);if(!['atomnic.configure','atomnic.patterns','atomnic.constraints'].includes(id))setMenu(null);}}
+      onConfigure={hasInputs?()=>configureOperation(id as AtomnicConfigAction):undefined}/>
+      <FunctionControl id={`atomnic:context:${id.slice(8)}`} mirror symbol={symbol} tooltip={`${operationLabel(id)}${hasInputs?' · Left-click uses retained settings; right-click configures':''}`} /></>;
+  };
+  const radialEntries:RadialEntry<ReactNode>[]=radialActions.filter(action=>action.id!=='atomnic.draw'&&!('radial' in action&&'inset' in action.radial)).map(action=>({id:action.id,label:operationLabel(action.id),symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:radialControl(action)}));
+  const surface=<div ref={attachSurface} className="omnic-preview atomnic-surface" data-atomnic-surface data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();api.context(e.nativeEvent);}} dangerouslySetInnerHTML={{__html:svg}}
       onPointerDown={event=>{event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);event.currentTarget.setPointerCapture(event.pointerId);api.down(local(event),event.nativeEvent);}}
-      onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />
-    {message&&<small role="status">{message}</small>}
-    <ContextualMasterController title={panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} position={menu} onClose={()=>{setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
-      {panel.kind==='functions'&&<div className="atomnic-functions">
-        {(['draw','erase','select','move','rotate','step','highlight','fill','group','remove','all','selectionUndo','selectionRedo','patterns','configure'] as const).map(action=>{
-          const id=`atomnic.${action}` as const;
-          const hasInputs=id in ATOMNIC_OPERATION_INPUTS;
-          const requiresSelection=['move','rotate','step','highlight','fill','group','remove','patterns'].includes(action);
-          return <UIAction key={id} id={`atomnic:context:${action}`} category="Atomnic" label={operationLabel(id)}
-            disabled={requiresSelection&&!selected.size||action==='selectionUndo'&&selectionTimeline.index===0||action==='selectionRedo'&&selectionTimeline.index===selectionTimeline.states.length-1}
-            onClick={()=>{commands.invoke(id);if(!['configure','patterns'].includes(action))setMenu(null);}}
-            onConfigure={hasInputs?()=>configureOperation(id as AtomnicConfigAction):undefined} />;
-        })}
+      onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />;
+  const quickActions=radialActions.filter(action=>'radial' in action&&'inset' in action.radial);
+  const rim=<RadialMenu heldOpen={!!extraPanel} quickItems={radar?[...quickActions.filter(action=>action.id!=='atomnic.erase').map(action=>radialControl(action)),...(modeControl?[modeControl]:[])]:undefined} quickEnd={radar?quickActions.filter(action=>action.id==='atomnic.erase').map(action=>radialControl(action)):undefined} items={radialTree([...radialEntries,...documentEntries])} navigationRef={radialNavigation} onNavigationChange={setRadialContext} onClose={()=>setMenu(null)}
+    inset={<><span className="radial-menu-inset radial-menu-primary">{radialActions.filter(action=>'radial' in action&&'inset' in action.radial).map(action=><span className="radial-menu-quick-control" key={action.id}>{radialControl(action)}</span>)}</span>{modeControl&&<span className="radial-menu-inset">{modeControl}</span>}</>}>{radar?surface:undefined}</RadialMenu>;
+  const content=<>
+    {radar?rim:<>
+    {!compatible&&isAtomnic&&<small role="alert">An enabled geometry operator changes the displayed construction. Turn Atomnic off to edit it. Other generators can coexist; Atomnic gestures target authored dots.</small>}
+    <div className="omnic-row"><button type="button" className="atomnic-tool-toggle" data-ui-id="atomnic:tools-visibility" aria-label={menu?'Hide tools':'Show tools'} title={menu?'Hide tools':'Show tools'} aria-expanded={!!menu}
+      onClick={event=>{if(menu)setMenu(null);else{setPanel({kind:'functions'});setMenu({x:event.clientX,y:event.clientY});}}}>⠿</button>
+      <small className="atomnic-status" title={`${tool} · ${list.length} units · ${selected.size} selected · Right-click for radial tools; right-click a tool to configure.`}>● {list.length} · ◉ {selected.size}</small></div>
+    {surface}</>}
+    {message&&<small className={radar?'omnic-radar-feedback':undefined} role="status">{message}</small>}
+    <ContextualMasterController title={extraPanel?'Omnic':panel.kind==='target'?'Target freedoms':panel.kind==='degree'?panel.degree.label:panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} radial={!extraPanel&&(panel.kind==='functions'||panel.kind==='target')} position={extraPanel?(menu??cursorPosition()):radar&&panel.kind==='functions'?null:menu} onClose={()=>{if(extraPanel){closePanel?.();return;}if(panel.kind==='functions'&&radialNavigation.current?.back())return;setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
+      {extraPanel??<>
+      {panel.kind==='target'&&<RadialMenu items={degrees.map(degree=>({id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),content:<><UIAction registerOnly id={`omnic:target-dof:${degree.id}`} label={degree.label} category="Omnic" tool={degree.action} onClick={()=>{
+        if(degree.action){commands.invoke(degree.action as Parameters<typeof commands.invoke>[0]);}else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:false});}
+      }} onConfigure={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:true});}}}/><FunctionControl id={`omnic:target-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.action?operationLabel(degree.action):String(targetDegreeValue(recipe,degree))} · Left-click adjusts; right-click configures`}/></>}))} onClose={()=>setMenu(null)}/>}
+      {panel.kind==='degree'&&<div className="progressive-configuration">
+        <PropertyEditor key={`${panel.degree.id}:${panel.configure}`} property={panel.degree.properties[0]} label={panel.degree.label} configuration={panel.configure?'step':undefined}
+          value={targetDegreeValue(recipe,panel.degree)} limits={(panel.degree.targets[0].input as Parameter).kind==='number'?{min:(panel.degree.targets[0].input as Parameter).min!,max:(panel.degree.targets[0].input as Parameter).max!}:undefined}
+          onPreview={value=>changeDegree(panel.degree,value,true)} onCommit={value=>changeDegree(panel.degree,value)}/>
+        <button type="button" onClick={()=>setPanel({kind:'target'})} title="Back to target freedoms" aria-label="Back to target freedoms">↩</button>
       </div>}
+      {!radar&&panel.kind==='functions'&&rim}
       {panel.kind==='operation'&&<ProgressiveConfiguration label={operationLabel(panel.action)} index={panel.index} count={operationKeys(panel.action).length} onBack={backConfiguration} onNext={nextConfiguration}>
         {field(operationKeys(panel.action)[panel.index])}
       </ProgressiveConfiguration>}
@@ -227,11 +320,17 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
         <UIAction id="atomnic:clear-criteria" category="Atomnic" label={`Clear criteria · ${criteria.length}`} onClick={()=>setCriteria([])} />
         <button type="button" onClick={()=>{setPanel({kind:'functions'});setHovered([]);}}>Back</button>
       </div>}
+      </>}
     </ContextualMasterController>
-    {(tool==='rotate'||tool==='erase')&&createPortal(<div ref={cursor} className={`atomnic-cursor ${phase==='pivot'?'atomnic-pivot':''}`} style={{pointerEvents:'none',position:'fixed',left:0,top:0,zIndex:2147483000,transform:`translate(${pointer.current.x+12}px,${pointer.current.y+12}px)`}}><span style={{display:'inline-block',transform:tool==='rotate'?`rotate(${turnStep(Number(settings.order),Number(settings.steps))}turn)`:undefined}}>{tool==='erase'?'⌫':'🗘'}</span>{phase==='pivot'&&<i>●</i>}</div>,document.body)}
-  </UISection>;
+  </>;
+  return radar?content:<UISection id="atomnic-editor" title="Atomnic">{content}</UISection>;
+  function openMovingPosition(x:number,y:number){
+    const active=gesture.current;if(!active||active.kind!=='move'&&active.kind!=='translate')return false;
+    gesture.current=null;setCursorOperation(null);if(active.next!==active.base)commit(active.next);
+    closePanel?.();setMenu({x,y});setPanel({kind:'operation',action:'atomnic.move',index:0});setPhase('configure');return true;
+  }
   function operationKeys(action:AtomnicConfigAction):readonly string[]{return ATOMNIC_OPERATION_INPUTS[action].filter(key=>key!=='step'||settings.mode==='free');}
-  function configureOperation(action:AtomnicConfigAction){setPanel({kind:'operation',action,index:0});setPhase('configure');if(action==='atomnic.rotate'||action==='atomnic.step')setTool('rotate');}
+  function configureOperation(action:AtomnicConfigAction,fromTarget=false){setMenu(cursorPosition());setPanel({kind:'operation',action,index:0,fromTarget});setPhase('configure');if(action==='atomnic.rotate'||action==='atomnic.step')setTool('rotate');}
   function nextConfiguration(){
     if(panel.kind==='operation'){
       if(panel.index+1<operationKeys(panel.action).length){setPanel({...panel,index:panel.index+1});return;}
@@ -243,12 +342,16 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     }
   }
   function backConfiguration(){
+    if(panel.kind==='degree'){setPanel({kind:'target'});return;}
+    if(panel.kind==='target'){setMenu(null);return;}
     if(panel.kind==='operation'&&panel.index>0)setPanel({...panel,index:panel.index-1});
+    else if(panel.kind==='operation'&&panel.fromTarget){setPanel({kind:'target'});setPhase('idle');}
     else if(panel.kind==='reference')setPanel(panel.index?{kind:'reference',index:0}:{kind:'pivotModes'});
     else if(panel.kind==='axis')setPanel(panel.stage==='halving'?{...panel,stage:'end'}:panel.stage==='end'?{kind:'axis',stage:'start'}:{kind:'reference',index:0});
     else if(panel.kind==='position')setPanel({kind:'reference',index:1});
     else {setPanel({kind:'functions'});if(phase==='configure')setPhase('idle');}
   }
+  function changeDegree(degree:EditableDegree,value:string|number|boolean,preview=false){try{commit(writeTargetDegree(recipeRef.current,degree,value),preview);setMessage('');}catch(failure){error(failure);}}
   function pickBoundary(turn:number){if(panel.kind!=='axis')return;if(panel.stage==='start')setPanel({kind:'axis',stage:'end',start:turn});else setPanel({...panel,stage:'halving',end:turn>panel.start!?turn:turn+1});}
   function pickAxis(value:number){
     let order=Number(settings.order);while(order<6&&Math.abs(value*divisions(order)-Math.round(value*divisions(order)))>1e-6)order++;
@@ -259,11 +362,12 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge}:Props) {
     const count=divisions(Number(settings.order));
     const labels:Record<string,string>={
       'atomnic.erase':`Erase · ${settings.scope}`,
+      'atomnic.constraints':`${settings.mode==='free'?'Free':'Realistic · touching lattice'} · click to switch`,
       'atomnic.draw':`Draw · r ${settings.size} · step ${settings.mode==='constrained'?Number(settings.size)*2:settings.step}`,
       'atomnic.select':`Select · ${settings.scope}`,'atomnic.move':`Move · ${settings.scope}`,
       'atomnic.rotate':`🗘 Rotate · ${settings.steps}/${count}`,'atomnic.step':`🗘 Step · ${settings.steps}/${count}`,
       'atomnic.highlight':`Highlight · ${settings.fraction}`,'atomnic.fill':`Fill · ${settings.fill?'on':'off'}`,
-      'atomnic.group':'Group','atomnic.remove':'Remove','atomnic.all':'Select all',
+      'atomnic.group':'Group','atomnic.ungroup':'Ungroup','atomnic.remove':'Remove','atomnic.all':'Select all',
       'atomnic.selectionUndo':'Undo selection','atomnic.selectionRedo':'Redo selection',
       'atomnic.patterns':`Property patterns · ${criteria.length}`,'atomnic.configure':`View · ${settings.viewSize}`,
     };return labels[action]??action;

@@ -3,6 +3,7 @@ import { containers } from "./layout";
 import { useUI } from "./context";
 import { dragSurface } from "./liveDrag";
 import type { ResizeRect } from "./resizeGeometry";
+import { fitFrameShape } from './frameShape';
 
 /** Project the existing live payload into a viewport, retaining its ownership,
  * handlers and original geometry. Removing the projection restores that geometry. */
@@ -26,6 +27,7 @@ function project(element: HTMLElement) {
   element.setAttribute("popover", "manual"); element.showPopover();
   return {
     set(next: ResizeRect) {
+      next=fitFrameShape(next,element.dataset.uiFrameShape);
       const values={"--ui-viewport-left":`${next.x}px`,"--ui-viewport-top":`${next.y}px`,
         "--ui-viewport-width":`${next.width}px`,"--ui-viewport-height":`${next.height}px`};
       for(const [key,value] of Object.entries(values))if(element.style.getPropertyValue(key)!==value)element.style.setProperty(key,value);

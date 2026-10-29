@@ -1,5 +1,35 @@
 # Omnic composer: Stage 1 contract
 
+**Current presentation:** the whole Composer is the circular radar: editing inside,
+tools on its rim. It is not a rectangle containing a radial popup or a headless
+world-only editor. Atomnic on/off shares the same canvas and recipe. Presets and reusable tools retain rim entry routes; scalar properties are available from target right-click. Structure/construction, Motion, Selection, Transform, Fill/marking, Inspection/toolbox, Configure selected component and Operation scope are removed from the radial; reusable commands and saved data remain. Data/evaluation/history/library/
+live preview are retained. See the capability guide's current circular-composer
+walkthrough; later Stage 1 layout descriptions below are historical. Browser
+acceptance is pending. Zoom sync is paused following the user's correction.
+
+Earlier narrow UI change after restoring PR #36: remove the screenshot's Ordered
+operations frame/search/non-oscillation palette and list entries, plus the
+Interpretation frames editor and footer explanation. Semantic oscillation was retained then; its Motion category is now removed from the radar while saved operations/evaluation remain. Preserve existing operation/frame recipe data. Subsequent presentation changes are described above; library and saved-data compatibility remain. The broader cleanup in
+closed PR #37 was rejected and reverted; do not reapply it. Earlier descriptions
+of those removed controls below are historical implementation context, not their
+current availability. See CAPABILITIES.md for current entry points.
+
+Atomnic follow-up: right-click → Ungroup dissolves the nearest authored groups
+containing selected atoms. Children retain positions/IDs; explicit operations and
+frames scoped to a removed group retain its former children. Undo restores the
+group. Rotation dragging honors the retained step-count interval and tracks
+successive angles across full turns; zero holds orientation, negative step counts
+set the one-shot Step direction while dragging follows the pointer. Unchanged
+snaps skip geometry work. The existing Free/touching constraints still apply.
+
+The function projection is now icon-only and radial: category spheres along the
+rim open progressively smaller child rings around the clicked category itself, recursively. Parent rings and the canvas stay in place. Tooltips name tools/current values; right-click a tool opens one setter at a time. Root tools hide by default and reveal by hovering their common circular axis, remaining visible through tool/category/editor interaction. There is no eye button; Esc/child-centre steps back. Presets combines construction presets with reusable operation tools. The active cursor now inherits the selected tool icon via the shared website cursor layer; the private purple cursor is removed. The last-position pen/eraser switch shows the next action using the reference silhouette (Erase upper white/lower black; Pen upper black/lower white). Free/Realistic, ⠒ Atomnic on/off and promoted tools sit adjacent along the rim; pen/eraser is last. Left-grabbing targets moves them, with right-click during movement opening position settings. Wheel over the interior replaces the View zoom button. The Object wrapper is flattened; child categories still open around their clicked button. Color uses a circular rainbow-wheel symbol. Object categories reuse name/save/copy/file actions. The radar replaces the inline toolbar in both modes. The underlying recipe remains
+shared: toggling Atomnic off preserves its dots while other generators add geometry;
+returning keeps that geometry rendered and allows authored-dot gestures. Enabled
+geometry-transform operators still need their evaluated-coordinate adapter before
+direct gestures are safe. Free/Realistic uses retained settings; Realistic denotes
+the touching-lattice profile, not a full physical simulation.
+
 The user's subsequent direction is synthesized in
 [OMNIC_WORKBENCH_MODEL.md](OMNIC_WORKBENCH_MODEL.md). It authorizes progressive
 world-integrated construction, temporary/shared live drafts and lattice-constrained

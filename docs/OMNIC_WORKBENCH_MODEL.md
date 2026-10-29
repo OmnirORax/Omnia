@@ -5,6 +5,113 @@ Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
 that the described capabilities are implemented.
 
+## Latest correction: the Composer itself is the radar
+
+2026-10-29 correction: revert the last two alignment/performance updates. Keep the earlier implementation and simply centre the brush icon on the actual pointer. Do not reintroduce snapped-marker cursor tracking, preview-wide cursor subscriptions or the reverted feedback rewrite.
+
+Cursor applicability is a global rule: the icon follows the current operation only within its valid zone. Outside the editing area (including tool selection/settings), restore the native cursor. Direct grabs temporarily show Move. Pen is now upper black/lower white, Erase upper white/lower black, per the user’s correction.
+
+Latest presentation: remove the eye/show-hide tool. Root tools hide by default and reveal on hover over their shared circular rim axis; keep them usable through tool/category/editor interaction, then hide on leaving. Do not hide the editing surface or unmount/re-register controls during hover. Explicit target context rings remain visible. One category named Presets contains construction presets and reusable operation tools. Last-position pen/eraser uses the same two-tone silhouette with no underline: Pen upper black/lower white; Erase upper white/lower black. The button offers the next action; the active cursor inherits the icon activated through the global shared tool-cursor system. The purple private cursor is retired.
+
+Current direct interaction: remove Procedural X/Y/Move from stationary target rings; left-grab moves the target/selection. Right-click during movement settles it and opens progressive position settings for the next drag. Pen/eraser belongs last after all remaining tools, so toggling Atomnic does not shift their order. Wheel over the Composer replaces its view-zoom button; retain Ctrl+wheel browser behavior, view center and bounded rendering.
+
+Newest correction: promote remaining Object tools directly beside pen/eraser and mode controls, with no Object wrapper. Restore the ⠒ Atomnic on/off tool there; it was removed during the preceding cleanup, leaving only the registered search/controller action. Color should be a circular rainbow wheel matching the supplied reference. Use shared presentation metadata and preserve all existing owners/settings.
+
+Further cleanup: remove the whole Selection, Transform, Fill/marking and toolbox/Inspection category projections, not merely the Select/Fill leaf actions. Remove Configure selected component and the ⠒ rim toggle. Move the existing Free/Realistic control directly beside pen/eraser at top middle; retain registered mode action/settings. Direct target selection and right-click DOFs remain. Target Fill uses ◐; target Opacity uses a 50%-faded ⬤. Reusable command/data owners are preserved.
+
+Latest refinement: category children form a smaller ring around the clicked category itself, recursively, rather than replacing the Omnic dial’s rim. Parent rings stay in place. Remove the dedicated Select button (existing left-click selection remains), Motion category, Fill button and Operation scope picker from the radial. Preserve underlying reusable engines, stored operations and target-derived DOF adjusters.
+
+Rim choices: hover the shared circular axis to reveal tools; no eye button. Last-position pen/eraser displays the next action using the reference silhouette. File 📁 remains; Selection, Inspection and Motion categories are retired. Remove the entire Structure category from the radial presentation, retaining reusable commands/data. Frame/navigation controls do not belong in this radial; contextual Back/Confirm still work. Target DOF discovery is unchanged. Opening right-button release must never activate/dismiss newly appeared controls.
+
+Latest interaction clarification: right-click a target/pattern to discover its
+actual writable DOFs, and show the corresponding freedom adjusters directly as
+buttons around ONE circle. This is not a category tree or a row. Direction being
+writable supplies Rotation; position supplies Move where the executor applies.
+Left-click uses retained action settings; right-click the adjuster opens its
+snap/halving configuration progressively. Start with this slice and let the user
+test it before extending the design. General/file tools are not target DOFs.
+
+Discovery now reads registered writable generator inputs and their intersection
+for multi-target selections. Existing action metadata declares which properties
+its executor adjusts; generic properties use the shared editor and target-scoped
+recipe setter. Realistic atom radius is a substrate setting, so target size is
+exposed in Free. Scalar editor intervals/steps are retained in one shared transient
+Composer editing-session scope, independently of actual values; movement/rotation
+retain existing recipe settings. This is adapter capability discovery, not full
+MS/pixel inference or discovery of arbitrary variables. Operator-only DOFs and
+additional transform executors remain future adapter work.
+
+The user rejected the rectangular Composer and clarified: "the whole omnic composer
+window should be the radial", "sort of like a dragonball radar", "inside it is the
+editing environment, while tools are on its rim". This supersedes the earlier
+radial-popup-within-the-Composer delivery. It also corrects the agent's unimplemented
+suggestion of removing the interior in favor of world-only editing. Keep the
+circular editing surface and live Omnium preview; put icon/category tools on its
+rim in BOTH Atomnic modes. Category navigation changes rim contents/icon size,
+never the canvas size. Text belongs in tooltips and requested editors/feedback.
+Atomnic toggles tools on the same recipe, not another environment. Library stays.
+
+The radar reuses the window identity/ownership/history, defaults to a 360px circle,
+and supports square resizing and shape-aware shared viewport projection. Old
+rectangular sizes project without deleting saved layout. Procedural geometry,
+component properties, references/pins, scope, presets, operation tools, motion and
+diagnostics have requested rim routes; generator setters are progressive. Recipes
+are not stripped or made read-only. The Stage 1 rectangular markup is internal
+historical scaffolding, not the app's active entry route.
+
+The Chrome/Omnium size-sync question is PAUSED: the user said "wait nvm" and
+redirected to this correction. Do not infer answers to its pending zoom/reference-
+depth questions. This change does not implement pixel-size synchronization.
+Model/type/build checks are distinct from user acceptance of the radar UI.
+
+## Latest scope: narrow removal from the restored PR #36
+
+PR #37's broad composer cleanup was rejected and rolled back. The user now
+explicitly targets only the shown old operation/frame area: retain Semantic
+oscillation; remove the other operation palette/list entries, search, Ordered
+operations wrapper, Interpretation frames editor and footer explanation. Keep the
+rest of PR #36, especially Atomnic tools, generators/presets, scope/reusable tools,
+save/recovery/live preview and library. Existing operation/frame data is preserved.
+Do not interpret this as authorization to remove the rest of the composer again.
+
+The user then authorized implementing further concrete requirements while they
+test. The next batch adds contextual Ungroup and corrects retained-step rotation
+dragging. Ungroup dissolves only selected atoms' nearest authored group boundaries,
+preserving child IDs/positions and expanding group-targeted operations/frame scopes
+to the promoted children. It uses the existing action catalog and recipe history;
+no permanent controls or new grouping identities. Rotation drag uses the magnitude
+of the saved step count on the existing 6 × 2^order grid, accumulates pointer
+direction across full turns, and avoids geometry writes inside an unchanged snap.
+Zero holds orientation; one-shot Step still uses the saved sign. Touching-profile
+legality is unchanged. These changes await user interaction acceptance. The broader
+Shift-configuration/MS/frame/zoom gaps documented below remain open.
+
+### Radial tools, one-space toggle and constraints
+
+The next explicit direction replaces Atomnic's rectangular function list with
+icon-only category spheres on a circular rim, matching the supplied ring image.
+Opening a category replaces the active ring with a smaller one. Names/current values appear in tooltips.
+The tool button opens/closes the projection; its centre shows/hides tool spheres,
+and right-click/Esc steps outward. Eraser, Free/Realistic and Atomnic on/off sit
+just inside the rim. Minimize gaps; no permanent file-action toolbar or full grid.
+Right-click ONE function retains progressive configuration. Name/save/copy/file/
+playback use existing field/action identities, discovered from catalog metadata.
+The shared renderer bounds rings/items and supplies overflow categories.
+
+Atomnic toggles tools on the same recipe/world, not another environment. Off
+preserves dots while normal generators add rings/other geometry. On keeps those
+rendered while authored dots remain editable. Generated geometry uses existing
+generator controls; enabled non-highlight geometry operators still block direct
+authored-coordinate gestures pending their adapter. Macro currently consists of
+authored dot members, not arbitrary generated geometry. Full MS integration and
+universal geometry manipulation remain pending.
+
+Free/Realistic is directly available on the rim. Free permits independent imprint/
+step values and overlap; Realistic is the touching-lattice profile, coupling pitch
+to diameter and rejecting invalid slots/overlap/rotations. Incompatible switches
+reject without changing the construction. Full physics/other constraint profiles
+remain pending. This delivery needs user interaction acceptance.
+
 ## Start here
 
 The user needs a general instrument for constructing, applying and revising

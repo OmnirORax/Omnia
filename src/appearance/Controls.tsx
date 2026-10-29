@@ -55,8 +55,10 @@ function PropertyInput({
   effectKinds,
   choices,
   limits,
+  configuration,
 }: {
   property: string;
+  configuration?:'step';
   value: Value;
   onPreview: (value: Value) => void;
   onCommit: (value: Value) => void;
@@ -155,6 +157,8 @@ function PropertyInput({
     );
   }
   return <RangeControl
+    configuration={configuration}
+    configurationKey={property}
     inputRef={input} aria-label={label ?? p.label} disabled={disabled}
     min={limits?.min ?? p.min!} max={limits?.max ?? p.max!} title={limits ? `Supported in the current mode: ${limits.min}–${limits.max}` : undefined} step={p.step} value={number}
     onValueChange={next => {

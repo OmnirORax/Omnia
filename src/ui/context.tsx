@@ -6,6 +6,7 @@ import type { PlacementPreview } from "./drag";
 import type { TransientStore } from "./transientStore";
 export type UIFunction = {
   id: string;
+  tool?: string;
   label: string;
   element: ReactElement;
   configuration?: ReactNode;

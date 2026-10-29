@@ -27,6 +27,16 @@ correctly. Check the affected path when changing it. Update these documents when
 a decision or implementation changes; do not leave the next worker to infer it
 from a long chat, an old PR or a contradictory comment.
 
+## Active tool cursor rule
+
+Active pointer tools inherit the icon activated, rather than a separate cursor
+emoji. Declare `FEATURE_ACTIONS.toolIcon`, active `useFeatureActions` cursor state,
+and canonical `UIAction tool` for aliases. Every active cursor must declare its applicable zone; outside it the native cursor returns. DOM zones use useToolCursorZone, and canvas adapters publish their existing hit test with setToolCursorZone. The shared cursor captures custom clicked
+appearance and handles transport/priority automatically. MS uses the same layer
+with its live SelectorSymbol and precision/parking; parked MS restores the native
+pointer. See AGENTS.md and UI_COMPONENT_CONTRACT.md; do not add private cursor
+portals or pointer listeners.
+
 ## Product and direction
 
 For Omnic and Omnium node/frame work, first read
@@ -597,6 +607,14 @@ external knowledge relationships. Reuse MC/MS, properties, adaptive Shift and th
 existing history owners; bound evaluation and animate only the active composer
 preview. See [OMNIC_COMPOSER.md](OMNIC_COMPOSER.md) for scope, entry paths and deferred
 work. Do not mark acceptance complete before the implementation is verified.
+
+Latest presentation: the whole Composer is a circular radar, with its editing
+surface inside and tools on the rim. Both Atomnic modes share it. This replaces
+the rectangular Composer plus radial popup; it does not remove the editing
+surface or create a separate environment. Procedural controls are requested from
+the rim, with progressive setters. Read OMNIC_WORKBENCH_MODEL.md's latest correction
+before using the historical Stage 1 layout descriptions. Browser/Omnium pixel-size
+synchronization is paused pending the user's next direction.
 
 ## Omnic workspace library (Stage 2)
 

@@ -65,8 +65,13 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
     const saved = ui.activeContext.getSnapshot(), owner = parent ?? activeFrame(saved)?.key;
     ui.contextLayers.set(node, { parent: owner, close: () => current.current() });
     const focused = document.activeElement;
+    // Nested portalled controllers retain their existing context ancestors.
+    // Rebuilding only the frame chain drops the parent popup from Esc/Back.
+    const ancestors = parent === undefined && activeFrame(saved)?.key === owner
+      ? saved.filter(entry => entry.kind !== "field" && (entry.kind === "frame" || entry.element.isConnected))
+      : owner ? frameChain(ui, owner) : saved.filter(entry => entry.kind !== "field");
     publish(ui, focused instanceof HTMLElement && node.contains(focused) ? stackAt(ui, focused)
-      : [...(owner ? frameChain(ui, owner) : saved.filter(entry => entry.kind !== "field")), { kind: "layer", element: node }]);
+      : [...ancestors, { kind: "layer", element: node }]);
     return () => {
       ui.contextLayers.delete(node);
       const stack = ui.activeContext.getSnapshot(), index = stack.findIndex(entry => entry.kind === "layer" && entry.element === node);

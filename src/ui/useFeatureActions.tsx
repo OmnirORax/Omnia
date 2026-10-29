@@ -1,21 +1,28 @@
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
 import { isTypingTarget, preferredFeatureKey, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
 import { useUI, useUITracked } from "./context";
 
-type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void; configuration?: ReactNode }>;
+import { useToolCursor, type ToolCursorOptions } from "./toolCursor";
+import { ToolGlyph } from "./toolIcon";
+
+type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void; configuration?: ReactNode;cursor?:boolean|ToolCursorOptions }>;
 /** A feature cannot install a binding absent from the shared catalog. Its command
  * buttons, runtime input and shortcut rows all use these same registered IDs. */
 export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, handlers: Handlers<Owner>) {
   const ui = useUITracked(ui=>[ui.registerFunction]), latest = useRef({ ui, handlers }); latest.current = { ui, handlers };
   const definitions = FEATURE_ACTIONS.filter(action => action.owner === owner).sort((a, b) => Number(a.scope === "global") - Number(b.scope === "global"));
+  const active=definitions.find(action=>!!handlers[action.id as FeatureActionFor<Owner>].cursor&&'toolIcon' in action);
+  const cursor=active?handlers[active.id as FeatureActionFor<Owner>].cursor:undefined,cursorKey=JSON.stringify(cursor);
+  const cursorRequest=useMemo(()=>active&&'toolIcon' in active?{key:active.id,icon:<ToolGlyph icon={active.toolIcon}/>,...(typeof cursor==='object'?cursor:{})}:null,[active?.id,cursorKey]);
+  useToolCursor(cursorRequest);
   const configurations = JSON.stringify(definitions.map(action => handlers[action.id as FeatureActionFor<Owner>].configuration !== undefined));
   const availability = JSON.stringify(definitions.map(action => handlers[action.id as FeatureActionFor<Owner>].enabled));
   useLayoutEffect(() => {
     const cleanups = definitions.flatMap(action => {
       const id = action.id as FeatureActionFor<Owner>;
       return [featureActionRuntime.register(id, { enabled: () => latest.current.handlers[id].enabled, run: input => latest.current.handlers[id].run(input) }),
-        ui.registerFunction({ id, label: action.label, category: action.category, configuration: handlers[id].configuration === undefined ? undefined : <ConfigurationContent render={() => latest.current.handlers[id].configuration} />, available: handlers[id].enabled,
+        ui.registerFunction({ id, tool:'toolIcon' in action?id:undefined, label: action.label, category: action.category, configuration: handlers[id].configuration === undefined ? undefined : <ConfigurationContent render={() => latest.current.handlers[id].configuration} />, available: handlers[id].enabled,
           element: <button type="button" disabled={!handlers[id].enabled} title={action.description}
             onClick={() => featureActionRuntime.invoke(id)}>{action.label}</button> })];
     });
@@ -36,6 +43,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
         : matchesPointerShortcut(id, current.ui.shortcutBindings ?? {}, event, gestureModifiers);
     },
     invoke: (id: FeatureActionFor<Owner>, input?: ActionInput) => featureActionRuntime.invoke(id, input),
+    available: (id:FeatureActionFor<Owner>) => latest.current.handlers[id].enabled,
     handle: (event: KeyboardEvent | MouseEvent, accepts: (id: FeatureActionFor<Owner>) => boolean = () => true) => {
       // Explicit modified commands take priority over gesture-transparent matches.
       for (const gestureModifiers of [false, true]) for (const definition of definitions) {

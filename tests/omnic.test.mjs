@@ -4,11 +4,114 @@ import { validateRecipe, validateRecipeReferences, LIMITS } from '../src/omnic/m
 import { GENERATORS, OPERATORS } from '../src/omnic/registry.ts';
 import { createRecipe, PRESETS } from '../src/omnic/presets.ts';
 import { evaluateRecipe } from '../src/omnic/evaluate.ts';
-import { renderSVG, evaluationBounds } from '../src/omnic/svg.ts';
+import { renderSVG, evaluationBounds, pickStructuralNode } from '../src/omnic/svg.ts';
+import { atoms, ungroupAtoms, rotateAtoms, atomnicSettings, atomnicEditable, addAtom, legalAtoms } from '../src/omnic/atomnic.ts';
+import { snapTurn, turnDelta } from '../src/properties/halving.ts';
+import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets } from '../src/omnic/targetDegrees.ts';
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
 const almost=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+test('target freedoms derive from writable generator parameters and applicable operation adapters',()=>{
+  const source=validateRecipe({...recipe([dot('a'),dot('b',20),{id:'rim',generator:'ring',params:{radius:30}}]),atomnic:{mode:'free'}});
+  const adapters=[{id:'move',label:'Move',adjusts:['omnic.coordinate.x','omnic.coordinate.y']},{id:'rotate',label:'Rotate',adjusts:['omnic.angle']}];
+  const dots=targetDegrees(source,['a','b'],adapters);
+  assert.ok(dots.some(d=>d.action==='rotate'));assert.ok(dots.some(d=>d.action==='move'));
+  assert.equal(dots.filter(d=>d.properties.includes('omnic.coordinate.x')||d.properties.includes('omnic.coordinate.y')).length,1);
+  assert.ok(!targetDegrees(source,['rim'],adapters).some(d=>d.action==='rotate'),'no invented rotation when its writable direction is absent');
+  assert.ok(!targetDegrees(source,['a','rim'],adapters).some(d=>d.properties.includes('omnic.angle')),'mixed selection exposes only common freedoms');
+  assert.ok(!targetDegrees(source,['a'],adapters,['omnic.extent']).some(d=>d.properties.includes('omnic.extent')),'profile removes fixed target freedoms');
+  const color=dots.find(d=>d.properties[0]==='color'),next=writeTargetDegree(source,color,'#ff0000');
+  assert.equal(targetDegreeValue(next,color),'#ff0000');assert.equal(next.components[1].params.color,'#ff0000');
+  assert.equal(next.components[2].params.color,source.components[2].params.color,'unselected targets are unchanged');
+  assert.throws(()=>writeTargetDegree({...source,components:source.components.slice(1)},color,'#ffffff'),/no longer exists/,'stale identities never widen the scope');
+});
+test('normal radar picks follow rendered ring contours, complete line segments and generated roles',()=>{
+  const result=evaluateRecipe(recipe([dot('unit'),{id:'rim',generator:'ring',params:{radius:30}},
+    {id:'line',generator:'line',params:{y:40,length:80}},
+    {id:'array',generator:'chain',params:{count:3,y:-40}}]));
+  assert.equal(pickStructuralNode(result.nodes,{x:30,y:0}).componentId,'rim');
+  assert.equal(pickStructuralNode(result.nodes,{x:0,y:15}),undefined,'empty ring interior does not select its boundary');
+  assert.equal(pickStructuralNode(result.nodes,{x:37,y:40}).componentId,'line');
+  assert.equal(pickStructuralNode(result.nodes,{x:0,y:0}).componentId,'unit');
+  assert.equal(pickStructuralNode(result.nodes,{x:300,y:300},'array:unit:1').componentId,'array','local SVG roles resolve their actual generator');
+});
+
+test('Atomnic toggles tools on one recipe and permits other geometry alongside authored dots',()=>{
+  const source=validateRecipe({...recipe([dot('a'),{id:'boundary',generator:'ring',params:{radius:30}},
+    {id:'path',generator:'line',params:{y:40,length:80}},
+    {id:'array',generator:'chain',params:{y:-40,count:3}}]),atomnic:{active:true,mode:'constrained',size:5}});
+  const off=validateRecipe({...source,atomnic:{...source.atomnic,active:false}});
+  assert.deepEqual(evaluateRecipe(off).nodes,evaluateRecipe(source).nodes);
+  assert.equal(atomnicEditable(source),true);
+  const next=addAtom(source,{x:0,y:-10},'b');
+  assert.deepEqual(next.components.filter(c=>c.generator!=='dot'),source.components.filter(c=>c.generator!=='dot'));
+  assert.equal(atoms(next).length,2);
+  const transformed={...next,operations:[op('rotate','rotate',[],{angle:30})]};
+  assert.equal(atomnicEditable(transformed),false,'evaluated transforms still require their coordinate adapter');
+  assert.equal(atomnicEditable({...transformed,operations:[{...transformed.operations[0],enabled:false}]}),true);
+});
+
+test('Free accepts fractional overlapping placements while Realistic rejects incompatible geometry',()=>{
+  const free=validateRecipe({...recipe([dot('a')]),atomnic:{mode:'free',size:5,step:1}});
+  const overlapping=addAtom(free,{x:1,y:0},'b');
+  assert.equal(atoms(overlapping)[1].x,1);assert.equal(legalAtoms(overlapping),true);
+  assert.equal(legalAtoms({...overlapping,atomnic:{...overlapping.atomnic,mode:'constrained'}}),false);
+  const realistic=validateRecipe({...free,atomnic:{...free.atomnic,mode:'constrained'}});
+  const next=addAtom(realistic,{x:1,y:-10},'b');
+  assert.equal(atoms(next)[1].x,0);assert.equal(atoms(next)[1].y,-10);
+  assert.equal(legalAtoms(next),true);
+  assert.throws(()=>rotateAtoms(next,new Set(['b']),{x:0,y:0},1/12),/touching-lattice/);
+  assert.equal(legalAtoms(rotateAtoms(next,new Set(['b']),{x:0,y:0},1/6)),true);
+  assert.deepEqual(atoms(overlapping).map(a=>[a.id,a.x,a.y]),[['a',0,0],['b',1,0]],'rejected realistic candidates do not mutate Free source');
+});
+
+test('retained halving steps govern drag snapping in either direction, including zero',()=>{
+  almost(snapTurn(.14,1,2),2/12);
+  almost(snapTurn(-.14,1,2),-2/12);
+  almost(snapTurn(.14,1,-2),2/12);
+  assert.equal(snapTurn(.49,1,0),0);
+  almost(snapTurn(.14,1),2/12);
+  let total=0,previous=0;
+  for(const next of [.25,.49,-.25,0,.25]){total+=turnDelta(previous,next);previous=next;}
+  almost(total,1.25);
+  total=0;previous=0;
+  for(const next of [-.25,-.49,.25,0,-.25]){total+=turnDelta(previous,next);previous=next;}
+  almost(total,-1.25);
+});
+
+test('ungroup preserves nested positions, atom identities, marks and frame scopes',()=>{
+  const source=validateRecipe({...recipe([
+    {id:'outer',generator:'group',params:{x:20,y:10},children:[
+      {id:'inner',generator:'group',params:{x:-5,y:15},children:[dot('a',-10),dot('b',10)]},
+      dot('c',30)]},dot('other',-70)
+  ],[op('mark','highlight',['inner'],{which:'all',fraction:.5,color:'#ff0000'})],
+  [{id:'scope',property:'example',state:'unspecified',scope:['inner','other:shape']}]),atomnic:{mode:'free'}});
+  const before=atoms(source),rendered=evaluateRecipe(source).nodes.filter(n=>n.kind==='dot');
+  const next=ungroupAtoms(source,new Set(['a']));
+  assert.deepEqual(atoms(next).map(a=>[a.id,a.x,a.y]),before.map(a=>[a.id,a.x,a.y]));
+  assert.equal(atoms(next).find(a=>a.id==='a').group,'outer');
+  assert.equal(atoms(next).find(a=>a.id==='other').group,'@root');
+  assert.deepEqual(next.operations[0].targets,['a','b']);
+  assert.deepEqual(next.frames[0].scope,['a','b','other:shape']);
+  const after=evaluateRecipe(next);
+  assert.deepEqual(after.nodes.filter(n=>n.kind==='dot').map(({parent,...n})=>n),rendered.map(({parent,...n})=>n));
+  assert.equal(after.diagnostics.length,0);
+  assert.deepEqual(source.operations[0].targets,['inner'],'input is unchanged');
+  assert.equal(ungroupAtoms(source,new Set(['other'])),source,'ungroup at root is a no-op');
+});
+
+test('ungroup dissolves multiple nearest levels only when selected and retains legal rotation',()=>{
+  const source=validateRecipe({...recipe([{id:'outer',generator:'group',params:{},children:[
+    {id:'inner',generator:'group',params:{},children:[dot('a',0,-20)]},dot('b',0,20)
+  ]}],[op('mark','highlight',['outer'],{which:'all',fraction:.5})]),atomnic:{...atomnicSettings(recipe([])),mode:'constrained',size:5}});
+  const next=ungroupAtoms(source,new Set(['a','b']));
+  assert.deepEqual(next.components.map(c=>c.id),['a','b']);
+  assert.deepEqual(next.operations[0].targets,['a','b']);
+  const rotated=rotateAtoms(next,new Set(['a','b']),{x:0,y:0},1/6);
+  almost(atoms(rotated)[0].x,20*Math.sqrt(3)/2);
+  assert.equal(rotated.operations[0].params.start,60);
+});
 
 test('all starter generators and presets reconstruct deterministically without drawing or renderer objects',()=>{
   assert.deepEqual(GENERATORS.map(g=>g.id),['dot','ring','line','chain','radial','group','reference']);
@@ -208,4 +311,15 @@ test('parameter applicability follows registered scope rules without discarding 
   const group=applicableParameters(rotate,{scope:'group',pivot:'custom',snap:30});
   assert.ok(group.some(p=>p.key==='pivotX'));assert.ok(group.some(p=>p.key==='snapOrigin'));
   assert.ok(!applicableParameters(definition('highlight'),{which:'all',fraction:1}).some(p=>p.key==='index'||p.key==='start'));
+});
+
+test('direct target translation preserves group geometry, scope and profile legality',()=>{
+  const recipe={version:2,revision:1,atomnic:{active:false,mode:'free'},components:[{id:'g',generator:'group',params:{x:10,y:20},children:[{id:'r',generator:'ring',params:{x:3,y:4,radius:10}}]},{id:'other',generator:'line',params:{length:30}}],operations:[],frames:[]};
+  const next=translateTargets(recipe,new Set(['g','r']),{x:7,y:-2});
+  assert.deepEqual(next.components[0].params,{x:17,y:18});
+  assert.deepEqual(next.components[0].children[0].params,recipe.components[0].children[0].params,'selected ancestors prevent double translation');
+  assert.deepEqual(next.components[1],recipe.components[1]);assert.deepEqual(recipe.components[0].params,{x:10,y:20});
+  assert.throws(()=>translateTargets(recipe,new Set(['stale']),{x:1,y:0}),/no longer exists/);
+  const dot={...recipe,atomnic:{mode:'constrained',size:10},components:[{id:'dot',generator:'dot',params:{size:10,x:0,y:0}}]};
+  assert.throws(()=>translateTargets(dot,new Set(['dot']),{x:1,y:0}),/Realistic/);
 });

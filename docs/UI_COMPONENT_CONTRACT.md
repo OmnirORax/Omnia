@@ -9,6 +9,41 @@ sizes. Use accessible tooltips for secondary instructions. Preserve readable tex
 keyboard navigation and usable pointer targets. Contextual projections must fit
 only their relevant controls, with category-specific rows appearing when needed.
 
+`RadialMenu` is a shared icon-only contextual projection. `radialTree` groups
+declared action presentation metadata without changing command IDs or live controls.
+Categories open child rings around the centre of the clicked category button, leaving the parent ring and Composer canvas in place. Deeper categories repeat this anchoring; one branch per level is expanded, using 32/28/24px spheres in
+160/100/88px footprints, starting at top and proceeding clockwise. At most six
+spheres are drawn per ring; overflow becomes More tools and deeper navigation
+stops shrinking at 24px targets. No pointer-move layout/matching is needed. `ContextualMasterController`
+provides centred/clamped top-layer presentation and existing context-menu ownership. Child rings are portalled to escape the circular frame clip. Nested portalled controllers retain their connected parent context layers; the deepest ring is active, and closing it restores its parent so Escape steps outward. Anchors are measured once on click; viewport edges clamp popups.
+Embedded radar tools are hidden by default, with no eye/show-hide button. A visible circular axis and a 28px pointer-only rim band reveal controls on hover; tool hover, keyboard focus, an open child path or heldOpen requested editor retain reveal. The hit band stays outside the editing interior for quick-rim layouts. CSS reveal keeps controls mounted and adds no pointer-move matching, React updates, storage or history writes. Standalone context rings remain explicitly visible and have Close/Back instead of a visibility switch. The embedded radar can project quickItems followed by its root entries and optional quickEnd controls into adjacent 24px rim slots with 2px gaps, starting at top clockwise. Free/Realistic, ⠒ Atomnic and promoted tools share this arc; pen/eraser is in quickEnd so toggling it does not shift preceding controls. ResizeObserver updates its geometry only on resize, never on pointer movement. Category metadata may flatten a wrapper while preserving hidden descendants, IDs and child rings. Category metadata may retire a presentation branch without deleting command owners. Contextual controllers opened during a held press consume its trailing contextmenu event before newly appeared controls can interpret it; a fresh pointerdown enables normal interaction.
+`FunctionControl mirror symbol symbolOpacity tooltip` projects the existing action/field without
+another identity/value owner. Optional symbolMask supplies a vector silhouette; symbolOpacity fades and symbolFill paints only the default projected glyph (including conic-gradient color wheels), preserving button availability and saved custom appearances. Writable-input freedom metadata can supply this presentation through DOF discovery. Symbol fields open compact contextual editors.
+`UIField`/`UIAction registerOnly` retain real registry entries while their inline
+presentation is replaced by a projection. Names/current values belong in tooltips;
+editors show values only on request.
+
+Target-specific menus use `editableDegrees` over actual writable input adapters,
+not a hardcoded list of available tools. Operation metadata (`adjusts`) maps
+compatible property sets to their existing executors. A flat target ring may
+contain more than six degrees: it scales its geometry to separate buttons instead
+of introducing category/More navigation. The general category renderer remains
+bounded/paged. Shared scalar editors can open directly in step configuration;
+`RangeSettingsScope` retains working intervals/steps through portalled editor
+reopens for one editing session. This is transient widget navigation state, not
+another model-value store. Drag/keyboard/nudge/wheel honor the configured step;
+halving picks still respect hard property precision and bounds.
+
+`RadialMenu` can host an editing surface. Then it fills its circular frame, keeps
+the canvas size fixed while categories change, and attaches tools to the rim.
+Tool visibility does not hide the surface. `FloatingWindow shape="circle"` retains
+the existing resident ID, ownership, customization and history; it defaults to
+symbol chrome and locks resize aspect. Legacy rectangular sizes project into the
+circular default; square custom resizes survive. Shape-aware resize/viewport
+projection inscribes the circle in requested bounds. Circle styling belongs to
+the shared frame stylesheet, independent of its payload; clipping also makes
+outside corners noninteractive.
+
 New features must use the existing UI ownership, rendering, customization, history and persistence contracts. A clickable header is not the object it represents.
 
 Drag pickup measures destination bounds and child slots on demand and caches them
@@ -473,3 +508,38 @@ already run inside their wrapper and are not invoked twice. Do not use
 browser menu before React dispatch. Ordinary frame chrome and unowned controls
 keep existing UI editing. No Omnic-specific IDs, permission changes, listeners per
 function, geometry scans or saved ownership values are needed.
+
+
+## Active tool cursor inheritance
+
+`FEATURE_ACTIONS.toolIcon` declares a persistent tool's default glyph/image once.
+Its owner supplies active `cursor` state to `useFeatureActions`; the shared hook
+registers it automatically with the single website `ToolCursorLayer`. Alias
+buttons use `UIAction tool` with the canonical command ID. FunctionControl renders
+the same declared icon and captures the actual clicked glyph/custom asset before
+a toggle swaps to the next action. Native keyboard/default activation uses the
+declared icon; clicked appearance snapshots refresh on the next activation.
+
+The shared layer gives MS priority, keeps its live SelectorSymbol, precision
+anchor and parked position, and restores the underlying tool when MS closes.
+Other specialized live tools use `useToolCursor` with their existing symbol.
+Cursor nodes inherit the existing nonselectable decoration marker. Pointer motion
+updates one transform only: no React, geometry/style reads, matching, persistence
+or history. Style capture is activation-only and bounded to 128 icon nodes.
+Do not introduce another hardcoded cursor emoji, private portal or pointer listener.
+
+The pen/eraser uses two opposite halves of the same rounded diagonal silhouette,
+without an underline. Pen is upper black/lower white; Erase is upper black/lower
+white. The button offers the next action; the cursor shows the active one.
+
+Tool cursor inheritance is applicability-scoped. Every active cursor declares a
+`zone`; absent scope means native cursor. DOM surfaces register through
+`useToolCursorZone`, caching geometry on entry/resize/scroll; canvas/3D adapters
+publish existing hit results through `setToolCursorZone`. The resolver filters
+by the pointer's actual zone before choosing priority. Only an explicitly
+page-wide operation declares `zone: "*"`; selector/settings chrome is excluded.
+Leaving a zone restores native controls immediately, even with pointer capture
+(cached circle/rectangle containment). Function/zone transitions update the
+cursor selection; ordinary motion only updates its transform. The existing
+capture-phase cursor tracker feeds this transport before domain handlers can
+consume pointer events. It does not install another pointer-move listener.

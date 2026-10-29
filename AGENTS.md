@@ -127,6 +127,26 @@ it is incomplete, preserve existing systems and saved data, and document the
 extension contract so future workers use it. Do not maintain parallel lists or
 repeat feature-specific wiring where the shared system can derive it.
 
+# Active tool cursor inheritance (all agents)
+
+An active tool's cursor inherits the icon the user activated, including custom
+appearance. Declare its default `toolIcon` in `FEATURE_ACTIONS` and its active
+`cursor` state in `useFeatureActions`; alias buttons identify their canonical
+command with `UIAction tool`. The shared FunctionControl captures the clicked
+rendered icon once, and `ToolCursorLayer` supplies website-wide transport and
+priority. Each active tool MUST declare its applicable `zone`. Register DOM
+surfaces with `useToolCursorZone`; canvas/3D adapters publish their existing hit
+result with `setToolCursorZone`. Leaving that zone or entering controls restores
+the native cursor. Function/zone changes choose the applicable tool, rather than
+retaining the last clicked icon globally. Only page-wide operations declare
+`zone: "*"`; settings/selector chrome stay excluded. Keyboard/default activation
+uses the same declared icon. Specialized
+live composite tools use `useToolCursor` with their existing symbol component;
+MS keeps its precision anchor/parking and priority above other active tools.
+Never add private cursor emoji/portals, duplicate icon definitions, or per-tool
+pointer listeners. Ordinary motion must not trigger React, layout/style reads,
+storage or history; operation/zone transitions update only the cursor layer. Clicked custom appearance refreshes on the next activation.
+
 # Compactness is a product requirement
 
 **UI Compactness:** smallest practical layout + contents, neatly arranged,
@@ -152,6 +172,19 @@ relevant setter at a time. Confirm advances and Back/Esc goes back. Pivot, axis
 bounds, halving depth, optional direction and position appear in sequence. A
 permanent toolbar or a full settings grid violates the user's explicit correction.
 See OMNIC_WORKBENCH_MODEL.md for the exact contract.
+
+Latest Omnic correction: the **entire Composer is a circular radar**. Editing is
+inside it; icon/category tools live on its rim. Do not retain a rectangular
+Composer containing a separate radial popup, and do not remove the interior in
+favor of a headless world-only controller. Atomnic toggles tools on the same
+recipe/canvas; both on/off modes keep the radar. Only requested setters open
+compact contextual controls. Preserve the library and reusable engine/data paths.
+
+Target right-click specifically discovers writable DOFs from the active target's
+registered adapters. Present the corresponding adjusters directly around one
+circle, without category/file actions. Left-click uses retained settings;
+right-click that adjuster configures its snaps/halving progressively. Do not
+replace this with another static inventory of tools.
 
 # Responsiveness is a product requirement
 

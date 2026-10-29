@@ -2,7 +2,16 @@ import { useCancelValueEdit } from "./ActiveContext";
 import { claimUIPress } from "./pointerOwnership";
 import { rangeValue } from "./rangeMath";
 import { HalvingPicker } from "../properties/HalvingPicker";
-import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type Ref, type ReactNode } from "react";
+
+type WorkingRange={min?:number;max?:number;step?:number};
+const RangeSettings=createContext<{values:Record<string,WorkingRange>;change:(key:string,patch:WorkingRange)=>void}|null>(null);
+/** Retain widget working intervals/steps for one editing session, independently
+ * of target values. Portalled editors inherit the same scope automatically. */
+export function RangeSettingsScope({children}:{children:ReactNode}) {
+  const [values,setValues]=useState<Record<string,WorkingRange>>({});
+  return <RangeSettings.Provider value={{values,change:(key,patch)=>setValues(previous=>({...previous,[key]:{...previous[key],...patch}}))}}>{children}</RangeSettings.Provider>;
+}
 
 type Edit = "min" | "max" | "value" | "jump";
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min" | "max" | "onChange" | "onWheel" | "children"> & {
@@ -15,16 +24,21 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min
   hardMin?: number; hardMax?: number;
   inputRef?: Ref<HTMLInputElement>;
   onWheel?: (event: React.WheelEvent<HTMLElement>) => void;
+  configuration?:'step';
+  configurationKey?:string;
 };
 /** A shared slider presentation with track-wide dragging and native keyboard support.
  * Local working intervals and jump size never alter property validation bounds. */
 export function RangeControl({ value: storedValue, min, max, onValueChange, onMinimumChange, onMaximumChange,
-  hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, ...inputProps }: Props) {
+  hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, configuration, configurationKey, ...inputProps }: Props) {
   const value = Math.max(min, Math.min(max, storedValue));
   const resolution = Number(inputProps.step) || 1;
-  const [interval, setInterval] = useState({ min, max }), [jump, setJump] = useState(resolution);
+  const scope=useContext(RangeSettings),saved=configurationKey?scope?.values[configurationKey]:undefined;
+  const [localInterval, setInterval] = useState({ min, max }), [localJump, setJump] = useState(resolution);
+  const interval={min:saved?.min??localInterval.min,max:saved?.max??localInterval.max};
+  const jump=Math.max(resolution,Math.min(saved?.step??localJump,Math.max(resolution,hardMax-hardMin)));
   const [halving, setHalving] = useState(false);
-  const [editing, setEditing] = useState<Edit | null>(null), [text, setText] = useState("");
+  const [editing, setEditing] = useState<Edit | null>(configuration==='step'?'jump':null), [text, setText] = useState(configuration==='step'?String(jump):'');
   const low = onMinimumChange ? min : Math.min(value, Math.max(min, interval.min));
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
@@ -59,12 +73,12 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     cancelled.current = true;
     const parsed = text.trim() ? Number(text) : NaN;
     if (Number.isFinite(parsed)) {
-      if (editing === "jump") setJump(rangeValue(parsed, resolution, Math.max(resolution, hardMax - hardMin), resolution));
+      if (editing === "jump") {const next=rangeValue(parsed, resolution, Math.max(resolution, hardMax - hardMin), resolution);setJump(next);if(configurationKey)scope?.change(configurationKey,{step:next});}
       else {
         const next = editing === "value" ? Math.max(low, Math.min(high, parsed))
           : rangeValue(parsed, editing === "min" ? hardMin : low, editing === "max" ? hardMax : high, resolution);
-        if (editing === "min") { if (onMinimumChange) onMinimumChange(next); else setInterval(previous => ({ ...previous, min: next })); }
-        else if (editing === "max") { if (onMaximumChange) onMaximumChange(next); else setInterval(previous => ({ ...previous, max: next })); }
+        if (editing === "min") { if (onMinimumChange) onMinimumChange(next); else {setInterval(previous => ({ ...previous, min: next }));if(configurationKey)scope?.change(configurationKey,{min:next});} }
+        else if (editing === "max") { if (onMaximumChange) onMaximumChange(next); else {setInterval(previous => ({ ...previous, max: next }));if(configurationKey)scope?.change(configurationKey,{max:next});} }
         if (editing === "value" || value < next && editing === "min" || value > next && editing === "max") choose(next);
       }
     }
@@ -91,7 +105,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
           claimUIPress(event.pointerId, event.pointerType, event.buttons);
           input.current?.focus({ preventScroll: true });
           const bounds = event.currentTarget.getBoundingClientRect();
-          drag.current = { id: event.pointerId, left: bounds.left, width: Math.max(1, bounds.width), low, high, step: resolution, before: value, next: value };
+          drag.current = { id: event.pointerId, left: bounds.left, width: Math.max(1, bounds.width), low, high, step: jump, before: value, next: value };
           event.currentTarget.setPointerCapture(event.pointerId);
           moveDrag(event.clientX);
         }}
@@ -113,7 +127,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
         <input {...inputProps} ref={node => {
           input.current = node;
           if (typeof inputRef === "function") inputRef(node); else if (inputRef) inputRef.current = node;
-        }} type="range" min={low} max={high} value={value} className={`range-spectrum-input ${inputProps.className ?? ""}`} onChange={event => onValueChange(Number(event.currentTarget.value))} onContextMenu={context("value")} />
+        }} type="range" min={low} max={high} step={jump} value={value} className={`range-spectrum-input ${inputProps.className ?? ""}`} onChange={event => onValueChange(Number(event.currentTarget.value))} onContextMenu={context("value")} />
       </span>
       <button type="button" className="range-nudge range-nudge-right" disabled={inputProps.disabled} aria-label={`Increase ${label} by ${jump}`} title={`Increase by ${jump} · right-click to set jump`} onClick={() => choose(rangeValue(value + jump, low, high, resolution))} onContextMenu={context("jump")}>
         <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M3 6L15 16L3 26" /></svg>

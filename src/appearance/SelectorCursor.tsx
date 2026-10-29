@@ -1,34 +1,15 @@
-import { useLayoutEffect, useRef } from "react";
+import { useMemo } from "react";
+import { useToolCursor } from "../ui/toolCursor";
 import { SelectorSymbol, SELECTOR_VIEW, type SelectorConfiguration } from "./SelectorSymbol";
 
-/** Pointer motion updates only this element; it does not render the application tree. */
+/** MS keeps its live selector symbol/precision anchor; shared transport owns motion and priority. */
 export function SelectorCursor({ configuration, initial, include = true, parked = false }: { parked?: boolean; include?: boolean; configuration: SelectorConfiguration; initial: { x: number; y: number } }) {
-  const root = useRef<HTMLDivElement>(null), last = useRef(initial);
-  useLayoutEffect(() => {
-    last.current = initial;
-    let frame = 0;
-    const offset = { x: 0, y: 0 };
-    const paint = () => {
-      frame = 0;
-      if (root.current) root.current.style.transform = `translate3d(${last.current.x - offset.x}px,${last.current.y - offset.y}px,0)`;
-    };
-    const measure = () => {
-      const rect = root.current!.getBoundingClientRect();
-      offset.x = rect.width * SELECTOR_VIEW.x / SELECTOR_VIEW.width;
-      offset.y = rect.height * SELECTOR_VIEW.y / SELECTOR_VIEW.height;
-      cancelAnimationFrame(frame); paint();
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(root.current!);
-    const move = (event: PointerEvent) => {
-      last.current = { x: event.clientX, y: event.clientY };
-      if (!frame) frame = requestAnimationFrame(paint);
-    };
-    if (!parked) window.addEventListener("pointermove", move, true);
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("pointermove", move, true); };
-  }, [parked, initial.x, initial.y]);
-  return <div ref={root} data-visual-selector className="visual-selector-cursor" aria-hidden="true">
-    <SelectorSymbol configuration={configuration} include={include} precision />
-  </div>;
+  const parkedX=parked?initial.x:undefined,parkedY=parked?initial.y:undefined;
+  const request=useMemo(()=>({key:'visual-selector',zone:'*',priority:100,className:'visual-selector-cursor',width:64,height:60,
+    icon:<SelectorSymbol configuration={configuration} include={include} precision />,
+    anchor:{x:SELECTOR_VIEW.x/SELECTOR_VIEW.width,y:SELECTOR_VIEW.y/SELECTOR_VIEW.height},
+    parked:parked?{x:parkedX!,y:parkedY!}:undefined,
+  }),[configuration,include,parked,parkedX,parkedY]);
+  useToolCursor(request);
+  return null;
 }

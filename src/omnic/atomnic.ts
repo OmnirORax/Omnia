@@ -6,6 +6,9 @@ import type { PatternObject } from '../appearance/propertyPatterns.ts';
 export type Point={x:number;y:number};
 export type Atom=Point & {id:string;group:string;component:Component;origin:Point;radius:number;values:PatternObject['values']};
 export const atomnicSettings=(recipe:Recipe)=>({...atomnicDefaults(),...recipe.atomnic});
+/** Other generators share the recipe; geometry-transform operators need their
+ * evaluated-coordinate adapter before direct authored-dot gestures are safe. */
+export const atomnicEditable=(recipe:Recipe)=>recipe.operations.every(op=>!op.enabled||op.operator==='highlight');
 export function atoms(recipe:Recipe):Atom[] {
   const result:Atom[]=[];
   const walk=(items:Component[],origin:Point,group:string)=>items.forEach(component=>{
@@ -57,6 +60,30 @@ export function addAtom(recipe:Recipe,point:Point,id:string):Recipe {
 export function selectionScope(list:Atom[],ids:ReadonlySet<string>,macro:boolean):Set<string> {
   if(!macro)return new Set(ids);
   const groups=new Set(list.filter(a=>ids.has(a.id)).map(a=>a.group));return new Set(list.filter(a=>groups.has(a.group)).map(a=>a.id));
+}
+/** Dissolve only the nearest authored groups of the selected atoms. Children keep
+ * their identities and world coordinates; references to a removed group become
+ * explicit references to its former children, preserving their scope. */
+export function ungroupAtoms(recipe:Recipe,ids:ReadonlySet<string>):Recipe {
+  const groups=new Set(atoms(recipe).filter(a=>ids.has(a.id)&&a.group!=='@root').map(a=>a.group));
+  if(!groups.size)return recipe;
+  const replacements=new Map<string,string[]>();
+  const walk=(items:Component[]):Component[]=>items.flatMap(component=>{
+    const children=component.children?walk(component.children):undefined;
+    if(component.generator==='group'&&groups.has(component.id)) {
+      const promoted=(children??[]).map(child=>({...child,params:{...child.params,
+        x:Number(child.params.x??0)+Number(component.params.x??0),
+        y:Number(child.params.y??0)+Number(component.params.y??0)}}));
+      replacements.set(component.id,promoted.map(child=>child.id));
+      return promoted;
+    }
+    return [{...component,...(children?{children}:{})}];
+  });
+  const components=walk(recipe.components);
+  const expand=(targets:string[])=>[...new Set(targets.flatMap(id=>replacements.get(id)??[id]))];
+  return validateRecipe({...recipe,components,
+    operations:recipe.operations.map(operation=>({...operation,targets:expand(operation.targets)})),
+    frames:recipe.frames.map(frame=>({...frame,scope:expand(frame.scope)}))});
 }
 /** Shared deletion transaction for selected removal and continuous erasing.
  * Surviving identities and explicit operator addresses are never reassigned. */
