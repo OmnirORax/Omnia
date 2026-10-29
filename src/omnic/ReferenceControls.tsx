@@ -26,7 +26,7 @@ export function ReferenceControls({degree}:{degree:EditableDegree}){
   <option value="mixed" disabled>Mixed</option>
   {choices.map(([id,label])=><option key={id} value={id}>{label}</option>)}
  </select>;
- return <details className="omnic-reference-context" data-ui-popup-interior><summary title="Shared reference context and DOF override">⨮ Reference</summary>
+ return <details className="omnic-reference-context" data-ui-popup-interior><summary title="Shared reference context and DOF override">⟴ Reference</summary>
   <label title="Reference context shared by this object's DOFs; choosing it preserves geometry">Reference {select(false)}</label>
   <label title="This DOF can inherit, ignore or override the object's reference">{degree.label} {select(true)}</label>
   {active&&results.every(r=>JSON.stringify(r.reference)===JSON.stringify(active))&&<select aria-label="Reference feature" value={active.feature??''} onChange={event=>{

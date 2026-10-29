@@ -605,7 +605,7 @@ Composer dials no longer render Back, Next, Confirm or checkmark navigation butt
 
 ## Shared relational reference contexts (step 2)
 
-Target/preset DOF editors expose a collapsed ⨮ Reference section. Components store
+Target/preset DOF editors expose a collapsed ⟴ Reference section. Components store
 `relations.reference` once; `relations.degrees[property]` can override it, use null
 to ignore it, or omit the key to inherit. Stable property/component identities
 survive recipe persistence and chronological history. Self, parent, another local

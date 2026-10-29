@@ -51,7 +51,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [MC commands inherit the active geometry target](#interface-targets) | Implemented for review in the open PR; not merged to production | Click geometry in the Omnic radar or its edited world image, then MC → Active context; retained shortcuts Delete, F, M, W and D use the same commands. |
 | [Child controls open at the invoking cursor point](#interface-child-placement) | Implemented for review in the open PR; not merged to production | Shared contextual MC, DOF/property stages, numeric/halving editors, context submenus and frame/global search. |
 | [⠒❉ shared raw-number dial (Composer)](#omnic-mathematical-count-dial) | Implemented on PR preview; not production deployed. | Composer → right-click a target → hover its existing category → click any numeric DOF. Presets → choose a construction → choose a numeric DOF. Progressive numeric fields use a compact ⠒❉ value button. Search: ⠒❉ or mathematical dial. |
-| [Shared object and DOF reference contexts](#omnic-reference-context) | Implemented for review; not production deployed. | Composer → target or preset numeric DOF → ⨮ Reference. |
+| [Shared object and DOF reference contexts](#omnic-reference-context) | Implemented for review; not production deployed. | Composer → target or preset numeric DOF → ⟴ Reference. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1025,13 +1025,13 @@ The shared popup anchor captures the invocation position. A radial centres on it
 
 **ID:** `omnic.reference-context` · **Status:** Implemented for review; not production deployed.
 
-**Where:** Composer → target or preset numeric DOF → ⨮ Reference.
+**Where:** Composer → target or preset numeric DOF → ⟴ Reference.
 
 Choose one reference context for the selected authored components. Each DOF can inherit, ignore or override it. References address self, parent, another authored component or the composition frame, optionally identifying center, dimensions, boundary or an axis. Context edits use recipe history and persistence. Choosing/removing a context preserves realized geometry. Missing references remain explicitly unresolved. Preset insertion remaps internal component references.
 
 **Minimal working test**
 
-1. Create two components. Open a DOF on the first and expand ⨮ Reference. Choose the second as Object reference context. **Expected:** Geometry stays unchanged; other DOFs inherit the same reference.
+1. Create two components. Open a DOF on the first and expand ⟴ Reference. Choose the second as Object reference context. **Expected:** Geometry stays unchanged; other DOFs inherit the same reference.
 2. Open another DOF and choose Ignore reference, then Self, then Use object reference. **Expected:** Only that DOF changes reference policy; it returns to the shared reference when inheritance is restored.
 3. Save/reopen or Undo/Redo the context change. Remove the referenced component. **Expected:** Stored context and history survive; deletion reports Reference unavailable and preserves the target geometry.
 
