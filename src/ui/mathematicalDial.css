@@ -15,3 +15,12 @@
 .mathematical-dial-value{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;pointer-events:none}
 
 .mathematical-dial-order{display:contents}.mathematical-dial-order-rim{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:1px solid currentColor;border-radius:50%;box-sizing:border-box;pointer-events:none}.mathematical-dial-settings{flex-wrap:wrap;max-width:100%}
+
+.mathematical-dial-slot{opacity:0}
+.mathematical-dial-order:hover .mathematical-dial-slot,.mathematical-dial-order:has(.mathematical-dial-slot:focus-visible) .mathematical-dial-slot,.mathematical-dial-slot[data-selected=true]{opacity:1}
+.mathematical-dial-order:not(:hover):not(:has(.mathematical-dial-slot:focus-visible)) .mathematical-dial-slot[aria-disabled=true]:not([data-selected=true]){opacity:0}
+.mathematical-dial-hover-band{position:absolute;inset:0;pointer-events:none}.mathematical-dial-hover-band circle{pointer-events:stroke}
+.mathematical-dial-start-arrow{position:absolute;transform:translate(-50%,-50%);font-size:11px;line-height:1;pointer-events:none}
+.mathematical-dial-slot[data-start=true]::before{display:none}
+
+.mathematical-dial-hover-band{overflow:visible}.mathematical-dial-settings{position:relative;z-index:1;gap:0}

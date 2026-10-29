@@ -456,3 +456,14 @@ test('mathematical slot rules anchor normal and recursion to base and pack circu
  assert.equal(radialSlotCapacity(84,24),21);
  for(const radius of [24,36,48,60,72,84]){const count=radialSlotCapacity(radius,24);assert.ok(2*radius*Math.sin(Math.PI/count)>=24-1e-8);assert.ok(2*radius*Math.sin(Math.PI/(count+1))<24);}
 });
+
+
+test('mathematical outer ring activation requires an extra mark beyond the current rim',async()=>{
+ const {canAddMathematicalRing}=await import('../src/properties/mathematicalDial.ts');
+ assert.equal(canAddMathematicalRing(1,[]),false);
+ assert.equal(canAddMathematicalRing(1,[0]),false);
+ assert.equal(canAddMathematicalRing(1,[0,1]),true);
+ assert.equal(canAddMathematicalRing(2,[0,1]),false);
+ assert.equal(canAddMathematicalRing(2,[0,1,2]),true);
+ assert.equal(canAddMathematicalRing(4,[4]),false);
+});

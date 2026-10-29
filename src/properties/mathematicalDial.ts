@@ -8,3 +8,8 @@ export function radialSlotCapacity(radius:number,diameter:number){
  if(radius<=0||diameter<=0||diameter>2*radius)return 1;
  return Math.max(1,Math.floor(Math.PI/Math.asin(diameter/(2*radius))+1e-9));
 }
+
+/** Only a mark beyond the current outer rim unlocks the next order. */
+export function canAddMathematicalRing(orders:number,markedOrders:readonly number[],limit=4){
+ return orders<limit&&markedOrders.includes(orders);
+}

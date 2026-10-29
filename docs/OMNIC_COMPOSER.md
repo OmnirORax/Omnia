@@ -553,3 +553,7 @@ The exploration is direction, not finalized algebra: count derives from structur
 units/positions and uniform convertible rules; account for marks, frames and
 configuration space. Original source is archived in
 [Mathematical dial exploration](omnic/MATHEMATICAL_DIAL_EXPLORATION.md).
+
+### Progressive outer ring activation
+
+Unused slots reveal on ring-band hover or keyboard focus; selected marks stay visible. An extra candidate band beyond the outer rim has no drawn ring. Only activating an outward mark unlocks Add ring. Enclosing preserves it and hides Add ring until another outward mark is placed. Ordinary inner selections do not unlock it. Rings show start/direction arrows, default top/clockwise. Candidate slots overflow the compact active layout without reserving an empty larger disk.
