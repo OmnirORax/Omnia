@@ -396,3 +396,18 @@ whole-number notation is enabled; decimal notation, reference equations/rules an
 action/candidate ranking are deferred. Preserve existing exact fractional entry.
 Do not restore count-only picker flags or implement private math per preset/DOF.
 See OMNIC_COMPOSER.md and UI_COMPONENT_CONTRACT.md for the current scope.
+
+
+Global mathematical relationships follow the living experimental master plan in
+[docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md](docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md). Keep
+it current after each experiment and user correction. PR #41 is discarded; restart
+from PR #40. Build through shared property/action boundaries for all applicable
+DOFs/entry paths. Dragging through geometry is only one example. Keep experiments
+small, reviewable and reversible; user usage decides their acceptance. Do not
+implement the entire module roadmap at once or expose another manual reference
+form as a substitute for the shared architecture. Initial rollout stays Composer
+only; ranking remains excluded.
+
+The user owns the Math Dial's future mathematical-rule design. Leave that part
+to them; implement the surrounding shared infrastructure and integration without
+inventing notation/equations or creating a competing math-rule system.

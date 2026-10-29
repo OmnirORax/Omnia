@@ -1,5 +1,11 @@
 # Omnic / Omnium workbench: shared design model
 
+For global mathematical/reference/constraint work, read the
+[living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
+accepted baseline; PR #41 is discarded. Iterate small shared-module experiments
+with user feedback and update that plan before broadening the implementation.
+
+
 User synthesis, 2026-10-28. Read this before Omnic or Omnium node/frame work.
 Its purpose is to let a new agent continue the design without making the user
 explain it again. This is a working model, not a finalized grammar or a claim
