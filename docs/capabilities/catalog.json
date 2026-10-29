@@ -1846,7 +1846,7 @@
     {
       "id": "omnic.mathematical-count-dial",
       "title": "Mathematical count dial experiment",
-      "where": "Composer → right-click empty space → ⬤ Mathematical count preset → ●● Units → Count. Left-click Count to open the experimental dial; other DOF sliders remain available.",
+      "where": "Composer → right-click empty space → ⬤ Mathematical count preset opens its mathematical count dial immediately. On an existing test grid, right-click target → Units → Count opens the same dial.",
       "behavior": "Reusable MathematicalDial emits transient previews and explicit value commits through the shared property owner. Six slots start at top clockwise by default. Base 1 yields 1–6; base 2 yields 2,4,6,8,10,12. Right-click a slot cycles ● addition → ◉ multiplication → ◎ recursion for that slot. Multiplication in base 2 yields n×n; recursion yields 2^n, not an exponent tower. Modes other than addition require base 2. Hover/focus previews the total count, left-click commits, leaving the dial restores its last committed value. Buttons 1/2 switch base, ↻/↺ changes direction, and ⌖ advances the starting position clockwise. The ⬤ preset uses a count-grid generator that fills 20 touching dots per row left-to-right, then starts the next row above. Count, size, paint and position use shared registered properties and target setters. Existing constructions remain alongside the inserted preset.",
       "steps": [
         {
@@ -1862,7 +1862,7 @@
           "expect": "◎ previews/commits 64 dots: three full rows and four in the next row. Ordering follows configured start and direction."
         }
       ],
-      "limits": "Prototype uses six slots and existing count domain 1–64. Start, direction, base and slot modes are session-local. Existing sliders are retained; the mathematical picker is initially wired only to the test preset count editor. Base-1 multiplication/recursion do not preview or commit. Browser interaction acceptance pending.",
+      "limits": "Prototype uses six slots and existing count domain 1–64. Start, direction, base and slot modes are session-local. Existing sliders are retained; the mathematical picker replaces the test grid count slider in both preset and target editing; other properties retain sliders. Base-1 multiplication/recursion do not preview or commit. Browser interaction acceptance pending.",
       "verification": {
         "browser": "Pending user interaction acceptance.",
         "automated": "Preview build and backend imports checked locally; no browser suite run."

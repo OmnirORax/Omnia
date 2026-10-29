@@ -1,4 +1,4 @@
-import { DegreeSetter } from './DegreeSetter';
+import { DegreeSetter, DegreeValueEditor } from './DegreeSetter';
 import { contextTargets } from '../ui/contextTargets';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { useCallback, useId, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
@@ -29,7 +29,6 @@ import { radialTree, type RadialEntry } from '../ui/radialMenuModel';
 import { cursorPosition } from '../ui/cursorPosition';
 import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets, targetParameter } from './targetDegrees';
 import type { EditableDegree } from '../properties/editableDegrees';
-import type { Parameter } from './registry';
 import { useToolCursorZone } from '../ui/toolCursorZone';
 import { nameSymbol } from '../ui/nameSymbols';
 
@@ -290,14 +289,13 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       <small className="atomnic-status" title={`${tool} · ${list.length} units · ${selected.size} selected · Right-click for radial tools; right-click a tool to configure.`}>● {list.length} · ◉ {selected.size}</small></div>
     {surface}</>}
     {message&&<small className={radar?'omnic-radar-feedback':undefined} role="status">{message}</small>}
-    <ContextualMasterController stage={extraPanel?panelStage:panel.kind==='operation'||panel.kind==='reference'?`${panel.kind}:${panel.index}`:panel.kind==='degree'?`${panel.kind}:${panel.degree.id}:${panel.configure}`:panel.kind==='axis'?`${panel.kind}:${panel.stage}`:panel.kind} onDismiss={()=>{dismissPanel?.();setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}} title={extraPanel?'Omnic':panel.kind==='target'?'Target freedoms':panel.kind==='degree'?panel.degree.label:panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} radial={extraPanel?panelRadial:panel.kind==='functions'||panel.kind==='target'} position={extraPanel?(menu??cursorPosition()):radar&&panel.kind==='functions'?null:menu} onClose={()=>{if(extraPanel){closePanel?.();return;}if(panel.kind==='functions'&&radialNavigation.current?.back())return;setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
+    <ContextualMasterController stage={extraPanel?panelStage:panel.kind==='operation'||panel.kind==='reference'?`${panel.kind}:${panel.index}`:panel.kind==='degree'?`${panel.kind}:${panel.degree.id}:${panel.configure}`:panel.kind==='axis'?`${panel.kind}:${panel.stage}`:panel.kind} onDismiss={()=>{dismissPanel?.();setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}} title={extraPanel?'Omnic':panel.kind==='target'?'Target freedoms':panel.kind==='degree'?panel.degree.label:panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):panel.kind==='patterns'?'Property patterns':'Rotation pivot'} radial={extraPanel?panelRadial:panel.kind==='functions'||panel.kind==='target'||panel.kind==='degree'&&!panel.configure&&targetParameter(panel.degree).picker==='mathematical'} position={extraPanel?(menu??cursorPosition()):radar&&panel.kind==='functions'?null:menu} onClose={()=>{if(extraPanel){closePanel?.();return;}if(panel.kind==='functions'&&radialNavigation.current?.back())return;setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
       {extraPanel??<>
       {panel.kind==='target'&&<RadialMenu items={radialTree(degrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changeDegree(degree,value,true)} onCommit={value=>changeDegree(degree,value)} onOpen={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else setPanel({kind:'degree',degree,configure:false});}}/>,content:<><UIAction registerOnly id={`omnic:target-dof:${degree.id}`} label={degree.label} category="Omnic" tool={degree.action} onClick={()=>{
         if(degree.action){commands.invoke(degree.action as Parameters<typeof commands.invoke>[0]);}else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:false});}
       }} onConfigure={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:true});}}}/><FunctionControl id={`omnic:target-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.action?operationLabel(degree.action):String(targetDegreeValue(recipe,degree))} · Left-click adjusts; right-click configures`}/></>})))} onClose={()=>setMenu(null)}/>}
       {panel.kind==='degree'&&<div className="progressive-configuration">
-        <PropertyEditor key={`${panel.degree.id}:${panel.configure}`} property={panel.degree.properties[0]} label={panel.degree.label} configuration={panel.configure?'step':undefined}
-          value={targetDegreeValue(recipe,panel.degree)} limits={(panel.degree.targets[0].input as Parameter).kind==='number'?{min:targetParameter(panel.degree).min!,max:targetParameter(panel.degree).max!}:undefined}
+        <DegreeValueEditor key={`${panel.degree.id}:${panel.configure}`} recipe={recipe} degree={panel.degree} configure={panel.configure}
           onPreview={value=>changeDegree(panel.degree,value,true)} onCommit={value=>changeDegree(panel.degree,value)}/>
         <button type="button" onClick={()=>setPanel({kind:'target'})} title="Back to target freedoms" aria-label="Back to target freedoms">↩</button>
       </div>}

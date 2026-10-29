@@ -523,8 +523,9 @@ chrome and unrelated controls retain their UI customization route.
 
 The ⬤ Mathematical count preset uses `count-grid`, sharing count/size/paint/position
 properties and owner setters. Its count input declares `picker: "mathematical"`;
-the requested preset field projects the reusable `MathematicalDial`. Existing
-sliders remain in place elsewhere until interaction acceptance. Six slots default
+selecting ⬤ opens the reusable `MathematicalDial` immediately. The shared
+`DegreeValueEditor` projects it for both preset and target requests, replacing
+the count slider on this test grid. Existing sliders remain in place elsewhere until interaction acceptance. Six slots default
 to top/clockwise, with base buttons 1/2, direction toggle and a start-slot cycle.
 Each slot independently cycles ● addition / ◉ multiplication / ◎ recursion on
 right-click. For slot n: addition is base*n; base-2 multiplication is n*n; base-2

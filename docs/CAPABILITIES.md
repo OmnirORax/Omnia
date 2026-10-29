@@ -50,7 +50,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Active tool cursors inherit the activated icon](#interface-toolCursor) | Shared cursor system implemented; interaction acceptance pending | Applicable tool zones across the website. Omnic cursors apply inside the Composer editing circle and its edited Omnium image, not over tool buttons or settings. |
 | [MC commands inherit the active geometry target](#interface-targets) | Implemented for review in the open PR; not merged to production | Click geometry in the Omnic radar or its edited world image, then MC → Active context; retained shortcuts Delete, F, M, W and D use the same commands. |
 | [Child controls open at the invoking cursor point](#interface-child-placement) | Implemented for review in the open PR; not merged to production | Shared contextual MC, DOF/property stages, numeric/halving editors, context submenus and frame/global search. |
-| [Mathematical count dial experiment](#omnic-mathematical-count-dial) | Implemented on PR preview; not production deployed. | Composer → right-click empty space → ⬤ Mathematical count preset → ●● Units → Count. Left-click Count to open the experimental dial; other DOF sliders remain available. |
+| [Mathematical count dial experiment](#omnic-mathematical-count-dial) | Implemented on PR preview; not production deployed. | Composer → right-click empty space → ⬤ Mathematical count preset opens its mathematical count dial immediately. On an existing test grid, right-click target → Units → Count opens the same dial. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -995,7 +995,7 @@ The shared popup anchor captures the invocation position. A radial centres on it
 
 **ID:** `omnic.mathematical-count-dial` · **Status:** Implemented on PR preview; not production deployed.
 
-**Where:** Composer → right-click empty space → ⬤ Mathematical count preset → ●● Units → Count. Left-click Count to open the experimental dial; other DOF sliders remain available.
+**Where:** Composer → right-click empty space → ⬤ Mathematical count preset opens its mathematical count dial immediately. On an existing test grid, right-click target → Units → Count opens the same dial.
 
 Reusable MathematicalDial emits transient previews and explicit value commits through the shared property owner. Six slots start at top clockwise by default. Base 1 yields 1–6; base 2 yields 2,4,6,8,10,12. Right-click a slot cycles ● addition → ◉ multiplication → ◎ recursion for that slot. Multiplication in base 2 yields n×n; recursion yields 2^n, not an exponent tower. Modes other than addition require base 2. Hover/focus previews the total count, left-click commits, leaving the dial restores its last committed value. Buttons 1/2 switch base, ↻/↺ changes direction, and ⌖ advances the starting position clockwise. The ⬤ preset uses a count-grid generator that fills 20 touching dots per row left-to-right, then starts the next row above. Count, size, paint and position use shared registered properties and target setters. Existing constructions remain alongside the inserted preset.
 
@@ -1005,7 +1005,7 @@ Reusable MathematicalDial emits transient previews and explicit value commits th
 2. Choose base 2. Right-click slot 6 once, hover it, and left-click it. **Expected:** Slot 6 becomes ◉ and previews/commits 36 dots: 20 in the bottom row and 16 in the row above.
 3. Right-click slot 6 again, hover it, then click. Change direction and starting position. **Expected:** ◎ previews/commits 64 dots: three full rows and four in the next row. Ordering follows configured start and direction.
 
-**Limits / unavailable behavior:** Prototype uses six slots and existing count domain 1–64. Start, direction, base and slot modes are session-local. Existing sliders are retained; the mathematical picker is initially wired only to the test preset count editor. Base-1 multiplication/recursion do not preview or commit. Browser interaction acceptance pending.
+**Limits / unavailable behavior:** Prototype uses six slots and existing count domain 1–64. Start, direction, base and slot modes are session-local. Existing sliders are retained; the mathematical picker replaces the test grid count slider in both preset and target editing; other properties retain sliders. Base-1 multiplication/recursion do not preview or commit. Browser interaction acceptance pending.
 
 **Verification:** browser — Pending user interaction acceptance.. Automated — Preview build and backend imports checked locally; no browser suite run..
 
