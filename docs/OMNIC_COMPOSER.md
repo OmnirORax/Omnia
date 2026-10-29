@@ -519,9 +519,39 @@ also open UI-edit menus, including when a containing UI frame is selected. The
 shared function renderer preserves original contextual handlers; normal frame
 chrome and unrelated controls retain their UI customization route.
 
-## Mathematical count dial prototype (current brush design)
+## ⠒❉ shared raw-number dial (Composer refinement)
 
-The ⬤ preset immediately opens the shared metadata-selected Count picker.
+⠒❉ is the shared number system/control surface, initially editing raw values.
+Count was its first test consumer; reference-derived rules and equations remain
+future work. The existing property editor now projects this dial throughout the
+Composer via NumericEditorScope, including preset DOFs, stationary target DOFs
+and numeric operation/brush configuration. Outside this scope the ordinary
+property editors retain their existing behavior. No second property/value owner
+or per-preset math handler is introduced; the old count-only picker flag is removed.
+
+Right-click a target, hover its existing category and click a numeric DOF to open
+the compact dial. Presets show their DOF radial first, including ⬤. Small inline
+value buttons open requested dials for progressive controls. Full dials are never
+mounted permanently alongside every field. They retain the half-size geometry;
+meta controls overflow below the ring, keeping its centre at the invoking cursor.
+Right-clicking a DOF still opens existing snap/step configuration.
+
+± is available when the domain permits negatives. It reverses the active raw
+number/sign; subsequent marks use that sign. Slot notation currently represents
+whole numbers. Decimal notation controls are explicitly deferred. Clicking or
+right-clicking the compact value readout retains exact native-number entry,
+including existing fractional property values. Existing whole-number domains
+(count, index, angular order/steps/axis) are declared in input metadata and reused
+by property validation and the number editor. Invalid candidates are disabled;
+consumer limits and Realistic legality still govern final writes.
+
+⌫ clears scratch marks while preserving the property's realized value, allowing
+a fresh numeral. Opening an editor preserves its current raw value. External
+owner changes/Undo discard stale scratch marks, and preview cancellation restores
+the current owner rather than an older local number. Closing a preview clears
+only the Composer sample; accepted values remain in recipe/history/storage.
+
+The ⬤ test preset uses the same path as every other numeric DOF.
 Right-click in the drawing area changes only the active cursor brush ●/◎. It
 must never change a slot, mode assignment or count. Moving previews applying that
 brush; left-click fills a slot and stamps its mode, and holding left-click sweeps
@@ -553,7 +583,9 @@ cross-order algebra remains exploratory. Start/direction arrows default top/CW.
 
 The count-grid renderer uses shared count/size/paint/position properties, with20
 columns and rows upward. Domain0–512 bounds rendering; higher results cannot be
-painted. Base1 recursion remains unsupported. Other DOF sliders are retained.
+painted. Base1 recursion remains unsupported. Scope-only rollout preserves editors
+outside the Composer; color spectrum gestures, dial-size controls and snap-step
+configuration keep their specialized working paths.
 
 Original exploratory context is archived in
 [Mathematical dial exploration](omnic/MATHEMATICAL_DIAL_EXPLORATION.md).
@@ -565,3 +597,7 @@ The picker is named ⠒❉ (aliases mathematical dial/count dial). It is display
 All dials now share the Dials appearance family, with automatically detected role children and individual Radial menus/⠒❉ parts. Select the family for common edits, or right-click a specific dial/part for normal scoped overrides. Original mathematical target IDs and semantic role ancestry are retained.
 
 The advance-start-position button is removed. Meta controls are32px logical/16px displayed and sit below the outward candidate band; start remains top, with direction independently switchable.
+
+### MC hierarchy navigation
+
+Composer dials no longer render Back, Next, Confirm or checkmark navigation buttons. Alt+MB4 steps outward and Alt+MB5 advances through the nearest registered stage. Enter confirms via context.confirm; Esc cancels the current gesture/field/preview before stepping outward. Radial centres only drag; returning inward can restore the last stepped-out radial branch. Shared active-layer adapters and nested navigation registration supply these behaviors to applicable systems; no private mouse/key handler is added per dial. Plain MB4/5 history is retained.

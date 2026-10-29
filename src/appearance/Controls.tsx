@@ -1,6 +1,8 @@
 import { useContextStage } from '../ui/ContextStage';
 import { numericRange } from "../properties/numericRange";
 import { RangeControl } from "../ui/RangeControl";
+import { MathematicalValueControl } from "../ui/MathematicalValueControl";
+import { useNumericEditor } from "../ui/NumericEditorScope";
 import { useCancelValueEdit } from "../ui/ActiveContext";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ColorInput } from "../ui/ColorInput";
@@ -58,9 +60,11 @@ function PropertyInput({
   choices,
   limits,
   configuration,
+  numericPresentation,
 }: {
   property: string;
   configuration?:'step';
+  numericPresentation?:'inline';
   value: Value;
   onPreview: (value: Value) => void;
   onCommit: (value: Value) => void;
@@ -71,6 +75,7 @@ function PropertyInput({
   limits?: { min: number; max: number };
 }) {
   const ctx = useAppearance();
+  const numericEditor=useNumericEditor();
   const p = propertyFor(property)!;
   const beforeRange = useRef(value);
   const input = useRef<HTMLInputElement>(null),
@@ -84,7 +89,7 @@ function PropertyInput({
     setNumber(Number(value));
   }, [value]);
   useEffect(() => {
-    if (p.kind !== "number") return;
+    if (p.kind !== "number" || numericEditor.mathematical && configuration!=='step') return;
     const node = input.current!;
     const commit = () => {
       if (editing.current) {
@@ -98,7 +103,7 @@ function PropertyInput({
       node.removeEventListener("change", commit);
       node.removeEventListener("blur", commit);
     };
-  }, [p.kind]);
+  }, [p.kind,numericEditor.mathematical,configuration]);
   const cancelRange = () => {
     if (!editing.current) return;
     editing.current = false; draft.current = beforeRange.current;
@@ -158,6 +163,10 @@ function PropertyInput({
       </div>
     );
   }
+  if(numericEditor.mathematical&&configuration!=='step')return <MathematicalValueControl
+    inline={numericPresentation==='inline'} label={label??p.label} disabled={disabled}
+    value={Number(value)} min={limits?.min??p.min!} max={limits?.max??p.max!} integer={p.integer}
+    onPreview={onPreview} onCommit={onCommit}/>;
   return <RangeControl
     configuration={configuration}
     configurationKey={property}

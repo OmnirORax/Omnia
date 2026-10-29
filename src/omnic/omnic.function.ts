@@ -25,7 +25,7 @@ export function checkedParameter(parameter: Parameter, input: PropertyValue): Pr
   if (parameter.kind === "number") {
     if (typeof input !== "number" || !Number.isFinite(input)) throw Error(`Expected a finite ${parameter.label}.`);
     let value = Math.max(parameter.min ?? spec?.min ?? -Infinity, Math.min(parameter.max ?? spec?.max ?? Infinity, input));
-    if (["omnic.count","omnic.unitIndex","halving.angularOrder","halving.turnSteps","halving.axisStep"].includes(parameter.property)) value = Math.round(value);
+    if (parameter.integer) value = Math.round(value);
     return value;
   }
   if (parameter.kind === "toggle" && typeof input !== "boolean") throw Error(`Expected boolean ${parameter.label}.`);
@@ -39,7 +39,7 @@ const inputs = Object.fromEntries([...families].map(([property, group]) => {
   const definition: PropertyDefinition | undefined = PROPERTY_REGISTRY.property(property) ? undefined : {
     id:property, label:labels[property] ?? first.label, kind:first.kind, initial:first.initial,...(first.unit?{unit:first.unit}:{}),
     category:{id:"omnic",label:"Omnic structure"},
-    ...(first.kind === "number" ? {min:Math.min(...group.map(p=>p.min!)),max:Math.max(...group.map(p=>p.max!)),step:Math.min(...group.map(p=>p.step ?? 1))} : {}),
+    ...(first.kind === "number" ? {min:Math.min(...group.map(p=>p.min!)),max:Math.max(...group.map(p=>p.max!)),step:Math.min(...group.map(p=>p.step ?? 1)),integer:group.every(p=>p.integer)} : {}),
     ...(first.options ? {options:first.options} : {}),
     ...(first.kind === "text" ? {maxLength:200} : {}),
   };

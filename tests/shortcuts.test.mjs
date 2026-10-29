@@ -460,3 +460,25 @@ test('symbol named visual controls remain searchable by shared aliases without r
  for(const query of ['⠒❉','mathematical dial','count dial'])assert.equal(matchSearchResults(index,query)[0].key,'math');
  assert.equal(entries[0].label,'⠒❉');
 });
+
+
+test('MC hierarchy bindings reserve Alt side buttons without replacing plain mouse history',()=>{
+ const bindings=defaultSettings().bindings;
+ assert.equal(bindings['context.previous'],'Alt+MB4');assert.equal(bindings['context.next'],'Alt+MB5');assert.equal(bindings['context.confirm'],'Enter');
+ const event={button:3,altKey:true,ctrlKey:false,metaKey:false,shiftKey:false};
+ assert.equal(matchesPointerShortcut('context.previous',bindings,event),true);
+ assert.equal(matchesPointerShortcut('context.previous',bindings,{...event,altKey:false}),false);
+ assert.equal(matchesPointerShortcut('context.next',bindings,{...event,button:4}),true);
+ assert.equal(bindings['atomnic.confirm'],'','legacy confirmation delegates to MC without a competing default');
+});
+
+
+test('shared MC stage navigation resolves nearest applicable layer and retains field context',async()=>{
+ const {contextLayerAction}=await import('../src/ui/activeContextModel.ts');
+ const outer={},inner={},field={},calls=[];
+ const layers=new Map([[outer,{close:()=>{},advance:()=>calls.push('outer')}],[inner,{close:()=>{},confirm:()=>calls.push('inner'),cancel:()=>calls.push('cancel') }]]);
+ const stack=[{kind:'layer',element:outer},{kind:'layer',element:inner},{kind:'field',element:field}],before=[...stack];
+ contextLayerAction(stack,layers,'confirm')();contextLayerAction(stack,layers,'advance')();contextLayerAction(stack,layers,'cancel')();
+ assert.deepEqual(calls,['inner','outer','cancel']);assert.deepEqual(stack,before);
+ assert.equal(contextLayerAction([],layers,'confirm'),undefined);
+});

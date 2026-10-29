@@ -35,6 +35,28 @@ export function mathematicalSelectionValue(base:number,activations:readonly Math
  return value;
 }
 
+export type MathematicalDomain={min:number;max:number;integer?:boolean};
+/** Signed raw numerals. Decimal notation/equations remain a later extension. */
+export function mathematicalNumberValue(base:number,activations:readonly MathematicalActivation[],sign:1|-1=1){
+ const magnitude=mathematicalSelectionValue(base,activations);
+ return magnitude===0?0:sign*magnitude;
+}
+export function mathematicalValueAllowed(value:number,domain:MathematicalDomain){
+ return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER&&value>=domain.min&&value<=domain.max&&(!domain.integer||Number.isSafeInteger(value));
+}
+/** Gesture bookkeeping only; the property owner remains authoritative. Incoming
+ * Undo/Redo or another editor invalidates the old scratch numeral/preview. */
+export function mathematicalValueSession(value:number){
+ let committed=value,expected=value,sampling=false;
+ return {
+  receive(next:number){if(next===expected)return false;committed=expected=next;sampling=false;return true;},
+  preview(next:number){expected=next;sampling=true;return next;},
+  commit(next:number){committed=expected=next;sampling=false;return next;},
+  restore(){expected=committed;sampling=false;return committed;},
+  get sampling(){return sampling;},
+ };
+}
+
 export type MathematicalMarks={selected:readonly string[];modes:Readonly<Record<string,MathematicalSlotMode>>};
 /** Painting stamps the cursor mode only into visited slots, retaining all other marks. */
 export function paintMathematicalSlots(before:MathematicalMarks,visited:readonly string[],brush:MathematicalSlotMode):MathematicalMarks{

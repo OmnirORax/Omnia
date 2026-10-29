@@ -54,7 +54,7 @@ import {
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
@@ -1141,6 +1141,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       clearRecordedShortcutPress();
       if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
       if (event.defaultPrevented) return;
+      const contextAction=preferredFeatureKey(settings.bindings,normalizePointer(event),id=>FEATURE_ACTIONS.some(action=>action.id===id&&action.owner==='activeContext')&&featureActionRuntime.available(id));
+      if(contextAction){consumedShortcutPress.current=event.button;claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();featureActionRuntime.invoke(contextAction,event);return;}
       const action = actionForKey(settings.bindings, normalizePointer(event));
       if (action && (!(settingsOpen || insertContext) || action === "cancel" || action === "searchUI")) {
         consumedShortcutPress.current = event.button;

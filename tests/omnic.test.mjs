@@ -513,3 +513,44 @@ test('mathematical brush stamps its mode only into visited slots and preview doe
  assert.equal(paintMathematicalSlots(swept,['0:0','0:1'],'recursion'),swept);
  assert.equal(value(paintMathematicalSlots(swept,['0:0'],'normal')),10);
 });
+
+test('one signed mathematical numeral edits different registered DOFs without sharing their values',async()=>{
+ const {mathematicalNumberValue,mathematicalValueAllowed}=await import('../src/properties/mathematicalDial.ts');
+ const numeral=[{key:'0:2',ordinal:3,mode:'normal'}];
+ const positive=mathematicalNumberValue(2,numeral),negative=mathematicalNumberValue(2,numeral,-1);
+ assert.equal(positive,6);assert.equal(negative,-6);assert.equal(Object.is(mathematicalNumberValue(2,[],-1),-0),false);
+ const source=validateRecipe({...recipe([dot('disk'),{id:'line',generator:'line',params:{length:80}},{id:'rings',generator:'rings',params:{radius:20,count:3}},{id:'chain',generator:'chain',params:{count:4,spacing:20}}]),atomnic:{mode:'free'}});
+ for(const [id,property,value] of [['disk','omnic.coordinate.x',negative],['disk','omnic.coordinate.y',positive],['disk','omnic.extent',positive],['line','omnic.angle',negative],['line','omnic.extent',positive],['rings','omnic.radius',positive],['chain','omnic.spacing',positive],['chain','omnic.count',positive]]){
+  const degree=targetDegrees(source,[id]).find(d=>d.id===property),parameter=targetParameter(degree);
+  assert.equal(mathematicalValueAllowed(value,parameter),true);
+  const next=writeTargetDegree(source,degree,value);
+  assert.equal(targetDegreeValue(next,degree),value);
+  assert.ok(evaluateRecipe(next).nodes.length);
+  assert.deepEqual(next.components.filter(c=>c.id!==id),source.components.filter(c=>c.id!==id),'other consumers retain independent values');
+  assert.deepEqual(validateRecipe(JSON.parse(JSON.stringify(next))),next,'raw values round-trip through the existing recipe format');
+ }
+ assert.equal(mathematicalValueAllowed(negative,{min:0,max:512,integer:true}),false);
+ assert.equal(mathematicalValueAllowed(.5,{min:0,max:512,integer:true}),false);
+ assert.equal(mathematicalValueAllowed(.5,{min:0,max:1}),true,'existing exact fractional entry remains valid; no decimal slot notation is invented');
+ for(const invalid of [NaN,Infinity,-Infinity,513])assert.equal(mathematicalValueAllowed(invalid,{min:0,max:512}),false);
+});
+
+test('raw numeral preview cancellation follows owner changes and chronological undo',async()=>{
+ const {mathematicalValueSession,mathematicalNumberValue}=await import('../src/properties/mathematicalDial.ts');
+ const {createActionHistory}=await import('../src/ui/actionHistory.ts');
+ const before=validateRecipe({...recipe([dot('disk',5)]),atomnic:{mode:'free'}});let current=before,sample=null;
+ const degree=targetDegrees(current,['disk']).find(d=>d.id==='omnic.coordinate.x');
+ const history=createActionHistory(),session=mathematicalValueSession(5);
+ const stop=history.register('math-owner',{read:()=>current,write:next=>{current=next;session.receive(Number(targetDegreeValue(current,degree)));}});
+ const candidate=mathematicalNumberValue(2,[{key:'0:2',ordinal:3,mode:'normal'}],-1);
+ sample=writeTargetDegree(current,degree,session.preview(candidate));
+ assert.equal(session.receive(Number(targetDegreeValue(sample,degree))),false,'own live preview does not clear marks');
+ assert.equal(targetDegreeValue(current,degree),5);assert.equal(history.candidates('undo').length,0);
+ assert.equal(session.restore(),5);sample=null;
+ const after=writeTargetDegree(current,degree,session.commit(candidate));history.record('math-owner',current,after,['omnium'],['omnium']);current=after;
+ assert.equal(history.candidates('undo').length,1);
+ session.preview(12);assert.equal(history.travel('undo'),1);
+ assert.equal(targetDegreeValue(current,degree),5);assert.equal(session.sampling,false);assert.equal(session.restore(),5,'stale preview cannot restore the value from before Undo');
+ assert.equal(history.travel('redo'),1);assert.equal(session.restore(),-6);
+ assert.equal(session.receive(2),true,'external setter invalidates scratch state even after Redo');assert.equal(session.restore(),2);stop();
+});

@@ -367,3 +367,13 @@ shared right-click-to-configure semantics while ordinary click keeps execution.
 per-operation input sequences from its existing parameter keys; durable values
 remain in the same recipe/property adapters. Nested radial reference setup follows
 bounds → depth → optional direction → position, never a simultaneous input grid.
+
+
+Numeric input metadata may declare `integer: true` independently of step size.
+Omnic count/index and Atomnic angular indices use that declaration for import
+validation, shared property definitions and setters. Step describes interaction
+resolution; it must not be used to guess a property's mathematical domain.
+Within Composer, the shared property editor projects ⠒❉ through NumericEditorScope;
+other surfaces keep their existing editors. This scope changes presentation only,
+never property identity, storage, values or owner history. See the number-editor
+contract in UI_COMPONENT_CONTRACT.md.
