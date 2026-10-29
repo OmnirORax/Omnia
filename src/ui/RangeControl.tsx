@@ -53,7 +53,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
-  const drag = useRef<{ id: number; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; before: number; next: number } | null>(null);
+  const drag = useRef<{ id: number; origin?:{x:number;y:number}; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; before: number; next: number } | null>(null);
   const cancelDrag = () => {
     const active = drag.current;
     if (!active) return;
@@ -70,6 +70,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const moveDrag = (clientX: number,clientY:number) => {
     const active = drag.current;
     if (!active) return;
+    if(active.origin){const dx=clientX-active.origin.x,dy=clientY-active.origin.y,length=Math.hypot(dx,dy);if(length<3)return;active.ux=dx/length;active.uy=dy/length;const fraction=active.high===active.low?.5:(active.before-active.low)/(active.high-active.low);active.cx=active.origin.x-(fraction-.5)*active.width*active.ux;active.cy=active.origin.y-(fraction-.5)*active.width*active.uy;delete active.origin;}
     const next = rangeValue(active.low + (((clientX-active.cx)*active.ux+(clientY-active.cy)*active.uy)/active.width+.5) * (active.high - active.low), active.low, active.high, active.step);
     if (next !== active.next) { active.next = next; onValueChange(next); }
   };
@@ -79,7 +80,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     const projected=Math.abs(ux)*node.offsetWidth+Math.abs(uy)*node.offsetHeight;
     const scale=projected>0?bounds.width/projected:1,width=Math.max(1,node.offsetWidth*scale);
     const fraction=high===low?.5:(value-low)/(high-low);
-    drag.current={id,cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,before:value,next:value};
+    drag.current={id,...(relative?{origin:{x,y}}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,before:value,next:value};
     claimUIPress(id);return true;
   };
   const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);const next=drag.current!.next;drag.current=null;onValueCommit?.(next);};
