@@ -1,4 +1,4 @@
-import { UNIT_FREEDOM_GROUP, POSITION_FREEDOM_GROUP, VISUAL_FREEDOM_GROUP, type FreedomPresentation } from "../properties/editableDegrees.ts";
+import { RELATION_FREEDOM_GROUP, UNIT_FREEDOM_GROUP, POSITION_FREEDOM_GROUP, VISUAL_FREEDOM_GROUP, type FreedomPresentation } from "../properties/editableDegrees.ts";
 import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
@@ -12,7 +12,7 @@ export type OperatorContext = {
 export type Definition = { id: string; label: string; symbol?: string; parameters: readonly Parameter[]; description?: string; input?: readonly string[]; output?: "structure"|"selection"|"property"; category?: string; preconditions?: readonly string[]; apply?: (context:OperatorContext) => void };
 const number = (key: string, property: string, label: string, initial: number, min: number, max: number, step = .1, thresholds?:number[]): Parameter => ({key,property,label,kind:"number",initial,min,max,step,thresholds});
 const count:Parameter = {...number("count","omnic.count","Count",6,1,64,1,[1,2,3,4,6,8,12,16,32,64]),freedom:{label:"Count",symbol:"●●",group:[UNIT_FREEDOM_GROUP]}};
-const radius:Parameter = {...number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]),unit:'length',freedom:{label:"Radius",symbol:"⊖",group:[UNIT_FREEDOM_GROUP]}};
+const radius:Parameter = {...number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]),unit:'length',freedom:{label:"Radius",symbol:"⊖",group:[RELATION_FREEDOM_GROUP]}};
 const size:Parameter = {...number("size","omnic.extent","Unit size",6,.5,100,.5,[1,2,4,8,16,32,64]),unit:'length',freedom:{label:'Size',symbol:'●⬤',group:[UNIT_FREEDOM_GROUP]}};
 const fill: Parameter = {key:"fill",property:"omnic.fill",label:"Fill",kind:"toggle",initial:true,freedom:{label:"Fill",symbol:"◐",group:[UNIT_FREEDOM_GROUP]}};
 const angle:Parameter = {...number("angle","omnic.angle","Angle",0,-1080,1080,1,[-180,-90,0,90,180,360]),freedom:{label:"Rotation",symbol:"🗘",group:[POSITION_FREEDOM_GROUP]}};
