@@ -23,12 +23,11 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     return()=>observer.disconnect();
   },[!!quickItems,!!children]);
   const [path,setPath]=useState<CategoryAnchor[]>([]);
-  const childAnchor=(owner:HTMLElement,slot:HTMLElement,parentExtent:number,childExtent:number,embedded:boolean):CategoryAnchor=>{
+  const childAnchor=(owner:HTMLElement,slot:HTMLElement,childExtent:number):CategoryAnchor=>{
     const ownerBox=owner.getBoundingClientRect(),slotBox=slot.getBoundingClientRect();
     const ox=ownerBox.left+ownerBox.width/2,oy=ownerBox.top+ownerBox.height/2;
     const x=slotBox.left+slotBox.width/2,y=slotBox.top+slotBox.height/2,dx=x-ox,dy=y-oy,length=Math.hypot(dx,dy)||1;
-    const parentRadius=(embedded?ownerBox.width/2:parentExtent*scale/2);
-    const distance=parentRadius+childExtent*scale/2+2;
+    const distance=ownerBox.width/2+childExtent*scale/2+2;
     return {id:'',x:ox+dx/length*distance,y:oy+dy/length*distance};
   };
   const hoverTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -56,13 +55,13 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
       onLostPointerCapture={()=>{if(adjustment.current?.id===gestureKey){adjustment.current.api.cancel();adjustment.current=null;setAdjusting(null);}}}
       onPointerCancel={()=>{if(adjustment.current?.id===gestureKey){adjustment.current.api.cancel();adjustment.current=null;setAdjusting(null);}}}
       onClickCapture={event=>{if(suppressAdjustmentClick.current){suppressAdjustmentClick.current=false;event.preventDefault();event.stopPropagation();}}} style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}} onMouseEnter={event=>{keepChildren();if(node.children){const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialLayout(node.children!,depth+1);
-        if(owner){const anchor=childAnchor(owner,event.currentTarget,embedded?owner.getBoundingClientRect().width:radialLayout(nodes,depth).extent,layout.extent,embedded);setPath([...path.slice(0,depth),{...anchor,id:node.id}]);}}}} onMouseLeave={leaveChildren}>
+        if(owner){const anchor=childAnchor(owner,event.currentTarget,layout.extent);setPath([...path.slice(0,depth),{...anchor,id:node.id}]);}}}} onMouseLeave={leaveChildren}>
       {node.setter&&<span className="radial-menu-setter" style={{left:layout.slots[index].setterX,top:layout.slots[index].setterY,transform:`translate(-50%,-50%) rotate(${layout.slots[index].setterAngle}deg)`}}><RangeGestureTarget.Provider value={gestureTarget}><RangeAxis.Provider value={layout.slots[index].setterAngle}>{node.setter}</RangeAxis.Provider></RangeGestureTarget.Provider></span>}
       {node.children?<button type="button" data-ui-id={`radial:${node.id}`} aria-label={node.label} title={node.label} aria-haspopup="true" aria-expanded={path[depth]?.id===node.id} style={node.symbol.length>2?{fontSize:10}:undefined}
         onClick={event=>{
           if(path[depth]?.id===node.id){setPath(path.slice(0,depth));return;}
           const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialLayout(node.children!,depth+1);
-          if(!owner)return;const anchor=childAnchor(owner,event.currentTarget,embedded?owner.getBoundingClientRect().width:radialLayout(nodes,depth).extent,layout.extent,embedded);
+          if(!owner)return;const anchor=childAnchor(owner,event.currentTarget,layout.extent);
           setPath([...path.slice(0,depth),{...anchor,id:node.id}]);
         }}>{node.symbol}</button>:node.content}
     </span>;
