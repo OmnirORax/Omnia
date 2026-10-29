@@ -280,7 +280,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     const owner = `${omnicPreviewContext}:${omnicEditorId}`;
     if (!recipe) { if (omnicPreview.getSnapshot()?.owner === owner) omnicPreview.set(null); return; }
     if (!omnicEditorId) return;
-    omnicPreview.set({ owner, entityId: omnicEditorId, recipe, editing,
+    omnicPreview.set({ owner, entityId: omnicEditorId, recipe,
+      // Saved placements remain Atlas nodes; only unplaced drafts borrow world editing.
+      editing:omnicNewDraft?.entityId===omnicEditorId?editing:undefined,
       ...(omnicNewDraft?.entityId === omnicEditorId ? { temporary: omnicNewDraft } : {}) });
   }, [omnicPreview, omnicPreviewContext, omnicEditorId, omnicNewDraft]);
   const [navCommand, setNavCommand] = useState<NavigationCommand | null>(null);
