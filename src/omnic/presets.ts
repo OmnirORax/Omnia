@@ -1,10 +1,6 @@
 import type { Recipe } from "./model.ts";
 const recipe=(components:Recipe["components"],operations:Recipe["operations"]=[]):Recipe=>({version:1,revision:0,components,operations,frames:[]});
-const member=recipe([{id:"units",generator:"chain",params:{count:2,size:10,spacing:28}}],[{id:"mark",operator:"highlight",targets:["units"],params:{which:"index",index:1,fraction:1,color:"#ffffff"},enabled:true}]);
-const part=recipe([{id:"unit",generator:"dot",params:{size:18}}],[{id:"mark",operator:"highlight",targets:["unit"],params:{which:"all",fraction:.5,start:0,color:"#ffffff"},enabled:true}]);
 export const PRESETS: readonly {id:string;label:string;symbol?:string;description:string;recipe:Recipe}[]=[
-  {id:"member",label:"Member · one of two",description:"Highlight one whole unit within a generated pair.",recipe:member},
-  {id:"part",label:"Part · half a unit",description:"Highlight a half-disk region without splitting its identity.",recipe:part},
   {id:"radial",label:"Radial units",description:"Six distinguishable disks in a circular arrangement.",recipe:recipe([{id:"radial",generator:"radial",params:{count:6,radius:40,size:6}}])},
   {id:"line",label:"Line",description:"A standalone continuous line.",recipe:recipe([{id:"line",generator:"line",params:{length:80}}])},
   {id:"boundary",label:"Ring",description:"A standalone circular boundary.",recipe:recipe([{id:"boundary",generator:"ring",params:{radius:60,fill:false}}])},

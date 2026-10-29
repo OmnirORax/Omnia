@@ -14,6 +14,8 @@ import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets, 
 const op=(id,operator,targets=[],params={})=>({id,operator,targets,params,enabled:true});
 const recipe=(components,operations=[],frames=[])=>({version:1,revision:0,components,operations,frames});
 const dot=(id,x=0,y=0)=>({id,generator:'dot',params:{x,y,size:5}});
+const memberFixture=()=>recipe([{id:"units",generator:"chain",params:{count:2,size:10,spacing:28}}],[op("mark","highlight",["units"],{which:"index",index:1,fraction:1,color:"#ffffff"})]);
+const partFixture=()=>recipe([{id:"unit",generator:"dot",params:{size:18}}],[op("mark","highlight",["unit"],{which:"all",fraction:.5,start:0,color:"#ffffff"})]);
 const almost=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 test('target freedoms derive from writable generator parameters and applicable operation adapters',()=>{
   const source=validateRecipe({...recipe([dot('a'),dot('b',20),{id:'rim',generator:'ring',params:{radius:30}}]),atomnic:{mode:'free'}});
@@ -30,7 +32,7 @@ test('target freedoms derive from writable generator parameters and applicable o
   assert.throws(()=>writeTargetDegree({...source,components:source.components.slice(1)},color,'#ffffff'),/no longer exists/,'stale identities never widen the scope');
 });
 test('preset discovery includes every applicable component and operation freedom without widening writes',()=>{
-  const source=validateRecipe(createRecipe('part'));
+  const source=validateRecipe(partFixture());
   const ids=[...source.components.map(c=>c.id),...source.operations.map(o=>o.id)];
   const degrees=targetDegrees(source,ids,[],[],'available');
   const fraction=degrees.find(d=>d.id==='omnic.regionFraction');
@@ -48,7 +50,7 @@ test('preset discovery includes every applicable component and operation freedom
   assert.throws(()=>writeTargetDegree({...source,operations:[]},fraction,.2),/no longer exists/);
 });
 test('construction insertion retains existing objects and remaps independent internal scopes',()=>{
-  const source=validateRecipe({...createRecipe('part'),frames:[{id:'frame',property:'part',state:'unspecified',scope:['unit:shape']}]});
+  const source=validateRecipe({...partFixture(),frames:[{id:'frame',property:'part',state:'unspecified',scope:['unit:shape']}]});
   const existing=validateRecipe(createRecipe('line')),before=JSON.stringify(existing);let n=0;
   const a=insertConstruction(existing,source,{x:30,y:-20},()=>`copy-${++n}`);
   const b=insertConstruction(a.recipe,source,{x:-30,y:20},()=>`copy-${++n}`);
@@ -339,25 +341,25 @@ test('existing Unicode canonical identities remain referenceable and generated s
 });
 
 test('Member and Part highlighting is authored geometry with unchanged unit identity/count',()=>{
-  const member=evaluateRecipe(createRecipe('member'));
+  const member=evaluateRecipe(memberFixture());
   assert.equal(member.properties.count,2);
   assert.deepEqual(member.nodes.filter(n=>n.highlight).map(n=>n.id),['units:unit:0']);
-  const part=evaluateRecipe(createRecipe('part'));
+  const part=evaluateRecipe(partFixture());
   assert.equal(part.properties.count,1);
   assert.equal(part.nodes.find(n=>n.highlight).highlight.fraction,.5);
   const svg=renderSVG(part);
   assert.match(svg,/data-omnic-fraction="0.5"/);assert.match(svg,/<path /);
-  const source=createRecipe('member');source.operations[0].params.index=3;
+  const source=memberFixture();source.operations[0].params.index=3;
   const unavailable=evaluateRecipe(source);
   assert.equal(unavailable.nodes.filter(n=>n.highlight).length,0);
   assert.ok(unavailable.diagnostics.some(d=>d.message.includes('outside this scope')));
 });
 test('region, per-unit and group rotations have distinct pivots and saved snapping',()=>{
-  const source=createRecipe('part');source.components[0].params.x=25;
+  const source=partFixture();source.components[0].params.x=25;
   source.operations.push(op('turn','rotate',[],{angle:50,snap:30,scope:'region',pivot:'center'}));
   const region=evaluateRecipe(source).nodes.find(n=>n.highlight);
   almost(region.x,25);almost(region.highlight.start,60);
-  const pair=createRecipe('member');pair.operations.push(op('turn','rotate',[],{angle:90,scope:'each',pivot:'center'}));
+  const pair=memberFixture();pair.operations.push(op('turn','rotate',[],{angle:90,scope:'each',pivot:'center'}));
   const each=evaluateRecipe(pair).nodes.filter(n=>n.kind==='dot');
   almost(each[0].x,-14);almost(each[0].y,0);almost(each[0].highlight.start,90);
   pair.operations.at(-1).params.scope='group';
@@ -377,14 +379,14 @@ test('angle grids and explicit angle choices reject invalid constraints and avoi
 });
 test('operation tools stamp explicit copies into new scopes without modifying shared definitions',async()=>{
   const {operationTool,applyOperationTool,isOperationTool}=await import('../src/omnic/tools.ts');
-  const tool=operationTool(createRecipe('part').operations[0]);assert.ok(isOperationTool(tool));
+  const tool=operationTool(partFixture().operations[0]);assert.ok(isOperationTool(tool));
   const before=JSON.stringify(tool);
   const target=createRecipe('chain');let count=0;
   const stamped=applyOperationTool(target,tool,['chain'],()=>`copy-${++count}`);
   assert.equal(stamped.operations.length,1);
   assert.equal(evaluateRecipe(stamped).nodes.filter(n=>n.highlight).length,5);
   assert.equal(JSON.stringify(tool),before);assert.equal(target.operations.length,0);
-  assert.throws(()=>applyOperationTool(target,createRecipe('part'),[],()=>`copy-${++count}`));
+  assert.throws(()=>applyOperationTool(target,partFixture(),[],()=>`copy-${++count}`));
 });
 test('parameter applicability follows registered scope rules without discarding saved values',async()=>{
   const {definition,applicableParameters}=await import('../src/omnic/registry.ts');
