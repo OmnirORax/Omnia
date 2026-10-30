@@ -642,3 +642,28 @@ pivot/orbit workflow. Other numeric DOFs retain their existing editor.
 The older E02 Reference → Rule → Match numeric UI is removed. Its pure measured
 context models remain groundwork. See E03 in the living master plan and capability
 omnic.dof-state-wheel for test steps and explicit experiment limits.
+
+
+### E04: available-state fields across numeric DOFs
+
+Every numeric target/preset DOF now projects DofStateField from its registered
+Parameter domain. The shared numeric PropertyEditor projection also opens that
+field. Coordinates X/Y and length quantities use spatial/magnitude axes, cyclic
+rotation uses directions, and raw quantities such as Count/Opacity use radial
+addresses. Count has no implied physical axis. The same prepared-field nearest
+query, temporary owner preview, captured click commitment and history serve all.
+
+Right-click mode chooses Partitions/Symmetry, Halving or Step. Left-click mode
+configures divisions, step, working limits or exact '=' entry via the math dial.
+Integer domains default to unit steps; other fields to partitions. Limits filter
+available states and never bypass hard domains; invalid/empty fields cannot apply.
+Reference picking now uses property/measurement/unit compatibility for numeric
+DOFs. The reference itself is a candidate when valid; Halving and Step derive
+further states from it. Alt parks indicators through the existing shared cursor.
+
+This supersedes the rotation-only editor and E01 Value/Increment presentation.
+No new per-DOF preview code is needed. Constraint preparation is bounded and target
+legality uses the existing setter; pointer motion only picks prepared candidates.
+The current spatial fields are single axes; arbitrary 2D regions, containment,
+collision, equations, nonnumeric field adapters and persistent bindings remain
+future domain/constraint work. See E04 and capability omnic.dof-state-wheel.

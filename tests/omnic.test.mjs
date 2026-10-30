@@ -694,3 +694,66 @@ test('state click applies its captured preview even when native focus cancels ho
  press.press(.25);assert.equal(press.take(.75),.75,'a still-current preview takes precedence');
  press.press(.5);press.cancel();assert.equal(press.take(),undefined,'leaving or cancellation discards the press');
 });
+
+test('one state field generator serves numeric domains and projections through registered owners',async()=>{
+ const {createStateField,nearestFieldCandidate}=await import('../src/properties/stateField.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'chain',params:{count:6,size:6,angle:0,opacity:.5,x:0,y:0}}]));
+ const degrees=targetDegrees(source,['a']);
+ for(const property of ['omnic.count','omnic.extent','omnic.angle','opacity','omnic.coordinate.x','omnic.coordinate.y']){
+  const degree=degrees.find(d=>d.id===property),parameter=targetParameter(degree),domain=stateFieldDomain(parameter);
+  assert.ok(domain,property);
+  const field=createStateField(domain,{mode:domain.integer?'step':'symmetry',count:8,step:domain.resolution,reference:domain.cyclic?.north??Number(targetDegreeValue(source,degree))},value=>{try{writeTargetDegree(source,degree,value);return true;}catch{return false;}});
+  assert.ok(field.candidates.length,property);
+  const candidate=field.candidates.find(c=>c.value!==targetDegreeValue(source,degree))??field.candidates[0];
+  assert.equal(nearestFieldCandidate(field,candidate.point)?.value,candidate.value);
+  const next=writeTargetDegree(source,degree,candidate.value);
+  assert.equal(targetDegreeValue(next,degree),candidate.value,'all manifestations use the same owner write');
+  assert.equal(Number(targetDegreeValue(source,degree)),Number(source.components[0].params[parameter.key]),'previews never mutate source');
+  assert.ok(evaluateRecipe(next).nodes.length,'existing rendering provides the outcome');
+  assert.ok(field.candidates.every(c=>!domain.integer||Number.isInteger(c.value)));
+ }
+ const x=stateFieldDomain(targetParameter(degrees.find(d=>d.id==='omnic.coordinate.x'))),y=stateFieldDomain(targetParameter(degrees.find(d=>d.id==='omnic.coordinate.y')));
+ assert.equal(x.projection,'axis-x');assert.equal(y.projection,'axis-y');
+ const spatial=createStateField(x,{mode:'symmetry',count:8,step:1,reference:0,min:-40,max:40});
+ assert.deepEqual(spatial.candidates.map(c=>c.value),[-40,-30,-20,-10,0,10,20,30,40]);
+ assert.equal(nearestFieldCandidate(spatial,{x:.39,y:.12}).value,20);
+ assert.ok(spatial.candidates.every(c=>c.point.y===0));
+ const referenceState=createStateField(x,{mode:'symmetry',count:8,step:1,reference:17,referenceId:'other-x',min:-40,max:40}).candidates.find(c=>c.value===17);
+ assert.equal(referenceState.derivation.mode,'reference');
+ assert.equal(referenceState.derivation.referenceId,'other-x');
+ const radius=stateFieldDomain(targetParameter(degrees.find(d=>d.id==='omnic.extent')));
+ assert.equal(radius.projection,'axis-x','length quantities inherit magnitude-axis projection');
+});
+
+test('state fields filter constraints before pointer selection and retain derivations',async()=>{
+ const {createStateField,nearestFieldCandidate}=await import('../src/properties/stateField.ts');
+ const domain={min:0,max:64,integer:true,resolution:1,projection:'radial'};
+ let validations=0;
+ const field=createStateField(domain,{mode:'step',count:8,step:1,reference:6,referenceId:'other-count',min:4,max:9},value=>{validations++;return value!==7;});
+ assert.deepEqual(field.candidates.map(c=>c.value),[4,5,6,8,9]);
+ const prepared=validations;
+ for(const candidate of field.candidates)nearestFieldCandidate(field,candidate.point);
+ assert.equal(validations,prepared,'pointer picking never invokes owner validation or recomputes candidates');
+ assert.deepEqual(field.candidates[0].derivation,{mode:'step',reference:6,referenceId:'other-count',index:2,count:8,step:1,min:4,max:9});
+ const fractions=createStateField({...domain,max:9},{mode:'symmetry',count:8,step:1,reference:0});
+ assert.deepEqual(fractions.candidates.map(c=>c.value),[0,9],'fractional integer candidates are excluded, never rounded into invented states');
+ assert.deepEqual(createStateField(domain,{mode:'step',count:8,step:0,reference:6}).candidates,[]);
+ assert.deepEqual(createStateField(domain,{mode:'symmetry',count:8,step:1,reference:6,min:20,max:10}).candidates,[],'conflicting constraints yield an empty field');
+ const half=createStateField({min:0,max:1,resolution:.01,projection:'radial'},{mode:'halving',count:4,step:.01,reference:.5});
+ assert.deepEqual(half.candidates.map(c=>c.value),[.5,.25,.125,.0625]);
+ const rotated=createStateField({min:-1080,max:1080,resolution:1,projection:'radial',cyclic:{period:360,north:-90}},{mode:'symmetry',count:8,step:45,reference:-90});
+ assert.equal(rotated.candidates[0].value,-90);assert.equal(rotated.candidates[4].value,90);
+ almost(rotated.candidates[0].point.y,-.8);almost(rotated.candidates[4].point.y,.8);
+});
+
+test('numeric reference picking inherits property and measured-quantity compatibility',async()=>{
+ const {selectionReference}=await import('../src/omnic/selectionReference.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'chain',params:{count:6,size:10,opacity:.5}},{id:'b',generator:'radial',params:{count:12,size:8,opacity:.75}},{id:'ring',generator:'ring',params:{radius:40}},{id:'line',generator:'line',params:{length:40}}]));
+ const degrees=targetDegrees(source,['a']);
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='omnic.count'),'b').value,12);
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='opacity'),'b').value,.75);
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='omnic.extent'),'ring').value,40,'same radius measurement supports different shared-property aliases');
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='omnic.extent'),'line'),undefined,'length and radius are distinct quantities despite a shared extent property');
+ assert.equal(source.components[0].params.count,6,'reference picking changes context, not geometry');
+});

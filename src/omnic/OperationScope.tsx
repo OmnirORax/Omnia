@@ -3,7 +3,7 @@ import {LIMITS,type Recipe,type RecipeResolver} from './model';
 import type {Evaluation} from './evaluate';
 import type {EditableDegree} from '../properties/editableDegrees';
 import {NumericOperationScope,type SelectionReference,type NumericReferenceControl} from '../ui/NumericEditorScope';
-import {targetParameter} from './targetDegrees';
+import {targetParameter,writeTargetDegree} from './targetDegrees';
 import {selectionReference} from './selectionReference';
 import {operationGeometry,type OperationGeometry} from './operationContext';
 
@@ -27,7 +27,7 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,ch
   for(const t of request.degree.targets)setReferences(before=>new Map(before).set(t.id,id));
   return true;
  },read:()=>callbacks.current.read(),error:e=>callbacks.current.error(e),choose:(target,reference)=>{
-  if(!snapshot?.components.has(target))return;
+  if(!snapshot?.components.has(target)&&!snapshot?.recipe.operations.some(item=>item.id===target))return;
   setReferences(before=>{const next=new Map(before);if(reference)next.set(target,reference);else next.delete(target);
    if(next.size>LIMITS.components)for(const id of next.keys()){if(!snapshot.components.has(id))next.delete(id);if(next.size<=LIMITS.components)break;}
    return next;});
@@ -41,11 +41,13 @@ export function OperationDegreeScope({degree,children}:{degree:EditableDegree;ch
  const scope=useContext(Context),ids=[...new Set(degree.targets.map(t=>t.id))],property=degree.properties[0],key=ids.join('|');
  const reference=useMemo<NumericReferenceControl|undefined>(()=>{
   const snapshot=scope?.snapshot;
-  if(!scope||!snapshot||ids.length!==1||degree.properties.length!==1||!snapshot.components.has(ids[0]))return;
+  if(!scope||!snapshot||degree.properties.length!==1)return;
   const target=ids[0],retained=scope.references.get(target),parameter=targetParameter(degree);
-  if(!parameter.selection)return;
+  if(parameter.kind!=='number')return;
+  const allowed=(value:number)=>{try{writeTargetDegree(snapshot.recipe,degree,value);return true;}catch{return false;}};
+  if(ids.length!==1)return {allowed};
   const current=retained?selectionReference(snapshot.recipe,degree,retained):undefined;
-  return {selection:{current,unavailable:!!retained&&!current,pick:()=>scope.pick(degree),clear:()=>scope.choose(target),cancel:scope.cancelPick}};
+  return {allowed,selection:{current,unavailable:!!retained&&!current,pick:()=>scope.pick(degree),clear:()=>scope.choose(target),cancel:scope.cancelPick}};
 
  },[scope,key,property]);
  return <NumericOperationScope.Provider value={reference}>{children}</NumericOperationScope.Provider>;

@@ -396,3 +396,18 @@ preset or object identity. The common rule generator handles symmetry, halving a
 fixed-step alternatives; the math dial configures numeric variables. Registered
 owner setters and legality are reused. New domains need an actual state-domain
 adapter, not copied rotation UI or guessed property-name applicability.
+
+
+The available-state field generalizes numeric editing across Composer inputs.
+`stateFieldDomain` derives domains/projections from existing Parameter metadata;
+`createStateField` performs bounded generation, domain and owner-constraint filtering
+and projection once per configuration. `nearestFieldCandidate` reads prepared
+states only. `DofStateField` is the one interaction/preview projection, also used by
+MathematicalValueControl inside the existing Composer numeric scope. Math Dial is
+now a parameter/exact-value producer; outside editors retain their existing path.
+
+New geometric capabilities contribute actual domains, measurements, projections
+or constraints. They do not declare another state/value/history owner or copied
+preview implementation. Scalar/integer/cyclic and single spatial axes are supplied;
+vector/product/path fields and general geometric legality remain pending. Shared
+property aliases must retain quantity/unit compatibility when picking references.

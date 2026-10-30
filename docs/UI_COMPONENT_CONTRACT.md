@@ -599,7 +599,7 @@ or layout reads are introduced by this boundary check.
 
 
 The E02 explicit Reference/Match numeric controls have been removed. Cyclic
-DOF inputs declare `selection` metadata; DegreeValueEditor projects DofStateWheel
+DOF inputs declare `selection` metadata; DegreeValueEditor projects DofStateField
 instead of the raw numeric editor. A pure state generator supplies mode alternatives;
 Math Dial edits its parameters. Session mode settings reuse RangeSettingsScope.
 Existing preview/commit owners remain authoritative. Reference context is supplied
@@ -650,3 +650,21 @@ Non-text application surfaces use transparent caret-color; native inputs,
 textareas and editable text explicitly restore auto caret-color. This keeps browser
 insertion/caret-browsing paint off focused interaction surfaces without changing
 text editing, focus, browser preferences or adding polling/selection clearing.
+
+
+Shared numeric state fields: all Composer numeric DOFs enter DofStateField,
+including the common PropertyEditor projection. The pure stateField model owns
+bounded candidate generation/filtering/projection and a universal Euclidean nearest
+query over normalized projected points. Radial positions address nonspatial raw
+values; cyclic directions and spatial/magnitude axes have real domain mappings.
+No feature-specific hover arithmetic or preview setter may be added. Domains and
+owner constraints prepare once per committed/configuration context, never on
+pointer motion. The existing preview session, physical click capture, Alt cursor,
+MC popup/navigation and history contracts remain in force.
+
+Field rule parameters, bounds and exact '=' entry use MathematicalDial directly,
+so they do not recursively create another field. Changing field constraints never
+edits geometry until a state/exact value is committed. Integer validity filters
+fractional candidates instead of rounding; empty fields show ∅ and cannot apply.
+The current field scope is finite numeric scalar/integer/cyclic and single spatial
+axes, not an implicit containment solver or nonnumeric editor replacement.

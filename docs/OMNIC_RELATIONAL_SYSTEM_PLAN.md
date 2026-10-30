@@ -127,13 +127,13 @@ For every experiment record:
 | Manual object/per-DOF reference form | Discarded in full; reference discovery and contextual interaction need global design | Closed, unmerged PR #41; explicit user rollback request |
 | E01: dial-configured increment rule | Implemented for testing; user acceptance pending. Shared rule context contains anchor, signed index and rule/amount; preset and target numeric editors consume it through existing setters. Full operation context/reference integration remains pending. | Current branch; see capability omnic.editing-rules |
 | E02: reference-measurement operation context | Manual Reference → Rule → Match interaction rejected and removed. Pure measurement/candidate infrastructure retained. | User feedback; capability omnic.operation-context |
-| E03: activate DOF → select generated state | Implemented for testing, not accepted. Rotation wheel, explicit mode/expression, Alt-parked cursor indicators and deliberate reference picking. | Current branch; capability omnic.dof-state-wheel |
+| E03: activate DOF → select generated state | Rotation trial; common interaction retained and generalized by E04. Browser acceptance pending. | Current branch; capability omnic.dof-state-wheel |
+| E04: constraint/value field across numeric DOFs | Implemented for testing: one field generator/filter/project/pick/preview/commit path for numeric domains. No per-preset editors or preview handlers. | Current branch; capability omnic.dof-state-wheel |
 
 ## Next experimental decision
 
-E03 tests the latest clarified interaction below. Review its activation,
-preview/commit, mode parameters, parked indicators and reference configuration
-before extending to additional DOF domains. Do not add more automatic invitations
+E04 implements the latest universal-field correction below. Test representative
+domains through the same machinery; do not implement separate workflows per DOF. Do not add more automatic invitations
 or revive mandatory manual Reference → Rule → Match steps.
 
 The shared operation/reference/rule/preview architecture remains the destination.
@@ -322,3 +322,81 @@ The follow-up removes fresh zone/focus gates from explicit Alt parking, captures
 settings-control ownership from the physical press path independently of release
 timing, and styles caret paint off non-text surfaces while restoring native fields.
 These changes await user confirmation; they add no pointer-frame discovery.
+
+
+## E04 — universal field of available states (latest direction)
+
+User clarification: count has no physical axis; radial positions can address its
+values. Spatial editing is a constraint field. First constrain where a DOF may go;
+its field updates available states, and hovering highlights the nearest state.
+This interaction is universal; manifestations differ. Preview is inherited from
+existing setters/rendering, rather than written per DOF. Most variation is domain,
+quantity and constraint data—not custom feature UI. Do not return to implementing
+Size, then Position, then Count as independent features.
+
+One pure `properties/stateField.ts` pipeline now generates, filters and projects a
+bounded set of states; its projection-independent nearest-state query only consumes
+prepared candidates. Domains declare numeric bounds/integer validity/resolution,
+optional cyclic period/north, quantity/unit and projection. Configuration carries
+mode, divisions, step, reference and working limits. Each candidate retains its
+source rule/reference/index and parameters; the exact reference is an additional
+valid landmark when needed. No durable binding is implied.
+
+`omnic/stateFieldAdapter.ts` derives these capabilities from existing registered
+Parameter inputs. Coordinates project X/Y axes, lengths a magnitude axis, cyclic
+values actual directions, and other quantities radial addresses. This is one
+projection adapter per domain manifestation, with no preset-ID switches.
+`DofStateField` supplies the same nearest highlight, temporary preview, click
+capture, commit, cancellation, mode variables, limits and Alt cursor indicators.
+It replaces the rotation-only editor and is also projected by the common Composer
+numeric PropertyEditor path. Nonnumeric controls/outside-Composer editors retain
+their previous behavior.
+
+Current generators: partitions across the constrained interval (Symmetry for a
+cycle), halving the reference, and signed centered steps around it. Integers default
+to unit-step exploration; other domains default to partitions. Interval partitions
+include both endpoints, while cyclic partitions do not duplicate the seam. An
+integer candidate must be integral; fractional candidates are excluded rather than
+rounded. Count is divisions, not a universal claim of exactly N displayed states:
+constraints remove states, intervals add endpoints, and a reference may add a
+landmark. Working limits are mathematical-dial parameters bounded by actual hard
+input domains. Empty/conflicting fields are explicit and cannot apply; limits can
+be reset. Exact continuous/fractional owner entry remains available under '='.
+The older E01 Value/Increment menu is superseded by the shared field Step rule;
+its pure arithmetic helpers remain groundwork.
+
+Target/preset operation context prepares candidates through the existing legal
+setter once when configuration/committed context changes. Preview motion only
+queries those candidates, then uses the same existing temporary setter/render path.
+Generic progressive numeric fields inherit numeric-domain constraints and retain
+normal owner validation. There are no per-pointer scene scans, background polling,
+new value/history owners or per-DOF preview implementations. At most 64 divisions
+(65 interval endpoints plus an optional reference) or 8 halving samples bound work.
+
+Numeric references use actual shared property/measurement aliases and units.
+This generalizes the earlier orientation-only picker to count, opacity, coordinates
+and size/radius/length without copied reference UIs. Different measured quantities
+remain incompatible even if they share a property alias. Picking only chooses
+context. Partitions use the interval; Halving/Step derive from the reference;
+the exact reference is offered when valid. Initial references remain authored,
+single-target and conservatively unavailable in active rotation/oscillation scenes.
+
+Implemented constraint sources: hard/working numeric limits, integrality and the
+existing target owner's legality. General containment/collision solvers, arbitrary
+2D/vector/product fields, paths, symbolic equations and persistent dependencies
+remain pending. The architecture can consume new supplied constraints; it does not
+infer missing geometry semantics or finalize universal defaults from examples.
+Self references use the opening value (north for cyclic domains); external owner
+changes refresh the anchor, while ordinary commits avoid moving the candidate
+field underneath the pointer.
+
+Review: exercise Count, Size/Length, Opacity, Rotation, Position X/Y and a progressive
+numeric field; constrain intervals, preview and commit/Undo, configure modes, pick
+compatible/incompatible references and use exact entry. Tests validate those shared
+paths and prove picking does not rerun validation, but browser acceptance and
+responsiveness still belong to the user.
+
+Long-term destination remains one declarative system: DOF + reference + domain +
+mathematical rule + constraints → valid-state field → projection → nearest-state
+preview → explicit commitment, optionally followed by durable dependency binding.
+New geometry contributes domains/measurements/constraints, not another interaction.

@@ -14,7 +14,7 @@ export function NumericEditorScope({children,cancelPreview}:{children:ReactNode;
 /** A state/renderer adapter lends a resolved reference and candidate to the shared
  * number editor. UI contains no object lookup or feature-specific arithmetic. */
 export type SelectionReference={id:string;label:string;value:number};
-export type NumericReferenceControl={selection?:{unavailable?:boolean;current?:SelectionReference;pick:()=>Promise<SelectionReference|undefined>;clear:()=>void;cancel:()=>void}};
+export type NumericReferenceControl={allowed?:(value:number)=>boolean;selection?:{unavailable?:boolean;current?:SelectionReference;pick:()=>Promise<SelectionReference|undefined>;clear:()=>void;cancel:()=>void}};
 export const NumericOperationScope=createContext<NumericReferenceControl|undefined>(undefined);
 export const useNumericOperation=()=>useContext(NumericOperationScope);
 

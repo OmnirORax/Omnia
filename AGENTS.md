@@ -391,7 +391,8 @@ Shared popup navigation is owned by MC: Alt+MB4 previous level, Alt+MB5 next app
 ⠒❉ is the shared raw-number system/control, with Count as its first test consumer.
 Current rollout is restricted to Omnic Composer through NumericEditorScope and
 PropertyEditor; keep it compact and requested, and retain outside editors. All
-numeric Composer DOFs inherit the same dial and existing owner setters. Signed
+numeric Composer DOFs inherit the shared state field and existing owner setters;
+the dial configures its variables and exact entry. Signed
 whole-number notation is enabled; decimal notation, reference equations/rules and
 action/candidate ranking are deferred. Preserve existing exact fractional entry.
 Do not restore count-only picker flags or implement private math per preset/DOF.
@@ -421,11 +422,17 @@ explanations in tooltips/accessibility metadata; omit redundant captions, repeat
 headings and instructional paragraphs. Icon-only remains a long-term direction,
 not a requirement to remove useful labels now.
 
-E02's manual Reference → Rule → Match numeric UI was rejected and removed.
-Its pure measurement/candidate models remain reusable infrastructure. E03 is the
-current unaccepted interaction experiment: activate a DOF → select its generated
-states; current mode and expression explicit; Alt parks cursor DOF/mode/reference
-indicators for configuration. Rotation is the first cyclic domain adapter. See
-the living master plan and capability omnic.dof-state-wheel. Do not revive the
-abandoned automatic invitation/Space-acceptance or mandatory Match-menu proposals.
-Math dial configures rule variables; it does not replace the state selector.
+E02's mandatory Reference → Rule → Match numeric UI was rejected. E03 tested
+Rotation selection; E04 now generalizes the interaction into a universal available-
+state field. Read the latest E04 record in the living master plan. All Composer
+numeric DOFs inherit generator → constraint filter → projection → nearest state →
+preview → commit through DofStateField and existing owner setters/history. Domains
+and constraints drive manifestations; never implement copied field/preview logic
+per preset/DOF. Coordinates/lengths/cyclic and raw quantities use reusable projection
+adapters. Math dial configures variables/limits and exact entry. Count has no
+physical axis: radial positions are addresses. Current constraints cover numeric
+bounds/integer validity and existing legality; missing geometry solvers are not
+inferred. Keep prepared work bounded and outside pointer motion. Shared fields are
+not yet browser-accepted, and general 2D/vector fields/persistent constraints remain
+pending. Preserve Alt parking and physical press-origin context ownership. Do not
+revive automatic invitations/Space acceptance or the discarded manual E02 flow.
