@@ -18,7 +18,8 @@ export type SelectionBoundary = {
   element: Element;
   /** Optional custom rectangle, normalized to the stable owner's rectangle. */
   area?: Box;
-  attribute?: "data-ui-function" | "data-ui-resident-root";
+  attribute?: "data-ui-function" | "data-ui-resident-root" | "data-selection-id";
+  scopeId?:string;
   value?: string;
   key: string;
 };
@@ -111,16 +112,17 @@ export function collectVisualParts(): VisualPart[] {
 }
 
 export function boundaryFor(element: Element): SelectionBoundary {
-  const attribute = element.hasAttribute("data-ui-function") ? "data-ui-function" :
+  const scopeId=element.closest('[data-selection-scope]')?.getAttribute('data-selection-scope')??undefined;
+  const attribute = element.hasAttribute("data-selection-id") ? "data-selection-id" : element.hasAttribute("data-ui-function") ? "data-ui-function" :
     element.hasAttribute("data-ui-resident-root") ? "data-ui-resident-root" : undefined;
   const value = attribute ? element.getAttribute(attribute)! : undefined;
-  return { element, attribute, value,
-    key: element === document.body ? "app" : attribute ? `${attribute}:${value}` : `element:${keyFor(element)}` };
+  return { element, attribute, value,scopeId,
+    key: element === document.body ? "app" : attribute ? `${scopeId?`${scopeId}:`:""}${attribute}:${value}` : `element:${keyFor(element)}` };
 }
 export function boundaryElement(boundary: SelectionBoundary): Element | undefined {
   if (boundary.element.isConnected && visible(boundary.element)) return boundary.element;
   if (boundary.attribute && boundary.value)
-    return [...document.querySelectorAll(`[${boundary.attribute}="${CSS.escape(boundary.value)}"]`)].find(visible);
+    return [...document.querySelectorAll(`${boundary.scopeId?`[data-selection-scope="${CSS.escape(boundary.scopeId)}"] `:""}[${boundary.attribute}="${CSS.escape(boundary.value)}"]`)].find(visible);
 }
 export function boundaryRect(boundary: SelectionBoundary): Box | undefined {
   const root = boundaryElement(boundary);

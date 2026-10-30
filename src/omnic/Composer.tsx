@@ -1,3 +1,5 @@
+import {useVisualSelection} from '../appearance/VisualSelector';
+import {boundaryElement} from '../appearance/visualSelection';
 import {DofInformationHeader} from '../ui/DofInformation';
 import {OperationReferenceScope} from './OperationScope';
 import { radialTree } from '../ui/radialMenuModel';
@@ -155,6 +157,15 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const htmlRef = useRef(html); htmlRef.current = html;
   const targetContext=useContextCommands({recipe,resolve,evaluation:evaluated.result,selection:picked,select:ids=>{setPicked([...ids]);setFocus(ids[0]?{kind:'component',id:ids[0]}:null);if(!ids.length){setRadarPanel(null);setPresetSession(null);}},commit:(next,temporary)=>commit(next,temporary),surface:preview,bridge:atomnicBridge,error:setError});
   const components = useMemo(() => allComponents(recipe.components), [recipe.components]);
+  const visualSelection=useVisualSelection(),selectorOwned=useRef(false);
+  useEffect(()=>{
+    if(visualSelection?.requesting)return;
+    const boundary=visualSelection?.scope?.boundary??visualSelection?.boundary,element=boundary&&boundaryElement(boundary);
+    if(element&&preview.current?.contains(element)){
+      const id=element.closest('[data-omnic-component]')?.getAttribute('data-omnic-component');
+      if(id&&components.some(c=>c.id===id)){selectorOwned.current=true;setPicked(before=>before.length===1&&before[0]===id?before:[id]);setFocus(before=>before?.kind==='component'&&before.id===id?before:{kind:'component',id});}
+    }else if(!boundary&&selectorOwned.current){selectorOwned.current=false;setPicked([]);}
+  },[visualSelection?.inspectionKey,visualSelection?.requesting,components]);
   const componentDepths = useMemo(() => {
     const depths = new Map<string,number>();
     const visit = (items: Component[], depth: number) => items.forEach(component=>{ depths.set(component.id,depth); visit(component.children ?? [],depth+1); });
@@ -371,7 +382,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     const presetOptions=presetOpen&&!presetSession?[...PRESETS.map(p=>({id:p.id,label:p.label,symbol:p.symbol??GENERATORS.find(g=>g.id===p.recipe.components[0]?.generator)?.symbol??'❉',recipe:p.recipe})),...objects.filter(o=>o.omnic&&(presetIds.includes(o.id)||isOperationTool(o.omnic))).map(o=>({id:`saved:${o.id}`,label:o.label||o.id,symbol:isOperationTool(o.omnic!)?'✥':'❉',recipe:o.omnic!}))]:[];
     const presetPanel=presetSession?presetDegree?<PresetDegreeEditor key={`${presetDegree.id}:${presetSession.configure}`} recipe={recipe} degree={presetDegree} configure={presetSession.configure} onDismiss={closePreset} onPreview={value=>changePresetDegree(presetDegree,value,true)} onCommit={value=>changePresetDegree(presetDegree,value)}/>:<RadialMenu items={radialTree([...presetDegrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changePresetDegree(degree,value,true)} onCommit={value=>changePresetDegree(degree,value)} onOpen={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})}/>,content:<><UIAction registerOnly id={`omnic:preset-dof:${degree.id}`} category="Omnic" label={degree.label} onClick={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})} onConfigure={()=>setPresetSession({...presetSession,degree:degree.id,configure:true})}/><FunctionControl id={`omnic:preset-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${targetDegreeValue(recipe,degree)} · Right-click configures snaps`}/></>}))])} onClose={closePreset}/>:<RadialMenu items={presetOptions.map(option=>({id:option.id,label:option.label,symbol:option.symbol,group:[],content:<button type="button" title={option.label} aria-label={option.label} onClick={()=>choosePreset(option.recipe)}>{option.symbol}</button>}))} onClose={closePreset}/>;
     const panel=presetOpen?<form style={{display:'contents'}} onSubmit={event=>{event.preventDefault();confirmPreset();}} onKeyDown={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&event.target.type==='range'){event.preventDefault();event.stopPropagation();confirmPreset();}}}>{presetPanel}<button type="submit" hidden disabled={!presetSession}/></form>:legacyPanel;
-    return <OperationReferenceScope environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer-radar"><DofInformationHeader/>
+    return <OperationReferenceScope surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer-radar"><DofInformationHeader/>
       <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importFile}/>
       <UIField id="omnic:copy-name" label={isNew?'Glyph name':'Copy name'} category="Omnic" registerOnly><label>{isNew?'Glyph name':'Copy name'} <input aria-label={isNew?'Glyph name':'Copy name'} value={copyLabel} maxLength={200} onChange={event=>setCopyLabel(event.target.value)}/></label></UIField>
       <UIAction id="omnic:atomnic-mode" label={atomnicActive?'Atomnic on · turn off':'Atomnic off · turn on'} category="Omnic" registerOnly onClick={()=>{setRadarPanel(null);commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}});}}/>
@@ -380,7 +391,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       {(error||evaluated.error||notice)&&<small className="omnic-radar-feedback" role={error||evaluated.error?'alert':'status'}>{error||evaluated.error||notice}</small>}
     </div></RangeSettingsScope></NumericEditorScope></OperationReferenceScope>;
   }
-  return <OperationReferenceScope environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><div className="omnic-composer"><DofInformationHeader/>
+  return <OperationReferenceScope surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><div className="omnic-composer"><DofInformationHeader/>
     <div className="omnic-toolbar">
       <strong>{entity.label || "Omnic object"}</strong><small title={isNew ? "Save shared creates this object at the preview position. Closing removes the world preview and keeps the recoverable draft. World previews use the shared 32-source budget." : "The world previews this draft and its live uses within the shared 32-source budget; other occurrences retain saved rendering. Closing restores saved rendering; Reset draft reverts unsaved work."}>{isNew ? "New · world draft" : dirty ? "World draft · not saved" : `Shared revision ${entity.omnic?.revision ?? 0}`}</small>
       {!atomnicActive&&["omnic.save", "omnic.copy", "omnic.play", "omnic.export", "omnic.import", "omnic.reset"].map(action => <FunctionControl key={action} id={action} />)}

@@ -51,7 +51,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const apply=(n:number)=>{if(disabled||picking||operation?.selection?.unavailable||!field.candidates.some(candidate=>candidate.value===n))return;setSample(null);onCommit(session.commit(n));};
  const closeSettings=()=>{setParameterSample({});restore();setSettings(null);};
  const chooseMode=(next:StateSelectionMode)=>{restore();working.modeChange(next);if(working.count>maximumSelectionStates(next))working.countChange(maximumSelectionStates(next));setSettings({kind:next==='step'?'step':'modes',point:settings?.point??cursorPosition()});};
- const pickReference=async()=>{restore();setSettings(null);if(!operation?.selection)return;const generation=++pickGeneration.current;setPicking(true);await operation.selection.pick();if(alive.current&&pickGeneration.current===generation)setPicking(false);};
+ const pickReference=async()=>{restore();setSettings(null);if(!operation?.selection){setPicking(false);return;}const generation=++pickGeneration.current;setPicking(true);await operation.selection.pick();if(alive.current&&pickGeneration.current===generation)setPicking(false);};
  const openReference=useRef(pickReference);openReference.current=pickReference;
  useLayoutEffect(()=>{if(configure==='reference')void openReference.current();},[configure]);
  const text=(n:number)=>`${Number(n.toPrecision(7))}${domain.cyclic?'°':''}`;

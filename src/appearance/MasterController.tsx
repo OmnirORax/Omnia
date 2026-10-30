@@ -1,5 +1,3 @@
-import {masterSelection} from '../ui/masterSelection';
-import {MasterSelectionPanel} from '../ui/MasterSelectionPanel';
 import { RENDER_BUDGET, subscribeUIEffectBudget, uiEffectBudgetSnapshot } from "../renderBudget";
 import { CopyPropertiesConfiguration } from "../properties/CopyPropertiesConfiguration";
 import { openActionConfiguration } from "../ui/shortcutConfiguration";
@@ -47,7 +45,6 @@ import { useFrameExpansion } from "../ui/frameExpansion";
 import { residentPinned } from "../ui/layout";
 
 export function MasterController({ bindings, visualStatus, history, children: visualTools }: { bindings?: PropertyBindings; visualStatus?: ReactNode; history?: ActionHistory; children?: ReactNode }) {
-  const selectionRequest=useSyncExternalStore(masterSelection.subscribe,masterSelection.getSnapshot);
   const effectSources = useSyncExternalStore(subscribeUIEffectBudget, uiEffectBudgetSnapshot);
   const ctx = useAppearance()!;
   const ui = useUI();
@@ -430,7 +427,6 @@ export function MasterController({ bindings, visualStatus, history, children: vi
       </div>
     );
   };
-  if(selectionRequest)return <section data-context-controller data-appearance-editor className="appearance-controller" aria-label="Master controller"><MasterSelectionPanel/></section>;
   return (
     <section data-context-controller data-appearance-editor className="appearance-controller" aria-label="Master controller"
       onPointerLeave={() => {

@@ -162,3 +162,22 @@ test('temporary MS requests reject unsupported picks and restore selection exact
  cancelled.cancel();cancelled.cancel();assert.equal(cancelled.accept('supported'),false);
  assert.equal(restores,2);assert.equal(cancels,1);
 });
+
+test('declared geometry boundaries retain identity through renderer replacement within their own surface',async()=>{
+ const {boundaryFor,boundaryElement}=await import('../src/appearance/visualSelection.ts');
+ const saved={document:globalThis.document,CSS:globalThis.CSS,getComputedStyle:globalThis.getComputedStyle};
+ try{
+  const scope={getAttribute:()=> 'composer-a'};
+  const node=(attrs,connected=true)=>({isConnected:connected,hasAttribute:key=>key in attrs,getAttribute:key=>attrs[key]??null,closest:selector=>selector==='[data-selection-scope]'?scope:null,getClientRects:()=>[{}]});
+  const previous=node({'data-selection-id':'component:unit'},false),replacement=node({'data-selection-id':'component:unit'});
+  let queried='';globalThis.document={body:{},querySelectorAll:selector=>{queried=selector;return [replacement];}};
+  globalThis.CSS={escape:value=>value};globalThis.getComputedStyle=()=>({visibility:'visible'});
+  const boundary=boundaryFor(previous);
+  assert.equal(boundary.key,'composer-a:data-selection-id:component:unit');
+  assert.equal(boundaryFor(replacement).key,boundary.key);
+  assert.equal(boundaryElement(boundary),replacement);
+  assert.equal(queried,'[data-selection-scope="composer-a"] [data-selection-id="component:unit"]','another surface with the same component ID cannot steal the selection');
+  const regular=node({'data-ui-function':'ordinary'});regular.closest=()=>null;
+  assert.equal(boundaryFor(regular).key,'data-ui-function:ordinary','existing unscoped control identities stay unchanged');
+ }finally{for(const [key,value] of Object.entries(saved)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
+});

@@ -1,10 +1,7 @@
-import {masterSelection,type MasterSelectionChoice} from '../ui/masterSelection';
-import {useUITracked} from '../ui/context';
-import {reopenContainer} from '../ui/layout';
-import {definition} from './registry';
+import {useVisualSelection} from '../appearance/VisualSelector';
 import type {ResizeRect} from '../ui/resizeGeometry';
 import {fieldReferenceFor} from './referenceGeometry';
-import {createContext,useContext,useMemo,useRef,useState,useEffect,type ReactNode} from 'react';
+import {createContext,useContext,useMemo,useRef,useState,useEffect,type ReactNode,type RefObject} from 'react';
 import {LIMITS,type Recipe,type RecipeResolver} from './model';
 import type {Evaluation} from './evaluate';
 import type {EditableDegree} from '../properties/editableDegrees';
@@ -15,34 +12,28 @@ import {operationGeometry,type OperationGeometry} from './operationContext';
 type Scope={snapshot:OperationGeometry|null;resolve?:RecipeResolver;references:ReadonlyMap<string,string>;choose:(target:string,reference?:string)=>void;read:()=>Recipe;error:(error:unknown)=>void;pick:(degree:EditableDegree)=>Promise<SelectionReference|undefined>;picking:boolean;environment?:ResizeRect;cancelPick:()=>void};
 const Context=createContext<Scope|null>(null);
 /** Session reference choices are context, not durable property values or locks. */
-export function OperationReferenceScope({recipe,evaluation,resolve,read,error,children,stateOwner,environment}:{environment?:ResizeRect;stateOwner:string;recipe:Recipe;evaluation:Evaluation|null;resolve?:RecipeResolver;read:()=>Recipe;error:(error:unknown)=>void;children:ReactNode}){
- const ui=useUITracked(()=>[]);
- const pending=useRef<{degree:EditableDegree;finish:(value:SelectionReference|undefined)=>void;cancelSelection?:()=>void}|undefined>(undefined);
+export function OperationReferenceScope({recipe,evaluation,resolve,read,error,children,stateOwner,environment,surface}:{surface:RefObject<HTMLElement|null>;environment?:ResizeRect;stateOwner:string;recipe:Recipe;evaluation:Evaluation|null;resolve?:RecipeResolver;read:()=>Recipe;error:(error:unknown)=>void;children:ReactNode}){
+ const selector=useVisualSelection(),selectorRef=useRef(selector);selectorRef.current=selector;
+ const pending=useRef<{degree:EditableDegree;finish:(value:SelectionReference|undefined)=>void;cancelMS?:()=>void}|undefined>(undefined);
  const [picking,setPicking]=useState(false);
- const cancelPick=()=>{const request=pending.current;pending.current=undefined;request?.cancelSelection?.();request?.finish(undefined);setPicking(false);};
- useEffect(()=>()=>{const request=pending.current;pending.current=undefined;request?.cancelSelection?.();request?.finish(undefined);},[]);
+ const cancelPick=()=>{const request=pending.current;pending.current=undefined;request?.cancelMS?.();request?.finish(undefined);setPicking(false);};
+ useEffect(()=>()=>{const request=pending.current;pending.current=undefined;request?.cancelMS?.();request?.finish(undefined);},[]);
  const [references,setReferences]=useState<ReadonlyMap<string,string>>(()=>new Map());
  const snapshot=useMemo(()=>evaluation?operationGeometry(recipe,evaluation,stateOwner):null,[recipe,evaluation,stateOwner]);
  const callbacks=useRef({read,error,snapshot});callbacks.current={read,error,snapshot};
  const value=useMemo<Scope>(()=>({snapshot,resolve,references,picking,cancelPick,environment,
  pick:degree=>{
-  cancelPick();const current=callbacks.current.snapshot;if(!current)return Promise.resolve(undefined);
-  const ids=[...new Set(degree.targets.map(t=>t.id))];if(ids.length!==1)return Promise.resolve(undefined);
-  const choices:MasterSelectionChoice[]=[{id:'@self',label:'Self',symbol:'⟴'}];
-  if(environment&&fieldReferenceFor(current,degree,'@environment',environment))choices.push({id:'@environment',label:'Environment',symbol:'▣'});
-  for(const [id,item] of current.components){
-   if(!fieldReferenceFor(current,degree,id,environment))continue;
-   const spec=definition(item.component.generator,true);
-   choices.push({id,label:`${spec?.label??item.component.generator} · ${id.slice(0,6)}`,symbol:spec?.symbol??'○',parent:item.parent});
-  }
+  cancelPick();const ms=selectorRef.current;if(!ms)return Promise.resolve(undefined);
   setPicking(true);return new Promise(finish=>{
-   const request={degree,finish,cancelSelection:undefined as (()=>void)|undefined};pending.current=request;
-   request.cancelSelection=masterSelection.open({label:'⟴ Reference',choices,selected:references.get(ids[0])??'@self',choose:id=>{
-    const live=callbacks.current.snapshot;if(!live||!live.components.has(ids[0]))return false;
-    const reference=id==='@self'?undefined:fieldReferenceFor(live,degree,id,environment);if(id!=='@self'&&!reference)return false;
-    pending.current=undefined;setPicking(false);setReferences(before=>{const next=new Map(before);if(id==='@self')next.delete(ids[0]);else next.set(ids[0],id);return next;});finish(reference);return true;
-   },cancel:()=>{if(pending.current===request){pending.current=undefined;setPicking(false);finish(undefined);}}});
-   ui.update(layout=>reopenContainer(layout,'window:theme'));
+   const request={degree,finish,cancelMS:undefined as (()=>void)|undefined};pending.current=request;
+   request.cancelMS=ms.requestPick(selection=>{
+    if(!surface.current?.contains(selection.element))return false;
+    const element=selection.element.closest('[data-omnic-component]');
+    const id=element?.getAttribute('data-omnic-component')??(selection.element.closest('[data-selection-environment]')?'@environment':undefined);if(!id)return false;
+    const live=callbacks.current.snapshot;if(!live)return false;
+    const self=degree.targets.some(target=>target.id===id),reference=self?undefined:fieldReferenceFor(live,degree,id,environment);if(!self&&!reference)return false;
+    pending.current=undefined;setPicking(false);setReferences(before=>{const next=new Map(before);for(const t of degree.targets)if(self)next.delete(t.id);else next.set(t.id,id);return next;});finish(reference);return true;
+   },()=>{if(pending.current===request){pending.current=undefined;setPicking(false);finish(undefined);}});
   });
  },
  read:()=>callbacks.current.read(),error:e=>callbacks.current.error(e),choose:(target,reference)=>{

@@ -59,7 +59,7 @@ export function evaluationBounds(evaluation:Evaluation) {
 }
 function element(node:StructuralNode,selected:boolean) {
   if(node.kind==="group")return "";
-  const attrs=`data-selection-boundary data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}" aria-label="${esc(node.id)}" style="fill:${node.fill?esc(node.color):"none"};stroke:${esc(node.color)}" stroke="${esc(node.color)}" stroke-width="${number(node.thickness)}" opacity="${number(node.opacity)}" fill="${node.fill?esc(node.color):"none"}"${selected?' data-omnic-selected="true"':''}`;
+  const attrs=`data-selection-boundary data-selection-id="${esc(node.id)}" data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}" aria-label="${esc(node.id)}" style="fill:${node.fill?esc(node.color):"none"};stroke:${esc(node.color)}" stroke="${esc(node.color)}" stroke-width="${number(node.thickness)}" opacity="${number(node.opacity)}" fill="${node.fill?esc(node.color):"none"}"${selected?' data-omnic-selected="true"':''}`;
   const title=`<title>${esc(node.id)}</title>`;
   const base = node.kind==="line"?`<line ${attrs} x1="${number(node.x)}" y1="${number(node.y)}" x2="${number(node.x2??node.x)}" y2="${number(node.y2??node.y)}" stroke-linecap="round">${title}</line>`:`<circle ${attrs} cx="${number(node.x)}" cy="${number(node.y)}" r="${number(node.radius)}">${title}</circle>`;
   const mark=node.highlight;
@@ -94,5 +94,5 @@ export function renderSVG(evaluation:Evaluation, feedback?:{gridPitch?:number;gh
   }
   const ghost=feedback?.ghost?`<circle pointer-events="none" cx="${number(feedback.ghost.x)}" cy="${number(feedback.ghost.y)}" r="${number(feedback.ghost.radius)}" fill="${esc(feedback.ghost.color)}" opacity=".3"/>`:'';
   const pivot=feedback?.pivot?`<path pointer-events="none" stroke="#ffe45c" stroke-width="0.75" d="M ${number(feedback.pivot.x-3)} ${number(feedback.pivot.y)} h 6 M ${number(feedback.pivot.x)} ${number(feedback.pivot.y-3)} v 6"/>`:'';
-  return `<svg xmlns="http://www.w3.org/2000/svg" data-omnic-structure="true" style="color-scheme:only light" width="256" height="256" preserveAspectRatio="xMidYMid meet" viewBox="${[bounds.x,bounds.y,bounds.width,bounds.height].map(number).join(" ")}" role="img" aria-label="Omnic structural composition">${grid.join("")}${evaluation.nodes.map(n=>element(n,selected.has(n.id))).join("")}${ghost}${outlines}${pivot}${selectionMark}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" data-omnic-structure="true" data-selection-environment data-selection-boundary data-selection-id="@environment" style="color-scheme:only light" width="256" height="256" preserveAspectRatio="xMidYMid meet" viewBox="${[bounds.x,bounds.y,bounds.width,bounds.height].map(number).join(" ")}" role="img" aria-label="Omnic structural composition">${grid.join("")}${evaluation.nodes.map(n=>element(n,selected.has(n.id))).join("")}${ghost}${outlines}${pivot}${selectionMark}</svg>`;
 }

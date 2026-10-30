@@ -26,8 +26,8 @@ import {
 } from "./visualSelection";
 
 type SelectionState = { boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
-export type ReferenceSelection={boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
-type VisualSelection = SelectionState & { requestPick:(accept:(selection:ReferenceSelection)=>boolean,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
+export type ReferenceSelection={element:Element;boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
+type VisualSelection = SelectionState & { requesting:boolean;requestPick:(accept:(selection:ReferenceSelection)=>boolean,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "locked";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -134,7 +134,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const parentScope = current.selection.scope ? { scope: current.selection.scope } : {};
     const neutral = !config.contour && !config.region;
     const configuredMode = drag?.mode ?? config.pattern;
-    const mode = neutral && !current.selection.scope && (configuredMode === "pattern" || configuredMode === "item") ? "boundary" : configuredMode;
+    const declared=element.closest('[data-selection-boundary]');
+    const mode = declared&&(configuredMode==='pattern'||configuredMode==='item')?'boundary':neutral && !current.selection.scope && (configuredMode === "pattern" || configuredMode === "item") ? "boundary" : configuredMode;
     const app = boundaryFor(document.body);
     if (isLine(mode)) {
       const start = drag?.start ?? { x, y }, box = boundaryRect(app)!;
@@ -160,7 +161,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (mode === "boundary") {
       const sampled = partAt(current.catalog, element, x, y, current.measurements);
       const options = boundaryCandidates(element);
-      const boundary = depth.current === 0 && sampled ? boundaryFor(sampled.element) : options[Math.min(depth.current, options.length - 1)];
+      const boundary = depth.current===0&&declared?boundaryFor(declared):depth.current === 0 && sampled ? boundaryFor(sampled.element) : options[Math.min(depth.current, options.length - 1)];
       if (!boundary) { setCandidatePick(null); return; }
       setCandidatePick({ definesScope: true, rule: { boundary, include, ...parentScope, ownerFrame: true, ...(sampled ? { framePart: sampled.key } : {}), contour: config.contour,
         path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true, rotation: config.rotation },
@@ -179,7 +180,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const pick = candidateRef.current;
     if (!pick) return;
     const request=requestedPick.current;
-    if(request){const p=point.current;if(p&&request.accept({boundary:pick.rule.boundary,constraint:pick.rule,parts:matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements),point:{x:p.x,y:p.y}})){
+    if(request){const p=point.current;if(p&&request.accept({element:p.element,boundary:pick.rule.boundary,constraint:pick.rule,parts:matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements),point:{x:p.x,y:p.y}})){
       requestedPick.current=null;setCandidatePick(null);
     }return;}
     if (pick.definesScope) {
@@ -569,14 +570,15 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     requestCheckpoint.current=retained;const checkpoint=retained.timeline,config=retained.configuration;
     const restore=()=>{requestCheckpoint.current=null;gesture.current=null;polygon.current=null;setDrawing(false);setTimeline(checkpoint);setConfiguration(config);setPhase('off');setInventoryOpen(false);};
     const request=selectionRequest(accept,cancel,restore);requestedPick.current=request;
-    setCandidatePick(null);setTimeline({states:[emptySelection()],index:0});setCatalog(collectVisualParts());setConfiguration(before=>({...before,pattern:'boundary'}));setPhase('aim');
+    setCandidatePick(null);setTimeline({states:[emptySelection()],index:0});shortcuts.invoke('selector.open');
     return()=>{if(requestedPick.current===request){requestedPick.current=null;request.cancel();}};
   },[timeline,configuration,setCandidatePick]);
   const feedbackAvailable = phase !== "off" || hasSelection();
   const feedbackBinding = shortcuts.binding("selector.feedbackView");
-  const contextValue = useMemo(() => ({ ...selection, parts: matches.included, properties, clear, selectObject, inspectionKey,
+  const requesting=!!requestedPick.current;
+  const contextValue = useMemo(() => ({ ...selection,requesting, parts: matches.included, properties, clear, selectObject, inspectionKey,
     feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick }),
-    [selection, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
+    [selection,requesting, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
   const active = phase !== "off" || !!selection.boundary;
   const wasMasterOpen = useRef(masterOpen);
   useEffect(() => {
