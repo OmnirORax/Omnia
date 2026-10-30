@@ -113,6 +113,30 @@ refresh, independent bounds and direct gesture/slider parity. Model tests cover
 these derivations plus incompatible units, exact/cyclic matching and future integer
 domains. No browser suite is run; local gates precede source delivery.
 
+## Combined Position implementation (2026-10-30)
+
+Position is now the default composed-vector editor entry. Registered input vector
+metadata groups scalar capabilities in targetEditorDegrees; targetDegrees and the
+underlying stored coordinates remain intact. Existing action adjusters do not
+swallow vector axes in this editor projection. Shared vectorMatchCandidate composes
+scalar measured-reference conversions, then validates the tuple atomically.
+writeTargetDegree accepts validated component patches and writes the tuple through
+one recipe transaction. The existing numeric preview session is generalized with
+an equality predicate so vectors inherit preview/restore/commit behavior.
+
+Flow: right-click target → Position → ⟴ reference → hover ◎ Centre → click/Enter.
+Both coordinates preview/commit together. Optional X/Y open the existing scalar
+editors, preserving the companion coordinate. Centre matching uses visual bounds
+and per-axis authored-frame offsets, including asymmetric groups. Vector metadata
+supplies match labels/symbols; future components reuse the same tuple engine.
+
+Current vector execution is joint centre Match, not a full joint spatial field.
+Bounds/step editing is still available per optional axis. Collective multi-target
+centring, arbitrary frames/features and durable bindings remain pending. Local
+regressions cover atomicity, centring, source preservation, session restoration,
+optional-axis patches and future three-component vectors. Browser confirmation
+remains with the user; no browser suite run.
+
 ## Accepted baseline and sources
 
 The accepted implementation baseline is merged PR #40, commit

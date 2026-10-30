@@ -2032,7 +2032,7 @@
       "id": "omnic.dof-state-wheel",
       "title": "Rule-configured values and rotation axis wheel",
       "where": "Composer → right-click an authored object → choose a DOF. Rotation opens the axis wheel; R on a compatible selection also opens it. Geometry-based hover/edge activation is temporarily disabled.",
-      "behavior": "Composer numeric DOFs share generated rule/constraint fields, existing property setters/history and preview/commit sessions. The active top strip exposes DOF, mode/expression and ⟴ reference with tooltips; it is absent without an active DOF. Right-click an object to choose its DOF. Geometry-based hover tool detection and precision edge-click activation are temporarily disabled by HOVER_TOOL_DETECTION_ENABLED, with the implementation retained for future review. Ordinary object dragging and explicit tools remain available.\n\nRotation and other declared cyclic DOFs use the shared axis wheel; R on a compatible selection opens the same editor. Hover a wheel direction to preview, primary release commits and stays open, leaving restores an uncommitted preview, Enter confirms, and clicking outside dismisses. The centre is neutral/drag-only. Bare rays show generated states; significant axes use stronger strokes. Noncyclic DOFs use shared RangeControl value execution: drag previews, release commits, arrows/wheel/keyboard traverse generated values. MathematicalDial configures rule variables. Limit editors select from thresholds/fractions, reachable from the slider ends or mode ⊢/⊣. No companion execution slider appears during configuration/reference picking.\n\n⟴ invokes the existing Q selector directly. MS configuration Enter resumes aiming like ✓; pending aiming reference Enter confirms its candidate, with selector priority over underlying popup/native button activation. Self, compatible authored objects and supported environment boundaries supply reference context. Bounds use of coordinate references provides default intervals and centre/boundary thresholds; working limits override defaults under hard owner limits. Changing reference resets bounds while retaining the rule. Valid declared domain/reference thresholds survive mathematical rule changes, with stable identity/provenance and owner-legality filtering. Cyclic domains inherit quarter-turn axes; opacity declares transparent/opaque states. Old numeric preset arrays are not promoted to semantic thresholds. Reference/limit configuration preserves geometry; execution applies through existing owners. Retained single-target Position dragging uses the same field generation and limit resolution.\n\nStandalone DOF category dials display immediate child rows on opening, without hover. Rows stay open until their parent closes and align to measured parent-button centres/edges. Embedded rim/deeper category reveal behavior remains. Shared popup placement, scale, appearance, right-click sub-setters and outside-dismissal ownership are retained. Button-triggered editors remain below their invoking controls; contextual stage changes do not add cursor-following information. Reference use is now explicit: right-click ⟴ to choose Bounds, Step or Match and a compatible source measurement. Step does not import source bounds; Match offers the exact result. ×/÷ use the existing mathematical dial to configure measured ratios. See Reference measurements as bounds, step or match for the complete flow.",
+      "behavior": "Composer numeric DOFs share generated rule/constraint fields, existing property setters/history and preview/commit sessions. The active top strip exposes DOF, mode/expression and ⟴ reference with tooltips; it is absent without an active DOF. Right-click an object to choose its DOF. Geometry-based hover tool detection and precision edge-click activation are temporarily disabled by HOVER_TOOL_DETECTION_ENABLED, with the implementation retained for future review. Ordinary object dragging and explicit tools remain available.\n\nRotation and other declared cyclic DOFs use the shared axis wheel; R on a compatible selection opens the same editor. Hover a wheel direction to preview, primary release commits and stays open, leaving restores an uncommitted preview, Enter confirms, and clicking outside dismisses. The centre is neutral/drag-only. Bare rays show generated states; significant axes use stronger strokes. Noncyclic DOFs use shared RangeControl value execution: drag previews, release commits, arrows/wheel/keyboard traverse generated values. MathematicalDial configures rule variables. Limit editors select from thresholds/fractions, reachable from the slider ends or mode ⊢/⊣. No companion execution slider appears during configuration/reference picking.\n\n⟴ invokes the existing Q selector directly. MS configuration Enter resumes aiming like ✓; pending aiming reference Enter confirms its candidate, with selector priority over underlying popup/native button activation. Self, compatible authored objects and supported environment boundaries supply reference context. Bounds use of coordinate references provides default intervals and centre/boundary thresholds; working limits override defaults under hard owner limits. Changing reference resets bounds while retaining the rule. Valid declared domain/reference thresholds survive mathematical rule changes, with stable identity/provenance and owner-legality filtering. Cyclic domains inherit quarter-turn axes; opacity declares transparent/opaque states. Old numeric preset arrays are not promoted to semantic thresholds. Reference/limit configuration preserves geometry; execution applies through existing owners. Retained single-target Position dragging uses the same field generation and limit resolution.\n\nStandalone DOF category dials display immediate child rows on opening, without hover. Rows stay open until their parent closes and align to measured parent-button centres/edges. Embedded rim/deeper category reveal behavior remains. Shared popup placement, scale, appearance, right-click sub-setters and outside-dismissal ownership are retained. Button-triggered editors remain below their invoking controls; contextual stage changes do not add cursor-following information. Reference use is now explicit: right-click ⟴ to choose Bounds, Step or Match and a compatible source measurement. Step does not import source bounds; Match offers the exact result. ×/÷ use the existing mathematical dial to configure measured ratios. See Reference measurements as bounds, step or match for the complete flow. Position now opens a combined vector editor with joint Centre match; X/Y remain optional child editors. See Combined Position and centre matching.",
       "steps": [
         {
           "do": "Open Composer with no active DOF, then activate one by editing an object. Hover and click its top icons.",
@@ -2142,17 +2142,18 @@
       "related": [
         "omnic.operation-context",
         "omnic.mathematical-count-dial",
-        "omnic.reference-use"
+        "omnic.reference-use",
+        "omnic.position-vector"
       ]
     },
     {
       "id": "omnic.reference-use",
       "title": "Reference measurements as bounds, step or match",
-      "where": "Omnic Composer → right-click a target → choose a numeric DOF → left-click top ⟴ to pick its source with Q/MS; right-click ⟴ to configure reference use and measurement.",
+      "where": "Omnic Composer → right-click a target → choose a numeric DOF (Position → ⊕X/⊕Y for axis-only editing) → left-click top ⟴ to pick its source with Q/MS; right-click ⟴ to configure reference use and measurement.",
       "behavior": "Source selection and measurement use are independent. The source is retained per authored target across DOF changes. Per-target/per-DOF relation settings choose a compatible measurement and Bounds (⊢⊣), Step (Δ) or Match (⨮). The top ⟴ control shows a small use glyph and descriptive tooltip. Spatial reference context supplies its existing boundary defaults; explicit measured extents can instead supply a zero-to-measure interval. Step uses the measured magnitude without inheriting source position bounds. Match offers exactly the measured result, independent of the previous generated sequence. Configuration preserves geometry; existing slider/wheel preview and explicit commitment apply values through normal property setters/history. The shared source adapter reads canonical evaluated bounds (width/height), declared radius/length and compatible numeric DOFs. Self and Environment use the same path where supported. Geometry measurement ratios are configured with × multiplier and ÷ divisor through the existing math dial; display readouts are compact but calculations retain precision. Coordinate match ratios apply before converting from scene measurements to authored coordinates. Units, integrality, hard bounds, explicit working limits and owner legality remain authoritative. Selecting a different source retains the measurement/use choice; if that feature is unavailable, execution is disabled until the user selects a supported feature. Several DOFs may use the same source feature for different purposes; their editing contexts refresh when that committed source changes. Existing direct single-target Position dragging consumes the same resolved field as its slider. Sharing source identity does not silently activate constraints on other DOFs: direct Position prepares only explicitly configured axes or retained axis rules. Picking a source, configuring a use or committing its field activates that consumer; its unconfigured companion axis stays free.",
       "steps": [
         {
-          "do": "Create two lines. Open Position X on the first, left-click ⟴, press Enter or ✓ to aim MS, then pick the second line.",
+          "do": "Create two lines. Open Position → ⊕X on the first, left-click ⟴, press Enter or ✓ to aim MS, then pick the second line.",
           "expect": "The source is retained; Bounds is the explicit default use. Selection itself does not move the line."
         },
         {
@@ -2196,7 +2197,61 @@
       "gestures": [],
       "related": [
         "omnic.dof-state-wheel",
-        "omnic.operation-context"
+        "omnic.operation-context",
+        "omnic.position-vector"
+      ]
+    },
+    {
+      "id": "omnic.position-vector",
+      "title": "Combined Position and centre matching",
+      "where": "Omnic Composer → right-click an authored object → Relations → ⊕ Position. Preset DOF menus use the same combined control.",
+      "behavior": "Position is a composed vector DOF in the editor, rather than separate X/Y entries in the parent menu. Registered vector metadata groups the existing scalar coordinate owners; no geometry parameters or saved object identities are replaced. Choose a shared reference through ⟴ using existing Q/MS, then hover ◎ Match centre to preview both coordinates and click to commit them together. Enter confirms the same joint candidate; leaving/cancelling an uncommitted preview restores both coordinates. Reference-centre measurements are converted into each target axis’s authored coordinate frame, so asymmetric group origins are not mistaken for visual centres. The tuple is validated against the normal recipe/profile constraints once and committed through one owner callback/history edit. Self and supported Environment references follow the same measurement path. Optional ⊕X/⊕Y controls open existing axis editors for single-coordinate constraints, steps, bounds or matches; their value patches preserve the other coordinate. Axis editors use shared nested popup placement and hierarchical cancellation. Future declared vector DOFs inherit grouping, tuple matching, validation and preview sessions, while adapters supply measurements and presentation.",
+      "steps": [
+        {
+          "do": "Right-click an object, open Relations and choose ⊕ Position.",
+          "expect": "One Position control replaces the separate X/Y parent entries. Its compact editor offers ⟴, ◎ and optional X/Y axis controls."
+        },
+        {
+          "do": "Click ⟴; use Enter or ✓ to aim MS and pick the object whose centre should be matched. Hover ◎.",
+          "expect": "Both coordinates preview together, aligning visual bounds centres. Source selection alone does not move geometry. An asymmetric group is aligned using its actual visual centre and authored-frame offset."
+        },
+        {
+          "do": "Move away from ◎, then hover again and click ◎ or press Enter.",
+          "expect": "Leaving restores both original coordinates before commitment. Clicking/Enter applies both components as one edit; leaving afterward retains the result. Undo restores the prior position together."
+        },
+        {
+          "do": "Choose ⊕X or ⊕Y inside Position and use its existing scalar editor. Escape/back returns to Position.",
+          "expect": "Only that component changes; the companion coordinate stays intact. Its existing reference-use/measurement controls remain available."
+        },
+        {
+          "do": "Pick Self or the supported Environment as reference, then preview/commit ◎.",
+          "expect": "Self retains the current visual centre; Environment uses its centre. Missing references, unavailable measurements and owner/profile constraints disable the joint candidate instead of partially applying one coordinate."
+        }
+      ],
+      "limits": "Composer-only. Combined Position currently provides joint centre Match; broader joint spatial Bounds/Step fields remain future work, with current bounds/step editing available through optional axes. Single authored-target reference matching is supported; multi-target collective centring, arbitrary feature picking and transformed/animated reference adapters remain pending. Existing Realistic/profile and hard parameter constraints can reject a centre placement. Matching is an editing context, not a persistent dependency that automatically moves geometry when its reference changes.",
+      "status": "Implemented for preview review; not production deployed.",
+      "verification": {
+        "automated": "Model regressions cover combined editor discovery, legacy move-adjuster precedence, asymmetric-group two-axis centring, atomic tuple legality, source immutability, preview restoration/commit retention, optional single-axis patches, unavailable components, environment centring and future three-component vectors. Existing numeric preview tests remain. Exact-match normalization is consistent with generated-field arithmetic-noise normalization. Full local model/build/backend gates required before publication.",
+        "browser": "Combined Position menu entry, Q/MS return, hover/click/Enter joint preview, single Undo, optional axes and hierarchy return await browser confirmation. No browser suite run."
+      },
+      "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",
+      "sources": [
+        "src/properties/editableDegrees.ts",
+        "src/properties/vectorStateField.ts",
+        "src/properties/mathematicalDial.ts",
+        "src/omnic/registry.ts",
+        "src/omnic/targetDegrees.ts",
+        "src/omnic/VectorDegreeEditor.tsx",
+        "src/omnic/DegreeSetter.tsx",
+        "src/omnic/OperationScope.tsx",
+        "src/omnic/Composer.tsx",
+        "src/omnic/AtomnicEditor.tsx"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "omnic.reference-use",
+        "omnic.dof-state-wheel"
       ]
     }
   ]

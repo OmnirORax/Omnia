@@ -39,7 +39,7 @@ import { FunctionControl } from '../ui/UIWorkspace';
 import { RadialMenu, type RadialNavigation } from '../ui/RadialMenu';
 import { radialTree, type RadialEntry } from '../ui/radialMenuModel';
 import { cursorPosition } from '../ui/cursorPosition';
-import { targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets, targetParameter } from './targetDegrees';
+import { type DegreeEditValue, targetEditorDegrees, targetDegrees, targetDegreeValue, writeTargetDegree, translateTargets, targetParameter } from './targetDegrees';
 import type { EditableDegree } from '../properties/editableDegrees';
 import { useToolCursorZone } from '../ui/toolCursorZone';
 import { nameSymbol } from '../ui/nameSymbols';
@@ -110,9 +110,9 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const editingMark=panel.kind==='operation'&&panel.action==='atomnic.highlight';
   const displayed=useMemo(()=>{const values={...settings};if(first&&settings.paint==='selection'&&!editingMark)for(const key of ['size','fill','color','opacity','thickness'])values[key]=first.component.params[key]??values[key];return values;},[settings,first,editingMark]);
   const degree=panel.kind==='degree'?panel.degree:undefined;
-  const degreeParameters=useMemo(()=>degree?[targetParameter(degree)]:[],[degree]);
-  const degreeValues=useMemo(()=>degree?{[degree.targets[0].input.key]:targetDegreeValue(recipe,degree)}:displayed,[degree,recipe,displayed]);
-  useOmnicParameterBindings(degreeValues,next=>{if(degree){changeDegree(degree,next[degree.targets[0].input.key]);return;}for(const key of Object.keys(next))if(next[key]!==displayed[key])input(key,next[key]);},degree?degreeParameters:bindParameters&&isAtomnic&&!extraPanel&&!normalSelection.length?ATOMNIC_PARAMETERS:[]);
+  const degreeParameters=useMemo(()=>degree?degree.axes?.map(targetParameter)??[targetParameter(degree)]:[],[degree]);
+  const degreeValues=useMemo(()=>degree?Object.fromEntries((degree.axes??[degree]).map(a=>[targetParameter(a).key,targetDegreeValue(recipe,a)])):displayed,[degree,recipe,displayed]);
+  useOmnicParameterBindings(degreeValues,next=>{if(degree){changeDegree(degree,degree.axes?Object.fromEntries(degree.axes.map(a=>[a.properties[0],Number(next[targetParameter(a).key])])):next[degree.targets[0].input.key]);return;}for(const key of Object.keys(next))if(next[key]!==displayed[key])input(key,next[key]);},degree?degreeParameters:bindParameters&&isAtomnic&&!extraPanel&&!normalSelection.length?ATOMNIC_PARAMETERS:[]);
   const beginRotation=(step=false)=>{if(!selectedRef.current.size){setMessage('Select atoms before rotating.');return;}stepOnly.current=step;setTool('rotate');setMenu(null);setPanel({kind:'functions'});setPhase('pivot');setMessage('Pick the pivot: exact click or detected target.');};
   const cancel=()=>{referencePicker?.cancelPick();secondary.current.cancel();setCursorOperation(null);setSelectionBox(null);const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
   const mark=()=>{try{const targets=[...scoped(selectedRef.current)].map(id=>`${id}:shape`);if(!targets.length)return;
@@ -151,17 +151,17 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     });
   };
   const settleGesture=()=>{const active=gesture.current;gesture.current=null;setCursorOperation(null);if(active?.next!==active?.base&&active)commit(active.next);};
-  const showDegrees=(ids:readonly string[])=>{if(!ids.length)return;settleGesture();dismissPanel?.();setDegrees(targetDegrees(recipeRef.current,ids));setMenu(cursorPosition());setPanel({kind:'target'});};
+  const showDegrees=(ids:readonly string[])=>{if(!ids.length)return;settleGesture();dismissPanel?.();setDegrees(targetEditorDegrees(recipeRef.current,ids));setMenu(cursorPosition());setPanel({kind:'target'});};
   const showDegreesRef=useRef(showDegrees);showDegreesRef.current=showDegrees;
   useLayoutEffect(()=>numericEditor.registerDegrees?.(ids=>showDegreesRef.current(ids)),[numericEditor.registerDegrees]);
   const toggleDofOptions=()=>{
     settleGesture();if(numericEditor.toggleOptions?.())return;
     const active=activeDof;if(!active)return;
-    const degree=targetDegrees(recipeRef.current,active.ids).find(d=>d.id===active.property);if(!degree)return;
+    const degree=targetEditorDegrees(recipeRef.current,active.ids).find(d=>d.id===active.property||d.axes?.some(a=>a.id===active.property));if(!degree)return;
     dismissPanel?.();setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:true});
   };
   const informationIds=activeDof?.ids??(normalSelection.length?normalSelection:[...selected]);
-  const informationDegree=targetDegrees(recipe,informationIds).find(d=>d.id===activeDof?.property)??targetDegrees(recipe,informationIds).find(d=>targetParameter(d).kind==='number');
+  const informationDegree=targetEditorDegrees(recipe,informationIds).find(d=>d.id===activeDof?.property||d.axes?.some(a=>a.id===activeDof?.property))??targetEditorDegrees(recipe,informationIds).find(d=>targetParameter(d).kind==='number');
   const informationParameter=informationDegree&&targetParameter(informationDegree),informationDomain=informationParameter&&stateFieldDomain(informationParameter);
   const informationRule=useWorkingSelection(informationDegree?.properties[0]??'omnic.coordinate.x',informationDomain?informationDomain.max-informationDomain.min:400,informationDomain?.integer?'step':'symmetry',informationDomain?.cyclic?informationDomain.cyclic.period/8:informationDomain?.resolution??1);
   const informationActions=useRef({configure:(_kind:DofSettingsKind)=>{},degrees:()=>{}});
@@ -169,7 +169,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const informationReference=informationDegree?referencePicker?.reference(informationDegree):undefined;
   const information=useMemo<DofInformationState|undefined>(()=>{
     if(!informationDegree)return;const mode=dofModePresentation(informationRule.mode,!!informationDomain?.cyclic,informationReference?.use);
-    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:mode.label,modeIcon:mode.icon,variable:informationReference?.use==='step'||informationReference?.use==='match'||informationRule.mode==='step'?'step':'count',expression:informationReference?.use==='match'?`= ${rangeLabel(informationReference.match??0)}`:informationRule.mode==='step'?`Δ ${rangeLabel(informationReference?.step??informationRule.step)}`:<DofRuleExpression count={informationRule.count}/>,referenceUse:informationReference?.use,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
+    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:mode.label,modeIcon:mode.icon,variable:informationReference?.use==='step'||informationReference?.use==='match'||informationRule.mode==='step'?'step':'count',expression:informationReference?.use==='match'?`= ${rangeLabel(informationReference.match??0)}`:informationRule.mode==='step'?`Δ ${rangeLabel(informationReference?.step??informationRule.step)}`:<DofRuleExpression count={informationRule.count}/>,ruleControls:!informationDegree.axes,referenceUse:informationReference?.use,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
   },[informationDegree?.id,informationDegree?.label,informationDegree?.symbol,informationRule.mode,informationRule.count,informationRule.step,informationReference?.label,informationReference?.step,informationReference?.use,informationReference?.match,!!informationDomain?.cyclic]);
   useLayoutEffect(()=>information?numericEditor.registerInformation?.(information,1):undefined,[numericEditor.registerInformation,information]);
   const commands=useFeatureActions('atomnicComposer',{
@@ -219,7 +219,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       if(ids.length){
         const atomTargets=ids.every(id=>list.some(atom=>atom.id===id));
         const adapters=compatible&&atomTargets?FEATURE_ACTIONS.flatMap(action=>'adjusts' in action?[{id:action.id,label:action.label,symbol:action.radial.symbol,adjusts:action.adjusts}]:[]):[];
-        setDegrees(targetDegrees(recipeRef.current,ids,adapters,isAtomnic&&atomTargets&&settings.mode==='constrained'?['omnic.extent']:[]));setPanel({kind:'target'});
+        setDegrees(targetEditorDegrees(recipeRef.current,ids,adapters,isAtomnic&&atomTargets&&settings.mode==='constrained'?['omnic.extent']:[]));setPanel({kind:'target'});
       }else {setPanel({kind:'functions'});if(onEmptyContext)onEmptyContext(point);else if(radar)radialNavigation.current?.open();}
     },
     down:(point,event)=>{
@@ -389,7 +389,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       {extraPanel??<>
       {panel.kind==='target'&&<RadialMenu navigationRef={targetNavigation} items={radialTree(degrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changeDegree(degree,value,true)} onCommit={value=>changeDegree(degree,value)} onOpen={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else setPanel({kind:'degree',degree,configure:false});}}/>,content:<><UIAction registerOnly id={`omnic:target-dof:${degree.id}`} label={degree.label} category="Omnic" tool={degree.action} onClick={()=>{
         if(degree.action){commands.invoke(degree.action as Parameters<typeof commands.invoke>[0]);}else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:false});}
-      }} onConfigure={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:true});}}}/><FunctionControl id={`omnic:target-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.action?operationLabel(degree.action):String(targetDegreeValue(recipe,degree))} · Left-click adjusts; right-click configures`}/></>})))} onClose={()=>setMenu(null)}/>}
+      }} onConfigure={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:true});}}}/><FunctionControl id={`omnic:target-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.action?operationLabel(degree.action):degree.axes?'Vector':String(targetDegreeValue(recipe,degree))} · Left-click adjusts; right-click configures`}/></>})))} onClose={()=>setMenu(null)}/>}
       {panel.kind==='degree'&&<div className="progressive-configuration">
         <DegreeValueEditor key={`${panel.degree.id}:${panel.configure}`} recipe={recipe} degree={panel.degree} configure={panel.configure} onDismiss={()=>setMenu(null)}
           onPreview={value=>changeDegree(panel.degree,value,true)} onCommit={value=>changeDegree(panel.degree,value)}/>
@@ -433,8 +433,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   return radar?content:<UISection id="atomnic-editor" title="Atomnic">{content}</UISection>;
   function openGestureSettings(x:number,y:number){
     const active=gesture.current;if(!active||!['move','translate','rotate','openDegree'].includes(active.kind))return false;
-    const ids=[...active.ids],degrees=targetDegrees(recipeRef.current,ids);
-    const degree=active.degree??(['rotate','openDegree'].includes(active.kind)?degrees.find(d=>targetParameter(d).selection):degrees.find(d=>d.id===activeDof?.property)??degrees.find(d=>targetParameter(d).measurement==='center-x'));
+    const ids=[...active.ids],degrees=targetEditorDegrees(recipeRef.current,ids);
+    const degree=active.degree??(['rotate','openDegree'].includes(active.kind)?degrees.find(d=>targetParameter(d).selection):degrees.find(d=>d.id===activeDof?.property||d.axes?.some(a=>a.id===activeDof?.property))??degrees.find(d=>d.axes||targetParameter(d).measurement==='center-x'));
     if(!degree)return false;
     settleGesture();dismissPanel?.();setActiveDof({ids,property:degree.id});
     setMenu({x,y});setPanel({kind:'degree',degree,configure:'options'});setPhase('configure');return true;
@@ -461,7 +461,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     else if(panel.kind==='position')setPanel({kind:'reference',index:1});
     else {setPanel({kind:'functions'});if(phase==='configure')setPhase('idle');}
   }
-  function changeDegree(degree:EditableDegree,value:string|number|boolean,preview=false){try{commit(writeTargetDegree(recipeRef.current,degree,value),preview);setMessage('');}catch(failure){error(failure);}}
+  function changeDegree(degree:EditableDegree,value:DegreeEditValue,preview=false){try{commit(writeTargetDegree(recipeRef.current,degree,value),preview);setMessage('');}catch(failure){error(failure);}}
   function pickBoundary(turn:number){if(panel.kind!=='axis')return;if(panel.stage==='start')setPanel({kind:'axis',stage:'end',start:turn});else setPanel({...panel,stage:'halving',end:turn>panel.start!?turn:turn+1});}
   function pickAxis(value:number){
     let order=Number(settings.order);while(order<6&&Math.abs(value*divisions(order)-Math.round(value*divisions(order)))>1e-6)order++;

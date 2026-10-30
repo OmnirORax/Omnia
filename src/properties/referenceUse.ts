@@ -26,8 +26,9 @@ export function resolveReferenceUse(source:MeasuredReference,settings:ReferenceS
 export function createReferenceField(domain:StateFieldDomain,config:StateFieldConfiguration,reference:UsedReference|FieldReference|undefined,allowed?:(n:number)=>boolean){
  const used=reference as UsedReference|undefined;
  if(used?.unit&&(domain.unit??domain.quantity)&&used.unit!==(domain.unit??domain.quantity))return {domain,min:domain.min,max:domain.max,candidates:[],projection:domain.projection};
+ const exact=used?.match===undefined?undefined:Number(used.match.toPrecision(15));
  const defaults=fieldLimits(domain,reference,config);
- const limits=used?.use==='match'?{min:Math.max(defaults.min,used.match??Infinity),max:Math.min(defaults.max,used.match??-Infinity)}:defaults;
+ const limits=used?.use==='match'?{min:Math.max(defaults.min,exact??Infinity),max:Math.min(defaults.max,exact??-Infinity)}:defaults;
  return createStateField(domain,{...config,...limits,reference:reference?.value??config.reference,referenceId:reference?.id,
-  ...(used?.use==='step'?{mode:'step',step:used.step??0}:used?.use==='match'?{mode:'symmetry',reference:used.match??config.reference}:{}),thresholds:reference?.thresholds},allowed);
+  ...(used?.use==='step'?{mode:'step',step:used.step??0}:used?.use==='match'?{mode:'symmetry',reference:exact??config.reference}:{}),thresholds:reference?.thresholds},allowed);
 }

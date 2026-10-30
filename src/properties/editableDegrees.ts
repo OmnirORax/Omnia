@@ -7,11 +7,12 @@ export const RELATION_FREEDOM_GROUP={id:"relation",label:"Relations",symbol:"⨮
 /** Retained export for spatial adapters; both project the same category identity. */
 export const POSITION_FREEDOM_GROUP=RELATION_FREEDOM_GROUP;
 export type FreedomGroup={id:string;label:string;symbol:string;symbolMask?:string};
-export type FreedomPresentation={label:string;symbol:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[]};
+export type VectorFreedom={id:string;label:string;symbol:string;axis:string;matchLabel?:string;matchSymbol?:string};
+export type FreedomPresentation={vector?:VectorFreedom;label:string;symbol:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[]};
 export type EditableInput={key:string;property:string;label:string;freedom?:FreedomPresentation};
 export type EditableTarget={id:string;inputs:readonly EditableInput[]};
 export type FreedomAdjuster={id:string;label:string;symbol?:string;adjusts:readonly string[]};
-export type EditableDegree={id:string;label:string;symbol?:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[];action?:string;properties:readonly string[];targets:readonly {id:string;input:EditableInput}[]};
+export type EditableDegree={axes?:readonly EditableDegree[];id:string;label:string;symbol?:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[];action?:string;properties:readonly string[];targets:readonly {id:string;input:EditableInput}[]};
 export function editableDegrees(targets:readonly EditableTarget[],adjusters:readonly FreedomAdjuster[]=[],coverage:'common'|'available'='common'):EditableDegree[] {
   if(!targets.length)return [];
   const allInputs=targets.flatMap(target=>target.inputs);
@@ -27,4 +28,17 @@ export function editableDegrees(targets:readonly EditableTarget[],adjusters:read
       targets:targets.flatMap(target=>properties.flatMap(id=>{const input=target.inputs.find(input=>input.property===id);return input?[{id:target.id,input}]:[];}))});
   }
   return result;
+}
+
+/** Vector presentation composes existing scalar owners; axis editors remain available. */
+export function vectorDegrees(degrees:readonly EditableDegree[]):EditableDegree[]{
+ const result:EditableDegree[]=[],used=new Set<string>();
+ for(const degree of degrees){
+  const vector=degree.targets[0]?.input.freedom?.vector;
+  if(!vector){result.push(degree);continue;}if(used.has(vector.id))continue;
+  const axes=degrees.filter(d=>d.targets[0]?.input.freedom?.vector?.id===vector.id);
+  if(axes.length<2){result.push(degree);continue;}used.add(vector.id);
+  result.push({id:vector.id,label:vector.label,symbol:vector.symbol,group:degree.group,properties:axes.flatMap(a=>a.properties),targets:axes.flatMap(a=>a.targets),axes});
+ }
+ return result;
 }

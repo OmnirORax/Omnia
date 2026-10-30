@@ -974,7 +974,56 @@ test('future numeric reference consumers inherit relation filtering without pres
  const angular={min:-360,max:360,resolution:.1,projection:'radial',cyclic:{period:360,north:-90}};
  const angle=resolveReferenceUse({...source,measures:[{...source.measures[0],value:17.5}]},{use:'match',measure:'span',numerator:1,denominator:1},0);
  assert.deepEqual(createReferenceField(angular,config,angle).candidates.map(c=>c.value),[17.5]);
+ const noisy=resolveReferenceUse({...source,measures:[{...source.measures[0],value:.1+.2}]},{use:'match',measure:'span',numerator:1,denominator:1},0);
+ assert.deepEqual(createReferenceField({...domain,integer:false,max:1},config,noisy).candidates.map(c=>c.value),[.3],'arithmetic noise cannot remove an exact match at its own bounds');
  const zero=resolveReferenceUse({...source,measures:[{...source.measures[0],value:0}]},{use:'step',measure:'span',numerator:1,denominator:1},1);
  assert.equal(zero,undefined,'zero-step links remain unavailable');
  assert.equal(resolveReferenceUse({...source,unit:'incompatible'},{use:'step',measure:'span',numerator:1,denominator:1},1),undefined,'shared resolver rejects unit mismatches even for future adapters');
+});
+
+test('Position editor composes registered axes and matches both visual centres in one atomic owner write',async()=>{
+ const {targetEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {resolveReferenceUse,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const {vectorMatchCandidate,sameVector}=await import('../src/properties/vectorStateField.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const source=validateRecipe({...recipe([{id:'a',generator:'group',params:{x:-50,y:-40},children:[{id:'offset-line',generator:'line',params:{length:80,x:60,y:20,angle:35}}]},{id:'b',generator:'dot',params:{size:20,x:120,y:90}}]),atomnic:{mode:'free'}});
+ const position=targetEditorDegrees(source,['a']).find(d=>d.id==='omnic.position');
+ assert.equal(position.label,'Position');assert.equal(position.axes.length,2);
+ assert.ok(targetEditorDegrees(source,['a'],[{id:'legacy.move',label:'Move',adjusts:position.properties}]).some(d=>d.axes?.length===2),'legacy move adjusters cannot swallow the vector editor');
+ assert.ok(!targetEditorDegrees(source,['a']).some(d=>d.id==='omnic.coordinate.x'));
+ assert.ok(targetDegrees(source,['a']).some(d=>d.id==='omnic.coordinate.x'),'scalar adapters remain discoverable for optional axes');
+ const snapshot=operationGeometry(source,evaluateRecipe(source));
+ const axes=position.axes.map(axis=>({property:axis.properties[0],domain:stateFieldDomain(targetParameter(axis)),reference:resolveReferenceUse(measuredReferenceFor(snapshot,axis,'b'),{...DEFAULT_REFERENCE_SETTINGS,use:'match'},Number(targetDegreeValue(source,axis)))}));
+ let validations=0;
+ const candidate=vectorMatchCandidate(axes,value=>{validations++;try{writeTargetDegree(source,position,value);return true;}catch{return false;}});
+ assert.ok(candidate);assert.equal(validations,1,'the combined tuple is validated once, not committed axis by axis');
+ const committed=writeTargetDegree(source,position,candidate),after=operationGeometry(committed,evaluateRecipe(committed));
+ const centre=view=>({x:view.bounds.x+view.bounds.width/2,y:view.bounds.y+view.bounds.height/2});
+ almost(centre(after.views.get('a')).x,centre(after.views.get('b')).x);almost(centre(after.views.get('a')).y,centre(after.views.get('b')).y);
+ assert.notEqual(committed.components[0].params.x,source.components[1].params.x,'an asymmetric group origin is not mistaken for its visual centre');
+ assert.equal(source.components[0].params.x,-50);assert.equal(source.components[0].params.y,-40,'source stays unchanged during preview/validation');
+ const current=Object.fromEntries(position.axes.map(axis=>[axis.properties[0],Number(targetDegreeValue(source,axis))]));
+ const session=mathematicalValueSession(current,sameVector);session.preview(candidate);assert.equal(session.receive({...candidate}),false);
+ assert.deepEqual(session.restore(),current,'cancellation restores all components');session.preview(candidate);session.commit(candidate);assert.deepEqual(session.restore(),candidate,'leaving after commit retains both coordinates');
+ const xOnly=writeTargetDegree(source,position,{[position.axes[0].properties[0]]:10});assert.equal(xOnly.components[0].params.x,10);assert.equal(xOnly.components[0].params.y,-40,'optional axis-only editing preserves the companion coordinate');
+ assert.throws(()=>writeTargetDegree(source,position,{...candidate,'omnic.coordinate.y':1000}));
+ assert.equal(vectorMatchCandidate([axes[0],{...axes[1],reference:undefined}],()=>true),undefined,'no partial centring when a component is unavailable');
+ const environment={x:-200,y:-100,width:400,height:200};
+ const envAxes=position.axes.map(axis=>({property:axis.properties[0],domain:stateFieldDomain(targetParameter(axis)),reference:resolveReferenceUse(measuredReferenceFor(snapshot,axis,'@environment',environment),{...DEFAULT_REFERENCE_SETTINGS,use:'match'},Number(targetDegreeValue(source,axis)))}));
+ const envCandidate=vectorMatchCandidate(envAxes,value=>{try{writeTargetDegree(source,position,value);return true;}catch{return false;}});
+ const envState=operationGeometry(writeTargetDegree(source,position,envCandidate),evaluateRecipe(writeTargetDegree(source,position,envCandidate)));
+ almost(centre(envState.views.get('a')).x,0);almost(centre(envState.views.get('a')).y,0);
+});
+
+test('future declared vector DOFs inherit grouping and atomic component candidate validation',async()=>{
+ const {vectorDegrees}=await import('../src/properties/editableDegrees.ts');
+ const {vectorMatchCandidate}=await import('../src/properties/vectorStateField.ts');
+ const leaves=['u','v','w'].map((axis,i)=>({id:`future.${axis}`,label:axis,properties:[`future.${axis}`],targets:[{id:'owner',input:{key:axis,property:`future.${axis}`,label:axis,freedom:{label:axis,symbol:axis,vector:{id:'future.vector',label:'Future vector',symbol:'◇',axis}}}}]}));
+ const grouped=vectorDegrees(leaves);assert.equal(grouped.length,1);assert.equal(grouped[0].axes.length,3);
+ const axes=leaves.map((a,i)=>({property:a.properties[0],domain:{min:-10,max:10,resolution:1,projection:'axis-x',unit:'future'},reference:{id:'source',label:'Source',unit:'future',use:'match',value:0,match:i+1}}));
+ assert.deepEqual(vectorMatchCandidate(axes,value=>Object.values(value).reduce((a,b)=>a+b,0)===6),{'future.u':1,'future.v':2,'future.w':3});
+ assert.equal(vectorMatchCandidate(axes,()=>false),undefined,'whole-vector constraints are authoritative');
 });
