@@ -1277,10 +1277,6 @@ html[data-tool-cursor],html[data-tool-cursor] *{cursor:none!important}
 @media(prefers-reduced-motion:reduce){.tool-cursor-pulse{animation:none}}
 
 .tool-cursor.visual-selector-cursor{color:var(--omnium-accent,#60ddec)}
-.tool-cursor-controls{position:absolute;left:28px;top:10px;display:flex;gap:3px;width:max-content;font-size:12px;line-height:1.2;white-space:nowrap}
-.tool-cursor-controls button{padding:3px 5px;min-width:24px;border:1px solid #60ddec66;border-radius:12px;background:#07131ee8;color:var(--text,#d4e6ef);font:inherit}
-.tool-cursor[data-cursor-interactive] .tool-cursor-controls,.tool-cursor[data-cursor-interactive] .tool-cursor-controls *{pointer-events:auto!important;cursor:pointer!important}
-.tool-cursor[popover]{margin:0;padding:0;border:0;background:transparent;overflow:visible;color:var(--text,#d4e6ef)}
 /* Focused drawing/interaction surfaces are not text insertion owners. Native
    fields opt back in, including numeric configuration popups. */
 body{caret-color:transparent}

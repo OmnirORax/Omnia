@@ -434,7 +434,7 @@ physical axis: radial positions are addresses. Current constraints cover numeric
 bounds/integer validity and existing legality; missing geometry solvers are not
 inferred. Keep prepared work bounded and outside pointer motion. Shared fields are
 not yet browser-accepted, and general 2D/vector fields/persistent constraints remain
-pending. Preserve Alt parking and physical press-origin context ownership. Do not
+pending. Preserve physical press-origin context ownership; E06 supersedes DOF Alt parking. Do not
 revive automatic invitations/Space acceptance or the discarded manual E02 flow.
 
 
@@ -446,3 +446,6 @@ arrows/wheel/keyboard traverse adjacent generated values, without interpolation.
 The math dial edits rule variables and bounds only. The standalone RangeControl
 ½ picker is removed; geometric pivot/axis halving remains separate. See E05 in
 the living plan before extending the system.
+
+
+Latest E06: Composer top always displays clickable active DOF, mode/rule and ⟴ reference. During a DOF-changing gesture the same information echoes beside the cursor without intercepting input. MB3 (catalog/rebindable) toggles the existing settings radial; DOF Alt parking is removed. Gesture activation, reference/rule configuration and slider execution share the existing numeric scope/owners. MS owns precise authored-boundary reference picking; temporary requests restore previous selection on accept/cancel. See E06 for implemented limits.

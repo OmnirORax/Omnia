@@ -527,21 +527,6 @@ test('saved button shortcuts yield to active scoped commands before reporting a 
 });
 
 
-test('Alt cursor parking uses the visible owner rather than a stale preview DOM hit',async()=>{
- const {cursorParkingOwner,activeToolCursor,cursorApplies}=await import('../src/ui/toolCursorModel.ts');
- const other={key:'pen',zone:'canvas'},first={key:'wheel:one',zone:'canvas',priority:45,controls:{}},second={key:'wheel:two',zone:'canvas',priority:45,controls:{}};
- const displayed=activeToolCursor([other,first,second],request=>cursorApplies(request,'canvas'));
- assert.equal(cursorParkingOwner(displayed),'wheel:two','only the displayed owner parks, even when several controls share a content zone');
- // Replaced SVG may have detached the cached target. Parking consumes the
- // previously resolved displayed owner rather than performing new DOM discovery.
- assert.equal(cursorParkingOwner(displayed),'wheel:two');
- assert.equal(cursorParkingOwner(null,[other,first,second]),'wheel:two','explicit Alt does not depend on a hover hit or focused field');
- assert.equal(cursorParkingOwner({key:'MS',priority:100},[first,second]),undefined,'higher-priority MS operation retains precedence');
- assert.equal(cursorParkingOwner(other),undefined,'ordinary tool cursors do not intercept Alt');
- assert.equal(cursorParkingOwner(null),undefined,'no active indicator owner means no parking action');
-});
-
-
 test('newly appeared settings controls cannot inherit the opener right-click',async()=>{
  const {contextPressOwnsControl}=await import('../src/ui/contextMenuOwnership.ts');
  const canvas={},body={},popup={},sizeRange={},sizeInput={},icon={};
@@ -551,7 +536,8 @@ test('newly appeared settings controls cannot inherit the opener right-click',as
  assert.equal(contextPressOwnsControl(openingPath,undefined),true,'the original canvas menu still receives its context event');
  assert.equal(contextPressOwnsControl([icon,popup,body],sizeInput),false,'another control in the same existing popup cannot receive the press either');
  assert.equal(contextPressOwnsControl([sizeInput,sizeRange,popup,body],sizeInput),true,'a fresh deliberate settings click works');
- assert.equal(contextPressOwnsControl(null,sizeInput),true,'keyboard-native context actions remain available');
+ assert.equal(contextPressOwnsControl(null,sizeInput),false,'unknown pointer origin cannot configure a newly visible control');
+ assert.equal(contextPressOwnsControl(null,sizeInput,true),true,'keyboard-native context invocation is explicitly allowed');
 });
 
 test('value sliders traverse a generated sequence without replacing its rule',async()=>{
@@ -566,4 +552,20 @@ test('value sliders traverse a generated sequence without replacing its rule',as
  assert.deepEqual(rangeSequence(values,2,8),[2.5,5],'limits filter execution without changing the generator');
  assert.equal(sequenceAt([],1),undefined);assert.equal(sequenceStep([],1,1),undefined);
  assert.equal(sequenceAt([7],.95),7);
+});
+
+test('DOF options inherit configurable pointer scope priority and physical press de-duplication',async()=>{
+ const {pointerFeatureKey,defaultSettings}=await import('../src/workspaceActions.ts');
+ const {pointerCommandGate}=await import('../src/ui/pointerCommandGate.ts');
+ const bindings=defaultSettings().bindings;
+ assert.equal(bindings['atomnic.dofOptions'],'MB3');
+ const event={button:1,ctrlKey:false,altKey:false,shiftKey:false,metaKey:false,target:{closest:s=>s.includes('data-atomnic-surface')?{}:null}};
+ assert.equal(pointerFeatureKey(bindings,event,id=>id==='atomnic.dofOptions'),'atomnic.dofOptions');
+ assert.equal(pointerFeatureKey(bindings,{...event,target:{closest:()=>null}},id=>id==='atomnic.dofOptions'),null);
+ assert.equal(pointerFeatureKey({...bindings,'selector.include':'MB3'},event,id=>['atomnic.dofOptions','selector.include'].includes(id)),'selector.include');
+ assert.equal(pointerFeatureKey({...bindings,'atomnic.dofOptions':'MB4'},{...event,button:3},id=>id==='atomnic.dofOptions'),'atomnic.dofOptions');
+ const gate=pointerCommandGate();gate.pointer(1);
+ assert.equal(gate.mouse(1),false,'compatibility mouse event cannot toggle twice');
+ assert.equal(gate.mouse(2),true,'a chord without pointerdown still dispatches');
+ gate.pointer(1);gate.release(1);assert.equal(gate.mouse(1),true);
 });

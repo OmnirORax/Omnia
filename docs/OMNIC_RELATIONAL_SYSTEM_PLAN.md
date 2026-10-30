@@ -439,3 +439,16 @@ slider; verify only generated values appear. Move minimum/maximum through the en
 controls; verify rule configuration alone preserves geometry. Drag/release/Undo,
 drag/Esc, arrows, keyboard and wheel on Count/Size/Opacity/Rotation must share the
 same contract. This is awaiting user testing; model checks do not prove visual feel.
+
+
+## E06: DOF information, gestures and reference selection
+
+Latest user correction: information is always visible at the top of Composer and clickable; it also appears near the cursor during DOF-changing actions. A shared DofInformation descriptor supplies both views, with the cursor echo noninteractive. This supersedes hidden-by-default settings and DOF Alt parking from earlier experiments. MB3 remains a catalog-backed, rebindable settings-radial toggle. No parallel value/rule editor or settings store is introduced.
+
+Flow: drag detects Position, or left-hold just beyond a selected object's boundary activates registered Rotation. Existing configured movement stays usable; top controls expose the current DOF, mode/expression and ⟴ reference. Self is default; coordinate inputs can select Environment or invoke MS for an authored reference boundary. MS requests preserve prior selection, reject unsupported references without editing it, and restore on cancellation/acceptance. The reference center and extents are read from canonical evaluated bounds and converted into the target's coordinate frame. Configuration preserves geometry. The shared slider executes generated values by drag/release or wheel; ⠒❉ remains the rule/variable maker.
+
+Position gestures reuse prepared single-target coordinate fields when a rule/reference is retained. Without one, existing Free/Realistic movement remains. Multiple-target movement is unchanged. Boundary axes are landmarks, not containment constraints; arbitrary 2D/vector solvers, transformed/animated matching, persistent bindings and exact 3D MS features remain deferred. No new numerical editor is applied outside Composer.
+
+The shared context guard now rejects unknown physical origins and context events retargeted onto a control absent from the original press path, regardless of the event's button representation. Explicit keyboard context remains supported; release-time menu activation stays separate from primary drawing/dragging. No timing suppression or withheld release is added.
+
+Verification: local models cover press ownership, pointer binding/rebinding/surface priority, compatibility dispatch once, temporary MS restoration, canonical parent-space reference bounds, edge bands and shared generated-field projection. Required local model/build/backend gates precede the delivery push. Browser acceptance pending: verify top strip and gesture echo, end-to-end MS return, scrolling and repeated empty-space right-clicks without a spurious Dial size value field.

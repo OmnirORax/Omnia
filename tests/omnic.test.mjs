@@ -778,3 +778,26 @@ test('rule configuration leaves geometry unchanged while the value slider previe
  assert.equal(targetDegreeValue(committed,degree),8);
  assert.equal(session.restore(),8,'release commits the slider value instead of restoring it');
 });
+
+test('gesture activation and reference fields use canonical bounds and the same generated sequence',async()=>{
+ const {outsideBoundary,positionFieldDelta}=await import('../src/omnic/dofGesture.ts');
+ const {fieldReferenceFor}=await import('../src/omnic/referenceGeometry.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {createStateField}=await import('../src/properties/stateField.ts');
+ const bounds={x:0,y:0,width:20,height:20};
+ assert.equal(outsideBoundary({x:10,y:10},bounds,3),false);
+ assert.equal(outsideBoundary({x:21,y:10},bounds,3),true);
+ assert.equal(outsideBoundary({x:24,y:10},bounds,3),false);
+ const source=validateRecipe(recipe([{id:'ga',generator:'group',params:{x:50},children:[dot('a',10)]},dot('b',120)]));
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ const degree=targetDegrees(source,['a']).find(d=>d.id==='omnic.coordinate.x');
+ const ref=fieldReferenceFor(geometry,degree,'b');almost(ref.value,70);almost(ref.min,64);almost(ref.max,76);
+ const env=fieldReferenceFor(geometry,degree,'@environment',{x:0,y:0,width:200,height:100});
+ almost(env.min,-50);almost(env.max,150);almost(env.value,50);
+ const field=createStateField({min:0,max:20,resolution:1,projection:'axis-x'},{mode:'symmetry',count:4,step:1,reference:0});
+ assert.deepEqual(positionFieldDelta([{axis:'x',start:0,field}],{x:8,y:7},{x:8,y:7}),{x:10,y:7});
+ assert.deepEqual(positionFieldDelta(undefined,{x:8,y:7},{x:9,y:9}),{x:8,y:7},'unconfigured gestures retain their existing movement');
+ assert.throws(()=>positionFieldDelta([{axis:'x',start:0,field:{...field,candidates:[]}}],{x:1,y:1},{x:1,y:1}),/No valid position/);
+ assert.match(renderSVG(evaluateRecipe(source)),/data-selection-boundary/);
+ assert.equal(targetDegreeValue(source,degree),10,'reference and field configuration never change geometry');
+});

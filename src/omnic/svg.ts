@@ -59,7 +59,7 @@ export function evaluationBounds(evaluation:Evaluation) {
 }
 function element(node:StructuralNode,selected:boolean) {
   if(node.kind==="group")return "";
-  const attrs=`data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}" aria-label="${esc(node.id)}" style="fill:${node.fill?esc(node.color):"none"};stroke:${esc(node.color)}" stroke="${esc(node.color)}" stroke-width="${number(node.thickness)}" opacity="${number(node.opacity)}" fill="${node.fill?esc(node.color):"none"}"${selected?' data-omnic-selected="true"':''}`;
+  const attrs=`data-selection-boundary data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}" aria-label="${esc(node.id)}" style="fill:${node.fill?esc(node.color):"none"};stroke:${esc(node.color)}" stroke="${esc(node.color)}" stroke-width="${number(node.thickness)}" opacity="${number(node.opacity)}" fill="${node.fill?esc(node.color):"none"}"${selected?' data-omnic-selected="true"':''}`;
   const title=`<title>${esc(node.id)}</title>`;
   const base = node.kind==="line"?`<line ${attrs} x1="${number(node.x)}" y1="${number(node.y)}" x2="${number(node.x2??node.x)}" y2="${number(node.y2??node.y)}" stroke-linecap="round">${title}</line>`:`<circle ${attrs} cx="${number(node.x)}" cy="${number(node.y)}" r="${number(node.radius)}">${title}</circle>`;
   const mark=node.highlight;

@@ -150,3 +150,15 @@ test("mouse history and selection defaults survive old settings, and rebinding d
   assert.equal(loaded.mouse.selectionModifier, "ctrl");
   delete globalThis.localStorage;
 });
+
+test('temporary MS requests reject unsupported picks and restore selection exactly once',async()=>{
+ const {selectionRequest}=await import('../src/appearance/selectionRequest.ts');
+ let restores=0,cancels=0;
+ const request=selectionRequest(value=>value==='supported',()=>cancels++,()=>restores++);
+ assert.equal(request.accept('unsupported'),false);assert.equal(restores,0);
+ assert.equal(request.accept('supported'),true);assert.equal(restores,1);
+ request.cancel();assert.equal(request.accept('supported'),false);assert.equal(restores,1);assert.equal(cancels,0);
+ const cancelled=selectionRequest(()=>true,()=>cancels++,()=>restores++);
+ cancelled.cancel();cancelled.cancel();assert.equal(cancelled.accept('supported'),false);
+ assert.equal(restores,2);assert.equal(cancels,1);
+});

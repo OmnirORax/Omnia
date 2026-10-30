@@ -160,7 +160,7 @@ export function boundaryInRegion(candidate: SelectionBoundary, boundary: Selecti
 export function boundaryCandidates(element: Element): SelectionBoundary[] {
   const candidates: SelectionBoundary[] = [];
   for (let node: Element | null = element; node && node !== document.body; node = node.parentElement) {
-    if (node.matches("[data-ui-resident-root],[data-ui-function],button,input,textarea,select,.toolbar,.sidebar,.ui-dock-group,.ui-dock-split"))
+    if (node.matches("[data-selection-boundary],[data-ui-resident-root],[data-ui-function],button,input,textarea,select,.toolbar,.sidebar,.ui-dock-group,.ui-dock-split"))
       candidates.push(boundaryFor(node));
   }
   candidates.push(boundaryFor(document.body));

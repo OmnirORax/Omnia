@@ -679,3 +679,12 @@ end bar to configure its lower/upper limit. Rule/bound configuration does not ed
 geometry. The previous selectable value-panel UI and standalone slider ½ picker
 are removed; Halving remains a rule. Alt indicators, references, validation and
 owner/history paths remain shared. See the E05 record and maintained walkthrough.
+
+
+### E06: clickable DOF information and gesture activation
+
+The Composer top always shows compact active DOF, mode/rule and ⟴ reference controls. Click one to open its existing editor; mode right-click chooses the generator and the expression opens ⠒❉ variables. During an edit the same information follows the cursor as a noninteractive echo. This supersedes earlier DOF Alt-parking descriptions; MS parking remains separate. MB3 (rebindable atomnic.dofOptions) toggles the settings radial at the cursor; MS/Shift priority is retained.
+
+Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
+
+Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.

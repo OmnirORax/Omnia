@@ -1,3 +1,4 @@
+import type {DofSettingsKind} from '../ui/DofInformation';
 import {DofStateField} from '../ui/DofStateField';
 import {stateFieldDomain} from './stateFieldAdapter';
 import {OperationDegreeScope} from './OperationScope';
@@ -32,7 +33,7 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 }
 
 /** One metadata-selected value editor for preset and selected-target requests. */
-export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit}:{recipe:Recipe;degree:EditableDegree;configure?:boolean;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void}){
+export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit}:{recipe:Recipe;degree:EditableDegree;configure?:boolean|DofSettingsKind;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void}){
  const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree),domain=stateFieldDomain(parameter);
  return <OperationDegreeScope degree={degree}>{domain?<DofStateField property={degree.properties[0]} label={degree.label} symbol={degree.symbol} domain={domain} value={Number(value)} configure={configure} onPreview={onPreview} onCommit={onCommit}/>:<PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!,step:parameter.step}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>}</OperationDegreeScope>;
 }

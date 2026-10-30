@@ -36,19 +36,19 @@ export function cancelUITouch(event: PointerEvent) {
 // Install before component listeners can consume pointerup. Mouse events also
 // recover a cancelled mouse pointer stream; a no-buttons move proves release.
 if (typeof window !== "undefined") {
-  let secondaryPath:EventTarget[]|null=null;
-  const origin=(event:MouseEvent)=>{secondaryPath=event.button===2?event.composedPath():null;};
+  let secondaryPath:EventTarget[]|null=null,keyboardContext=false;
+  const origin=(event:MouseEvent)=>{secondaryPath=event.composedPath();keyboardContext=false;};
   const pressed=(event:PointerEvent)=>{physicalPresses.add(event.pointerId);origin(event);};
   const context=(event:MouseEvent)=>{
     const target=event.target instanceof Element?event.target:null;
     const control=target?.closest('button,input,select,textarea,[role="button"],[data-ui-function],[data-range-control]');
-    if(event.button===2&&!contextPressOwnsControl(secondaryPath,control)){event.preventDefault();event.stopImmediatePropagation();}
+    if(!contextPressOwnsControl(secondaryPath,control,keyboardContext)){event.preventDefault();event.stopImmediatePropagation();}
   };
-  const keyboard=(event:KeyboardEvent)=>{if(nativeContextMenuKey(event))secondaryPath=null;};
-  const blur=()=>{secondaryPath=null;};
+  const keyboard=(event:KeyboardEvent)=>{if(nativeContextMenuKey(event)){secondaryPath=null;keyboardContext=true;}};
+  const blur=()=>{secondaryPath=null;keyboardContext=false;};
   // Compatibility mousedown must not replace the earlier pointerdown origin
   // if a popup was mounted between the two events. It also covers mouse chords.
-  const mouseOrigin=(event:MouseEvent)=>{if(event.button!==2)secondaryPath=null;else if(!secondaryPath)origin(event);};
+  const mouseOrigin=(event:MouseEvent)=>{if(!secondaryPath)origin(event);};
   window.addEventListener('mousedown',mouseOrigin,true);
   window.addEventListener('contextmenu',context,true);
   window.addEventListener('keydown',keyboard,true);

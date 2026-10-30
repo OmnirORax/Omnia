@@ -5,7 +5,7 @@ import { useCancelValueEdit } from "./ActiveContext";
 import { claimUIPress } from "./pointerOwnership";
 import { rangeValue,rangeSequence,sequenceIndex,sequenceAt,sequenceStep } from "./rangeMath";
 import {useContextNavigation} from './ContextStage';
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useMemo, type CSSProperties, type InputHTMLAttributes, type Ref, type ReactNode, type MutableRefObject } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback, type CSSProperties, type InputHTMLAttributes, type Ref, type ReactNode, type MutableRefObject } from "react";
 
 /** Layout adapters provide the displayed slider axis; captured once per drag. */
 export const RangeAxis=createContext(0);
@@ -24,6 +24,14 @@ export function useWorkingSelection(key:string,span:number,defaultMode:StateSele
   minChange:(selectionMin:number)=>change({selectionMin}),maxChange:(selectionMax:number)=>change({selectionMax}),
   modeChange:(selectionMode:StateSelectionMode)=>change({selectionMode}),
   countChange:(selectionCount:number)=>change({selectionCount}),stepChange:(selectionStep:number)=>change({selectionStep})};
+}
+/** Direct manipulation borrows the same session rules without creating editors. */
+export function useWorkingSelectionReader(){
+ const scope=useContext(RangeSettings),current=useRef(scope?.values);current.current=scope?.values;
+ return useCallback((key:string)=>{const saved=current.current?.[key];
+  if(!saved||![saved.selectionMode,saved.selectionCount,saved.selectionStep,saved.selectionMin,saved.selectionMax].some(value=>value!==undefined))return;
+  return {mode:saved.selectionMode??'symmetry',count:saved.selectionCount??8,step:saved.selectionStep??1,min:saved.selectionMin,max:saved.selectionMax};
+ },[]);
 }
 /** Retain widget working intervals/steps for one editing session, independently
  * of target values. Portalled editors inherit the same scope automatically. */

@@ -605,13 +605,13 @@ Math Dial edits its parameters. Session mode settings reuse RangeSettingsScope.
 Existing preview/commit owners remain authoritative. Reference context is supplied
 through NumericOperationScope; UI does not discover scene objects or infer units.
 
-ToolCursorLayer transports active DOF indicators with the same no-React pointer
-updates as other tool cursors. Shared useCursorParking captures the point on Alt
-transition; only parked controls receive pointer events. Interactive indicators use
-the popover top layer so editor popovers cannot cover them. Their clicked settings
-open via ContextualMasterController at the invocation point and survive Alt release.
-Ordinary fields and controls restore the native cursor. No private cursor portal,
-per-motion layout read or per-preset mode implementation.
+DofInformation is the shared rendering of active DOF, mode/rule and reference.
+NumericEditorScope lends the current editor's descriptor to the Composer top strip;
+the gesture adapter supplies a fallback descriptor from the same property metadata
+and RangeSettings. Header buttons open existing settings. During a DOF edit the
+same information is a noninteractive ToolCursorLayer echo, with transform-only
+pointer transport. DOF Alt parking is retired; MS retains its own parking.
+MB3 is catalog-routed and rebindable, toggling the existing settings radial.
 
 
 Composer canvas right-click menus (including the active world-preview bridge)
@@ -630,20 +630,12 @@ commitment after a previously focused marker blurs, without preventing normal
 focus behavior or persisting hover previews.
 
 
-Alt parking captures the currently displayed interactive cursor owner by its
-unique request key, not a fresh lookup through cursorSample.target: previews may
-replace that cached DOM hit. Only that owner parks, even if several editors share
-a content zone. Alt is an explicit configuration request while an indicator owner is active,
-independent of hover-zone lookup or field focus. Fall back to that registered
-owner when no cursor hit is resolved. Prevent browser-menu defaults during parking
-without stopping propagation; preserve AltGr text entry and higher-priority MS.
-
-
 Context settings also validate the physical press origin through shared
 pointerOwnership: capture the right-press composed path once; a later contextmenu
 on a control only applies if that control was in the original path. This is
 independent of held/released timing and prevents newly mounted Dial size controls
-from receiving a menu opener. Keyboard context-menu invocation clears the pointer
+from receiving a menu opener. Unknown physical origins fail closed; native keyboard context is explicitly allowed.
+Keyboard context-menu invocation clears the pointer
 origin. There is no timer, motion check or feature-specific size exception.
 
 Non-text application surfaces use transparent caret-color; native inputs,
@@ -659,7 +651,7 @@ query over normalized projected points. Radial positions address nonspatial raw
 values; cyclic directions and spatial/magnitude axes have real domain mappings.
 No feature-specific hover arithmetic or preview setter may be added. Domains and
 owner constraints prepare once per committed/configuration context, never on
-pointer motion. The existing preview session, physical click capture, Alt cursor,
+pointer motion. The existing preview session, physical click capture, gesture information,
 MC popup/navigation and history contracts remain in force.
 
 Field rule parameters, bounds and exact '=' entry use MathematicalDial directly,

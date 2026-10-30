@@ -18,6 +18,6 @@ export function routeContextMenu<E extends ContextEvent>(event:E,local:((event:E
 
 /** Settings belong to the control on which the physical press began. A control
  * mounted under the release/contextmenu target cannot inherit that press. */
-export function contextPressOwnsControl(pressPath:readonly unknown[]|null,control:unknown):boolean {
- return !pressPath||!control||pressPath.includes(control);
+export function contextPressOwnsControl(pressPath:readonly unknown[]|null,control:unknown,keyboard=false):boolean {
+ return !control||keyboard||!!pressPath?.includes(control);
 }
