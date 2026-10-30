@@ -1130,3 +1130,16 @@ test('Self reference state follows source identity including explicit Self and u
  assert.equal(selfReference('removed-source',['edited']),false,'an unavailable external reference is not mislabeled Self');
  assert.equal(selfReference(undefined,['a','b']),true,'no explicit source retains the default self context');
 });
+
+test('object pickup moves after wheel configuration; only explicitly armed legacy rotation rotates',async()=>{
+ const {targetGrabMode}=await import('../src/omnic/atomnicInteraction.ts');
+ const {transformAtoms}=await import('../src/omnic/atomnic.ts');
+ for(const tool of ['draw','move','rotate'])for(const phase of ['idle','configure'])assert.equal(targetGrabMode(tool,phase),'move','a previous tool or wheel session cannot change ordinary grab intent');
+ assert.equal(targetGrabMode('rotate','armed'),'rotate');
+ const source=validateRecipe({...recipe([dot('a',20,0)]),atomnic:{...atomnicSettings(recipe([])),mode:'free'}}),ids=new Set(['a']);
+ const mode=targetGrabMode('rotate','configure');
+ const moved=mode==='move'?transformAtoms(source,ids,a=>({x:a.x+7,y:a.y+11})):rotateAtoms(source,ids,{x:0,y:0},.25);
+ assert.deepEqual(atoms(moved).map(a=>[a.x,a.y]),[[27,11]],'the same grab translates rather than invoking a stale pivot');
+ assert.deepEqual(atoms(source).map(a=>[a.x,a.y]),[[20,0]],'pickup preserves the original for cancel/undo');
+ assert.notDeepEqual(atoms(rotateAtoms(source,ids,{x:0,y:0},.25)).map(a=>[a.x,a.y]),[[27,11]],'explicit legacy rotation still has its distinct executor');
+});

@@ -761,3 +761,29 @@ Other surfaces retain ordinary MS targeting. All MS entry starts in aiming rathe
 than configuration. Accepting a target closes MS, retaining the selection/reference
 and continuing into the existing on-spot possibility field. The explicit MS
 settings command remains available through the shared function catalog.
+
+
+### First-press pickup across targets
+
+The local canvas receives pickup through a native listener on its stable surface,
+not React delegation through replaceable SVG descendants. A queued hover/selection
+render can replace a primitive during root capture before React bubble pickup;
+this previously lost the first press when switching targets. The native surface
+keeps that original press and captures subsequent movement/release. Unchanged
+SVG markup also retains its React HTML-prop identity to avoid needless subtree
+replacement. MS still owns membership and handles explicit aiming first.
+
+A focused local synthetic A → B → A → A → B event trace reproduced detached
+pressed primitives and lost pickup before the fix, then confirmed all five first
+presses captured and translated after it. This is diagnostic evidence, not general
+browser acceptance. No browser suite was run.
+
+Opening the rotation value wheel does not mutate the retained canvas tool into
+legacy drag rotation. Shared `targetGrabMode` resolves ordinary object pickup to
+movement in idle/configuration; rotation requires the explicitly armed legacy
+pivot stage. The retained tool name alone is insufficient. Actual movement pickup
+returns the phase to idle and retains existing position rules/references. The local
+and edited-world bridge use the same handlers. Eraser and explicit legacy pivot
+stages keep their prior dispatch; geometry legality and configured position fields
+still govern movement. Model regression covers intent and actual atom translation;
+user confirmation of repeated pickup after R/target-wheel editing is pending.
