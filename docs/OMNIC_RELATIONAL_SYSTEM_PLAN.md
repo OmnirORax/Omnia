@@ -16,7 +16,7 @@ extent as a step distance. Width is not assumed to be the correct choice for eve
 movement; the measurement must be identifiable and configurable. This is one
 example of the general contract, not a special Position snapping feature.
 
-Required shared contract (planned, not yet implemented):
+Target shared contract (implementation status below):
 
 - Reference source: Self, another authored target, or Environment. Self is an
   explicit source resolved against the active owner, not deletion of a choice.
@@ -75,11 +75,43 @@ unconfigured direct dragging remains free; retained single-target Position field
 consume the shared context. Self/reference geometry is evaluated from committed
 geometry, not hover samples.
 
-Still planned: selecting a measurement feature/use (for example width as a step),
-full stable operation snapshots across repeated commits, unified measured matching,
+Remaining after the measured-use implementation below: full stable operation
+snapshots across repeated commits and broader evaluated matching adapters,
 arbitrary frames/features, multi-target fields, persistent bindings and migration
 of legacy pivot/snap settings. Do not describe these as delivered. This slice
 retains reference-context controls and existing UI rather than inventing a wizard.
+
+## Measured-reference use implementation (2026-10-30)
+
+Source, measurement and use now have separate shared contracts in referenceUse.ts.
+The existing OperationReferenceScope retains source identity across a target's
+DOFs and independent relation settings per consumer. referenceMeasures.ts derives
+compatible features from the existing evaluated geometry/registered parameters,
+not preset-specific editors. Self and external sources share this adapter.
+
+Left-click ⟴ retains Q/MS source picking. Right-click ⟴ opens compact Bounds/Step/
+Match, measurement and ×/÷ configuration. The header shows the selected use. Bounds
+uses reference intervals; Step uses the chosen magnitude without source bounds;
+Match exposes exactly the derived value. Ratios are numerator/divisor through the
+existing mathematical dial. No configuration click mutates authored geometry.
+Shared createReferenceField serves numeric editors, cyclic wheels and prepared
+single-target Position movement. Exact matches are not required to occur in an old
+generated sequence. Hard bounds, working limits, units, integrality and setters
+still govern legality. Coordinate ratios precede authored-frame conversion.
+
+Several consumers can derive from one source feature; changing that committed
+source refreshes their editing contexts. This is not durable geometry binding:
+previously committed consumer geometry is unchanged until execution. Settings are
+transient to the Composer session. Persistent dependencies/cycles, arbitrary frames,
+symbolic equations and multi-target spatial fields remain future work. Unsupported
+measurement choices remain explicit/unavailable rather than silently using bounds.
+Ordinary numeric operations without a measured geometry adapter retain raw editing.
+
+Browser acceptance pending: position step = another line's length, half-length
+steps, another DOF matched to the same source length, Self width/height, source
+refresh, independent bounds and direct gesture/slider parity. Model tests cover
+these derivations plus incompatible units, exact/cyclic matching and future integer
+domains. No browser suite is run; local gates precede source delivery.
 
 ## Accepted baseline and sources
 

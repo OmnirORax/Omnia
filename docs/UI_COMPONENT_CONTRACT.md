@@ -734,3 +734,18 @@ Projected function buttons inside a radial slot take that slot's full box with
 zero padding/minimum height, centred content and no wrapping. These scoped rules
 outrank generic resident function-text/icon sizing. Row glyphs use 12px; nested
 icon spans inherit it so Position X/Y and custom icon glyphs stay inside 24px slots.
+
+Reference use is independent of reference source. The existing OperationReferenceScope
+retains authored source identity across DOFs and per-consumer measurement/use/ratio
+settings; it does not introduce another scene owner or persistent geometry binding.
+NumericOperationScope lends compatible measured features, current resolved relation,
+legality and configuration callbacks. Shared referenceUse.ts resolves Bounds, Step
+or Match; createReferenceField is used by DofStateField and prepared Position gestures.
+Step has no imported reference bounds. Match supplies an exact candidate, still
+subject to consumer constraints/setters. Measured ratios precede coordinate conversion.
+Right-click top ⟴ configures use/measurement/×/÷; left-click retains Q/MS source picking.
+The use glyph stays visible on ⟴ and tooltips name the source/feature. Measured Step
+and Match route rule configuration to their ratio controls, avoiding ignored generic
+rule choices. Ordinary unbound numeric editing retains its existing rules. Settings
+and accepted source context are transient to the Composer session; committing a
+source updates consumer editing contexts, not previously committed dependent geometry.

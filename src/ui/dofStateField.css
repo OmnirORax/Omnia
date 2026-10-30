@@ -26,3 +26,5 @@
 .progressive-configuration:has(.dof-axis-wheel){max-width:none}
 
 .dof-axis-wheel .radial-menu-rims .dof-axis-threshold{stroke-width:1.5;opacity:1}
+
+.dof-reference-use{display:inline;font-size:.7em;line-height:0;vertical-align:super;margin-left:1px}

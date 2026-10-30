@@ -1,10 +1,10 @@
+import {rangeLabel} from '../ui/rangeMath';
 import {HOVER_TOOL_DETECTION_ENABLED,prepareHoverAffordances,previewHoverAffordance} from './hoverAffordances';
-import {DofRuleExpression,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
-import {fieldReferenceFor} from './referenceGeometry';
+import {DofRuleExpression,dofModePresentation,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
 import {positionFieldDelta,type PositionField} from './dofGesture';
 import {pointerCommandGate} from '../ui/pointerCommandGate';
 import {targetNodes} from './contextGeometry';
-import {createStateField,fieldLimits} from '../properties/stateField';
+import {createReferenceField} from '../properties/referenceUse';
 import {stateFieldDomain} from './stateFieldAdapter';
 import {useWorkingSelection,useWorkingSelectionReader} from '../ui/RangeControl';
 import {useNumericEditor} from '../ui/NumericEditorScope';
@@ -143,10 +143,10 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     if(ids.length!==1)return;
     return targetDegrees(recipeRef.current,ids).flatMap<PositionField>(degree=>{
       const parameter=targetParameter(degree),axis=parameter.measurement==='center-x'?'x':parameter.measurement==='center-y'?'y':undefined;
-      if(!axis)return [];const saved=readRule(degree.id),retained=referencePicker?.references.get(ids[0]);if(!saved&&!retained)return [];
+      if(!axis)return [];const saved=readRule(degree.id),retained=referencePicker?.references.get(ids[0]);if(!saved&&!referencePicker?.configured(degree))return [];
       const domain=stateFieldDomain(parameter);if(!domain)return [];
-      const reference=referencePicker?.snapshot?fieldReferenceFor(referencePicker.snapshot,degree,retained,referencePicker.environment):undefined;
-      const field=createStateField(domain,{mode:saved?.mode??'symmetry',count:saved?.count??8,step:saved?.step??domain.resolution,reference:reference?.value??Number(targetDegreeValue(recipeRef.current,degree)),referenceId:reference?.id,...fieldLimits(domain,reference,saved),thresholds:reference?.thresholds},n=>{try{writeTargetDegree(recipeRef.current,degree,n);return true;}catch{return false;}});
+      const reference=referencePicker?.reference(degree);
+      const field=createReferenceField(domain,{mode:saved?.mode??'symmetry',count:saved?.count??8,step:saved?.step??domain.resolution,reference:Number(targetDegreeValue(recipeRef.current,degree)),min:saved?.min,max:saved?.max},reference,n=>{if(!reference&&(retained||referencePicker?.settings(degree).use!=='bounds'))return false;try{writeTargetDegree(recipeRef.current,degree,n);return true;}catch{return false;}});
       return [{axis,start:Number(targetDegreeValue(recipeRef.current,degree)),field}];
     });
   };
@@ -166,11 +166,11 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const informationRule=useWorkingSelection(informationDegree?.properties[0]??'omnic.coordinate.x',informationDomain?informationDomain.max-informationDomain.min:400,informationDomain?.integer?'step':'symmetry',informationDomain?.cyclic?informationDomain.cyclic.period/8:informationDomain?.resolution??1);
   const informationActions=useRef({configure:(_kind:DofSettingsKind)=>{},degrees:()=>{}});
   informationActions.current={configure:kind=>{if(!informationDegree)return;settleGesture();dismissPanel?.();setMenu(cursorPosition());setPanel({kind:'degree',degree:informationDegree,configure:kind});},degrees:()=>showDegrees(informationIds)};
-  const informationReference=referencePicker?.snapshot&&informationDegree?fieldReferenceFor(referencePicker.snapshot,informationDegree,referencePicker.references.get(informationIds[0]),referencePicker.environment):undefined;
+  const informationReference=informationDegree?referencePicker?.reference(informationDegree):undefined;
   const information=useMemo<DofInformationState|undefined>(()=>{
-    if(!informationDegree)return;const mode=dofModes[informationRule.mode];
-    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:informationRule.mode==='symmetry'&&informationDomain?.cyclic?'Symmetry':mode.label,modeIcon:mode.icon,variable:informationRule.mode==='step'?'step':'count',expression:informationRule.mode==='step'?`Δ ${informationRule.step}`:<DofRuleExpression count={informationRule.count}/>,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
-  },[informationDegree?.id,informationDegree?.label,informationDegree?.symbol,informationRule.mode,informationRule.count,informationRule.step,informationReference?.label,!!informationDomain?.cyclic]);
+    if(!informationDegree)return;const mode=dofModePresentation(informationRule.mode,!!informationDomain?.cyclic,informationReference?.use);
+    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:mode.label,modeIcon:mode.icon,variable:informationReference?.use==='step'||informationReference?.use==='match'||informationRule.mode==='step'?'step':'count',expression:informationReference?.use==='match'?`= ${rangeLabel(informationReference.match??0)}`:informationRule.mode==='step'?`Δ ${rangeLabel(informationReference?.step??informationRule.step)}`:<DofRuleExpression count={informationRule.count}/>,referenceUse:informationReference?.use,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
+  },[informationDegree?.id,informationDegree?.label,informationDegree?.symbol,informationRule.mode,informationRule.count,informationRule.step,informationReference?.label,informationReference?.step,informationReference?.use,informationReference?.match,!!informationDomain?.cyclic]);
   useLayoutEffect(()=>information?numericEditor.registerInformation?.(information,1):undefined,[numericEditor.registerInformation,information]);
   const commands=useFeatureActions('atomnicComposer',{
     'atomnic.erase':{enabled:compatible,cursor:compatible&&pointerTool==='erase'?{zone:cursorZone}:false,run:()=>{cancel();setTool('erase');}},
