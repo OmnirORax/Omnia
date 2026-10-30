@@ -467,3 +467,6 @@ Latest E06 correction: remove the DOF-information cursor echo entirely, includin
 
 
 Active-edit sub-setters: right-click during a move/authored-rotation gesture or a held numeric-slider edit settles the current preview and summons the registered active DOF settings at the cursor. Mouse-only right-button chords while left remains held join the same secondary-release path, without duplicate activation. Use the shared ContextLayer dismissOutside capability for these settings: clicks outside registered popup interiors dismiss and consume that press, including outside controls/objects; MS retains priority. The requested settings view contains no companion value slider. Button-triggered settings still use below-button placement.
+
+
+Rotation discoverability: hover the existing outer edge band of a selected target with a registered Rotation DOF to switch to the same Rotation tool cursor used during the gesture. Hover and press share prepared bounds/margin, with only enter/leave transitions changing React state. No separate rendered handle, cursor text echo, preset-specific hit zone or per-motion geometry discovery is introduced. Browser confirmation pending.
