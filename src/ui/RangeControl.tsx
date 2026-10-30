@@ -1,3 +1,4 @@
+import {createValueScrub,type ValueScrub} from './valueScrub';
 import type {StateSelectionMode} from '../properties/stateSelection';
 import { cursorPosition } from './cursorPosition';
 import { ContextualMasterController } from './ContextualMasterController';
@@ -76,7 +77,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const valueDisabled=!!inputProps.disabled||sequence?.length===0;
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
-  const drag = useRef<{ id: number; origin?:{x:number;y:number}; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; values?:readonly number[]; before: number; next: number } | null>(null);
+  const drag = useRef<{ id: number; scrub?:ValueScrub; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; values?:readonly number[]; before: number; next: number } | null>(null);
   const cancelDrag = () => {
     const active = drag.current;
     if (!active) return;
@@ -94,9 +95,8 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const moveDrag = (clientX: number,clientY:number) => {
     const active = drag.current;
     if (!active) return;
-    if(active.origin){const dx=clientX-active.origin.x,dy=clientY-active.origin.y,length=Math.hypot(dx,dy);if(length<3)return;active.ux=dx/length;active.uy=dy/length;const fraction=active.values?active.values.length<2?.5:sequenceIndex(active.values,active.before)/(active.values.length-1):active.high===active.low?.5:(active.before-active.low)/(active.high-active.low);active.cx=active.origin.x-(fraction-.5)*active.width*active.ux;active.cy=active.origin.y-(fraction-.5)*active.width*active.uy;delete active.origin;}
     const fraction=((clientX-active.cx)*active.ux+(clientY-active.cy)*active.uy)/active.width+.5;
-    const next = active.values?sequenceAt(active.values,fraction):rangeValue(active.low+fraction*(active.high-active.low),active.low,active.high,active.step);
+    const next=active.scrub?active.scrub.sample({x:clientX,y:clientY}):active.values?sequenceAt(active.values,fraction):rangeValue(active.low+fraction*(active.high-active.low),active.low,active.high,active.step);
     if(next===undefined)return;
     if (next !== active.next) { active.next = next; onValueChange(next); }
   };
@@ -106,7 +106,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     const projected=Math.abs(ux)*node.offsetWidth+Math.abs(uy)*node.offsetHeight;
     const scale=projected>0?bounds.width/projected:1,width=Math.max(1,node.offsetWidth*scale);
     const fraction=sequence?sequence.length<2?.5:sequenceIndex(sequence,value)/(sequence.length-1):high===low?.5:(value-low)/(high-low);
-    drag.current={id,...(relative?{origin:{x,y}}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
+    drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
     claimUIPress(id);return true;
   };
   const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);const next=drag.current!.next;drag.current=null;onValueCommit?.(next);};

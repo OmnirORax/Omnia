@@ -572,3 +572,19 @@ test('DOF options inherit configurable pointer scope priority and physical press
  assert.equal(gate.mouse(2),true,'a chord without pointerdown still dispatches');
  gate.pointer(1);gate.release(1);assert.equal(gate.mouse(1),true);
 });
+
+test('free-space scalar scrubbing locks the first drag axis and reverses without following geometry',async()=>{
+ const {createValueScrub}=await import('../src/ui/valueScrub.ts');
+ const config={origin:{x:0,y:0},width:100,value:50,min:0,max:100,step:1};
+ const right=createValueScrub(config);
+ assert.equal(right.sample({x:2,y:0}),undefined,'press/jitter does not edit a value');
+ assert.equal(right.sample({x:4,y:0}),54);
+ assert.equal(right.sample({x:20,y:900}),70,'perpendicular motion does not change or relock the axis');
+ assert.equal(right.sample({x:-10,y:900}),40,'reversing past the start decreases');
+ const left=createValueScrub(config);assert.equal(left.sample({x:-4,y:0}),54);assert.equal(left.sample({x:-20,y:90}),70);
+ const down=createValueScrub(config);assert.equal(down.sample({x:0,y:4}),54);assert.equal(down.sample({x:900,y:20}),70);
+ const up=createValueScrub(config);assert.equal(up.sample({x:0,y:-4}),54);assert.equal(up.sample({x:900,y:-20}),70);
+ const diagonal=createValueScrub(config);assert.equal(diagonal.sample({x:3,y:4}),55);
+ assert.equal(diagonal.sample({x:-40,y:30}),50,'motion perpendicular to the original diagonal contributes zero');
+ assert.equal(diagonal.sample({x:30,y:40}),100);assert.equal(diagonal.sample({x:-30,y:-40}),0);
+});
