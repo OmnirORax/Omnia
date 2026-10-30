@@ -23,10 +23,10 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,ch
  const [relations,setRelations]=useState<ReadonlyMap<string,ReferenceSettings>>(()=>new Map());
  const relationKey=(degree:EditableDegree)=>JSON.stringify([[...new Set(degree.targets.map(t=>t.id))],degree.id]);
  const vectorKey=(degree:EditableDegree)=>{const vector=degree.targets[0]?.input.freedom?.vector;return vector?JSON.stringify([[...new Set(degree.targets.map(t=>t.id))],vector.id]):'';};
- const settings=(degree:EditableDegree)=>relations.get(relationKey(degree))??relations.get(vectorKey(degree))??(degree.axes?{...DEFAULT_REFERENCE_SETTINGS,use:'match' as const}:DEFAULT_REFERENCE_SETTINGS);
+ const settings=(degree:EditableDegree)=>relations.get(relationKey(degree))??relations.get(vectorKey(degree))??DEFAULT_REFERENCE_SETTINGS;
  const snapshot=useMemo(()=>evaluation?operationGeometry(recipe,evaluation,stateOwner):null,[recipe,evaluation,stateOwner]);
  const callbacks=useRef({read,error,snapshot});callbacks.current={read,error,snapshot};
- const value=useMemo<Scope>(()=>({snapshot,resolve,references,picking,cancelPick,environment,settings,configured:degree=>relations.has(relationKey(degree)),
+ const value=useMemo<Scope>(()=>({snapshot,resolve,references,picking,cancelPick,environment,settings,configured:degree=>relations.has(relationKey(degree))||relations.has(vectorKey(degree)),
  changeSettings:(degree,patch)=>setRelations(before=>{const next=new Map(before);next.set(relationKey(degree),{...settings(degree),...patch});return next;}),
  reference:(degree,consumer=degree)=>{if(!snapshot)return;const source=measuredReferenceFor(snapshot,degree.axes?.[0]??degree,references.get(degree.targets[0].id),environment);return source?resolveReferenceUse(source,settings(consumer),Number(targetDegreeValue(snapshot.recipe,degree))):undefined;},
  pick:degree=>{
@@ -58,14 +58,14 @@ export function OperationDegreeScope({degree,children}:{degree:EditableDegree;ch
  const scope=useContext(Context),ids=[...new Set(degree.targets.map(t=>t.id))],property=degree.properties[0],key=ids.join('|');
  const reference=useMemo<NumericReferenceControl|undefined>(()=>{
   const snapshot=scope?.snapshot;
-  if(!scope||!snapshot||degree.properties.length!==1)return;
+  if(!scope||!snapshot||degree.properties.length!==1&&!degree.axes)return;
   const target=ids[0],retained=scope.references.get(target),parameter=targetParameter(degree);
   if(parameter.kind!=='number')return;
   const allowed=(value:number)=>{try{writeTargetDegree(snapshot.recipe,degree,value);return true;}catch{return false;}};
   if(ids.length!==1)return {allowed,targets:ids};
-  const source=measuredReferenceFor(snapshot,degree,retained,scope.environment),current=scope.reference(degree),settings=scope.settings(degree);
+  const source=measuredReferenceFor(snapshot,degree.axes?.[0]??degree,retained,scope.environment),current=scope.reference(degree),settings=scope.settings(degree);
   const unavailable=!current&&(!!retained||settings.use!=='bounds'||settings.measure!=='context');
-  return {allowed:n=>!unavailable&&allowed(n),targets:ids,selection:{current,unavailable,relation:{sourceLabel:source?.label??retained??'Self',settings,measures:source?.measures??[],change:patch=>scope.changeSettings(degree,patch)},pick:()=>scope.pick(degree),clear:()=>scope.choose(target),cancel:scope.cancelPick}};
+  return {vector:!!degree.axes,allowed:n=>!unavailable&&(degree.axes?true:allowed(n)),targets:ids,selection:{current,unavailable,relation:{sourceLabel:source?.label??retained??'Self',settings,measures:source?.measures??[],change:patch=>scope.changeSettings(degree,patch)},pick:()=>scope.pick(degree),clear:()=>scope.choose(target),cancel:scope.cancelPick}};
 
  },[scope,key,property]);
  return <NumericOperationScope.Provider value={reference}>{children}</NumericOperationScope.Provider>;

@@ -391,7 +391,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       {(error||evaluated.error||notice)&&<small className="omnic-radar-feedback" role={error||evaluated.error?'alert':'status'}>{error||evaluated.error||notice}</small>}
     </div></RangeSettingsScope></NumericEditorScope></OperationReferenceScope>;
   }
-  return <OperationReferenceScope surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><div className="omnic-composer"><DofInformationHeader/>
+  return <OperationReferenceScope surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer"><DofInformationHeader/>
     <div className="omnic-toolbar">
       <strong>{entity.label || "Omnic object"}</strong><small title={isNew ? "Save shared creates this object at the preview position. Closing removes the world preview and keeps the recoverable draft. World previews use the shared 32-source budget." : "The world previews this draft and its live uses within the shared 32-source budget; other occurrences retain saved rendering. Closing restores saved rendering; Reset draft reverts unsaved work."}>{isNew ? "New · world draft" : dirty ? "World draft · not saved" : `Shared revision ${entity.omnic?.revision ?? 0}`}</small>
       {!atomnicActive&&["omnic.save", "omnic.copy", "omnic.play", "omnic.export", "omnic.import", "omnic.reset"].map(action => <FunctionControl key={action} id={action} />)}
@@ -464,6 +464,6 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       </div>:null)}</div>
     </div>
     {!!evaluated.result?.diagnostics.length && <UISection id="omnic-diagnostics" title="Unresolved / constrained" defaultExpanded><ul>{evaluated.result.diagnostics.map((diagnostic,index)=><li key={`${diagnostic.code}:${diagnostic.target ?? ""}:${index}`}>{diagnostic.message}{diagnostic.target ? ` · ${diagnostic.target}` : ""}</li>)}</ul></UISection>}
-  </div></NumericEditorScope></OperationReferenceScope>;
+  </div></RangeSettingsScope></NumericEditorScope></OperationReferenceScope>;
 }
 

@@ -22,6 +22,6 @@ export function NumericEditorScope({children,cancelPreview}:{children:ReactNode;
 /** A state/renderer adapter lends a resolved reference and candidate to the shared
  * number editor. UI contains no object lookup or feature-specific arithmetic. */
 export type SelectionReference=import('../properties/referenceUse').UsedReference;
-export type NumericReferenceControl={allowed?:(value:number)=>boolean;targets?:readonly string[];selection?:{unavailable?:boolean;current?:SelectionReference;relation?:{sourceLabel:string;settings:import('../properties/referenceUse').ReferenceSettings;measures:readonly import('../properties/referenceUse').ReferenceMeasure[];change:(patch:Partial<import('../properties/referenceUse').ReferenceSettings>)=>void};pick:()=>Promise<SelectionReference|undefined>;clear:()=>void;cancel:()=>void}};
+export type NumericReferenceControl={vector?:boolean;allowed?:(value:number)=>boolean;targets?:readonly string[];selection?:{unavailable?:boolean;current?:SelectionReference;relation?:{sourceLabel:string;settings:import('../properties/referenceUse').ReferenceSettings;measures:readonly import('../properties/referenceUse').ReferenceMeasure[];change:(patch:Partial<import('../properties/referenceUse').ReferenceSettings>)=>void};pick:()=>Promise<SelectionReference|undefined>;clear:()=>void;cancel:()=>void}};
 export const NumericOperationScope=createContext<NumericReferenceControl|undefined>(undefined);
 export const useNumericOperation=()=>useContext(NumericOperationScope);

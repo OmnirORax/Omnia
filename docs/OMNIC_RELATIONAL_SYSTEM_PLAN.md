@@ -113,29 +113,25 @@ refresh, independent bounds and direct gesture/slider parity. Model tests cover
 these derivations plus incompatible units, exact/cyclic matching and future integer
 domains. No browser suite is run; local gates precede source delivery.
 
-## Combined Position implementation (2026-10-30)
+## Position alignment correction (current)
 
-Position is now the default composed-vector editor entry. Registered input vector
-metadata groups scalar capabilities in targetEditorDegrees; targetDegrees and the
-underlying stored coordinates remain intact. Existing action adjusters do not
-swallow vector axes in this editor projection. Shared vectorMatchCandidate composes
-scalar measured-reference conversions, then validates the tuple atomically.
-writeTargetDegree accepts validated component patches and writes the tuple through
-one recipe transaction. The existing numeric preview session is generalized with
-an equality predicate so vectors inherit preview/restore/commit behavior.
+Remove the bespoke centre-only vector panel. Position is an adapter into the same
+DofStateField used by other DOFs: retain Partitions, fractions, rule variables and
+reference configuration. It does not add a Centre button or another action dial.
+The normal Match relation composes all coordinate measurements into one tuple and
+applies one owner transaction. Bounds/Step movement uses the existing prepared
+coordinate fields; common working-rule changes feed both axes. Component controls
+remain optional entries in the shared options radial, with axis limits respected.
 
-Flow: right-click target → Position → ⟴ reference → hover ◎ Centre → click/Enter.
-Both coordinates preview/commit together. Optional X/Y open the existing scalar
-editors, preserving the companion coordinate. Centre matching uses visual bounds
-and per-axis authored-frame offsets, including asymmetric groups. Vector metadata
-supplies match labels/symbols; future components reuse the same tuple engine.
+Opening ⟴ shows reference options for all DOFs. Only choosing the source control
+there invokes Q/MS; do not start selection while offering choices. Configuration
+and execution remain separate. Match keeps the configured generator/partitions
+visible; its exact reference point naturally has one candidate. The shared widget
+is extended by adapter capabilities rather than replaced for Position.
 
-Current vector execution is joint centre Match, not a full joint spatial field.
-Bounds/step editing is still available per optional axis. Collective multi-target
-centring, arbitrary frames/features and durable bindings remain pending. Local
-regressions cover atomicity, centring, source preservation, session restoration,
-optional-axis patches and future three-component vectors. Browser confirmation
-remains with the user; no browser suite run.
+No new spatial solver or persistent dependency graph is introduced. Separable axis
+fields, existing source/frame restrictions and single-target limits remain. Browser
+review is still required for controls, selection handoff and joint execution.
 
 ## Accepted baseline and sources
 

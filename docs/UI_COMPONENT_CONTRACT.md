@@ -750,13 +750,15 @@ rule choices. Ordinary unbound numeric editing retains its existing rules. Setti
 and accepted source context are transient to the Composer session; committing a
 source updates consumer editing contexts, not previously committed dependent geometry.
 
-Default vector DOFs compose registered scalar inputs via freedom.vector metadata
-and targetEditorDegrees. Position uses one combined ⊕ entry; optional axes keep
-their existing editors and storage properties. VectorDegreeEditor consumes the
-shared scalar reference conversions and vectorMatchCandidate, validates one tuple,
-and calls its existing owner once. Generalized mathematicalValueSession accepts
-an equality predicate for vector receive/preview/restore/commit. One invalid axis
-rejects the whole match. Reference selection is shared across components; optional
-axis settings can override the group's context without changing the other axis.
-The current combined Position operation is Centre match; joint spatial Bounds/Step
-fields remain future work. No extra back/confirm buttons are introduced.
+Vector DOFs compose scalar inputs through freedom.vector metadata and adapt into
+DofStateField. Position does not have a replacement action dial or separate Centre
+button. Common Partitions/fraction controls remain; working-rule changes propagate
+to component keys through RangeSettingsScope. Scene execution uses existing prepared
+coordinate fields, while normal reference Match executes a validated tuple through
+one owner callback. Optional component editors remain in the shared options radial.
+Match respects each component's limits as well as tuple/profile legality.
+
+Reference options are universal: ⟴ opens configuration; its source control invokes
+Q/MS explicitly. No automatic selection on opening options. No hiding rule controls
+for vectors. The vector adapter handles owner tuple conversion and preview lifetime;
+shared editor components own configuration, presentation and interaction.

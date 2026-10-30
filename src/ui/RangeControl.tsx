@@ -16,10 +16,10 @@ export const RangeGestureTarget=createContext<MutableRefObject<RangeGesture|null
 type WorkingRange={min?:number;max?:number;step?:number;selectionMode?:StateSelectionMode;selectionCount?:number;selectionStep?:number;selectionMin?:number;selectionMax?:number};
 const RangeSettings=createContext<{values:Record<string,WorkingRange>;change:(key:string,patch:WorkingRange)=>void}|null>(null);
 /** Selection-mode preferences share the existing session property scope. */
-export function useWorkingSelection(key:string,span:number,defaultMode:StateSelectionMode='symmetry',resolution=span/8){
+export function useWorkingSelection(key:string,span:number,defaultMode:StateSelectionMode='symmetry',resolution=span/8,aliases:readonly string[]=[]){
  const scope=useContext(RangeSettings),[local,setLocal]=useState<WorkingRange>({});
  const saved=scope?.values[key]??local;
- const change=(patch:WorkingRange)=>{if(scope)scope.change(key,patch);else setLocal(before=>({...before,...patch}));};
+ const change=(patch:WorkingRange)=>{if(scope)for(const target of new Set([key,...aliases]))scope.change(target,patch);else setLocal(before=>({...before,...patch}));};
  return {mode:saved.selectionMode??defaultMode,count:saved.selectionCount??8,step:saved.selectionStep??(resolution||span/8||1),min:saved.selectionMin,max:saved.selectionMax,
   clearLimits:()=>change({selectionMin:undefined,selectionMax:undefined}),
   minChange:(selectionMin:number)=>change({selectionMin}),maxChange:(selectionMax:number)=>change({selectionMax}),

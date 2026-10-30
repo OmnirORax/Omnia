@@ -20,8 +20,8 @@ const angle:Parameter = {selection:{period:360,north:-90},...number("angle","omn
 const thickness:Parameter = {...number("thickness","omnic.thickness","Stroke width",2,.25,12,.25),unit:'length',freedom:{label:"Stroke width",symbol:"━",group:[UNIT_FREEDOM_GROUP]}};
 const color: Parameter = {key:"color",property:"color",label:"Color",kind:"color",initial:"#60ddec",freedom:{label:"Color",symbol:"⬤",group:[VISUAL_FREEDOM_GROUP],symbolFill:"conic-gradient(#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)"}};
 const opacity:Parameter = {...number("opacity","opacity","Opacity",1,0,1,.05),significantThresholds:[{id:"transparent",value:0},{id:"opaque",value:1}],freedom:{label:"Opacity",symbol:"⬤",symbolOpacity:.5,group:[VISUAL_FREEDOM_GROUP]}};
-const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,1),measurement:'center-x',freedom:{vector:{id:"omnic.position",label:"Position",symbol:"⊕",axis:"x",matchLabel:"Match centre",matchSymbol:"◎"},label:"Position X",symbol:"⊕X",group:[POSITION_FREEDOM_GROUP]}};
-const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),measurement:'center-y',freedom:{vector:{id:"omnic.position",label:"Position",symbol:"⊕",axis:"y",matchLabel:"Match centre",matchSymbol:"◎"},label:"Position Y",symbol:"⊕Y",group:[POSITION_FREEDOM_GROUP]}};
+const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,1),measurement:'center-x',freedom:{vector:{id:"omnic.position",label:"Position",symbol:"⊕",axis:"x"},label:"Position X",symbol:"⊕X",group:[POSITION_FREEDOM_GROUP]}};
+const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),measurement:'center-y',freedom:{vector:{id:"omnic.position",label:"Position",symbol:"⊕",axis:"y"},label:"Position Y",symbol:"⊕Y",group:[POSITION_FREEDOM_GROUP]}};
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
   {id:"count-grid",label:"Count grid",symbol:"⬤",parameters:[{...count,initial:0,min:0,max:512},size,...paint,x,y]},

@@ -1026,4 +1026,28 @@ test('future declared vector DOFs inherit grouping and atomic component candidat
  const axes=leaves.map((a,i)=>({property:a.properties[0],domain:{min:-10,max:10,resolution:1,projection:'axis-x',unit:'future'},reference:{id:'source',label:'Source',unit:'future',use:'match',value:0,match:i+1}}));
  assert.deepEqual(vectorMatchCandidate(axes,value=>Object.values(value).reduce((a,b)=>a+b,0)===6),{'future.u':1,'future.v':2,'future.w':3});
  assert.equal(vectorMatchCandidate(axes,()=>false),undefined,'whole-vector constraints are authoritative');
+ assert.equal(vectorMatchCandidate(axes.map((a,i)=>i===2?{...a,limits:{max:2}}:a),()=>true),undefined,'optional component limits reject the entire tuple');
+});
+
+test('combined Position keeps shared partitions on both axes and uses the normal Match relation for centring',async()=>{
+ const {targetEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {resolveReferenceUse,createReferenceField,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {positionFieldDelta}=await import('../src/omnic/dofGesture.ts');
+ const {vectorMatchCandidate}=await import('../src/properties/vectorStateField.ts');
+ const source=validateRecipe({...recipe([{id:'a',generator:'group',params:{x:-50,y:-40},children:[{id:'offset',generator:'line',params:{length:80,x:60,y:20}}]},{id:'b',generator:'dot',params:{size:20,x:120,y:90}}]),atomnic:{mode:'free'}});
+ const group=targetEditorDegrees(source,['a']).find(d=>d.axes),snapshot=operationGeometry(source,evaluateRecipe(source));
+ const fields=count=>group.axes.map(degree=>{
+  const parameter=targetParameter(degree),start=Number(targetDegreeValue(source,degree));
+  return {axis:parameter.measurement==='center-x'?'x':'y',start,field:createReferenceField(stateFieldDomain(parameter),{mode:'symmetry',count,step:1,reference:start},resolveReferenceUse(measuredReferenceFor(snapshot,degree,'b'),DEFAULT_REFERENCE_SETTINGS,start))};
+ });
+ const coarse=positionFieldDelta(fields(4),{x:117,y:117},{x:117,y:117}),fine=positionFieldDelta(fields(16),{x:117,y:117},{x:117,y:117});
+ assert.notEqual(coarse.x,fine.x);assert.notEqual(coarse.y,fine.y,'one common partition count refines both coordinate fields');
+ const candidates=group.axes.map(degree=>({property:degree.properties[0],domain:stateFieldDomain(targetParameter(degree)),reference:resolveReferenceUse(measuredReferenceFor(snapshot,degree,'b'),{...DEFAULT_REFERENCE_SETTINGS,use:'match'},Number(targetDegreeValue(source,degree)))}));
+ const centre=vectorMatchCandidate(candidates,value=>{try{writeTargetDegree(source,group,value);return true;}catch{return false;}});
+ const committed=writeTargetDegree(source,group,centre),result=operationGeometry(committed,evaluateRecipe(committed));
+ for(const axis of ['x','y']){const extent=axis==='x'?'width':'height';almost(result.views.get('a').bounds[axis]+result.views.get('a').bounds[extent]/2,result.views.get('b').bounds[axis]+result.views.get('b').bounds[extent]/2);}
+ assert.equal(source.components[0].params.x,-50);assert.equal(source.components[0].params.y,-40);
 });
