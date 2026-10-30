@@ -7,12 +7,16 @@ export type DofInformationState={label:string;symbol:string;mode:string;modeIcon
 /** The header and gesture echo share exactly the same information and settings. */
 export function DofInformation({information,interactive=true}:{information:DofInformationState;interactive?:boolean}){
  const i=information;
- if(!interactive)return <span className="dof-information-echo">{i.symbol} {i.label} · {i.modeIcon} {i.mode} {i.expression} · ⟴ {i.reference}</span>;
+ if(!interactive)return <span className="dof-information-echo">{i.symbol} · {i.modeIcon} {i.expression} · ⟴</span>;
  return <div className="dof-information-controls" aria-label="Active DOF settings" data-ui-control>
-  <button type="button" title="Choose DOF" onClick={i.degrees}>{i.symbol} {i.label}</button>
-  <button type="button" title="Configure mode · right-click to change mode" onClick={()=>i.configure('parameters')} onContextMenu={e=>{e.preventDefault();e.stopPropagation();i.configure('modes');}}>{i.modeIcon} {i.mode}</button>
-  <button type="button" title="Rule variables" onClick={()=>i.configure(i.variable)}>{i.expression}</button>
-  <button type="button" title="Change relativity" onClick={()=>i.configure('reference')}>⟴ {i.reference}</button>
+  <button type="button" title={`DOF: ${i.label} · choose DOF`} aria-label={`Choose DOF: ${i.label}`} onClick={i.degrees}>{i.symbol}</button>
+  <button type="button" title={`${i.mode} · configure · right-click to change mode`} aria-label={`Configure ${i.mode}`} onClick={()=>i.configure('parameters')} onContextMenu={e=>{e.preventDefault();e.stopPropagation();i.configure('modes');}}>{i.modeIcon}</button>
+  <button type="button" title="Rule variables" aria-label="Rule variables" onClick={()=>i.configure(i.variable)}>{i.expression}</button>
+  <button type="button" title={`Reference: ${i.reference} · change relativity`} aria-label={`Change reference: ${i.reference}`} onClick={()=>i.configure('reference')}>⟴</button>
  </div>;
 }
-export function DofInformationHeader(){const scope=useNumericEditor();return <div className="dof-information-header">{scope.information?<DofInformation information={scope.information}/>:<span title="Activate a DOF by editing an object">⊕ Position · ✣ Partitions 2³ · ⟴ Self</span>}</div>;}
+export function DofInformationHeader(){
+ const {information}=useNumericEditor();
+ if(!information)return null;
+ return <div className="dof-information-header"><DofInformation information={information}/></div>;
+}

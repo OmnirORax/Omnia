@@ -452,3 +452,6 @@ Position gestures reuse prepared single-target coordinate fields when a rule/ref
 The shared context guard now rejects unknown physical origins and context events retargeted onto a control absent from the original press path, regardless of the event's button representation. Explicit keyboard context remains supported; release-time menu activation stays separate from primary drawing/dragging. No timing suppression or withheld release is added.
 
 Verification: local models cover press ownership, pointer binding/rebinding/surface priority, compatibility dispatch once, temporary MS restoration, canonical parent-space reference bounds, edge bands and shared generated-field projection. Required local model/build/backend gates precede the delivery push. Browser acceptance pending: verify top strip and gesture echo, end-to-end MS return, scrolling and repeated empty-space right-clicks without a spurious Dial size value field.
+
+
+E06 presentation correction: the information strip exists only while a DOF is active. It uses icons/numeric expressions with descriptive tooltips and accessible labels; no inert default placeholder or visible text labels. The radar strip is inset inside its circular clipping boundary. The noninteractive cursor echo uses the same compact symbols.

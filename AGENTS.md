@@ -449,3 +449,6 @@ the living plan before extending the system.
 
 
 Latest E06: Composer top always displays clickable active DOF, mode/rule and ⟴ reference. During a DOF-changing gesture the same information echoes beside the cursor without intercepting input. MB3 (catalog/rebindable) toggles the existing settings radial; DOF Alt parking is removed. Gesture activation, reference/rule configuration and slider execution share the existing numeric scope/owners. MS owns precise authored-boundary reference picking; temporary requests restore previous selection on accept/cancel. See E06 for implemented limits.
+
+
+E06 presentation correction: the information strip exists only while a DOF is active. It uses icons/numeric expressions with descriptive tooltips and accessible labels; no inert default placeholder or visible text labels. The radar strip is inset inside its circular clipping boundary. The noninteractive cursor echo uses the same compact symbols.

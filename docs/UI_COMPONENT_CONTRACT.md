@@ -671,3 +671,6 @@ configures rules and variables. Slider end bars own min/max editing via onConfig
 there is no separate Limits menu or standalone ½ value picker. Rule-mode controls
 cannot directly write the property value. Bounds can filter the sequence without
 mutating the owner; no per-pointer generator/validator calls are added.
+
+
+E06 presentation correction: the information strip exists only while a DOF is active. It uses icons/numeric expressions with descriptive tooltips and accessible labels; no inert default placeholder or visible text labels. The radar strip is inset inside its circular clipping boundary. The noninteractive cursor echo uses the same compact symbols.
