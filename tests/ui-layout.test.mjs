@@ -443,3 +443,16 @@ test('outside-zone DOF settings dismiss outside controls but preserve popup inte
  assert.equal(dismissOutsideContext(layers,inside),false);assert.deepEqual(calls,[]);
  assert.equal(dismissOutsideContext(layers,outside),true);assert.deepEqual(calls,['settings']);
 });
+
+test('MC selection requests preserve owner state on cancellation and accept one valid identity',async()=>{
+ const {createMasterSelection}=await import('../src/ui/masterSelection.ts');
+ const selection=createMasterSelection(),calls=[];
+ const request={label:'Reference',choices:[{id:'self',label:'Self'},{id:'other',label:'Other'}],choose:id=>{calls.push(id);return id==='other';},cancel:()=>calls.push('cancel')};
+ const dispose=selection.open(request);
+ assert.equal(selection.choose('missing'),false);assert.deepEqual(calls,[]);
+ assert.equal(selection.choose('self'),false);assert.equal(selection.getSnapshot(),request,'invalid/stale choices leave selection open');
+ assert.equal(selection.choose('other'),true);assert.equal(selection.getSnapshot(),null);dispose();assert.deepEqual(calls,['self','other']);
+ selection.open(request);selection.open({...request,label:'Replacement'});assert.equal(calls.at(-1),'cancel');
+ dispose();assert.equal(selection.getSnapshot().label,'Replacement','old owner cannot cancel a replacement request');
+ selection.cancel();selection.cancel();assert.equal(selection.getSnapshot(),null);assert.deepEqual(calls,['self','other','cancel','cancel']);
+});

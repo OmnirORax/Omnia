@@ -1,3 +1,4 @@
+import {masterSelection} from './ui/masterSelection';
 import {readWorkspaceSlot,saveWorkspaceSlot} from "./omnic/workspaceStorage";
 import { activeDocument, createWorkspace, validateWorkspace, withActiveDocument, importWorkspaceAtlas, workspaceHistory, restoreWorkspaceHistory, advanceWorkspaceRevisions, type OmnicWorkspace as WorkspaceSnapshot } from "./omnic/workspace";
 import { OmnicWorkspaceActions } from "./omnic/WorkspaceActions";
@@ -253,7 +254,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
   const setThemeOpen = (value: boolean, confirmed = false) => {
     if (!value && appearancePending && !confirmed) { setAppearanceExit("close"); return false; }
-    if (!value) setDismissedInspection(masterInspection);
+    if (!value) {masterSelection.cancel();setDismissedInspection(masterInspection);}
     updateUI(layout => {
       if (value) return reopenContainer(layout, "window:theme");
       const released = releaseResident(layout, "window:theme");
@@ -2289,7 +2290,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       </FloatingWindow>}
       {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} onMinimize={() => {
         if (appearancePending) { setAppearanceExit("minimize"); return false; }
-        return true;
+        masterSelection.cancel();return true;
       }} footer={appearancePending ? <AppearancePreviewActions awaitingChoice={!!appearanceExit} onContinue={() => setAppearanceExit(null)} /> : undefined}>
         <MasterController history={actionHistory} bindings={propertyBindings} visualStatus={<p role="status">{appearancePending ? "Preview — Apply to save these appearance changes." : "Appearance saved. Hold Esc for 2 seconds for recovery."}</p>}>
         {/* Keep the original theme subsection identities when nesting them in Visuals. */}

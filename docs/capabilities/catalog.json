@@ -1930,21 +1930,29 @@
     },
     {
       "id": "omnic.operation-context",
-      "title": "Experimental reference-measurement context and Match preview",
-      "where": "Composer top ⟴ reference (or MB3 → Relativity) → Self, Environment or Select reference with MS.",
-      "behavior": "The common operation scope lends existing owner validation and compatible numeric reference context to the shared state field. Reference matching checks shared property or measured-quantity aliases, units and cyclic period. Field preparation filters through registered target writes; pointer selection only visits prepared candidates. The discarded E02 mandatory Reference → Rule → Match path remains absent. Temporary MS requests preserve the prior selection on accept/cancel. Coordinate references use evaluated boundary centers/extents converted into the target parent coordinate space.",
+      "title": "Reference selection through Master Controller",
+      "where": "Composer active DOF → top ⟴ reference button → MC Reference selection panel.",
+      "behavior": "The ⟴ button directly opens the existing Master Controller in reference-selection mode. The intermediate Self/Environment/Match radial is removed. MC shows Self, Environment for supported coordinate DOFs, and compatible authored objects derived from registered property/measurement capabilities. Choosing a reference changes session context without editing geometry, appearance targeting or MS selection. MC then resumes its normal content; the value slider uses the selected reference. Escape, closing/minimizing MC, or closing the owner cancels the request while retaining the existing reference. Acceptance rechecks live geometry/compatibility.",
       "steps": [
         {
-          "do": "Activate a DOF, click its top ⟴ reference, choose Self, Environment (coordinates) or a compatible authored boundary through MS; then execute a slider value.",
-          "expect": "Reference/rule configuration preserves geometry; slider dragging previews and release commits through the owner."
+          "do": "Activate a numeric DOF and click the top ⟴ reference button.",
+          "expect": "MC opens its Reference selection panel immediately, without an intermediate radial or MS aiming gesture."
+        },
+        {
+          "do": "Choose Self, Environment where available, or a compatible authored object in MC.",
+          "expect": "The chosen reference is retained; geometry remains unchanged until a value operation. The value slider resumes with that context."
+        },
+        {
+          "do": "Open reference selection again, then press Esc or close/minimize MC.",
+          "expect": "The request cancels and the previous reference/geometry are preserved. Reopening works without stale requests."
         }
       ],
-      "limits": "Single-target authored reference picking; no persistent constraints or general geometric solver. Existing measured-match models remain groundwork for evaluated transforms.",
+      "limits": "Single-target Composer numeric references from canonical authored recipe objects. Coordinate references use evaluated boundary centers/extents and parent offsets. No arbitrary pixel/3D feature picking, automatic relationship inference or persistent dependency solver. Active rotate/oscillation scenes remain conservatively unavailable for authored reference measurements.",
       "verification": {
-        "browser": "Pending user testing of relevance, reference retention, reference/Match separation, compactness, parent coordinate behavior and Undo. No browser suite run.",
-        "automated": "Focused tests cover compatible quantities, identity/derivation, stale-reference re-evaluation/deletion, parent coordinate conversion, rendered radius/length transforms, validity rejection and preservation of selected reference identity; full local model/build/backend checks required before publication."
+        "browser": "Direct MC routing, selection, cancellation and preservation of other MC/MS state await user testing; no browser suite run.",
+        "automated": "Shared MC request tests cover missing/rejected choices, one-time acceptance, cancellation, replacement and stale-owner cleanup. Existing reference compatibility/boundary models and full local model/build/backend gates apply."
       },
-      "status": "Shared numeric owner constraints and reference context integrated; persistent relationships pending.",
+      "status": "Direct MC reference-selection experiment; production not deployed.",
       "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",
       "sources": [
         "src/properties/operationContext.ts",
@@ -1954,7 +1962,11 @@
         "src/ui/NumericEditorScope.tsx",
         "src/ui/MathematicalDial.tsx",
         "src/appearance/selectionRequest.ts",
-        "src/omnic/referenceGeometry.ts"
+        "src/omnic/referenceGeometry.ts",
+        "src/ui/masterSelection.ts",
+        "src/ui/MasterSelectionPanel.tsx",
+        "src/appearance/MasterController.tsx",
+        "src/App.tsx"
       ],
       "actions": [],
       "gestures": [],
@@ -1967,7 +1979,7 @@
       "id": "omnic.dof-state-wheel",
       "title": "Rule-configured value slider",
       "where": "Composer top → active DOF / mode / expression / ⟴ reference; drag activates Position, left-hold just outside a selected boundary activates Rotation. MB3 also toggles settings at the cursor.",
-      "behavior": "While a DOF is active, the Composer top shows its DOF, mode/rule and ⟴ reference as compact clickable icons with descriptive tooltips and accessible labels. With no active DOF the strip is absent; it never displays an inert placeholder. The strip sits inside the circular boundary. Gesture/slider information no longer follows the cursor; it stays in the active top strip. Top controls and MB3 (rebindable) open the existing settings radials. Self is default; coordinate DOFs can use the Environment boundary or an authored target picked through MS. Reference configuration does not move geometry. The common value slider executes prepared rule values: drag previews, release commits, and arrows/wheel/keyboard traverse adjacent generated values. ⠒❉ configures rule variables and slider-end limits. Retained single-target coordinate fields also guide subsequent dragging; unconfigured dragging retains its prior behavior. MS and Shift configuration keep priority. Alt parking of DOF settings is removed. Rule expressions use one inline box so radial grid buttons cannot stack the base and exponent. DOF mode/reference choices use icons with tooltip labels. Shared contextual popup placement reserves the invoking control boundary and open popup ancestors: button-triggered child editors stay centered below their captured invoking button. Ancestor overlap can push them down but cannot move them above or sideways. This repeats at each nested level; explicitly anchored radial branches retain their own shared radial geometry. Reference/rule configuration and MS picking suppress the companion value slider; returning from settings/picking restores the value slider, while outside-zone dismissal closes the requested editor. The slider readout (for example 10.2949) is the active DOF value, not a second reference control. Right-click during moving, authored rotation or a held value-slider edit settles the current preview and opens that active registered DOF sub-setters at the cursor. Clicking anywhere outside the registered popup zone dismisses it, consuming the dismissal press; MS keeps priority. Mouse-only secondary-button chords while the primary button remains held use the same release/context join, avoiding duplicate open/release activation. Hovering just outside a compatible selected object boundary switches to the registered Rotation tool cursor. The cue and press gesture use the same prepared bounds/margin; leaving restores the retained tool/native cursor. Only hover-zone transitions update React; pointer motion does not rediscover DOFs or measure layout.",
+      "behavior": "While a DOF is active, the Composer top shows its DOF, mode/rule and ⟴ reference as compact clickable icons with descriptive tooltips and accessible labels. With no active DOF the strip is absent; it never displays an inert placeholder. The strip sits inside the circular boundary. Gesture/slider information no longer follows the cursor; it stays in the active top strip. Top controls and MB3 (rebindable) open the existing settings radials. Self is default; coordinate DOFs can use the Environment boundary or an authored target chosen in MC’s Reference selection panel. Reference configuration does not move geometry. The common value slider executes prepared rule values: drag previews, release commits, and arrows/wheel/keyboard traverse adjacent generated values. ⠒❉ configures rule variables and slider-end limits. Retained single-target coordinate fields also guide subsequent dragging; unconfigured dragging retains its prior behavior. MS and Shift configuration keep priority. Alt parking of DOF settings is removed. Rule expressions use one inline box so radial grid buttons cannot stack the base and exponent. DOF mode/reference choices use icons with tooltip labels. Shared contextual popup placement reserves the invoking control boundary and open popup ancestors: button-triggered child editors stay centered below their captured invoking button. Ancestor overlap can push them down but cannot move them above or sideways. This repeats at each nested level; explicitly anchored radial branches retain their own shared radial geometry. Reference/rule configuration and MC reference selection suppress the companion value slider; returning from settings/reference selection restores the value slider, while outside-zone dismissal closes the requested editor. The slider readout (for example 10.2949) is the active DOF value, not a second reference control. Right-click during moving, authored rotation or a held value-slider edit settles the current preview and opens that active registered DOF sub-setters at the cursor. Clicking anywhere outside the registered popup zone dismisses it, consuming the dismissal press; MS keeps priority. Mouse-only secondary-button chords while the primary button remains held use the same release/context join, avoiding duplicate open/release activation. Hovering just outside a compatible selected object boundary switches to the registered Rotation tool cursor. The cue and press gesture use the same prepared bounds/margin; leaving restores the retained tool/native cursor. Only hover-zone transitions update React; pointer motion does not rediscover DOFs or measure layout. The top ⟴ button opens MC reference selection directly; the intermediate reference radial and Omnic MS-request route are removed.",
       "steps": [
         {
           "do": "Open Composer with no active DOF, then activate one by editing an object. Hover and click its top icons.",
@@ -1994,8 +2006,8 @@
           "expect": "All execution paths select members of the same prepared sequence. Typed values outside the sequence are rejected with a prompt to change the rule; native non-rule sliders retain their existing numeric-entry behavior."
         },
         {
-          "do": "Drag one authored object; click the top ⟴ reference → Environment or Select reference with MS. Accept a compatible authored boundary, then traverse the slider. MB3 alternatively toggles the settings radial.",
-          "expect": "the top information remains clickable after release. MS preserves the previous selection on accept/cancel. Reference/limits use canonical evaluated geometry including parent offsets; configuration itself preserves geometry."
+          "do": "Drag one authored object; click the top ⟴ reference → MC Reference selection. Choose Self, Environment or a compatible authored object, then traverse the slider. MB3 alternatively toggles the settings radial.",
+          "expect": "the top information remains clickable after release. MC reference selection preserves appearance targeting and MS selection on accept/cancel. Reference/limits use canonical evaluated geometry including parent offsets; configuration itself preserves geometry."
         },
         {
           "do": "Select an object with a registered Rotation DOF; left-hold just outside its boundary and move around it.",
@@ -2007,7 +2019,7 @@
         },
         {
           "do": "Drag an object, then click the top reference icon, mode or expression; repeat through a nested button.",
-          "expect": "No DOF-information echo follows the cursor. The requested editor opens below its invoking button, without an extra position slider beside configuration. Returning from settings/reference picking restores the value slider."
+          "expect": "No DOF-information echo follows the cursor. The requested editor opens below its invoking button, without an extra position slider beside configuration. Returning from settings/MC reference selection restores the value slider."
         },
         {
           "do": "While dragging or rotating an authored object, right-click; repeat while dragging a numeric value slider. Click outside the settings zone, including on another object/control.",
@@ -2018,11 +2030,11 @@
           "expect": "The cursor becomes the Rotation tool icon only in the actual rotation activation zone and restores when leaving; dragging from that zone starts rotation. No extra handle or DOF-information cursor label is added."
         }
       ],
-      "limits": "Composer rule execution currently supports finite numeric fields with bounds, integrality and existing owner legality. Values are sorted for the ordinary left-to-right value slider; its limit bars show constraints, which need not themselves be generated values. Up to 64 divisions plus endpoints/reference landmarks, or eight halving samples. General geometry solvers, symbolic equations, nonnumeric field adapters and persistent constraints remain pending. Active transformed/animated scenes remain conservatively unavailable for authored-reference matching. Gesture rule retention and boundary references currently cover single authored targets and individual coordinate axes; boundary landmarks do not enforce containment. MS reference picking requires authored SVG boundaries, not arbitrary 3D canvas features. Multi-target dragging retains its previous behavior. Below-button editors do not automatically flip above their button at viewport edges.",
+      "limits": "Composer rule execution currently supports finite numeric fields with bounds, integrality and existing owner legality. Values are sorted for the ordinary left-to-right value slider; its limit bars show constraints, which need not themselves be generated values. Up to 64 divisions plus endpoints/reference landmarks, or eight halving samples. General geometry solvers, symbolic equations, nonnumeric field adapters and persistent constraints remain pending. Active transformed/animated scenes remain conservatively unavailable for authored-reference matching. Gesture rule retention and boundary references currently cover single authored targets and individual coordinate axes; boundary landmarks do not enforce containment. MC references are compatible canonical authored objects, not arbitrary pixel/3D features. Multi-target dragging retains its previous behavior. Below-button editors do not automatically flip above their button at viewport edges.",
       "status": "Implemented experiment for review; not production deployed.",
       "verification": {
-        "browser": "Hover rotation cursor and its restoration await user testing; prior below-button/right-click workflows remain for browser acceptance. No browser suite run.",
-        "automated": "Models cover pointer scope/rebinding/priority and dispatch de-duplication, physical press-origin rejection, MS request restoration, canonical parent-space boundary axes, gesture bands and prepared field projection; full local gates required before publication. Popup placement models verify wide strips, square dials, center/edge invocations, repeated nesting and ancestor avoidance. Button-placement regression verifies fixed horizontal alignment, downward-only ancestor avoidance and unrelated-column stability. Shared outside-zone dismissal tests protect popup interiors and ordinary non-opted-in layers; secondary press models cover native event ordering and press detection for mouse chords."
+        "browser": "Direct MC Reference selection and removal of the intermediate radial await user test, alongside the existing Composer gesture/value workflows; no browser suite run.",
+        "automated": "Models cover pointer scope/rebinding/priority and dispatch de-duplication, physical press-origin rejection, MC request acceptance/cancellation/replacement, canonical parent-space boundary axes, gesture bands and prepared field projection; full local gates required before publication. Popup placement models verify wide strips, square dials, center/edge invocations, repeated nesting and ancestor avoidance. Button-placement regression verifies fixed horizontal alignment, downward-only ancestor avoidance and unrelated-column stability. Shared outside-zone dismissal tests protect popup interiors and ordinary non-opted-in layers; secondary press models cover native event ordering and press detection for mouse chords."
       },
       "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",
       "sources": [
@@ -2046,7 +2058,9 @@
         "src/ui/contextMenuOwnership.ts",
         "src/ui/ContextualMasterController.tsx",
         "src/ui/popupPlacement.ts",
-        "src/ui/cursorPosition.ts"
+        "src/ui/cursorPosition.ts",
+        "src/ui/masterSelection.ts",
+        "src/ui/MasterSelectionPanel.tsx"
       ],
       "actions": [
         "atomnic.dofOptions"

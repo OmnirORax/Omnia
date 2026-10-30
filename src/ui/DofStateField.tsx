@@ -12,7 +12,7 @@ import {RadialMenu} from './RadialMenu';
 import {useContextNavigation} from './ContextStage';
 import './dofStateField.css';
 
-type Settings={kind:DofSettingsKind;point:{x:number;y:number}};
+type Settings={kind:Exclude<DofSettingsKind,'reference'>;point:{x:number;y:number}};
 /** Projection-independent interaction. Domains/rules/constraints prepare a field;
  * pointer picking never discovers scene objects or implements property arithmetic. */
 export function DofStateField({property,label,symbol='⠒❉',domain,value,disabled=false,configure=false,onPreview,onCommit,onDismiss}:{property:string;label:string;symbol?:string;domain:StateFieldDomain;value:number;disabled?:boolean;configure?:boolean|DofSettingsKind;onDismiss?:()=>void;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
@@ -22,16 +22,17 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const span=domain.max-domain.min;
  const working=useWorkingSelection(property,span,domain.integer?'step':'symmetry',domain.integer?Math.max(1,domain.resolution):domain.cyclic?domain.cyclic.period/8:domain.resolution);
  const mode=working.mode==='symmetry'&&domain.cyclic?{label:'Symmetry',icon:'✣'}:modes[working.mode];
- const [settings,setSettings]=useState<Settings|null>(()=>configure?{kind:typeof configure==='string'?configure:'options',point:cursorPosition()}:null),[picking,setPicking]=useState(false);
+ const [settings,setSettings]=useState<Settings|null>(()=>configure&&configure!=='reference'?{kind:typeof configure==='string'?configure:'options',point:cursorPosition()}:null),[picking,setPicking]=useState(configure==='reference');
  const [parameterSample,setParameterSample]=useState<{count?:number;step?:number;min?:number;max?:number}>({});
  const anchor=useRef(domain.cyclic?.north??value),[session]=useState(()=>mathematicalValueSession(value)),[sample,setSample]=useState<number|null>(null);
+ const pickGeneration=useRef(0);
  const pickingRef=useRef(false);pickingRef.current=picking;
  const pickCancel=useRef(operation?.selection?.cancel);pickCancel.current=operation?.selection?.cancel;
  const alive=useRef(true),callbacks=useRef({onPreview,cancel:scope.cancelPreview});callbacks.current={onPreview,cancel:scope.cancelPreview};
- useEffect(()=>{alive.current=true;return()=>{alive.current=false;if(pickingRef.current)pickCancel.current?.();if(session.sampling){const before=session.restore();if(callbacks.current.cancel)callbacks.current.cancel();else callbacks.current.onPreview(before);}};},[session]);
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;pickGeneration.current++;if(pickingRef.current)pickCancel.current?.();if(session.sampling){const before=session.restore();if(callbacks.current.cancel)callbacks.current.cancel();else callbacks.current.onPreview(before);}};},[session]);
  useLayoutEffect(()=>{if(session.receive(value)){anchor.current=domain.cyclic?.north??value;setSample(null);}},[value,session]);
  const restore=()=>{setSample(null);if(session.sampling){const before=session.restore();if(scope.cancelPreview)scope.cancelPreview();else onPreview(before);}};
- const show=(kind:Settings['kind'])=>{restore();setParameterSample({});setSettings({kind,point:cursorPosition()});};
+ const show=(kind:DofSettingsKind)=>{if(kind==='reference'){void pickReference();return;}restore();setParameterSample({});setSettings({kind,point:cursorPosition()});};
  const reference=operation?.selection?.current;
  const countLabel=<DofRuleExpression count={working.count}/>;
  const infoActions=useRef({show,degrees:()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}});infoActions.current={show,degrees:()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}};
@@ -50,7 +51,9 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const apply=(n:number)=>{if(disabled||picking||operation?.selection?.unavailable||!field.candidates.some(candidate=>candidate.value===n))return;setSample(null);onCommit(session.commit(n));};
  const closeSettings=()=>{setParameterSample({});restore();setSettings(null);};
  const chooseMode=(next:StateSelectionMode)=>{restore();working.modeChange(next);if(working.count>maximumSelectionStates(next))working.countChange(maximumSelectionStates(next));setSettings({kind:next==='step'?'step':'modes',point:settings?.point??cursorPosition()});};
- const pickReference=async()=>{restore();setSettings(null);if(!operation?.selection)return;setPicking(true);await operation.selection.pick();if(alive.current)setPicking(false);};
+ const pickReference=async()=>{restore();setSettings(null);if(!operation?.selection)return;const generation=++pickGeneration.current;setPicking(true);await operation.selection.pick();if(alive.current&&pickGeneration.current===generation)setPicking(false);};
+ const openReference=useRef(pickReference);openReference.current=pickReference;
+ useLayoutEffect(()=>{if(configure==='reference')void openReference.current();},[configure]);
  const text=(n:number)=>`${Number(n.toPrecision(7))}${domain.cyclic?'°':''}`;
  const numeric=settings?.kind==='count'?{label:'Divisions',value:count,min:1,max:maximumSelectionStates(working.mode),integer:true,key:'count' as const,commit:working.countChange}:
   settings?.kind==='min'?{label:'Minimum',value:Math.max(domain.min,Math.min(domain.max,field.min)),min:domain.min,max:domain.max,integer:domain.integer,key:'min' as const,commit:working.minChange}:
@@ -73,7 +76,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
     {id:'reference',symbol:'⟴',label:'Relativity',content:<button type="button" title="Relativity" onClick={()=>show('reference')}>⟴</button>}
    ]}/> :settings.kind==='modes'?<RadialMenu onClose={closeSettings} items={(Object.keys(modes) as StateSelectionMode[]).map(kind=>({id:kind,symbol:modes[kind].icon,label:kind==='step'?'Add step rule':kind==='symmetry'&&domain.cyclic?'Symmetry':modes[kind].label,content:<button type="button" title={kind==='symmetry'&&domain.cyclic?'Symmetry':modes[kind].label} aria-pressed={working.mode===kind} onClick={()=>chooseMode(kind)}>{modes[kind].icon}</button>}))}/>:
     settings.kind==='parameters'?<RadialMenu onClose={closeSettings} items={[{id:'states',symbol:'●●',label:'Divisions',content:<button type="button" title="Generated divisions" onClick={()=>show(working.mode==='step'?'step':'count')}>{working.mode==='step'?`Δ ${working.step}`:countLabel}</button>},...(working.mode==='step'?[{id:'step',symbol:'Δ',label:'Step',content:<button type="button" title="Step" onClick={()=>show('step')}>Δ {text(step)}</button>}]:[])]}/>:
-    settings.kind==='reference'?<RadialMenu onClose={closeSettings} items={[{id:'self',symbol:'⟴',label:'Self',content:<button type="button" title="Use self reference" onClick={()=>{restore();operation?.selection?.clear();}}>⟴</button>},...(operation?.selection?.environment?[{id:'environment',symbol:'▣',label:'Environment',content:<button type="button" title="Environment boundary" onClick={()=>{restore();operation.selection!.environment!();closeSettings();}}>▣</button>}]:[]),...(operation?.selection?[{id:'pick',symbol:'⨮',label:'Select reference with MS',content:<button type="button" title="Select reference with MS" onClick={()=>{void pickReference();}}>⨮</button>}]:[])]}/>:
+
     <div className="dof-rule-number"><MathematicalDial key={settings.kind} label={numeric.label} value={numeric.value} min={numeric.min} max={numeric.max} integer={numeric.integer} onPreview={n=>setParameterSample({[numeric.key]:n})} onCancelPreview={()=>setParameterSample({})} onCommit={n=>{setParameterSample({});numeric.commit(n);}}/>{(settings.kind==='min'||settings.kind==='max')&&<button type="button" title="Reset limits" aria-label="Reset slider limits" onClick={()=>{setParameterSample({});working.clearLimits();}}>↺</button>}</div>}
   </ContextualMasterController>}
  </div>;

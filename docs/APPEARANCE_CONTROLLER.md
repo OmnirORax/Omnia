@@ -468,3 +468,6 @@ survive. An exact local part may need a saved-value override when its broader ba
 still has a pending change. MC scoped exclusions use the same restore transaction;
 merely closing/inspecting an editor or changing properties never rolls back paint.
 This deliberate deselection is an undoable draft action, not a hover effect.
+
+
+Latest reference correction: the Composer top ⟴ button opens the existing MC directly in Reference selection mode. Remove the intermediate Self/Environment/Match radial and the Omnic MS-request route. Generic masterSelection requests supply owner-derived compatible choices to MasterSelectionPanel; owners retain context, setters and validation. MC presents only the requested selection panel while it is active, leaving its normal appearance targeting and MS selection unchanged. Self clears the session reference; Environment is offered for compatible coordinates; authored object choices derive from canonical recipe/property capabilities. Acceptance rechecks current eligibility and does not edit geometry. Esc, closing/minimizing MC, replacing the request or closing its owner cancels safely. A stale owner cannot cancel a newer request. MC remains the shared window; no parallel picker/window or new property pool. Existing single-target numeric/reference limitations apply. Browser acceptance pending.
