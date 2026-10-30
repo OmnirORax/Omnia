@@ -553,3 +553,17 @@ test('newly appeared settings controls cannot inherit the opener right-click',as
  assert.equal(contextPressOwnsControl([sizeInput,sizeRange,popup,body],sizeInput),true,'a fresh deliberate settings click works');
  assert.equal(contextPressOwnsControl(null,sizeInput),true,'keyboard-native context actions remain available');
 });
+
+test('value sliders traverse a generated sequence without replacing its rule',async()=>{
+ const {rangeSequence,sequenceIndex,sequenceAt,sequenceStep}=await import('../src/ui/rangeMath.ts');
+ const values=rangeSequence([10,5,2.5,1.25,5,NaN],0,64);
+ assert.deepEqual(values,[1.25,2.5,5,10]);
+ assert.equal(sequenceAt(values,0),1.25);assert.equal(sequenceAt(values,1),10);
+ assert.equal(sequenceAt(values,.5),5,'nonlinear values are traversed by index, never linearly interpolated');
+ assert.equal(sequenceStep(values,5,-1),2.5);assert.equal(sequenceStep(values,5,1),10);
+ assert.equal(sequenceStep(values,6,-1),5);assert.equal(sequenceStep(values,6,1),10);
+ assert.equal(sequenceIndex(values,4.9),2);
+ assert.deepEqual(rangeSequence(values,2,8),[2.5,5],'limits filter execution without changing the generator');
+ assert.equal(sequenceAt([],1),undefined);assert.equal(sequenceStep([],1,1),undefined);
+ assert.equal(sequenceAt([7],.95),7);
+});

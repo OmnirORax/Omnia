@@ -757,3 +757,24 @@ test('numeric reference picking inherits property and measured-quantity compatib
  assert.equal(selectionReference(source,degrees.find(d=>d.id==='omnic.extent'),'line'),undefined,'length and radius are distinct quantities despite a shared extent property');
  assert.equal(source.components[0].params.count,6,'reference picking changes context, not geometry');
 });
+
+test('rule configuration leaves geometry unchanged while the value slider previews and commits',async()=>{
+ const {createStateField}=await import('../src/properties/stateField.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {rangeSequence,sequenceAt}=await import('../src/ui/rangeMath.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'chain',params:{count:6}}]));
+ const degree=targetDegrees(source,['a']).find(d=>d.id==='omnic.count'),domain=stateFieldDomain(targetParameter(degree));
+ const field=createStateField(domain,{mode:'step',count:8,step:1,reference:6,min:0,max:20});
+ assert.equal(targetDegreeValue(source,degree),6,'making/changing the rule does not edit the object');
+ const sequence=rangeSequence(field.candidates.map(c=>c.value),field.min,field.max),session=mathematicalValueSession(6);
+ const selected=sequenceAt(sequence,.75);
+ const preview=writeTargetDegree(source,degree,session.preview(selected));
+ assert.equal(evaluateRecipe(preview).nodes.filter(n=>n.kind==='dot').length,8);
+ assert.equal(targetDegreeValue(source,degree),6,'drag samples remain temporary');
+ assert.equal(session.restore(),6,'cancel restores the pre-drag owner');
+ session.preview(selected);
+ const committed=writeTargetDegree(source,degree,session.commit(selected));
+ assert.equal(targetDegreeValue(committed,degree),8);
+ assert.equal(session.restore(),8,'release commits the slider value instead of restoring it');
+});

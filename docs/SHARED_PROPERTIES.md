@@ -411,3 +411,10 @@ or constraints. They do not declare another state/value/history owner or copied
 preview implementation. Scalar/integer/cyclic and single spatial axes are supplied;
 vector/product/path fields and general geometric legality remain pending. Shared
 property aliases must retain quantity/unit compatibility when picking references.
+
+
+E05 execution contract supersedes the initial field panel: the mathematical dial
+is the rule maker. Shared RangeControl receives the prepared values and executes
+them by sequence index; nonuniform values are preserved. Slider end bars carry the
+limits, and rule-variable changes alone preserve the object. This is inherited by
+all numeric Composer DOFs; never create another value-dial or halving-slider path.

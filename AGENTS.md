@@ -436,3 +436,13 @@ inferred. Keep prepared work bounded and outside pointer motion. Shared fields a
 not yet browser-accepted, and general 2D/vector fields/persistent constraints remain
 pending. Preserve Alt parking and physical press-origin context ownership. Do not
 revive automatic invitations/Space acceptance or the discarded manual E02 flow.
+
+
+Latest E05 correction: ⠒❉ is the rule maker; the value slider executes generated
+values. Do not replace execution with a circular/axis value dial or standalone
+halving picker. DofStateField lends prepared rule values to shared RangeControl.
+Min/max controls belong at the slider ends. Drag previews, release commits;
+arrows/wheel/keyboard traverse adjacent generated values, without interpolation.
+The math dial edits rule variables and bounds only. The standalone RangeControl
+½ picker is removed; geometric pivot/axis halving remains separate. See E05 in
+the living plan before extending the system.

@@ -455,8 +455,8 @@ remain in Generator controls. There is no automatic destructive flattening.
   configures constraints, paint target, imprint, step (Free only) and paint inputs
   in sequence. Select/Move configure their own relevant inputs. View configures only
   construction extent. Other functions' fields never appear alongside the current one.
-- **R / Rotate:** opens the generated-state selector for selected compatible
-  authored Rotation inputs. Hover previews and click applies. Its explicit mode
+- **R / Rotate:** opens the rule-configured value slider for selected compatible
+  authored Rotation inputs. Drag previews and release applies. Its explicit mode
   starts at ✣ Symmetry · 2³. See E03 below. The separate Step action retains the
   older pivot workflow described next.
 - **Pivot/reference:** during pivot picking, right-click exposes Exact click and
@@ -667,3 +667,15 @@ legality uses the existing setter; pointer motion only picks prepared candidates
 The current spatial fields are single axes; arbitrary 2D regions, containment,
 collision, equations, nonnumeric field adapters and persistent bindings remain
 future domain/constraint work. See E04 and capability omnic.dof-state-wheel.
+
+
+### E05: rule maker and value slider
+
+Numeric DOF activation now opens the shared arrow/end-bar value slider, including
+Rotation. It traverses the current rule's generated values; drag previews and
+release commits. Arrows/wheel/keyboard step through the same sequence. Click the
+mode expression to configure the rule with ⠒❉. Right-click the left/right slider
+end bar to configure its lower/upper limit. Rule/bound configuration does not edit
+geometry. The previous selectable value-panel UI and standalone slider ½ picker
+are removed; Halving remains a rule. Alt indicators, references, validation and
+owner/history paths remain shared. See the E05 record and maintained walkthrough.

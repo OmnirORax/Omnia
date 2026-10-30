@@ -668,3 +668,14 @@ edits geometry until a state/exact value is committed. Integer validity filters
 fractional candidates instead of rounding; empty fields show ∅ and cannot apply.
 The current field scope is finite numeric scalar/integer/cyclic and single spatial
 axes, not an implicit containment solver or nonnumeric editor replacement.
+
+
+Latest rule/value correction: RangeControl is the shared execution slider. Optional
+prepared `values` select index-based traversal of a sorted, bounded rule sequence;
+uniform numeric sliders retain their original mode. Both reuse the same captured
+axis, held preview, release commit, native fields and cancellation contracts.
+Nudges/wheel/native keyboard advance actual sequence neighbours. Math Dial only
+configures rules and variables. Slider end bars own min/max editing via onConfigure;
+there is no separate Limits menu or standalone ½ value picker. Rule-mode controls
+cannot directly write the property value. Bounds can filter the sequence without
+mutating the owner; no per-pointer generator/validator calls are added.

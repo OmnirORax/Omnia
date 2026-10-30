@@ -128,11 +128,12 @@ For every experiment record:
 | E01: dial-configured increment rule | Implemented for testing; user acceptance pending. Shared rule context contains anchor, signed index and rule/amount; preset and target numeric editors consume it through existing setters. Full operation context/reference integration remains pending. | Current branch; see capability omnic.editing-rules |
 | E02: reference-measurement operation context | Manual Reference → Rule → Match interaction rejected and removed. Pure measurement/candidate infrastructure retained. | User feedback; capability omnic.operation-context |
 | E03: activate DOF → select generated state | Rotation trial; common interaction retained and generalized by E04. Browser acceptance pending. | Current branch; capability omnic.dof-state-wheel |
-| E04: constraint/value field across numeric DOFs | Implemented for testing: one field generator/filter/project/pick/preview/commit path for numeric domains. No per-preset editors or preview handlers. | Current branch; capability omnic.dof-state-wheel |
+| E04: constraint/value field across numeric DOFs | Shared generator/constraint machinery retained; its execution panel superseded by E05. | Current branch; capability omnic.dof-state-wheel |
+| E05: rule maker versus value slider | Current correction: ⠒❉ configures the rule; shared arrow/end-bar slider traverses its generated values. Limits belong at the ends. Standalone ½ picker retired. | User clarification; current branch |
 
 ## Next experimental decision
 
-E04 implements the latest universal-field correction below. Test representative
+E05 below records the latest rule-maker/value-slider correction; E04 supplies its shared generator/constraints. Test representative
 domains through the same machinery; do not implement separate workflows per DOF. Do not add more automatic invitations
 or revive mandatory manual Reference → Rule → Match steps.
 
@@ -400,3 +401,41 @@ Long-term destination remains one declarative system: DOF + reference + domain +
 mathematical rule + constraints → valid-state field → projection → nearest-state
 preview → explicit commitment, optionally followed by durable dependency binding.
 New geometry contributes domains/measurements/constraints, not another interaction.
+
+
+## E05 — rule maker versus value slider (latest correction)
+
+The user clarified that the dial is the rule maker, not the surface used to drag
+through object values. The value slider is just a value slider. Its minimum/maximum
+controls belong at its ends, as shown by the user's end-bar/double-arrow reference.
+The older standalone halving slider/picker was a misunderstanding and must stop
+replacing that slider. This supersedes the E03/E04 selectable value-panel UI;
+the underlying shared rule/domain/constraint engine remains.
+
+DofStateField now projects the existing RangeControl as the execution surface for
+all numeric Composer DOFs. A sorted, bounded sequence of generated values is
+prepared once. Slider movement addresses sequence indices; arrows/wheel/keyboard
+traverse adjacent values, including nonuniform halving/exponential sequences.
+It never invents linearly interpolated values between them. Dragging previews
+through the owner, release commits, and cancellation restores the original value.
+There is no DOF-specific slider or property preview implementation.
+
+The math dial configures only rules/variables/bounds. Click a mode expression to
+configure its number. Right-click either slider end bar to configure that limit;
+limits are no longer buried in a separate mode-menu branch. A bound editor can
+reset working limits. The end caps show constraints, which need not themselves be
+generated values; clicking a cap selects the first/last available value. Native
+track value entry, when requested, accepts an exact generated member; off-rule
+values are rejected instead of silently changing the rule or the object.
+
+The standalone ½ button and popup have been removed from shared RangeControl.
+Halving remains a mathematical rule. Existing geometric pivot/axis halving prompts
+are separate and retained. Non-Composer sliders retain ordinary numeric behavior;
+no new math editor is imposed outside Composer. Alt indicators, reference context,
+owner legality and previous opening-press/caret fixes remain shared infrastructure.
+
+Acceptance: configure a halving rule, close configuration and traverse it with the
+slider; verify only generated values appear. Move minimum/maximum through the end
+controls; verify rule configuration alone preserves geometry. Drag/release/Undo,
+drag/Esc, arrows, keyboard and wheel on Count/Size/Opacity/Rotation must share the
+same contract. This is awaiting user testing; model checks do not prove visual feel.
