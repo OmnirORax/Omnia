@@ -181,3 +181,26 @@ test('declared geometry boundaries retain identity through renderer replacement 
   assert.equal(boundaryFor(regular).key,'data-ui-function:ordinary','existing unscoped control identities stay unchanged');
  }finally{for(const [key,value] of Object.entries(saved)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
 });
+
+test('selector Enter resumes the same aiming flow as the checkmark and owns reference confirmation before popup Enter',async()=>{
+ const {selectionConfirmation,selectionRequest}=await import('../src/appearance/selectionRequest.ts');
+ const {preferredFeatureKey}=await import('../src/workspaceActions.ts');
+ const {createFeatureActionRuntime}=await import('../src/featureActions.ts');
+ let phase='configure',restores=0,underlying=0,aims=0;
+ const request=selectionRequest(value=>value==='target',()=>{},()=>restores++);
+ const runtime=createFeatureActionRuntime();
+ runtime.register('context.confirm',{enabled:()=>true,run:()=>underlying++});
+ runtime.register('selector.confirm',{enabled:()=>!!selectionConfirmation(phase,restores===0,false),run:()=>{
+  if(selectionConfirmation(phase,restores===0,false)==='aim'){phase='aim';aims++;}else request.accept('target');
+ }});
+ const enter=()=>{const id=preferredFeatureKey({},'Enter',id=>runtime.available(id));runtime.invoke(id);return id;};
+ assert.equal(enter(),'selector.confirm');assert.equal(phase,'aim');assert.equal(aims,1);assert.equal(underlying,0);
+ assert.equal(enter(),'selector.confirm');assert.equal(restores,1);assert.equal(underlying,0);
+ assert.equal(enter(),'context.confirm');assert.equal(underlying,1,'ordinary popup Enter returns after request completes');
+ assert.equal(selectionConfirmation('off',true,false),undefined);
+ assert.equal(selectionConfirmation('aim',false,false),undefined);
+ assert.equal(selectionConfirmation('locked',true,false),'accept');
+ assert.equal(selectionConfirmation('aim',true,true),undefined,'polygon keeps its own Enter command');
+ assert.equal(preferredFeatureKey({},'Enter',id=>['selector.finishGeometry','context.confirm'].includes(id)),'selector.finishGeometry');
+ assert.equal(preferredFeatureKey({},'Enter',id=>['selector.confirm','context.confirm'].includes(id),true),null,'native text entry is preserved');
+});

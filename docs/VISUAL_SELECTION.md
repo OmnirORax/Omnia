@@ -508,3 +508,16 @@ The Composer top always shows compact active DOF, mode/rule and ⟴ reference co
 Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
 
 Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.
+
+### Enter confirmation and temporary reference consumers
+
+The registered `selector.confirm` action defaults to Enter. In configuration it
+resumes aiming through the same `aim` function as the ✓ control. During an aimed
+or locked temporary reference request it accepts the current candidate, retaining
+the request if unsupported. Visual-selector scope outranks underlying popup Enter;
+native focused-button activation is consumed by the same shared shortcut handler.
+No private key listener or forced geometry mode is added. Polygon completion keeps
+`selector.finishGeometry`, and typing targets retain native Enter. Saved bindings
+remain authoritative. The temporary request still restores prior selection and
+configuration exactly once. Browser verification of the reported reference-button
+resize-dial leakage remains pending.

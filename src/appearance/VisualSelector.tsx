@@ -1,4 +1,4 @@
-import {selectionRequest} from './selectionRequest';
+import {selectionRequest,selectionConfirmation} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
@@ -339,6 +339,10 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     "selector.redo": { enabled: canConfigure, run: redo },
     "selector.redoAlternate": { enabled: canConfigure, run: redo },
     "selector.clear": { enabled: hasSelection(), run: clear },
+    "selector.confirm": { enabled:!!selectionConfirmation(phase,!!requestedPick.current,!!polygon.current), run:()=>{
+      const action=selectionConfirmation(latest.current.phase,!!requestedPick.current,!!polygon.current);
+      if(action==='aim')aim();else if(action==='accept')accept();
+    } },
     "selector.aim": { enabled: phase !== "off" || hasSelection(), run: aim },
     "selector.backgrounds": { enabled: canConfigure, run: () => {
       setCandidatePick(null); setConfiguration(config => ({ ...config, backgrounds: !config.backgrounds,
