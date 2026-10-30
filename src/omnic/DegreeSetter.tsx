@@ -1,3 +1,5 @@
+import {useLayoutEffect,useRef,useState,type ReactNode} from 'react';
+import {useOperationReferencePicker} from './OperationScope';
 import {VectorDegreeEditor} from './VectorDegreeEditor';
 import type {DofSettingsKind} from '../ui/DofInformation';
 import {DofStateField} from '../ui/DofStateField';
@@ -14,9 +16,8 @@ import { useNumericEditor } from '../ui/NumericEditorScope';
 export function DegreeSetter({recipe,degree,onPreview,onCommit,onOpen}: {recipe:Recipe;degree:EditableDegree;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void;onOpen:()=>void}) {
   const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree);
   const numericEditor=useNumericEditor();
- if(degree.axes)return <button type="button" aria-label={`Open ${degree.label}`} title={degree.label} onClick={onOpen}>⊕</button>;
+ if((numericEditor.mathematical||degree.axes)&&!degree.action)return <button type="button" aria-label={`Open ${degree.label}`} title={degree.label} onClick={onOpen}>{degree.symbol??'⠒❉'}</button>;
   if(degree.action)return <button type="button" aria-label={`Configure ${degree.label}`} title={`Configure ${degree.label}`} onClick={onOpen}/>;
-  if(parameter.kind==='number'&&numericEditor.mathematical)return <button type="button" aria-label={`Open ${degree.label} dial`} title={`Open ${degree.label} dial`} onClick={onOpen}>⠒❉</button>;
   if(parameter.kind==='color')return <SpectrumSetter value={String(value)} onPreview={onPreview} onCommit={onCommit}/>;
   if(parameter.kind==='number')return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} limits={{min:parameter.min!,max:parameter.max!,step:parameter.step}} onPreview={onPreview} onCommit={onCommit}/>;
   return <button type="button" aria-label={`${degree.label}: ${value}`} title={`${degree.label} · ${value}`} style={{opacity:value===false ? .3 : 1}} onClick={()=>{
@@ -36,7 +37,21 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 
 /** One metadata-selected value editor for preset and selected-target requests. */
 export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit,onDismiss}:{recipe:Recipe;degree:EditableDegree;configure?:boolean|DofSettingsKind;onDismiss?:()=>void;onPreview:(value:DegreeEditValue)=>void;onCommit:(value:DegreeEditValue)=>void}){
- if(degree.axes)return <VectorDegreeEditor recipe={recipe} degree={degree} configure={configure} onPreview={onPreview} onCommit={onCommit} onDismiss={onDismiss}/>;
+ const entry=configure===false?'source':configure,numeric=useNumericEditor(),targetKey=[...new Set(degree.targets.map(t=>t.id))].join('|');
+ useLayoutEffect(()=>numeric.activateDegree?.([...new Set(degree.targets.map(t=>t.id))],degree.id),[numeric.activateDegree,degree.id,targetKey]);
+ if(degree.axes)return <VectorDegreeEditor recipe={recipe} degree={degree} configure={entry} onPreview={onPreview} onCommit={onCommit} onDismiss={onDismiss}/>;
  const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree),domain=stateFieldDomain(parameter);
- return <OperationDegreeScope degree={degree}>{domain?<DofStateField property={degree.properties[0]} label={degree.label} symbol={degree.symbol} domain={domain} value={Number(value)} configure={configure} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>:<PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!,step:parameter.step}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>}</OperationDegreeScope>;
+ return <OperationDegreeScope degree={degree}>{domain?<DofStateField property={degree.properties[0]} label={degree.label} symbol={degree.symbol} domain={domain} value={Number(value)} configure={entry} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>:<ReferencedProperty degree={degree} picking={entry==='source'} onDismiss={onDismiss}><PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure===true?'step':undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/></ReferencedProperty>}</OperationDegreeScope>;
+}
+
+/** Categorical freedoms share source selection and retain their actual editor. */
+function ReferencedProperty({degree,picking,children,onDismiss}:{degree:EditableDegree;picking:boolean;children:ReactNode;onDismiss?:()=>void}){
+ const picker=useOperationReferencePicker(),latest=useRef(picker);latest.current=picker;
+ const [ready,setReady]=useState(!picking),degreeRef=useRef(degree);degreeRef.current=degree;
+ const targetKey=`${degree.id}:${[...new Set(degree.targets.map(t=>t.id))].join('|')}`;
+ useLayoutEffect(()=>{if(!picking){setReady(true);return;}setReady(false);let active=true,completed=false;const scope=latest.current;if(!scope){setReady(true);return;}
+  void scope.pickSource(degreeRef.current).then(source=>{completed=true;if(active){if(source)setReady(true);else onDismiss?.();}});
+  return()=>{active=false;if(!completed)scope.cancelPick();};
+ },[picking,targetKey]);
+ return ready?children:null;
 }

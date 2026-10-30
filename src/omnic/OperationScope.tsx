@@ -7,18 +7,19 @@ import {LIMITS,type Recipe,type RecipeResolver} from './model';
 import type {Evaluation} from './evaluate';
 import type {EditableDegree} from '../properties/editableDegrees';
 import {NumericOperationScope,type SelectionReference,type NumericReferenceControl} from '../ui/NumericEditorScope';
-import {targetParameter,targetDegreeValue,writeTargetDegree} from './targetDegrees';
+import {compatibleReferenceSource,targetParameter,targetDegreeValue,writeTargetDegree} from './targetDegrees';
 import {operationGeometry,type OperationGeometry} from './operationContext';
 
-type Scope={snapshot:OperationGeometry|null;resolve?:RecipeResolver;references:ReadonlyMap<string,string>;configured:(degree:EditableDegree)=>boolean;settings:(degree:EditableDegree)=>ReferenceSettings;changeSettings:(degree:EditableDegree,patch:Partial<ReferenceSettings>)=>void;reference:(degree:EditableDegree,consumer?:EditableDegree)=>UsedReference|undefined;choose:(target:string,reference?:string)=>void;read:()=>Recipe;error:(error:unknown)=>void;pick:(degree:EditableDegree)=>Promise<SelectionReference|undefined>;picking:boolean;environment?:ResizeRect;cancelPick:()=>void};
+export type PickedReferenceSource={id:string;label:string;point:{x:number;y:number}};
+type Scope={snapshot:OperationGeometry|null;resolve?:RecipeResolver;references:ReadonlyMap<string,string>;configured:(degree:EditableDegree)=>boolean;settings:(degree:EditableDegree)=>ReferenceSettings;changeSettings:(degree:EditableDegree,patch:Partial<ReferenceSettings>)=>void;reference:(degree:EditableDegree,consumer?:EditableDegree)=>UsedReference|undefined;choose:(target:string,reference?:string)=>void;read:()=>Recipe;error:(error:unknown)=>void;pick:(degree:EditableDegree)=>Promise<SelectionReference|undefined>;pickSource:(degree:EditableDegree)=>Promise<PickedReferenceSource|undefined>;picking:boolean;environment?:ResizeRect;cancelPick:()=>void};
 const Context=createContext<Scope|null>(null);
 /** Session reference choices are context, not durable property values or locks. */
 export function OperationReferenceScope({recipe,evaluation,resolve,read,error,children,stateOwner,environment,surface}:{surface:RefObject<HTMLElement|null>;environment?:ResizeRect;stateOwner:string;recipe:Recipe;evaluation:Evaluation|null;resolve?:RecipeResolver;read:()=>Recipe;error:(error:unknown)=>void;children:ReactNode}){
  const selector=useVisualSelection(),selectorRef=useRef(selector);selectorRef.current=selector;
- const pending=useRef<{degree:EditableDegree;finish:(value:SelectionReference|undefined)=>void;cancelMS?:()=>void}|undefined>(undefined);
+ const pending=useRef<{degree:EditableDegree;finish:()=>void;cancelMS?:()=>void}|undefined>(undefined);
  const [picking,setPicking]=useState(false);
- const cancelPick=()=>{const request=pending.current;pending.current=undefined;request?.cancelMS?.();request?.finish(undefined);setPicking(false);};
- useEffect(()=>()=>{const request=pending.current;pending.current=undefined;request?.cancelMS?.();request?.finish(undefined);},[]);
+ const cancelPick=()=>{const request=pending.current;pending.current=undefined;request?.cancelMS?.();request?.finish();setPicking(false);};
+ useEffect(()=>()=>{const request=pending.current;pending.current=undefined;request?.cancelMS?.();request?.finish();},[]);
  const [references,setReferences]=useState<ReadonlyMap<string,string>>(()=>new Map());
  const [relations,setRelations]=useState<ReadonlyMap<string,ReferenceSettings>>(()=>new Map());
  const relationKey=(degree:EditableDegree)=>JSON.stringify([[...new Set(degree.targets.map(t=>t.id))],degree.id]);
@@ -26,23 +27,31 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,ch
  const settings=(degree:EditableDegree)=>relations.get(relationKey(degree))??relations.get(vectorKey(degree))??DEFAULT_REFERENCE_SETTINGS;
  const snapshot=useMemo(()=>evaluation?operationGeometry(recipe,evaluation,stateOwner):null,[recipe,evaluation,stateOwner]);
  const callbacks=useRef({read,error,snapshot});callbacks.current={read,error,snapshot};
- const value=useMemo<Scope>(()=>({snapshot,resolve,references,picking,cancelPick,environment,settings,configured:degree=>relations.has(relationKey(degree))||relations.has(vectorKey(degree)),
- changeSettings:(degree,patch)=>setRelations(before=>{const next=new Map(before);next.set(relationKey(degree),{...settings(degree),...patch});return next;}),
- reference:(degree,consumer=degree)=>{if(!snapshot)return;const source=measuredReferenceFor(snapshot,degree.axes?.[0]??degree,references.get(degree.targets[0].id),environment);return source?resolveReferenceUse(source,settings(consumer),Number(targetDegreeValue(snapshot.recipe,degree))):undefined;},
- pick:degree=>{
+ const pickReference=<T,>(degree:EditableDegree,resolveSource:(snapshot:OperationGeometry,id:string,point:{x:number;y:number})=>T|undefined):Promise<T|undefined>=>{
   cancelPick();const ms=selectorRef.current;if(!ms)return Promise.resolve(undefined);
   setPicking(true);return new Promise(finish=>{
-   const request={degree,finish,cancelMS:undefined as (()=>void)|undefined};pending.current=request;
+   const request={degree,finish:()=>finish(undefined),cancelMS:undefined as (()=>void)|undefined};pending.current=request;
    request.cancelMS=ms.requestPick(selection=>{
     if(!surface.current?.contains(selection.element))return false;
     const element=selection.element.closest('[data-omnic-component]');
-    const id=element?.getAttribute('data-omnic-component')??(selection.element.closest('[data-selection-environment]')?'@environment':undefined);if(!id)return false;
-    const live=callbacks.current.snapshot;if(!live)return false;
-    const source=measuredReferenceFor(live,degree.axes?.[0]??degree,id,environment);if(!source)return false;const reference=resolveReferenceUse(source,settings(degree),Number(targetDegreeValue(live.recipe,degree)))??{id:source.id,label:source.label,unit:source.unit,value:source.value,use:settings(degree).use};
-    pending.current=undefined;setPicking(false);setRelations(before=>{if(before.has(relationKey(degree)))return before;const next=new Map(before);next.set(relationKey(degree),settings(degree));return next;});setReferences(before=>{const next=new Map(before);for(const t of degree.targets)next.set(t.id,id);return next;});finish({...reference,point:selection.point});return true;
+    const id=element?.getAttribute('data-omnic-component')??(selection.element.closest('[data-selection-environment]')?'@environment':undefined),live=callbacks.current.snapshot;
+    if(!id||!live)return false;const source=resolveSource(live,id,selection.point);if(!source)return false;
+    pending.current=undefined;setPicking(false);setRelations(before=>{if(before.has(relationKey(degree)))return before;const next=new Map(before);next.set(relationKey(degree),settings(degree));return next;});setReferences(before=>{const next=new Map(before);for(const t of degree.targets)next.set(t.id,id);return next;});finish(source);return true;
    },()=>{if(pending.current===request){pending.current=undefined;setPicking(false);finish(undefined);}});
   });
- },
+ };
+ const value=useMemo<Scope>(()=>({snapshot,resolve,references,picking,cancelPick,environment,settings,configured:degree=>relations.has(relationKey(degree))||relations.has(vectorKey(degree)),
+ changeSettings:(degree,patch)=>setRelations(before=>{const next=new Map(before);next.set(relationKey(degree),{...settings(degree),...patch});return next;}),
+ reference:(degree,consumer=degree)=>{if(!snapshot)return;const source=measuredReferenceFor(snapshot,degree.axes?.[0]??degree,references.get(degree.targets[0].id),environment);return source?resolveReferenceUse(source,settings(consumer),Number(targetDegreeValue(snapshot.recipe,degree))):undefined;},
+ pick:degree=>pickReference(degree,(live,id,point)=>{
+  const source=measuredReferenceFor(live,degree.axes?.[0]??degree,id,environment);if(!source)return;
+  const reference=resolveReferenceUse(source,settings(degree),Number(targetDegreeValue(live.recipe,degree)))??{id:source.id,label:source.label,unit:source.unit,value:source.value,use:settings(degree).use};
+  return {...reference,point};
+ }),
+ pickSource:degree=>pickReference(degree,(live,id,point)=>{
+  if(!compatibleReferenceSource(live.recipe,degree,id))return;
+  return {id,label:degree.targets.every(t=>t.id===id)?'Self':id.slice(0,6),point};
+ }),
  read:()=>callbacks.current.read(),error:e=>callbacks.current.error(e),choose:(target,reference)=>{
   if(!snapshot?.components.has(target)&&!snapshot?.recipe.operations.some(item=>item.id===target))return;
   setReferences(before=>{const next=new Map(before);if(reference)next.set(target,reference);else next.delete(target);

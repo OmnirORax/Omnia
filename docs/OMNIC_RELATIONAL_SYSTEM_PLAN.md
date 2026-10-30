@@ -2,6 +2,21 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Reference-first activation (2026-10-30)
+
+Ordinary target click → select the authored edit owner and activate Position →
+MS reference pick → DOF preview → accept. Self is a second click/double-click;
+other references use the same MS action. There is no ordinary translation drag.
+Activating any target/preset DOF from its dial likewise starts MS for that DOF,
+e.g. right-click → Rotation → MS → Self/other → rotation preview.
+
+Shared DegreeValueEditor owns default entry. Existing scalar/vector reference
+fields serve numeric values; categorical fields share identity-only picking and
+retain their actual controls. The request lifecycle is shared, capability-driven
+and non-mutating. Rule configuration remains separate. Source selection is still
+Composer-scoped, with existing single-target/geometry limits. Pen/eraser and
+explicit legacy pivot operations retain their tool gestures.
+
 ## DOF preview primary completion (2026-10-30)
 
 DOF preview fields execute a selected value; the math dial configures rules and

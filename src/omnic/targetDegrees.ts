@@ -20,6 +20,16 @@ export function targetEditorDegrees(...args:Parameters<typeof targetDegrees>){
  // their action routing, rather than swallowing one of the optional axes.
  return vectorDegrees(targetDegrees(recipe,ids,adjusters.filter(a=>!a.adjusts.some(p=>vectorProperties.has(p))),fixed,coverage));
 }
+/** Default placement entry derives from declared coordinate measurements, not
+ * a preset, target ID, parameter name or UI position in the DOF list. */
+export function targetPlacementDegree(recipe:Recipe,ids:readonly string[]):EditableDegree|undefined{
+ return targetEditorDegrees(recipe,ids).find(degree=>degree.axes?.some(axis=>targetParameter(axis).measurement==='center-x')&&degree.axes.some(axis=>targetParameter(axis).measurement==='center-y'));
+}
+/** Identity-only references for categorical inputs still require the same
+ * declared writable freedom and value kind; no numeric measure is fabricated. */
+export function compatibleReferenceSource(recipe:Recipe,degree:EditableDegree,id:string):boolean{
+ return targetDegrees(recipe,[id]).some(other=>degree.properties.every(property=>other.properties.includes(property))&&targetParameter(other).kind===targetParameter(degree).kind);
+}
 export type DegreeEditValue=Value|Readonly<Record<string,number>>;
 /** One legal editor domain for every owner of the selected shared property. */
 export function targetParameter(degree:EditableDegree):Parameter {

@@ -1131,17 +1131,19 @@ test('Self reference state follows source identity including explicit Self and u
  assert.equal(selfReference(undefined,['a','b']),true,'no explicit source retains the default self context');
 });
 
-test('object pickup moves after wheel configuration; only explicitly armed legacy rotation rotates',async()=>{
- const {targetGrabMode}=await import('../src/omnic/atomnicInteraction.ts');
- const {transformAtoms}=await import('../src/omnic/atomnic.ts');
- for(const tool of ['draw','move','rotate'])for(const phase of ['idle','configure'])assert.equal(targetGrabMode(tool,phase),'move','a previous tool or wheel session cannot change ordinary grab intent');
- assert.equal(targetGrabMode('rotate','armed'),'rotate');
- const source=validateRecipe({...recipe([dot('a',20,0)]),atomnic:{...atomnicSettings(recipe([])),mode:'free'}}),ids=new Set(['a']);
- const mode=targetGrabMode('rotate','configure');
- const moved=mode==='move'?transformAtoms(source,ids,a=>({x:a.x+7,y:a.y+11})):rotateAtoms(source,ids,{x:0,y:0},.25);
- assert.deepEqual(atoms(moved).map(a=>[a.x,a.y]),[[27,11]],'the same grab translates rather than invoking a stale pivot');
- assert.deepEqual(atoms(source).map(a=>[a.x,a.y]),[[20,0]],'pickup preserves the original for cancel/undo');
- assert.notDeepEqual(atoms(rotateAtoms(source,ids,{x:0,y:0},.25)).map(a=>[a.x,a.y]),[[27,11]],'explicit legacy rotation still has its distinct executor');
+test('click placement discovers the shared coordinate vector without changing geometry or preset-specific dispatch',async()=>{
+ const {targetPlacementDegree}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe(recipe([dot('a',20,0),{id:'rim',generator:'ring',params:{radius:30}},{id:'stroke',generator:'line',params:{length:40}}]));
+ const before=structuredClone(source);
+ for(const id of ['a','rim','stroke']){
+  const degree=targetPlacementDegree(source,[id]);assert.ok(degree?.axes?.length===2);
+  assert.deepEqual(degree.axes.map(a=>targetParameter(a).measurement).sort(),['center-x','center-y']);
+  assert.ok(degree.targets.every(t=>t.id===id),'the first selection owns the DOF; choosing its reference does not retarget it');
+ }
+ assert.equal(targetPlacementDegree(source,['missing']),undefined);
+ assert.equal(targetPlacementDegree(source,[]),undefined);
+ assert.deepEqual(source,before,'entry discovery and reference configuration do not edit coordinates');
+ const group=targetPlacementDegree(source,['a','rim']);assert.ok(group?.axes,'existing multi-selection retains common coordinate capability');
 });
 
 test('pointer and contextual Enter confirmation commit the same owner preview for scalar, zero and tuple candidates',async()=>{
@@ -1164,4 +1166,20 @@ test('pointer and contextual Enter confirmation commit the same owner preview fo
  const tuple={'omnic.coordinate.x':12,'omnic.coordinate.y':-4};
  confirmValue({candidate:()=>tuple,onCommit:value=>committed.push(value)});
  assert.deepEqual(committed,[0,tuple],'the same confirmation passes a tuple atomically without scalar coercion');
+});
+
+test('reference-first categorical DOFs use declared compatible sources without numeric coercion',async()=>{
+ const {compatibleReferenceSource}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe(recipe([dot('a'),{id:'rim',generator:'ring',params:{radius:12}}]));
+ const before=structuredClone(source);
+ for(const property of ['color','omnic.fill']){
+  const degree=targetDegrees(source,['a']).find(d=>d.id===property);
+  assert.equal(compatibleReferenceSource(source,degree,'a'),true,'Self remains selectable');
+  assert.equal(compatibleReferenceSource(source,degree,'rim'),true,'other sources declare the same writable kind');
+  assert.equal(compatibleReferenceSource(source,degree,'@environment'),false,'a raw environment does not invent color or fill');
+  assert.equal(compatibleReferenceSource(source,degree,'deleted'),false);
+ }
+ const rotation=targetDegrees(source,['a']).find(d=>d.id==='omnic.angle');
+ assert.equal(compatibleReferenceSource(source,rotation,'rim'),false,'a ring with no declared orientation does not invent Rotation');
+ assert.deepEqual(source,before,'source discovery/configuration never writes target values');
 });

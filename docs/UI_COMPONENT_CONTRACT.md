@@ -865,3 +865,22 @@ The navigation adapter supplies raw acceptance to Enter so completion happens
 once. Disabled/rejected candidates veto finish; unconfirmed leave stays cancel.
 Default composing interactions do not acquire finish-on-selection. No private
 DOF close callback or appearance/category change is introduced.
+
+
+### DOF activation selects a reference first (2026-10-30)
+
+DegreeValueEditor treats ordinary value activation as source selection, for both
+target and preset/dial entry paths. Scalar/vector fields reuse their existing
+request/on-spot projection. Categorical values borrow identity-only source picking
+and retain their native control. OperationReferenceScope owns one generic request
+lifecycle for both, with compatible capability validation, previous-selection
+restoration and cancellation. It stores reference identity, not invented numeric
+values or automatic target edits. Explicit configuration requests are separate.
+
+Ordinary canvas target activation finds Position from coordinate measurement
+metadata through targetPlacementDegree and starts that same editor. No per-preset
+click handler or separate source-picking UI. The pointed authored owner is the
+edit target; the following MS target is the reference. Ordinary move/translate
+gesture execution is removed, while empty-space construction tools and explicit
+legacy operations retain their contracts. Existing single-target reference limits
+remain.

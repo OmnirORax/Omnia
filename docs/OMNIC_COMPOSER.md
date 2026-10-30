@@ -885,3 +885,43 @@ Focused synthetic checks verified direct and MS-reference DOF previews: left
 click accepted/finished, the grid disappeared, and the exact tuple persisted
 after leaving; unconfirmed leave restored the previous tuple. No browser suite
 ran. General user-workspace acceptance remains pending.
+
+
+### Reference-first target and DOF activation (2026-10-30)
+
+Within Composer, ordinary primary target activation selects that authored owner,
+activates its declared Position vector and immediately starts the existing MS
+reference request. A second click chooses Self or another compatible reference;
+a normal double-click can choose Self. MS closes on acceptance and the existing
+on-spot DOF preview opens. Hover previews, leave cancels an unconfirmed value,
+and primary selection/Enter accepts and finishes. Neither activation nor reference
+selection changes geometry. Ordinary held-target translation is retired.
+
+This is also the default activation of every target/preset DOF editor: right-click
+a target → choose Rotation → MS → choose Self/compatible other → rotation preview.
+Size, Count and other scalar/vector freedoms inherit the same entry. Categorical
+freedoms use the same MS request lifecycle for source identity/compatibility, then
+retain their actual value controls; no numeric measure is fabricated for color,
+fill or choices. Explicit rule/variable configuration remains separate. The shared
+DegreeValueEditor owns activation, not per-DOF buttons.
+
+First ordinary target activation replaces earlier membership with the pointed
+authored owner so the first selected target remains the edited owner while the
+second is only its reference. Existing precise MS configuration, authored groups,
+reference-use settings and shared setters/history remain. G opens Position
+reference selection for one selected authored target. Existing multi-target
+reference-field limitations remain; arbitrary clipping and generated-member
+overrides are not added. Source picking remains within Composer. Pen drawing on
+empty space, Eraser and explicitly invoked legacy pivot/Step keep their tools.
+
+Removed the ordinary move/translate gesture branches and their private prepared
+position fields; reusable engine transforms remain. The edited-world bridge uses
+the same input adapter, but reference picking still uses Composer's authored SVG
+surface. This is not a new world MS geometry adapter.
+
+Focused synthetic checks covered Self, Self double-click, other reference,
+Rotation/Size/Count/Fill from DOF categories, accepted preview completion, no
+geometry changes during selection, no ordinary drag translation and preserved
+empty-space pen strokes. Model regressions cover metadata-derived placement entry
+and compatible raw reference sources without mutation. General user-workspace
+acceptance remains pending; no browser suite ran.

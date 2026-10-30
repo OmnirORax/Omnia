@@ -17,7 +17,7 @@ export function DofInformation({information}:{information:DofInformationState}){
  const i=information;
  return <div className="dof-information-controls" aria-label="Active DOF settings" data-ui-control data-ui-popup-boundary>
   <button data-ui-preserve-title type="button" title={`DOF: ${i.label} · choose DOF`} aria-label={`Choose DOF: ${i.label}`} onClick={i.degrees}>{i.symbol}</button>
-  <button data-ui-preserve-title type="button" title={`${i.mode} · configure rule and variables`} aria-label="Configure rule and variables" onClick={()=>i.configure('rule')}>{i.expression}</button>
+  {i.expression!=null&&<button data-ui-preserve-title type="button" title={`${i.mode} · configure rule and variables`} aria-label="Configure rule and variables" onClick={()=>i.configure('rule')}>{i.expression}</button>}
   <button data-ui-preserve-title type="button" title={`Reference: ${i.reference} · pick reference · right-click configures use`} aria-label={`Change reference: ${i.reference}`} onClick={()=>i.configure('source')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();i.configure('relation');}}>{i.referenceSelf?'↫':'⟴'}{i.referenceUse&&<sup className="dof-reference-use">{i.referenceUse==='bounds'?'⊢⊣':i.referenceUse==='step'?'Δ':'⨮'}</sup>}</button>
  </div>;
 }
