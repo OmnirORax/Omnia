@@ -925,3 +925,27 @@ geometry changes during selection, no ordinary drag translation and preserved
 empty-space pen strokes. Model regressions cover metadata-derived placement entry
 and compatible raw reference sources without mutation. General user-workspace
 acceptance remains pending; no browser suite ran.
+
+
+### Position reference re-entry and redundant dial entries (2026-10-30)
+
+Every explicit target/DOF activation now captures a fresh editor activation ID.
+The editor identity also includes its authored owners and requested stage.
+Previously, cancelling a Position reference pick then selecting another target
+could reuse the mounted Position/source editor, so the object became selected
+but its MS startup effect did not run. A new activation restarts that session;
+ordinary preview/value rerenders retain it. Existing DOF-from-dial routing stays
+reference-first and uses the same editor.
+
+The duplicate Relativity/reference-pick and Reference use entries are removed
+from the DOF settings options dial. The top ↫/⟴ indicator still selects a source
+and exposes reference-use configuration on right-click, including Bounds/Step/
+Match, compatible measurements and ratios. The other DOF categories remain.
+
+Focused local diagnostic reproduced cancellation → target switch selecting the
+object with MS closed before the fix. Four rapid alternating re-entries now
+opened MS, and the final Position choice committed. An independent Rotation
+from-dial source-pick check passed and its settings had no duplicate reference
+entries. Model regression checks owner/activation/stage identity and stability
+during equivalent rerenders. No browser suite ran; user-workspace acceptance
+remains pending.

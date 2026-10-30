@@ -1183,3 +1183,16 @@ test('reference-first categorical DOFs use declared compatible sources without n
  assert.equal(compatibleReferenceSource(source,rotation,'rim'),false,'a ring with no declared orientation does not invent Rotation');
  assert.deepEqual(source,before,'source discovery/configuration never writes target values');
 });
+
+test('DOF editor identity separates explicit activations and owners without remounting ordinary renders',async()=>{
+ const {degreeEditorIdentity}=await import('../src/properties/editableDegrees.ts');
+ const {targetPlacementDegree}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe(recipe([dot('a',-20),dot('b',20)]));
+ const a=targetPlacementDegree(source,['a']),b=targetPlacementDegree(source,['b']);
+ assert.equal(a.id,b.id,'both owners expose Position');
+ const key=degreeEditorIdentity(a,'source',1);
+ assert.notEqual(key,degreeEditorIdentity(b,'source',1),'switching targets cannot reuse the old request session');
+ assert.notEqual(key,degreeEditorIdentity(a,'source',2),'reopening the same target must restart reference selection');
+ assert.equal(key,degreeEditorIdentity(structuredClone(a),'source',1),'ordinary equivalent metadata rerenders retain the active request');
+ assert.notEqual(key,degreeEditorIdentity(a,'options',1),'configuration stages remain separate from source selection');
+});

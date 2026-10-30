@@ -884,3 +884,16 @@ edit target; the following MS target is the reference. Ordinary move/translate
 gesture execution is removed, while empty-space construction tools and explicit
 legacy operations retain their contracts. Existing single-target reference limits
 remain.
+
+
+### Editor activation is a request, not just a DOF name (2026-10-30)
+
+Explicit target editor activation captures a monotonically increasing session ID.
+`degreeEditorIdentity` combines that captured ID, authored owners, DOF and stage;
+it never depends on live value/hover samples. Re-entering the same DOF/source
+starts a fresh editor/reference request even if the previous component is still
+mounted. Owner changes cannot reuse another target's session. Target editor
+activations share the adapter; no delayed MS invocation or selection-only click.
+
+DOF option dials omit redundant source/reference-use buttons. The active top
+reference control remains the shared entry for reselecting/configuring a source.

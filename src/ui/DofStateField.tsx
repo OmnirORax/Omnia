@@ -92,10 +92,8 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
    {settings.kind==='options'?<RadialMenu onClose={closeSettings} items={[
     {id:'dof',symbol:symbol,label:label,content:<button type="button" title="Choose DOF" onClick={()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}}>{symbol}</button>},
     {id:'expression',symbol:'⠒❉',label:'Rule variables',content:<button type="button" title="Edit rule expression" onClick={()=>show(working.mode==='step'?'step':'count')}>{working.mode==='step'?`Δ ${step}`:countLabel}</button>},
-    {id:'reference',symbol:referenceIcon,label:'Relativity',content:<button type="button" title="Reference · right-click configures use" onClick={()=>show('source')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();show('relation');}}>{referenceIcon}</button>},
     ...(components??[]),
     ...(domain.cyclic?(['min','max'] as const).map(kind=>({id:kind,symbol:kind==='min'?'⊢':'⊣',label:kind==='min'?'Minimum':'Maximum',content:<button type="button" title={kind==='min'?'Minimum':'Maximum'} onClick={()=>show(kind)}>{kind==='min'?'⊢':'⊣'}</button>})):[]),
-    ...(relation?[{id:'reference-use',symbol:'⨮',label:'Reference use',content:<button type="button" title={`Reference use: ${relationLabel}`} onClick={()=>show('relation')}>⨮</button>}]:[])
    ]}/> :settings.kind==='relation'?<RadialMenu onClose={closeSettings} items={relation?[
     {id:'source',symbol:referenceIcon,label:'Reference',content:<button type="button" title="Select reference source" onClick={()=>show('source')}>{referenceIcon}</button>},
     {id:'measurement',symbol:'↔',label:'Measurement',content:<button type="button" title={`Measurement: ${relation.measures.find(m=>m.id===relation.settings.measure)?.label??'unavailable'}`} onClick={()=>show('measurements')}>↔</button>},

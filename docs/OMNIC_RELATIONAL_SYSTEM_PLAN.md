@@ -2,6 +2,15 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Reference re-entry correction (2026-10-30)
+
+Position's canvas entry reused a mounted DOF/source session after cancellation
+and target changes. Each explicit editor activation now supplies a fresh captured
+identity, including authored owner and stage, while ordinary value previews keep
+their session. Re-entry restarts MS reliably without changing the reference-first
+DOF-dial flow. Redundant source/reference-use entries in DOF options are removed;
+the top reference indicator retains those controls.
+
 ## Reference-first activation (2026-10-30)
 
 Ordinary target click → select the authored edit owner and activate Position →

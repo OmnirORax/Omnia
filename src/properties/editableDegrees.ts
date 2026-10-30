@@ -42,3 +42,9 @@ export function vectorDegrees(degrees:readonly EditableDegree[]):EditableDegree[
  }
  return result;
 }
+
+/** An explicit activation starts a new editor session, even for the same DOF
+ * and owner. Ordinary value/hover renders retain the captured activation ID. */
+export function degreeEditorIdentity(degree:EditableDegree,stage:string,activation=0):string{
+ return JSON.stringify([degree.id,[...new Set(degree.targets.map(target=>target.id))],stage,activation]);
+}
