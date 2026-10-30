@@ -2,6 +2,21 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Shared confirmation and target completion (2026-10-30)
+
+Prepared value projections share `useValueConfirmation` for primary selection
+and MC Enter, passing the same candidate to the existing owner write. Axis,
+linear, plane and math dial use it; RangeControl registers its held transaction
+finish for Enter. Future projections inherit this adapter rather than inventing
+DOF-specific keys. One physical opening-press guard owns popup protection; the
+wrapper's duplicate boolean guard is removed. Nested navigation resolves each
+action independently, so cancel-only children do not hide confirmation.
+
+MS accepting a target ends selector aiming/configuration/inventory immediately,
+retaining accepted membership/history/feedback and the subsequent DOF field.
+Scope construction and rejected picks remain pending until target acceptance.
+Model/type/build/backend checks pass locally; browser acceptance remains pending.
+
 ## Rule UI consolidation (2026-10-30)
 
 The separate Partitions/mode button and parameter radial are retired. The Composer

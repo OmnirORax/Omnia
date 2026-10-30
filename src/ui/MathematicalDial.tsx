@@ -1,3 +1,4 @@
+import {useValueConfirmation} from './useValueConfirmation';
 import {useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
 import {mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,canAddMathematicalRing,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
@@ -73,6 +74,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   if(!valid(n))return;
   hover.current=null;setSample(null);setMarks(next);onCommit(session.commit(n));
  };
+ const confirm=useValueConfirmation({owner:ringRef,candidate:()=>sample??undefined,onCommit:next=>{drag.current=null;setPainting(false);commit(next);},disabled});
  const cancel=()=>{setPainting(false);drag.current=null;restore();};
  useContextNavigation({owner:ringRef,cancel:painting?cancel:undefined});
  const cancelLatest=useRef(cancel);cancelLatest.current=cancel;
@@ -124,7 +126,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   onPointerUp={event=>{
    const active=drag.current;if(!active||active.id!==event.pointerId)return;
    event.preventDefault();event.stopPropagation();advance({x:event.clientX,y:event.clientY});setPainting(false);drag.current=null;suppressClick.current=true;
-   if(active.visited.length)commit(active.next);else restore();
+   if(active.visited.length)confirm(active.next);else restore();
    if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
   }}
   onPointerCancel={cancel} onLostPointerCapture={()=>{if(drag.current)cancel();}}
@@ -142,7 +144,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
      const candidate=paintMathematicalSlots(marks,[key],brush,marks.selected.includes(key)),n=total(candidate),contribution=sign*mathematicalSlotValue(base,i+1,brush);
      return <button type="button" key={key} disabled={disabled} className="mathematical-dial-slot" data-ui-paint-owner="geometry" data-math-slot={key} data-mode={mode} data-selected={displayed.selected.includes(key)} data-preview={!!sample&&displayed.selected.includes(key)&&(!marks.selected.includes(key)||modeAt(marks,key)!==mode)} style={{width:minimum.size,height:minimum.size,left:`${50+Math.sin(turn)*radius/extent*100}%`,top:`${50-Math.cos(turn)*radius/extent*100}%`}}
       aria-label={`Ring ${order+1}, slot ${i+1}, brush ${brush}, contribution ${contribution}`} aria-pressed={marks.selected.includes(key)} aria-disabled={candidate.selected.length>0&&!valid(n)} title={`Slot ${i+1} · ${sign<0?'−':''}${brush==='normal'?`${base}×${i+1}`:`${base}^${i+2}`} = ${contribution} · ${editing?.kind==='increment'?`${anchor.current} + (${numeral(candidate)} × ${editing.amount}) = `:''}${n} · right-click changes cursor only`}
-      onMouseEnter={()=>preview(key)} onMouseLeave={restore} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)commit(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true"/></button>;
+      onMouseEnter={()=>preview(key)} onMouseLeave={restore} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)confirm(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true"/></button>;
     })}
    </span>)}
   </div>

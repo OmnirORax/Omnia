@@ -1,3 +1,4 @@
+import {contextNavigationAction} from './contextNavigation';
 import {SelectionOpenContext} from './SelectionOpenContext';
 import {cursorSample,popupInvocation} from './cursorPosition';
 import {placePopup,popupBelowButton,type PopupRect} from './popupPlacement';
@@ -5,7 +6,7 @@ import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useRef,
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
 import { ContextStage, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
-import { claimUIPress, physicalPointerHeld, ownsPointerSurface } from "./pointerOwnership";
+import { claimUIPress, ownsPointerSurface } from "./pointerOwnership";
 
 const PopupParents=createContext<readonly RefObject<HTMLDivElement|null>[]>([]);
 
@@ -21,21 +22,16 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   useLayoutEffect(()=>{if(!position){invocation.current=null;buttonAnchor.current=null;return;}const captured=popupInvocation(),target=cursorSample().target;buttonAnchor.current=captured?.button??null;if(target instanceof Node&&root.current?.contains(target))return;invocation.current=captured?.boundary??(target instanceof Element?target.closest('[data-ui-popup-boundary]'):null);},[!!position,position?.x,position?.y,stage]);
   const navigation=useRef(new Map<symbol,ContextNavigation>());const [,refreshNavigation]=useState(0);
   const registerNavigation=useCallback((value:ContextNavigation)=>{const key=Symbol();navigation.current.set(key,value);refreshNavigation(n=>n+1);return()=>{navigation.current.delete(key);refreshNavigation(n=>n+1);};},[]);
-  const nestedNavigation=()=>{let selected:ContextNavigation|undefined;for(const candidate of navigation.current.values()){
-    const a=selected?.owner?.current,b=candidate.owner?.current;
-    if(!selected||!a||b&&a.contains(b))selected=candidate;
-  }return selected;};
+  const navigate=(action:'cancel'|'back'|'advance'|'confirm')=>contextNavigationAction(navigation.current.values(),action);
 
   const popup=usePopupAnchor(position,stage??title);
   const anchor=anchored?position:popup.anchor,nextStage=anchored?null:popup.nextStage;
-  const openingPress = useRef(false);
   const owns=(target:EventTarget|null)=>ownsPointerSurface(root.current,target instanceof Element?target:null,'[data-context-controller]');
   const offset=useRef({x:0,y:0}),drag=useRef<{id:number;x:number;y:number;before:{x:number;y:number};handle:HTMLElement;moved:boolean}|null>(null),suppressClick=useRef(false);
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
-  const closeLayer=()=>{if(drag.current)cancelDrag();else (nestedNavigation()?.back??onClose)();};
+  const closeLayer=()=>{if(drag.current)cancelDrag();else (navigate('back')??onClose)();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
-  useLayoutEffect(() => { openingPress.current = !!position && physicalPointerHeld(); }, [!!position,anchor?.x,anchor?.y,stage]);
-  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{dismissOutside,cancel:nestedNavigation()?.cancel,advance:nestedNavigation()?.advance??onAdvance,confirm:nestedNavigation()?.confirm??onConfirm??nestedNavigation()?.advance??onAdvance});
+  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{dismissOutside,cancel:navigate('cancel'),advance:navigate('advance')??onAdvance,confirm:navigate('confirm')??onConfirm??navigate('advance')??onAdvance});
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
     node.setAttribute("popover", "manual"); node.showPopover();
@@ -67,7 +63,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   return position && createPortal(<div ref={root} className={`contextual-master-controller ${radial?'contextual-master-controller-radial':'ui-frame-search-popup'}`} data-context-controller data-selection-context-owner={selectionOwner} data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
     onPointerDownCapture={event => {
       if(!owns(event.target))return;
-      openingPress.current = false;suppressClick.current=false;
+      suppressClick.current=false;
       if(!radial||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-dial-drag]'))return;
       event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);
       drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,before:{...offset.current},handle:event.target.closest('[data-dial-drag]') as HTMLElement,moved:false};
@@ -78,7 +74,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
       if(!active.moved&&Math.hypot(dx,dy)<3)return;active.moved=true;
       offset.current={x:active.before.x+dx,y:active.before.y+dy};event.currentTarget.style.translate=`${offset.current.x}px ${offset.current.y}px`;
     }}
-    onPointerUpCapture={event=>{if(!owns(event.target))return;if(openingPress.current){event.preventDefault();event.stopPropagation();return;}const active=drag.current;if(!active||active.id!==event.pointerId)return;
+    onPointerUpCapture={event=>{if(!owns(event.target))return;const active=drag.current;if(!active||active.id!==event.pointerId)return;
       event.stopPropagation();drag.current=null;
       if(!active.moved&&active.handle.tagName==='BUTTON')active.handle.click();
       suppressClick.current=true;
@@ -86,13 +82,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     }}
     onPointerCancel={cancelDrag}
     onLostPointerCapture={()=>{if(drag.current)cancelDrag();}}
-    onClickCapture={event=>{if(!owns(event.target))return;if(openingPress.current&&event.detail>0){openingPress.current=false;event.preventDefault();event.stopPropagation();return;}if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
-    onContextMenuCapture={event => {
-      if(!owns(event.target))return;
-      // A popup opened on pointerdown must not interpret that same press
-      // again when the browser dispatches contextmenu at its new contents.
-      if (openingPress.current) { event.preventDefault(); event.stopPropagation(); }
-    }}
+    onClickCapture={event=>{if(!owns(event.target))return;if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{left:anchor!.x,top:anchor!.y}}>

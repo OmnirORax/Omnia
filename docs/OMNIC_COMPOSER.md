@@ -807,3 +807,24 @@ provided rule choices and setters without adding another rule store or evaluator
 Non-Composer dial consumers that do not supply choices retain their presentation.
 Static/model/build/backend verification precedes publication; browser confirmation
 of rule switching, variable editing and retained endpoint limits remains pending.
+
+
+### Shared click/Enter confirmation and MS completion (2026-10-30)
+
+Primary selection and Enter now confirm the same prepared candidate through
+`useValueConfirmation`, inherited by cyclic wheels, linear/plane fields and the
+math dial. Held value sliders register their existing finish transaction for
+Enter. No confirm/checkmark buttons or per-DOF key handlers are introduced.
+Confirmation writes through existing owners and retains the accepted value when
+the pointer leaves; Esc restores only an uncommitted preview. Controls stay open
+for further editing under their existing outside-dismissal rules.
+
+The popup wrapper's duplicate opening-press boolean is removed; only the shared
+physical-press-version guard suppresses the actual opener tail. Nested action
+resolution considers confirm/cancel/back/advance independently so a cancel-only
+stroke cannot hide value confirmation. MS still has shortcut priority while
+selecting. Once a target is accepted its cursor/configuration/inventory close
+immediately; membership and feedback remain. Reopen Q for another pick. Partial
+geometry construction and rejected reference candidates are not target completion.
+Browser acceptance of click/Enter across these projections and MS closure remains
+pending; model, type, preview and backend checks precede publication.

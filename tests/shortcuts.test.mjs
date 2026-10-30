@@ -588,3 +588,14 @@ test('free-space scalar scrubbing locks the first drag axis and reverses without
  assert.equal(diagonal.sample({x:-40,y:30}),50,'motion perpendicular to the original diagonal contributes zero');
  assert.equal(diagonal.sample({x:30,y:40}),100);assert.equal(diagonal.sample({x:-30,y:-40}),0);
 });
+
+test('nested editor navigation resolves confirmation and cancellation independently',async()=>{
+ const {contextNavigationAction}=await import('../src/ui/contextNavigation.ts');
+ const outer={contains:node=>node===inner||node===leaf},inner={contains:node=>node===leaf},leaf={contains:()=>false};
+ const calls=[],entries=[{owner:{current:outer},confirm:()=>calls.push('outer confirm'),advance:()=>calls.push('outer advance')},{owner:{current:inner},confirm:()=>calls.push('preview commit')},{owner:{current:leaf},cancel:()=>calls.push('stroke cancel')}];
+ contextNavigationAction(entries,'confirm')();contextNavigationAction(entries,'cancel')();contextNavigationAction(entries,'advance')();
+ assert.deepEqual(calls,['preview commit','stroke cancel','outer advance'],'a cancel-only child cannot hide the current value confirmation');
+ assert.equal(contextNavigationAction(entries,'back'),undefined);
+ const reordered=[entries[1],entries[0],entries[2]];contextNavigationAction(reordered,'confirm')();
+ assert.equal(calls.at(-1),'preview commit','DOM containment, not effect registration order, selects the deeper owner');
+});

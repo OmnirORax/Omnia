@@ -94,6 +94,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (next === current) return previous;
     return appendTransient(previous,next);
   }), []);
+  // Completion closes selector UI, never its accepted membership/history/feedback.
+  const completeSelection=useCallback(()=>{gesture.current=null;polygon.current=null;setDrawing(false);setCandidatePick(null);setInventoryOpen(false);setPhase('off');},[setCandidatePick]);
   const cancelDrawing = () => { gesture.current = null; polygon.current = null; setDrawing(false); setCandidatePick(null); };
   const toggleSelection = (constraint: SelectionConstraint) => record(current => {
     const parts = latest.current.catalog;
@@ -113,8 +115,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       if (!matchingVisualParts(current.catalog, rule, current.measurements).length) return selection;
       return { ...selection, boundary: selection.boundary ?? rule.boundary, rules: [...selection.rules, rule], objects: [] };
     });
-    setCandidatePick(null);
-  }, [record, setCandidatePick]);
+    completeSelection();
+  }, [record, completeSelection]);
   const prepareToggle = (constraint: SelectionConstraint) => {
     constraint = { ...constraint, backgrounds: latest.current.configuration.backgrounds };
     const { catalog, selection, measurements } = latest.current, key = constraintKey(constraint);
@@ -192,7 +194,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (!pick) return;
     const request=requestedPick.current;
     if(request){const p=point.current;if(p&&request.accept({element:p.element,boundary:pick.rule.boundary,constraint:pick.rule,parts:matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements),point:{x:p.x,y:p.y}})){
-      requestedPick.current=null;setCandidatePick(null);
+      requestedPick.current=null;completeSelection();
     }return;}
     if (pick.definesScope) {
       const { include: _include, backgrounds: _backgrounds, ...constraint } = pick.rule;
@@ -204,7 +206,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     } else toggleSelection(pick.rule);
     settledPoint.current = point.current;
     setCandidatePick(null);
-    if(!geometryOnly){setInventoryOpen(false);setPhase('off');}
+    if(!geometryOnly)completeSelection();
   };
   const clear = useCallback(() => {
     setView("auto");
@@ -216,8 +218,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     setView("auto");
     gesture.current = null; polygon.current = null; setDrawing(false); setCandidatePick(null);
     record(current => current.objects.includes(id) ? { ...current, objects: current.objects.filter(selected => selected !== id) } : { ...emptySelection(), objects: [id] });
-    requestInspection(value => value + 1); setPhase("configure");
-  }, [record, setCandidatePick]);
+    requestInspection(value => value + 1); completeSelection();
+  }, [record, setCandidatePick, completeSelection]);
   const close = () => { const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
   const disable = () => { const requested=!!requestedPick.current;close();if(!requested)clear(); };
   const undo = () => { cancelDrawing(); setTimeline(previous => stepTransient(previous,-1)); };

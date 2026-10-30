@@ -776,3 +776,32 @@ native listener from running, leaving wheels/value controls unable to commit.
 Keyboard-native click exceptions and existing drag/cancel ownership remain.
 The regression models the physical event stream, a captured wheel choice, the
 existing property writer and retaining the committed angle after leaving.
+
+
+### Shared value confirmation and selection completion (2026-10-30)
+
+`useActiveLayer` is the sole popup opening-press guard. ContextualMasterController
+no longer maintains a second boolean release guard; nested capture and stage
+updates must never re-arm protection against a later deliberate press. Drag-click
+suppression remains separate and applies only after moving a popup.
+
+Value-picking projections use `useValueConfirmation`: give it the owner ref, the
+current prepared preview candidate and existing commit setter. Both primary
+selection and MC Enter execute `confirmValue`; undefined/disabled choices do not
+commit, while zero and structured tuples remain valid. Axis, linear, plane and
+math-dial surfaces use this shared adapter. RangeControl lends its held drag's
+existing finish transaction to Enter as well as release. No per-DOF key listeners.
+Future value-picking projections use this adapter, rather than implementing a
+separate Enter path. Native text-field validation and MS shortcut priority remain.
+
+Nested navigation is resolved per action by `contextNavigationAction`; a deeper
+cancel-only editor cannot mask a parent's preview confirmation. MC keeps the
+deepest applicable DOM owner, independently of effect registration order.
+
+MS completion closes aiming/configuration/inventory and unfinished input state
+after an accepted target, including temporary reference and inventory targets.
+It retains accepted membership, timeline and feedback. Explicit unfinished scope
+construction can continue until a target is accepted; rejected reference picks
+remain active. Q explicitly reopens targeting. General browser acceptance remains
+user-tested; local regressions cover owner writes, zero/tuple confirmation,
+per-action nesting and existing temporary-request restore/one-shot behavior.

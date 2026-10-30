@@ -1143,3 +1143,25 @@ test('object pickup moves after wheel configuration; only explicitly armed legac
  assert.deepEqual(atoms(source).map(a=>[a.x,a.y]),[[20,0]],'pickup preserves the original for cancel/undo');
  assert.notDeepEqual(atoms(rotateAtoms(source,ids,{x:0,y:0},.25)).map(a=>[a.x,a.y]),[[27,11]],'explicit legacy rotation still has its distinct executor');
 });
+
+test('pointer and contextual Enter confirmation commit the same owner preview for scalar, zero and tuple candidates',async()=>{
+ const {confirmValue}=await import('../src/ui/valueConfirmation.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const {contextNavigationAction}=await import('../src/ui/contextNavigation.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:0}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection);
+ for(const input of ['pointer','enter']){
+  const session=mathematicalValueSession(0);session.preview(90);let result=source;
+  const current={candidate:()=>90,onCommit:value=>{result=writeTargetDegree(source,degree,session.commit(value));}};
+  if(input==='pointer')confirmValue(current,90);else contextNavigationAction([{confirm:()=>confirmValue(current)}],'confirm')();
+  assert.equal(targetDegreeValue(result,degree),90);assert.equal(session.restore(),90,'leaving retains the accepted preview for either activation');
+ }
+ const committed=[];let candidate=0;
+ const current={candidate:()=>candidate,onCommit:value=>committed.push(value)};
+ assert.equal(confirmValue(current),true);assert.deepEqual(committed,[0],'zero is a real candidate');
+ candidate=undefined;assert.equal(confirmValue(current),false);
+ candidate=8;assert.equal(confirmValue({...current,disabled:true}),false);
+ const tuple={'omnic.coordinate.x':12,'omnic.coordinate.y':-4};
+ confirmValue({candidate:()=>tuple,onCommit:value=>committed.push(value)});
+ assert.deepEqual(committed,[0,tuple],'the same confirmation passes a tuple atomically without scalar coercion');
+});

@@ -85,7 +85,8 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     if (onValueCancel) onValueCancel(active.before); else onValueChange(active.before);
   };
   useCancelValueEdit(input, cancelDrag);
-  useContextNavigation({owner:track,cancel:drag.current?cancelDrag:undefined});
+  const confirmDrag=()=>{const active=drag.current;if(!active)return;drag.current=null;onValueCommit?.(active.next);};
+  useContextNavigation({owner:track,cancel:drag.current?cancelDrag:undefined,confirm:drag.current?confirmDrag:undefined});
   const cancelLatest = useRef(cancelDrag); cancelLatest.current = cancelDrag;
   useEffect(() => {
     const cancel = () => cancelLatest.current();
@@ -109,7 +110,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
     claimUIPress(id);return true;
   };
-  const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);const next=drag.current!.next;drag.current=null;onValueCommit?.(next);};
+  const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);confirmDrag();};
   const gestureAPI=useRef<RangeGesture>(null!);gestureAPI.current={start:(id,x,y)=>startDrag(id,x,y,true),move:moveDrag,finish:finishDrag,cancel:cancelDrag};
   useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel()};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
   const label = inputProps["aria-label"] ?? "Value";
