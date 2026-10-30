@@ -851,21 +851,23 @@ test('hover previews find unselected objects without changing selection or geome
  assert.deepEqual(evaluation.selection,[],'no prior selection is required or created by hover');
 });
 
-test('rotation grabs scrub prepared rule values in free space through the shared value slider model',async()=>{
- const {createValueScrub}=await import('../src/ui/valueScrub.ts');
- const {rangeSequence}=await import('../src/ui/rangeMath.ts');
- const {createStateField}=await import('../src/properties/stateField.ts');
+test('rotation axis wheel previews existing rule states and commits a captured click without editing on open',async()=>{
+ const {createStateField,axisFieldCandidate}=await import('../src/properties/stateField.ts');
  const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {createStateActivation}=await import('../src/properties/stateSelection.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
  const source=validateRecipe(recipe([{id:'line',generator:'line',params:{length:60}}]));
- const degree=targetDegrees(source,['line']).find(d=>targetParameter(d).selection),domain=stateFieldDomain(targetParameter(degree));
+ const degree=targetDegrees(source,['line']).find(d=>targetParameter(d).selection),domain=stateFieldDomain(targetParameter(degree)),before=Number(targetDegreeValue(source,degree));
  const field=createStateField(domain,{mode:'symmetry',count:8,step:45,reference:domain.cyclic.north});
- const values=rangeSequence(field.candidates.map(c=>c.value),field.min,field.max),before=Number(targetDegreeValue(source,degree));
- const scrub=createValueScrub({origin:{x:0,y:0},width:100,value:before,min:field.min,max:field.max,step:domain.resolution,values});
- assert.equal(scrub.sample({x:0,y:0}),undefined,'grabbing rotation does not jump toward the pointer angle');
- scrub.sample({x:3,y:4});
- const selected=scrub.sample({x:18,y:24}),preview=writeTargetDegree(source,degree,selected);
- assert.equal(selected,90);assert.equal(targetDegreeValue(preview,degree),90);
- assert.equal(targetDegreeValue(source,degree),before,'preview does not mutate the committed owner');
- assert.equal(scrub.sample({x:-62,y:84}),90,'leaving the shape sideways cannot change the grabbed axis');
- assert.equal(scrub.sample({x:0,y:0}),before,'returning along the axis restores the initial generated value');
+ assert.equal(axisFieldCandidate(field,{x:0,y:0}),undefined,'opening at the wheel centre does not choose an angle');
+ assert.equal(axisFieldCandidate(field,{x:2,y:0}),undefined,'leaving the wheel does not keep previewing an angle');
+ assert.equal(axisFieldCandidate(field,{x:0,y:-.8}).value,-90);
+ assert.equal(axisFieldCandidate(field,{x:.8,y:0}).value,0);
+ const south=axisFieldCandidate(field,{x:0,y:.8}).value,session=mathematicalValueSession(before),activation=createStateActivation();
+ const preview=writeTargetDegree(source,degree,session.preview(south));
+ assert.equal(targetDegreeValue(preview,degree),90);assert.equal(targetDegreeValue(source,degree),before,'hover leaves the committed source unchanged');
+ activation.press(south);assert.equal(session.restore(),before,'leaving or focus cancellation restores the committed value');
+ const chosen=activation.take(undefined),committed=writeTargetDegree(source,degree,session.commit(chosen));
+ assert.equal(targetDegreeValue(committed,degree),90,'click commits its captured angle even after native blur cancelled hover');
+ assert.equal(session.restore(),90,'later pointer exit retains the clicked state');
 });

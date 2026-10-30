@@ -1,12 +1,11 @@
 import {rangeValue,sequenceAt,sequenceIndex} from './rangeMath.ts';
-export const DEFAULT_VALUE_SCRUB_SPAN=136;
 type Point={x:number;y:number};
-type ScrubConfiguration={origin:Point;width?:number;value:number;min:number;max:number;step:number;values?:readonly number[]};
+type ScrubConfiguration={origin:Point;width:number;value:number;min:number;max:number;step:number;values?:readonly number[]};
 /** A scalar slider grabbed in free space. Initial motion chooses its axis;
  * every later sample projects onto that same axis, independent of geometry. */
 export function createValueScrub(config:ScrubConfiguration){
  const {min,max,step}=config;
- const origin={...config.origin},width=Math.max(1,config.width??DEFAULT_VALUE_SCRUB_SPAN),values=config.values?[...config.values]:undefined;
+ const origin={...config.origin},width=Math.max(1,config.width),values=config.values?[...config.values]:undefined;
  const start=values?values.length<2?.5:sequenceIndex(values,config.value)/(values.length-1):max===min?.5:(config.value-min)/(max-min);
  let axis:Point|undefined;
  return {sample(point:Point){

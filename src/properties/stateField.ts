@@ -48,3 +48,9 @@ export function nearestFieldCandidate(field:StateField,point:{x:number;y:number}
  for(const candidate of field.candidates){const next=(candidate.point.x-point.x)**2+(candidate.point.y-point.y)**2;if(next<distance){distance=next;found=candidate;}}
  return found;
 }
+
+/** The wheel centre is a neutral origin, not an implicit first-angle choice. */
+export function axisFieldCandidate(field:StateField,point:{x:number;y:number}){
+ const radius=Math.hypot(point.x,point.y);
+ return field.domain.cyclic&&radius>=.28&&radius<=1.08?nearestFieldCandidate(field,point):undefined;
+}

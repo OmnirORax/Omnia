@@ -1,3 +1,4 @@
+import {DofAxisWheel} from './DofAxisWheel';
 import {DofRuleExpression,dofModes as modes,type DofSettingsKind,type DofInformationState} from './DofInformation';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {maximumSelectionStates,type StateSelectionMode} from '../properties/stateSelection';
@@ -40,7 +41,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  useLayoutEffect(()=>scope.registerInformation?.(information,2),[scope.registerInformation,information]);
  const toggle=useRef(()=>{});toggle.current=()=>{restore();setParameterSample({});setSettings(before=>before?null:{kind:'options',point:cursorPosition()});};
  useLayoutEffect(()=>scope.registerOptions?.(()=>toggle.current()),[scope.registerOptions]);
- useContextNavigation({owner:root,cancel:picking?()=>operation?.selection?.cancel():undefined});
+ useContextNavigation({owner:root,cancel:picking?()=>operation?.selection?.cancel():sample!==null?restore:undefined,confirm:domain.cyclic&&!settings&&!picking?()=>{if(sample!==null)apply(sample);}:undefined});
  const count=parameterSample.count??working.count,step=parameterSample.step??working.step;
  const low=Math.max(parameterSample.min??working.min??domain.min,reference?.min??domain.min),high=Math.min(parameterSample.max??working.max??domain.max,reference?.max??domain.max);
  const referenceValue=reference?.value??anchor.current,allowed=operation?.allowed;
@@ -60,14 +61,14 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
   settings?.kind==='max'?{label:'Maximum',value:Math.max(domain.min,Math.min(domain.max,field.max)),min:domain.min,max:domain.max,integer:domain.integer,key:'max' as const,commit:working.maxChange}:
   {label:'Step',value:step,min:domain.cyclic?Math.min(domain.resolution,domain.cyclic.period):-Math.max(1,span),max:domain.cyclic?.period??Math.max(1,span),integer:domain.integer,key:'step' as const,commit:working.stepChange};
  return <div ref={root} className="dof-state-editor" aria-disabled={disabled} data-ui-popup-interior>
-  {!settings&&!picking&&<div className="dof-value-slider">
+  {!settings&&!picking&&(domain.cyclic?<DofAxisWheel field={field} value={sample??value} label={label} symbol={symbol} disabled={disabled||!!operation?.selection?.unavailable} onPreview={preview} onCommit={apply} onCancel={restore} onConfigure={()=>show('options')}/>:<div className="dof-value-slider">
    <span className="dof-state-grip" data-dial-drag role="button" tabIndex={0} title="Move controls">{symbol}</span>
    <RangeControl aria-label={label} value={sample??value} min={field.min} max={field.max} step={domain.resolution} hardMin={domain.min} hardMax={domain.max}
     values={generatedValues} disabled={disabled||!!settings||picking||operation?.selection?.unavailable} onValueChange={preview} onValueCommit={apply} onValueCancel={restore}
     onMinimumChange={working.minChange} onMaximumChange={working.maxChange}
     onConfigure={(which,duringGesture)=>{if(duringGesture){show('options');return true;}if(which==='value')return false;show(which==='jump'?'parameters':which);return true;}}/>
    {!generatedValues.length&&<output title="No available values; edit the limits or rule">∅</output>}
-  </div>}
+  </div>)}
   {settings&&<ContextualMasterController radial dismissOutside title={`${label} mode`} stage={settings.kind} position={settings.point} onClose={closeSettings} onDismiss={()=>{closeSettings();onDismiss?.();}} onConfirm={closeSettings}>
    {settings.kind==='options'?<RadialMenu onClose={closeSettings} items={[
     {id:'dof',symbol:symbol,label:label,content:<button type="button" title="Choose DOF" onClick={()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}}>{symbol}</button>},
@@ -75,7 +76,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
     {id:'expression',symbol:'⠒❉',label:'Rule variables',content:<button type="button" title="Edit rule expression" onClick={()=>show(working.mode==='step'?'step':'count')}>{working.mode==='step'?`Δ ${working.step}`:countLabel}</button>},
     {id:'reference',symbol:'⟴',label:'Relativity',content:<button type="button" title="Relativity" onClick={()=>show('reference')}>⟴</button>}
    ]}/> :settings.kind==='modes'?<RadialMenu onClose={closeSettings} items={(Object.keys(modes) as StateSelectionMode[]).map(kind=>({id:kind,symbol:modes[kind].icon,label:kind==='step'?'Add step rule':kind==='symmetry'&&domain.cyclic?'Symmetry':modes[kind].label,content:<button type="button" title={kind==='symmetry'&&domain.cyclic?'Symmetry':modes[kind].label} aria-pressed={working.mode===kind} onClick={()=>chooseMode(kind)}>{modes[kind].icon}</button>}))}/>:
-    settings.kind==='parameters'?<RadialMenu onClose={closeSettings} items={[{id:'states',symbol:'●●',label:'Divisions',content:<button type="button" title="Generated divisions" onClick={()=>show(working.mode==='step'?'step':'count')}>{working.mode==='step'?`Δ ${working.step}`:countLabel}</button>},...(working.mode==='step'?[{id:'step',symbol:'Δ',label:'Step',content:<button type="button" title="Step" onClick={()=>show('step')}>Δ {text(step)}</button>}]:[])]}/>:
+    settings.kind==='parameters'?<RadialMenu onClose={closeSettings} items={[{id:'states',symbol:'●●',label:'Divisions',content:<button type="button" title="Generated divisions" onClick={()=>show(working.mode==='step'?'step':'count')}>{working.mode==='step'?`Δ ${working.step}`:countLabel}</button>},...(working.mode==='step'?[{id:'step',symbol:'Δ',label:'Step',content:<button type="button" title="Step" onClick={()=>show('step')}>Δ {text(step)}</button>}]:[]),...(domain.cyclic?[{id:'minimum',symbol:'⊢',label:'Minimum',content:<button type="button" title="Minimum angle" onClick={()=>show('min')}>⊢</button>},{id:'maximum',symbol:'⊣',label:'Maximum',content:<button type="button" title="Maximum angle" onClick={()=>show('max')}>⊣</button>}]:[])]}/>:
 
     <div className="dof-rule-number"><MathematicalDial key={settings.kind} label={numeric.label} value={numeric.value} min={numeric.min} max={numeric.max} integer={numeric.integer} onPreview={n=>setParameterSample({[numeric.key]:n})} onCancelPreview={()=>setParameterSample({})} onCommit={n=>{setParameterSample({});numeric.commit(n);}}/>{(settings.kind==='min'||settings.kind==='max')&&<button type="button" title="Reset limits" aria-label="Reset slider limits" onClick={()=>{setParameterSample({});working.clearLimits();}}>↺</button>}</div>}
   </ContextualMasterController>}
