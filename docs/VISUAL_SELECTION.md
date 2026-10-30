@@ -88,7 +88,7 @@ mode buttons, pattern filters/counts and edge toggles. Modes are:
   distinct categories. Pointer-event-transparent nested text is recognized from
   its text-range geometry even when its parent receives the pointer event.
 - **Individual ·:** toggle only the pointed registered part, within the same scope.
-- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Wheel changes the lens search radius, without changing owner depth. The nearest registered boundary within the lens is previewed. Native SVG feedback preserves the source shape, screen transform and stroke; other surfaces retain their registered bounds/rounded feedback. After placement, selection continues in the retained working scope; Inside/Outside apply to its contents/exterior. Its stable
+- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Standalone Wheel changes containing-owner depth as before. Composer’s opted-in lens surface instead previews the nearest registered boundary within its adjustable radius. Native SVG feedback preserves the source shape, screen transform and stroke; other surfaces retain their registered bounds/rounded feedback. Inside/Outside apply to the working scope. Its stable
   resident/function anchor follows docking/reparenting and size changes.
 - **Axis ↕ / direction ↑ / segment |:** drag an infinite line, forward ray or
   finite segment. Exact endpoint touches count. A click supplies a vertical axis,
@@ -524,8 +524,9 @@ resize-dial leakage remains pending.
 
 ### Local boundary lens and source-shaped feedback
 
-The aiming circle is a spatial search lens, initially 18 CSS pixels in radius.
-Ordinary wheel changes radius within 4–160 pixels in Pattern, Individual and
+Composer declares `data-selection-lens` on its editing surface. Only within such
+an opted-in surface is the aiming circle a spatial search lens, initially 18 CSS
+pixels in radius. Ordinary wheel changes radius within 4–160 pixels in Pattern, Individual and
 Boundary modes. It does not zoom the scene or change structural hierarchy.
 Shift-wheel retains geometry rotation; Ctrl-wheel retains native browser zoom.
 Before a working scope, Pattern/Individual discovers the nearest boundary; click
@@ -546,3 +547,21 @@ raster contours, compound-path topology or clipping. Existing region matching is
 unchanged; exact source-shaped feedback is not a new containment solver. Lens size
 is transient. Model/static gates cover search geometry and caching; interactive
 acceptance remains pending with the user.
+
+
+### Detached renderer snapshots and standalone compatibility
+
+SVG replacement can disconnect selected elements before MS’s mutation observer
+refreshes the catalog. `describeSelectedPart` must skip disconnected hosts/text
+ranges and abandon an ancestry path when no parent exists. Never fabricate an
+appearance address for a removed subtree. Accepted rules and stable identities
+remain with MS; the next catalog refresh supplies the current rendered elements.
+A model regression reproduces the former null-parent `children` exception and
+checks recovery with the replacement geometry.
+
+Local-lens picking is an explicit surface capability, not a new global MS default.
+Outside opted-in surfaces, direct Pattern/Individual detection, neutral-frame
+behavior, pointed-boundary depth wheel and the fixed cursor remain the prior MS
+workflow. Lens search is restricted to the current surface. Future renderers opt
+in by declaring the shared surface capability, rather than adding feature-name
+conditions or a separate selector.

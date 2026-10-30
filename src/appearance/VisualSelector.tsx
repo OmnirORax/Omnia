@@ -1,4 +1,4 @@
-import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary} from './selectionLens';
+import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
 import {selectionRequest,selectionConfirmation} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
@@ -21,7 +21,7 @@ import { selectedPartTarget } from "./selectionCoupling";
 import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODE_GROUPS, PATTERN_SYMBOLS,
   type Point, type PathCondition, type PatternMode, type SelectionSide } from "./selectionGeometry";
 import {
-  createVisualMeasurements, boundaryFor, boundaryElement, boundaryRect, collectVisualParts, matchingVisualParts,
+  createVisualMeasurements, boundaryCandidates, boundaryFor, boundaryElement, boundaryRect, collectVisualParts, matchingVisualParts,
   partAt, partPaint, patternTarget, patternTargetPath, pointerInSelectionScope, resolveVisualSelection, selectionLineGuide, selectorChrome,
   type SelectionBoundary, type SelectionConstraint, type SelectionRule, type VisualPart, type VisualRole,
 } from "./visualSelection";
@@ -55,7 +55,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [configuration, setConfiguration] = useState<SelectorConfiguration>({ ...DEFAULT_SELECTION_MASK, pattern: "pattern", patternRole: null,
     bounded: false, stopAtPaint: false, closed: false, rotation: 0 });
-  const [lensRadius,setLensRadius]=useState(DEFAULT_LENS_RADIUS);
+  const [lensRadius,setLensRadius]=useState(DEFAULT_LENS_RADIUS),[lensActive,setLensActive]=useState(false);
+  const lensActiveRef=useRef(false);
   const [catalog, setCatalog] = useState<VisualPart[]>([]);
   const [candidate, setCandidate] = useState<Pick | null>(null);
   const [geometry, setGeometry] = useState(0);
@@ -66,7 +67,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const point = useRef<{ x: number; y: number; element: Element } | null>(null);
   const settledPoint = useRef<Point | null>(null);
   const retainedPreview = useRef(false);
-  const candidateRef = useRef<Pick | null>(null), geometrySequence = useRef(0);
+  const depth=useRef(0),candidateRef = useRef<Pick | null>(null), geometrySequence = useRef(0);
   const selectedRef = useRef<VisualPart[]>([]), gesture = useRef<Gesture | null>(null);
   const polygon = useRef<Gesture | null>(null);
   const measurements = useMemo(() => createVisualMeasurements(), [catalog, geometry]);
@@ -74,7 +75,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const latest = useRef({ phase, configuration, catalog, selection, measurements });
   latest.current = { phase, configuration, catalog, selection, measurements };
   const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0;
-  const lensGeometry=useMemo(()=>new Map(catalog.map(part=>{const rects=measurements.rects(part);const box=rects.length?{left:Math.min(...rects.map(r=>r.left)),right:Math.max(...rects.map(r=>r.right)),top:Math.min(...rects.map(r=>r.top)),bottom:Math.max(...rects.map(r=>r.bottom))}:measurements.bounds(part.element);return[part,{box,shape:measurements.shape(part.element)}] as const;})),[catalog,measurements]);
+  const lensGeometry=useMemo(()=>new Map(catalog.filter(part=>part.element.closest('[data-selection-lens]')).map(part=>{const rects=measurements.rects(part);const box=rects.length?{left:Math.min(...rects.map(r=>r.left)),right:Math.max(...rects.map(r=>r.right)),top:Math.min(...rects.map(r=>r.top)),bottom:Math.max(...rects.map(r=>r.bottom))}:measurements.bounds(part.element);return[part,{box,shape:measurements.shape(part.element)}] as const;})),[catalog,measurements]);
   const lens=useRef({radius:lensRadius,geometry:lensGeometry});lens.current={radius:lensRadius,geometry:lensGeometry};
   const lensPart=(parts:VisualPart[],x:number,y:number)=>nearestLensBoundary(parts,{x,y},lens.current.radius,part=>lens.current.geometry.get(part)!);
   const feedbackVisible = selectionFeedbackVisible(view);
@@ -138,7 +139,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const include = true;
     const parentScope = current.selection.scope ? { scope: current.selection.scope } : {};
     const configuredMode = drag?.mode ?? config.pattern;
-    const mode = !current.selection.scope && (configuredMode === "pattern" || configuredMode === "item") ? "boundary" : configuredMode;
+    const surface=element.closest('[data-selection-lens]'),declared=element.closest('[data-selection-boundary]');
+    if(lensActiveRef.current!==!!surface){lensActiveRef.current=!!surface;setLensActive(!!surface);}
+    const mode=selectionDetectionMode({...config,pattern:configuredMode},!!current.selection.scope,!!declared,!!surface);
     const app = boundaryFor(document.body);
     if (isLine(mode)) {
       const start = drag?.start ?? { x, y }, box = boundaryRect(app)!;
@@ -162,9 +165,10 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       return;
     }
     if (mode === "boundary") {
-      const sampled=lensPart(current.catalog.filter(part=>config.backgrounds||part.role!=='background'),x,y);
-      const boundary=sampled&&boundaryFor(sampled.element);
-      if(sampled)point.current={element:sampled.element,x,y};
+      const sampled=surface?lensPart(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),x,y):partAt(current.catalog,element,x,y,current.measurements);
+      const options=surface?[]:boundaryCandidates(element);
+      const boundary=surface?sampled&&boundaryFor(sampled.element):depth.current===0&&declared?boundaryFor(declared):depth.current===0&&sampled?boundaryFor(sampled.element):options[Math.min(depth.current,options.length-1)];
+      if(surface&&sampled)point.current={element:sampled.element,x,y};
       if (!boundary) { setCandidatePick(null); return; }
       setCandidatePick({ definesScope: true, rule: { boundary, include, ...parentScope, ownerFrame: true, ...(sampled ? { framePart: sampled.key } : {}), contour: config.contour,
         path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true, rotation: config.rotation },
@@ -174,9 +178,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const scope = current.selection.scope ? detectionGeometry(current.selection.scope, config, element, { x, y }) : null;
     if (scope && !pointerInSelectionScope(scope, element, { x, y })) { setCandidatePick(null); return; }
     const available=(scope?matchingVisualParts(current.catalog,{...scope,include:true},current.measurements):current.catalog).filter(part=>config.backgrounds||part.role!=='background');
-    const hit=lensPart(available,x,y);
+    const hit=surface?lensPart(available.filter(part=>surface.contains(part.element)),x,y):partAt(current.catalog,element,x,y,current.measurements);
     const part = hit && (config.backgrounds || hit.role !== "background") && (!scope || matchingVisualParts([hit], { ...scope, include: true }, current.measurements).length) ? hit : undefined;
-    if(part)point.current={element:part.element,x,y};
+    if(surface&&part)point.current={element:part.element,x,y};
     if (part) prepareToggle({ boundary: app, ...(scope ? { scope } : {}),
       ...(mode === "pattern" ? { role: config.patternRole ?? part.role, target: patternTarget(part) } : { part: part.key }) });
     else setCandidatePick(null);
@@ -252,7 +256,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const chooseRegion = (side: SelectionSide) => applyMask({ contour: latest.current.configuration.contour,
     region: toggleSelectionRegion(latest.current.configuration.region, side), backgrounds: latest.current.configuration.backgrounds }, side);
   const toggleContour = () => applyMask({ contour: !latest.current.configuration.contour, region: latest.current.configuration.region, backgrounds: latest.current.configuration.backgrounds }, "contour");
-  const chooseMode = (pattern: PatternMode) => { cancelDrawing(); setConfiguration(config => ({ ...config, pattern, rotation: 0 })); };
+  const chooseMode = (pattern: PatternMode) => { cancelDrawing(); depth.current=0;setConfiguration(config => ({ ...config, pattern, rotation: 0 })); };
   const cyclePattern = () => chooseMode(nextPatternMode(latest.current.configuration.pattern));
   const finishPolygon = () => {
     const draft = polygon.current;
@@ -504,6 +508,14 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         event.preventDefault(); event.stopImmediatePropagation();
         actions.current.rotateGeometry(rotation.degrees, rotation.target); return;
       }
+      const surface=event.target instanceof Element&&event.target.closest('[data-selection-lens]');
+      if(!surface){
+        if(current.selection.scope||event.shiftKey||current.configuration.pattern!=='boundary')return;
+        event.preventDefault();event.stopImmediatePropagation();
+        const p=point.current;if(!p)return;
+        depth.current=Math.max(0,Math.min(boundaryCandidates(p.element).length-1,depth.current+(event.deltaY<0?1:-1)));
+        actions.current.pickAt(p.element,p.x,p.y);return;
+      }
       if(event.ctrlKey||event.shiftKey||isLine(current.configuration.pattern)||isPath(current.configuration.pattern))return;
       event.preventDefault();event.stopImmediatePropagation();
       const radius=resizeSelectionLens(lens.current.radius,event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?innerHeight:1));
@@ -671,7 +683,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   return <Context.Provider value={contextValue}>
     {children}
     {active && feedbackVisible && createPortal(<VisualSelectionOverlay {...liveFeedback} />, document.body)}
-    {(phase === "aim" || phase === "locked") && createPortal(<SelectorCursor radius={lensRadius} parked={phase === "locked"} configuration={configuration} include={true} initial={phase === "locked" ? lockedPosition : point.current ?? position} />, document.body)}
+    {(phase === "aim" || phase === "locked") && createPortal(<SelectorCursor radius={lensActive?lensRadius:undefined} parked={phase === "locked"} configuration={configuration} include={true} initial={phase === "locked" ? lockedPosition : point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position} onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
       style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}>
@@ -720,7 +732,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
           <legend>{group.label}</legend>
           <div className="visual-selector-modes" aria-label={group.label}>
             {group.modes.map(mode => <button type="button" key={mode} aria-label={`Selection mode: ${mode}`} aria-pressed={configuration.pattern === mode}
-              title={mode === "boundary" ? "Use the nearest boundary inside the lens; wheel changes search radius" : mode}
+              title={mode === "boundary" ? "Use a pointed contour; wheel changes owner depth, or search radius on a lens-enabled surface" : mode}
               onClick={() => chooseMode(mode)}>{PATTERN_SYMBOLS[mode]}</button>)}
           </div>
         </fieldset>)}

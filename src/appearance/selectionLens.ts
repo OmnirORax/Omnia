@@ -1,3 +1,4 @@
+import type {PatternMode,SelectionRegion} from './selectionGeometry.ts';
 import type {Box,Point} from './selectionGeometry.ts';
 export const DEFAULT_LENS_RADIUS=18;
 export function resizeSelectionLens(radius:number,delta:number){return Math.max(4,Math.min(160,radius*Math.exp(-Math.max(-120,Math.min(120,delta))*.003)));}
@@ -24,4 +25,11 @@ export function nearestLensBoundary<T>(candidates:readonly T[],point:Point,radiu
  let nearest:T|undefined,distance=radius;
  for(const candidate of candidates){const {box,shape}=geometry(candidate),reach=radius+(shape?.stroke??0)/2;if(point.x<box.left-reach||point.x>box.right+reach||point.y<box.top-reach||point.y>box.bottom+reach)continue;const next=lensBoundaryDistance(point,box,shape);if(next<=distance){if(next<distance||!nearest){nearest=candidate;distance=next;}}}
  return nearest;
+}
+
+/** Surfaces opt into spatial lens picking; ordinary MS retains its existing modes. */
+export function selectionDetectionMode(config:{pattern:PatternMode;contour:boolean;region:SelectionRegion|null},hasScope:boolean,declared:boolean,lens:boolean):PatternMode{
+ const scalar=config.pattern==='pattern'||config.pattern==='item';
+ if(lens)return scalar&&!hasScope?'boundary':config.pattern;
+ return scalar&&(declared||!hasScope&&!config.contour&&!config.region)?'boundary':config.pattern;
 }

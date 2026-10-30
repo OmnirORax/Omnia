@@ -1413,3 +1413,31 @@ test('native selection snapshots preserve source shape and transform; repeated l
   assert.equal(reads,snapshotReads);
  }finally{globalThis.getComputedStyle=original;}
 });
+
+test('selection addressing survives SVG replacement between acceptance and catalog refresh',t=>{
+ const saved=Object.fromEntries(['document','Node'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+ t.after(()=>{for(const [key,descriptor] of Object.entries(saved)){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}});
+ const element=(tag,parent=null)=>({localName:tag,parentElement:parent,children:[],childNodes:[],isConnected:true,closest:()=>null,hasAttribute:()=>false,getAttribute:()=>null,querySelector:()=>null});
+ const body=element('body'),svg=element('svg',body),circle=element('circle',svg);body.children=[svg];svg.children=[circle];
+ globalThis.document={body};globalThis.Node={TEXT_NODE:3};
+ const part={key:'geometry.rendered:stable-ring',element:circle,role:'icon',target:{id:'geometry.rendered',label:'Rendered geometry'}};
+ assert.equal(describeSelectedParts([part]).length,1,'mounted SVG can be addressed normally');
+ body.children=[];svg.parentElement=null;svg.isConnected=false;circle.isConnected=false;
+ assert.deepEqual(describeSelectedParts([part]),[],'the removed SVG must not become an invalid appearance address or crash rendering');
+ const replacement=element('svg',body),fresh=element('circle',replacement);body.children=[replacement];replacement.children=[fresh];
+ assert.equal(describeSelectedParts([{...part,element:fresh}]).length,1,'the refreshed stable selection becomes editable again');
+});
+
+test('ordinary MS retains direct pattern/individual detection; lens surfaces opt into boundary search',async()=>{
+ const {selectionDetectionMode}=await import('../src/appearance/selectionLens.ts');
+ for(const pattern of ['pattern','item']){
+  const config={pattern,contour:true,region:null};
+  assert.equal(selectionDetectionMode(config,false,false,false),pattern,'ordinary first click must not become a scope-setting click');
+  assert.equal(selectionDetectionMode(config,true,false,false),pattern);
+  assert.equal(selectionDetectionMode(config,false,false,true),'boundary','only an opted-in surface starts with lens boundary discovery');
+  assert.equal(selectionDetectionMode(config,true,true,true),pattern,'an existing lens scope permits part/pattern refinement');
+  assert.equal(selectionDetectionMode({...config,contour:false},false,false,false),'boundary','existing neutral geometry behavior remains');
+  assert.equal(selectionDetectionMode(config,false,true,false),'boundary','declared boundary behavior remains');
+ }
+ for(const pattern of ['axis','boundary','polygon','freehand'])assert.equal(selectionDetectionMode({pattern,contour:true,region:null},false,false,false),pattern);
+});
