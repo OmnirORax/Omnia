@@ -729,3 +729,8 @@ not the dial radius or hidden setter margin. Nested rows extend past the precedi
 row. Root anchors refresh after popup placement, resize and pointer release via
 ResizeObserver/shared press observation; no per-motion measurement is added.
 Automatic branches preserve their full category lineage for deeper navigation.
+
+Projected function buttons inside a radial slot take that slot's full box with
+zero padding/minimum height, centred content and no wrapping. These scoped rules
+outrank generic resident function-text/icon sizing. Row glyphs use 12px; nested
+icon spans inherit it so Position X/Y and custom icon glyphs stay inside 24px slots.
