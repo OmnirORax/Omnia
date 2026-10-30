@@ -26,3 +26,9 @@ export function sequenceStep(values:readonly number[],value:number,direction:-1|
  const index=sequenceIndex(values,value),current=values[index];
  return values[Math.max(0,Math.min(values.length-1,index+(direction>0?current>value?0:1:current<value?0:-1)))];
 }
+
+/** Compact readout only; exact values remain in the input, owner and tooltips. */
+export function rangeLabel(value:number):string{
+ if(!Number.isFinite(value))return String(value);
+ return String(Number(value.toPrecision(6)));
+}

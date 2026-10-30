@@ -1,5 +1,4 @@
-import {DofInformation,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
-import {selectionExpression} from '../properties/stateSelection';
+import {DofInformation,DofRuleExpression,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
 import {useToolCursor} from '../ui/toolCursor';
 import {fieldReferenceFor} from './referenceGeometry';
 import {outsideBoundary,positionFieldDelta,type PositionField} from './dofGesture';
@@ -156,8 +155,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   informationActions.current={configure:kind=>{if(!informationDegree)return;settleGesture();dismissPanel?.();setMenu(cursorPosition());setPanel({kind:'degree',degree:informationDegree,configure:kind});},degrees:()=>showDegrees(informationIds)};
   const informationReference=referencePicker?.snapshot&&informationDegree?fieldReferenceFor(referencePicker.snapshot,informationDegree,referencePicker.references.get(informationIds[0]),referencePicker.environment):undefined;
   const information=useMemo<DofInformationState|undefined>(()=>{
-    if(!informationDegree)return;const expression=selectionExpression(informationRule.count),mode=dofModes[informationRule.mode];
-    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:informationRule.mode==='symmetry'&&informationDomain?.cyclic?'Symmetry':mode.label,modeIcon:mode.icon,variable:informationRule.mode==='step'?'step':'count',expression:informationRule.mode==='step'?`Δ ${informationRule.step}`:expression.base?<>{expression.base}<sup>{expression.power}</sup></>:expression.count,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
+    if(!informationDegree)return;const mode=dofModes[informationRule.mode];
+    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:informationRule.mode==='symmetry'&&informationDomain?.cyclic?'Symmetry':mode.label,modeIcon:mode.icon,variable:informationRule.mode==='step'?'step':'count',expression:informationRule.mode==='step'?`Δ ${informationRule.step}`:<DofRuleExpression count={informationRule.count}/>,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
   },[informationDegree?.id,informationDegree?.label,informationDegree?.symbol,informationRule.mode,informationRule.count,informationRule.step,informationReference?.label,!!informationDomain?.cyclic]);
   useLayoutEffect(()=>information?numericEditor.registerInformation?.(information,1):undefined,[numericEditor.registerInformation,information]);
   const informationCursor=useMemo(()=>information&&cursorOperation?{key:`dof-info:${cursorZone}`,zone:cursorZone,priority:46,icon:<DofInformation information={information} interactive={false}/>,width:20,height:20,anchor:{x:-.7,y:-.7}}:null,[information,cursorOperation,cursorZone]);

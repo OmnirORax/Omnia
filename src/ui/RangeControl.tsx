@@ -3,7 +3,7 @@ import { cursorPosition } from './cursorPosition';
 import { ContextualMasterController } from './ContextualMasterController';
 import { useCancelValueEdit } from "./ActiveContext";
 import { claimUIPress } from "./pointerOwnership";
-import { rangeValue,rangeSequence,sequenceIndex,sequenceAt,sequenceStep } from "./rangeMath";
+import { rangeLabel,rangeValue,rangeSequence,sequenceIndex,sequenceAt,sequenceStep } from "./rangeMath";
 import {useContextNavigation} from './ContextStage';
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback, type CSSProperties, type InputHTMLAttributes, type Ref, type ReactNode, type MutableRefObject } from "react";
 
@@ -143,13 +143,13 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
       if (onWheel) onWheel(event); else { event.preventDefault(); event.stopPropagation(); nudge(event.deltaY<0?1:-1); }
     }}>
     <button type="button" className="range-end range-end-min" disabled={inputProps.disabled} aria-label={`${label} minimum: ${low}`} title={sequence?"First generated value · right-click edits lower limit":"Select minimum · right-click to edit"} onClick={() => choose(sequence?sequence[0]:low)} onContextMenu={context("min")}>
-      <svg data-range-glyph viewBox="0 0 10 32" aria-hidden><path d="M5 3V29" /></svg><span>{low}</span>
+      <svg data-range-glyph viewBox="0 0 10 32" aria-hidden><path d="M5 3V29" /></svg><span title={String(low)}>{rangeLabel(low)}</span>
     </button>
     <span className="range-axis">
       <button type="button" className="range-nudge range-nudge-left" disabled={valueDisabled} aria-label={`Decrease ${label}`} title={sequence?"Previous value · right-click configures rule":`Decrease by ${jump} · right-click to set jump`} onClick={()=>nudge(-1)} onContextMenu={context("jump")}>
         <svg data-range-glyph viewBox="0 0 16 32" aria-hidden><path d="M13 6L1 16L13 26" /></svg>
       </button>
-      <span ref={track} className="range-track"
+      <span ref={track} className="range-track" title={`${label}: ${value}`}
         onPointerDown={event => {
           if (event.button !== 0 || valueDisabled || drag.current) return;
           event.preventDefault(); event.stopPropagation();
@@ -173,7 +173,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
         onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
         onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
 
-        <span className="range-current" aria-hidden><i /><span>{value}</span></span>
+        <span className="range-current" aria-hidden><i /><span title={String(value)}>{rangeLabel(value)}</span></span>
         <input {...inputProps} ref={node => {
           input.current = node;
           if (typeof inputRef === "function") inputRef(node); else if (inputRef) inputRef.current = node;
@@ -184,7 +184,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
       </button>
     </span>
     <button type="button" className="range-end range-end-max" disabled={inputProps.disabled} aria-label={`${label} maximum: ${high}`} title={sequence?"Last generated value · right-click edits upper limit":"Select maximum · right-click to edit"} onClick={() => choose(sequence?sequence.at(-1):high)} onContextMenu={context("max")}>
-      <svg data-range-glyph viewBox="0 0 10 32" aria-hidden><path d="M5 3V29" /></svg><span>{high}</span>
+      <svg data-range-glyph viewBox="0 0 10 32" aria-hidden><path d="M5 3V29" /></svg><span title={String(high)}>{rangeLabel(high)}</span>
     </button>
     {editing && <ContextualMasterController title={`${label} ${editing}`} position={popupPoint} onClose={cancel} onAdvance={finish} onConfirm={finish} onWheel={event=>event.stopPropagation()}><input ref={endpoint} autoFocus className={`range-bound-editor range-edit-${editing}`} type="number" aria-label={`${label} ${editing === "min" ? "minimum" : editing === "max" ? "maximum" : editing}`} value={text}
       min={editing === "jump" ? resolution : editing === "min" ? hardMin : low} max={editing === "max" ? hardMax : editing === "jump" ? Math.max(resolution, hardMax - hardMin) : high} step={resolution}

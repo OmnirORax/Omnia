@@ -1,9 +1,14 @@
 import type {ReactNode} from 'react';
 import {useNumericEditor} from './NumericEditorScope';
-import type {StateSelectionMode} from '../properties/stateSelection';
+import {selectionExpression,type StateSelectionMode} from '../properties/stateSelection';
 export type DofSettingsKind='options'|'modes'|'parameters'|'count'|'step'|'reference'|'min'|'max';
 export const dofModes:Record<StateSelectionMode,{label:string;icon:string}>={symmetry:{label:'Partitions',icon:'✣'},halving:{label:'Halving',icon:'◐'},step:{label:'Step',icon:'+'}};
 export type DofInformationState={label:string;symbol:string;mode:string;modeIcon:string;variable:'count'|'step';expression:ReactNode;reference:string;configure:(kind:DofSettingsKind)=>void;degrees:()=>void};
+/** A single inline box keeps grid-based dial buttons from separating base/exponent. */
+export function DofRuleExpression({count}:{count:number}){
+ const expression=selectionExpression(count);
+ return <span className="dof-rule-expression">{expression.base?<>{expression.base}<sup>{expression.power}</sup></>:expression.count}</span>;
+}
 /** The header and gesture echo share exactly the same information and settings. */
 export function DofInformation({information,interactive=true}:{information:DofInformationState;interactive?:boolean}){
  const i=information;

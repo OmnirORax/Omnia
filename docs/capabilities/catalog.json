@@ -378,7 +378,7 @@
       "id": "controls.spectrum",
       "title": "Horizontal spectrum slider",
       "where": "Numeric property editors outside the Composer, including history Steps and visual parameters. Specialized spectrum/dial-size and snap configuration controls retain this path.",
-      "behavior": "Drag anywhere on the track. Left-click endpoints selects min/max; right-click endpoints edits working limits. Right-click the dot types a value; right-click arrows changes jump size. Working limits cannot override hard renderer/semantic bounds. Manual value, limit and jump editors open as shared child popups at the invoking cursor point. Value/hover updates do not move them. The standalone ½ picker has been removed from the value slider. Prepared rule values use the same slider, with sequence traversal rather than uniform interpolation; minimum/maximum controls remain at its ends.",
+      "behavior": "Drag anywhere on the track. Left-click endpoints selects min/max; right-click endpoints edits working limits. Right-click the dot types a value; right-click arrows changes jump size. Working limits cannot override hard renderer/semantic bounds. Manual value, limit and jump editors open as shared child popups at the invoking cursor point. Value/hover updates do not move them. The standalone ½ picker has been removed from the value slider. Prepared rule values use the same slider, with sequence traversal rather than uniform interpolation; minimum/maximum controls remain at its ends. Visible numeric readouts use six significant digits to avoid long floating-point strings crowding nearby controls; exact values remain in tooltips, accessible/native inputs and owner state.",
       "steps": [
         {
           "do": "Drag from an empty point on the track, rather than the dot.",
@@ -401,7 +401,7 @@
       "limits": "Composer value editing now opts into ⠒❉; outside editors and specialized slider controls retain this implementation. Browser acceptance has not been recorded for this guide.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Shared child placement and portalled numeric/halving editors await user acceptance; no browser suite run.",
+        "browser": "Compact numerical readout layout awaits user confirmation; existing slider interaction acceptance remains applicable.",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
       "related": [
@@ -1967,7 +1967,7 @@
       "id": "omnic.dof-state-wheel",
       "title": "Rule-configured value slider",
       "where": "Composer top → active DOF / mode / expression / ⟴ reference; drag activates Position, left-hold just outside a selected boundary activates Rotation. MB3 also toggles settings at the cursor.",
-      "behavior": "While a DOF is active, the Composer top shows its DOF, mode/rule and ⟴ reference as compact clickable icons with descriptive tooltips and accessible labels. With no active DOF the strip is absent; it never displays an inert placeholder. The strip sits inside the circular boundary. The same information appears beside the cursor during DOF-changing gestures; it does not intercept pointer input. Top controls and MB3 (rebindable) open the existing settings radials. Self is default; coordinate DOFs can use the Environment boundary or an authored target picked through MS. Reference configuration does not move geometry. The common value slider executes prepared rule values: drag previews, release commits, and arrows/wheel/keyboard traverse adjacent generated values. ⠒❉ configures rule variables and slider-end limits. Retained single-target coordinate fields also guide subsequent dragging; unconfigured dragging retains its prior behavior. MS and Shift configuration keep priority. Alt parking of DOF settings is removed.",
+      "behavior": "While a DOF is active, the Composer top shows its DOF, mode/rule and ⟴ reference as compact clickable icons with descriptive tooltips and accessible labels. With no active DOF the strip is absent; it never displays an inert placeholder. The strip sits inside the circular boundary. The same information appears beside the cursor during DOF-changing gestures; it does not intercept pointer input. Top controls and MB3 (rebindable) open the existing settings radials. Self is default; coordinate DOFs can use the Environment boundary or an authored target picked through MS. Reference configuration does not move geometry. The common value slider executes prepared rule values: drag previews, release commits, and arrows/wheel/keyboard traverse adjacent generated values. ⠒❉ configures rule variables and slider-end limits. Retained single-target coordinate fields also guide subsequent dragging; unconfigured dragging retains its prior behavior. MS and Shift configuration keep priority. Alt parking of DOF settings is removed. Rule expressions use one inline box so radial grid buttons cannot stack the base and exponent. DOF mode/reference choices use icons with tooltip labels.",
       "steps": [
         {
           "do": "Open Composer with no active DOF, then activate one by editing an object. Hover and click its top icons.",
@@ -2005,7 +2005,7 @@
       "limits": "Composer rule execution currently supports finite numeric fields with bounds, integrality and existing owner legality. Values are sorted for the ordinary left-to-right value slider; its limit bars show constraints, which need not themselves be generated values. Up to 64 divisions plus endpoints/reference landmarks, or eight halving samples. General geometry solvers, symbolic equations, nonnumeric field adapters and persistent constraints remain pending. Active transformed/animated scenes remain conservatively unavailable for authored-reference matching. Gesture rule retention and boundary references currently cover single authored targets and individual coordinate axes; boundary landmarks do not enforce containment. MS reference picking requires authored SVG boundaries, not arbitrary 3D canvas features. Multi-target dragging retains its previous behavior.",
       "status": "Implemented experiment for review; not production deployed.",
       "verification": {
-        "browser": "Pending user testing of icon-only inset strip, inactive hiding, click handling and existing gesture/MS flows; no browser suite run.",
+        "browser": "Pending user confirmation of inline exponents and readable compact slider readouts, alongside the existing top-strip/MS flows; no browser suite run.",
         "automated": "Models cover pointer scope/rebinding/priority and dispatch de-duplication, physical press-origin rejection, MS request restoration, canonical parent-space boundary axes, gesture bands and prepared field projection; full local gates required before publication."
       },
       "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",

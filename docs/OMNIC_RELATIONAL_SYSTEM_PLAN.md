@@ -455,3 +455,6 @@ Verification: local models cover press ownership, pointer binding/rebinding/surf
 
 
 E06 presentation correction: the information strip exists only while a DOF is active. It uses icons/numeric expressions with descriptive tooltips and accessible labels; no inert default placeholder or visible text labels. The radar strip is inset inside its circular clipping boundary. The noninteractive cursor echo uses the same compact symbols.
+
+
+DOF layout correction: base/exponent expressions render as one inline box even inside radial grid buttons. Mode/reference choices use icons and tooltip labels. Shared RangeControl readouts display at most six significant digits; exact numbers stay unchanged in owner state/native input and hover metadata. This is presentation only, with browser visual acceptance pending.
