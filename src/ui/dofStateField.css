@@ -28,3 +28,13 @@
 .dof-axis-wheel .radial-menu-rims .dof-axis-threshold{stroke-width:1.5;opacity:1}
 
 .dof-reference-use{display:inline;font-size:.7em;line-height:0;vertical-align:super;margin-left:1px}
+.dof-choice-field{display:flex;flex-direction:column;align-items:center;gap:2px;width:max-content}
+.dof-choice-field>button{font-size:12px;padding:2px 5px;min-height:22px}
+.dof-linear-field{position:relative;width:160px;height:46px;touch-action:none;user-select:none;color:var(--omnium-accent,#60ddec)}
+.dof-linear-field svg{width:160px;height:42px;stroke:currentColor;stroke-width:1;fill:none;filter:drop-shadow(0 0 2px currentColor)}
+.dof-linear-field output{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:11px;pointer-events:none}
+.dof-linear-field .dof-axis-threshold{stroke-width:2}
+.dof-plane-field{position:relative;width:160px;height:160px;touch-action:none;user-select:none;color:var(--omnium-accent,#60ddec)}
+.dof-plane-field svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:.5}
+.dof-plane-field .dof-axis-threshold{stroke-width:1.5}
+.dof-plane-field output{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:11px;pointer-events:none}

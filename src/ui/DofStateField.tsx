@@ -1,4 +1,5 @@
-import {createReferenceField} from '../properties/referenceUse';
+import {DofLinearField} from './DofLinearField';
+import {createReferenceField,selectedReferenceStep} from '../properties/referenceUse';
 import {rangeLabel} from './rangeMath';
 import {DofAxisWheel} from './DofAxisWheel';
 import {DofRuleExpression,dofModePresentation,dofModes as modes,type DofSettingsKind,type DofInformationState} from './DofInformation';
@@ -20,7 +21,7 @@ import './dofStateField.css';
 type Settings={kind:Exclude<DofSettingsKind,'reference'>;point:{x:number;y:number}};
 /** Projection-independent interaction. Domains/rules/constraints prepare a field;
  * pointer picking never discovers scene objects or implements property arithmetic. */
-export function DofStateField({property,label,symbol='⠒❉',domain,value,disabled=false,configure=false,workingKeys,components,execution='value',onPreview,onCommit,onDismiss}:{property:string;label:string;symbol?:string;domain:StateFieldDomain;value:number;disabled?:boolean;configure?:boolean|DofSettingsKind;workingKeys?:readonly string[];components?:RadialNode<ReactNode>[];execution?:'value'|'scene';onDismiss?:()=>void;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
+export function DofStateField({property,label,symbol='⠒❉',domain,value,disabled=false,configure=false,workingKeys,components,execution='value',executionField,onPreview,onCommit,onDismiss}:{property:string;label:string;symbol?:string;domain:StateFieldDomain;value:number;disabled?:boolean;configure?:boolean|DofSettingsKind;workingKeys?:readonly string[];components?:RadialNode<ReactNode>[];execution?:'value'|'scene';executionField?:ReactNode;onDismiss?:()=>void;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
  const root=useRef<HTMLDivElement>(null),scope=useNumericEditor(),operation=useNumericOperation();
  const targetsKey=operation?.targets?.join('|')??'';
  useLayoutEffect(()=>scope.activateDegree?.(operation?.targets??[],property),[scope.activateDegree,targetsKey,property]);
@@ -30,6 +31,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const mode=dofModePresentation(working.mode,!!domain.cyclic,referenceUse==='step'?'step':undefined);
  const settingKind=(requested:DofSettingsKind):Exclude<DofSettingsKind,'reference'>=>{const kind=requested==='reference'?'relation':requested;return referenceUse==='step'?(kind==='modes'||kind==='parameters'?'relation':kind==='step'?'numerator':kind):kind;};
  const [settings,setSettings]=useState<Settings|null>(()=>configure&&configure!=='source'?{kind:settingKind(typeof configure==='string'?configure:'options') as Exclude<DofSettingsKind,'reference'>,point:cursorPosition()}:null),[picking,setPicking]=useState(configure==='source');
+ const [choice,setChoice]=useState<{point:{x:number;y:number};extent?:number}|null>(null),[choiceSample,setChoiceSample]=useState<number|null>(null);
  const [parameterSample,setParameterSample]=useState<{count?:number;step?:number;min?:number;max?:number}>({});
  const anchor=useRef(domain.cyclic?.north??value),[session]=useState(()=>mathematicalValueSession(value)),[sample,setSample]=useState<number|null>(null);
  const pickGeneration=useRef(0);
@@ -38,7 +40,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const alive=useRef(true),callbacks=useRef({onPreview,cancel:scope.cancelPreview});callbacks.current={onPreview,cancel:scope.cancelPreview};
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;pickGeneration.current++;if(pickingRef.current)pickCancel.current?.();if(session.sampling){const before=session.restore();if(callbacks.current.cancel)callbacks.current.cancel();else callbacks.current.onPreview(before);}};},[session]);
  useLayoutEffect(()=>{if(session.receive(value)){anchor.current=domain.cyclic?.north??value;setSample(null);}},[value,session]);
- const restore=()=>{setSample(null);if(session.sampling){const before=session.restore();if(scope.cancelPreview)scope.cancelPreview();else onPreview(before);}};
+ const restore=()=>{setSample(null);if(operation?.vector)scope.cancelPreview?.();if(session.sampling){const before=session.restore();if(scope.cancelPreview)scope.cancelPreview();else onPreview(before);}};
  const show=(requested:DofSettingsKind)=>{let kind=settingKind(requested);if(kind==='source'){void pickReference();return;}if(kind==='step'&&referenceUse&&referenceUse!=='bounds')kind='numerator';restore();setParameterSample({});setSettings({kind,point:cursorPosition()});};
  const reference=operation?.selection?.current,relation=operation?.selection?.relation;
  const relationLabel=relation?`${relation.settings.use} · ${relation.measures.find(m=>m.id===relation.settings.measure)?.label??"unavailable measurement"}`:"";
@@ -48,7 +50,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  useLayoutEffect(()=>scope.registerInformation?.(information,2),[scope.registerInformation,information]);
  const toggle=useRef(()=>{});toggle.current=()=>{restore();setParameterSample({});setSettings(before=>before?null:{kind:'options',point:cursorPosition()});};
  useLayoutEffect(()=>scope.registerOptions?.(()=>toggle.current()),[scope.registerOptions]);
- useContextNavigation({owner:root,cancel:picking?()=>operation?.selection?.cancel():sample!==null?restore:undefined,confirm:domain.cyclic&&!settings&&!picking?()=>{if(sample!==null)apply(sample);}:undefined});
+ useContextNavigation({owner:root,cancel:picking?()=>operation?.selection?.cancel():sample!==null?restore:undefined,confirm:!settings&&!picking?()=>{if(choice&&choiceSample!==null)chooseApply(choiceSample);else if(domain.cyclic&&sample!==null)apply(sample);}:undefined});
  const count=parameterSample.count??working.count,step=parameterSample.step??reference?.step??working.step;
  const {min:low,max:high}=fieldLimits(domain,reference,{min:parameterSample.min??working.min,max:parameterSample.max??working.max});
  const referenceValue=reference?.value??anchor.current,allowed=operation?.allowed;
@@ -61,7 +63,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const apply=(n:number)=>{if(disabled||picking||operation?.selection?.unavailable||!field.candidates.some(candidate=>candidate.value===n))return;setSample(null);relation?.change({});onCommit(session.commit(n));};
  const closeSettings=()=>{setParameterSample({});restore();setSettings(null);};
  const chooseMode=(next:StateSelectionMode)=>{restore();working.modeChange(next);if(working.count>maximumSelectionStates(next))working.countChange(maximumSelectionStates(next));setSettings({kind:next==='step'?'step':'modes',point:settings?.point??cursorPosition()});};
- const pickReference=async()=>{restore();setSettings(null);if(!operation?.selection){setPicking(false);return;}const generation=++pickGeneration.current;setPicking(true);const next=await operation.selection.pick();if(alive.current&&pickGeneration.current===generation){if(next&&next.id!==reference?.id)working.clearLimits();setPicking(false);}};
+ const pickReference=async()=>{restore();setSettings(null);if(!operation?.selection){setPicking(false);return;}const generation=++pickGeneration.current;setPicking(true);const next=await operation.selection.pick();if(alive.current&&pickGeneration.current===generation){if(next&&next.id!==reference?.id)working.clearLimits();setPicking(false);if(next?.point)setChoice({point:next.point,extent:next.step});}};
  const openReference=useRef(pickReference);openReference.current=pickReference;
  useLayoutEffect(()=>{if(configure==='source')void openReference.current();},[configure]);
  const text=(n:number)=>`${Number(n.toPrecision(7))}${domain.cyclic?'°':''}`;
@@ -69,8 +71,16 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
   settings?.kind==='min'?{label:'Minimum',value:Math.max(domain.min,Math.min(domain.max,field.min)),min:domain.min,max:domain.max,integer:domain.integer,key:'min' as const,commit:working.minChange}:
   settings?.kind==='max'?{label:'Maximum',value:Math.max(domain.min,Math.min(domain.max,field.max)),min:domain.min,max:domain.max,integer:domain.integer,key:'max' as const,commit:working.maxChange}:
   {label:'Step',value:step,min:domain.cyclic?Math.min(domain.resolution,domain.cyclic.period):-Math.max(1,span),max:domain.cyclic?.period??Math.max(1,span),integer:domain.integer,key:'step' as const,commit:working.stepChange};
+ const choiceIntent=referenceUse==='step'?'step':'value';
+ const choiceField=choice&&choiceIntent==='step'?createStateField({...domain,min:0,max:choice.extent??reference?.step??span,cyclic:undefined,projection:'axis-x'},{mode:working.mode,count:working.count,step:working.step,reference:0},n=>n>0&&!!reference?.step&&!operation?.selection?.unavailable):field;
+ const choosePreview=(n:number)=>{setChoiceSample(n);if(choiceIntent==='value')preview(n);};
+ const chooseApply=(n:number)=>{if(!choiceField.candidates.some(c=>c.value===n))return;setChoiceSample(null);if(choiceIntent==='step'){if(reference?.step&&relation){const patch=selectedReferenceStep(relation.settings,reference.step,n);if(patch){relation.change(patch);working.stepChange(n);}}return;}apply(n);};
+ const choiceRestore=()=>{setChoiceSample(null);restore();};
+ const valueField=choice?<div className="dof-choice-field"><button type="button" title="Configure fractions with the math dial" aria-label="Configure fractions" onClick={()=>show('count')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();show('modes');}}>{countLabel}</button>{choiceIntent==='value'&&executionField?executionField:choiceField.domain.cyclic?<DofAxisWheel field={choiceField} value={choiceSample??value} label={label} symbol={symbol} disabled={disabled} onPreview={choosePreview} onCommit={chooseApply} onCancel={choiceRestore} onConfigure={()=>show('options')}/>:<DofLinearField field={choiceField} value={choiceSample??(choiceIntent==='step'?reference?.step??step:value)} label={label} onPreview={choosePreview} onCommit={chooseApply} onCancel={choiceRestore}/>}</div>:null;
  return <div ref={root} className="dof-state-editor" aria-disabled={disabled} data-ui-popup-interior>
-  {!settings&&!picking&&(execution==='value'||referenceUse==='match')&&(domain.cyclic?<DofAxisWheel field={field} value={sample??value} label={label} symbol={symbol} disabled={disabled||!!operation?.selection?.unavailable} onPreview={preview} onCommit={apply} onCancel={restore} onConfigure={()=>show('options')}/>:<div className="dof-value-slider">
+  {!settings&&!picking&&choice&&<ContextualMasterController radial anchored dismissOutside title={label} position={choice.point} onClose={()=>{choiceRestore();setChoice(null);}} onDismiss={()=>{choiceRestore();setChoice(null);onDismiss?.();}}>{valueField}</ContextualMasterController>}
+  {!choice&&!settings&&!picking&&executionField&&referenceUse!=='match'&&executionField}
+  {!choice&&!settings&&!picking&&(execution==='value'||referenceUse==='match')&&(domain.cyclic?<DofAxisWheel field={field} value={sample??value} label={label} symbol={symbol} disabled={disabled||!!operation?.selection?.unavailable} onPreview={preview} onCommit={apply} onCancel={restore} onConfigure={()=>show('options')}/>:<div className="dof-value-slider">
    <span className="dof-state-grip" data-dial-drag role="button" tabIndex={0} title="Move controls">{symbol}</span>
    <RangeControl aria-label={label} value={sample??value} min={field.min} max={field.max} step={domain.resolution} hardMin={domain.min} hardMax={domain.max}
     values={generatedValues} disabled={disabled||!!settings||picking||operation?.selection?.unavailable} onValueChange={preview} onValueCommit={apply} onValueCancel={restore}
@@ -90,7 +100,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
     {id:'source',symbol:'⟴',label:'Reference',content:<button type="button" title="Select reference source" onClick={()=>show('source')}>⟴</button>},
     {id:'measurement',symbol:'↔',label:'Measurement',content:<button type="button" title={`Measurement: ${relation.measures.find(m=>m.id===relation.settings.measure)?.label??'unavailable'}`} onClick={()=>show('measurements')}>↔</button>},
     ...(['bounds','step','match'] as const).map(use=>({id:use,symbol:use==='bounds'?'⊢⊣':use==='step'?'Δ':'⨮',label:use,content:<button type="button" aria-label={`Use reference as ${use}`} title={`Use reference as ${use}`} aria-pressed={relation.settings.use===use} onClick={()=>{restore();relation.change({use});if(use==='step')working.modeChange('step');working.clearLimits();}}>{use==='bounds'?'⊢⊣':use==='step'?'Δ':'⨮'}</button>})),
-    ...(referenceUse==='step'?[{id:'states',symbol:'●●',label:'Offered steps',content:<button type="button" title="Number of offered steps" onClick={()=>show('count')}>{countLabel}</button>}]:[]),
+    ...(referenceUse==='step'?[{id:'states',symbol:'●●',label:'Offered steps',content:<button type="button" title="Number of offered steps" onClick={()=>show('count')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();show('modes');}}>{countLabel}</button>}]:[]),
     {id:'numerator',symbol:'×',label:'Multiplier',content:<button type="button" title={`Measurement multiplier: ${relation.settings.numerator}`} onClick={()=>show('numerator')}>×</button>},
     {id:'denominator',symbol:'÷',label:'Divisor',content:<button type="button" title={`Measurement divisor: ${relation.settings.denominator}`} onClick={()=>show('denominator')}>÷</button>}
    ]:[]}/>:settings.kind==='measurements'?<RadialMenu onClose={closeSettings} items={(relation?.measures??[]).map(measure=>({id:measure.id,symbol:measure.symbol,label:measure.label,content:<button type="button" title={`${measure.label}: ${rangeLabel(measure.value)} · ${measure.unit}`} aria-label={measure.label} aria-pressed={relation?.settings.measure===measure.id} onClick={()=>{restore();relation?.change({measure:measure.id});working.clearLimits();setSettings({kind:'relation',point:settings.point});}}>{measure.symbol}</button>}))}/>:settings.kind==='modes'?<RadialMenu onClose={closeSettings} items={(Object.keys(modes) as StateSelectionMode[]).map(kind=>({id:kind,symbol:modes[kind].icon,label:kind==='step'?'Add step rule':kind==='symmetry'&&domain.cyclic?'Symmetry':modes[kind].label,content:<button type="button" title={kind==='symmetry'&&domain.cyclic?'Symmetry':modes[kind].label} aria-pressed={working.mode===kind} onClick={()=>chooseMode(kind)}>{modes[kind].icon}</button>}))}/>:

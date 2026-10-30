@@ -1073,3 +1073,25 @@ test('MS geometry membership projects only complete authored edit owners, with s
  assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,new Set()),[]);
  const restored=evaluateRecipe(source);assert.deepEqual(selectedEditOwners(restored.nodes,authoredNodeOwners(source,restored),new Set(array.map(n=>n.id))),['array'],'stable rendered identities survive renderer replacement');
 });
+
+test('reference possibility spaces preserve thresholds/fractions and route snap choices into the setting',async()=>{
+ const {createStateField,linearFieldCandidate}=await import('../src/properties/stateField.ts');
+ const {planeFieldCandidate}=await import('../src/properties/vectorStateField.ts');
+ const {selectedReferenceStep,resolveReferenceUse}=await import('../src/properties/referenceUse.ts');
+ const domain={min:0,max:80,resolution:.01,projection:'axis-y',thresholds:[{id:'meaningful',value:30}]};
+ const field=createStateField(domain,{mode:'symmetry',count:8,step:1,reference:0});
+ assert.equal(linearFieldCandidate(field,.375).value,30,'linear picking does not assume a scene X axis');
+ assert.ok(field.candidates.find(c=>c.value===30).thresholds.includes('meaningful'));
+ const axes=[{property:'future.horizontal',field},{property:'future.vertical',field}];
+ assert.deepEqual(planeFieldCandidate(axes,{x:.5,y:.25}),{'future.horizontal':40,'future.vertical':20});
+ assert.equal(planeFieldCandidate(axes,{x:.5,y:.25},()=>false),undefined,'owner legality filters the complete tuple');
+ assert.equal(planeFieldCandidate(axes,{x:2,y:0}),undefined);
+ const source={id:'target',label:'Target',unit:'length',value:80,min:0,max:80,measures:[{id:'width',label:'Width',symbol:'↔',unit:'length',value:80}]};
+ const settings={use:'step',measure:'width',numerator:1,denominator:1},before=structuredClone(source);
+ const current=resolveReferenceUse(source,settings,5),patch=selectedReferenceStep(settings,current.step,30);
+ assert.equal(resolveReferenceUse(source,{...settings,...patch},5).step,30);
+ assert.deepEqual(patch,{numerator:3,denominator:8},'fractional choice remains editable as integer math-dial operands');
+ assert.deepEqual(source,before,'selecting a snap value preserves source geometry/measurement');
+ assert.equal(selectedReferenceStep({...settings,use:'bounds'},80,30),undefined,'placement is not a snap-setting write');
+ assert.equal(selectedReferenceStep(settings,80,0),undefined);
+});

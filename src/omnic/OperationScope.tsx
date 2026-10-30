@@ -39,7 +39,7 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,ch
     const id=element?.getAttribute('data-omnic-component')??(selection.element.closest('[data-selection-environment]')?'@environment':undefined);if(!id)return false;
     const live=callbacks.current.snapshot;if(!live)return false;
     const source=measuredReferenceFor(live,degree.axes?.[0]??degree,id,environment);if(!source)return false;const reference=resolveReferenceUse(source,settings(degree),Number(targetDegreeValue(live.recipe,degree)))??{id:source.id,label:source.label,unit:source.unit,value:source.value,use:settings(degree).use};
-    pending.current=undefined;setPicking(false);setRelations(before=>{if(before.has(relationKey(degree)))return before;const next=new Map(before);next.set(relationKey(degree),settings(degree));return next;});setReferences(before=>{const next=new Map(before);for(const t of degree.targets)next.set(t.id,id);return next;});finish(reference);return true;
+    pending.current=undefined;setPicking(false);setRelations(before=>{if(before.has(relationKey(degree)))return before;const next=new Map(before);next.set(relationKey(degree),settings(degree));return next;});setReferences(before=>{const next=new Map(before);for(const t of degree.targets)next.set(t.id,id);return next;});finish({...reference,point:selection.point});return true;
    },()=>{if(pending.current===request){pending.current=undefined;setPicking(false);finish(undefined);}});
   });
  },

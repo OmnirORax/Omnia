@@ -1,3 +1,4 @@
+import {nativeSelectionShape,type NativeSelectionShape} from './selectionLens.ts';
 import { roleFor, type VisualRole } from "./visualRole.ts";
 export { roleFor, type VisualRole } from "./visualRole.ts";
 import { createTargetIndex } from "./model.ts";
@@ -217,8 +218,9 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
  * pointer motion alone does not invalidate an unchanged layout. */
 export function createVisualMeasurements() {
   const rects = new Map<VisualPart, Box[]>(), paint = new Map<VisualPart, string>();
-  const bounds = new Map<Element, DOMRect>();
+  const bounds = new Map<Element, DOMRect>(),shapes=new Map<Element,NativeSelectionShape|null>();
   return {
+    shape:(element:Element)=>{if(!shapes.has(element))shapes.set(element,nativeSelectionShape(element));return shapes.get(element)!;},
     bounds: (element: Element) => {
       let box = bounds.get(element); if (!box) { box = element.getBoundingClientRect(); bounds.set(element, box); } return box;
     },

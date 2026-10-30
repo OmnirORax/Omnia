@@ -65,3 +65,10 @@ export function axisFieldCandidate(field:StateField,point:{x:number;y:number}){
  const radius=Math.hypot(point.x,point.y);
  return field.domain.cyclic&&radius>=.28&&radius<=1.08?nearestFieldCandidate(field,point):undefined;
 }
+
+/** A linear field can project any scalar DOF without assuming its scene axis. */
+export function linearFieldCandidate(field:StateField,fraction:number){
+ if(!Number.isFinite(fraction)||fraction<0||fraction>1)return;
+ const value=field.min+fraction*(field.max-field.min);
+ return field.candidates.reduce<StateFieldCandidate|undefined>((best,candidate)=>!best||Math.abs(candidate.value-value)<Math.abs(best.value-value)?candidate:best,undefined);
+}

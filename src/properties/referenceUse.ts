@@ -32,3 +32,12 @@ export function createReferenceField(domain:StateFieldDomain,config:StateFieldCo
  return createStateField(domain,{...config,...limits,reference:reference?.value??config.reference,referenceId:reference?.id,
   ...(used?.use==='step'?{mode:'step',step:used.step??0}:used?.use==='match'?{mode:'symmetry',reference:exact??config.reference}:{}),thresholds:reference?.thresholds},allowed);
 }
+
+/** A Step-space choice changes its setting, without invoking a geometry writer. */
+export function selectedReferenceStep(settings:ReferenceSettings,currentStep:number,value:number):Partial<ReferenceSettings>|undefined{
+ if(settings.use!=='step'||!Number.isFinite(currentStep)||currentStep<=0||!Number.isFinite(value)||value<=0)return;
+ const factor=settings.numerator/settings.denominator*value/currentStep;
+ // Keep ordinary fractional choices editable by the existing integer math dial.
+ for(let denominator=1;denominator<=512;denominator++){const numerator=Math.round(factor*denominator);if(numerator>0&&numerator<=512&&Math.abs(numerator/denominator-factor)<=Math.max(1,Math.abs(factor))*1e-12)return {numerator,denominator};}
+ return {numerator:settings.numerator*value/currentStep};
+}

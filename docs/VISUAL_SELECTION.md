@@ -88,8 +88,7 @@ mode buttons, pattern filters/counts and edge toggles. Modes are:
   distinct categories. Pointer-event-transparent nested text is recognized from
   its text-range geometry even when its parent receives the pointer event.
 - **Individual ·:** toggle only the pointed registered part, within the same scope.
-- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Before placement, Wheel changes containing-owner depth. The adapter uses the element rectangle and
-  selectable sides; Inside/Outside apply to its contents/exterior. Its stable
+- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Wheel changes the lens search radius, without changing owner depth. The nearest registered boundary within the lens is previewed. Native SVG feedback preserves the source shape, screen transform and stroke; other surfaces retain their registered bounds/rounded feedback. After placement, selection continues in the retained working scope; Inside/Outside apply to its contents/exterior. Its stable
   resident/function anchor follows docking/reparenting and size changes.
 - **Axis ↕ / direction ↑ / segment |:** drag an infinite line, forward ray or
   finite segment. Exact endpoint touches count. A click supplies a vertical axis,
@@ -521,3 +520,29 @@ No private key listener or forced geometry mode is added. Polygon completion kee
 remain authoritative. The temporary request still restores prior selection and
 configuration exactly once. Browser verification of the reported reference-button
 resize-dial leakage remains pending.
+
+
+### Local boundary lens and source-shaped feedback
+
+The aiming circle is a spatial search lens, initially 18 CSS pixels in radius.
+Ordinary wheel changes radius within 4–160 pixels in Pattern, Individual and
+Boundary modes. It does not zoom the scene or change structural hierarchy.
+Shift-wheel retains geometry rotation; Ctrl-wheel retains native browser zoom.
+Before a working scope, Pattern/Individual discovers the nearest boundary; click
+places it and continues pattern/part selection. Temporary numeric reference requests
+carry the selected viewport point to their requesting editor, which opens its
+prepared possibility space there. No region menu is inserted after the pick. No new selection owner/history is introduced.
+
+`selectionLens.ts` snapshots native SVG geometry through its renderer API and
+screen matrix. The shared visual-measurement revision caches that snapshot. Search
+uses outline distances including stroke thickness, rather than curved shapes’ box
+corners. Non-SVG registered parts use their bounds. Feedback renders the native SVG
+shape attributes/matrix instead of synthetic rectangular guides or corner handles.
+Only whitelisted shape attributes are projected; no source event attributes or
+arbitrary markup are cloned. Shape queries do not read renderer geometry on motion.
+
+Native outline search is sampled (up to 512 points), and does not solve arbitrary
+raster contours, compound-path topology or clipping. Existing region matching is
+unchanged; exact source-shaped feedback is not a new containment solver. Lens size
+is transient. Model/static gates cover search geometry and caching; interactive
+acceptance remains pending with the user.

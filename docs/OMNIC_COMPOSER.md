@@ -727,3 +727,24 @@ MS selection stays exact/visible; whole-owner operations cannot broaden it silen
 Per-member property overrides and arbitrary clipping remain future work. Drawing,
 erasing, recipe-authored selection operators and draft history remain distinct.
 Browser acceptance is pending; no browser suite run for this change.
+
+
+### Reference lens → on-spot possibility space
+
+An active numeric reference request now returns its chosen viewport point as well
+as the existing compatible reference. DofStateField opens the prepared limits,
+thresholds and fractional candidates there immediately. Cyclic values retain the
+axis wheel; scalars use a hover/click linear field. Registered two-component DOFs
+compose their component fields into the shared DofPlaneField, including threshold
+lines and default fractions. Tuple previews and commits remain atomic through the
+existing owner/session; no Position-specific centre action or new selection state.
+The nearby expression opens the existing math dial; generation stays in code.
+
+The active setter owns interpretation. Bounds/Match value picking previews and
+commits geometry; Step reference picking previews a proposed snap amount and
+commits its measured ratio/working step, without moving the object. Ordinary
+fractions retain integer numerator/denominator math-dial configuration where
+representable. No region menu follows a numeric source pick. Ordinary MS selection
+without a numeric request does not invent a DOF. Higher-dimensional projections,
+scene-aligned constraint overlays and exact clipping remain pending. Browser
+acceptance of this experimental interaction remains with the user.
