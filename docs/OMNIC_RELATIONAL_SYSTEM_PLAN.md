@@ -2,6 +2,17 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Popup ownership correction (2026-10-30)
+
+Shared confirmation adapters alone were insufficient: parent popup navigation
+availability changes re-registered the parent layer and displaced its active
+child. Keep registration tied to open lifetime; update actions in place and use
+logical portal ancestry for layer ordering. Active selection and all registered
+popup interiors precede dismissal fallback. These shared boundaries apply to
+current/future value projections without per-DOF patches. Focused synthetic
+reference → plane → click/Enter → leave trace now preserves the selected tuples;
+general browser acceptance remains pending.
+
 ## Shared confirmation and target completion (2026-10-30)
 
 Prepared value projections share `useValueConfirmation` for primary selection

@@ -828,3 +828,18 @@ immediately; membership and feedback remain. Reopen Q for another pick. Partial
 geometry construction and rejected reference candidates are not target completion.
 Browser acceptance of click/Enter across these projections and MS closure remains
 pending; model, type, preview and backend checks precede publication.
+
+
+### Position-grid confirmation follow-up (2026-10-30)
+
+The fix is in shared popup lifecycle/input ownership, not Position or its grid.
+Parent navigation availability updates retain layer order; logical portal ancestry
+keeps the child value owner deepest. Registered popup interiors and active MS
+picking take precedence over generic empty-space dismissal. A boundary lens pick
+therefore reaches MS and the on-spot grid can accept its prepared tuple.
+
+Focused local synthetic trace verified four grid regions by left click and centre
+by Enter, each preserving the previewed coordinates after pointer leave. Direct
+Position and MS-reference entry were traced. No browser suite ran; general user
+acceptance remains pending. Existing value math, references, constraints, setters
+and recipe history are unchanged.

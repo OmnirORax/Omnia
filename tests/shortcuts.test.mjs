@@ -599,3 +599,36 @@ test('nested editor navigation resolves confirmation and cancellation independen
  const reordered=[entries[1],entries[0],entries[2]];contextNavigationAction(reordered,'confirm')();
  assert.equal(calls.at(-1),'preview commit','DOM containment, not effect registration order, selects the deeper owner');
 });
+
+test('popup dismissal yields to active input owners and every registered popup interior',async()=>{
+ const {dismissContextPointer}=await import('../src/ui/activeContextModel.ts');
+ const grid={},blankInside={},outside={},calls=[];
+ const parent={contains:node=>node===grid||node===blankInside},child={contains:node=>node===grid};
+ const layers=new Map([[parent,{close:()=>{},dismiss:()=>calls.push('parent')}],[child,{close:()=>{},dismissOutside:true,dismiss:()=>calls.push('child')}]]);
+ assert.equal(dismissContextPointer(layers,outside,true,false),false,'MS or another active input owner gets the press before either dismissal path');
+ assert.equal(dismissContextPointer(layers,grid,false,false),false,'a grid needs no control/button/role marker to own its popup interior');
+ assert.equal(dismissContextPointer(layers,blankInside,false,false),false,'a parent popup interior cannot dismiss its active child');
+ assert.deepEqual(calls,[]);
+ assert.equal(dismissContextPointer(layers,outside,false,true),true,'explicit outside-dismissal retains its consume-on-outside behavior');
+ assert.deepEqual(calls,['child']);
+ const generic=new Map([[parent,{close:()=>{},dismiss:()=>calls.push('generic')}]]);
+ assert.equal(dismissContextPointer(generic,outside,false,true),false,'ordinary native/content controls remain usable for generic dials');
+ assert.equal(dismissContextPointer(generic,outside,false,false),true);
+ assert.deepEqual(calls,['child','generic']);
+});
+
+test('logical popup parents register before portalled children and navigation updates preserve the deepest value owner',async()=>{
+ const {insertContextLayer,contextLayerAction}=await import('../src/ui/activeContextModel.ts');
+ const frame={kind:'frame',key:'composer'},outer={},inner={},leaf={},calls=[];
+ const layers=new Map([[inner,{ancestors:[outer],close:()=>{},confirm:()=>calls.push('inner')}]]);
+ let stack=insertContextLayer([frame],inner,layers);
+ layers.set(outer,{close:()=>{}});stack=insertContextLayer(stack,outer,layers);
+ assert.deepEqual(stack,[frame,{kind:'layer',element:outer},{kind:'layer',element:inner}],'late parent registration cannot put the parent above its child');
+ const before=[...stack];layers.get(outer).confirm=()=>calls.push('outer');
+ contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['inner'],'new parent actions cannot steal confirmation');
+ assert.deepEqual(stack,before,'action availability does not rebuild the scope stack');
+ layers.set(leaf,{ancestors:[inner,outer],close:()=>{},confirm:()=>calls.push('leaf')});stack=insertContextLayer(stack,leaf,layers);
+ stack=insertContextLayer(stack,outer,layers);
+ assert.deepEqual(stack.map(e=>e.element??e.key),['composer',outer,inner,leaf]);
+ contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['inner','leaf']);
+});

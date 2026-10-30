@@ -805,3 +805,34 @@ construction can continue until a target is accepted; rejected reference picks
 remain active. Q explicitly reopens targeting. General browser acceptance remains
 user-tested; local regressions cover owner writes, zero/tuple confirmation,
 per-action nesting and existing temporary-request restore/one-shot behavior.
+
+
+### Popup lifetime, logical ancestry and input ownership (2026-10-30)
+
+`useActiveLayer` registers for the popup's actual open lifetime. Changing whether
+confirm/cancel/advance/dismiss is available updates that layer in place; it must
+not unregister/reappend a parent and truncate/reorder its already open child.
+ContextualMasterController supplies its logical PopupParents ancestry because
+portal roots are DOM siblings. `insertContextLayer` inserts a late parent before
+registered logical descendants. Enter therefore resolves the active child value
+owner even after parent action availability changes. All shared popup consumers
+inherit this lifecycle; no DOF/geometry/value-adapter exception is needed.
+
+`dismissContextPointer` is the single context pointer-dismissal fallback. Active
+MS selection owns the press first, then registered popup interiors protect their
+entire DOM subtree (including bare SVG/grid/empty regions without control flags).
+Only outside presses reach explicit outside-dismissal or generic dial dismissal.
+Existing native/content controls and modifier behavior remain. Previously the
+second empty-space fallback bypassed MS priority and could cancel a valid lens
+pick before it reached the selector.
+
+Focused synthetic browser diagnostic: direct Position preview/click/leave worked;
+reference picking near a boundary was intercepted before MS. After input-priority
+repair it reached the on-spot plane. That plane exposed Enter reaching its parent
+confirmation instead of its value owner and reverting on leave. After the shared
+lifetime/ancestry fix, four grid regions accepted by primary click and the centre
+accepted by Enter all retained their exact previewed tuples after leaving, under
+normal StrictMode, without fallback command invocation. No browser suite was run.
+General user-workspace/browser acceptance remains pending. Model regressions cover
+registered interiors/input priority, late parent insertion and confirmation after
+parent availability changes.
