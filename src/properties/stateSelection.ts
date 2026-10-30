@@ -15,7 +15,7 @@ export function selectionValue(turn:number,reference:number,domain:CyclicSelecti
 }
 export function selectionExpression(count:number){
  const power=Math.log2(count);
- return Number.isInteger(power)?{base:2,power,count}: {count};
+ return power>0&&Number.isInteger(power)?{base:2,power,count}: {count};
 }
 
 /** Size marks from their angular neighbours so dense fractional modes do not
