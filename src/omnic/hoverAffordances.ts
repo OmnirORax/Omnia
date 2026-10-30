@@ -1,3 +1,6 @@
+/** Temporarily parked at the user's request: explicit right-click DOF selection
+ * replaces precision hover/edge activation. Keep the adapter for later review. */
+export const HOVER_TOOL_DETECTION_ENABLED:boolean=false;
 import type {EditableDegree} from '../properties/editableDegrees.ts';
 import type {Recipe} from './model.ts';
 import type {Evaluation,StructuralNode} from './evaluate.ts';

@@ -6,7 +6,7 @@ import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCur
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout, radialRowLayout } from '../src/ui/radialMenuModel.ts';
+import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout, radialRowLayout, radialRowAttachment } from '../src/ui/radialMenuModel.ts';
 import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
@@ -457,5 +457,17 @@ test('child rows preserve upright nonoverlapping controls along every parent axi
    const setterX=slot.setterX-slot.size/2,setterY=slot.setterY-slot.size/2;
    assert.ok(Math.abs(setterX*ux+setterY*uy)<1e-8,'held value setters extend perpendicular to the row, away from siblings');
   }
+ }
+});
+
+test('automatic child rows attach to the parent button centre without shell-dependent offsets',()=>{
+ for(const scale of [1,1.5,2])for(const axis of [{x:1,y:0},{x:0,y:-1},{x:-.6,y:.8}]){
+  const center={x:130,y:90},button={x:center.x+axis.x*37,y:center.y+axis.y*37,width:32*scale};
+  const length=76,anchor=radialRowAttachment(center,button,length,scale);
+  const first={x:anchor.x-axis.x*(length-24)*scale/2,y:anchor.y-axis.y*(length-24)*scale/2};
+  assert.ok(Math.abs((first.x-button.x)*axis.y-(first.y-button.y)*axis.x)<1e-8,'button and child centres are collinear');
+  assert.ok(Math.abs(Math.hypot(first.x-button.x,first.y-button.y)-(button.width/2+12*scale+2))<1e-8,'exact button-to-child gap at every scale');
+  const next=radialRowAttachment(anchor,first,50,scale,{axis,length});
+  assert.ok(Math.abs(Math.hypot(next.x-anchor.x,next.y-anchor.y)-(length*scale/2+25*scale+2))<1e-8,'nested rows clear the parent row');
  }
 });

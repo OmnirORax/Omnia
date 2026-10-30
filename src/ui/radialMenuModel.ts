@@ -58,3 +58,12 @@ export function radialRowLayout<T>(nodes:readonly RadialNode<T>[],axis:{x:number
   slots:nodes.map((_,i)=>{const offset=(i-(nodes.length-1)/2)*(size+gap);return {x:50+ux*offset/extent*100,y:50+uy*offset/extent*100,size,
    setterX:size/2-uy*(size+gap),setterY:size/2+ux*(size+gap),setterAngle:Math.atan2(ux,-uy)*180/Math.PI};})};
 }
+
+/** Attach the first child to the actual parent button, independent of shell
+ * padding/setter margins. Nested rows continue beyond the preceding row. */
+export function radialRowAttachment(center:{x:number;y:number},button:{x:number;y:number;width:number},childLength:number,scale:number,row?:{axis:{x:number;y:number};length:number}){
+ const dx=button.x-center.x,dy=button.y-center.y,length=Math.hypot(dx,dy)||1;
+ const axis=row?.axis??{x:dx/length,y:dy/length},origin=row?center:button;
+ const distance=(row?row.length*scale:button.width)/2+childLength*scale/2+2;
+ return {x:origin.x+axis.x*distance,y:origin.y+axis.y*distance,axis};
+}

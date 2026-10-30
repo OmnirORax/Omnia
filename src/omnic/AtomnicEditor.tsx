@@ -1,4 +1,4 @@
-import {prepareHoverAffordances,previewHoverAffordance} from './hoverAffordances';
+import {HOVER_TOOL_DETECTION_ENABLED,prepareHoverAffordances,previewHoverAffordance} from './hoverAffordances';
 import {DofRuleExpression,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
 import {fieldReferenceFor} from './referenceGeometry';
 import {positionFieldDelta,type PositionField} from './dofGesture';
@@ -130,8 +130,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const rotationIds=normalSelection.length?normalSelection:[...selected];
   const rotationDegree=targetDegrees(recipe,rotationIds).find(d=>targetParameter(d).selection);
   const rotationKey=rotationIds.join('|');
-  const selectedRotationRoles=useMemo(()=>evaluation&&rotationDegree?new Set(targetNodes(evaluation,rotationIds).map(node=>node.id)):undefined,[evaluation,rotationKey,!!rotationDegree]);
-  const hoverAffordances=useMemo(()=>evaluation?prepareHoverAffordances(recipe,evaluation):undefined,[recipe,evaluation]);
+  const selectedRotationRoles=useMemo(()=>HOVER_TOOL_DETECTION_ENABLED&&evaluation&&rotationDegree?new Set(targetNodes(evaluation,rotationIds).map(node=>node.id)):undefined,[evaluation,rotationKey,!!rotationDegree]);
+  const hoverAffordances=useMemo(()=>HOVER_TOOL_DETECTION_ENABLED&&evaluation?prepareHoverAffordances(recipe,evaluation):undefined,[recipe,evaluation]);
   useEffect(()=>{updateRotationHover(false);updateMoveHover(false);},[selectedRotationRoles,hoverAffordances,bounds.x,bounds.y,bounds.width,bounds.height]);
   const hoverSelection=rotationDegree&&selectedRotationRoles?{ids:rotationIds,rotation:rotationDegree,roles:selectedRotationRoles}:undefined;
   const rotationAt=(point:Point)=>{

@@ -566,3 +566,12 @@ Scalar grab correction: geometry chooses the DOF/tool before a press; once grabb
 
 
 Latest Rotation correction: hovering actual edges shows the cue; one primary click selects its owner and opens the axis wheel on release, without editing the angle. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+
+
+Interaction experiment: geometry hover/edge tool activation is temporarily parked
+behind HOVER_TOOL_DETECTION_ENABLED=false. Keep the adapter/tests intact for later
+review; it is not part of the current user-facing entry path. Right-click target →
+DOF is the explicit entry, with existing R and ordinary dragging retained. This
+supersedes earlier hover activation guidance. Standalone DOF dials reveal immediate
+category rows automatically; attachment follows actual parent-button centres and
+edges rather than outer dial radii. Browser acceptance remains pending.

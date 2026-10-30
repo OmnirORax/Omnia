@@ -719,3 +719,13 @@ Embedded-parent scale control sits beside the first row, opposite its value sett
 Category metadata can supply symbolMask, rendered in currentColor; Appearance
 uses the shared eye silhouette rather than sparkle emoji. No scene/history or
 selection behavior changes. Browser layout acceptance remains pending.
+
+
+Latest visibility/attachment correction: standalone category dials immediately
+project all immediate child rows and retain them until parent dismissal. Embedded
+canvas rim and deeper category reveal behavior remain unchanged. A shared pure
+radialRowAttachment derives the row from the actual parent-button centre/width,
+not the dial radius or hidden setter margin. Nested rows extend past the preceding
+row. Root anchors refresh after popup placement, resize and pointer release via
+ResizeObserver/shared press observation; no per-motion measurement is added.
+Automatic branches preserve their full category lineage for deeper navigation.
