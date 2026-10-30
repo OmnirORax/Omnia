@@ -5,7 +5,7 @@ import {placePopup,popupBelowButton,type PopupRect} from './popupPlacement';
 import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
-import { ContextStage, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
+import { ContextStage, ContextValueCompletion, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
 import { claimUIPress, ownsPointerSurface } from "./pointerOwnership";
 
 const PopupParents=createContext<readonly RefObject<HTMLDivElement|null>[]>([]);
@@ -23,6 +23,8 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   const navigation=useRef(new Map<symbol,ContextNavigation>());const [,refreshNavigation]=useState(0);
   const registerNavigation=useCallback((value:ContextNavigation)=>{const key=Symbol();navigation.current.set(key,value);refreshNavigation(n=>n+1);return()=>{navigation.current.delete(key);refreshNavigation(n=>n+1);};},[]);
   const navigate=(action:'cancel'|'back'|'advance'|'confirm')=>contextNavigationAction(navigation.current.values(),action);
+  const finish=useRef(onClose);finish.current=onConfirm??onAdvance??onDismiss??onClose;
+  const completeValue=useCallback((accept?:()=>boolean|void)=>confirmContextStage(accept,()=>finish.current()),[]);
 
   const popup=usePopupAnchor(position,stage??title);
   const anchor=anchored?position:popup.anchor,nextStage=anchored?null:popup.nextStage;
@@ -31,7 +33,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
   const closeLayer=()=>{if(drag.current)cancelDrag();else (navigate('back')??onClose)();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
-  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{ancestors:parents,dismissOutside,cancel:navigate('cancel'),advance:navigate('advance')??onAdvance,confirm:()=>confirmContextStage(navigate('confirm'),onConfirm??onAdvance??onDismiss??onClose)});
+  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{ancestors:parents,dismissOutside,cancel:navigate('cancel'),advance:navigate('advance')??onAdvance,confirm:()=>completeValue(navigate('confirm'))});
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
     node.setAttribute("popover", "manual"); node.showPopover();
@@ -86,6 +88,6 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{left:anchor!.x,top:anchor!.y}}>
-    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextStage.Provider>
+    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextValueCompletion.Provider value={completeValue}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextValueCompletion.Provider></ContextStage.Provider>
   </div>, document.body);
 }

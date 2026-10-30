@@ -10,7 +10,7 @@ export function DofLinearField({field,value,label,onPreview,onCommit,onCancel}:{
  useLayoutEffect(()=>{const node=root.current;if(!node)return;const measure=()=>{bounds.current=node.getBoundingClientRect();};const observer=new ResizeObserver(measure);observer.observe(node);measure();return()=>observer.disconnect();},[]);
  const pick=(x:number)=>{const box=bounds.current;if(!box)return;return linearFieldCandidate(field,(x-box.left)/box.width)?.value;};
  const cancel=()=>{hover.current=undefined;activation.current.cancel();onCancel();};
- const confirm=useValueConfirmation({owner:root,candidate:()=>hover.current,onCommit});
+ const confirm=useValueConfirmation({owner:root,selection:'single',candidate:()=>hover.current,onCommit});
  return <div ref={root} className="dof-linear-field" role="group" aria-label={`${label} possibility space`} data-ui-popup-interior
   onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
   onPointerMove={event=>{const next=pick(event.clientX);if(next!==undefined&&next!==hover.current){hover.current=next;onPreview(next);}}}

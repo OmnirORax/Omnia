@@ -19,7 +19,7 @@ export function DofAxisWheel({field,value,label,symbol,disabled,onPreview,onComm
   return axisFieldCandidate(field,point)?.value;
  };
  const preview=(next:number|undefined)=>{if(disabled||hover.current===next)return;hover.current=next;if(next===undefined)onCancel();else onPreview(next);};
- const confirm=useValueConfirmation({owner:root,candidate:()=>hover.current,onCommit,disabled});
+ const confirm=useValueConfirmation({owner:root,selection:'single',candidate:()=>hover.current,onCommit,disabled});
  return <div ref={root} className="radial-menu dof-axis-wheel" role="group" aria-label={`${label} axis wheel`} data-ui-popup-interior style={{width:size*scale,height:size*scale}}
   onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
   onPointerMove={event=>preview(pick(event.clientX,event.clientY))}

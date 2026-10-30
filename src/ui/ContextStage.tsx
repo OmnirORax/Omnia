@@ -4,6 +4,7 @@ export type {ContextNavigation} from './contextNavigation';
 import { cursorPosition } from './cursorPosition';
 import { uiPointerHeld } from './pointerOwnership';
 /** Shared editors announce logical stage changes, never value/hover updates. */
+export const ContextValueCompletion=createContext<((accept?:()=>boolean|void)=>boolean)|null>(null);
 export const ContextStage=createContext<(()=>void)|null>(null);
 export function useContextStage(identity:string){
   const open=useContext(ContextStage);

@@ -2,6 +2,15 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## DOF preview primary completion (2026-10-30)
+
+DOF preview fields execute a selected value; the math dial configures rules and
+number composition. Keep them separate. Single-selection DOF previews finish
+on primary release using the same shared acceptance/completion as Enter. All
+projection adapters inherit the lifecycle, without DOF-specific close logic.
+Unconfirmed pointer leave stays cancellation; composing controls keep their
+existing interaction and appearance classification.
+
 ## Preview cancellation versus Enter completion (2026-10-30)
 
 Leaving a value field before accepting intentionally restores its previous value.

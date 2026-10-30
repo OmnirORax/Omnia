@@ -816,8 +816,8 @@ Primary selection and Enter now confirm the same prepared candidate through
 math dial. Held value sliders register their existing finish transaction for
 Enter. No confirm/checkmark buttons or per-DOF key handlers are introduced.
 Confirmation writes through existing owners and retains the accepted value when
-the pointer leaves; Esc restores only an uncommitted preview. Primary selection can keep controls open for further editing. Enter accepts the
-current candidate and finishes the current stage through its existing lifecycle.
+the pointer leaves; Esc restores only an uncommitted preview. Single-value DOF preview selection accepts and finishes on primary release or
+Enter through the same stage lifecycle.
 
 The popup wrapper's duplicate opening-press boolean is removed; only the shared
 physical-press-version guard suppresses the actual opener tail. Nested action
@@ -864,3 +864,24 @@ MS-reference entry: unconfirmed leave restored the original tuple; hover-only
 Enter was available, accepted the preview, removed the grid and retained the exact
 tuple after leaving. No browser suite ran; general user-workspace acceptance is
 still pending.
+
+
+### DOF preview left-click completion (2026-10-30)
+
+The DOF preview is the value-execution surface, separate from ⠒❉ rule/number
+configuration. Its axis, linear and plane projections declare single selection.
+One primary release accepts the prepared value and finishes the preview stage,
+using the exact same shared completion as Enter. Continued hovering therefore
+cannot resume editing the just-accepted value. Unconfirmed pointer leave still
+restores the previous value; rejected choices do not finish.
+
+`ContextValueCompletion` supplies the nearest popup completion to the common
+value-confirmation adapter. All current/future DOF preview projections inherit
+the lifecycle by declaring single selection, without per-DOF close handlers.
+Default composing interactions retain their existing behavior. MathematicalDial
+has no implementation/appearance/category change in this correction.
+
+Focused synthetic checks verified direct and MS-reference DOF previews: left
+click accepted/finished, the grid disappeared, and the exact tuple persisted
+after leaving; unconfirmed leave restored the previous tuple. No browser suite
+ran. General user-workspace acceptance remains pending.

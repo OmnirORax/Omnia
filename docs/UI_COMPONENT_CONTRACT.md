@@ -853,3 +853,15 @@ native fields and MS priority remain. Primary selection continues its own existi
 behavior. Leaving/cancelling an unconfirmed preview restores the prior value;
 leaving after accepted Enter cannot undo it. Future contextual editors inherit
 these shared ownership and completion rules.
+
+
+### Single-selection DOF previews finish on primary release (2026-10-30)
+
+DOF preview execution and mathematical rule/number configuration are separate
+interfaces. Axis/linear/plane preview projections declare `selection: 'single'`
+to `useValueConfirmation`. Primary release uses `ContextValueCompletion` to accept
+the prepared candidate and finish the nearest popup stage, just as Enter does.
+The navigation adapter supplies raw acceptance to Enter so completion happens
+once. Disabled/rejected candidates veto finish; unconfirmed leave stays cancel.
+Default composing interactions do not acquire finish-on-selection. No private
+DOF close callback or appearance/category change is introduced.
