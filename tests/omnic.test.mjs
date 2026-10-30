@@ -830,3 +830,23 @@ test('rotation edge reach is eight screen pixels across Composer zoom scales',as
  assert.equal(rotationEdgeHit(prepared,{x:50,y:6},.5),true,'pointer queries reuse immutable prepared geometry');
  assert.equal(rotationEdgeHit(prepared,{x:50,y:6},0),false);
 });
+
+test('hover previews find unselected objects without changing selection or geometry',async()=>{
+ const {prepareHoverAffordances,previewHoverAffordance}=await import('../src/omnic/hoverAffordances.ts');
+ const source=validateRecipe(recipe([{id:'line',generator:'line',params:{length:60}},{id:'circle',generator:'ring',params:{x:120,radius:20}}]));
+ const before=JSON.stringify(source),evaluation=evaluateRecipe(source),prepared=prepareHoverAffordances(source,evaluation);
+ const line=evaluation.nodes.find(n=>n.componentId==='line'&&n.kind==='line');
+ const center={x:(line.x+line.x2)/2,y:(line.y+line.y2)/2};
+ const body=previewHoverAffordance(prepared,center);
+ assert.equal(body.hit.mode,'move');assert.deepEqual(body.target.ids,['line']);
+ const edge=previewHoverAffordance(prepared,{x:center.x,y:center.y+line.thickness/2+3,scenePerPixel:1});
+ assert.equal(edge.hit.mode,'rotate');assert.deepEqual(edge.target.ids,['line']);assert.ok(edge.target.rotation);
+ const ring=evaluation.nodes.find(n=>n.componentId==='circle'&&n.kind==='ring');
+ const ringEdge=previewHoverAffordance(prepared,{x:ring.x+ring.radius+ring.thickness/2+3,y:ring.y});
+ assert.equal(ringEdge,undefined,'a rotationally invariant ring without a registered rotation DOF cannot advertise a fake rotation');
+ const ringInk=previewHoverAffordance(prepared,{x:ring.x+ring.radius,y:ring.y});
+ assert.equal(ringInk.hit.mode,'move');assert.deepEqual(ringInk.target.ids,['circle']);
+ assert.equal(previewHoverAffordance(prepared,{x:5000,y:5000}),undefined);
+ assert.equal(JSON.stringify(source),before,'hover never commits or mutates the authored recipe');
+ assert.deepEqual(evaluation.selection,[],'no prior selection is required or created by hover');
+});

@@ -1,4 +1,4 @@
-import {prepareGeometryEdges,rotationEdgeHit} from './geometryEdges';
+import {prepareHoverAffordances,previewHoverAffordance} from './hoverAffordances';
 import {DofRuleExpression,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
 import {fieldReferenceFor} from './referenceGeometry';
 import {positionFieldDelta,type PositionField} from './dofGesture';
@@ -63,12 +63,14 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const [tool,setTool]=useState<Tool>('draw'),[phase,setPhase]=useState('idle'),[pivot,setPivot]=useState<Point|null>(null);
   const [cursorOperation,setCursorOperation]=useState<'move'|'rotate'|null>(null);
   const [rotationHover,setRotationHover]=useState(false),rotationHoverRef=useRef(false);
+  const [moveHover,setMoveHover]=useState(false),moveHoverRef=useRef(false);
+  const updateMoveHover=(next:boolean)=>{if(moveHoverRef.current!==next){moveHoverRef.current=next;setMoveHover(next);if(next)setGhost(undefined);}};
   const updateRotationHover=(next:boolean)=>{if(rotationHoverRef.current!==next){rotationHoverRef.current=next;setRotationHover(next);if(next){setGhost(undefined);setHovered([]);}}};
   const numericEditor=useNumericEditor();
   const [activeDof,setActiveDof]=useState<{ids:readonly string[];property:string}|null>(null);
   useEffect(()=>{if(numericEditor.activeDegree)setActiveDof(numericEditor.activeDegree);},[numericEditor.activeDegree]);
   const angularRule=useWorkingSelection('omnic.angle',360,'symmetry',45),readRule=useWorkingSelectionReader();
-  const pointerTool=cursorOperation??(rotationHover?'rotate':tool);
+  const pointerTool=cursorOperation??(rotationHover?'rotate':moveHover?'move':tool);
   const [menu,setMenu]=useState<{x:number;y:number}|null>(null),[panel,setPanel]=useState<Panel>({kind:'functions'}),[message,setMessage]=useState('');
   const [criteria,setCriteria]=useState<PropertyCriterion[]>([]),[pointed,setPointed]=useState<string|null>(null);
   const [degrees,setDegrees]=useState<EditableDegree[]>([]);
@@ -128,8 +130,14 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const rotationIds=normalSelection.length?normalSelection:[...selected];
   const rotationDegree=targetDegrees(recipe,rotationIds).find(d=>targetParameter(d).selection);
   const rotationKey=rotationIds.join('|');
-  const rotationZone=useMemo(()=>{if(!evaluation||!rotationDegree)return;const nodes=targetNodes(evaluation,rotationIds),box=primitiveBounds(nodes),edges=prepareGeometryEdges(nodes);return box&&edges?{bounds:box,edges}:undefined;},[evaluation,rotationKey,!!rotationDegree]);
-  useEffect(()=>{updateRotationHover(false);},[rotationZone,bounds.x,bounds.y,bounds.width,bounds.height]);
+  const rotationZone=useMemo(()=>{if(!evaluation||!rotationDegree)return;const nodes=targetNodes(evaluation,rotationIds),box=primitiveBounds(nodes);return box?{bounds:box,roles:new Set(nodes.map(node=>node.id))}:undefined;},[evaluation,rotationKey,!!rotationDegree]);
+  const hoverAffordances=useMemo(()=>evaluation?prepareHoverAffordances(recipe,evaluation):undefined,[recipe,evaluation]);
+  useEffect(()=>{updateRotationHover(false);updateMoveHover(false);},[rotationZone,hoverAffordances,bounds.x,bounds.y,bounds.width,bounds.height]);
+  const hoverSelection=rotationDegree&&rotationZone?{ids:rotationIds,rotation:rotationDegree,bounds:rotationZone.bounds,roles:rotationZone.roles}:undefined;
+  const rotationAt=(point:Point)=>{
+    const preview=previewHoverAffordance(hoverAffordances,point,hoverSelection);if(preview?.hit.mode!=='rotate')return;
+    if(preview.target.rotation)return {ids:preview.target.ids,degree:preview.target.rotation,bounds:preview.target.bounds};
+  };
   const openRotation=()=>{const ids=normalSelection.length?normalSelection:[...selectedRef.current],degree=targetDegrees(recipeRef.current,ids).find(d=>targetParameter(d).selection);if(!degree)return;setActiveDof({ids:[...ids],property:degree.id});cancelPreview?.();setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:false});setTool('rotate');setPhase('configure');};
   const positionFields=(ids:readonly string[])=>{
     if(ids.length!==1)return;
@@ -168,7 +176,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     'atomnic.erase':{enabled:compatible,cursor:compatible&&pointerTool==='erase'?{zone:cursorZone}:false,run:()=>{cancel();setTool('erase');}},
     'atomnic.constraints':{enabled:true,run:()=>input('mode',settings.mode==='free'?'constrained':'free')},
     'atomnic.draw':{enabled:compatible,cursor:compatible&&pointerTool==='draw'?{zone:cursorZone}:false,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,cursor:compatible&&pointerTool==='select'?{zone:cursorZone}:false,run:()=>{cancel();setTool('select');}},
-    'atomnic.move':{enabled:compatible&&selected.size>0,cursor:(compatible||gesture.current?.kind==='translate')&&pointerTool==='move'?{zone:cursorZone}:false,run:()=>{cancel();setTool('move');}},
+    'atomnic.move':{enabled:compatible&&selected.size>0,cursor:(compatible||moveHover||gesture.current?.kind==='translate')&&pointerTool==='move'?{zone:cursorZone}:false,run:()=>{cancel();setTool('move');}},
     'atomnic.rotate':{enabled:!!rotationDegree,cursor:pointerTool==='rotate'&&(rotationHover||cursorOperation==='rotate')?{zone:cursorZone}:false,run:openRotation},
     'atomnic.step':{enabled:compatible&&selected.size>0,run:()=>beginRotation(true)},
     'atomnic.highlight':{enabled:compatible&&selected.size>0,run:mark},
@@ -230,14 +238,12 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         selectedRef.current=ids;setSelected(ids);return;
       }
       if(event.button===0){
-        const ids=rotationIds,box=rotationZone?.bounds;
-        if(box&&rotationZone){
-          if(rotationEdgeHit(rotationZone.edges,point,point.scenePerPixel)){
-            const degree=rotationDegree,domain=degree&&stateFieldDomain(targetParameter(degree));
-            if(degree&&domain){const field=createStateField(domain,{mode:angularRule.mode,count:angularRule.count,step:angularRule.step,reference:referencePicker?.snapshot?fieldReferenceFor(referencePicker.snapshot,degree,referencePicker.references.get(ids[0]),referencePicker.environment)?.value??domain.cyclic!.north:domain.cyclic!.north,min:angularRule.min,max:angularRule.max},n=>{try{writeTargetDegree(recipeRef.current,degree!,n);return true;}catch{return false;}});
-              setActiveDof({ids:[...ids],property:degree.id});setCursorOperation('rotate');gesture.current={kind:'orient',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:new Set(ids),angle:0,degree,field,center:{x:box.x+box.width/2,y:box.y+box.height/2}};return;
-            }
-          }
+        const candidate=rotationAt(point),degree=candidate?.degree,domain=degree&&stateFieldDomain(targetParameter(degree));
+        if(candidate&&degree&&domain){
+          const {ids,bounds:box}=candidate;
+          if(ids.some(id=>!rotationIds.includes(id))){if(ids.every(id=>list.some(atom=>atom.id===id)))setSelected(new Set(ids));else{setSelectionTimeline(previous=>appendTransient(previous,new Set<string>()));onSelect?.(ids);}}
+          const field=createStateField(domain,{mode:angularRule.mode,count:angularRule.count,step:angularRule.step,reference:referencePicker?.snapshot?fieldReferenceFor(referencePicker.snapshot,degree,referencePicker.references.get(ids[0]),referencePicker.environment)?.value??domain.cyclic!.north:domain.cyclic!.north,min:angularRule.min,max:angularRule.max},n=>{try{writeTargetDegree(recipeRef.current,degree,n);return true;}catch{return false;}});
+          dismissPanel?.();setMenu(null);setActiveDof({ids:[...ids],property:degree.id});setCursorOperation('rotate');gesture.current={kind:'orient',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:new Set(ids),angle:0,degree,field,center:{x:box.x+box.width/2,y:box.y+box.height/2}};return;
         }
       }
       if(event.button===0&&!target){
@@ -284,8 +290,9 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     move:(point,event)=>{
       pointer.current={x:event.clientX,y:event.clientY};
       const active=gesture.current;
-      updateRotationHover(!active&&!event.buttons&&!referencePicker?.picking&&!!rotationZone&&rotationEdgeHit(rotationZone.edges,point,point.scenePerPixel));
-      if(!active&&rotationHoverRef.current)return;
+      const preview=!active&&!event.buttons&&!event.ctrlKey&&!event.metaKey&&!referencePicker?.picking?previewHoverAffordance(hoverAffordances,point,hoverSelection):undefined;
+      updateRotationHover(preview?.hit.mode==='rotate');updateMoveHover(preview?.hit.mode==='move'&&tool!=='erase');
+      if(!active&&(rotationHoverRef.current||moveHoverRef.current))return;
       if(active?.kind==='select'){
         const left=Math.min(active.start.x,point.x),top=Math.min(active.start.y,point.y),width=Math.abs(point.x-active.start.x),height=Math.abs(point.y-active.start.y);setSelectionBox({x:left,y:top,width,height});
         const hits=structuralIdsInRect(evaluation?.nodes??[],active.start,point);let changed=false;
@@ -370,7 +377,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const radialEntries:RadialEntry<ReactNode>[]=radialActions.filter(action=>action.id!=='atomnic.draw'&&!('radial' in action&&'inset' in action.radial)).map(action=>({id:action.id,label:operationLabel(action.id),symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:radialControl(action)}));
   const surface=<div ref={attachSurface} className="omnic-preview atomnic-surface" data-atomnic-surface data-selection-scope={cursorZone} data-ui-gesture-owner="content" data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();api.context(e.nativeEvent);}} dangerouslySetInnerHTML={{__html:svg}}
       onPointerDown={event=>{event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);event.currentTarget.setPointerCapture(event.pointerId);api.down(local(event),event.nativeEvent);}}
-      onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerLeave={()=>updateRotationHover(false)} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />;
+      onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerLeave={()=>{updateRotationHover(false);updateMoveHover(false);}} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />;
   const quickActions=radialActions.filter(action=>'radial' in action&&'inset' in action.radial);
   const rim=<RadialMenu heldOpen={!!extraPanel} quickItems={radar?[...quickActions.filter(action=>action.id!=='atomnic.erase').map(action=>radialControl(action)),...(modeControl?[modeControl]:[])]:undefined} quickEnd={radar?quickActions.filter(action=>action.id==='atomnic.erase').map(action=>radialControl(action)):undefined} items={radialTree([...radialEntries,...documentEntries])} navigationRef={radialNavigation} onNavigationChange={setRadialContext} onClose={()=>setMenu(null)}
     inset={<><span className="radial-menu-inset radial-menu-primary">{radialActions.filter(action=>'radial' in action&&'inset' in action.radial).map(action=><span className="radial-menu-quick-control" key={action.id}>{radialControl(action)}</span>)}</span>{modeControl&&<span className="radial-menu-inset">{modeControl}</span>}</>}>{radar?surface:undefined}</RadialMenu>;

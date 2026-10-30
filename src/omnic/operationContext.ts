@@ -1,7 +1,7 @@
 import type {Recipe,RecipeResolver} from './model.ts';
 import {evaluateRecipe,type Evaluation,type StructuralNode} from './evaluate.ts';
 import {componentIndex} from './componentTargets.ts';
-import {primitiveBounds} from './contextGeometry.ts';
+import {primitiveBounds,authoredNodeOwners} from './contextGeometry.ts';
 import {definition,applicableParameters,type Parameter} from './registry.ts';
 import {targetDegrees,targetParameter,targetDegreeValue,writeTargetDegree} from './targetDegrees.ts';
 import {deriveMatchCandidate,measurementsAgree,type NumericOperationContext,type MatchCandidate,type MeasurementReference} from '../properties/operationContext.ts';
@@ -9,12 +9,10 @@ import {RENDER_BUDGET} from '../renderBudget.ts';
 
 type Quantity=NonNullable<Parameter['measurement']>;
 export function operationGeometry(recipe:Recipe,evaluation:Evaluation,stateOwner='recipe'){
- const components=componentIndex(recipe),byId=new Map(evaluation.nodes.map(n=>[n.id,n])),groups=new Map<string,StructuralNode[]>();
+ const components=componentIndex(recipe),owners=authoredNodeOwners(recipe,evaluation),groups=new Map<string,StructuralNode[]>();
  for(const node of evaluation.nodes){
   if(node.kind==='group')continue;
-  let owner:StructuralNode|undefined=node;
-  while(owner&&!components.has(owner.componentId))owner=owner.parent?byId.get(owner.parent):undefined;
-  let id=owner?.componentId;
+  let id=owners.get(node.id);
   while(id){let list=groups.get(id);if(!list){list=[];groups.set(id,list);}list.push(node);id=components.get(id)?.parent;}
  }
  const views=new Map<string,{bounds:NonNullable<ReturnType<typeof primitiveBounds>>;measurements:Map<Quantity,MeasurementReference>}>();

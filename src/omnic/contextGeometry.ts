@@ -7,6 +7,17 @@ import { translateTargets, targetDegreeValue, targetParameter, writeTargetDegree
 import { legalAtoms } from './atomnic.ts';
 import type { EditableDegree } from '../properties/editableDegrees.ts';
 import type { ResizeRect } from '../ui/resizeGeometry.ts';
+/** Canonical authored owner of each rendered primitive, including reused recipes. */
+export function authoredNodeOwners(recipe:Recipe,evaluation:Evaluation){
+ const components=componentIndex(recipe),nodes=new Map(evaluation.nodes.map(node=>[node.id,node])),owners=new Map<string,string>();
+ for(const node of evaluation.nodes){
+  if(node.kind==='group')continue;
+  let owner:StructuralNode|undefined=node;
+  while(owner&&!components.has(owner.componentId))owner=owner.parent?nodes.get(owner.parent):undefined;
+  if(owner)owners.set(node.id,owner.componentId);
+ }
+ return owners;
+}
 export function targetNodes(evaluation:Evaluation,ids:readonly string[]){
   const chosen=new Set(ids),index=new Map(evaluation.nodes.map(node=>[node.id,node]));
   const inside=(node:StructuralNode)=>{let current:StructuralNode|undefined=node;while(current){if(chosen.has(current.id)||chosen.has(current.componentId))return true;current=current.parent?index.get(current.parent):undefined;}return false;};

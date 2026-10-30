@@ -697,3 +697,6 @@ Actual rotation-edge correction: remove outsideBoundary and the 2–8 scene-unit
 
 
 ToolIcon may declare size (glyph pixels) and glow in command metadata. Shared ToolGlyph renders those defaults for both tool controls and keyboard/default cursors; captured clicked icons retain their styled appearance. Glyph sizing does not resize controls or geometry hit zones. Rotation currently declares a static glowing 20px glyph.
+
+
+Unselected hover correction: interaction previews must not require prior selection. Prepare rendered-geometry ownership and registered DOF capabilities per displayed snapshot; preview Move over applicable visible ink and Rotation near actual edges only when the target declares rotation. Hover never commits selection or geometry. An edge press on an unselected object selects the canonical authored owner and starts rotation in the same gesture; selected-group scope is preserved for its members. The common authored-node resolver is reused by reference measurements and hover discovery, including reused geometry. No per-preset hit handlers, per-motion registry discovery or new cursor renderer. Existing MS/Ctrl/Erase priority and geometry-only hit tolerance remain. Browser confirmation pending.
