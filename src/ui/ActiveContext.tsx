@@ -1,7 +1,7 @@
 import {featureActionRuntime} from '../featureActions';
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
-import { activeFrame, parentContext, contextLayerAction, contextStackFromScopes, insertContextLayer, dismissContextPointer, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
+import { activeFrame, parentContext, contextLayerAction, contextStackFromScopes, insertContextLayer, contextLayerScope, dismissContextPointer, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
@@ -79,6 +79,8 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
     if (!ui || !open || !node) return;
     const saved = ui.activeContext.getSnapshot(), owner = parent ?? activeFrame(saved)?.key;
     ui.contextLayers.set(node, { ancestors:navigation?.ancestors?.flatMap(ref=>ref.current?[ref.current]:[]),dismissOutside:navigation?.dismissOutside,parent: owner, close: () => current.current(),dismiss:dismiss?()=>dismissal.current?.():undefined,cancel:navigation?.cancel?()=>nav.current?.cancel?.():undefined,advance:navigation?.advance?()=>nav.current?.advance?.():undefined,confirm:navigation?.confirm?()=>nav.current?.confirm?.():undefined });
+    const enter=()=>{if(uiPointerHeld())return;const layer=ui.contextLayers.get(node);if(!layer)return;publish(ui,contextLayerScope(layer.parent?frameChain(ui,layer.parent):[],node,ui.contextLayers));};
+    node.addEventListener('pointerenter',enter);
     const focused = document.activeElement;
     // Nested portalled controllers retain their existing context ancestors.
     // Rebuilding only the frame chain drops the parent popup from Esc/Back.
@@ -88,6 +90,7 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
     publish(ui, focused instanceof HTMLElement && node.contains(focused) ? stackAt(ui, focused)
       : insertContextLayer(ancestors,node,ui.contextLayers));
     return () => {
+      node.removeEventListener('pointerenter',enter);
       ui.contextLayers.delete(node);
       const stack = ui.activeContext.getSnapshot(), index = stack.findIndex(entry => entry.kind === "layer" && entry.element === node);
       if (index >= 0) publish(ui, stack.slice(0, index));

@@ -632,3 +632,28 @@ test('logical popup parents register before portalled children and navigation up
  assert.deepEqual(stack.map(e=>e.element??e.key),['composer',outer,inner,leaf]);
  contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['inner','leaf']);
 });
+
+test('Enter accepts the preview before finishing its stage, while rejected choices and cancel retain editing',async()=>{
+ const {confirmContextStage}=await import('../src/ui/contextNavigation.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const {confirmValue}=await import('../src/ui/valueConfirmation.ts');
+ const session=mathematicalValueSession({x:1,y:2},(a,b)=>a.x===b.x&&a.y===b.y),calls=[];
+ session.preview({x:9,y:6});
+ assert.deepEqual(session.restore(),{x:1,y:2},'leaving an unconfirmed preview is still cancellation');
+ session.preview({x:9,y:6});
+ assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>session.expected,onCommit:value=>{session.commit(value);calls.push('commit');}}),()=>{calls.push('finish');session.restore();}),true);
+ assert.deepEqual(calls,['commit','finish'],'finishing may unmount/cancel the surface only after its owner accepts');
+ assert.deepEqual(session.restore(),{x:9,y:6},'leaving/unmount after Enter retains the accepted value');
+ assert.equal(confirmContextStage(()=>false,()=>calls.push('invalid finish')),false);
+ assert.deepEqual(calls,['commit','finish'],'invalid/no-candidate selection cannot close the stage');
+});
+
+test('hovering a popup activates its logical confirmation scope before any click',async()=>{
+ const {contextLayerScope,contextLayerAction}=await import('../src/ui/activeContextModel.ts');
+ const frame={kind:'frame',key:'composer'},parent={},child={},removed={},calls=[];
+ const layers=new Map([[parent,{close:()=>{},confirm:()=>calls.push('parent')}],[child,{ancestors:[parent,removed],close:()=>{},confirm:()=>calls.push('child')}] ]);
+ const stack=contextLayerScope([frame],child,layers);
+ assert.deepEqual(stack,[frame,{kind:'layer',element:parent},{kind:'layer',element:child}]);
+ contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['child'],'Enter has the child owner without a prior selection click');
+ assert.deepEqual(contextLayerScope([frame],removed,layers),[frame],'closed layers cannot reactivate');
+});

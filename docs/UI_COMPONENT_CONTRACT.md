@@ -836,3 +836,20 @@ normal StrictMode, without fallback command invocation. No browser suite was run
 General user-workspace/browser acceptance remains pending. Model regressions cover
 registered interiors/input priority, late parent insertion and confirmation after
 parent availability changes.
+
+
+### Hover-owned keyboard confirmation and finishing (2026-10-30)
+
+`useActiveLayer` activates its registered logical context on native pointer entry,
+without waiting for a selection click. It uses `contextLayerScope` and declared
+portal ancestry, with no pointer-move work or DOM geometry discovery. Existing
+held UI gestures retain priority. This repairs hover-only Enter being unavailable
+until the user first clicked within the popup.
+
+`confirmContextStage` sequences the child value acceptance before the popup's
+existing finish/advance/dismiss/close lifecycle. A false acceptance result vetoes
+finishing. Enter must finish the current stage after a successful value write;
+native fields and MS priority remain. Primary selection continues its own existing
+behavior. Leaving/cancelling an unconfirmed preview restores the prior value;
+leaving after accepted Enter cannot undo it. Future contextual editors inherit
+these shared ownership and completion rules.

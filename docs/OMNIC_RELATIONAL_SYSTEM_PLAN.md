@@ -2,6 +2,15 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Preview cancellation versus Enter completion (2026-10-30)
+
+Leaving a value field before accepting intentionally restores its previous value.
+Preserve this behavior. Enter accepts the prepared preview then finishes the
+current editor stage, so confirmation does not require clicking outside. Popup
+entry activates its declared logical context without a prior click; held gestures
+retain ownership. Shared layer/navigation lifecycle owns this for every projection,
+not individual DOF handlers.
+
 ## Popup ownership correction (2026-10-30)
 
 Shared confirmation adapters alone were insufficient: parent popup navigation

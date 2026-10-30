@@ -63,3 +63,11 @@ export function insertContextLayer(stack:ActiveContextStack,node:HTMLElement,lay
  const index=next.findIndex(entry=>entry.kind==='layer'&&layers.get(entry.element)?.ancestors?.includes(node));
  return [...next.slice(0,index<0?next.length:index),{kind:'layer',element:node},...next.slice(index<0?next.length:index)];
 }
+
+/** Entering an open popup selects its declared logical scope without requiring
+ * a prior click or DOM focus. Portal siblings still retain parent-first order. */
+export function contextLayerScope(prefix:ActiveContextStack,node:HTMLElement,layers:ReadonlyMap<HTMLElement,ContextLayer>):ActiveContextStack{
+ const layer=layers.get(node);if(!layer)return prefix;
+ const parents=[...(layer.ancestors??[])].reverse().filter(parent=>layers.has(parent));
+ return [...prefix,...[...new Set([...parents,node])].map(element=>({kind:'layer' as const,element}))];
+}

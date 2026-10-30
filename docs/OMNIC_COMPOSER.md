@@ -816,8 +816,8 @@ Primary selection and Enter now confirm the same prepared candidate through
 math dial. Held value sliders register their existing finish transaction for
 Enter. No confirm/checkmark buttons or per-DOF key handlers are introduced.
 Confirmation writes through existing owners and retains the accepted value when
-the pointer leaves; Esc restores only an uncommitted preview. Controls stay open
-for further editing under their existing outside-dismissal rules.
+the pointer leaves; Esc restores only an uncommitted preview. Primary selection can keep controls open for further editing. Enter accepts the
+current candidate and finishes the current stage through its existing lifecycle.
 
 The popup wrapper's duplicate opening-press boolean is removed; only the shared
 physical-press-version guard suppresses the actual opener tail. Nested action
@@ -843,3 +843,24 @@ by Enter, each preserving the previewed coordinates after pointer leave. Direct
 Position and MS-reference entry were traced. No browser suite ran; general user
 acceptance remains pending. Existing value math, references, constraints, setters
 and recipe history are unchanged.
+
+
+### Enter finishes; leaving cancels an unconfirmed preview (2026-10-30)
+
+Entering an open popup activates its logical context without requiring a click
+first. This is shared `useActiveLayer` behavior, suppressed during an already
+held UI gesture; no per-DOF keyboard handling is added. Enter first accepts the
+current prepared candidate through its value owner, then finishes/advances the
+current popup stage. A rejected/no candidate can veto finishing. It must not
+leave the session live and require an outside click merely to finish.
+
+Leaving the value surface before confirmation still restores its previous value.
+That is intentional preview cancellation. After Enter acceptance, leaving or
+unmounting keeps the accepted value. Primary selection retains its existing
+interaction; this correction concerns keyboard scope and stage completion.
+
+Focused local synthetic checks verified this sequence for direct Position and
+MS-reference entry: unconfirmed leave restored the original tuple; hover-only
+Enter was available, accepted the preview, removed the grid and retained the exact
+tuple after leaving. No browser suite ran; general user-workspace acceptance is
+still pending.

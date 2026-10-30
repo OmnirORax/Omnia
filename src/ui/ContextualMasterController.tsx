@@ -1,4 +1,4 @@
-import {contextNavigationAction} from './contextNavigation';
+import {contextNavigationAction,confirmContextStage} from './contextNavigation';
 import {SelectionOpenContext} from './SelectionOpenContext';
 import {cursorSample,popupInvocation} from './cursorPosition';
 import {placePopup,popupBelowButton,type PopupRect} from './popupPlacement';
@@ -31,7 +31,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
   const closeLayer=()=>{if(drag.current)cancelDrag();else (navigate('back')??onClose)();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
-  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{ancestors:parents,dismissOutside,cancel:navigate('cancel'),advance:navigate('advance')??onAdvance,confirm:navigate('confirm')??onConfirm??navigate('advance')??onAdvance});
+  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{ancestors:parents,dismissOutside,cancel:navigate('cancel'),advance:navigate('advance')??onAdvance,confirm:()=>confirmContextStage(navigate('confirm'),onConfirm??onAdvance??onDismiss??onClose)});
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
     node.setAttribute("popover", "manual"); node.showPopover();
