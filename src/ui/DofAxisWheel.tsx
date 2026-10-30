@@ -28,7 +28,7 @@ export function DofAxisWheel({field,value,label,symbol,disabled,onPreview,onComm
   onPointerUp={event=>{if(event.button!==0||disabled||(event.target instanceof Element&&event.target.closest('[data-dial-drag]')))return;event.preventDefault();event.stopPropagation();const next=activation.current.take(pick(event.clientX,event.clientY));if(next!==undefined)onCommit(next);}}
   onClick={event=>{if(disabled||(event.target instanceof Element&&event.target.closest('[data-dial-drag]')))return;event.preventDefault();event.stopPropagation();}}
   onContextMenu={event=>{event.preventDefault();event.stopPropagation();activation.current.cancel();cancel();onConfigure();}}>
-  <svg className="radial-menu-rims" viewBox="-1 -1 2 2" aria-hidden="true"><circle r=".8"/>{field.candidates.map(candidate=><line key={candidate.id} x1="0" y1="0" x2={candidate.point.x} y2={candidate.point.y} vectorEffect="non-scaling-stroke"/>)}</svg>
+  <svg className="radial-menu-rims" viewBox="-1 -1 2 2" aria-hidden="true"><circle r=".8"/>{field.candidates.map(candidate=><line className={candidate.thresholds?.length?"dof-axis-threshold":undefined} key={candidate.id} x1="0" y1="0" x2={candidate.point.x} y2={candidate.point.y} vectorEffect="non-scaling-stroke"/>)}</svg>
   <span className="dof-axis-origin" data-dial-drag role="button" tabIndex={0} title="Move wheel" aria-label="Move wheel" style={{width:RADIAL_GEOMETRY.minimumSize*scale,height:RADIAL_GEOMETRY.minimumSize*scale}}>{symbol}</span>
   <output className="dof-axis-readout" title={String(value)}>{field.candidates.length?`${rangeLabel(value)}°`:'∅'}</output>
  </div>;

@@ -1,10 +1,16 @@
 import {selectionTurns,maximumSelectionStates,type CyclicSelection,type StateSelectionMode} from './stateSelection.ts';
 
 export type StateFieldProjection='radial'|'axis-x'|'axis-y';
-export type StateFieldDomain={min:number;max:number;integer?:boolean;resolution:number;unit?:string;quantity?:string;cyclic?:CyclicSelection;projection:StateFieldProjection};
-export type StateFieldCandidate={id:string;index:number;value:number;point:{x:number;y:number};derivation:{mode:StateSelectionMode|'reference';reference:number;referenceId?:string;index:number;count:number;step:number;min:number;max:number}};
+export type FieldThreshold=Readonly<{id:string;value:number}>;
+export type FieldReference=Readonly<{id:string;label:string;value:number;min?:number;max?:number;thresholds?:readonly FieldThreshold[]}>;
+/** Working limits override reference defaults; hard domain constraints always win. */
+export function fieldLimits(domain:{min:number;max:number},reference:FieldReference|undefined,limits:{min?:number;max?:number}={}){
+ return {min:Math.max(domain.min,limits.min??reference?.min??domain.min),max:Math.min(domain.max,limits.max??reference?.max??domain.max)};
+}
+export type StateFieldDomain={min:number;max:number;integer?:boolean;resolution:number;unit?:string;quantity?:string;cyclic?:CyclicSelection;projection:StateFieldProjection;thresholds?:readonly FieldThreshold[]};
+export type StateFieldCandidate={id:string;index:number;value:number;point:{x:number;y:number};thresholds?:readonly string[];derivation:{mode:StateSelectionMode|'reference';reference:number;referenceId?:string;index:number;count:number;step:number;min:number;max:number}};
 export type StateField={domain:StateFieldDomain;min:number;max:number;candidates:readonly StateFieldCandidate[];projection:StateFieldProjection};
-export type StateFieldConfiguration={mode:StateSelectionMode;count:number;step:number;reference:number;referenceId?:string;min?:number;max?:number};
+export type StateFieldConfiguration={mode:StateSelectionMode;count:number;step:number;reference:number;referenceId?:string;min?:number;max?:number;thresholds?:readonly FieldThreshold[]};
 /** One bounded generator/filter/project path. Projections are addresses for raw
  * quantities, directions for cyclic values, and coordinates for spatial axes. */
 export function createStateField(domain:StateFieldDomain,config:StateFieldConfiguration,allowed:(value:number)=>boolean=()=>true):StateField{
@@ -26,6 +32,10 @@ export function createStateField(domain:StateFieldDomain,config:StateFieldConfig
  // A declared reference is itself a meaningful state, even when it lies between
  // regular partitions. It is offered, never silently applied.
  if(!domain.cyclic&&config.mode==='symmetry')values.push(config.reference);
+ const thresholds=[...(domain.thresholds??[]),...(config.thresholds??[])];
+ values.push(...thresholds.map(t=>t.value));
+ const thresholdIds=new Map<number,string[]>();
+ for(const t of thresholds){const value=Number(t.value.toPrecision(15));thresholdIds.set(value,[...(thresholdIds.get(value)??[]),t.id]);}
  const seen=new Set<number>(),valid=values.flatMap((raw,index)=>{
   // Decimal arithmetic noise may be normalized; integer constraints never round
   // a fractional candidate into a different, invented state.
@@ -37,7 +47,8 @@ export function createStateField(domain:StateFieldDomain,config:StateFieldConfig
   const turn=domain.cyclic?(value-domain.cyclic.north)/domain.cyclic.period:address/Math.max(1,valid.length);
   const position=max===min?0:2*(value-min)/(max-min)-1;
   const point=domain.projection==='axis-x'?{x:position*.8,y:0}:domain.projection==='axis-y'?{x:0,y:position*.8}:{x:Math.sin(turn*Math.PI*2)*.8,y:-Math.cos(turn*Math.PI*2)*.8};
-  return {id:`${config.mode}:${index}`,index,value,point,derivation:{mode:!domain.cyclic&&config.mode==='symmetry'&&index===referenceIndex?'reference' as const:config.mode,reference:config.reference,referenceId:config.referenceId,index,count:config.count,step:config.step,min,max}};
+  const landmarks=thresholdIds.get(value);
+  return {id:landmarks?`threshold:${landmarks.join("|")}`:`${config.mode}:${index}`,index,value,point,...(landmarks?{thresholds:landmarks}:{}),derivation:{mode:!domain.cyclic&&config.mode==='symmetry'&&index===referenceIndex?'reference' as const:config.mode,reference:config.reference,referenceId:config.referenceId,index,count:config.count,step:config.step,min,max}};
  });
  return {domain,min,max,candidates,projection:domain.projection};
 }

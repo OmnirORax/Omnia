@@ -2,6 +2,85 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Current architectural correction: references supply measurements (2026-10-30)
+
+This section supersedes older assumptions that Self means no reference, that
+selecting another object automatically constrains the editing interval, or that
+pivot/origin needs a separate DOF interaction.
+
+A reference is a source of meaningful measurements, including Self. A measurement
+can supply a step distance, a limit, an anchor, a significant threshold or an exact
+match. Selecting its source and choosing its use are independent decisions. For
+example, Position can use Self width, Self height or another object's compatible
+extent as a step distance. Width is not assumed to be the correct choice for every
+movement; the measurement must be identifiable and configurable. This is one
+example of the general contract, not a special Position snapping feature.
+
+Required shared contract (planned, not yet implemented):
+
+- Reference source: Self, another authored target, or Environment. Self is an
+  explicit source resolved against the active owner, not deletion of a choice.
+- Measurement feature: stable identity, quantity/unit, coordinate frame, evaluated
+  value and owner. Geometry adapters expose applicable measures and significant
+  thresholds through capabilities, without per-preset editor implementations.
+- Measurement use: anchor, step, lower/upper limit, threshold or match. Uses remain
+  separate from source selection and from the mathematical generator. A source may
+  support multiple uses and multiple DOFs; quantities require compatible units and
+  an explicit conversion/response adapter where applicable.
+- Rule: transforms the selected measure (fractions, multiples, halving, etc.).
+  The math dial configures this; execution surfaces consume its generated states.
+- Constraints and thresholds: valid significant states survive fractionalization;
+  hard constraints can exclude them. Context boundaries become limits only when
+  configured for that use. Never promote arbitrary numeric presets to semantic
+  thresholds merely because they are present in the old registry.
+- Evaluation lifetime: gesture previews use a stable source snapshot, especially
+  for Self, so the preview does not change its own step underneath the cursor.
+  Refresh on a new operation/external edit. Durable dependency binding is separate
+  from a one-time calculation and must define feedback/cycle handling explicitly.
+
+Implementation sequence:
+
+1. Introduce the portable measurement/source/use contracts and a shared resolver;
+   extend the existing evaluated geometry adapter rather than creating another
+   object inventory. Include Self in the same path as external sources.
+2. Route current reference selection through that context; separate anchor/step/
+   limits and replace implicit bounds. Keep Q spatial selection, compact contextual
+   controls, existing setters/history and existing owner identity.
+3. Merge domain/reference thresholds into shared field generation, with stable
+   provenance and deduplication. Test invariant preservation across rules, units,
+   Self/external sources, constraints and source refresh.
+4. Connect existing Position and Rotation execution to the same prepared context;
+   extend scalar editors by capability. Prove Self/external extent-driven steps
+   before adding more geometry adapters. No new behavior outside Composer.
+5. Migrate legacy pivot/snap configuration into reference relations, then extend
+   spatial fields and feature selection. Future adapters inherit the same resolver,
+   rules, threshold handling, projection selection and preview/commit contract.
+
+Implemented first pipeline slice (browser acceptance pending): Self resolves through
+fieldReferenceFor like external sources; picking Self retains its identity.
+Coordinate sources supply centre/boundary thresholds and default intervals. Shared
+fieldLimits applies overridable defaults under hard domain bounds; DofStateField
+and direct Position field preparation both use it. Shared generation preserves
+valid declared thresholds across mathematical rules. Cyclic adapters declare
+quarter-turn axes; opacity declares transparent/opaque states. Arbitrary old
+numeric presets are not imported as semantic thresholds. Future numeric adapters
+inherit the merge/filter behavior, and may declare their own significant states.
+
+The existing DOF radial → Q reference → field workflow remains; selecting a new
+source resets previous working limits while retaining the rule. Refine either
+limit using generated values/thresholds via the slider ends or ⊢/⊣ in the mode
+configuration radial. Limit configuration changes working settings, not geometry;
+Enter/close returns to execution. Reset restores the reference defaults. Existing
+unconfigured direct dragging remains free; retained single-target Position fields
+consume the shared context. Self/reference geometry is evaluated from committed
+geometry, not hover samples.
+
+Still planned: selecting a measurement feature/use (for example width as a step),
+full stable operation snapshots across repeated commits, unified measured matching,
+arbitrary frames/features, multi-target fields, persistent bindings and migration
+of legacy pivot/snap settings. Do not describe these as delivered. This slice
+retains reference-context controls and existing UI rather than inventing a wizard.
+
 ## Accepted baseline and sources
 
 The accepted implementation baseline is merged PR #40, commit

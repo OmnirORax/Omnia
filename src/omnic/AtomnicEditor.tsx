@@ -4,7 +4,7 @@ import {fieldReferenceFor} from './referenceGeometry';
 import {positionFieldDelta,type PositionField} from './dofGesture';
 import {pointerCommandGate} from '../ui/pointerCommandGate';
 import {targetNodes} from './contextGeometry';
-import {createStateField} from '../properties/stateField';
+import {createStateField,fieldLimits} from '../properties/stateField';
 import {stateFieldDomain} from './stateFieldAdapter';
 import {useWorkingSelection,useWorkingSelectionReader} from '../ui/RangeControl';
 import {useNumericEditor} from '../ui/NumericEditorScope';
@@ -146,7 +146,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       if(!axis)return [];const saved=readRule(degree.id),retained=referencePicker?.references.get(ids[0]);if(!saved&&!retained)return [];
       const domain=stateFieldDomain(parameter);if(!domain)return [];
       const reference=referencePicker?.snapshot?fieldReferenceFor(referencePicker.snapshot,degree,retained,referencePicker.environment):undefined;
-      const field=createStateField(domain,{mode:saved?.mode??'symmetry',count:saved?.count??8,step:saved?.step??domain.resolution,reference:reference?.value??Number(targetDegreeValue(recipeRef.current,degree)),referenceId:reference?.id,min:Math.max(saved?.min??domain.min,reference?.min??domain.min),max:Math.min(saved?.max??domain.max,reference?.max??domain.max)},n=>{try{writeTargetDegree(recipeRef.current,degree,n);return true;}catch{return false;}});
+      const field=createStateField(domain,{mode:saved?.mode??'symmetry',count:saved?.count??8,step:saved?.step??domain.resolution,reference:reference?.value??Number(targetDegreeValue(recipeRef.current,degree)),referenceId:reference?.id,...fieldLimits(domain,reference,saved),thresholds:reference?.thresholds},n=>{try{writeTargetDegree(recipeRef.current,degree,n);return true;}catch{return false;}});
       return [{axis,start:Number(targetDegreeValue(recipeRef.current,degree)),field}];
     });
   };

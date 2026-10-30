@@ -31,8 +31,8 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,ch
     const element=selection.element.closest('[data-omnic-component]');
     const id=element?.getAttribute('data-omnic-component')??(selection.element.closest('[data-selection-environment]')?'@environment':undefined);if(!id)return false;
     const live=callbacks.current.snapshot;if(!live)return false;
-    const self=degree.targets.some(target=>target.id===id),reference=self?undefined:fieldReferenceFor(live,degree,id,environment);if(!self&&!reference)return false;
-    pending.current=undefined;setPicking(false);setReferences(before=>{const next=new Map(before);for(const t of degree.targets)if(self)next.delete(t.id);else next.set(t.id,id);return next;});finish(reference);return true;
+    const reference=fieldReferenceFor(live,degree,id,environment);if(!reference)return false;
+    pending.current=undefined;setPicking(false);setReferences(before=>{const next=new Map(before);for(const t of degree.targets)next.set(t.id,id);return next;});finish(reference);return true;
    },()=>{if(pending.current===request){pending.current=undefined;setPicking(false);finish(undefined);}});
   });
  },

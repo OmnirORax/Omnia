@@ -871,3 +871,40 @@ test('rotation axis wheel previews existing rule states and commits a captured c
  assert.equal(targetDegreeValue(committed,degree),90,'click commits its captured angle even after native blur cancelled hover');
  assert.equal(session.restore(),90,'later pointer exit retains the clicked state');
 });
+
+test('shared thresholds survive changing fractions, with hard constraints and owner legality respected',async()=>{
+ const {createStateField,fieldLimits}=await import('../src/properties/stateField.ts');
+ const domain={min:-100,max:100,resolution:.01,projection:'axis-x',thresholds:[{id:'neutral',value:0},{id:'meaningful',value:17}]};
+ const reference={id:'self',label:'Self',value:13,min:-40,max:40,thresholds:[{id:'edge',value:40}]};
+ assert.deepEqual(fieldLimits(domain,reference),{min:-40,max:40});
+ assert.deepEqual(fieldLimits(domain,reference,{min:-60,max:20}),{min:-60,max:20},'reference defaults are overridable, not hard bounds');
+ assert.deepEqual(fieldLimits(domain,reference,{min:-200,max:200}),{min:-100,max:100});
+ for(const mode of ['symmetry','halving','step'])for(const count of [3,7,8]){
+  const config={mode,count,step:3,reference:13,...fieldLimits(domain,reference),thresholds:reference.thresholds};
+  const field=createStateField(domain,config);
+  for(const n of [0,17,40])assert.ok(field.candidates.some(c=>c.value===n&&c.thresholds?.length),`${mode}/${count}: ${n}`);
+  assert.equal(new Set(field.candidates.map(c=>c.value)).size,field.candidates.length);
+  assert.ok(!createStateField(domain,{...config,max:10}).candidates.some(c=>c.value===17));
+  assert.ok(!createStateField(domain,config,n=>n!==17).candidates.some(c=>c.value===17));
+ }
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const cyclic=stateFieldDomain({kind:'number',key:'future',property:'future.angle',label:'Future cyclic DOF',initial:0,min:-180,max:360,selection:{north:-90,period:360}});
+ for(const count of [7,31,64]){
+  const field=createStateField(cyclic,{mode:'symmetry',count,step:1,reference:-90});
+  for(const [i,axis] of [-90,0,90,180].entries()){const state=field.candidates.find(c=>c.value===axis);assert.ok(state,`${count} divisions retain ${axis}`);assert.equal(state.id,`threshold:axis:${i}`,'landmark identity survives subdivision changes');}
+ }
+});
+
+test('Self and external geometry supply the same reference interval contract without editing geometry',async()=>{
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {fieldReferenceFor}=await import('../src/omnic/referenceGeometry.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{length:80,x:10,y:20,angle:0}},{id:'b',generator:'line',params:{length:40,x:100,y:20,angle:0}}]));
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ const degree=targetDegrees(source,['a']).find(d=>d.id==='omnic.coordinate.x');
+ const implicit=fieldReferenceFor(geometry,degree),self=fieldReferenceFor(geometry,degree,'a'),other=fieldReferenceFor(geometry,degree,'b');
+ assert.deepEqual(implicit,self);assert.equal(self.label,'Self');
+ assert.ok(self.max>self.min);assert.ok(other.max>other.min);
+ assert.equal(self.thresholds.length,3);assert.equal(other.thresholds.length,3);
+ assert.equal(self.thresholds[1].value,self.value);
+ assert.equal(source.components[0].params.x,10,'reference selection is configuration only');
+});
