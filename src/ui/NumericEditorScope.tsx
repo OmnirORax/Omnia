@@ -25,6 +25,3 @@ export type SelectionReference={id:string;label:string;value:number;min?:number;
 export type NumericReferenceControl={allowed?:(value:number)=>boolean;targets?:readonly string[];selection?:{environment?:()=>void;unavailable?:boolean;current?:SelectionReference;pick:()=>Promise<SelectionReference|undefined>;clear:()=>void;cancel:()=>void}};
 export const NumericOperationScope=createContext<NumericReferenceControl|undefined>(undefined);
 export const useNumericOperation=()=>useContext(NumericOperationScope);
-
-/** Content adapter lends its existing cursor zone to active DOF editors. */
-export const NumericToolZone=createContext<string|undefined>(undefined);

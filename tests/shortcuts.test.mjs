@@ -498,9 +498,12 @@ test('nested popup surfaces own their events even when React bubbles through a p
 test('secondary menus activate once on release in either native contextmenu order',async()=>{
  const {createSecondaryRelease}=await import('../src/ui/secondaryRelease.ts');
  const click=createSecondaryRelease();
+ assert.equal(click.hasPress(),false);
  click.press('press');
+ assert.equal(click.hasPress(),true,'mouse-only right-button chords can detect an already recorded press');
  assert.equal(click.context(),undefined,'press-time contextmenu must not expose controls');
  assert.equal(click.release('release'),'release');
+ assert.equal(click.hasPress(),false);
  assert.equal(click.context(),undefined,'the same click cannot open settings again');
  click.press('press');
  assert.equal(click.release('release'),undefined,'wait for native contextmenu when it follows release');

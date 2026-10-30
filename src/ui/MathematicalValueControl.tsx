@@ -10,7 +10,7 @@ import {useNumericEditor} from './NumericEditorScope';
 export function MathematicalValueControl({inline=false,configurationKey,step=1,...props}:Parameters<typeof MathematicalDial>[0]&{inline?:boolean;configurationKey?:string;step?:number}){
  const [point,setPoint]=useState<{x:number;y:number}|null>(null),scope=useNumericEditor();
  const close=()=>{scope.cancelPreview?.();setPoint(null);};
- const field=<DofStateField property={configurationKey??props.label??'value'} label={props.label??'Value'} value={props.value} disabled={props.disabled} configure={props.configure}
+ const field=<DofStateField property={configurationKey??props.label??'value'} label={props.label??'Value'} value={props.value} disabled={props.disabled} configure={props.configure} onDismiss={close}
   domain={{min:props.min,max:props.max,integer:props.integer,resolution:step,projection:'radial'}} onPreview={props.onPreview} onCommit={props.onCommit}/>;
  if(inline)return field;
  return <span className="mathematical-value-control" data-ui-control>

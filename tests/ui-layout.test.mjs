@@ -435,3 +435,11 @@ test('cursor applicability follows operation zones and restores native behavior 
   assert.equal(inCursorArea({x:310,y:200},circle),false,'pointer capture cannot extend applicability');
   assert.equal(inCursorArea({x:110,y:110},{...circle,circle:false}),true);
 });
+
+test('outside-zone DOF settings dismiss outside controls but preserve popup interiors',async()=>{
+ const {dismissOutsideContext}=await import('../src/ui/activeContextModel.ts');
+ const inside={},outside={},calls=[];
+ const layers=new Map([[{contains:t=>t===inside},{close:()=>{},dismiss:()=>calls.push('settings'),dismissOutside:true}],[{contains:()=>false},{close:()=>{},dismiss:()=>calls.push('ordinary') }]]);
+ assert.equal(dismissOutsideContext(layers,inside),false);assert.deepEqual(calls,[]);
+ assert.equal(dismissOutsideContext(layers,outside),true);assert.deepEqual(calls,['settings']);
+});

@@ -3,7 +3,7 @@ export type ActiveContextEntry = { kind: "frame"; key: string; element?: HTMLEle
   { kind: "field" | "layer"; element: HTMLElement };
 export type ActiveContextStack = readonly ActiveContextEntry[];
 export type ActiveContextStore = TransientStore<ActiveContextStack>;
-export type ContextLayer = { parent?: string; close: () => void; dismiss?: () => void; cancel?:()=>void;advance?:()=>void; confirm?:()=>void };
+export type ContextLayer = { parent?: string; close: () => void; dismiss?: () => void; dismissOutside?:boolean; cancel?:()=>void;advance?:()=>void; confirm?:()=>void };
 export const UI_CANCEL_EDIT = "omnium:cancel-value-edit";
 /** One level only, even when the same physical key repeats. */
 export const parentContext = (stack: ActiveContextStack): ActiveContextStack => stack.slice(0, -1);
@@ -38,4 +38,12 @@ export function contextLayerAction(stack:ActiveContextStack,layers:ReadonlyMap<H
   const layer=layers.get(entry.element),handler=action==='confirm'?layer?.confirm??layer?.advance:layer?.[action];
   if(handler)return handler;
  }
+}
+
+/** Explicit outside-zone dismissal protects registered child popup interiors too. */
+export function dismissOutsideContext(layers:ReadonlyMap<HTMLElement,ContextLayer>,target:Node){
+ if([...layers.keys()].some(node=>node.contains(target)))return false;
+ const selected=[...layers.values()].filter(layer=>layer.dismissOutside&&layer.dismiss);
+ for(const layer of selected.reverse())layer.dismiss!();
+ return selected.length>0;
 }

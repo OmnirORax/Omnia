@@ -1,12 +1,10 @@
-import {DofInformation,DofRuleExpression,dofModes as modes,type DofSettingsKind,type DofInformationState} from './DofInformation';
-import {useEffect,useContext,useId,useLayoutEffect,useMemo,useRef,useState} from 'react';
+import {DofRuleExpression,dofModes as modes,type DofSettingsKind,type DofInformationState} from './DofInformation';
+import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {maximumSelectionStates,type StateSelectionMode} from '../properties/stateSelection';
 import {createStateField,type StateFieldDomain} from '../properties/stateField';
 import {mathematicalValueSession} from '../properties/mathematicalDial';
 import {RangeControl,useWorkingSelection} from './RangeControl';
-import {useNumericEditor,useNumericOperation,NumericToolZone} from './NumericEditorScope';
-import {useToolCursor} from './toolCursor';
-import {setToolCursorZone} from './toolCursorZone';
+import {useNumericEditor,useNumericOperation} from './NumericEditorScope';
 import {cursorPosition} from './cursorPosition';
 import {ContextualMasterController} from './ContextualMasterController';
 import {MathematicalDial} from './MathematicalDial';
@@ -17,8 +15,7 @@ import './dofStateField.css';
 type Settings={kind:DofSettingsKind;point:{x:number;y:number}};
 /** Projection-independent interaction. Domains/rules/constraints prepare a field;
  * pointer picking never discovers scene objects or implements property arithmetic. */
-export function DofStateField({property,label,symbol='⠒❉',domain,value,disabled=false,configure=false,onPreview,onCommit}:{property:string;label:string;symbol?:string;domain:StateFieldDomain;value:number;disabled?:boolean;configure?:boolean|DofSettingsKind;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
- const localZone=useId(),contentZone=useContext(NumericToolZone),zone=contentZone??localZone;
+export function DofStateField({property,label,symbol='⠒❉',domain,value,disabled=false,configure=false,onPreview,onCommit,onDismiss}:{property:string;label:string;symbol?:string;domain:StateFieldDomain;value:number;disabled?:boolean;configure?:boolean|DofSettingsKind;onDismiss?:()=>void;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
  const root=useRef<HTMLDivElement>(null),scope=useNumericEditor(),operation=useNumericOperation();
  const targetsKey=operation?.targets?.join('|')??'';
  useLayoutEffect(()=>scope.activateDegree?.(operation?.targets??[],property),[scope.activateDegree,targetsKey,property]);
@@ -35,16 +32,13 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  useLayoutEffect(()=>{if(session.receive(value)){anchor.current=domain.cyclic?.north??value;setSample(null);}},[value,session]);
  const restore=()=>{setSample(null);if(session.sampling){const before=session.restore();if(scope.cancelPreview)scope.cancelPreview();else onPreview(before);}};
  const show=(kind:Settings['kind'])=>{restore();setParameterSample({});setSettings({kind,point:cursorPosition()});};
- const cursorKey=`state:${localZone}`,reference=operation?.selection?.current;
+ const reference=operation?.selection?.current;
  const countLabel=<DofRuleExpression count={working.count}/>;
  const infoActions=useRef({show,degrees:()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}});infoActions.current={show,degrees:()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}};
  const information=useMemo<DofInformationState>(()=>({label,symbol,mode:mode.label,modeIcon:mode.icon,variable:working.mode==='step'?'step':'count',expression:working.mode==='step'?`Δ ${working.step}`:countLabel,reference:reference?.label??'Self',configure:kind=>infoActions.current.show(kind),degrees:()=>infoActions.current.degrees()}),[label,symbol,mode.label,mode.icon,working.count,working.step,reference?.label]);
  useLayoutEffect(()=>scope.registerInformation?.(information,2),[scope.registerInformation,information]);
- const cursor=useMemo(()=>({key:cursorKey,zone,priority:45,icon:<DofInformation information={information} interactive={false}/>,width:20,height:20,anchor:{x:-.7,y:-.7}}),[cursorKey,zone,information]);
- useToolCursor(disabled||sample===null?null:cursor);
  const toggle=useRef(()=>{});toggle.current=()=>{restore();setParameterSample({});setSettings(before=>before?null:{kind:'options',point:cursorPosition()});};
  useLayoutEffect(()=>scope.registerOptions?.(()=>toggle.current()),[scope.registerOptions]);
- useLayoutEffect(()=>{const node=root.current;if(!node)return;setToolCursorZone(node,zone,true);return()=>setToolCursorZone(node,undefined);},[zone]);
  useContextNavigation({owner:root,cancel:picking?()=>operation?.selection?.cancel():undefined});
  const count=parameterSample.count??working.count,step=parameterSample.step??working.step;
  const low=Math.max(parameterSample.min??working.min??domain.min,reference?.min??domain.min),high=Math.min(parameterSample.max??working.max??domain.max,reference?.max??domain.max);
@@ -63,15 +57,15 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
   settings?.kind==='max'?{label:'Maximum',value:Math.max(domain.min,Math.min(domain.max,field.max)),min:domain.min,max:domain.max,integer:domain.integer,key:'max' as const,commit:working.maxChange}:
   {label:'Step',value:step,min:domain.cyclic?Math.min(domain.resolution,domain.cyclic.period):-Math.max(1,span),max:domain.cyclic?.period??Math.max(1,span),integer:domain.integer,key:'step' as const,commit:working.stepChange};
  return <div ref={root} className="dof-state-editor" aria-disabled={disabled} data-ui-popup-interior>
-  <div className="dof-value-slider">
+  {!settings&&!picking&&<div className="dof-value-slider">
    <span className="dof-state-grip" data-dial-drag role="button" tabIndex={0} title="Move controls">{symbol}</span>
    <RangeControl aria-label={label} value={sample??value} min={field.min} max={field.max} step={domain.resolution} hardMin={domain.min} hardMax={domain.max}
     values={generatedValues} disabled={disabled||!!settings||picking||operation?.selection?.unavailable} onValueChange={preview} onValueCommit={apply} onValueCancel={restore}
     onMinimumChange={working.minChange} onMaximumChange={working.maxChange}
-    onConfigure={which=>{if(which==='value')return false;show(which==='jump'?'parameters':which);return true;}}/>
+    onConfigure={(which,duringGesture)=>{if(duringGesture){show('options');return true;}if(which==='value')return false;show(which==='jump'?'parameters':which);return true;}}/>
    {!generatedValues.length&&<output title="No available values; edit the limits or rule">∅</output>}
-  </div>
-  {settings&&<ContextualMasterController radial title={`${label} mode`} stage={settings.kind} position={settings.point} onClose={closeSettings} onDismiss={closeSettings} onConfirm={closeSettings}>
+  </div>}
+  {settings&&<ContextualMasterController radial dismissOutside title={`${label} mode`} stage={settings.kind} position={settings.point} onClose={closeSettings} onDismiss={()=>{closeSettings();onDismiss?.();}} onConfirm={closeSettings}>
    {settings.kind==='options'?<RadialMenu onClose={closeSettings} items={[
     {id:'dof',symbol:symbol,label:label,content:<button type="button" title="Choose DOF" onClick={()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}}>{symbol}</button>},
     {id:'mode',symbol:mode.icon,label:mode.label,content:<button type="button" title="Configure mode · right-click chooses rule" onClick={()=>show('parameters')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();show('modes');}}>{mode.icon}</button>},

@@ -25,3 +25,13 @@ export function placePopup(parents:readonly PopupRect[],child:{width:number;heig
  for(const x of xs)for(const y of ys){const point={x,y},d=(x-preferred.x)**2+(y-preferred.y)**2;if(d<distance&&clear(point)){best=point;distance=d;}}
  return best;
 }
+
+/** Button-triggered editors stay horizontally centered beneath their button.
+ * An ancestor in that column can push them down, never sideways or above it. */
+export function popupBelowButton(button:PopupRect,child:{width:number;height:number},parents:readonly PopupRect[]=[],gap=4){
+ const x=button.x+button.width/2;let top=button.y+button.height+gap;
+ for(const p of [...parents].sort((a,b)=>a.y-b.y)){
+  if(Math.abs(x-p.x-p.width/2)<(p.width+child.width)/2+gap&&top<p.y+p.height+gap&&top+child.height>p.y-gap)top=p.y+p.height+gap;
+ }
+ return {x,y:top+child.height/2};
+}

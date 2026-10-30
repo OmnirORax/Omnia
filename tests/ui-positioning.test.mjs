@@ -202,3 +202,12 @@ test('child popup placement also avoids older ancestors rather than moving back 
  const size={width:100,height:100},placed=placePopup(parents,size,{x:225,y:140});
  for(const p of parents)assert.ok(Math.abs(placed.x-p.x-p.width/2)>=(p.width+size.width)/2||Math.abs(placed.y-p.y-p.height/2)>=(p.height+size.height)/2);
 });
+
+test('button editors always open below their invoking button, including ancestor avoidance',async()=>{
+ const {popupBelowButton}=await import('../src/ui/popupPlacement.ts');
+ const button={x:150,y:100,width:24,height:24},child={width:180,height:80};
+ assert.deepEqual(popupBelowButton(button,child),{x:162,y:168});
+ const placed=popupBelowButton(button,child,[{x:140,y:90,width:220,height:100}]);
+ assert.equal(placed.x,162,'parent overlap cannot send the editor sideways');assert.equal(placed.y-child.height/2,194);
+ assert.deepEqual(popupBelowButton(button,child,[{x:400,y:130,width:80,height:80}]),{x:162,y:168},'unrelated columns do not displace the child');
+});

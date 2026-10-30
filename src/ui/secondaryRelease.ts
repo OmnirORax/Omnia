@@ -7,6 +7,7 @@ export function createSecondaryRelease<T>() {
     const value=pending.value;pending=undefined;return value;
   };
   return {
+    hasPress:()=>!!pending,
     press(value:T){pending={value,released:false,context:false};},
     release(value:T){if(pending){pending.value=value;pending.released=true;}return take();},
     context(){if(pending)pending.context=true;return take();},

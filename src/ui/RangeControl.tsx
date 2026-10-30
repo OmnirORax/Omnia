@@ -54,7 +54,7 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min
   configuration?:'step';
   configurationKey?:string;
   values?:readonly number[];
-  onConfigure?:(which:Edit)=>boolean|void;
+  onConfigure?:(which:Edit,duringGesture:boolean)=>boolean|void;
 };
 /** A shared slider presentation with track-wide dragging and native keyboard support.
  * Local working intervals and jump size never alter property validation bounds. */
@@ -113,7 +113,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const gestureAPI=useRef<RangeGesture>(null!);gestureAPI.current={start:(id,x,y)=>startDrag(id,x,y,true),move:moveDrag,finish:finishDrag,cancel:cancelDrag};
   useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel()};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
   const label = inputProps["aria-label"] ?? "Value";
-  const edit = (which: Edit) => { cancelDrag();if(onConfigure&&onConfigure(which)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
+  const edit = (which: Edit) => { const duringGesture=!!drag.current;if(drag.current){const active=drag.current;drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
   const choose = (next: number|undefined) => { if(next===undefined||valueDisabled)return;onValueChange(next); onValueCommit?.(next); };
   const nudge=(direction:-1|1)=>choose(sequence?sequenceStep(sequence,value,direction):rangeValue(value+direction*jump,low,high,resolution));
   const cancel = () => { cancelled.current = true; setEditing(null); };

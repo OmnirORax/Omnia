@@ -1,5 +1,4 @@
-import {DofInformation,DofRuleExpression,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
-import {useToolCursor} from '../ui/toolCursor';
+import {DofRuleExpression,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
 import {fieldReferenceFor} from './referenceGeometry';
 import {outsideBoundary,positionFieldDelta,type PositionField} from './dofGesture';
 import {pointerCommandGate} from '../ui/pointerCommandGate';
@@ -7,7 +6,7 @@ import {targetBounds} from './contextGeometry';
 import {createStateField,nearestFieldCandidate,type StateField} from '../properties/stateField';
 import {stateFieldDomain} from './stateFieldAdapter';
 import {useWorkingSelection,useWorkingSelectionReader} from '../ui/RangeControl';
-import {useNumericEditor,NumericToolZone} from '../ui/NumericEditorScope';
+import {useNumericEditor} from '../ui/NumericEditorScope';
 import {useOperationReferencePicker} from './OperationScope';
 import { createSecondaryRelease } from '../ui/secondaryRelease';
 import { DegreeSetter, DegreeValueEditor } from './DegreeSetter';
@@ -159,8 +158,6 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:informationRule.mode==='symmetry'&&informationDomain?.cyclic?'Symmetry':mode.label,modeIcon:mode.icon,variable:informationRule.mode==='step'?'step':'count',expression:informationRule.mode==='step'?`Δ ${informationRule.step}`:<DofRuleExpression count={informationRule.count}/>,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
   },[informationDegree?.id,informationDegree?.label,informationDegree?.symbol,informationRule.mode,informationRule.count,informationRule.step,informationReference?.label,!!informationDomain?.cyclic]);
   useLayoutEffect(()=>information?numericEditor.registerInformation?.(information,1):undefined,[numericEditor.registerInformation,information]);
-  const informationCursor=useMemo(()=>information&&cursorOperation?{key:`dof-info:${cursorZone}`,zone:cursorZone,priority:46,icon:<DofInformation information={information} interactive={false}/>,width:20,height:20,anchor:{x:-.7,y:-.7}}:null,[information,cursorOperation,cursorZone]);
-  useToolCursor(informationCursor);
   const commands=useFeatureActions('atomnicComposer',{
     'atomnic.erase':{enabled:compatible,cursor:compatible&&pointerTool==='erase'?{zone:cursorZone}:false,run:()=>{cancel();setTool('erase');}},
     'atomnic.constraints':{enabled:true,run:()=>input('mode',settings.mode==='free'?'constrained':'free')},
@@ -187,8 +184,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const optionsRef=useRef(optionsCommand);optionsRef.current=optionsCommand;
   useEffect(()=>{
     const pointer=(event:PointerEvent)=>{optionGate.current.release(event.button);if(event.target instanceof Node&&(localSurface.current?.contains(event.target)||event.target instanceof Element&&event.target.closest('[data-context-controller]'))&&optionsRef.current(event))optionGate.current.pointer(event.button);};
-    const mouse=(event:MouseEvent)=>{if(!optionGate.current.mouse(event.button))return;if(event.target instanceof Node&&(localSurface.current?.contains(event.target)||event.target instanceof Element&&event.target.closest('[data-context-controller]')))optionsRef.current(event);};
-    const release=(event:MouseEvent)=>optionGate.current.release(event.button);
+    const mouse=(event:MouseEvent)=>{if(event.button===2&&gesture.current&&!secondary.current.hasPress())secondary.current.press({point:gesture.current.last,event:event as PointerEvent});if(!optionGate.current.mouse(event.button))return;if(event.target instanceof Node&&(localSurface.current?.contains(event.target)||event.target instanceof Element&&event.target.closest('[data-context-controller]')))optionsRef.current(event);};
+    const release=(event:MouseEvent)=>{optionGate.current.release(event.button);if(event.button===2&&gesture.current){const request=secondary.current.release({point:gesture.current.last,event:event as PointerEvent});if(request)handlers.current.context(request.point,request.event);}};
     window.addEventListener('pointerdown',pointer,true);window.addEventListener('mousedown',mouse,true);window.addEventListener('mouseup',release,true);
     return()=>{window.removeEventListener('pointerdown',pointer,true);window.removeEventListener('mousedown',mouse,true);window.removeEventListener('mouseup',release,true);};
   },[]);
@@ -199,7 +196,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     context:(point,event)=>{
       activateTarget?.();pointer.current={x:event.clientX,y:event.clientY};const target=hit(point);
       const role=event.target instanceof Element?event.target.closest('[data-omnic-role]')?.getAttribute('data-omnic-role')??undefined:undefined;
-      if(openMovingPosition(event.clientX,event.clientY))return;
+      if(openGestureSettings(event.clientX,event.clientY))return;
       closePanel?.();setMenu({...pointer.current});
       if(phase==='pivot'){setPanel({kind:'pivotModes'});return;}
       let ids:string[]=[];
@@ -383,7 +380,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         if(degree.action){commands.invoke(degree.action as Parameters<typeof commands.invoke>[0]);}else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:false});}
       }} onConfigure={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else{setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:true});}}}/><FunctionControl id={`omnic:target-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.action?operationLabel(degree.action):String(targetDegreeValue(recipe,degree))} · Left-click adjusts; right-click configures`}/></>})))} onClose={()=>setMenu(null)}/>}
       {panel.kind==='degree'&&<div className="progressive-configuration">
-        <DegreeValueEditor key={`${panel.degree.id}:${panel.configure}`} recipe={recipe} degree={panel.degree} configure={panel.configure}
+        <DegreeValueEditor key={`${panel.degree.id}:${panel.configure}`} recipe={recipe} degree={panel.degree} configure={panel.configure} onDismiss={()=>setMenu(null)}
           onPreview={value=>changeDegree(panel.degree,value,true)} onCommit={value=>changeDegree(panel.degree,value)}/>
       </div>}
       {!radar&&panel.kind==='functions'&&rim}
@@ -422,11 +419,14 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       </>}
     </ContextualMasterController>
   </>;
-  return <NumericToolZone.Provider value={cursorZone}>{radar?content:<UISection id="atomnic-editor" title="Atomnic">{content}</UISection>}</NumericToolZone.Provider>;
-  function openMovingPosition(x:number,y:number){
-    const active=gesture.current;if(!active||active.kind!=='move'&&active.kind!=='translate')return false;
-    gesture.current=null;setCursorOperation(null);if(active.next!==active.base)commit(active.next);
-    closePanel?.();setMenu({x,y});setPanel({kind:'operation',action:'atomnic.move',index:0});setPhase('configure');return true;
+  return radar?content:<UISection id="atomnic-editor" title="Atomnic">{content}</UISection>;
+  function openGestureSettings(x:number,y:number){
+    const active=gesture.current;if(!active||!['move','translate','rotate','orient'].includes(active.kind))return false;
+    const ids=[...active.ids],degrees=targetDegrees(recipeRef.current,ids);
+    const degree=active.degree??(['rotate','orient'].includes(active.kind)?degrees.find(d=>targetParameter(d).selection):degrees.find(d=>d.id===activeDof?.property)??degrees.find(d=>targetParameter(d).measurement==='center-x'));
+    if(!degree)return false;
+    settleGesture();dismissPanel?.();setActiveDof({ids,property:degree.id});
+    setMenu({x,y});setPanel({kind:'degree',degree,configure:'options'});setPhase('configure');return true;
   }
   function operationKeys(action:AtomnicConfigAction):readonly string[]{return ATOMNIC_OPERATION_INPUTS[action].filter(key=>key!=='step'||settings.mode==='free');}
   function configureOperation(action:AtomnicConfigAction,fromTarget=false){setMenu(cursorPosition());setPanel({kind:'operation',action,index:0,fromTarget});setPhase('configure');if(action==='atomnic.rotate'||action==='atomnic.step')setTool('rotate');}

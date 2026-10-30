@@ -9,7 +9,6 @@
 .dof-information-header{position:relative;z-index:2;display:flex;justify-content:center;flex-wrap:wrap;max-width:100%;margin:0 auto 3px;font-size:11px;color:var(--text,#d4e6ef)}
 .dof-information-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:3px;max-width:100%}
 .dof-information-controls button{font-size:11px;line-height:1.2;padding:3px 5px;min-width:24px;min-height:24px;border:1px solid #60ddec55;border-radius:10px;background:#07131ee8;color:inherit;white-space:nowrap}
-.dof-information-echo{display:block;width:max-content;white-space:nowrap;font-size:11px;line-height:1.3;padding:3px 5px;background:#07131ee8;border-radius:8px;color:var(--text,#d4e6ef);position:absolute;left:14px;top:14px}
 
 .omnic-composer-radar>.dof-information-header{position:absolute;top:10%;left:50%;transform:translateX(-50%);width:max-content;max-width:60%;z-index:4}
 
