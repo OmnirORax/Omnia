@@ -762,3 +762,17 @@ Reference options are universal: ⟴ opens configuration; its source control inv
 Q/MS explicitly. No automatic selection on opening options. No hiding rule controls
 for vectors. The vector adapter handles owner tuple conversion and preview lifetime;
 shared editor components own configuration, presentation and interaction.
+
+
+### Physical opening press versus child capture
+
+Shared `useActiveLayer` release protection captures `physicalPressVersion` only
+when mounted during a held physical press. It suppresses that opener’s release/
+compatibility tail. A new window-captured press changes the version before React
+capture handlers run, so controls can consume pointerdown without preventing the
+next legitimate release/click. Do not rely on a popup-native pointerdown listener
+to clear an opening flag: React capture at the portal container can stop that
+native listener from running, leaving wheels/value controls unable to commit.
+Keyboard-native click exceptions and existing drag/cancel ownership remain.
+The regression models the physical event stream, a captured wheel choice, the
+existing property writer and retaining the committed angle after leaving.

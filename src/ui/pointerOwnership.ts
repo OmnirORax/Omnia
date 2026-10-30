@@ -3,6 +3,10 @@ import {contextPressOwnsControl} from './contextMenuOwnership.ts';
 /** UI ownership lasts for the physical press, independently of capture and
  * preview lifetime. Capture loss, Esc and mouse pointercancel are not releases. */
 const physicalPresses=new Set<number>();
+let physicalVersion=0;
+/** A new physical press reaches window capture before React can consume it. */
+export const physicalPressVersion=()=>physicalVersion;
+export const isOpeningPress=(version:number|null)=>version!==null&&version===physicalVersion;
 export const physicalPointerHeld=()=>physicalPresses.size>0;
 const held = new Map<number, { kind: string; buttons: number }>();
 const listeners = new Set<(active: boolean) => void>();
@@ -38,7 +42,7 @@ export function cancelUITouch(event: PointerEvent) {
 if (typeof window !== "undefined") {
   let secondaryPath:EventTarget[]|null=null,keyboardContext=false;
   const origin=(event:MouseEvent)=>{secondaryPath=event.composedPath();keyboardContext=false;};
-  const pressed=(event:PointerEvent)=>{physicalPresses.add(event.pointerId);origin(event);};
+  const pressed=(event:PointerEvent)=>{physicalVersion++;physicalPresses.add(event.pointerId);origin(event);};
   const context=(event:MouseEvent)=>{
     const target=event.target instanceof Element?event.target:null;
     const control=target?.closest('button,input,select,textarea,[role="button"],[data-ui-function],[data-range-control]');

@@ -1095,3 +1095,28 @@ test('reference possibility spaces preserve thresholds/fractions and route snap 
  assert.equal(selectedReferenceStep({...settings,use:'bounds'},80,30),undefined,'placement is not a snap-setting write');
  assert.equal(selectedReferenceStep(settings,80,0),undefined);
 });
+
+test('a fresh wheel click commits even when React capture skips the popup native pointerdown',async t=>{
+ const prior=Object.getOwnPropertyDescriptor(globalThis,'window'),handlers=new Map();
+ globalThis.window={addEventListener:(name,handler)=>handlers.set(name,handler),removeEventListener:()=>{}};
+ t.after(()=>{if(prior)Object.defineProperty(globalThis,'window',prior);else delete globalThis.window;});
+ const pointer=await import('../src/ui/pointerOwnership.ts?wheel-opening-regression');
+ const {createStateActivation}=await import('../src/properties/stateSelection.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const press=()=>handlers.get('pointerdown')({pointerId:1,composedPath:()=>[]});
+ const release=()=>handlers.get('pointerup')({pointerId:1,pointerType:'mouse',buttons:0});
+ press();const opening=pointer.physicalPressVersion();assert.equal(pointer.physicalPointerHeld(),true);
+ release();assert.equal(pointer.isOpeningPress(opening),true,'the opener release/click tail stays guarded');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:0}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection),activation=createStateActivation(),session=mathematicalValueSession(0);
+ session.preview(90);
+ press();activation.press(90); // React capture consumes this press before popup-native capture.
+ assert.equal(pointer.isOpeningPress(opening),false,'the actual window stream saw the fresh press despite skipped native popup listeners');
+ release();const chosen=activation.take();
+ const committed=writeTargetDegree(source,degree,session.commit(chosen));
+ assert.equal(targetDegreeValue(committed,degree),90,'the first new left click commits through the existing owner');
+ assert.equal(activation.take(),undefined,'compatibility events cannot commit it twice');
+ assert.equal(session.restore(),90,'leaving the wheel keeps the committed angle');
+ press();const secondOpening=pointer.physicalPressVersion();release();
+ press();assert.equal(pointer.isOpeningPress(secondOpening),false,'a new outside click also releases a stale opening guard');release();
+});
