@@ -807,9 +807,11 @@ export default function SpatialWorkspace(props: Props) {
       }return null;
     };
     const point=(frame:Frame,event:PointerEvent)=>{
-      const rect=measure();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),state.camera);
-      const local=(ray.ray.intersectPlane(frame.plane,new THREE.Vector3())??new THREE.Vector3()).applyMatrix4(frame.inverse),b=frame.editing.bounds,edge=Math.max(b.width,b.height);
-      return {x:b.x+b.width/2+local.x*edge,y:b.y+b.height/2-local.y*edge};
+      const rect=measure(),b=frame.editing.bounds,edge=Math.max(b.width,b.height);
+      const project=(x:number,y:number)=>{ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,1-(y-rect.top)/rect.height*2),state.camera);return (ray.ray.intersectPlane(frame.plane,new THREE.Vector3())??new THREE.Vector3()).applyMatrix4(frame.inverse);};
+      const local=project(event.clientX,event.clientY),dx=project(event.clientX+1,event.clientY),dy=project(event.clientX,event.clientY+1);
+      const scenePerPixel=Math.max(local.distanceTo(dx),local.distanceTo(dy))*edge;
+      return {x:b.x+b.width/2+local.x*edge,y:b.y+b.height/2-local.y*edge,scenePerPixel};
     };
     const down=(event:PointerEvent)=>{if(event.defaultPrevented||featureActionRuntime.available('selector.include')||event.target!==canvas||event.button!==0&&event.button!==2)return;invalidate();const frame=locate(event);setToolCursorZone(canvas,frame?.editing.cursorZone);if(!frame)return;
       event.preventDefault();event.stopImmediatePropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);held=frame;canvas.setPointerCapture(event.pointerId);frame.editing.down(point(frame,event),event);};

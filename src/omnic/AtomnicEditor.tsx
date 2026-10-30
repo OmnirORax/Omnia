@@ -1,8 +1,9 @@
+import {prepareGeometryEdges,rotationEdgeHit} from './geometryEdges';
 import {DofRuleExpression,dofModes,type DofSettingsKind,type DofInformationState} from '../ui/DofInformation';
 import {fieldReferenceFor} from './referenceGeometry';
-import {outsideBoundary,positionFieldDelta,type PositionField} from './dofGesture';
+import {positionFieldDelta,type PositionField} from './dofGesture';
 import {pointerCommandGate} from '../ui/pointerCommandGate';
-import {targetBounds} from './contextGeometry';
+import {primitiveBounds,targetNodes} from './contextGeometry';
 import {createStateField,nearestFieldCandidate,type StateField} from '../properties/stateField';
 import {stateFieldDomain} from './stateFieldAdapter';
 import {useWorkingSelection,useWorkingSelectionReader} from '../ui/RangeControl';
@@ -15,7 +16,7 @@ import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { useCallback, useId, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import type { Recipe, Component } from './model';
 import { validateRecipe } from './model';
-import { atoms, atomnicSettings, atomnicEditable, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms, type Point } from './atomnic';
+import { atoms, atomnicSettings, atomnicEditable, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms } from './atomnic';
 import { ATOMNIC_PARAMETERS, ATOMNIC_OPERATION_INPUTS, type AtomnicConfigAction } from './atomnicSettings';
 import { useOmnicParameterBindings } from './propertyAdapter';
 import { PropertyEditor } from '../appearance/Controls';
@@ -29,7 +30,7 @@ import { ProgressiveConfiguration } from '../ui/ProgressiveConfiguration';
 import { UIField } from '../ui/UIField';
 import { UISection } from '../ui/UISection';
 import { useFeatureActions } from '../ui/useFeatureActions';
-import type { AtomnicInteraction } from './atomnicInteraction';
+import type { AtomnicInteraction,InteractionPoint as Point } from './atomnicInteraction';
 import { structuralIdsInRect, renderSVG } from './svg';
 import type { Evaluation } from './evaluate';
 import { claimUIPress } from '../ui/pointerOwnership';
@@ -127,8 +128,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const rotationIds=normalSelection.length?normalSelection:[...selected];
   const rotationDegree=targetDegrees(recipe,rotationIds).find(d=>targetParameter(d).selection);
   const rotationKey=rotationIds.join('|');
-  const rotationZone=useMemo(()=>{const box=evaluation&&rotationDegree?targetBounds(evaluation,rotationIds):undefined;return box?{bounds:box,margin:Math.max(2,Math.min(8,Math.max(box.width,box.height)*.08))}:undefined;},[evaluation,rotationKey,!!rotationDegree]);
-  useEffect(()=>{updateRotationHover(false);},[rotationZone]);
+  const rotationZone=useMemo(()=>{if(!evaluation||!rotationDegree)return;const nodes=targetNodes(evaluation,rotationIds),box=primitiveBounds(nodes),edges=prepareGeometryEdges(nodes);return box&&edges?{bounds:box,edges}:undefined;},[evaluation,rotationKey,!!rotationDegree]);
+  useEffect(()=>{updateRotationHover(false);},[rotationZone,bounds.x,bounds.y,bounds.width,bounds.height]);
   const openRotation=()=>{const ids=normalSelection.length?normalSelection:[...selectedRef.current],degree=targetDegrees(recipeRef.current,ids).find(d=>targetParameter(d).selection);if(!degree)return;setActiveDof({ids:[...ids],property:degree.id});cancelPreview?.();setMenu(cursorPosition());setPanel({kind:'degree',degree,configure:false});setTool('rotate');setPhase('configure');};
   const positionFields=(ids:readonly string[])=>{
     if(ids.length!==1)return;
@@ -230,8 +231,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       }
       if(event.button===0){
         const ids=rotationIds,box=rotationZone?.bounds;
-        if(box&&rotationZone){const margin=rotationZone.margin;
-          if(outsideBoundary(point,box,margin)){
+        if(box&&rotationZone){
+          if(rotationEdgeHit(rotationZone.edges,point,point.scenePerPixel)){
             const degree=rotationDegree,domain=degree&&stateFieldDomain(targetParameter(degree));
             if(degree&&domain){const field=createStateField(domain,{mode:angularRule.mode,count:angularRule.count,step:angularRule.step,reference:referencePicker?.snapshot?fieldReferenceFor(referencePicker.snapshot,degree,referencePicker.references.get(ids[0]),referencePicker.environment)?.value??domain.cyclic!.north:domain.cyclic!.north,min:angularRule.min,max:angularRule.max},n=>{try{writeTargetDegree(recipeRef.current,degree!,n);return true;}catch{return false;}});
               setActiveDof({ids:[...ids],property:degree.id});setCursorOperation('rotate');gesture.current={kind:'orient',base:recipeRef.current,next:recipeRef.current,start:point,last:point,ids:new Set(ids),angle:0,degree,field,center:{x:box.x+box.width/2,y:box.y+box.height/2}};return;
@@ -283,7 +284,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     move:(point,event)=>{
       pointer.current={x:event.clientX,y:event.clientY};
       const active=gesture.current;
-      updateRotationHover(!active&&!event.buttons&&!referencePicker?.picking&&!!rotationZone&&outsideBoundary(point,rotationZone.bounds,rotationZone.margin));
+      updateRotationHover(!active&&!event.buttons&&!referencePicker?.picking&&!!rotationZone&&rotationEdgeHit(rotationZone.edges,point,point.scenePerPixel));
       if(!active&&rotationHoverRef.current)return;
       if(active?.kind==='select'){
         const left=Math.min(active.start.x,point.x),top=Math.min(active.start.y,point.y),width=Math.abs(point.x-active.start.x),height=Math.abs(point.y-active.start.y);setSelectionBox({x:left,y:top,width,height});
@@ -355,7 +356,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   },[]);
   const svg=evaluation?renderSVG(evaluation,bridge):'';
   if(markupRef)markupRef.current=svg;
-  const local=(event:React.PointerEvent<HTMLDivElement>)=>{const box=event.currentTarget.getBoundingClientRect();const edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);return {x:bounds.x+bounds.width/2+((event.clientX-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((event.clientY-box.top-(box.height-edge)/2)/edge-.5)*scale};};
+  const local=(event:React.PointerEvent<HTMLDivElement>)=>{const box=event.currentTarget.getBoundingClientRect();const edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);return {x:bounds.x+bounds.width/2+((event.clientX-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((event.clientY-box.top-(box.height-edge)/2)/edge-.5)*scale,scenePerPixel:scale/Math.max(1,edge)};};
   const radialActions=FEATURE_ACTIONS.filter(action=>action.owner==='atomnicComposer'&&'radial' in action&&!('adjusts' in action)&&(isAtomnic||['atomnic.configure','atomnic.constraints'].includes(action.id)));
   const radialControl=(action:typeof radialActions[number])=>{
     const displayedAction=action.id==='atomnic.erase'&&tool==='erase'?FEATURE_ACTIONS.find(action=>action.id==='atomnic.draw')!:action;

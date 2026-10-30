@@ -7,7 +7,7 @@ import { translateTargets, targetDegreeValue, targetParameter, writeTargetDegree
 import { legalAtoms } from './atomnic.ts';
 import type { EditableDegree } from '../properties/editableDegrees.ts';
 import type { ResizeRect } from '../ui/resizeGeometry.ts';
-function targetNodes(evaluation:Evaluation,ids:readonly string[]){
+export function targetNodes(evaluation:Evaluation,ids:readonly string[]){
   const chosen=new Set(ids),index=new Map(evaluation.nodes.map(node=>[node.id,node]));
   const inside=(node:StructuralNode)=>{let current:StructuralNode|undefined=node;while(current){if(chosen.has(current.id)||chosen.has(current.componentId))return true;current=current.parent?index.get(current.parent):undefined;}return false;};
   return evaluation.nodes.filter(node=>node.kind!=='group'&&inside(node));

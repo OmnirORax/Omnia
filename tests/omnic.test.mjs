@@ -780,14 +780,10 @@ test('rule configuration leaves geometry unchanged while the value slider previe
 });
 
 test('gesture activation and reference fields use canonical bounds and the same generated sequence',async()=>{
- const {outsideBoundary,positionFieldDelta}=await import('../src/omnic/dofGesture.ts');
+ const {positionFieldDelta}=await import('../src/omnic/dofGesture.ts');
  const {fieldReferenceFor}=await import('../src/omnic/referenceGeometry.ts');
  const {operationGeometry}=await import('../src/omnic/operationContext.ts');
  const {createStateField}=await import('../src/properties/stateField.ts');
- const bounds={x:0,y:0,width:20,height:20};
- assert.equal(outsideBoundary({x:10,y:10},bounds,3),false);
- assert.equal(outsideBoundary({x:21,y:10},bounds,3),true);
- assert.equal(outsideBoundary({x:24,y:10},bounds,3),false);
  const source=validateRecipe(recipe([{id:'ga',generator:'group',params:{x:50},children:[dot('a',10)]},dot('b',120)]));
  const geometry=operationGeometry(source,evaluateRecipe(source));
  const degree=targetDegrees(source,['a']).find(d=>d.id==='omnic.coordinate.x');
@@ -800,4 +796,37 @@ test('gesture activation and reference fields use canonical bounds and the same 
  assert.throws(()=>positionFieldDelta([{axis:'x',start:0,field:{...field,candidates:[]}}],{x:1,y:1},{x:1,y:1}),/No valid position/);
  assert.match(renderSVG(evaluateRecipe(source)),/data-selection-boundary/);
  assert.equal(targetDegreeValue(source,degree),10,'reference and field configuration never change geometry');
+});
+
+test('rotation follows visible geometry edges rather than rectangular selection bounds',async()=>{
+ const {prepareGeometryEdges,rotationEdgeHit}=await import('../src/omnic/geometryEdges.ts');
+ const line={id:'diagonal',componentId:'line',kind:'line',x:0,y:0,x2:100,y2:100,radius:0,thickness:4,fill:false,opacity:1,color:'#fff'};
+ const diagonal=prepareGeometryEdges([line]);
+ assert.equal(rotationEdgeHit(diagonal,{x:50,y:55}),true,'slanted line side is active even deep inside its bounding rectangle');
+ assert.equal(rotationEdgeHit(diagonal,{x:-3,y:105}),false,'empty bounding-box corner cannot activate rotation');
+ assert.equal(rotationEdgeHit(diagonal,{x:50,y:50}),false,'visible ink remains a move grab');
+ const circle={...line,id:'circle',kind:'dot',x:0,y:0,x2:undefined,y2:undefined,radius:20,thickness:2,fill:true};
+ const filled=prepareGeometryEdges([circle]);
+ assert.equal(rotationEdgeHit(filled,{x:22,y:0}),true);
+ assert.equal(rotationEdgeHit(filled,{x:22,y:22}),false,'box corners are unrelated to a circle rim');
+ assert.equal(rotationEdgeHit(filled,{x:17,y:0}),false,'filled interior does not steal move gestures');
+ const hollow=prepareGeometryEdges([{...circle,kind:'ring',fill:false}]);
+ assert.equal(rotationEdgeHit(hollow,{x:17,y:0}),true,'empty hole near the visible inner rim is a real edge');
+ assert.equal(rotationEdgeHit(hollow,{x:0,y:0}),false);
+ assert.equal(rotationEdgeHit(prepareGeometryEdges([{...circle,opacity:0}]),{x:22,y:0}),false,'invisible geometry supplies no handle');
+ const overlap=prepareGeometryEdges([circle,{...circle,id:'overlap',x:22}]);
+ assert.equal(rotationEdgeHit(overlap,{x:22,y:0}),false,'ink from another selected primitive protects the move target');
+});
+
+test('rotation edge reach is eight screen pixels across Composer zoom scales',async()=>{
+ const {prepareGeometryEdges,rotationEdgeHit}=await import('../src/omnic/geometryEdges.ts');
+ const line={id:'line',componentId:'line',kind:'line',x:0,y:0,x2:100,y2:0,radius:0,thickness:4,fill:false,opacity:1,color:'#fff'};
+ const prepared=prepareGeometryEdges([line]);
+ for(const scenePerPixel of [.25,.5,1,2,4]){
+  assert.equal(rotationEdgeHit(prepared,{x:50,y:2+8*scenePerPixel},scenePerPixel),true);
+  assert.equal(rotationEdgeHit(prepared,{x:50,y:2+8.1*scenePerPixel},scenePerPixel),false);
+ }
+ Object.defineProperty(line,'x',{get:()=>{throw Error('original geometry reread during pointer motion');}});
+ assert.equal(rotationEdgeHit(prepared,{x:50,y:6},.5),true,'pointer queries reuse immutable prepared geometry');
+ assert.equal(rotationEdgeHit(prepared,{x:50,y:6},0),false);
 });
