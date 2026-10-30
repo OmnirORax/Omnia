@@ -1051,3 +1051,14 @@ test('combined Position keeps shared partitions on both axes and uses the normal
  for(const axis of ['x','y']){const extent=axis==='x'?'width':'height';almost(result.views.get('a').bounds[axis]+result.views.get('a').bounds[extent]/2,result.views.get('b').bounds[axis]+result.views.get('b').bounds[extent]/2);}
  assert.equal(source.components[0].params.x,-50);assert.equal(source.components[0].params.y,-40);
 });
+
+test('math marks deselect consistently without repeated crossings toggling them back on',async()=>{
+ const {paintMathematicalSlots}=await import('../src/properties/mathematicalDial.ts');
+ const before={selected:['0:1','0:3'],modes:{'0:1':'recursive','0:3':'normal'}};
+ const removed=paintMathematicalSlots(before,['0:1'],'normal',true);
+ assert.deepEqual(removed.selected,['0:3']);assert.equal(removed.modes['0:1'],undefined);
+ assert.deepEqual(paintMathematicalSlots(before,['0:1','0:1'],'normal',true),removed);
+ assert.deepEqual(before.selected,['0:1','0:3']);
+ assert.deepEqual(paintMathematicalSlots(before,['0:1','0:3'],'normal',true).selected,[]);
+ assert.deepEqual(paintMathematicalSlots(removed,['0:1'],'recursive').selected,['0:3','0:1']);
+});

@@ -13,7 +13,7 @@ import {RadialMenu} from './RadialMenu';
 
 const emptyMarks=():MathematicalMarks=>({selected:[],modes:{}});
 type Point={x:number;y:number};
-type Stroke={id:number;last:Point;slots:MathematicalStrokeSlot[];visited:readonly string[];before:MathematicalMarks;next:MathematicalMarks;brush:MathematicalSlotMode};
+type Stroke={erase:boolean;id:number;last:Point;slots:MathematicalStrokeSlot[];visited:readonly string[];before:MathematicalMarks;next:MathematicalMarks;brush:MathematicalSlotMode};
 /** Shared raw-number surface. The consumer supplies its domain and real setters.
  * Right-click chooses a brush; only left-click/held painting writes slot modes. */
 export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,onPreview,onCommit,onCancelPreview}:{
@@ -63,11 +63,13 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   if(disabled||drag.current)return;
   if(hover.current?.key===key&&hover.current.brush===nextBrush&&hover.current.marks===marks)return;
   hover.current={key,brush:nextBrush,marks};
-  const candidate=paintMathematicalSlots(marks,[key],nextBrush),n=total(candidate);
-  if(valid(n)){setSample(candidate);previewValue(n);}else{setSample(null);if(session.sampling){const previous=session.restore();if(onCancelPreview)onCancelPreview();else onPreview(previous);}}
+  const candidate=paintMathematicalSlots(marks,[key],nextBrush,marks.selected.includes(key)),n=total(candidate);
+  if(!candidate.selected.length&&!valid(n)){restore();setSample(candidate);}else if(valid(n)){setSample(candidate);previewValue(n);}else{setSample(null);if(session.sampling){const previous=session.restore();if(onCancelPreview)onCancelPreview();else onPreview(previous);}}
  };
  const commit=(next:MathematicalMarks,n=total(next))=>{
-  if(disabled||!valid(n))return;
+  if(disabled)return;
+  if(!next.selected.length&&!valid(n)){restore();anchor.current=session.restore();setMarks(next);return;}
+  if(!valid(n))return;
   hover.current=null;setSample(null);setMarks(next);onCommit(session.commit(n));
  };
  const cancel=()=>{setPainting(false);drag.current=null;restore();};
@@ -78,8 +80,8 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   const active=drag.current;if(!active)return;
   const visited=fillMathematicalSlots(active.visited,active.slots,active.last,point);active.last=point;
   if(visited===active.visited)return;
-  const next=paintMathematicalSlots(active.before,visited,active.brush),n=total(next);
-  if(valid(n)){active.visited=visited;active.next=next;setSample(next);previewValue(n);}
+  const next=paintMathematicalSlots(active.before,visited,active.brush,active.erase),n=total(next);
+  if(valid(n)||!next.selected.length){active.visited=visited;active.next=next;if(valid(n)){setSample(next);previewValue(n);}else{restore();setSample(next);}}
  };
  const changeBase=(next:1|2)=>{
   const g=radialDimensions(2,6,0,next*RADIAL_GEOMETRY.minimumSize);
@@ -110,7 +112,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    if(disabled||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-math-slot]'))return;
    const bounds=ringRef.current!.getBoundingClientRect(),scale=bounds.width/extent,point={x:event.clientX,y:event.clientY};
    const slots=rings.flatMap(({order,radius,count})=>Array.from({length:count},(_,i)=>{const turn=(clockwise?i:-i)/count*Math.PI*2;return {key:`${order}:${i}`,x:bounds.left+bounds.width/2+Math.sin(turn)*radius*scale,y:bounds.top+bounds.height/2-Math.cos(turn)*radius*scale,radius:minimum.size*scale/2};}));
-   setPainting(true);drag.current={id:event.pointerId,last:point,slots,visited:[],before:marks,next:marks,brush};hover.current=null;advance(point);
+   setPainting(true);drag.current={erase:marks.selected.includes(event.target.closest<HTMLElement>('[data-math-slot]')!.dataset.mathSlot!),id:event.pointerId,last:point,slots,visited:[],before:marks,next:marks,brush};hover.current=null;advance(point);
    claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopPropagation();event.currentTarget.setPointerCapture(event.pointerId);
   }}
   onPointerMove={event=>{
@@ -136,9 +138,9 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
     {order<orders&&<><span className="mathematical-dial-start-arrow" aria-hidden="true" style={{left:'50%',top:`${50-(radius+minimum.size/2)/extent*100}%`}}>{clockwise?'↻':'↺'}</span><span className="mathematical-dial-order-rim" aria-hidden="true" style={{width:2*(radius+minimum.size/2+1),height:2*(radius+minimum.size/2+1)}}/></>}
     {Array.from({length:count},(_,i)=>{
      const key=`${order}:${i}`,mode=modeAt(displayed,key),turn=(clockwise?i:-i)/count*Math.PI*2;
-     const candidate=paintMathematicalSlots(marks,[key],brush),n=total(candidate),contribution=sign*mathematicalSlotValue(base,i+1,brush);
+     const candidate=paintMathematicalSlots(marks,[key],brush,marks.selected.includes(key)),n=total(candidate),contribution=sign*mathematicalSlotValue(base,i+1,brush);
      return <button type="button" key={key} disabled={disabled} className="mathematical-dial-slot" data-ui-paint-owner="geometry" data-math-slot={key} data-mode={mode} data-selected={displayed.selected.includes(key)} data-preview={!!sample&&displayed.selected.includes(key)&&(!marks.selected.includes(key)||modeAt(marks,key)!==mode)} style={{width:minimum.size,height:minimum.size,left:`${50+Math.sin(turn)*radius/extent*100}%`,top:`${50-Math.cos(turn)*radius/extent*100}%`}}
-      aria-label={`Ring ${order+1}, slot ${i+1}, brush ${brush}, contribution ${contribution}`} aria-pressed={marks.selected.includes(key)} aria-disabled={!valid(n)} title={`Slot ${i+1} · ${sign<0?'−':''}${brush==='normal'?`${base}×${i+1}`:`${base}^${i+2}`} = ${contribution} · ${editing?.kind==='increment'?`${anchor.current} + (${numeral(candidate)} × ${editing.amount}) = `:''}${n} · right-click changes cursor only`}
+      aria-label={`Ring ${order+1}, slot ${i+1}, brush ${brush}, contribution ${contribution}`} aria-pressed={marks.selected.includes(key)} aria-disabled={candidate.selected.length>0&&!valid(n)} title={`Slot ${i+1} · ${sign<0?'−':''}${brush==='normal'?`${base}×${i+1}`:`${base}^${i+2}`} = ${contribution} · ${editing?.kind==='increment'?`${anchor.current} + (${numeral(candidate)} × ${editing.amount}) = `:''}${n} · right-click changes cursor only`}
       onMouseEnter={()=>preview(key)} onMouseLeave={restore} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)commit(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true"/></button>;
     })}
    </span>)}

@@ -1014,17 +1014,18 @@ The shared popup anchor captures the invocation position. A radial centres on it
 
 **Where:** Composer numeric DOF → click its mode expression, rule variable or slider end-limit control. Search ⠒❉ or mathematical dial.
 
-⠒❉ makes/configures the rule and its numeric variables. It does not traverse the object value. The shared value slider performs execution. Existing signed numeral brushes, accumulated marks, recursion, ring growth and exact fractional parameter entry remain available for rule configuration.
+⠒❉ makes/configures the rule and its numeric variables. It does not traverse the object value. The shared value slider performs execution. Existing signed numeral brushes, accumulated marks, recursion, ring growth and exact fractional parameter entry remain available for rule configuration. Clicking a selected slot removes its mark. A hold gesture chooses fill or erase from its starting slot and applies that intent consistently across visited slots; repeated crossings never toggle marks back. Hover and keyboard activation preview/use the same operation. Property limits still reject illegal totals.
 
 **Minimal working test**
 
 1. Open a numeric DOF, click its mode expression and change the mathematical number. **Expected:** The generated values change without modifying the actual object value.
 2. Right-click the math ring to cycle its numeral brush, then select/paint marks. **Expected:** Marks configure the rule parameter. The value slider remains the place to execute generated values.
 3. Right-click a slider end bar and use the math dial readout for an exact fractional limit where the domain permits it. **Expected:** Exact fractional rule/limit values remain supported; the actual DOF is not edited until a slider value is executed.
+4. Select several slots, then click one selected slot again. Hold from a selected slot and sweep across others. **Expected:** The clicked slot deselects. The held sweep erases crossed selected slots without toggling them back on; starting on an empty slot still fills. Invalid totals remain constrained by the property domain.
 
 **Limits / unavailable behavior:** Composer-only refinement. Slot notation is signed whole numbers; decimal notation, additional rule families/equations, relational constraints and candidate/action ranking are deferred. Native exact entry preserves existing fractional editing. Count-grid domain0–512; each other consumer retains its real limits and Realistic legality. Base1 recursion unsupported; four ring orders maximum. Marks/brush remain session-local; reopening shows the stored raw value with a fresh scratch numeral. Undo restores properties, not the complete expression. Color spectrum gestures, dial-size controls and outside-Composer snap configuration retain their working specialized controls. Browser acceptance pending.
 
-**Verification:** browser — Pending user testing of compactness, signed values, property editing, cancellation and Undo. No browser suite run.. Automated — Focused shared-numeral/domain/recipe/Undo coverage added to existing model suites; local model, preview build and backend checks required before publication..
+**Verification:** browser — Slot deselection, erase sweeps, hover preview and fill sweeps await browser confirmation. No browser suite run.. Automated — Focused shared-numeral/domain/recipe/Undo coverage added to existing model suites; local model, preview build and backend checks required before publication..
 
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/ui/MathematicalDial.tsx](../src/ui/MathematicalDial.tsx), [src/ui/MathematicalValueControl.tsx](../src/ui/MathematicalValueControl.tsx), [src/ui/NumericEditorScope.tsx](../src/ui/NumericEditorScope.tsx), [src/properties/mathematicalDial.ts](../src/properties/mathematicalDial.ts), [src/appearance/Controls.tsx](../src/appearance/Controls.tsx), [src/omnic/DegreeSetter.tsx](../src/omnic/DegreeSetter.tsx), [src/omnic/registry.ts](../src/omnic/registry.ts).
 

@@ -71,8 +71,8 @@ export function mathematicalValueSession<T>(value:T,equal:(a:T,b:T)=>boolean=(a,
 
 export type MathematicalMarks={selected:readonly string[];modes:Readonly<Record<string,MathematicalSlotMode>>};
 /** Painting stamps the cursor mode only into visited slots, retaining all other marks. */
-export function paintMathematicalSlots(before:MathematicalMarks,visited:readonly string[],brush:MathematicalSlotMode):MathematicalMarks{
+export function paintMathematicalSlots(before:MathematicalMarks,visited:readonly string[],brush:MathematicalSlotMode,erase=false):MathematicalMarks{
  const selected=new Set(before.selected),modes={...before.modes};let changed=false;
- for(const key of visited){if(!selected.has(key)){selected.add(key);changed=true;}if((modes[key]??'normal')!==brush){modes[key]=brush;changed=true;}}
+ for(const key of visited){if(erase){if(selected.delete(key))changed=true;delete modes[key];continue;}if(!selected.has(key)){selected.add(key);changed=true;}if((modes[key]??'normal')!==brush){modes[key]=brush;changed=true;}}
  return changed?{selected:[...selected],modes}:before;
 }
