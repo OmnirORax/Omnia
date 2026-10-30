@@ -44,7 +44,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  useToolCursor(disabled?null:cursor);
  const minimum=radialDimensions(2,6,0,base*RADIAL_GEOMETRY.minimumSize);
  const rings=Array.from({length:orders+(orders<4?1:0)},(_,order)=>{const radius=minimum.radius+order*minimum.size;return {order,radius,count:radialSlotCapacity(radius,minimum.size)};});
- const extent=2*(rings[orders-1].radius+minimum.size/2+1),displayed=sample??marks;
+ const extent=2*(rings[orders-1].radius+minimum.size/2+1),displayed=painting?(sample??marks):marks;
  const modeAt=(state:MathematicalMarks,key:string)=>state.modes[key]??'normal';
  const numeral=(state:MathematicalMarks,nextBase=base,nextSign=sign)=>mathematicalNumberValue(nextBase,state.selected.map(key=>({key,ordinal:Number(key.split(':')[1])+1,mode:modeAt(state,key)})),nextSign);
  const total=(state:MathematicalMarks,nextBase=base,nextSign=sign)=>mathematicalEditValue({anchor:anchor.current,index:numeral(state,nextBase,nextSign),rule:editing?.kind==='increment'?{kind:'increment',amount:editing.amount}:{kind:'value'}});
