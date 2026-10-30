@@ -1,4 +1,4 @@
-export type RadialGroup={id:string;label:string;symbol:string;hidden?:boolean;flatten?:boolean};
+export type RadialGroup={id:string;label:string;symbol:string;symbolMask?:string;hidden?:boolean;flatten?:boolean};
 export type RadialEntry<T>={id:string;label:string;symbol:string;group?:readonly RadialGroup[];content:T;setter?:T};
 export type RadialNode<T>=RadialGroup & {children?:RadialNode<T>[];content?:T;setter?:T};
 /** Shared presentation grouping; commands/values remain with their existing owner. */
@@ -47,4 +47,14 @@ export function radialSlot(index:number,count:number,depth:number,setterHeight=0
 export function radialQuickSlot(index:number,extent:number,size=24,gap=2) {
   const radius=Math.max(size,extent/2-size/2-2),angle=index*2*Math.asin(Math.min(1,(size+gap)/(2*radius)));
   return {x:50+Math.sin(angle)*radius/extent*100,y:50-Math.cos(angle)*radius/extent*100,size};
+}
+
+/** Child categories form a compact outward row; glyphs stay upright. */
+export function radialRowLayout<T>(nodes:readonly RadialNode<T>[],axis:{x:number;y:number}){
+ const magnitude=Math.hypot(axis.x,axis.y)||1,ux=axis.x/magnitude,uy=axis.y/magnitude;
+ const size=RADIAL_GEOMETRY.minimumSize,gap=RADIAL_GEOMETRY.setterGap,length=Math.max(size,nodes.length*(size+gap)-gap);
+ const margin=nodes.some(n=>n.setter)?size+gap:2,extent=length+margin*2;
+ return {size,length,extent,axis:{x:ux,y:uy},angle:Math.atan2(uy,ux)*180/Math.PI,
+  slots:nodes.map((_,i)=>{const offset=(i-(nodes.length-1)/2)*(size+gap);return {x:50+ux*offset/extent*100,y:50+uy*offset/extent*100,size,
+   setterX:size/2-uy*(size+gap),setterY:size/2+ux*(size+gap),setterAngle:Math.atan2(ux,-uy)*180/Math.PI};})};
 }

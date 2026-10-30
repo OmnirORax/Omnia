@@ -435,7 +435,7 @@ test('selection sweep collects intervening dots, ring boundaries and lines witho
   const degrees=targetDegrees(source,['rings']);
   for(const property of ['color','opacity','omnic.opacityProgression']){
     const degree=degrees.find(d=>d.properties.includes(property));
-    assert.equal(degree.group[0].id,'visual');assert.equal(degree.group[0].label,'Appearance');assert.equal(degree.group[0].symbol,'✨');
+    assert.equal(degree.group[0].id,'visual');assert.equal(degree.group[0].label,'Appearance');assert.equal(degree.group[0].symbol,'👁');assert.ok(degree.group[0].symbolMask.startsWith('data:image/svg+xml,'));
   }
   for(const property of ['omnic.count','omnic.fill','omnic.thickness','omnic.strokeProgression'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'●●');
   assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group[0].symbol,'⨮');

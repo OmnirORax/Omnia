@@ -74,3 +74,6 @@
 
 /* Only the visible rim interior retains hover; the outer layout margin stays clear. */
 .radial-menu-hover-zone{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:auto}
+
+.radial-menu-row-zone{position:absolute;left:50%;top:50%;border-radius:999px;pointer-events:auto}
+.radial-menu-row .radial-menu-slot>button{font-size:14px}

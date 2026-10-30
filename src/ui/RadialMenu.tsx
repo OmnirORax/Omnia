@@ -4,11 +4,11 @@ import { uiPointerHeld } from './pointerOwnership';
 import { RangeControl, RangeAxis, RangeGestureTarget, type RangeGesture } from './RangeControl';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type Ref, type CSSProperties } from 'react';
 import type { RadialNode } from './radialMenuModel';
-import { radialLayout, RADIAL_GEOMETRY, radialQuickSlot } from './radialMenuModel';
+import { radialLayout, radialRowLayout, RADIAL_GEOMETRY, radialQuickSlot } from './radialMenuModel';
 import { ContextualMasterController } from './ContextualMasterController';
 import './radialMenu.css';
 export type RadialNavigation={back:()=>boolean;forward:()=>boolean;open:()=>void};
-type CategoryAnchor={id:string;x:number;y:number};
+type CategoryAnchor={id:string;x:number;y:number;axis:{x:number;y:number}};
 export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigationChange,quickItems,quickEnd,heldOpen=false}: {
   items:RadialNode<ReactNode>[];inset?:ReactNode;onClose:()=>void;navigationRef?:Ref<RadialNavigation>;children?:ReactNode;onNavigationChange?:(nested:boolean)=>void;quickItems?:ReactNode[];quickEnd?:ReactNode[];heldOpen?:boolean;
 }) {
@@ -24,14 +24,16 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
     return()=>observer.disconnect();
   },[!!quickItems,!!children]);
   const [path,setPath]=useState<CategoryAnchor[]>([]),outward=useRef<CategoryAnchor[]|null>(null);
-  const childAnchor=(owner:HTMLElement,slot:HTMLElement,childExtent:number):CategoryAnchor=>{
+  const childAnchor=(owner:HTMLElement,slot:HTMLElement,childLength:number):CategoryAnchor=>{
     const ownerBox=owner.getBoundingClientRect(),slotBox=slot.getBoundingClientRect();
     const ox=ownerBox.left+ownerBox.width/2,oy=ownerBox.top+ownerBox.height/2;
     const x=slotBox.left+slotBox.width/2,y=slotBox.top+slotBox.height/2,dx=x-ox,dy=y-oy,length=Math.hypot(dx,dy)||1;
     const parentExtent=Number(owner.dataset.radialExtent),parentOuter=Number(owner.dataset.radialOuter);
     const parentRadius=parentExtent>0?ownerBox.width*parentOuter/parentExtent:ownerBox.width/2;
-    const distance=parentRadius+childExtent*scale+2;
-    return {id:'',x:ox+dx/length*distance,y:oy+dy/length*distance};
+    const axis=owner.dataset.rowX!==undefined?{x:Number(owner.dataset.rowX),y:Number(owner.dataset.rowY)}:{x:dx/length,y:dy/length};
+    const parentEdge=owner.dataset.rowLength?Number(owner.dataset.rowLength)*scale/2:parentRadius;
+    const distance=parentEdge+childLength*scale/2+2;
+    return {id:'',x:ox+axis.x*distance,y:oy+axis.y*distance,axis};
   };
   const hoverTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const keepChildren=()=>{if(hoverTimer.current)clearTimeout(hoverTimer.current);};
@@ -45,7 +47,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
   const branches:{anchor:CategoryAnchor;node:RadialNode<ReactNode>}[]=[];
   let level=items;
   for(const anchor of path){const node=level.find(node=>node.id===anchor.id);if(!node?.children)break;branches.push({anchor,node});level=node.children;}
-  const ring=(nodes:RadialNode<ReactNode>[],depth:number,embedded=false)=>{const layout=radialLayout(nodes,depth);return nodes.map((node,index)=>{
+  const ring=(nodes:RadialNode<ReactNode>[],depth:number,embedded=false,axis?:{x:number;y:number})=>{const layout=axis?radialRowLayout(nodes,axis):radialLayout(nodes,depth);return nodes.map((node,index)=>{
     const gestureKey=`${depth}:${node.id}`;let gestureTarget=sliderGestures.current.get(gestureKey);if(!gestureTarget){gestureTarget={current:null};sliderGestures.current.set(gestureKey,gestureTarget);}
     const quick=depth===0&&!!quickItems;
     const slot=quick?radialQuickSlot(index+quickItems.length,quickExtent):layout.slots[index];
@@ -59,16 +61,16 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
       onPointerUp={event=>{const active=adjustment.current;if(active?.id!==gestureKey||active.pointer!==event.pointerId)return;event.stopPropagation();active.api.finish(event.clientX,event.clientY);adjustment.current=null;setAdjusting(null);suppressAdjustmentClick.current=true;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}}
       onLostPointerCapture={()=>{if(adjustment.current?.id===gestureKey){adjustment.current.api.cancel();adjustment.current=null;setAdjusting(null);}}}
       onPointerCancel={()=>{if(adjustment.current?.id===gestureKey){adjustment.current.api.cancel();adjustment.current=null;setAdjusting(null);}}}
-      onClickCapture={event=>{if(suppressAdjustmentClick.current){suppressAdjustmentClick.current=false;event.preventDefault();event.stopPropagation();}}} style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}} onMouseEnter={event=>{keepChildren();if(node.children){const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialLayout(node.children!,depth+1);
-        if(owner){const anchor=childAnchor(owner,event.currentTarget,layout.radius+layout.size/2);setPath([...path.slice(0,depth),{...anchor,id:node.id}]);}}}} onMouseLeave={event=>{const branch=event.currentTarget.closest('.radial-menu-branch');if(event.relatedTarget instanceof Node&&branch?.contains(event.relatedTarget))keepChildren();else leaveChildren();}}>
+      onClickCapture={event=>{if(suppressAdjustmentClick.current){suppressAdjustmentClick.current=false;event.preventDefault();event.stopPropagation();}}} style={{left:embedded&&!quick?`calc(${50+s*50}% - ${s*edge}px)`:`${slot.x}%`,top:embedded&&!quick?`calc(${50-c*50}% + ${c*edge}px)`:`${slot.y}%`,width:slot.size,height:slot.size}} onMouseEnter={event=>{keepChildren();if(node.children){const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialRowLayout(node.children!,{x:0,y:-1});
+        if(owner){const anchor=childAnchor(owner,event.currentTarget,layout.length);setPath([...path.slice(0,depth),{...anchor,id:node.id}]);}}}} onMouseLeave={event=>{const branch=event.currentTarget.closest('.radial-menu-branch');if(event.relatedTarget instanceof Node&&branch?.contains(event.relatedTarget))keepChildren();else leaveChildren();}}>
       {node.setter&&<span className="radial-menu-setter" style={{left:layout.slots[index].setterX,top:layout.slots[index].setterY,transform:`translate(-50%,-50%) rotate(${layout.slots[index].setterAngle}deg)`}}><RangeGestureTarget.Provider value={gestureTarget}><RangeAxis.Provider value={layout.slots[index].setterAngle}>{node.setter}</RangeAxis.Provider></RangeGestureTarget.Provider></span>}
       {node.children?<button type="button" data-ui-id={`radial:${node.id}`} aria-label={node.label} title={node.label} aria-haspopup="true" aria-expanded={path[depth]?.id===node.id} style={node.symbol.length>2?{fontSize:10}:undefined}
         onClick={event=>{
           if(path[depth]?.id===node.id){setPath(path.slice(0,depth));return;}
-          const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialLayout(node.children!,depth+1);
-          if(!owner)return;const anchor=childAnchor(owner,event.currentTarget,layout.radius+layout.size/2);
+          const owner=event.currentTarget.closest<HTMLElement>('.radial-menu'),layout=radialRowLayout(node.children!,{x:0,y:-1});
+          if(!owner)return;const anchor=childAnchor(owner,event.currentTarget,layout.length);
           setPath([...path.slice(0,depth),{...anchor,id:node.id}]);
-        }}>{node.symbol}</button>:node.content}
+        }}>{node.symbolMask?<span aria-hidden="true" style={{width:'1.3em',height:'1.3em',background:'currentColor',maskImage:`url("${node.symbolMask}")`,WebkitMaskImage:`url("${node.symbolMask}")`,maskSize:'contain',maskRepeat:'no-repeat'}}/>:node.symbol}</button>:node.content}
     </span>;
   });};
   const {extent,radius,size}=radialLayout(items);
@@ -94,15 +96,13 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
       {!children&&<><span className="radial-menu-centre radial-menu-origin" role="button" tabIndex={0} data-dial-drag title="Drag dial" aria-label="Drag dial"/>{sizeControl}</>}
     </div>
     {branches.map(({anchor,node},index)=>{
-      const depth=index+1,{extent,radius,size}=radialLayout(node.children!,depth);
+      const depth=index+1,{extent,size,length,angle}=radialRowLayout(node.children!,anchor.axis);
       return <ContextualMasterController key={`${index}:${node.id}`} radial anchored title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onAdvance={forward} onClose={()=>{outward.current=path;setPath(path.slice(0,index));}}>
-        <div className="radial-menu radial-menu-branch" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} data-radial-extent={extent} data-radial-outer={radius+size/2} style={dialStyle(extent,size)}
+        <div className="radial-menu radial-menu-branch radial-menu-row" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} data-radial-extent={extent} data-row-x={anchor.axis.x} data-row-y={anchor.axis.y} data-row-length={length} style={dialStyle(extent,size)}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
-          <span className="radial-menu-hover-zone" aria-hidden="true" style={{width:radius*2,height:radius*2}}/>
-          <svg className="radial-menu-rims" viewBox={`0 0 ${extent} ${extent}`} aria-hidden="true"><circle fill="none" cx={extent/2} cy={extent/2} r={radius}/></svg>
-          {ring(node.children!,depth)}
-          {children&&index===0&&sizeControl}
-          <span className="radial-menu-centre radial-menu-origin" role="button" tabIndex={0} data-dial-drag title="Drag dial" aria-label="Drag dial"/>
+          <span className="radial-menu-row-zone" aria-hidden="true" style={{width:length+4,height:size+4,transform:`translate(-50%,-50%) rotate(${angle}deg)`}}/>
+          {ring(node.children!,depth,false,anchor.axis)}
+          {children&&index===0&&<span style={{position:'absolute',left:`calc(50% + ${anchor.axis.y*(size/2+10)}px)`,top:`calc(50% - ${anchor.axis.x*(size/2+10)}px)`}}>{sizeControl}</span>}
         </div>
       </ContextualMasterController>;
     })}

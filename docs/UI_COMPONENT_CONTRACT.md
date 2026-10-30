@@ -706,3 +706,16 @@ Scalar grab correction: geometry chooses the DOF/tool before a press; once grabb
 
 
 Latest Rotation correction: hovering actual edges shows the cue; one primary click selects its owner and opens the axis wheel on release, without editing the angle. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+
+
+Latest category presentation: shared RadialMenu category children use
+radialRowLayout, a 24px/2px-gap row along the parent button's outward radial axis.
+Nested rows inherit the axis and begin beyond the preceding row's visible end.
+Glyphs remain upright; relative setters project perpendicular to the row, retaining
+existing gesture owners. The root remains radial. Child rings, centre controls and
+circular hover zones are replaced by a transparent capsule spanning only the row
+and its gaps. Existing hover retention, keyboard hierarchy and shared scale remain.
+Embedded-parent scale control sits beside the first row, opposite its value setters.
+Category metadata can supply symbolMask, rendered in currentColor; Appearance
+uses the shared eye silhouette rather than sparkle emoji. No scene/history or
+selection behavior changes. Browser layout acceptance remains pending.

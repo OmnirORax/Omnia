@@ -6,7 +6,7 @@ import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCur
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout } from '../src/ui/radialMenuModel.ts';
+import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout, radialRowLayout } from '../src/ui/radialMenuModel.ts';
 import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
@@ -442,4 +442,20 @@ test('outside-zone DOF settings dismiss outside controls but preserve popup inte
  const layers=new Map([[{contains:t=>t===inside},{close:()=>{},dismiss:()=>calls.push('settings'),dismissOutside:true}],[{contains:()=>false},{close:()=>{},dismiss:()=>calls.push('ordinary') }]]);
  assert.equal(dismissOutsideContext(layers,inside),false);assert.deepEqual(calls,[]);
  assert.equal(dismissOutsideContext(layers,outside),true);assert.deepEqual(calls,['settings']);
+});
+
+test('child rows preserve upright nonoverlapping controls along every parent axis',()=>{
+ for(const count of [1,2,7,20])for(const axis of [{x:1,y:0},{x:0,y:-1},{x:-3,y:4}]){
+  const nodes=Array.from({length:count},(_,i)=>({id:String(i),label:String(i),symbol:'○',setter:i}));
+  const row=radialRowLayout(nodes,axis),ux=row.axis.x,uy=row.axis.y;
+  for(const [i,slot] of row.slots.entries()){
+   const x=(slot.x-50)*row.extent/100,y=(slot.y-50)*row.extent/100;
+   assert.ok(Math.abs(x*uy-y*ux)<1e-8,'every child lies on the parent axis');
+   assert.equal(slot.size,24);
+   assert.ok(Math.abs(x)+slot.size/2<=row.extent/2&&Math.abs(y)+slot.size/2<=row.extent/2);
+   if(i){const prev=row.slots[i-1];assert.ok(Math.hypot(slot.x-prev.x,slot.y-prev.y)*row.extent/100>=25.99);}
+   const setterX=slot.setterX-slot.size/2,setterY=slot.setterY-slot.size/2;
+   assert.ok(Math.abs(setterX*ux+setterY*uy)<1e-8,'held value setters extend perpendicular to the row, away from siblings');
+  }
+ }
 });
