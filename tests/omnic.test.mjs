@@ -1062,3 +1062,14 @@ test('math marks deselect consistently without repeated crossings toggling them 
  assert.deepEqual(paintMathematicalSlots(before,['0:1','0:3'],'normal',true).selected,[]);
  assert.deepEqual(paintMathematicalSlots(removed,['0:1'],'recursive').selected,['0:3','0:1']);
 });
+
+test('MS geometry membership projects only complete authored edit owners, with stable rendered identities',async()=>{
+ const {selectedEditOwners}=await import('../src/omnic/msSelection.ts');
+ const {authoredNodeOwners}=await import('../src/omnic/contextGeometry.ts');
+ const source=validateRecipe(recipe([{id:'array',generator:'radial',params:{count:3}},{id:'single',generator:'line',params:{length:20}}]));
+ const evaluation=evaluateRecipe(source),owners=authoredNodeOwners(source,evaluation),array=evaluation.nodes.filter(n=>owners.get(n.id)==='array'),single=evaluation.nodes.find(n=>owners.get(n.id)==='single');
+ assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,new Set([array[0].id])),[],'partial MS selection cannot silently broaden into a whole-array edit');
+ assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,new Set([...array.map(n=>n.id),single.id])),['array','single']);
+ assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,new Set()),[]);
+ const restored=evaluateRecipe(source);assert.deepEqual(selectedEditOwners(restored.nodes,authoredNodeOwners(source,restored),new Set(array.map(n=>n.id))),['array'],'stable rendered identities survive renderer replacement');
+});

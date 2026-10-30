@@ -617,8 +617,8 @@ was run for these deliveries.
 Known gaps: Shift+Atomnic shortcuts still use the generic coupled MC fallback,
 which exposes the broader Omnic input set rather than the selected operation's
 progressive fields. Micro/Macro scopes cover a unit and nearest authored group,
-not the complete universal contextual hierarchy. Property matching covers authored
-dot descriptors, not full integration with MS geometry/region selection. These
+not the complete universal contextual hierarchy. Selection now uses shared MS membership/history/feedback; the old dot-pattern
+panel is retired. Partial generated-member editing and clipping remain unsupported. These
 must not be described as finished universal inheritance. Fix at shared applicability,
 configuration and hierarchy boundaries; do not add private Shift listeners or
 independent settings stores. The initial full-grid/permanent-toolbar delivery

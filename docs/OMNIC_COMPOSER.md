@@ -439,12 +439,11 @@ remain in Generator controls. There is no automatic destructive flattening.
   Esc/cancel restores the pre-stroke recipe. A direct swept-segment test bounds
   work by unit count and catches units between pointer events. Erasing is whole-unit
   removal, not intradot carving; explicit dangling operator targets stay diagnostic.
-- **V / Select:** click a unit; Shift-click adds/removes. **Scope** Micro addresses
-  units; Macro addresses their nearest authored group (ungrouped root dots share
-  the construction). Ctrl+A selects all authored units. Context **group** gathers
-  selected units preserving IDs and coordinates; **remove** / Delete deletes them.
-  Context selectionUndo/selectionRedo changes only transient selection. Ordinary
-  shared Undo/Redo changes accepted construction, not each pointer preview.
+- **Selection:** MS owns membership, feedback and transient history. Click/drag
+  selects through MS; Q opens its configuration (V is an alias). Use MS for
+  multi-selection, not private Shift toggles or rectangle sweeps. Ctrl+A routes
+  authored targets into the same owner. Selection undo/redo uses MS history;
+  recipe undo/redo remains separate. Complete selected owners feed existing edits.
 - **G / Move:** drag selected units rigidly. A clicked unselected unit becomes the
   selection. Touching mode snaps the common translation and rejects overlap;
   Free uses its retained movement step. Invalid samples retain the last valid one.
@@ -483,14 +482,8 @@ remain in Generator controls. There is no automatic destructive flattening.
   independent of canonical semantics. **Fill** applies retained paint/fill to units.
   Existing Ordered operations shows/removes/reorders marks. Generator controls
   also supplies reusable copied operation tools, export and detailed operations.
-- **Property patterns:** right-click a unit, then choose Property patterns. Candidates
-  come from registered dot properties, ranked by shared-property similarity;
-  absolute position is excluded. Hover glows candidates; click selects that set;
-  + includes a criterion, − excludes it, Clear criteria removes criteria without
-  discarding the chosen selection. Size, fill, color, opacity, stroke, orientation and evaluated highlight descriptors
-  participate. Orientation include/exclude uses half a current angular step as
-  tolerance, with cyclic wrapping. The shared matcher is renderer-independent;
-  full integration with the global MS geometry/region UI is still pending.
+- **Selection settings:** the retained pattern command opens Q/MS. The private
+  Composer property-pattern panel is retired; rules and patterns belong to MS.
 - **World:** the same gestures address the active edited image in Omnium, including
   unsaved temporary work. Shared uses continue previewing together within the
   existing 32-source budget. Selection/pivot/grid/ghost are transient editing
@@ -714,3 +707,23 @@ Scalar grab correction: geometry chooses the DOF/tool before a press; once grabb
 
 
 Latest Rotation correction: hovering actual edges shows the cue; one primary click selects its owner and opens the axis wheel on release, without editing the angle. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+
+
+### Shared MS selection ownership
+
+Composer no longer stores UI selection or a selection timeline. Rendered primitives
+opt into the generic `geometry.rendered` MS adapter with `data-selection-geometry`
+and stable scoped `data-selection-id`. Native SVG stroke hits and screen-scaled
+stroke bounds participate in shared selection/feedback, including zero-height lines.
+Ordinary click/drag publishes geometry through `useVisualSelection().setElements`;
+Q uses the existing selector rules/configuration. Programmatic selection uses the
+same history and does not replace an unchanged selection’s rules/scope. Temporary
+reference requests checkpoint and restore MS, while editing consumes the last
+accepted selection. New renderers should declare these shared boundaries instead
+of keeping their own membership, matching panel, feedback or history.
+
+The edit projection admits only complete authored owners. Partial generated-member
+MS selection stays exact/visible; whole-owner operations cannot broaden it silently.
+Per-member property overrides and arbitrary clipping remain future work. Drawing,
+erasing, recipe-authored selection operators and draft history remain distinct.
+Browser acceptance is pending; no browser suite run for this change.

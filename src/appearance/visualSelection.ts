@@ -76,7 +76,7 @@ export function collectVisualParts(): VisualPart[] {
     for (const element of elements) {
       if (!(element instanceof HTMLElement || element instanceof SVGElement)) continue;
       const add = (node: Node, range?: Range) => {
-        const key = `${target.id}:${keyFor(node)}`;
+        const key = `${target.id}:${!range&&element.hasAttribute('data-selection-id')?boundaryFor(element).key:keyFor(node)}`;
         if (seen.has(key)) return;
         seen.add(key);
         const parent = range?.startContainer.parentElement ?? element;
@@ -133,6 +133,12 @@ export function boundaryRect(boundary: SelectionBoundary): Box | undefined {
 }
 export function partRects(part: VisualPart): Box[] {
   const rects = [...(part.range ? part.range.getClientRects() : part.element.getClientRects())];
+  if (part.element.hasAttribute?.('data-selection-geometry')) {
+    const style=getComputedStyle(part.element),matrix=(part.element as SVGGraphicsElement).getScreenCTM?.();
+    const stroke=style.stroke==='none'?0:parseFloat(style.strokeWidth||'0')/2;
+    const x=stroke*(matrix?Math.hypot(matrix.a,matrix.c):1),y=stroke*(matrix?Math.hypot(matrix.b,matrix.d):1);
+    return rects.map(rect=>({left:rect.left-x,top:rect.top-y,right:rect.right+x,bottom:rect.bottom+y}));
+  }
   if (part.role !== "contour") return rects;
   const style = getComputedStyle(part.element);
   // A line contained wholly in a frame's interior does not touch its contour.
@@ -187,7 +193,7 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
   const candidates = hit.ancestors.filter(part => !part.target.binding?.selection || scenePartAt(part.target.id, part.element, x, y));
   // Artwork, actual text ink, then border proximity distinguish overlapping paint
   // on the same component. Background is the final fallback, not the text's box.
-  const icon = candidates.find(part => part.role === "icon" && containsPoint(measure?.bounds(part.element) ?? part.element.getBoundingClientRect(), x, y));
+  const icon = candidates.find(part => part.role === "icon" && (part.element.hasAttribute?.("data-selection-geometry") || containsPoint(measure?.bounds(part.element) ?? part.element.getBoundingClientRect(), x, y)));
   if (icon) return icon;
   const text = hit.text.find(part => (measure?.rects(part) ?? [...part.range!.getClientRects()]).some(rect => containsPoint(rect, x, y)));
   if (text) return text;
@@ -230,6 +236,7 @@ export type VisualMeasurements = ReturnType<typeof createVisualMeasurements>;
 export function partPaint(part: VisualPart): string {
   if (part.target.binding?.selection) return scenePartPaint(part.target.id, part.element) ?? "transparent";
   const style = getComputedStyle(part.element, part.target.id === "text.ui.placeholders" ? "::placeholder" : null);
+  if(part.element.hasAttribute?.('data-selection-geometry'))return style.fill!=='none'?style.fill:style.stroke;
   // Feedback ink is temporary. Its adapter preserves the actual source for sampling.
   const source = part.element.hasAttribute("data-visual-selection-ink") ? style.getPropertyValue("--omnium-selector-source-color").trim() : "";
   return part.role === "background" ? style.backgroundColor : part.role === "contour" ? style.borderTopColor :

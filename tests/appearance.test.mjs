@@ -24,7 +24,7 @@ import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, s
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
 import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints, selectionWheelRotation } from "../src/appearance/selectionGeometry.ts";
 import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule } from "../src/appearance/selectionToggle.ts";
-import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide, roleFor, partPaint } from "../src/appearance/visualSelection.ts";
+import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide, roleFor, partPaint, partRects } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
   for (const [current, side, expected] of [
@@ -1372,4 +1372,16 @@ test('all dial families stay within Dials while retaining shared semantic role a
  assert.equal(next.values['ui.dials.radial.rims'].color,'#123456');
  assert.equal(next.values['ui.fields.mathematicalDial.contours'].color,'#123456');
  assert.equal(next.values['ui.buttons.contour'],undefined);
+});
+
+
+test('rendered geometry uses native stroke hits and includes screen-scaled stroke in selection bounds',()=>{
+ const previous=globalThis.getComputedStyle;globalThis.getComputedStyle=()=>({stroke:'cyan',strokeWidth:'4'});
+ try{
+  const line={hasAttribute:name=>name==='data-selection-geometry',contains:()=>false,
+    getClientRects:()=>[{left:10,right:30,top:20,bottom:20}],getScreenCTM:()=>({a:2,b:0,c:0,d:2})};
+  const part={key:'line',element:line,role:'icon',target:{id:'geometry.rendered'}};
+  assert.equal(partAt([part],line,20,23),part,'native SVG painted-stroke hit survives a zero-height geometry box');
+  assert.deepEqual(partRects(part),[{left:6,right:34,top:16,bottom:24}]);
+ }finally{globalThis.getComputedStyle=previous;}
 });

@@ -1,5 +1,6 @@
+import {selectedEditOwners} from './msSelection';
+import {authoredNodeOwners,targetNodes} from './contextGeometry';
 import {useVisualSelection} from '../appearance/VisualSelector';
-import {boundaryElement} from '../appearance/visualSelection';
 import {DofInformationHeader} from '../ui/DofInformation';
 import {OperationReferenceScope} from './OperationScope';
 import { radialTree } from '../ui/radialMenuModel';
@@ -10,7 +11,7 @@ import { functionInputValue } from "../properties/runtimeInputs";
 import { OMNIC_CONSUMER } from "./omnic.function";
 import { operationTool, isOperationTool, applyOperationTool, insertConstruction } from "./tools";
 import { snappedAngle, rotationStops } from "./rotation";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useLayoutEffect, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { closedComposerDraft, forgetClosedComposerDraft, preserveClosedComposerHistory } from "./draftHistory";
 import { objectResolver } from "./revisions";
 import type { Recipe, Component, Application, Params } from "./model";
@@ -114,13 +115,12 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const recipe = sample ?? draft, recipeRef = useRef(recipe); recipeRef.current = recipe;
   const atomnicActive=!!recipe.atomnic?.active;
   const [focus, setFocus] = useState<Focus | null>(() => draft.components[0] ? { kind: "component", id: draft.components[0].id } : null);
-  const [picked, setPicked] = useState<string[]>([]);
+  const preview = useRef<HTMLDivElement>(null), importInput = useRef<HTMLInputElement>(null);
   const [toolId, setToolId] = useState("");
   const [generator, setGenerator] = useState(isNew ? "dot" : "radial"), [reference, setReference] = useState("");
   const [thresholds, setThresholds] = useState(false), [playing, setPlaying] = useState(false);
   const [copyLabel, setCopyLabel] = useState(entity.label ? `${entity.label} variation` : isNew ? "Omnic object" : "Omnic variation");
   const [error, setError] = useState(""), [notice, setNotice] = useState("");
-  const preview = useRef<HTMLDivElement>(null), importInput = useRef<HTMLInputElement>(null);
   const owner = `omnic.draft:${draftId}`;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -155,17 +155,21 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const html = useMemo(() => !radar&&evaluated.result ? renderSVG(evaluated.result).replace(/viewBox="[^"]*"/, `viewBox="${viewBox}"`) : "", [evaluated.result,viewBox,radar]);
   const presentationBounds=useMemo(()=>{const [x,y,width,height]=viewBox.split(' ').map(Number);return {x,y,width,height};},[viewBox]);
   const htmlRef = useRef(html); htmlRef.current = html;
+  const visualSelection=useVisualSelection();
+  const acceptedPicked=useRef<string[]>([]);
+  const picked=useMemo(()=>{if(visualSelection?.requesting)return acceptedPicked.current;const roles=new Set((visualSelection?.parts??[]).filter(part=>preview.current?.contains(part.element)).flatMap(part=>part.element.getAttribute('data-omnic-role')??[]));return acceptedPicked.current=evaluated.result?selectedEditOwners(evaluated.result.nodes,authoredNodeOwners(recipe,evaluated.result),roles):[];},[visualSelection?.parts,visualSelection?.requesting,evaluated.result,recipe]);
+  const pickedRef=useRef(picked);pickedRef.current=picked;
+  const pendingPick=useRef<string[]|null>(null);
+  const setPicked=(update:string[]|((before:string[])=>string[]))=>{
+    const ids=typeof update==='function'?update(pickedRef.current):update;
+    const roles=new Set(evaluated.result?targetNodes(evaluated.result,ids).map(n=>n.id):[]);
+    const elements=[...(preview.current?.querySelectorAll('[data-selection-geometry]')??[])].filter(element=>ids.includes(element.getAttribute('data-omnic-component')??'')||ids.includes(element.getAttribute('data-omnic-role')??'')||roles.has(element.getAttribute('data-omnic-role')??''));
+    if(ids.length&&!elements.length){pendingPick.current=ids;return;}pendingPick.current=null;visualSelection?.setElements(elements);
+  };
+  useLayoutEffect(()=>{if(pendingPick.current)setPicked(pendingPick.current);},[recipe,evaluated.result]);
   const targetContext=useContextCommands({recipe,resolve,evaluation:evaluated.result,selection:picked,select:ids=>{setPicked([...ids]);setFocus(ids[0]?{kind:'component',id:ids[0]}:null);if(!ids.length){setRadarPanel(null);setPresetSession(null);}},commit:(next,temporary)=>commit(next,temporary),surface:preview,bridge:atomnicBridge,error:setError});
   const components = useMemo(() => allComponents(recipe.components), [recipe.components]);
-  const visualSelection=useVisualSelection(),selectorOwned=useRef(false);
-  useEffect(()=>{
-    if(visualSelection?.requesting)return;
-    const boundary=visualSelection?.scope?.boundary??visualSelection?.boundary,element=boundary&&boundaryElement(boundary);
-    if(element&&preview.current?.contains(element)){
-      const id=element.closest('[data-omnic-component]')?.getAttribute('data-omnic-component');
-      if(id&&components.some(c=>c.id===id)){selectorOwned.current=true;setPicked(before=>before.length===1&&before[0]===id?before:[id]);setFocus(before=>before?.kind==='component'&&before.id===id?before:{kind:'component',id});}
-    }else if(!boundary&&selectorOwned.current){selectorOwned.current=false;setPicked([]);}
-  },[visualSelection?.inspectionKey,visualSelection?.requesting,components]);
+  useEffect(()=>{if(!visualSelection?.requesting)setFocus(picked[0]?{kind:'component',id:picked[0]}:null);},[picked.join('|'),visualSelection?.requesting]);
   const componentDepths = useMemo(() => {
     const depths = new Map<string,number>();
     const visit = (items: Component[], depth: number) => items.forEach(component=>{ depths.set(component.id,depth); visit(component.children ?? [],depth+1); });
@@ -401,7 +405,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     {(error || evaluated.error) && <small role="alert">{error || evaluated.error}</small>}{notice && <small role="status">{notice}</small>}
     {baseRevision !== (entity.omnic?.revision ?? null) && <small role="status">This draft began at shared revision {baseRevision ?? "none"}; the object is now revision {entity.omnic?.revision ?? "none"}. Reset draft loads the current definition. Save shared explicitly replaces it; Save copy preserves both.</small>}
     <div className="omnic-row"><UIAction id="omnic:atomnic-mode" label={atomnicActive ? "Atomnic on · turn off (preserve composition)" : "Atomnic off · turn on"} symbol="⠒" category="Omnic" registerOnly={atomnicActive} onClick={()=>commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}})} /></div>
-    {atomnicActive && <AtomnicEditor recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge}
+    {atomnicActive && <AtomnicEditor surfaceRef={preview} recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge} normalSelection={picked} onSelect={ids=>setPicked([...ids])}
       modeControl={<FunctionControl id="omnic:atomnic-mode" mirror symbol="⠒" tooltip="Atomnic on · turn off to use other geometry · composition is preserved"/>}
       documentEntries={([
         ...FEATURE_ACTIONS.filter(action=>action.owner==='omnicComposer'&&'radial' in action).map(action=>({id:action.id,label:action.label,symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:<FunctionControl id={action.id} mirror symbol={'radial' in action?action.radial.symbol:'◇'} tooltip={action.description}/>})),
@@ -409,10 +413,9 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       ] satisfies RadialEntry<ReactNode>[])} />}
     {!atomnicActive && <div className="omnic-workbench">
       <div className="omnic-preview-column">
-        <div className="omnic-preview" ref={preview} role="img" aria-label="Live Omnic structure" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
-          const target = event.target instanceof Element ? event.target.closest("[data-omnic-role]") : null;
-          const role = target?.getAttribute("data-omnic-role"); if (!role) return;
-          setPicked(current => current.includes(role) ? current.filter(value => value !== role) : [...current, role]);
+        <div className="omnic-preview" ref={preview} role="img" aria-label="Live Omnic structure" dangerouslySetInnerHTML={{ __html: html }} onClick={event=>{
+          const target=event.target instanceof Element?event.target.closest('[data-selection-geometry]'):null;
+          if(target&&!visualSelection?.parts.some(part=>part.element===target))visualSelection?.setElements([target]);
         }} />
         <small role="status">{playing ? `Semantic motion · playing (${RENDER_BUDGET.omnicFps} fps)` : evaluated.result?.motion ? "Semantic motion · paused" : "Static structure"}</small>
         {evaluated.result && <output className="omnic-derived">Units {evaluated.result.properties.count} · selected {evaluated.result.properties.selectedCount} · components {evaluated.result.properties.componentCount}{baseCount !== null ? ` · Δ count ${evaluated.result.properties.count - baseCount}` : ""}</output>}
