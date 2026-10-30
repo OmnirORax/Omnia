@@ -1,3 +1,4 @@
+import {selfReference} from '../properties/referenceUse';
 import {useVisualSelection} from '../appearance/VisualSelector';
 import {rangeLabel} from '../ui/rangeMath';
 import {HOVER_TOOL_DETECTION_ENABLED,prepareHoverAffordances,previewHoverAffordance} from './hoverAffordances';
@@ -162,16 +163,17 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const informationRule=useWorkingSelection((informationDegree?.axes?informationDegree.id:informationDegree?.properties[0])??'omnic.coordinate.x',informationDomain?informationDomain.max-informationDomain.min:400,informationDomain?.integer?'step':'symmetry',informationDomain?.cyclic?informationDomain.cyclic.period/8:informationDomain?.resolution??1);
   const informationActions=useRef({configure:(_kind:DofSettingsKind)=>{},degrees:()=>{}});
   informationActions.current={configure:kind=>{if(!informationDegree)return;settleGesture();dismissPanel?.();setMenu(cursorPosition());setPanel({kind:'degree',degree:informationDegree,configure:kind});},degrees:()=>showDegrees(informationIds)};
+  const informationSource=referencePicker?.references.get(informationIds[0]);
   const informationReference=informationDegree?referencePicker?.reference(informationDegree):undefined;
   const information=useMemo<DofInformationState|undefined>(()=>{
     if(!informationDegree)return;const mode=dofModePresentation(informationRule.mode,!!informationDomain?.cyclic,informationReference?.use==='step'?'step':undefined);
-    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:mode.label,modeIcon:mode.icon,variable:informationReference?.use==='step'||informationRule.mode==='step'?'step':'count',expression:informationRule.mode==='step'?`Δ ${rangeLabel(informationReference?.step??informationRule.step)}`:<DofRuleExpression count={informationRule.count}/>,referenceUse:informationReference?.use,reference:informationReference?.label??'Self',configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
-  },[informationDegree?.id,informationDegree?.label,informationDegree?.symbol,informationRule.mode,informationRule.count,informationRule.step,informationReference?.label,informationReference?.step,informationReference?.use,informationReference?.match,!!informationDomain?.cyclic]);
+    return {label:informationDegree.label,symbol:informationDegree.symbol??'⊕',mode:mode.label,modeIcon:mode.icon,variable:informationReference?.use==='step'||informationRule.mode==='step'?'step':'count',expression:informationRule.mode==='step'?`Δ ${rangeLabel(informationReference?.step??informationRule.step)}`:<DofRuleExpression count={informationRule.count}/>,referenceUse:informationReference?.use,reference:informationReference?.label??'Self',referenceSelf:selfReference(informationSource,informationIds),configure:kind=>informationActions.current.configure(kind),degrees:()=>informationActions.current.degrees()};
+  },[informationDegree?.id,informationDegree?.label,informationDegree?.symbol,informationRule.mode,informationRule.count,informationRule.step,informationReference?.label,informationReference?.step,informationReference?.use,informationReference?.match,informationSource,informationIds.join('|'),!!informationDomain?.cyclic]);
   useLayoutEffect(()=>information?numericEditor.registerInformation?.(information,1):undefined,[numericEditor.registerInformation,information]);
   const commands=useFeatureActions('atomnicComposer',{
     'atomnic.erase':{enabled:compatible,cursor:compatible&&pointerTool==='erase'?{zone:cursorZone}:false,run:()=>{cancel();setTool('erase');}},
     'atomnic.constraints':{enabled:true,run:()=>input('mode',settings.mode==='free'?'constrained':'free')},
-    'atomnic.draw':{enabled:compatible,cursor:compatible&&pointerTool==='draw'?{zone:cursorZone}:false,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,run:()=>{cancel();featureActionRuntime.invoke('selector.open');}},
+    'atomnic.draw':{enabled:compatible,cursor:compatible&&pointerTool==='draw'?{zone:cursorZone}:false,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,run:()=>{settleGesture();featureActionRuntime.invoke('selector.open');}},
     'atomnic.move':{enabled:compatible&&selected.size>0,cursor:(compatible||moveHover||gesture.current?.kind==='translate')&&pointerTool==='move'?{zone:cursorZone}:false,run:()=>{cancel();setTool('move');}},
     'atomnic.rotate':{enabled:!!rotationDegree,cursor:pointerTool==='rotate'&&(rotationHover||cursorOperation==='rotate')?{zone:cursorZone}:false,run:openRotation},
     'atomnic.step':{enabled:compatible&&selected.size>0,run:()=>beginRotation(true)},

@@ -15,3 +15,13 @@ export function selectionConfirmation(phase:string,requesting:boolean,polygon:bo
  if(phase==='configure')return 'aim';
  if(requesting&&(phase==='aim'||phase==='locked'))return 'accept';
 }
+
+/** Context consumers can borrow the normal MS entry action. The pending request
+ * bypass prevents its own selector opening from launching the consumer again. */
+export function selectionOpenContexts<T>(){
+ const contexts=new Map<symbol,{contains:(target:T)=>boolean;open:()=>boolean}>();
+ return {
+  register(context:{contains:(target:T)=>boolean;open:()=>boolean}){const key=Symbol();contexts.set(key,context);return()=>{contexts.delete(key);};},
+  open(target:T,requesting=false){if(requesting)return false;for(const context of [...contexts.values()].reverse())if(context.contains(target)&&context.open())return true;return false;},
+ };
+}

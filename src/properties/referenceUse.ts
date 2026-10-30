@@ -41,3 +41,6 @@ export function selectedReferenceStep(settings:ReferenceSettings,currentStep:num
  for(let denominator=1;denominator<=512;denominator++){const numerator=Math.round(factor*denominator);if(numerator>0&&numerator<=512&&Math.abs(numerator/denominator-factor)<=Math.max(1,Math.abs(factor))*1e-12)return {numerator,denominator};}
  return {numerator:settings.numerator*value/currentStep};
 }
+
+/** Reference identity, not a translated label or measurement availability. */
+export function selfReference(source:string|undefined,targets:readonly string[]){return source===undefined||targets.length===1&&source===targets[0];}

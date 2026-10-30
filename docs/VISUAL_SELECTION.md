@@ -7,8 +7,9 @@ appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
 ## One circle, independent geometry
 
-Q (rebindable) toggles the stationary controller at the pointer and the compact aiming
-cursor. The circle is centered on the pointer and clamped near viewport edges.
+Q (rebindable) starts the compact aiming cursor directly. The MS settings command
+(`selector.configure`, unassigned by default) explicitly opens the stationary
+controller. In an active numeric context, Q directly starts reference targeting. The circle is centered on the pointer and clamped near viewport edges.
 The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
 Escape disables the tool and clears selection. Browser chrome clicks, window
@@ -424,7 +425,7 @@ changing membership. Explicit MS lock retains the current candidate and symbol;
 normal cursor movement does not retarget them. Unlock resumes hover detection.
 No Ctrl requirement or automatic editor-entry freeze is used.
 
-Opening/closing the meta MS controller through `selector.open` preserves the
+Opening/closing the meta MS controller through `selector.configure` preserves the
 current candidate and displayed preview. Returning to aiming does not pick the
 controller's former location; actual pointer motion resumes retargeting. Explicit
 clear, selection commits and geometry/configuration changes keep their own rules.
@@ -565,3 +566,19 @@ behavior, pointed-boundary depth wheel and the fixed cursor remain the prior MS
 workflow. Lens search is restricted to the current surface. Future renderers opt
 in by declaring the shared surface capability, rather than adding feature-name
 conditions or a separate selector.
+
+
+### Direct opening and completion
+
+All `selector.open` entry points now start aiming immediately. Numeric editor
+scopes register contextual openers with MS; they use the highest-priority active
+DOF to start its existing source request. Surface and logical popup ownership
+restrict this to the relevant context. Shared `SelectionOpenContext` transport
+marks portal controllers automatically; it does not replace MS ownership/rules.
+A pending request bypasses the context opener so its own opening cannot recurse.
+Outside the active context, Q uses ordinary MS targeting with retained modes.
+
+Accepting a target closes MS’s cursor/configuration without clearing the selection
+or reference. Geometry-only construction remains in aiming until a target is
+selected. Explicit MS settings retains the existing controller and Enter-to-aim
+behavior; configuration no longer appears automatically on entry.

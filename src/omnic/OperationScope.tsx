@@ -1,7 +1,7 @@
 import {useVisualSelection} from '../appearance/VisualSelector';
 import type {ResizeRect} from '../ui/resizeGeometry';
 import {measuredReferenceFor} from './referenceMeasures';
-import {resolveReferenceUse,DEFAULT_REFERENCE_SETTINGS,type ReferenceSettings,type UsedReference} from '../properties/referenceUse';
+import {resolveReferenceUse,selfReference,DEFAULT_REFERENCE_SETTINGS,type ReferenceSettings,type UsedReference} from '../properties/referenceUse';
 import {createContext,useContext,useMemo,useRef,useState,useEffect,type ReactNode,type RefObject} from 'react';
 import {LIMITS,type Recipe,type RecipeResolver} from './model';
 import type {Evaluation} from './evaluate';
@@ -65,7 +65,7 @@ export function OperationDegreeScope({degree,children}:{degree:EditableDegree;ch
   if(ids.length!==1)return {allowed,targets:ids};
   const source=measuredReferenceFor(snapshot,degree.axes?.[0]??degree,retained,scope.environment),current=scope.reference(degree),settings=scope.settings(degree);
   const unavailable=!current&&(!!retained||settings.use!=='bounds'||settings.measure!=='context');
-  return {vector:!!degree.axes,allowed:n=>!unavailable&&(degree.axes?true:allowed(n)),targets:ids,selection:{current,unavailable,relation:{sourceLabel:source?.label??retained??'Self',settings,measures:source?.measures??[],change:patch=>scope.changeSettings(degree,patch)},pick:()=>scope.pick(degree),clear:()=>scope.choose(target),cancel:scope.cancelPick}};
+  return {vector:!!degree.axes,allowed:n=>!unavailable&&(degree.axes?true:allowed(n)),targets:ids,selection:{current,self:selfReference(retained,ids),unavailable,relation:{sourceLabel:source?.label??retained??'Self',settings,measures:source?.measures??[],change:patch=>scope.changeSettings(degree,patch)},pick:()=>scope.pick(degree),clear:()=>scope.choose(target),cancel:scope.cancelPick}};
 
  },[scope,key,property]);
  return <NumericOperationScope.Provider value={reference}>{children}</NumericOperationScope.Provider>;

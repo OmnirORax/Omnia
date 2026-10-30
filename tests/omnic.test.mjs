@@ -1120,3 +1120,13 @@ test('a fresh wheel click commits even when React capture skips the popup native
  press();const secondOpening=pointer.physicalPressVersion();release();
  press();assert.equal(pointer.isOpeningPress(secondOpening),false,'a new outside click also releases a stale opening guard');release();
 });
+
+test('Self reference state follows source identity including explicit Self and unavailable external sources',async()=>{
+ const {selfReference}=await import('../src/properties/referenceUse.ts');
+ assert.equal(selfReference(undefined,['edited']),true);
+ assert.equal(selfReference('edited',['edited']),true);
+ assert.equal(selfReference('@environment',['edited']),false);
+ assert.equal(selfReference('other',['edited']),false);
+ assert.equal(selfReference('removed-source',['edited']),false,'an unavailable external reference is not mislabeled Self');
+ assert.equal(selfReference(undefined,['a','b']),true,'no explicit source retains the default self context');
+});

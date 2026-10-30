@@ -204,3 +204,14 @@ test('selector Enter resumes the same aiming flow as the checkmark and owns refe
  assert.equal(preferredFeatureKey({},'Enter',id=>['selector.finishGeometry','context.confirm'].includes(id)),'selector.finishGeometry');
  assert.equal(preferredFeatureKey({},'Enter',id=>['selector.confirm','context.confirm'].includes(id),true),null,'native text entry is preserved');
 });
+
+test('MS opening contexts borrow targeting only within their surface and bypass pending requests',async()=>{
+ const {selectionOpenContexts}=await import('../src/appearance/selectionRequest.ts');
+ const contexts=selectionOpenContexts();let active=false,starts=0;
+ const stop=contexts.register({contains:target=>target==='canvas',open:()=>{if(!active)return false;starts++;return true;}});
+ assert.equal(contexts.open('canvas'),false,'no active DOF keeps normal MS targeting');
+ active=true;assert.equal(contexts.open('outside'),false,'an active Composer cannot hijack standalone MS');
+ assert.equal(contexts.open('canvas'),true);assert.equal(starts,1,'the active numeric consumer starts reference selection directly');
+ assert.equal(contexts.open('canvas',true),false,'opening the requested picker must not invoke its consumer recursively');assert.equal(starts,1);
+ stop();assert.equal(contexts.open('canvas'),false,'closed contexts cannot retain Q ownership');
+});

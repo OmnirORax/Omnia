@@ -1,3 +1,4 @@
+import {SelectionOpenContext} from './SelectionOpenContext';
 import {cursorSample,popupInvocation} from './cursorPosition';
 import {placePopup,popupBelowButton,type PopupRect} from './popupPlacement';
 import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent, type RefObject } from "react";
@@ -14,7 +15,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   title: string; hint?: string; position: { x: number; y: number } | null;
   onClose: () => void; onAdvance?:()=>void;onConfirm?:()=>void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean; anchored?:boolean; dismissOutside?:boolean;
 }) {
-  const root = useRef<HTMLDivElement>(null),parents=useContext(PopupParents);
+  const root = useRef<HTMLDivElement>(null),parents=useContext(PopupParents),selectionOwner=useContext(SelectionOpenContext);
   const ancestry=useMemo(()=>[root,...parents],[parents]);
   const invocation=useRef<Element|null>(null),buttonAnchor=useRef<PopupRect|null>(null);
   useLayoutEffect(()=>{if(!position){invocation.current=null;buttonAnchor.current=null;return;}const captured=popupInvocation(),target=cursorSample().target;buttonAnchor.current=captured?.button??null;if(target instanceof Node&&root.current?.contains(target))return;invocation.current=captured?.boundary??(target instanceof Element?target.closest('[data-ui-popup-boundary]'):null);},[!!position,position?.x,position?.y,stage]);
@@ -63,7 +64,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     node.addEventListener("wheel", preventScroll, { passive: false });
     return () => node.removeEventListener("wheel", preventScroll);
   }, [!!position, !!onWheel]);
-  return position && createPortal(<div ref={root} className={`contextual-master-controller ${radial?'contextual-master-controller-radial':'ui-frame-search-popup'}`} data-context-controller data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
+  return position && createPortal(<div ref={root} className={`contextual-master-controller ${radial?'contextual-master-controller-radial':'ui-frame-search-popup'}`} data-context-controller data-selection-context-owner={selectionOwner} data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
     onPointerDownCapture={event => {
       if(!owns(event.target))return;
       openingPress.current = false;suppressClick.current=false;

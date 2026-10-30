@@ -748,3 +748,16 @@ representable. No region menu follows a numeric source pick. Ordinary MS selecti
 without a numeric request does not invent a DOF. Higher-dimensional projections,
 scene-aligned constraint overlays and exact clipping remain pending. Browser
 acceptance of this experimental interaction remains with the user.
+
+
+### Reference identity and direct MS entry
+
+The reference control shows ↫ for Self/no explicit source, and ⟴ for another source.
+Identity determines this independently of labels or whether the source’s current
+measurement is available. Primary click directly starts source targeting;
+right-click retains reference-use configuration. Q inside the active Composer
+numeric context, including its owned portal controllers, starts the same request.
+Other surfaces retain ordinary MS targeting. All MS entry starts in aiming rather
+than configuration. Accepting a target closes MS, retaining the selection/reference
+and continuing into the existing on-spot possibility field. The explicit MS
+settings command remains available through the shared function catalog.
