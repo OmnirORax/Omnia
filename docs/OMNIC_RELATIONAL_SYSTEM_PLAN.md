@@ -2,6 +2,17 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Rule UI consolidation (2026-10-30)
+
+The separate Partitions/mode button and parameter radial are retired. The Composer
+rule expression opens the existing math dial directly. Consumer-declared compact
+choices inside that dial switch Partitions/Symmetry, Halving and Step, editing
+their count or step in the same place. Reuse working selection and its existing
+state-field evaluator; no second rule store or arithmetic implementation. Limits
+remain on execution-slider endpoints; reference source/use stay independent. This
+shared presentation change applies to current/future Composer DOF consumers.
+Browser confirmation remains pending.
+
 ## Current architectural correction: references supply measurements (2026-10-30)
 
 This section supersedes older assumptions that Self means no reference, that

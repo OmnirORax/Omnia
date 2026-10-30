@@ -646,8 +646,10 @@ rotation uses directions, and raw quantities such as Count/Opacity use radial
 addresses. Count has no implied physical axis. The same prepared-field nearest
 query, temporary owner preview, captured click commitment and history serve all.
 
-Right-click mode chooses Partitions/Symmetry, Halving or Step. Left-click mode
-configures divisions, step, working limits or exact '=' entry via the math dial.
+The rule expression opens the math dial directly. Its compact rule choices select
+Partitions/Symmetry, Halving or Step; that same dial configures divisions or step.
+The standalone Partitions/mode button and intermediate parameter radial are removed.
+Working limits remain at the value slider ends; exact entry remains on the math dial readout.
 Integer domains default to unit steps; other fields to partitions. Limits filter
 available states and never bypass hard domains; invalid/empty fields cannot apply.
 Reference picking now uses property/measurement/unit compatibility for numeric
@@ -787,3 +789,21 @@ and edited-world bridge use the same handlers. Eraser and explicit legacy pivot
 stages keep their prior dispatch; geometry legality and configured position fields
 still govern movement. Model regression covers intent and actual atom translation;
 user confirmation of repeated pickup after R/target-wheel editing is pending.
+
+
+### Unified rule configuration (2026-10-30)
+
+The Composer information strip contains DOF, rule expression and reference. Click
+the expression to open ⠒❉ directly; its compact icon row selects equal partitions
+(symmetry for cyclic domains), halving or additive step. Changing the rule keeps
+the dial open on its applicable count/step variable and retains the other working
+values, clamping count only to the chosen generator's existing capacity. Changing
+configuration alone does not move geometry. Slider/axis-wheel execution, semantic
+threshold preservation and the existing setters/history remain unchanged. Limits
+stay at slider endpoints; cyclic wheels retain ⊢/⊣ in their settings because they
+have no slider endpoints. There is no duplicate Partitions submenu. Reference Step keeps
+its measured multiplier/divisor configuration. The shared dial accepts consumer-
+provided rule choices and setters without adding another rule store or evaluator.
+Non-Composer dial consumers that do not supply choices retain their presentation.
+Static/model/build/backend verification precedes publication; browser confirmation
+of rule switching, variable editing and retained endpoint limits remains pending.

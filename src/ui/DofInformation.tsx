@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react';
 import {useNumericEditor} from './NumericEditorScope';
 import {selectionExpression,type StateSelectionMode} from '../properties/stateSelection';
-export type DofSettingsKind='options'|'modes'|'parameters'|'count'|'step'|'reference'|'source'|'relation'|'measurements'|'numerator'|'denominator'|'min'|'max';
+export type DofSettingsKind='options'|'rule'|'count'|'step'|'reference'|'source'|'relation'|'measurements'|'numerator'|'denominator'|'min'|'max';
 export const dofModes:Record<StateSelectionMode,{label:string;icon:string}>={symmetry:{label:'Partitions',icon:'✣'},halving:{label:'Halving',icon:'◐'},step:{label:'Step',icon:'+'}};
 export function dofModePresentation(mode:StateSelectionMode,cyclic:boolean,use?:'bounds'|'step'|'match'){
  return use==='step'?{label:'Measured step',icon:'Δ'}:use==='match'?{label:'Match',icon:'⨮'}:mode==='symmetry'&&cyclic?{label:'Symmetry',icon:'✣'}:dofModes[mode];
@@ -17,8 +17,7 @@ export function DofInformation({information}:{information:DofInformationState}){
  const i=information;
  return <div className="dof-information-controls" aria-label="Active DOF settings" data-ui-control data-ui-popup-boundary>
   <button data-ui-preserve-title type="button" title={`DOF: ${i.label} · choose DOF`} aria-label={`Choose DOF: ${i.label}`} onClick={i.degrees}>{i.symbol}</button>
-  <button data-ui-preserve-title type="button" title={`${i.mode} · configure · right-click to change mode`} aria-label={`Configure ${i.mode}`} onClick={()=>i.configure('parameters')} onContextMenu={e=>{e.preventDefault();e.stopPropagation();i.configure('modes');}}>{i.modeIcon}</button>
-  <button data-ui-preserve-title type="button" title="Rule variables" aria-label="Rule variables" onClick={()=>i.configure(i.variable)}>{i.expression}</button>
+  <button data-ui-preserve-title type="button" title={`${i.mode} · configure rule and variables`} aria-label="Configure rule and variables" onClick={()=>i.configure('rule')}>{i.expression}</button>
   <button data-ui-preserve-title type="button" title={`Reference: ${i.reference} · pick reference · right-click configures use`} aria-label={`Change reference: ${i.reference}`} onClick={()=>i.configure('source')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();i.configure('relation');}}>{i.referenceSelf?'↫':'⟴'}{i.referenceUse&&<sup className="dof-reference-use">{i.referenceUse==='bounds'?'⊢⊣':i.referenceUse==='step'?'Δ':'⨮'}</sup>}</button>
  </div>;
 }
