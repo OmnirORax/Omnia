@@ -137,7 +137,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   };
   const context = (which: Edit) => (event: React.MouseEvent) => { event.preventDefault(); event.stopPropagation(); if (!inputProps.disabled) edit(which); };
   const fraction = sequence?sequence.length<2?.5:sequenceIndex(sequence,value)/(sequence.length-1):high===low?.5:Math.max(0,Math.min(1,(value-low)/(high-low)));
-  return <span className="range-spectrum" data-range-control data-ui-control data-ui-native-tag="transparent" style={{ "--range-position": `${fraction * 100}%` } as CSSProperties}
+  return <span className="range-spectrum" data-range-control data-ui-control data-ui-popup-boundary data-ui-native-tag="transparent" style={{ "--range-position": `${fraction * 100}%` } as CSSProperties}
     onWheel={event => {
       if (valueDisabled) return;
       if (onWheel) onWheel(event); else { event.preventDefault(); event.stopPropagation(); nudge(event.deltaY<0?1:-1); }

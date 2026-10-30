@@ -13,7 +13,7 @@ export function DofRuleExpression({count}:{count:number}){
 export function DofInformation({information,interactive=true}:{information:DofInformationState;interactive?:boolean}){
  const i=information;
  if(!interactive)return <span className="dof-information-echo">{i.symbol} · {i.modeIcon} {i.expression} · ⟴</span>;
- return <div className="dof-information-controls" aria-label="Active DOF settings" data-ui-control>
+ return <div className="dof-information-controls" aria-label="Active DOF settings" data-ui-control data-ui-popup-boundary>
   <button type="button" title={`DOF: ${i.label} · choose DOF`} aria-label={`Choose DOF: ${i.label}`} onClick={i.degrees}>{i.symbol}</button>
   <button type="button" title={`${i.mode} · configure · right-click to change mode`} aria-label={`Configure ${i.mode}`} onClick={()=>i.configure('parameters')} onContextMenu={e=>{e.preventDefault();e.stopPropagation();i.configure('modes');}}>{i.modeIcon}</button>
   <button type="button" title="Rule variables" aria-label="Rule variables" onClick={()=>i.configure(i.variable)}>{i.expression}</button>

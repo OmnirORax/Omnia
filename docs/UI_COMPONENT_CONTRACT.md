@@ -677,3 +677,6 @@ E06 presentation correction: the information strip exists only while a DOF is ac
 
 
 DOF layout correction: base/exponent expressions render as one inline box even inside radial grid buttons. Mode/reference choices use icons and tooltip labels. Shared RangeControl readouts display at most six significant digits; exact numbers stay unchanged in owner state/native input and hover metadata. This is presentation only, with browser visual acceptance pending.
+
+
+Shared popup overlap correction: ContextualMasterController retains the invoking data-ui-popup-boundary and inherited contextual ancestor refs. Opening/resize placement uses actual control bounds; if the child overlaps, it moves outward to the nearest separating edge and avoids older ancestors. Internal stage changes retain the external invocation boundary. Already separate positions are preserved. Explicitly anchored radial branches keep radialLayout placement. There are no per-DOF offsets or pointer-motion layout reads. The DOF strip and shared RangeControl declare compound boundaries; future contextual children inherit the placement contract automatically. Browser visual acceptance remains pending.

@@ -182,3 +182,23 @@ test("viewport resize serializes and undoes without detaching the original frame
   assert.deepEqual(redoHistory(undoHistory(history)).present.windows.parent.members, layout.windows.parent.members);
   assert.throws(() => validateUILayout({ ...resized, windows: { ...resized.windows, child: { ...resized.windows.child, viewport: { x: 0, y: 0, width: -1, height: 20 } } } }), /viewport/);
 });
+
+test('nested popup placement separates actual parent bounds across shapes and levels',async()=>{
+ const {separatePopup}=await import('../src/ui/popupPlacement.ts');
+ const parent={x:100,y:100,width:180,height:36},child={width:100,height:100};
+ const outside=(p,c,pos)=>Math.abs(pos.x-(p.x+p.width/2))>=(p.width+c.width)/2||Math.abs(pos.y-(p.y+p.height/2))>=(p.height+c.height)/2;
+ for(const requested of [{x:190,y:118},{x:260,y:120},{x:140,y:105},{x:192,y:103}]){
+  const placed=separatePopup(parent,child,requested);assert.ok(outside(parent,child,placed));
+  const nextParent={x:placed.x-50,y:placed.y-50,width:100,height:100};
+  const next=separatePopup(nextParent,{width:80,height:80},placed);assert.ok(outside(nextParent,{width:80,height:80},next),'each nest level gets the same separation');
+ }
+ const point={x:500,y:500};assert.equal(separatePopup(parent,child,point),point,'already separated invocations retain their position');
+ const placed=separatePopup(parent,child,{x:190,y:118});assert.deepEqual(placed,{x:190,y:190},'centered invocation opens just below the strip');
+});
+
+test('child popup placement also avoids older ancestors rather than moving back over them',async()=>{
+ const {placePopup}=await import('../src/ui/popupPlacement.ts');
+ const parents=[{x:220,y:100,width:80,height:80},{x:100,y:90,width:116,height:100}];
+ const size={width:100,height:100},placed=placePopup(parents,size,{x:225,y:140});
+ for(const p of parents)assert.ok(Math.abs(placed.x-p.x-p.width/2)>=(p.width+size.width)/2||Math.abs(placed.y-p.y-p.height/2)>=(p.height+size.height)/2);
+});

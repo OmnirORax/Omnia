@@ -1,8 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent } from "react";
+import {cursorSample} from './cursorPosition';
+import {placePopup} from './popupPlacement';
+import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
 import { ContextStage, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
 import { claimUIPress, physicalPointerHeld, ownsPointerSurface } from "./pointerOwnership";
+
+const PopupParents=createContext<readonly RefObject<HTMLDivElement|null>[]>([]);
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
@@ -10,7 +14,10 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   title: string; hint?: string; position: { x: number; y: number } | null;
   onClose: () => void; onAdvance?:()=>void;onConfirm?:()=>void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean; anchored?:boolean;
 }) {
-  const root = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null),parents=useContext(PopupParents);
+  const ancestry=useMemo(()=>[root,...parents],[parents]);
+  const invocation=useRef<Element|null>(null);
+  useLayoutEffect(()=>{if(!position){invocation.current=null;return;}const target=cursorSample().target;if(target instanceof Node&&root.current?.contains(target))return;invocation.current=target instanceof Element?target.closest('[data-ui-popup-boundary]'):null;},[!!position,position?.x,position?.y,stage]);
   const navigation=useRef(new Map<symbol,ContextNavigation>());const [,refreshNavigation]=useState(0);
   const registerNavigation=useCallback((value:ContextNavigation)=>{const key=Symbol();navigation.current.set(key,value);refreshNavigation(n=>n+1);return()=>{navigation.current.delete(key);refreshNavigation(n=>n+1);};},[]);
   const nestedNavigation=()=>{let selected:ContextNavigation|undefined;for(const candidate of navigation.current.values()){
@@ -37,13 +44,17 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     const node = root.current; if (!node || !position) return;
     const fit = () => {
       const bounds = node.getBoundingClientRect();
-      node.style.left = `${radial?anchor!.x-bounds.width/2:anchor!.x}px`;
-      node.style.top = `${radial?anchor!.y-bounds.height/2:anchor!.y}px`;
+      const requested={x:radial?anchor!.x:anchor!.x+bounds.width/2,y:radial?anchor!.y:anchor!.y+bounds.height/2};
+      const owners=anchored?[]:[invocation.current,...parents.map(p=>p.current)].filter((owner):owner is Element=>!!owner&&owner.isConnected&&!node.contains(owner));
+      const parentBounds=owners.map(owner=>{const b=owner.getBoundingClientRect();return {x:b.left,y:b.top,width:b.width,height:b.height};});
+      const center=placePopup(parentBounds,bounds,requested);
+      node.style.left = `${center.x-bounds.width/2}px`;
+      node.style.top = `${center.y-bounds.height/2}px`;
     };
-    const observer = new ResizeObserver(fit); observer.observe(node); fit();
+    const observer = new ResizeObserver(fit); observer.observe(node);if(!anchored){for(const p of parents)if(p.current)observer.observe(p.current);if(invocation.current)observer.observe(invocation.current);}fit();
     window.addEventListener("resize", fit);
     return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
-  }, [anchor?.x,anchor?.y,radial]);
+  }, [anchor?.x,anchor?.y,radial,anchored,parents,stage]);
   useEffect(() => {
     const node = root.current; if (!node) return;
     const preventScroll = (event: globalThis.WheelEvent) => {
@@ -84,6 +95,6 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{left:anchor!.x,top:anchor!.y}}>
-    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextNavigationRegistry.Provider value={registerNavigation}>{children}</ContextNavigationRegistry.Provider></ContextStage.Provider>
+    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextStage.Provider>
   </div>, document.body);
 }
