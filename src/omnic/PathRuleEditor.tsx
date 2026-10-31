@@ -3,7 +3,7 @@ import {UIAction} from '../ui/UIAction';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useState} from 'react';
 import {MathematicalDial} from '../ui/MathematicalDial';
-import {SQUARE_PATH_RULE,readPathRule,type PathRule} from './pathRule';
+import {SQUARE_PATH_RULE,startPathSequence,readPathRule,type PathRule} from './pathRule';
 import './pathRule.css';
 const directions=[{angle:0,icon:'↑'},{angle:90,icon:'→'},{angle:180,icon:'↓'},{angle:270,icon:'←'}];
 /** Program authoring is rule configuration, not a reference/value selection. */
@@ -13,7 +13,7 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
  const write=(patch:Partial<PathRule>)=>{const next=JSON.stringify({...rule,...patch});if(next.length<=200){readPathRule(next);onCommit(next);}};
  const pick=(angle:number)=>{
   if(turn){write({t:angle});setTurn(false);return;}
-  if(replace){write({s:[[angle,1]],t:0});setSelected(0);setReplace(false);return;}
+  if(replace){onCommit(JSON.stringify(startPathSequence(rule,angle)));setSelected(0);setNumber('steps');setReplace(false);return;}
   if(rule.s.length>=8)return;
   setSelected(rule.s.length);write({s:[...rule.s,[angle,1]]});
  };
@@ -27,7 +27,7 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
   </div>
   <div className="path-instructions" role="group" aria-label="Instruction order">{rule.s.map(([angle,steps],i)=><button key={i} type="button" aria-label={`Instruction ${i+1}: ${directions.find(d=>d.angle===angle)!.icon}, ${steps} units`} aria-pressed={active===i} onClick={()=>{setSelected(i);setNumber('steps');}}><sup>{i+1}</sup>{directions.find(d=>d.angle===angle)!.icon}{steps}</button>)}</div>
   <div className="path-rule-tools">
-   {button('Start a new direction sequence','＋',replace,()=>{setReplace(!replace);setTurn(false);})}
+   {button('Start a new direction sequence','＋',replace,()=>{setReplace(!replace);setTurn(false);setNumber(null);})}
    {button('Remove selected instruction','⌫',false,()=>{if(rule.s.length>1){write({s:rule.s.filter((_,i)=>i!==active)});setSelected(Math.max(0,active-1));}})}
    {button('Turn after each instruction',`↻${rule.t}°`,turn,()=>{setTurn(!turn);setReplace(false);})}
    {button('Loop instruction sequence','⟳',rule.l,()=>write({l:!rule.l}))}

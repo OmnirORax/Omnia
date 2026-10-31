@@ -1299,3 +1299,13 @@ test('clearing mathematical marks restores a legal neutral value rather than ret
  assert.equal(mathematicalEmptyValue(0,{min:-100,max:100,integer:true}),0);
  assert.equal(mathematicalEmptyValue(mathematicalEditValue({anchor:5,index:0,rule:{kind:'increment',amount:2}}),{min:1,max:100,integer:true}),5,'empty increments retain their anchor');
 });
+
+test('new direction sequences reset old repetition while retaining presentation settings',async()=>{
+ const {SQUARE_PATH_RULE,startPathSequence,pathTrace}=await import('../src/omnic/pathRule.ts');
+ for(const angle of [0,90,180,270]){
+  const fresh=startPathSequence({...SQUARE_PATH_RULE,a:false,p:10,m:100},angle);
+  assert.deepEqual(fresh.s,[[angle,1]]);assert.equal(fresh.t,0);assert.equal(fresh.l,false);assert.equal(fresh.c,false);assert.equal(fresh.p,10);
+  const trace=pathTrace(fresh,{left:-100,top:-100,right:100,bottom:100});assert.equal(trace.steps,1);assert.equal(trace.reason,'sequence');
+ }
+ assert.deepEqual(SQUARE_PATH_RULE.s,[[0,2]],'new-program creation does not mutate its source');
+});

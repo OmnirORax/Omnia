@@ -17,7 +17,8 @@ Click ↑, →, ↓, ← to append instructions in that order. The numbered chip
 program; clicking a chip selects it and opens the existing math dial for its
 whole-unit move count. The wheel centre opens that count too. At most eight
 instructions are supported. ＋ arms a fresh sequence; the next direction replaces
-the old sequence and resets its turn to zero. ⌫ removes the selected instruction
+the old sequence, resets turn to zero and disables Loop and Closure. The old count
+editor closes when ＋ is armed; the new first instruction opens a fresh count dial. ⌫ removes the selected instruction
 when more than one remains. ↺ loads the example square rule.
 
 Compact controls have descriptive tooltips and accessible names:

@@ -3,6 +3,10 @@ export const PATH_UNIT = 1;
 export type PathRule = {s:[number,number][];t:number;l:boolean;c:boolean;m:number;a:boolean;p:number;d:boolean;r:number};
 export const DEFAULT_PATH_RULE:PathRule={s:[],t:0,l:false,c:false,m:100,a:false,p:100,d:false,r:8};
 export const SQUARE_PATH_RULE:PathRule={...DEFAULT_PATH_RULE,s:[[0,2]],t:90,l:true,c:true};
+/** A new program must not inherit the previous program's repetition behavior. */
+export function startPathSequence(rule:PathRule,angle:number):PathRule{
+ return readPathRule(JSON.stringify({...rule,s:[[angle,1]],t:0,l:false,c:false}));
+}
 export function readPathRule(text:string):PathRule {
  let v:PathRule;try{v=JSON.parse(text);}catch{throw Error('Invalid path rule.');}
  const integer=(n:unknown,min:number,max:number)=>typeof n==='number'&&Number.isInteger(n)&&n>=min&&n<=max;
