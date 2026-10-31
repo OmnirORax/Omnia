@@ -418,7 +418,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     return counts;
   }, [patternGroups, matches.included]);
   useEffect(() => {
-    let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0;
+    let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0, contextHandoff = false;
     const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
     const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(`${selectorChrome},${APPEARANCE_EDITOR}`) &&
       !(hasSelection() && !requestedPick.current && event.target.closest(SELECTION_EDITING_SURFACE));
@@ -430,8 +430,14 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       actions.current.close(); return true;
     };
     const down = (event: PointerEvent) => {
-      clearRecordedShortcutPress(); commandButton = -1;
+      clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false;
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
+      // A borrowed picker yields secondary input to registered context menus.
+      // Keep this press and its native tail together; standalone MS is unchanged.
+      if (requestedPick.current && event.button === 2 && event.target.closest('[data-context-menu-owner]')) {
+        contextHandoff = true; consumedPointer = null; consumedUntil = 0;
+        actions.current.close(); return;
+      }
       if (shortcuts.handle(event, id => id === "selector.open" || id === "selector.lock" || outsideChrome(event))) {
         commandButton = event.button; consumedPointer = event.pointerId; consumedUntil = performance.now() + 1500;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
@@ -500,6 +506,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       });
     };
     const preventClick = (event: MouseEvent) => {
+      if (contextHandoff && event.button === 2) return;
       if (!event.isTrusted || shortcuts.blocked() || shortcutUI(event.target) || latest.current.phase === "locked" && event.button !== commandButton) return;
       if (event.button === commandButton || performance.now() < consumedUntil && outsideChrome(event)) {
         event.preventDefault(); event.stopImmediatePropagation();
@@ -534,6 +541,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       if (shortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
     const context = (event: MouseEvent) => {
+      if (contextHandoff) return;
       if (recordedShortcutTail(event)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery") || !outsideChrome(event)) return;
       const keyboard = event.button !== 2 && event.clientX === 0 && event.clientY === 0;
@@ -551,7 +559,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       // accepting, clearing, closing or changing the current selection/preview.
       cancelAnimationFrame(frame); frame = 0;
       gesture.current = null; polygon.current = null; setDrawing(false);
-      commandButton = -1; consumedPointer = null; consumedUntil = 0;
+      commandButton = -1; consumedPointer = null; consumedUntil = 0; contextHandoff = false;
     };
     const blur = () => {
       retainedPreview.current = !!candidateRef.current;

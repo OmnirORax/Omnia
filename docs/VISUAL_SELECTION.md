@@ -582,3 +582,10 @@ Accepting a target closes MS’s cursor/configuration without clearing the selec
 or reference. Geometry-only construction remains in aiming until a target is
 selected. Explicit MS settings retains the existing controller and Enter-to-aim
 behavior; configuration no longer appears automatically on entry.
+
+Temporary reference picking yields secondary presses on registered
+`data-context-menu-owner` surfaces. MS cancels/restores the borrowed request and
+passes that press plus its native mouse/contextmenu tail to the surface. The
+surface's existing release gate still opens its menu once, after release. A
+pending request must not block arming that secondary release gate. Standalone
+MS selection/removal bindings are unchanged. Browser confirmation pending.

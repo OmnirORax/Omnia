@@ -214,8 +214,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       }else {setPanel({kind:'functions'});if(onEmptyContext)onEmptyContext(point);else if(radar)radialNavigation.current?.open();}
     },
     down:(point,event)=>{
-      if(referencePicker?.picking)return;
       if(event.button===2){secondary.current.press({point,event});return;}
+      if(referencePicker?.picking)return;
       secondary.current.cancel();
       activateTarget?.();
       if(wheelTimer.current){clearTimeout(wheelTimer.current);wheelTimer.current=null;wheelDelta.current=0;}
