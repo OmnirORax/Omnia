@@ -1,3 +1,4 @@
+import {createPlaybackClock} from './playbackClock';
 import {selectedEditOwners} from './msSelection';
 import {authoredNodeOwners,targetNodes} from './contextGeometry';
 import {useVisualSelection} from '../appearance/VisualSelector';
@@ -276,7 +277,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (media.matches || document.visibilityState === "hidden") { setPlaying(false); return; }
     let frame = 0, last = 0, slow = 0, visible = true;
-    const start = performance.now(),elapsed=playback.current.seconds;
+    const animationTime=createPlaybackClock(playback.current.seconds,RENDER_BUDGET.omnicFps);
     const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (!visible) setPlaying(false); });
     observer.observe(preview.current);
     const stop = () => { if (document.visibilityState === "hidden" || media.matches) setPlaying(false); };
@@ -286,7 +287,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
         last = now;
         try {
           const began = performance.now();
-          const seconds=elapsed+(now-start)/1000,next=evaluateRecipe(recipe,resolve,seconds);
+          const seconds=animationTime(now),next=evaluateRecipe(recipe,resolve,seconds);
           if(next.nodes.length>RENDER_BUDGET.omnicAnimatedRoles)throw Error(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles.`);
           const frameHTML=renderSVG(next).replace(/viewBox="[^"]*"/,`viewBox="${viewBox}"`);
           preview.current.innerHTML=frameHTML;playback.current={recipe,seconds,html:frameHTML,finished:!next.motion};

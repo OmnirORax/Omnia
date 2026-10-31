@@ -1507,3 +1507,19 @@ test('rotated sources supply evaluated lengths and extents without disabling unr
  assert.equal(measuredReferenceFor(operationGeometry(moving,evaluateRecipe(moving)),position,'b'),undefined,'animated snapshots remain unsupported');
  assert.equal(source.components[0].params.length,20,'preparing references never writes geometry');
 });
+
+
+test('drawing playback starts on the visible frame and never catches up stalled UI time',async()=>{
+ const {createPlaybackClock}=await import('../src/omnic/playbackClock.ts');
+ const {pathTrace,SQUARE_PATH_RULE}=await import('../src/omnic/pathRule.ts');
+ const clock=createPlaybackClock(0,12),rule={...SQUARE_PATH_RULE,a:true,r:8};
+ const bounds={left:-100,top:-100,right:100,bottom:100};
+ assert.equal(clock(5000),0,'startup work is not animation time');
+ const times=[clock(5100),clock(9000),clock(9100)];
+ const traces=times.map(t=>pathTrace(rule,bounds,t));
+ assert.deepEqual(traces.map(t=>t.steps),[0,1,2],'long stalls cannot skip straight to completion');
+ assert.ok(traces.every(t=>t.moving));
+ const resumed=createPlaybackClock(times[2],12);
+ assert.equal(resumed(50000),times[2],'paused time is excluded');
+ almost(resumed(50100),times[2]+1/12);
+});

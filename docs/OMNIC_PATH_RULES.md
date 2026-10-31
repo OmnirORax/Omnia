@@ -79,7 +79,9 @@ There is no ever-growing segment log. Limits: 192 visited cells per trajectory,
 256-role/12fps animation budgets. A capacity stop is reported, not interpreted as
 closure. Fixed generation also observes its chosen unit-move limit.
 
-Play/pause retains elapsed time and the last displayed frame. A completed drawing
+Playback time starts at the first displayed frame. Each displayed update advances
+by at most one configured frame interval, so startup/layout stalls do not skip
+short drawings to completion. Play/pause retains elapsed time and the last displayed frame. A completed drawing
 retains its final frame; Play restarts it. Editing the recipe starts a fresh run.
 Playback state is transient, not saved saturation or independent authored geometry.
 Visibility/reduced-motion/slow-frame safeguards remain. Multiple animations share
