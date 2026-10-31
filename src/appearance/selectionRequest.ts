@@ -38,3 +38,11 @@ export type SelectionDecision=boolean|string;
 export function selectionDecision(result:SelectionDecision){
  return result===true?{accepted:true,message:null}:{accepted:false,message:typeof result==='string'&&result?result:'Unsupported target'};
 }
+
+/** Native selection adapters use MS membership, not the active editing tool. */
+export function nativeSelectionTogglePress(event:{button:number;ctrlKey:boolean;metaKey:boolean;altKey:boolean;shiftKey:boolean}){
+ return event.button===0&&(event.ctrlKey||event.metaKey)&&!event.altKey&&!event.shiftKey;
+}
+export function selectionGroupIncluded<T>(wanted:readonly T[],selected:ReadonlySet<T>){
+ return wanted.length>0&&!wanted.every(key=>selected.has(key));
+}

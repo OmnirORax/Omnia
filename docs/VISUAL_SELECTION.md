@@ -589,3 +589,13 @@ passes that press plus its native mouse/contextmenu tail to the surface. The
 surface's existing release gate still opens its menu once, after release. A
 pending request must not block arming that secondary release gate. Standalone
 MS selection/removal bindings are unchanged. Browser confirmation pending.
+
+Composer native Ctrl/Command+primary selection toggles complete authored objects
+through MS toggleElements; it does not run Position or source picking. The shared
+picker yields that gesture only on a data-selection-native-toggle surface. Such
+an adapter supplies its actual owner geometry, activates its existing command
+context and lends element groups to MS. Reference cancellation restores its
+checkpoint before the queued group toggle. Membership/history/feedback remain MS
+owned; existing editable-owner projection and Delete consume that selection.
+Standalone MS and non-opted-in surfaces retain their previous gestures. Interactive
+selection and mass-delete confirmation are pending.

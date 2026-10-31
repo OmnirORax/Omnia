@@ -1,5 +1,5 @@
 import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
-import {selectionRequest,selectionConfirmation,selectionOpenContexts,selectionDecision,type SelectionDecision} from './selectionRequest';
+import {nativeSelectionTogglePress,selectionGroupIncluded,selectionRequest,selectionConfirmation,selectionOpenContexts,selectionDecision,type SelectionDecision} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
@@ -28,7 +28,7 @@ import {
 
 type SelectionState = { boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
 export type ReferenceSelection={element:Element;boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
-type VisualSelection = SelectionState & { requesting:boolean;registerOpenContext:(context:{contains:(target:Element)=>boolean;open:()=>boolean})=>()=>void;setElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
+type VisualSelection = SelectionState & { requesting:boolean;registerOpenContext:(context:{contains:(target:Element)=>boolean;open:()=>boolean})=>()=>void;setElements:(elements:readonly Element[])=>void;toggleElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "locked";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -432,6 +432,10 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const down = (event: PointerEvent) => {
       clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false;
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
+      if(nativeSelectionTogglePress(event)&&event.target.closest('[data-selection-native-toggle]')){
+        if(requestedPick.current)actions.current.close();
+        consumedPointer=null;consumedUntil=0;return;
+      }
       // A borrowed picker yields secondary input to registered context menus.
       // Keep this press and its native tail together; standalone MS is unchanged.
       if (requestedPick.current && event.button === 2 && event.target.closest('[data-context-menu-owner]')) {
@@ -610,6 +614,21 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     setCatalog(parts);cancelDrawing();record(()=>({...emptySelection(),boundary:rules.length?boundaryFor(document.body):null,rules}));
     setPhase(before=>before==='locked'?'locked':'off');
   },[record]);
+  const toggleElements=useCallback((elements:readonly Element[])=>{
+    if(requestedPick.current||!elements.length)return;
+    const parts=collectVisualParts(),measure=createVisualMeasurements();
+    const group=elements.map(element=>({boundary:boundaryFor(element),include:true,backgrounds:true}));
+    const wanted=new Set(group.flatMap(rule=>matchingVisualParts(parts,rule,measure).map(p=>p.key)));
+    if(!wanted.size)return;
+    setCatalog(parts);cancelDrawing();
+    record(current=>{
+      const included=resolveVisualSelection(parts,current.boundary,current.rules,measure).included;
+      const include=selectionGroupIncluded([...wanted],new Set(included.map(p=>p.key)));
+      const retained=included.map(part=>({boundary:boundaryFor(part.element),part:part.key,include:true,backgrounds:true}));
+      return {...emptySelection(),boundary:boundaryFor(document.body),rules:[...retained,...group.map(rule=>({...rule,include}))]};
+    });
+    completeSelection();
+  },[record,completeSelection]);
   const requestPick=useCallback((accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>{
     const retained=requestCheckpoint.current??{timeline,configuration:{...configuration}};
     const previous=requestedPick.current;requestedPick.current=null;if(previous)previous.cancel();
@@ -622,9 +641,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const feedbackAvailable = phase !== "off" || hasSelection();
   const feedbackBinding = shortcuts.binding("selector.feedbackView");
   const requesting=!!requestedPick.current;
-  const contextValue = useMemo(() => ({ ...selection,requesting,registerOpenContext,setElements,undoSelection:undo,redoSelection:redo,canUndo:timeline.index>0,canRedo:timeline.index<timeline.states.length-1, parts: matches.included, properties, clear, selectObject, inspectionKey,
+  const contextValue = useMemo(() => ({ ...selection,requesting,registerOpenContext,setElements,toggleElements,undoSelection:undo,redoSelection:redo,canUndo:timeline.index>0,canRedo:timeline.index<timeline.states.length-1, parts: matches.included, properties, clear, selectObject, inspectionKey,
     feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick }),
-    [selection,requesting,registerOpenContext,setElements,timeline.index,timeline.states.length, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
+    [selection,requesting,registerOpenContext,setElements,toggleElements,timeline.index,timeline.states.length, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
   const active = phase !== "off" || !!selection.boundary;
   const wasMasterOpen = useRef(masterOpen);
   useEffect(() => {
