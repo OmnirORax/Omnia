@@ -1,6 +1,6 @@
 # Worker onboarding: Omnia's shared mental model
 
-Read [the user's full operating instructions](AGENT_OPERATING_RULES.md), including
+Read [the operating instructions in AGENTS.md](../AGENTS.md#user-operating-rules-required), including
 category-based inheritance, ownership, lifecycle reasoning and user-owned browser
 acceptance. Warning/error work also requires [the diagnostic contract](DIAGNOSTICS.md):
 Composer operation repairs exist, but global diagnostic categories/remedies remain

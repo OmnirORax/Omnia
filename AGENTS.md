@@ -1,11 +1,27 @@
 # User operating rules (required)
 
-Read [the user's complete agent instructions](docs/AGENT_OPERATING_RULES.md)
-when starting or resuming work. They include category-based implementation,
-ownership, future inheritance, lifecycle/recovery, performance, compactness and
-user-owned interaction testing. Challenge the framing and inspect the nearest
-working analogue before adding a new mechanism. A narrowly authorized browser
-check is not standing permission for further checks or suites.
+Before implementing or modifying behavior:
+
+1. Classify its applicable behavioral categories and identify the state/behavior
+   owner. Inspect the nearest working analogue and the shared infrastructure
+   supplying its integrations, customization, persistence and history. Inherit
+   those connections; adjust only for meaningful contextual differences, not
+   accidental limitations or defects in the analogue.
+2. Challenge the framing: identify the underlying need and whether related
+   requests reveal one missing general rule. Use the smallest observation that
+   distinguishes possible causes; a plausible explanation is not a diagnosis.
+   Where verification is warranted, establish the reported failure first and
+   check that verification cannot miss it.
+3. Consider entry, continuation, reversal, cancellation, completion and recovery.
+   Repeated corrections require durable operating rules; recurring failures are
+   evidence to revisit ownership or the model rather than accumulate local fixes.
+4. Match planning depth to propagation and reversal cost. Optimize total effort
+   across the user and agents, including explanation, waiting, manual work,
+   integration and expected rework—not just local implementation speed.
+
+The performance, compactness, shared inheritance and user-owned interaction
+acceptance rules below remain authoritative. A narrowly authorized browser check
+is not standing permission for further checks or suites.
 
 For warning/error/diagnostic work, read [the diagnostic contract and current
 limits](docs/DIAGNOSTICS.md). Classify the behavior and remedies at the shared

@@ -2,7 +2,7 @@
 
 User clarification, 2026-10-31: warning handling must follow the same category-based,
 inheritable architecture as other universal behavior. Read
-[the user's operating rules](AGENT_OPERATING_RULES.md) before extending this area.
+[the operating rules in AGENTS.md](../AGENTS.md#user-operating-rules-required) before extending this area.
 
 ## Implemented
 
