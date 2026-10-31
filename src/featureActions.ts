@@ -19,6 +19,7 @@ export const radialGroups = {
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 export const FEATURE_ACTIONS = [
+  {id:'path.removeInstruction',owner:'omnicPath',scope:'contentEditing',category:'Omnic',label:'Remove selected path instruction',defaultKey:'Backspace',description:'Remove the selected ordered path instruction while its rule editor is active; text entry keeps ordinary Backspace.'},
   {id:'atomnic.constraints',owner:'atomnicComposer',scope:'contentEditing',category:'Atomnic',label:'Toggle Free / Realistic constraints',defaultKey:'',description:'Switch between independent imprint/step values and the touching-lattice profile; incompatible constructions are rejected without changing geometry.',radial:{symbol:'⠒',group:[radialGroups.object,radialGroups.view],inset:true}},
   {id:'atomnic.erase',toolIcon:{image:ERASER_SYMBOL},owner:'atomnicComposer',scope:'contentEditing',category:'Atomnic',label:'Erase Atomnic units',defaultKey:'E',description:'Click or sweep through units to erase them in Micro or Macro scope; cancel restores the stroke and release records one edit.', radial:{symbol:'⌫',group:[radialGroups.construct],inset:true}},
   {id:'atomnic.patterns',owner:'atomnicComposer',scope:'contentEditing',category:'Atomnic',label:'MS selection settings',defaultKey:'',description:'Open the shared MS selection configuration; Composer has no separate pattern picker.', radial:{symbol:'⌕',group:[radialGroups.select]}},

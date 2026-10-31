@@ -72,3 +72,9 @@ export function linearFieldCandidate(field:StateField,fraction:number){
  const value=field.min+fraction*(field.max-field.min);
  return field.candidates.reduce<StateFieldCandidate|undefined>((best,candidate)=>!best||Math.abs(candidate.value-value)<Math.abs(best.value-value)?candidate:best,undefined);
 }
+
+/** One-based address in the actual offered angular states, including thresholds. */
+export function axisFraction(field:StateField,value:number){
+ const index=field.candidates.findIndex(c=>Math.abs(c.value-value)<1e-7);
+ return {index:index<0?0:index+1,total:field.candidates.length};
+}

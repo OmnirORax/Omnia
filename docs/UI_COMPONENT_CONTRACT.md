@@ -972,3 +972,10 @@ increment. Pointer capture keeps the heading stable outside the wheel; release
 accepts heading/count together. Jitter/plain clicks retain ordinary one-unit
 selection. Preview count is transient and cancellation does not append. Rotation
 without countDrag retains its previous value selection behavior.
+
+Shared angular readouts use axisFraction's one-based address in offered states,
+including meaningful thresholds, instead of degree text. Hover is retained inside
+the shared wheel so consumers cannot suppress its highlight by ignoring preview.
+The inherited base colour supplies clean stroke glow without coloured fills.
+Count-capable axes declare total positions, render ticks and live/persisted n/total
+labels, and avoid overlaying a duplicate saved label during the held preview.

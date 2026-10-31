@@ -26,7 +26,7 @@ const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
   {id:"path-rule",label:"Path rule",symbol:"↱",substrateBounds:true,parameters:[
-    {key:"rule",property:"omnic.pathRule",label:"Path rule",kind:"text",maxLength:512,editor:"path-rule",initial:JSON.stringify(DEFAULT_PATH_RULE),freedom:{label:"Path rule",symbol:"↱"}},
+    {key:"rule",property:"omnic.pathRule",label:"Path rule",kind:"text",maxLength:2048,editor:"path-rule",initial:JSON.stringify(DEFAULT_PATH_RULE),freedom:{label:"Path rule",symbol:"↱"}},
     {...x,integer:true},{...y,integer:true},color,
     {key:"round",property:"omnic.substrate.round",label:"Circular substrate",kind:"toggle",initial:true,when:()=>false},
     ...["left","top","right","bottom"].map(key=>({...number(key,`omnic.substrate.${key}`,`Substrate ${key}`,key==="left"||key==="top"?-100:100,-10000,10000,1),when:()=>false}))]},

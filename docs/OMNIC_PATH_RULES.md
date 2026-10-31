@@ -18,8 +18,7 @@ expression configures direction fractions through the shared math dial (1–64,
 initially eight); cardinal thresholds remain available. Right-click the wheel
 opens fraction configuration too. The numbered chips show the
 program; clicking a chip selects it and opens the existing math dial for its
-whole-unit move count. The wheel centre opens that count too. At most eight
-instructions are supported. ＋ arms a fresh sequence; the next direction replaces
+whole-unit move count. The wheel centre opens that count too. At most 32 instructions are supported. ＋ arms a fresh sequence; the next direction replaces
 the old sequence, resets turn to zero and disables Loop and Closure. The old count
 editor closes when ＋ is armed; the new first instruction opens a fresh count dial. ⌫ removes the selected instruction, including the last one. Right-clicking a
 numbered instruction chip removes that chip directly. ↺ loads the example square rule.
@@ -117,3 +116,11 @@ retain a one-unit instruction; pointer cancellation/window blur discards the hol
 The shared wheel uses bright fractional spokes, orange selected-direction feedback
 and a bright hover preview. The active instruction/count has a strong selected
 state; authored directions remain thresholds if fraction settings change.
+
+Direction readouts use one-based addresses in the offered states (for example,
+7/12), rather than degrees. Count dragging has one increment per configured
+fraction; with twelve divisions and ×4, position 7/12 represents 28 unit moves.
+Ticks and live/saved count fractions appear along the axes. Shared angular glow
+uses the inherited base colour without a tinted fill. Next instruction closes the
+active count editor and clears chip selection without deletion. Backspace removes
+the active chip while ordinary text fields keep text editing.

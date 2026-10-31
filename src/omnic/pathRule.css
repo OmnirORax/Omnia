@@ -6,3 +6,4 @@
 
 
 .path-rule-editor :is(.path-instructions,.path-rule-tools)>button[aria-pressed=true]{background:#174d5d;border:2px solid #ffad42;color:#fff;box-shadow:0 0 7px #ffad4288;font-weight:700}
+.path-rule-editor :is(.path-instructions,.path-rule-tools)>button[aria-pressed=true]{color:inherit;background:transparent;border:1px solid currentColor;box-shadow:0 0 5px currentColor}

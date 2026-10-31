@@ -46,3 +46,15 @@
 .dof-axis-wheel .radial-menu-rims line[data-preview=true]{stroke:#fff;stroke-width:2.4;opacity:1}
 .dof-axis-wheel .radial-menu-rims line[data-selected=true]{stroke:#ffad42;stroke-width:3;opacity:1}
 .dof-axis-readout{font-size:12px;font-weight:700;text-shadow:0 0 4px #00dfff;background:#03151ee6;border-radius:5px;padding:2px 4px}
+/* Clean glow uses the inherited base colour; selection never adds a muddy fill. */
+.dof-axis-wheel{color:var(--omnium-accent,#60ddec);background:transparent;box-shadow:none}
+.dof-axis-wheel .radial-menu-rims{stroke:currentColor;filter:drop-shadow(0 0 1px currentColor)}
+.dof-axis-wheel .radial-menu-rims line{stroke-width:1;opacity:.65}
+.dof-axis-wheel .radial-menu-rims .dof-axis-threshold{stroke-width:1.5;opacity:.9}
+.dof-axis-wheel .radial-menu-rims line[data-selected=true]{stroke:currentColor;stroke-width:2.4;opacity:1}
+.dof-axis-wheel .radial-menu-rims line[data-preview=true]{stroke:currentColor;stroke-width:3.2;opacity:1;filter:drop-shadow(0 0 2px currentColor)}
+.dof-axis-readout{color:inherit;background:transparent;text-shadow:0 0 3px currentColor}
+.dof-axis-wheel .radial-menu-rims .dof-axis-count-tick{stroke-width:.7;opacity:.5}
+.dof-axis-count-label{fill:currentColor;stroke:none;font-size:.13px;font-weight:600;text-anchor:middle;dominant-baseline:central;paint-order:stroke;filter:none}
+.dof-axis-count-live{font-size:.16px;font-weight:700}
+.dof-axis-count-label[data-selected=true]{font-weight:700;filter:drop-shadow(0 0 1px currentColor)}

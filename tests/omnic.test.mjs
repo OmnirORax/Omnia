@@ -1216,7 +1216,7 @@ test('path rules preserve click order, whole-unit motion and closure after compl
  assert.deepEqual(square.cells.slice(0,3).map(({x,y})=>[x,y]),[[0,-1],[0,-2],[1,-2]]);
  const explicit=pathTrace({...DEFAULT_PATH_RULE,s:[[0,2],[90,2],[180,2],[270,2]],c:true},bounds);
  assert.deepEqual(explicit.cells,square.cells,'explicit directions and compressed turning generate the same square');
- for(const steps of [0,.5,1.1,-1,101])assert.throws(()=>readPathRule(JSON.stringify({...DEFAULT_PATH_RULE,s:[[0,steps]]})),/whole-unit/);
+ for(const steps of [0,.5,1.1,-1,10001])assert.throws(()=>readPathRule(JSON.stringify({...DEFAULT_PATH_RULE,s:[[0,steps]]})),/whole-unit/);
  assert.throws(()=>readPathRule(JSON.stringify({...SQUARE_PATH_RULE,t:-45})),/valid directions/);
  assert.throws(()=>pathTrace({...SQUARE_PATH_RULE,s:[[0,.5]]},bounds),/whole-unit/,'engine entry also validates program data');
  const crossing=pathTrace({...DEFAULT_PATH_RULE,s:[[90,1],[270,1],[180,1]],c:true},bounds);
@@ -1363,4 +1363,15 @@ test('path instruction removal handles selected, final and stale entries without
  const empty=removePathInstruction({...DEFAULT_PATH_RULE,s:[[45,1]]},0);assert.deepEqual(empty.s,[]);
  assert.equal(pathTrace(empty,{left:-10,top:-10,right:10,bottom:10}).steps,0);
  assert.throws(()=>removePathInstruction(next,8));
+});
+
+test('axis fraction addresses and twelve-position count drags share bounded one-based notation',async()=>{
+ const {createStateField,axisFraction}=await import('../src/properties/stateField.ts');
+ const {createCountScrub}=await import('../src/ui/valueScrub.ts');
+ const {DEFAULT_PATH_RULE,appendPathDirection}=await import('../src/omnic/pathRule.ts');
+ const field=createStateField({min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial'},{mode:'symmetry',count:12,step:30,reference:0});
+ assert.deepEqual(axisFraction(field,180),{index:7,total:12});
+ const drag=createCountScrub({x:0,y:0},4,48);assert.equal(drag.sample({x:72,y:0}),28,'seventh of twelve positions yields 7 × 4 unit moves');
+ let program=DEFAULT_PATH_RULE;for(let i=0;i<32;i++)program=appendPathDirection(program,0);
+ assert.equal(program.s.length,32);assert.throws(()=>appendPathDirection(program,0),/capacity/);
 });
