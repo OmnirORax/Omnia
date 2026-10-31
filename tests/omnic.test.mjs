@@ -1291,3 +1291,11 @@ test('shared math session retains internal previews when consumers render only c
  const echoed=mathematicalValueSession(1);echoed.preview(4);assert.equal(echoed.receive(4),false);
  assert.equal(echoed.restore(),1,'existing controlled live-preview consumers retain cancellation');
 });
+
+test('clearing mathematical marks restores a legal neutral value rather than retaining the old count',async()=>{
+ const {mathematicalEmptyValue,mathematicalEditValue}=await import('../src/properties/mathematicalDial.ts');
+ assert.equal(mathematicalEmptyValue(0,{min:1,max:100,integer:true}),1);
+ assert.equal(mathematicalEmptyValue(0,{min:0,max:100,integer:true}),0);
+ assert.equal(mathematicalEmptyValue(0,{min:-100,max:100,integer:true}),0);
+ assert.equal(mathematicalEmptyValue(mathematicalEditValue({anchor:5,index:0,rule:{kind:'increment',amount:2}}),{min:1,max:100,integer:true}),5,'empty increments retain their anchor');
+});

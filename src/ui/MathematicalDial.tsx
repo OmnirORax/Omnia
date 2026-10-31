@@ -1,7 +1,7 @@
 import {useValueConfirmation} from './useValueConfirmation';
 import {useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
-import {mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,canAddMathematicalRing,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
+import {mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,canAddMathematicalRing,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
 import './mathematicalDial.css';
 import {useContextNavigation} from './ContextStage';
 import {ContextualMasterController} from './ContextualMasterController';
@@ -49,7 +49,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  const extent=2*(rings[orders-1].radius+minimum.size/2+1),displayed=painting?(sample??marks):marks;
  const modeAt=(state:MathematicalMarks,key:string)=>state.modes[key]??'normal';
  const numeral=(state:MathematicalMarks,nextBase=base,nextSign=sign)=>mathematicalNumberValue(nextBase,state.selected.map(key=>({key,ordinal:Number(key.split(':')[1])+1,mode:modeAt(state,key)})),nextSign);
- const total=(state:MathematicalMarks,nextBase=base,nextSign=sign)=>mathematicalEditValue({anchor:anchor.current,index:numeral(state,nextBase,nextSign),rule:editing?.kind==='increment'?{kind:'increment',amount:editing.amount}:{kind:'value'}});
+ const total=(state:MathematicalMarks,nextBase=base,nextSign=sign)=>{const n=mathematicalEditValue({anchor:anchor.current,index:numeral(state,nextBase,nextSign),rule:editing?.kind==='increment'?{kind:'increment',amount:editing.amount}:{kind:'value'}});return state.selected.length?n:mathematicalEmptyValue(n,{min,max,integer});};
  const valid=(n:number)=>mathematicalValueAllowed(n,{min,max,integer});
  const previewValue=(n:number)=>{if(!session.sampling||session.expected!==n)onPreview(session.preview(n));};
  const restore=()=>{

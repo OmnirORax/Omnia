@@ -52,6 +52,11 @@ export function mathematicalNumberValue(base:number,activations:readonly Mathema
  const magnitude=mathematicalSelectionValue(base,activations);
  return magnitude===0?0:sign*magnitude;
 }
+/** Empty raw numerals resolve to the nearest legal neutral value. */
+export function mathematicalEmptyValue(value:number,domain:MathematicalDomain){
+ const low=domain.integer?Math.ceil(domain.min):domain.min,high=domain.integer?Math.floor(domain.max):domain.max;
+ return Math.max(low,Math.min(high,value));
+}
 export function mathematicalValueAllowed(value:number,domain:MathematicalDomain){
  return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER&&value>=domain.min&&value<=domain.max&&(!domain.integer||Number.isSafeInteger(value));
 }
