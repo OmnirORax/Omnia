@@ -960,7 +960,7 @@ interactive content, not empty frame background. Explicit `data-dial-drag`
 handles retain priority, including wheel centres. Shared popupDragHandle owns
 this routing so embedding a value field does not require private drag exclusions.
 
-Recursive math marks use an unfilled inner SVG circle inside the slot rim (◎),
+Recursive math marks use two unfilled concentric SVG circles as the mark itself (◎), independent of the slot rim,
 never the normal selected-disk fill. Right-click toggles a recursive slot off;
 right-click a normal selected slot converts it to recursion first. Left-click
 retains ordinary deselection. Shared limits and empty-selection reset still apply.
