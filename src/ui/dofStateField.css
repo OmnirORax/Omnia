@@ -1,0 +1,40 @@
+.dof-state-editor{position:relative;display:inline-flex;flex-direction:column;gap:3px;width:max-content;color:var(--text,#d4e6ef)}
+.dof-value-slider{display:flex;align-items:center;gap:4px;width:max-content}
+.dof-value-slider .range-axis{width:136px}
+.dof-state-grip{cursor:grab;display:grid;place-items:center;min-width:20px;min-height:20px;font-size:13px}
+.dof-state-mode{display:flex;justify-content:center;gap:3px;white-space:nowrap}
+.dof-state-mode button{border:1px solid #60ddec66;border-radius:12px;background:#07131ee8;color:inherit;font-size:12px;padding:3px 7px}
+.dof-rule-number{position:relative;width:max-content}
+.dof-rule-number>button{display:block;margin:2px auto 0;font-size:12px;padding:2px 4px}
+.dof-information-header{position:relative;z-index:2;display:flex;justify-content:center;flex-wrap:wrap;max-width:100%;margin:0 auto 3px;font-size:11px;color:var(--text,#d4e6ef)}
+.dof-information-controls{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:3px;max-width:100%}
+.dof-information-controls button{font-size:11px;line-height:1.2;padding:3px 5px;min-width:24px;min-height:24px;border:1px solid #60ddec55;border-radius:10px;background:#07131ee8;color:inherit;white-space:nowrap}
+
+.omnic-composer-radar>.dof-information-header{position:absolute;top:10%;left:50%;transform:translateX(-50%);width:max-content;max-width:60%;z-index:4}
+
+.dof-rule-expression{display:inline-block;white-space:nowrap;line-height:1;vertical-align:baseline}
+.dof-rule-expression sup{display:inline;font-size:.7em;line-height:0;vertical-align:super}
+.dof-information-controls>button{display:inline-block;flex:none;box-sizing:border-box}
+.dof-axis-wheel{max-width:none;clip-path:circle(50%);touch-action:none;user-select:none}
+.dof-axis-wheel .radial-menu-rims{stroke-width:.012}
+.dof-axis-wheel .radial-menu-rims line{stroke-width:.7;opacity:.45}
+.dof-axis-wheel .radial-menu-slot>button{background:transparent;font-size:7px;line-height:1;border-color:currentColor}
+.dof-axis-wheel .radial-menu-slot>button[aria-pressed=true]{background:currentColor;box-shadow:0 0 5px currentColor}
+.dof-axis-origin{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;border:1px solid currentColor;border-radius:50%;cursor:grab;font-size:12px}
+.dof-axis-readout{position:absolute;top:61%;left:50%;transform:translateX(-50%);font-size:10px;white-space:nowrap;pointer-events:none}
+
+.progressive-configuration:has(.dof-axis-wheel){max-width:none}
+
+.dof-axis-wheel .radial-menu-rims .dof-axis-threshold{stroke-width:1.5;opacity:1}
+
+.dof-reference-use{display:inline;font-size:.7em;line-height:0;vertical-align:super;margin-left:1px}
+.dof-choice-field{display:flex;flex-direction:column;align-items:center;gap:2px;width:max-content}
+.dof-choice-field>button{font-size:12px;padding:2px 5px;min-height:22px}
+.dof-linear-field{position:relative;width:160px;height:46px;touch-action:none;user-select:none;color:var(--omnium-accent,#60ddec)}
+.dof-linear-field svg{width:160px;height:42px;stroke:currentColor;stroke-width:1;fill:none;filter:drop-shadow(0 0 2px currentColor)}
+.dof-linear-field output{position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);font-size:11px;pointer-events:none}
+.dof-linear-field .dof-axis-threshold{stroke-width:2}
+.dof-plane-field{position:relative;width:160px;height:160px;touch-action:none;user-select:none;color:var(--omnium-accent,#60ddec)}
+.dof-plane-field svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:.5}
+.dof-plane-field .dof-axis-threshold{stroke-width:1.5}
+.dof-plane-field output{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:11px;pointer-events:none}

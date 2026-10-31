@@ -13,7 +13,7 @@ Active target inheritance uses `contextTargets` and `useContextTargets`. A surfa
 
 Child opening uses `usePopupAnchor` and `ContextStage`. Shared contextual/property/progressive/numeric/menu/search controls capture the invocation point; logical child field/page changes reanchor once. A same-title custom controller supplies a stable `stage` identity. Do not anchor a child to the old parent point, inspect all DOM controls on updates, or follow pointer movement. Value/hover updates retain the anchor; held drags suppress reanchoring. Radial centres and rectangular top-left origins remain at the invocation point, including viewport edges. Browser-native pickers and resident-window positioning remain separate. Parent/child values, history and conceptual identity stay with their existing owners.
 
-`RadialMenu` owns all popup dial geometry through `radialLayout` and the single `RADIAL_GEOMETRY` policy in `radialMenuModel.ts`. Units/fill inputs declare UNIT_FREEDOM_GROUP (●●), radius and spatial inputs share RELATION_FREEDOM_GROUP (⨮ Relations); POSITION_FREEDOM_GROUP is its compatibility alias, and appearance inputs declare VISUAL_FREEDOM_GROUP in their freedom metadata; editableDegrees projects it automatically into both preset and target dials. Effects use that same category, retaining their existing mfx subtree and identities. Feature adapters supply entries, setters and explicit category metadata; they never choose a popup radius, slot size or overflow menu. Root, preset, target, MC and nested category dials use the same count-based packing snapshot. The centre matches its ring's button size; category depth retains the shared 32/28/24px progression. Numeric setters stay mounted but hidden at rest. RangeGestureTarget lends a DOF icon press to its existing RangeControl gesture: relative dragging starts from the current value, release commits/hides, cancellation restores. Only gesture start/end change reveal state; no pointer following/discovery or private value store. The centre size slider remains visible only on the highest popup parent; children inherit its scale. Setters extend outward as radial spokes, using outer space without inflating the button ring. Shared RangeAxis supplies their displayed axis to RangeControl; pointer projection captures geometry once at drag start and uses arithmetic during the gesture. No per-motion DOM measurement/discovery. Only declared categories create children; no automatic More tools grouping remains. Popup opacity is 100% through the same policy. A shared transient radialScale (1–2) is edited by the centre RangeControl; popup content uses uniform CSS zoom, including buttons/setters, and ResizeObserver re-centres on the existing anchor. The resident canvas rim keeps its own viewport geometry. No scene value/history changes. ContextualMasterController supplies centre-handle dragging for all radial popups, using transient local translation and pointer capture, preserving child Back clicks and resetting at invocation/stage changes. No scene/history edits or per-motion geometry reads. Popup geometry is not squeezed to viewport width while retaining fixed-size controls: edge openings may clip, preserving the cursor origin and nonoverlap. The resident editing canvas is the explicit rim variant and reuses slot rendering; its radius follows its viewport instead of becoming a popup.
+`RadialMenu` owns all popup dial geometry through `radialLayout` and the single `RADIAL_GEOMETRY` policy in `radialMenuModel.ts`. Units/fill inputs declare UNIT_FREEDOM_GROUP (●●); radius, Position, Rotation and spatial inputs are direct entries without a Relations wrapper; appearance inputs declare VISUAL_FREEDOM_GROUP in their freedom metadata; editableDegrees projects it automatically into both preset and target dials. Effects use that same category, retaining their existing mfx subtree and identities. Feature adapters supply entries, setters and explicit category metadata; they never choose a popup radius, slot size or overflow menu. Root, preset, target, MC and nested category dials use the same count-based packing snapshot. The centre matches its ring's button size; category depth retains the shared 32/28/24px progression. Numeric setters stay mounted but hidden at rest. RangeGestureTarget lends a DOF icon press to its existing RangeControl gesture: relative dragging starts from the current value, release commits/hides, cancellation restores. Only gesture start/end change reveal state; no pointer following/discovery or private value store. The centre size slider remains visible only on the highest popup parent; children inherit its scale. Setters extend outward as radial spokes, using outer space without inflating the button ring. Shared RangeAxis supplies their displayed axis to RangeControl; pointer projection captures geometry once at drag start and uses arithmetic during the gesture. No per-motion DOM measurement/discovery. Only declared categories create children; no automatic More tools grouping remains. Popup opacity is 100% through the same policy. A shared transient radialScale (1–2) is edited by the centre RangeControl; popup content uses uniform CSS zoom, including buttons/setters, and ResizeObserver re-centres on the existing anchor. The resident canvas rim keeps its own viewport geometry. No scene value/history changes. ContextualMasterController supplies centre-handle dragging for all radial popups, using transient local translation and pointer capture, preserving child Back clicks and resetting at invocation/stage changes. No scene/history edits or per-motion geometry reads. Popup geometry is not squeezed to viewport width while retaining fixed-size controls: edge openings may clip, preserving the cursor origin and nonoverlap. The resident editing canvas is the explicit rim variant and reuses slot rendering; its radius follows its viewport instead of becoming a popup.
 
 A `RadialEntry`/`RadialNode` may supply an optional `setter`. Numeric strips project the existing `PropertyEditor`/`RangeControl`, retaining validation, right-click editing and session step settings. `DegreeSetter` is shared by preset and target adapters. Hover opens category children beyond the parent dial outer edge, along the hovered button’s radial axis. The parent stays visible and unobscured, forming a node-to-child centre chain (⚬-○); leaving the connected child region hides it. Keyboard and click remain available. No pointer-move layout/matching is needed. `ContextualMasterController`
 provides top-layer presentation: radial centres stay exactly at their invocation point, and rectangular children start at their invoking cursor point and existing context-menu ownership. Child rings are portalled to escape the circular frame clip. Nested portalled controllers retain their connected parent context layers; the deepest ring is active, and closing it restores its parent so Escape steps outward. Pointer anchors use click coordinates, with a one-time category-centre measurement for keyboard activation. Radial origins are not clamped at viewport edges; no pointer polling is added.
@@ -577,3 +577,371 @@ semantics. Empty editor opening/base choices do not reset a value. Scratch marks
 can be cleared without editing the property. Incoming owner changes invalidate
 stale marks/previews; closing clears the Composer's transient sample. Decimal
 notation, equations, persistent rule encoding and a wider rollout remain deferred.
+
+
+Composer E01 rule configuration is projected by PropertyEditor/MathematicalValueControl
+for all numeric consumers. The existing step configuration entry opens a small
+rule radial; outside-Composer RangeControl configuration stays unchanged. The
+shared working-range session owns both existing step and the experimental Value/
+Increment mode, preventing independent jump/rule settings. Active target limits
+may lend their declared step resolution. MathematicalDial consumes that config;
+a child amount dial has no editing-rule controls of its own. Pure rule evaluation
+uses a frozen anchor and signed numeral index; property owners enforce validity,
+preview and history as before. Do not interpret this experimental configuration
+as a persisted mathematical constraint or automatically extend it to dragging.
+
+Nested popup/dial events use ownsPointerSurface in the shared pointer-ownership
+module. React portals preserve logical event ancestry; parent controllers must
+yield opening-press suppression and centre dragging to the nearest actual popup.
+Parent math dials also yield slot capture/hover to child amount dials, so a
+configuration stroke cannot paint the parent property. No new global listeners
+or layout reads are introduced by this boundary check.
+
+
+The E02 explicit Reference/Match numeric controls have been removed. Cyclic
+DOF inputs declare `selection` metadata; DegreeValueEditor projects DofStateField
+instead of the raw numeric editor. A pure state generator supplies mode alternatives;
+Math Dial edits its parameters. Session mode settings reuse RangeSettingsScope.
+Existing preview/commit owners remain authoritative. Reference context is supplied
+through NumericOperationScope; UI does not discover scene objects or infer units.
+
+DofInformation is the shared rendering of active DOF, mode/rule and reference.
+NumericEditorScope lends the current editor's descriptor to the Composer top strip;
+the gesture adapter supplies a fallback descriptor from the same property metadata
+and RangeSettings. Header buttons open existing settings. During a DOF edit the
+same information is a noninteractive ToolCursorLayer echo, with transform-only
+pointer transport. DOF Alt parking is retired; MS retains its own parking.
+MB3 is catalog-routed and rebindable, toggling the existing settings radial.
+
+
+Composer canvas right-click menus (including the active world-preview bridge)
+activate on release only. `secondaryRelease` joins physical release with the native
+contextmenu event, which browsers dispatch either before or after release; the
+first press never exposes a dial beneath that same press. It emits once, without
+release-suppression timers. Left-click drawing, selection and dragging retain their
+existing press/move/release handling. Do not restore press-time right-click menu
+activation or the failed pending-context tracker in pointerOwnership.
+
+
+Generated-state surfaces capture their preview alternative on primary pointerdown
+before native focus/blur can cancel hover. Click consumes the current or captured
+alternative once; pointer exit/cancel discards it. This preserves wheel-surface
+commitment after a previously focused marker blurs, without preventing normal
+focus behavior or persisting hover previews.
+
+
+Context settings also validate the physical press origin through shared
+pointerOwnership: capture the right-press composed path once; a later contextmenu
+on a control only applies if that control was in the original path. This is
+independent of held/released timing and prevents newly mounted Dial size controls
+from receiving a menu opener. Unknown physical origins fail closed; native keyboard context is explicitly allowed.
+Keyboard context-menu invocation clears the pointer
+origin. There is no timer, motion check or feature-specific size exception.
+
+Non-text application surfaces use transparent caret-color; native inputs,
+textareas and editable text explicitly restore auto caret-color. This keeps browser
+insertion/caret-browsing paint off focused interaction surfaces without changing
+text editing, focus, browser preferences or adding polling/selection clearing.
+
+
+Shared numeric state fields: all Composer numeric DOFs enter DofStateField,
+including the common PropertyEditor projection. The pure stateField model owns
+bounded candidate generation/filtering/projection and a universal Euclidean nearest
+query over normalized projected points. Radial positions address nonspatial raw
+values; cyclic directions and spatial/magnitude axes have real domain mappings.
+No feature-specific hover arithmetic or preview setter may be added. Domains and
+owner constraints prepare once per committed/configuration context, never on
+pointer motion. The existing preview session, physical click capture, gesture information,
+MC popup/navigation and history contracts remain in force.
+
+Field rule parameters, bounds and exact '=' entry use MathematicalDial directly,
+so they do not recursively create another field. Changing field constraints never
+edits geometry until a state/exact value is committed. Integer validity filters
+fractional candidates instead of rounding; empty fields show ∅ and cannot apply.
+The current field scope is finite numeric scalar/integer/cyclic and single spatial
+axes, not an implicit containment solver or nonnumeric editor replacement.
+
+
+Latest rule/value correction: RangeControl is the shared execution slider. Optional
+prepared `values` select index-based traversal of a sorted, bounded rule sequence;
+uniform numeric sliders retain their original mode. Both reuse the same captured
+axis, held preview, release commit, native fields and cancellation contracts.
+Nudges/wheel/native keyboard advance actual sequence neighbours. Math Dial only
+configures rules and variables. Slider end bars own min/max editing via onConfigure;
+there is no separate Limits menu or standalone ½ value picker. Rule-mode controls
+cannot directly write the property value. Bounds can filter the sequence without
+mutating the owner; no per-pointer generator/validator calls are added.
+
+
+E06 presentation correction: the information strip exists only while a DOF is active. It uses icons/numeric expressions with descriptive tooltips and accessible labels; no inert default placeholder or visible text labels. The radar strip is inset inside its circular clipping boundary. The noninteractive cursor echo uses the same compact symbols.
+
+
+DOF layout correction: base/exponent expressions render as one inline box even inside radial grid buttons. Mode/reference choices use icons and tooltip labels. Shared RangeControl readouts display at most six significant digits; exact numbers stay unchanged in owner state/native input and hover metadata. This is presentation only, with browser visual acceptance pending.
+
+
+Shared popup overlap correction: ContextualMasterController retains the invoking data-ui-popup-boundary and inherited contextual ancestor refs. Opening/resize placement uses actual control bounds; if the child overlaps, it moves outward to the nearest separating edge and avoids older ancestors. Internal stage changes retain the external invocation boundary. Already separate positions are preserved. Explicitly anchored radial branches keep radialLayout placement. There are no per-DOF offsets or pointer-motion layout reads. The DOF strip and shared RangeControl declare compound boundaries; future contextual children inherit the placement contract automatically. Browser visual acceptance remains pending.
+
+
+Latest E06 correction: remove the DOF-information cursor echo entirely, including its numeric-editor cursor zone plumbing; ordinary tool cursors remain. The active icon strip is the information location. A button-triggered editor must open below its actual button, not above/to its side: shared cursor tracking captures its bounds on activation before stage replacement, and shared popup placement centers the editor below it. Ancestor overlap may only move it further down in that column; explicit hover-branch radial anchors retain radial placement. Canvas/shortcut openings without a button keep cursor placement. Rule/reference settings and MS picking do not render the value slider alongside them; returning from configuration restores the numeric value editor. A readout such as 10.2949 is simply the current position value. These corrections supersede gesture-echo and lateral-separation descriptions above. Browser visual acceptance pending.
+
+
+Active-edit sub-setters: right-click during a move/authored-rotation gesture or a held numeric-slider edit settles the current preview and summons the registered active DOF settings at the cursor. Mouse-only right-button chords while left remains held join the same secondary-release path, without duplicate activation. Use the shared ContextLayer dismissOutside capability for these settings: clicks outside registered popup interiors dismiss and consume that press, including outside controls/objects; MS retains priority. The requested settings view contains no companion value slider. Button-triggered settings still use below-button placement.
+
+
+
+
+Reference entry correction: “MC” here meant the existing selector invoked by Q (selector.open). The mistaken MC selection list/request store/window-opening path is removed. The top ⟴ button invokes that same selector action directly; no reference options list or intermediate radial. Composer SVG primitives declare data-selection-boundary plus data-selection-id inside data-selection-scope, so ordinary Q can select authored Composer objects and reconnect boundaries after SVG replacement without crossing surfaces. A temporary reference request consumes the chosen object inside the current Composer: compatible other object sets the reference, the active object restores Self, empty Composer space selects Environment when supported. Acceptance/cancel restores previous selector selection/configuration. Configuration stays with the Q selector; no duplicate selector UI or hardcoded shortcut. Current authored/single-target/SVG reference limitations remain. Browser confirmation pending.
+
+
+Actual rotation-edge correction: remove outsideBoundary and the 2–8 scene-unit/object-size activation margin. Rotation hover and primary press both use rotationEdgeHit over a prepared index of selected evaluated primitives. Exact segment/circle distances include stroke width and fill; visible ink stays a move grab, empty space near actual rims (including hollow inner rims) qualifies. Bounding boxes only accelerate the search and retain the existing pivot calculation; they never decide activation. The band is eight CSS pixels in the local Composer via its existing coordinate adapter; the world-preview adapter supplies local projected-plane pixel scale. Geometry/index preparation happens when the selected evaluated snapshot changes; pointer queries do no scene discovery or DOM measurement. Future rendered primitive kinds need their geometry adapter, not preset-specific rotation zones. Hover state clears on view changes. Model regressions cover slanted/circular edges, false box corners, interiors, overlap, hidden geometry and zoom scales. Browser acceptance pending.
+
+
+ToolIcon may declare size (glyph pixels) and glow in command metadata. Shared ToolGlyph renders those defaults for both tool controls and keyboard/default cursors; captured clicked icons retain their styled appearance. Glyph sizing does not resize controls or geometry hit zones. Rotation currently declares a static glowing 20px glyph.
+
+
+Unselected hover correction: interaction previews must not require prior selection. Prepare rendered-geometry ownership and registered DOF capabilities per displayed snapshot; preview Move over applicable visible ink and Rotation near actual edges only when the target declares rotation. Hover never commits selection or geometry. An edge press on an unselected object selects the canonical authored owner and starts rotation in the same gesture; selected-group scope is preserved for its members. The common authored-node resolver is reused by reference measurements and hover discovery, including reused geometry. No per-preset hit handlers, per-motion registry discovery or new cursor renderer. Existing MS/Ctrl/Erase priority and geometry-only hit tolerance remain. Browser confirmation pending.
+
+
+Scalar grab correction: geometry chooses the DOF/tool before a press; once grabbed, scalar value execution is a virtual slider in free space. Shared createValueScrub serves relative RangeControl/DOF-icon drags and Composer edge rotation. The first meaningful movement (three CSS pixels) locks its arbitrary axis for that gesture. Continuing along it increases, reversing decreases, perpendicular motion is ignored. Screen displacement traverses the prepared value sequence/bounds; it does not follow the shape or compute cursor angle about its center. Press/jitter leaves the value untouched; release commits once and cancellation restores via existing owners. Edge rotation uses the generic value gesture; obsolete shape-following center/field gesture state is removed. Explicit legacy Step/pivot rotation remains separate. Two-axis direct placement keeps its existing spatial translation behavior. No extra floating slider is introduced. Browser acceptance pending.
+
+
+Latest Rotation correction: hovering actual edges shows the cue; one primary click selects its owner and opens the axis wheel on release, without editing the angle. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+
+
+Latest category presentation: shared RadialMenu category children use
+radialRowLayout, a 24px/2px-gap row along the parent button's outward radial axis.
+Nested rows inherit the axis and begin beyond the preceding row's visible end.
+Glyphs remain upright; relative setters project perpendicular to the row, retaining
+existing gesture owners. The root remains radial. Child rings, centre controls and
+circular hover zones are replaced by a transparent capsule spanning only the row
+and its gaps. Existing hover retention, keyboard hierarchy and shared scale remain.
+Embedded-parent scale control sits beside the first row, opposite its value setters.
+Category metadata can supply symbolMask, rendered in currentColor; Appearance
+uses the shared eye silhouette rather than sparkle emoji. No scene/history or
+selection behavior changes. Browser layout acceptance remains pending.
+
+
+Latest visibility/attachment correction: standalone category dials immediately
+project all immediate child rows and retain them until parent dismissal. Embedded
+canvas rim and deeper category reveal behavior remain unchanged. A shared pure
+radialRowAttachment derives the row from the actual parent-button centre/width,
+not the dial radius or hidden setter margin. Nested rows extend past the preceding
+row. Root anchors refresh after popup placement, resize and pointer release via
+ResizeObserver/shared press observation; no per-motion measurement is added.
+Automatic branches preserve their full category lineage for deeper navigation.
+
+Projected function buttons inside a radial slot take that slot's full box with
+zero padding/minimum height, centred content and no wrapping. These scoped rules
+outrank generic resident function-text/icon sizing. Row glyphs use 12px; nested
+icon spans inherit it so Position X/Y and custom icon glyphs stay inside 24px slots.
+
+Reference use is independent of reference source. The existing OperationReferenceScope
+retains authored source identity across DOFs and per-consumer measurement/use/ratio
+settings; it does not introduce another scene owner or persistent geometry binding.
+NumericOperationScope lends compatible measured features, current resolved relation,
+legality and configuration callbacks. Shared referenceUse.ts resolves Bounds, Step
+or Match; createReferenceField is used by DofStateField and prepared Position gestures.
+Step has no imported reference bounds. Match supplies an exact candidate, still
+subject to consumer constraints/setters. Measured ratios precede coordinate conversion.
+Right-click top ⟴ configures use/measurement/×/÷; left-click retains Q/MS source picking.
+The use glyph stays visible on ⟴ and tooltips name the source/feature. Measured Step
+and Match route rule configuration to their ratio controls, avoiding ignored generic
+rule choices. Ordinary unbound numeric editing retains its existing rules. Settings
+and accepted source context are transient to the Composer session; committing a
+source updates consumer editing contexts, not previously committed dependent geometry.
+
+Vector DOFs compose scalar inputs through freedom.vector metadata and adapt into
+DofStateField. Position does not have a replacement action dial or separate Centre
+button. Common Partitions/fraction controls remain; working-rule changes propagate
+to component keys through RangeSettingsScope. Scene execution uses existing prepared
+coordinate fields, while normal reference Match executes a validated tuple through
+one owner callback. Optional component editors remain in the shared options radial.
+Match respects each component's limits as well as tuple/profile legality.
+
+Reference options are universal: ⟴ opens configuration; its source control invokes
+Q/MS explicitly. No automatic selection on opening options. No hiding rule controls
+for vectors. The vector adapter handles owner tuple conversion and preview lifetime;
+shared editor components own configuration, presentation and interaction.
+
+
+### Physical opening press versus child capture
+
+Shared `useActiveLayer` release protection captures `physicalPressVersion` only
+when mounted during a held physical press. It suppresses that opener’s release/
+compatibility tail. A new window-captured press changes the version before React
+capture handlers run, so controls can consume pointerdown without preventing the
+next legitimate release/click. Do not rely on a popup-native pointerdown listener
+to clear an opening flag: React capture at the portal container can stop that
+native listener from running, leaving wheels/value controls unable to commit.
+Keyboard-native click exceptions and existing drag/cancel ownership remain.
+The regression models the physical event stream, a captured wheel choice, the
+existing property writer and retaining the committed angle after leaving.
+
+
+### Shared value confirmation and selection completion (2026-10-30)
+
+`useActiveLayer` is the sole popup opening-press guard. ContextualMasterController
+no longer maintains a second boolean release guard; nested capture and stage
+updates must never re-arm protection against a later deliberate press. Drag-click
+suppression remains separate and applies only after moving a popup.
+
+Value-picking projections use `useValueConfirmation`: give it the owner ref, the
+current prepared preview candidate and existing commit setter. Both primary
+selection and MC Enter execute `confirmValue`; undefined/disabled choices do not
+commit, while zero and structured tuples remain valid. Axis, linear, plane and
+math-dial surfaces use this shared adapter. RangeControl lends its held drag's
+existing finish transaction to Enter as well as release. No per-DOF key listeners.
+Future value-picking projections use this adapter, rather than implementing a
+separate Enter path. Native text-field validation and MS shortcut priority remain.
+
+Nested navigation is resolved per action by `contextNavigationAction`; a deeper
+cancel-only editor cannot mask a parent's preview confirmation. MC keeps the
+deepest applicable DOM owner, independently of effect registration order.
+
+MS completion closes aiming/configuration/inventory and unfinished input state
+after an accepted target, including temporary reference and inventory targets.
+It retains accepted membership, timeline and feedback. Explicit unfinished scope
+construction can continue until a target is accepted; rejected reference picks
+remain active. Q explicitly reopens targeting. General browser acceptance remains
+user-tested; local regressions cover owner writes, zero/tuple confirmation,
+per-action nesting and existing temporary-request restore/one-shot behavior.
+
+
+### Popup lifetime, logical ancestry and input ownership (2026-10-30)
+
+`useActiveLayer` registers for the popup's actual open lifetime. Changing whether
+confirm/cancel/advance/dismiss is available updates that layer in place; it must
+not unregister/reappend a parent and truncate/reorder its already open child.
+ContextualMasterController supplies its logical PopupParents ancestry because
+portal roots are DOM siblings. `insertContextLayer` inserts a late parent before
+registered logical descendants. Enter therefore resolves the active child value
+owner even after parent action availability changes. All shared popup consumers
+inherit this lifecycle; no DOF/geometry/value-adapter exception is needed.
+
+`dismissContextPointer` is the single context pointer-dismissal fallback. Active
+MS selection owns the press first, then registered popup interiors protect their
+entire DOM subtree (including bare SVG/grid/empty regions without control flags).
+Only outside presses reach explicit outside-dismissal or generic dial dismissal.
+Existing native/content controls and modifier behavior remain. Previously the
+second empty-space fallback bypassed MS priority and could cancel a valid lens
+pick before it reached the selector.
+
+Focused synthetic browser diagnostic: direct Position preview/click/leave worked;
+reference picking near a boundary was intercepted before MS. After input-priority
+repair it reached the on-spot plane. That plane exposed Enter reaching its parent
+confirmation instead of its value owner and reverting on leave. After the shared
+lifetime/ancestry fix, four grid regions accepted by primary click and the centre
+accepted by Enter all retained their exact previewed tuples after leaving, under
+normal StrictMode, without fallback command invocation. No browser suite was run.
+General user-workspace/browser acceptance remains pending. Model regressions cover
+registered interiors/input priority, late parent insertion and confirmation after
+parent availability changes.
+
+
+### Hover-owned keyboard confirmation and finishing (2026-10-30)
+
+`useActiveLayer` activates its registered logical context on native pointer entry,
+without waiting for a selection click. It uses `contextLayerScope` and declared
+portal ancestry, with no pointer-move work or DOM geometry discovery. Existing
+held UI gestures retain priority. This repairs hover-only Enter being unavailable
+until the user first clicked within the popup.
+
+`confirmContextStage` sequences the child value acceptance before the popup's
+existing finish/advance/dismiss/close lifecycle. A false acceptance result vetoes
+finishing. Enter must finish the current stage after a successful value write;
+native fields and MS priority remain. Primary selection continues its own existing
+behavior. Leaving/cancelling an unconfirmed preview restores the prior value;
+leaving after accepted Enter cannot undo it. Future contextual editors inherit
+these shared ownership and completion rules.
+
+
+### Single-selection DOF previews finish on primary release (2026-10-30)
+
+DOF preview execution and mathematical rule/number configuration are separate
+interfaces. Axis/linear/plane preview projections declare `selection: 'single'`
+to `useValueConfirmation`. Primary release uses `ContextValueCompletion` to accept
+the prepared candidate and finish the nearest popup stage, just as Enter does.
+The navigation adapter supplies raw acceptance to Enter so completion happens
+once. Disabled/rejected candidates veto finish; unconfirmed leave stays cancel.
+Default composing interactions do not acquire finish-on-selection. No private
+DOF close callback or appearance/category change is introduced.
+
+
+### DOF activation selects a reference first (2026-10-30)
+
+DegreeValueEditor treats ordinary value activation as source selection, for both
+target and preset/dial entry paths. Scalar/vector fields reuse their existing
+request/on-spot projection. Categorical values borrow identity-only source picking
+and retain their native control. OperationReferenceScope owns one generic request
+lifecycle for both, with compatible capability validation, previous-selection
+restoration and cancellation. It stores reference identity, not invented numeric
+values or automatic target edits. Explicit configuration requests are separate.
+
+Ordinary canvas target activation finds Position from coordinate measurement
+metadata through targetPlacementDegree and starts that same editor. No per-preset
+click handler or separate source-picking UI. The pointed authored owner is the
+edit target; the following MS target is the reference. Ordinary move/translate
+gesture execution is removed, while empty-space construction tools and explicit
+legacy operations retain their contracts. Existing single-target reference limits
+remain.
+
+
+### Editor activation is a request, not just a DOF name (2026-10-30)
+
+Explicit target editor activation captures a monotonically increasing session ID.
+`degreeEditorIdentity` combines that captured ID, authored owners, DOF and stage;
+it never depends on live value/hover samples. Re-entering the same DOF/source
+starts a fresh editor/reference request even if the previous component is still
+mounted. Owner changes cannot reuse another target's session. Target editor
+activations share the adapter; no delayed MS invocation or selection-only click.
+
+DOF option dials omit redundant source/reference-use buttons. The active top
+reference control remains the shared entry for reselecting/configuring a source.
+
+
+### Rejected MS picks and request ownership (2026-10-31)
+
+A temporary MS consumer can return a short rejection reason instead of false.
+`selectionDecision` accepts only literal true, so a nonempty reason can never
+accidentally accept a target. MS displays the reason beside its existing selector
+cursor with polite status semantics, retains the pending request, and clears it
+on candidate change, acceptance, cancellation or a new request. A click with no
+candidate says “No target here.” Ordinary standalone MS detection is unchanged.
+No extra popup, cursor renderer or pointer-motion listener is added.
+
+OperationReferenceScope numeric/categorical requests carry their editor owner's
+symbol. Unmount/cleanup cancels only a request with that owner; old editor cleanup
+cannot stop a newer pick. Explicit user cancellation can still cancel the active
+request. `cancelOwnedSelectionRequest` clears identity before running callbacks,
+preventing re-entrant cancellation from targeting a replacement request.
+
+The actual ⨮ Relations category wrapper is retired from freedom metadata. Its
+Position/Rotation/Radius/spacing freedoms remain directly available in target,
+preset and applicable MC projections. Units/fill and Appearance remain categories.
+Reference use configuration remains available through the top reference indicator.
+
+The shared mathematical-value session owns local preview continuity. Repeated
+unchanged committed props do not invalidate its internal preview or stroke.
+`MathematicalDial` consumers may provide only `value` and `onCommit`; `onPreview`
+is optional for projecting a live sample elsewhere. Existing consumers that echo
+preview values retain cancellation semantics. An actual changed external value
+still interrupts scratch state, and accepted commits remain the cancellation
+baseline. Do not add private sample wrappers for commit-only numeric parameters.
+Path rule counts use the same shared component directly.
+
+The shared tool cursor is a manual top-layer popover, with transparent, noninput
+styling. Popup-target transitions raise it above contextual popovers; no layout
+measurement is added to motion. This preserves the existing cursor owner/zone
+system rather than adding a cursor renderer for each editor. Interactive
+confirmation is pending.
+
+Shared math-dial chrome: reading is clockwise, with no direction toggle. The
+centre's base dots form the base-switch button (1/2); separate base buttons are
+removed. Numeric readout, ring/sign/clear controls sit in a vertical column on the
+right. All consumers use the same component and stylesheet. Browser acceptance
+pending.
+
+Math slot input correction: right-click directly selects/stamps recursion on that
+slot and commits its legal value. It does not cycle cursor brushes. Left-click
+retains normal fill/erase behavior. Repeated right-clicks stamp the same recursive
+mode; empty ring space does not alter the value. Shared consumers inherit this.

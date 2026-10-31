@@ -1,3 +1,4 @@
+import {readPathRule} from './pathRule.ts';
 import { FEATURE_ACTIONS } from '../featureActions.ts';
 import { defineFunction } from "../properties/function.ts";
 import { PROPERTY_REGISTRY } from "../properties/catalog.ts";
@@ -32,6 +33,7 @@ export function checkedParameter(parameter: Parameter, input: PropertyValue): Pr
   if (parameter.kind === "color" && (typeof input !== "string" || !/^#[\da-f]{6}$/i.test(input))) throw Error(`Expected RGB ${parameter.label}.`);
   if (parameter.kind === "select" && !parameter.options?.some(option => option.id === input)) throw Error(`Unsupported ${parameter.label}.`);
   if (parameter.kind === "text" && (typeof input !== "string" || input.length > 200)) throw Error(`Invalid ${parameter.label}.`);
+  if(parameter.editor==='path-rule')readPathRule(String(input));
   return input;
 }
 const inputs = Object.fromEntries([...families].map(([property, group]) => {

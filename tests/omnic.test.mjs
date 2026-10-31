@@ -186,7 +186,7 @@ test('ungroup dissolves multiple nearest levels only when selected and retains l
 });
 
 test('all starter generators and presets reconstruct deterministically without drawing or renderer objects',()=>{
-  assert.deepEqual(GENERATORS.map(g=>g.id),['count-grid','dot','ring','rings','line','chain','radial','group','reference']);
+  assert.deepEqual(GENERATORS.map(g=>g.id),['path-rule','count-grid','dot','ring','rings','line','chain','radial','group','reference']);
   for(const preset of PRESETS){
     const source=createRecipe(preset.id), before=JSON.stringify(source), a=evaluateRecipe(source),b=evaluateRecipe(validateRecipe(JSON.parse(before)));
     assert.deepEqual(a,b);assert.equal(JSON.stringify(source),before);assert.equal(renderSVG(a),renderSVG(b));
@@ -435,11 +435,11 @@ test('selection sweep collects intervening dots, ring boundaries and lines witho
   const degrees=targetDegrees(source,['rings']);
   for(const property of ['color','opacity','omnic.opacityProgression']){
     const degree=degrees.find(d=>d.properties.includes(property));
-    assert.equal(degree.group[0].id,'visual');assert.equal(degree.group[0].label,'Appearance');assert.equal(degree.group[0].symbol,'✨');
+    assert.equal(degree.group[0].id,'visual');assert.equal(degree.group[0].label,'Appearance');assert.equal(degree.group[0].symbol,'👁');assert.ok(degree.group[0].symbolMask.startsWith('data:image/svg+xml,'));
   }
   for(const property of ['omnic.count','omnic.fill','omnic.thickness','omnic.strokeProgression'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'●●');
-  assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group[0].symbol,'⨮');
-  for(const property of ['omnic.spacing','omnic.ringDrift','omnic.ringGrowth','omnic.angle'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'⨮');
+  assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group,undefined);
+  for(const property of ['omnic.spacing','omnic.ringDrift','omnic.ringGrowth','omnic.angle'])assert.equal(degrees.find(d=>d.properties.includes(property)).group,undefined);
 });
 
 
@@ -553,4 +553,759 @@ test('raw numeral preview cancellation follows owner changes and chronological u
  assert.equal(targetDegreeValue(current,degree),5);assert.equal(session.sampling,false);assert.equal(session.restore(),5,'stale preview cannot restore the value from before Undo');
  assert.equal(history.travel('redo'),1);assert.equal(session.restore(),-6);
  assert.equal(session.receive(2),true,'external setter invalidates scratch state even after Redo');assert.equal(session.restore(),2);stop();
+});
+
+test('one editing-rule context previews signed indices across size and position without drift',async()=>{
+ const {mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const {createActionHistory}=await import('../src/ui/actionHistory.ts');
+ for(const property of ['omnic.extent','omnic.coordinate.x']){
+  let current=validateRecipe({...recipe([dot('a',10),dot('other',30)]),atomnic:{mode:'free'}});
+  const degree=targetDegrees(current,['a']).find(d=>d.id===property),parameter=targetParameter(degree),anchor=Number(targetDegreeValue(current,degree));
+  const rule={kind:'increment',amount:2},context={anchor,index:3,rule},value=mathematicalEditValue(context);
+  assert.equal(value,anchor+6);
+  const session=mathematicalValueSession(anchor),history=createActionHistory();
+  const stop=history.register('rule-edit',{read:()=>current,write:next=>{current=next;session.receive(Number(targetDegreeValue(current,degree)));}});
+  const sample=writeTargetDegree(current,degree,session.preview(value));
+  assert.equal(targetDegreeValue(sample,degree),anchor+6);assert.equal(targetDegreeValue(current,degree),anchor);assert.equal(history.candidates('undo').length,0);
+  for(let repeat=0;repeat<20;repeat++)assert.equal(mathematicalEditValue(context),value,'hover samples always evaluate from the frozen anchor');
+  assert.equal(session.restore(),anchor);
+  assert.equal(mathematicalValueAllowed(mathematicalEditValue({...context,index:-2}),parameter),true);
+  const before=current;current=writeTargetDegree(current,degree,session.commit(value));history.record('rule-edit',before,current,['omnium'],['omnium']);
+  assert.deepEqual(current.components[1],before.components[1]);assert.equal(history.candidates('undo').length,1);
+  assert.equal(history.travel('undo'),1);assert.equal(targetDegreeValue(current,degree),anchor);
+  assert.equal(history.travel('redo'),1);assert.equal(targetDegreeValue(current,degree),value);stop();
+ }
+ assert.equal(mathematicalEditValue({anchor:.1,index:2,rule:{kind:'increment',amount:.1}}),.3);
+ assert.equal(mathematicalEditValue({anchor:12,index:0,rule:{kind:'increment',amount:2}}),12);
+ assert.equal(mathematicalEditValue({anchor:12,index:-3,rule:{kind:'value'}}),-3,'raw number meaning remains unchanged');
+ for(const amount of [0,-1,Infinity,NaN])assert.ok(Number.isNaN(mathematicalEditValue({anchor:1,index:1,rule:{kind:'increment',amount}})));
+ assert.ok(Number.isNaN(mathematicalEditValue({anchor:1,index:.5,rule:{kind:'increment',amount:1}})));
+ assert.equal(mathematicalValueAllowed(mathematicalEditValue({anchor:99,index:2,rule:{kind:'increment',amount:2}}),{min:.5,max:100}),false,'invalid candidates are rejected rather than clamped into a different step');
+});
+
+test('shared operation contexts resolve actual reference quantities and preserve derivations',async()=>{
+ const {operationGeometry,referenceForOperation,matchForOperation,resolveMatch}=await import('../src/omnic/operationContext.ts');
+ const {measurementsAgree}=await import('../src/properties/operationContext.ts');
+ const source=validateRecipe({...recipe([dot('a',12),{id:'b',generator:'ring',params:{x:20,radius:30}}]),atomnic:{mode:'free'}});
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ assert.equal(referenceForOperation(geometry,'a','center-x'),'b');
+ for(const property of ['omnic.coordinate.x','omnic.coordinate.y','omnic.extent']){
+  const candidate=matchForOperation(geometry,['a'],property,'b');assert.ok(candidate,property);
+  assert.equal(candidate.rule.kind,'match');assert.equal(candidate.context.reference.owner,'b');assert.equal(candidate.context.targets[0].property,property);assert.equal(candidate.context.binding,'transient');
+  const degree=targetDegrees(source,['a']).find(d=>d.id===property),next=writeTargetDegree(source,degree,candidate.value),result=operationGeometry(next,evaluateRecipe(next));
+  const quantity=candidate.context.measurement.quantity;
+  assert.ok(measurementsAgree(result.views.get('a').measurements.get(quantity).value,result.views.get('b').measurements.get(quantity).value));
+  assert.deepEqual(next.components[1],source.components[1]);assert.deepEqual(source.components[0].params,{x:12,y:0,size:5},'discovery/probes never mutate the original recipe');
+ }
+ const candidate=matchForOperation(geometry,['a'],'omnic.extent','b');
+ const updated=validateRecipe({...source,components:source.components.map(c=>c.id==='b'?{...c,params:{...c.params,radius:40}}:c)});
+ assert.equal(resolveMatch(updated,candidate).value,40,'commit re-evaluates reference identity instead of using the old scalar');
+ assert.throws(()=>resolveMatch(deleteComponents(source,new Set(['b'])),candidate),/no longer valid/);
+ assert.throws(()=>resolveMatch(source,candidate,undefined,'another-owner'),/another state owner/);
+});
+
+test('geometric operation adapters handle parent coordinates and transformed radius/length',async()=>{
+ const {operationGeometry,matchForOperation}=await import('../src/omnic/operationContext.ts');
+ const nested=validateRecipe({...recipe([{id:'ga',generator:'group',params:{x:50},children:[dot('a',10)]},{id:'gb',generator:'group',params:{x:100},children:[dot('b',20)]}]),atomnic:{mode:'free'}});
+ const aligned=matchForOperation(operationGeometry(nested,evaluateRecipe(nested)),['a'],'omnic.coordinate.x','b');assert.ok(aligned);almost(aligned.value,70);
+ const scaled=validateRecipe({...recipe([dot('a'),{id:'b',generator:'ring',params:{radius:30}}],[op('scale','size',['b'],{factor:3})]),atomnic:{mode:'free'}});
+ const radius=matchForOperation(operationGeometry(scaled,evaluateRecipe(scaled)),['a'],'omnic.extent','b');assert.ok(radius);almost(radius.value,90,'rendered radius, not the untransformed parameter');
+ const lines=validateRecipe({...recipe([{id:'a',generator:'line',params:{length:10,angle:90}},{id:'b',generator:'line',params:{length:80,angle:35}}]),atomnic:{mode:'free'}});
+ const length=matchForOperation(operationGeometry(lines,evaluateRecipe(lines)),['a'],'omnic.extent','b');assert.ok(length);almost(length.value,80);
+ const tooLarge=validateRecipe({...scaled,components:scaled.components.map(c=>c.id==='b'?{...c,params:{radius:100}}:c)});
+ assert.equal(matchForOperation(operationGeometry(tooLarge,evaluateRecipe(tooLarge)),['a'],'omnic.extent','b'),undefined,'invalid matches do not clamp into unrelated values');
+ assert.equal(matchForOperation(operationGeometry(nested,evaluateRecipe(nested)),['a','b'],'omnic.coordinate.x','gb'),undefined,'aggregate scope is explicitly deferred');
+});
+
+test('reference discovery preserves chosen identity and candidate evaluation respects quantity and scope',async()=>{
+ const {operationGeometry,referenceForOperation,matchForOperation}=await import('../src/omnic/operationContext.ts');
+ const {deriveMatchCandidate}=await import('../src/properties/operationContext.ts');
+ const source=validateRecipe({...recipe([dot('a'),{id:'near',generator:'ring',params:{radius:30,x:10}},{id:'far',generator:'ring',params:{radius:40,x:20}}]),atomnic:{mode:'free'}});
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ assert.equal(referenceForOperation(geometry,'a','center-x'),'near');
+ assert.equal(referenceForOperation(geometry,'a','center-x','far'),'far','retained context wins over a closer new encounter');
+ assert.equal(referenceForOperation(geometry,'a','center-x','missing'),'missing','missing contexts do not silently retarget');
+ const candidate=matchForOperation(geometry,['a'],'omnic.extent','near');assert.ok(candidate);
+ const context=candidate.context;
+ assert.equal(deriveMatchCandidate({...context,reference:{...context.reference,quantity:'area'}},{value:6,measurement:6,reference:30}),undefined,'radius is never confused with area');
+ assert.equal(deriveMatchCandidate({...context,reference:{...context.reference,unit:'pixels'}},{value:6,measurement:6,reference:30}),undefined,'screen thresholds do not become geometric units');
+ assert.equal(deriveMatchCandidate(context,{value:5,measurement:5,reference:30}),undefined,'a zero-size probe cannot establish a response');
+ assert.equal(matchForOperation(geometry,['a'],'omnic.count','near'),undefined,'undeclared DOFs do not inherit guessed geometry measurements');
+ const distant=validateRecipe({...source,components:source.components.map(c=>c.id==='a'?{...c,params:{...c.params,x:-200}}:c)});
+ assert.equal(referenceForOperation(operationGeometry(distant,evaluateRecipe(distant)),'a','radius'),undefined,'initial discovery is limited to overlapping bounds');
+});
+
+test('cyclic DOF state rules preserve north, fractions and configurable expression',async()=>{
+ const {selectionTurns,selectionValue,selectionExpression,selectionLayout,nearestSelectionTurn}=await import('../src/properties/stateSelection.ts');
+ const symmetric=selectionTurns('symmetry',8,45,360);
+ assert.deepEqual(symmetric,[0,.125,.25,.375,.5,.625,.75,.875]);
+ assert.equal(nearestSelectionTurn(symmetric,.49),.5);
+ assert.equal(nearestSelectionTurn(symmetric,-.01),0,'north seam wraps');
+ assert.equal(nearestSelectionTurn([],0),undefined);
+ assert.deepEqual(selectionExpression(8),{base:2,power:3,count:8});
+ assert.deepEqual(selectionExpression(7),{count:7});
+ assert.deepEqual(selectionTurns('halving',5,45,360),[0,.5,.25,.125,.0625]);
+ assert.deepEqual(selectionTurns('step',8,90,360),[0,.25,.5,.75],'repeated cyclic states are not duplicated');
+ assert.deepEqual(selectionTurns('symmetry',65,45,360),[]);
+ assert.deepEqual(selectionTurns('halving',9,45,360),[],'imperceptible binary alternatives are not stacked');
+ assert.deepEqual(selectionTurns('step',8,0,360),[]);
+ const source=validateRecipe(recipe([{id:'line',generator:'line',params:{length:40}}]));
+ const degree=targetDegrees(source,['line']).find(d=>targetParameter(d).selection),input=targetParameter(degree);
+ const north=selectionValue(symmetric[0],input.selection.north,input.selection,input.min,input.max);
+ const south=selectionValue(symmetric[4],input.selection.north,input.selection,input.min,input.max);
+ assert.equal(north,-90);assert.equal(south,90);
+ const northNode=evaluateRecipe(writeTargetDegree(source,degree,north)).nodes.find(n=>n.kind==='line');
+ const southRecipe=writeTargetDegree(source,degree,south),southNode=evaluateRecipe(southRecipe).nodes.find(n=>n.kind==='line');
+ almost(northNode.x2,northNode.x);assert.ok(northNode.y2<northNode.y,'north is north in the actual renderer');
+ assert.ok(southNode.y2>southNode.y,'four steps is south in the actual renderer');
+ assert.equal(targetDegreeValue(source,degree),0,'generating and previewing does not mutate the source');
+ assert.equal(selectionValue(.5,1000,input.selection,input.min,input.max),undefined,'out-of-domain states are unavailable, never clamped');
+ const dense=selectionLayout(selectionTurns('halving',8,45,360),72);
+ assert.ok(dense.at(-1).diameter<dense[1].diameter,'dense fractional marks shrink with their spacing');
+});
+
+test('explicit cyclic references use compatible declared orientation and keep source geometry unchanged',async()=>{
+ const {selectionReference}=await import('../src/omnic/selectionReference.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:-20}},{id:'b',generator:'chain',params:{angle:35}},{id:'ring',generator:'ring',params:{}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection);
+ assert.deepEqual(selectionReference(source,degree,'b'),{id:'b',label:'b',value:35});
+ assert.equal(selectionReference(source,degree,'a'),undefined);
+ assert.equal(selectionReference(source,degree,'ring'),undefined);
+ assert.equal(selectionReference(source,degree,'deleted'),undefined);
+ assert.equal(targetDegreeValue(source,degree),-20,'choosing context does not perform a match or write geometry');
+ const transformed=validateRecipe({...source,operations:[op('turn','rotate',['b'],{angle:20})]});
+ assert.equal(selectionReference(transformed,degree,'b'),undefined,'unsupported evaluated orientation is not guessed from raw input');
+});
+
+
+test('state click applies its captured preview even when native focus cancels hover first',async()=>{
+ const {createStateActivation,selectionValue}=await import('../src/properties/stateSelection.ts');
+ const press=createStateActivation();
+ let hover=.5;press.press(hover);
+ hover=undefined; // native pointerdown moves focus; previous button blur restores sample
+ const chosen=press.take(hover);
+ assert.equal(chosen,.5);
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:0}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection),parameter=targetParameter(degree);
+ const value=selectionValue(chosen,parameter.selection.north,parameter.selection,parameter.min,parameter.max);
+ const committed=writeTargetDegree(source,degree,value);
+ assert.equal(targetDegreeValue(committed,degree),90,'click commits south through the real property owner');
+ assert.equal(press.take(),undefined,'the same click cannot commit twice');
+ press.press(.25);assert.equal(press.take(.75),.75,'a still-current preview takes precedence');
+ press.press(.5);press.cancel();assert.equal(press.take(),undefined,'leaving or cancellation discards the press');
+});
+
+test('one state field generator serves numeric domains and projections through registered owners',async()=>{
+ const {createStateField,nearestFieldCandidate}=await import('../src/properties/stateField.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'chain',params:{count:6,size:6,angle:0,opacity:.5,x:0,y:0}}]));
+ const degrees=targetDegrees(source,['a']);
+ for(const property of ['omnic.count','omnic.extent','omnic.angle','opacity','omnic.coordinate.x','omnic.coordinate.y']){
+  const degree=degrees.find(d=>d.id===property),parameter=targetParameter(degree),domain=stateFieldDomain(parameter);
+  assert.ok(domain,property);
+  const field=createStateField(domain,{mode:domain.integer?'step':'symmetry',count:8,step:domain.resolution,reference:domain.cyclic?.north??Number(targetDegreeValue(source,degree))},value=>{try{writeTargetDegree(source,degree,value);return true;}catch{return false;}});
+  assert.ok(field.candidates.length,property);
+  const candidate=field.candidates.find(c=>c.value!==targetDegreeValue(source,degree))??field.candidates[0];
+  assert.equal(nearestFieldCandidate(field,candidate.point)?.value,candidate.value);
+  const next=writeTargetDegree(source,degree,candidate.value);
+  assert.equal(targetDegreeValue(next,degree),candidate.value,'all manifestations use the same owner write');
+  assert.equal(Number(targetDegreeValue(source,degree)),Number(source.components[0].params[parameter.key]),'previews never mutate source');
+  assert.ok(evaluateRecipe(next).nodes.length,'existing rendering provides the outcome');
+  assert.ok(field.candidates.every(c=>!domain.integer||Number.isInteger(c.value)));
+ }
+ const x=stateFieldDomain(targetParameter(degrees.find(d=>d.id==='omnic.coordinate.x'))),y=stateFieldDomain(targetParameter(degrees.find(d=>d.id==='omnic.coordinate.y')));
+ assert.equal(x.projection,'axis-x');assert.equal(y.projection,'axis-y');
+ const spatial=createStateField(x,{mode:'symmetry',count:8,step:1,reference:0,min:-40,max:40});
+ assert.deepEqual(spatial.candidates.map(c=>c.value),[-40,-30,-20,-10,0,10,20,30,40]);
+ assert.equal(nearestFieldCandidate(spatial,{x:.39,y:.12}).value,20);
+ assert.ok(spatial.candidates.every(c=>c.point.y===0));
+ const referenceState=createStateField(x,{mode:'symmetry',count:8,step:1,reference:17,referenceId:'other-x',min:-40,max:40}).candidates.find(c=>c.value===17);
+ assert.equal(referenceState.derivation.mode,'reference');
+ assert.equal(referenceState.derivation.referenceId,'other-x');
+ const radius=stateFieldDomain(targetParameter(degrees.find(d=>d.id==='omnic.extent')));
+ assert.equal(radius.projection,'axis-x','length quantities inherit magnitude-axis projection');
+});
+
+test('state fields filter constraints before pointer selection and retain derivations',async()=>{
+ const {createStateField,nearestFieldCandidate}=await import('../src/properties/stateField.ts');
+ const domain={min:0,max:64,integer:true,resolution:1,projection:'radial'};
+ let validations=0;
+ const field=createStateField(domain,{mode:'step',count:8,step:1,reference:6,referenceId:'other-count',min:4,max:9},value=>{validations++;return value!==7;});
+ assert.deepEqual(field.candidates.map(c=>c.value),[4,5,6,8,9]);
+ const prepared=validations;
+ for(const candidate of field.candidates)nearestFieldCandidate(field,candidate.point);
+ assert.equal(validations,prepared,'pointer picking never invokes owner validation or recomputes candidates');
+ assert.deepEqual(field.candidates[0].derivation,{mode:'step',reference:6,referenceId:'other-count',index:2,count:8,step:1,min:4,max:9});
+ const fractions=createStateField({...domain,max:9},{mode:'symmetry',count:8,step:1,reference:0});
+ assert.deepEqual(fractions.candidates.map(c=>c.value),[0,9],'fractional integer candidates are excluded, never rounded into invented states');
+ assert.deepEqual(createStateField(domain,{mode:'step',count:8,step:0,reference:6}).candidates,[]);
+ assert.deepEqual(createStateField(domain,{mode:'symmetry',count:8,step:1,reference:6,min:20,max:10}).candidates,[],'conflicting constraints yield an empty field');
+ const half=createStateField({min:0,max:1,resolution:.01,projection:'radial'},{mode:'halving',count:4,step:.01,reference:.5});
+ assert.deepEqual(half.candidates.map(c=>c.value),[.5,.25,.125,.0625]);
+ const rotated=createStateField({min:-1080,max:1080,resolution:1,projection:'radial',cyclic:{period:360,north:-90}},{mode:'symmetry',count:8,step:45,reference:-90});
+ assert.equal(rotated.candidates[0].value,-90);assert.equal(rotated.candidates[4].value,90);
+ almost(rotated.candidates[0].point.y,-.8);almost(rotated.candidates[4].point.y,.8);
+});
+
+test('numeric reference picking inherits property and measured-quantity compatibility',async()=>{
+ const {selectionReference}=await import('../src/omnic/selectionReference.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'chain',params:{count:6,size:10,opacity:.5}},{id:'b',generator:'radial',params:{count:12,size:8,opacity:.75}},{id:'ring',generator:'ring',params:{radius:40}},{id:'line',generator:'line',params:{length:40}}]));
+ const degrees=targetDegrees(source,['a']);
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='omnic.count'),'b').value,12);
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='opacity'),'b').value,.75);
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='omnic.extent'),'ring').value,40,'same radius measurement supports different shared-property aliases');
+ assert.equal(selectionReference(source,degrees.find(d=>d.id==='omnic.extent'),'line'),undefined,'length and radius are distinct quantities despite a shared extent property');
+ assert.equal(source.components[0].params.count,6,'reference picking changes context, not geometry');
+});
+
+test('rule configuration leaves geometry unchanged while the value slider previews and commits',async()=>{
+ const {createStateField}=await import('../src/properties/stateField.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {rangeSequence,sequenceAt}=await import('../src/ui/rangeMath.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'chain',params:{count:6}}]));
+ const degree=targetDegrees(source,['a']).find(d=>d.id==='omnic.count'),domain=stateFieldDomain(targetParameter(degree));
+ const field=createStateField(domain,{mode:'step',count:8,step:1,reference:6,min:0,max:20});
+ assert.equal(targetDegreeValue(source,degree),6,'making/changing the rule does not edit the object');
+ const sequence=rangeSequence(field.candidates.map(c=>c.value),field.min,field.max),session=mathematicalValueSession(6);
+ const selected=sequenceAt(sequence,.75);
+ const preview=writeTargetDegree(source,degree,session.preview(selected));
+ assert.equal(evaluateRecipe(preview).nodes.filter(n=>n.kind==='dot').length,8);
+ assert.equal(targetDegreeValue(source,degree),6,'drag samples remain temporary');
+ assert.equal(session.restore(),6,'cancel restores the pre-drag owner');
+ session.preview(selected);
+ const committed=writeTargetDegree(source,degree,session.commit(selected));
+ assert.equal(targetDegreeValue(committed,degree),8);
+ assert.equal(session.restore(),8,'release commits the slider value instead of restoring it');
+});
+
+test('gesture activation and reference fields use canonical bounds and the same generated sequence',async()=>{
+ const {positionFieldDelta}=await import('../src/omnic/dofGesture.ts');
+ const {fieldReferenceFor}=await import('../src/omnic/referenceGeometry.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {createStateField}=await import('../src/properties/stateField.ts');
+ const source=validateRecipe(recipe([{id:'ga',generator:'group',params:{x:50},children:[dot('a',10)]},dot('b',120)]));
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ const degree=targetDegrees(source,['a']).find(d=>d.id==='omnic.coordinate.x');
+ const ref=fieldReferenceFor(geometry,degree,'b');almost(ref.value,70);almost(ref.min,64);almost(ref.max,76);
+ const env=fieldReferenceFor(geometry,degree,'@environment',{x:0,y:0,width:200,height:100});
+ almost(env.min,-50);almost(env.max,150);almost(env.value,50);
+ const field=createStateField({min:0,max:20,resolution:1,projection:'axis-x'},{mode:'symmetry',count:4,step:1,reference:0});
+ assert.deepEqual(positionFieldDelta([{axis:'x',start:0,field}],{x:8,y:7},{x:8,y:7}),{x:10,y:7});
+ assert.deepEqual(positionFieldDelta(undefined,{x:8,y:7},{x:9,y:9}),{x:8,y:7},'unconfigured gestures retain their existing movement');
+ assert.throws(()=>positionFieldDelta([{axis:'x',start:0,field:{...field,candidates:[]}}],{x:1,y:1},{x:1,y:1}),/No valid position/);
+ assert.match(renderSVG(evaluateRecipe(source)),/data-selection-boundary/);
+ assert.equal(targetDegreeValue(source,degree),10,'reference and field configuration never change geometry');
+});
+
+test('rotation follows visible geometry edges rather than rectangular selection bounds',async()=>{
+ const {prepareGeometryEdges,rotationEdgeHit}=await import('../src/omnic/geometryEdges.ts');
+ const line={id:'diagonal',componentId:'line',kind:'line',x:0,y:0,x2:100,y2:100,radius:0,thickness:4,fill:false,opacity:1,color:'#fff'};
+ const diagonal=prepareGeometryEdges([line]);
+ assert.equal(rotationEdgeHit(diagonal,{x:50,y:55}),true,'slanted line side is active even deep inside its bounding rectangle');
+ assert.equal(rotationEdgeHit(diagonal,{x:-3,y:105}),false,'empty bounding-box corner cannot activate rotation');
+ assert.equal(rotationEdgeHit(diagonal,{x:50,y:50}),false,'visible ink remains a move grab');
+ const circle={...line,id:'circle',kind:'dot',x:0,y:0,x2:undefined,y2:undefined,radius:20,thickness:2,fill:true};
+ const filled=prepareGeometryEdges([circle]);
+ assert.equal(rotationEdgeHit(filled,{x:22,y:0}),true);
+ assert.equal(rotationEdgeHit(filled,{x:22,y:22}),false,'box corners are unrelated to a circle rim');
+ assert.equal(rotationEdgeHit(filled,{x:17,y:0}),false,'filled interior does not steal move gestures');
+ const hollow=prepareGeometryEdges([{...circle,kind:'ring',fill:false}]);
+ assert.equal(rotationEdgeHit(hollow,{x:17,y:0}),true,'empty hole near the visible inner rim is a real edge');
+ assert.equal(rotationEdgeHit(hollow,{x:0,y:0}),false);
+ assert.equal(rotationEdgeHit(prepareGeometryEdges([{...circle,opacity:0}]),{x:22,y:0}),false,'invisible geometry supplies no handle');
+ const overlap=prepareGeometryEdges([circle,{...circle,id:'overlap',x:22}]);
+ assert.equal(rotationEdgeHit(overlap,{x:22,y:0}),false,'ink from another selected primitive protects the move target');
+});
+
+test('rotation edge reach is eight screen pixels across Composer zoom scales',async()=>{
+ const {prepareGeometryEdges,rotationEdgeHit}=await import('../src/omnic/geometryEdges.ts');
+ const line={id:'line',componentId:'line',kind:'line',x:0,y:0,x2:100,y2:0,radius:0,thickness:4,fill:false,opacity:1,color:'#fff'};
+ const prepared=prepareGeometryEdges([line]);
+ for(const scenePerPixel of [.25,.5,1,2,4]){
+  assert.equal(rotationEdgeHit(prepared,{x:50,y:2+8*scenePerPixel},scenePerPixel),true);
+  assert.equal(rotationEdgeHit(prepared,{x:50,y:2+8.1*scenePerPixel},scenePerPixel),false);
+ }
+ Object.defineProperty(line,'x',{get:()=>{throw Error('original geometry reread during pointer motion');}});
+ assert.equal(rotationEdgeHit(prepared,{x:50,y:6},.5),true,'pointer queries reuse immutable prepared geometry');
+ assert.equal(rotationEdgeHit(prepared,{x:50,y:6},0),false);
+});
+
+test('hover previews find unselected objects without changing selection or geometry',async()=>{
+ const {prepareHoverAffordances,previewHoverAffordance}=await import('../src/omnic/hoverAffordances.ts');
+ const source=validateRecipe(recipe([{id:'line',generator:'line',params:{length:60}},{id:'circle',generator:'ring',params:{x:120,radius:20}}]));
+ const before=JSON.stringify(source),evaluation=evaluateRecipe(source),prepared=prepareHoverAffordances(source,evaluation);
+ const line=evaluation.nodes.find(n=>n.componentId==='line'&&n.kind==='line');
+ const center={x:(line.x+line.x2)/2,y:(line.y+line.y2)/2};
+ const body=previewHoverAffordance(prepared,center);
+ assert.equal(body.hit.mode,'move');assert.deepEqual(body.target.ids,['line']);
+ const edge=previewHoverAffordance(prepared,{x:center.x,y:center.y+line.thickness/2+3,scenePerPixel:1});
+ assert.equal(edge.hit.mode,'rotate');assert.deepEqual(edge.target.ids,['line']);assert.ok(edge.target.rotation);
+ const ring=evaluation.nodes.find(n=>n.componentId==='circle'&&n.kind==='ring');
+ const ringEdge=previewHoverAffordance(prepared,{x:ring.x+ring.radius+ring.thickness/2+3,y:ring.y});
+ assert.equal(ringEdge,undefined,'a rotationally invariant ring without a registered rotation DOF cannot advertise a fake rotation');
+ const ringInk=previewHoverAffordance(prepared,{x:ring.x+ring.radius,y:ring.y});
+ assert.equal(ringInk.hit.mode,'move');assert.deepEqual(ringInk.target.ids,['circle']);
+ assert.equal(previewHoverAffordance(prepared,{x:5000,y:5000}),undefined);
+ assert.equal(JSON.stringify(source),before,'hover never commits or mutates the authored recipe');
+ assert.deepEqual(evaluation.selection,[],'no prior selection is required or created by hover');
+});
+
+test('rotation axis wheel previews existing rule states and commits a captured click without editing on open',async()=>{
+ const {createStateField,axisFieldCandidate}=await import('../src/properties/stateField.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {createStateActivation}=await import('../src/properties/stateSelection.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const source=validateRecipe(recipe([{id:'line',generator:'line',params:{length:60}}]));
+ const degree=targetDegrees(source,['line']).find(d=>targetParameter(d).selection),domain=stateFieldDomain(targetParameter(degree)),before=Number(targetDegreeValue(source,degree));
+ const field=createStateField(domain,{mode:'symmetry',count:8,step:45,reference:domain.cyclic.north});
+ assert.equal(axisFieldCandidate(field,{x:0,y:0}),undefined,'opening at the wheel centre does not choose an angle');
+ assert.equal(axisFieldCandidate(field,{x:2,y:0}),undefined,'leaving the wheel does not keep previewing an angle');
+ assert.equal(axisFieldCandidate(field,{x:0,y:-.8}).value,-90);
+ assert.equal(axisFieldCandidate(field,{x:.8,y:0}).value,0);
+ const south=axisFieldCandidate(field,{x:0,y:.8}).value,session=mathematicalValueSession(before),activation=createStateActivation();
+ const preview=writeTargetDegree(source,degree,session.preview(south));
+ assert.equal(targetDegreeValue(preview,degree),90);assert.equal(targetDegreeValue(source,degree),before,'hover leaves the committed source unchanged');
+ activation.press(south);assert.equal(session.restore(),before,'leaving or focus cancellation restores the committed value');
+ const chosen=activation.take(undefined),committed=writeTargetDegree(source,degree,session.commit(chosen));
+ assert.equal(targetDegreeValue(committed,degree),90,'click commits its captured angle even after native blur cancelled hover');
+ assert.equal(session.restore(),90,'later pointer exit retains the clicked state');
+});
+
+test('shared thresholds survive changing fractions, with hard constraints and owner legality respected',async()=>{
+ const {createStateField,fieldLimits}=await import('../src/properties/stateField.ts');
+ const domain={min:-100,max:100,resolution:.01,projection:'axis-x',thresholds:[{id:'neutral',value:0},{id:'meaningful',value:17}]};
+ const reference={id:'self',label:'Self',value:13,min:-40,max:40,thresholds:[{id:'edge',value:40}]};
+ assert.deepEqual(fieldLimits(domain,reference),{min:-40,max:40});
+ assert.deepEqual(fieldLimits(domain,reference,{min:-60,max:20}),{min:-60,max:20},'reference defaults are overridable, not hard bounds');
+ assert.deepEqual(fieldLimits(domain,reference,{min:-200,max:200}),{min:-100,max:100});
+ for(const mode of ['symmetry','halving','step'])for(const count of [3,7,8]){
+  const config={mode,count,step:3,reference:13,...fieldLimits(domain,reference),thresholds:reference.thresholds};
+  const field=createStateField(domain,config);
+  for(const n of [0,17,40])assert.ok(field.candidates.some(c=>c.value===n&&c.thresholds?.length),`${mode}/${count}: ${n}`);
+  assert.equal(new Set(field.candidates.map(c=>c.value)).size,field.candidates.length);
+  assert.ok(!createStateField(domain,{...config,max:10}).candidates.some(c=>c.value===17));
+  assert.ok(!createStateField(domain,config,n=>n!==17).candidates.some(c=>c.value===17));
+ }
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const cyclic=stateFieldDomain({kind:'number',key:'future',property:'future.angle',label:'Future cyclic DOF',initial:0,min:-180,max:360,selection:{north:-90,period:360}});
+ for(const count of [7,31,64]){
+  const field=createStateField(cyclic,{mode:'symmetry',count,step:1,reference:-90});
+  for(const [i,axis] of [-90,0,90,180].entries()){const state=field.candidates.find(c=>c.value===axis);assert.ok(state,`${count} divisions retain ${axis}`);assert.equal(state.id,`threshold:axis:${i}`,'landmark identity survives subdivision changes');}
+ }
+});
+
+test('Self and external geometry supply the same reference interval contract without editing geometry',async()=>{
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {fieldReferenceFor}=await import('../src/omnic/referenceGeometry.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{length:80,x:10,y:20,angle:0}},{id:'b',generator:'line',params:{length:40,x:100,y:20,angle:0}}]));
+ const geometry=operationGeometry(source,evaluateRecipe(source));
+ const degree=targetDegrees(source,['a']).find(d=>d.id==='omnic.coordinate.x');
+ const implicit=fieldReferenceFor(geometry,degree),self=fieldReferenceFor(geometry,degree,'a'),other=fieldReferenceFor(geometry,degree,'b');
+ assert.deepEqual(implicit,self);assert.equal(self.label,'Self');
+ assert.ok(self.max>self.min);assert.ok(other.max>other.min);
+ assert.equal(self.thresholds.length,3);assert.equal(other.thresholds.length,3);
+ assert.equal(self.thresholds[1].value,self.value);
+ assert.equal(source.components[0].params.x,10,'reference selection is configuration only');
+});
+
+test('one measured source drives bounds, movement steps and another DOF match without imposing its interval on every use',async()=>{
+ const {measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {resolveReferenceUse,createReferenceField,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {positionFieldDelta}=await import('../src/omnic/dofGesture.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{length:40,x:10,y:0,angle:0}},{id:'b',generator:'line',params:{length:80,x:200,y:0,angle:0}}]));
+ const degrees=targetDegrees(source,['a']),position=degrees.find(d=>d.id==='omnic.coordinate.x'),length=degrees.find(d=>d.id==='omnic.extent');
+ const snapshot=operationGeometry(source,evaluateRecipe(source)),xDomain=stateFieldDomain(targetParameter(position));
+ const measure=measuredReferenceFor(snapshot,position,'b'),sizeMeasure=measuredReferenceFor(snapshot,length,'b');
+ assert.equal(measure.measures.find(m=>m.id==='length').value,80);
+ assert.equal(sizeMeasure.measures.find(m=>m.id==='length').value,80,'same canonical source measurement across DOFs');
+ const bounded=resolveReferenceUse(measure,DEFAULT_REFERENCE_SETTINGS,10);
+ const halfCentre=resolveReferenceUse(measure,{...DEFAULT_REFERENCE_SETTINGS,use:'match',denominator:2},10);
+ const offset=10-(snapshot.views.get('a').bounds.x+snapshot.views.get('a').bounds.width/2);
+ assert.equal(halfCentre.match,(snapshot.views.get('b').bounds.x+snapshot.views.get('b').bounds.width/2)/2+offset,'fraction applies to the measured coordinate before conversion into authored space');
+ assert.ok(bounded.min>10,'reference interval lies away from the edited position');
+ const stepSettings={...DEFAULT_REFERENCE_SETTINGS,use:'step',measure:'length'};
+ const stepping=resolveReferenceUse(measure,stepSettings,10);
+ assert.equal(stepping.step,80);assert.equal(stepping.min,undefined);assert.equal(stepping.max,undefined);
+ const config={mode:'symmetry',count:8,step:1,reference:10};
+ const field=createReferenceField(xDomain,config,stepping,n=>{try{writeTargetDegree(source,position,n);return true;}catch{return false;}});
+ assert.ok(field.candidates.some(c=>c.value===10),'current position is not moved inside the reference bounds');
+ assert.ok(field.candidates.some(c=>c.value===90));
+ const moved=positionFieldDelta([{axis:'x',start:10,field}],{x:85,y:7},{x:85,y:7});
+ assert.equal(moved.x,80,'direct movement uses the same measured step');assert.equal(moved.y,7,'an unconfigured companion DOF stays free');
+ const half=resolveReferenceUse(measure,{...stepSettings,denominator:2},10);assert.equal(half.step,40);
+ const matched=resolveReferenceUse(sizeMeasure,{...DEFAULT_REFERENCE_SETTINGS,use:'match',measure:'length'},40);
+ const matchField=createReferenceField(stateFieldDomain(targetParameter(length)),{...config,reference:40},matched);
+ assert.deepEqual(matchField.candidates.map(c=>c.value),[80]);
+ const result=writeTargetDegree(source,length,matchField.candidates[0].value);
+ assert.equal(targetDegreeValue(result,length),80);assert.equal(targetDegreeValue(source,length),40,'configuration never mutates geometry');
+ assert.equal(createReferenceField(xDomain,{...config,min:0,max:50},stepping).candidates.some(c=>c.value===90),false,'step still respects explicit limits');
+ assert.equal(createReferenceField(stateFieldDomain(targetParameter(length)),{...config,max:50},matched).candidates.length,0,'match cannot bypass explicit limits');
+ const self=measuredReferenceFor(snapshot,position,'a');assert.equal(self.label,'Self');assert.ok(resolveReferenceUse(self,{...stepSettings,measure:'width'},10).step>0);
+ assert.equal(resolveReferenceUse(measure,{...stepSettings,measure:'missing'},10),undefined);
+ assert.equal(resolveReferenceUse(measure,{...stepSettings,denominator:0},10),undefined);
+ const opacity=degrees.find(d=>d.id==='opacity'),opacitySource=measuredReferenceFor(snapshot,opacity,'b');
+ assert.ok(!opacitySource.measures.some(m=>m.id==='width'),'incompatible units are not offered');
+ const radialSource=validateRecipe({...source,components:[...source.components,{id:'r',generator:'radial',params:{count:6,radius:50,size:4}}]});
+ const radialMeasures=measuredReferenceFor(operationGeometry(radialSource,evaluateRecipe(radialSource)),position,'r');
+ assert.ok(!radialMeasures.measures.some(m=>m.id==='radius'),'multiple radius quantities are not collapsed into the first primitive radius');
+ assert.equal(radialMeasures.measures.find(m=>m.id==='value:omnic.radius').value,50);
+ assert.equal(radialMeasures.measures.find(m=>m.id==='value:omnic.extent').value,4,'distinct declared measurements remain separately selectable');
+ const changed=writeTargetDegree(source,targetDegrees(source,['b']).find(d=>d.id==='omnic.extent'),120),fresh=operationGeometry(changed,evaluateRecipe(changed));
+ const freshStep=resolveReferenceUse(measuredReferenceFor(fresh,position,'b'),stepSettings,10);
+ const freshMatch=resolveReferenceUse(measuredReferenceFor(fresh,length,'b'),{...DEFAULT_REFERENCE_SETTINGS,use:'match',measure:'length'},40);
+ assert.equal(freshStep.step,120);assert.equal(freshMatch.match,120,'both consumer contexts refresh from the changed source');
+});
+
+test('future numeric reference consumers inherit relation filtering without preset dispatch',async()=>{
+ const {resolveReferenceUse,createReferenceField}=await import('../src/properties/referenceUse.ts');
+ const source={id:'future-source',label:'Future',unit:'future-unit',value:7,measures:[{id:'span',label:'Span',symbol:'↔',unit:'future-unit',value:7}]};
+ const domain={min:0,max:30,resolution:1,integer:true,projection:'axis-x',unit:'future-unit'};
+ const relation=resolveReferenceUse(source,{use:'step',measure:'span',numerator:2,denominator:1},1);
+ const config={mode:'symmetry',count:8,step:1,reference:1};
+ assert.deepEqual(createReferenceField(domain,config,relation,n=>n!==15).candidates.map(c=>c.value),[1,29]);
+ assert.equal(createReferenceField({...domain,unit:'other'},config,relation).candidates.length,0,'consumer fields reject a relation from another unit domain');
+ const match=resolveReferenceUse(source,{use:'match',measure:'span',numerator:1,denominator:2},1);
+ assert.equal(createReferenceField(domain,config,match).candidates.length,0,'fractional matches are not rounded into integer values');
+ const exact=resolveReferenceUse(source,{use:'match',measure:'span',numerator:1,denominator:1},1);
+ assert.deepEqual(createReferenceField(domain,{...config,mode:'step',step:2},exact).candidates.map(c=>c.value),[7],'match does not depend on the previous generator containing its exact value');
+ const angular={min:-360,max:360,resolution:.1,projection:'radial',cyclic:{period:360,north:-90}};
+ const angle=resolveReferenceUse({...source,measures:[{...source.measures[0],value:17.5}]},{use:'match',measure:'span',numerator:1,denominator:1},0);
+ assert.deepEqual(createReferenceField(angular,config,angle).candidates.map(c=>c.value),[17.5]);
+ const noisy=resolveReferenceUse({...source,measures:[{...source.measures[0],value:.1+.2}]},{use:'match',measure:'span',numerator:1,denominator:1},0);
+ assert.deepEqual(createReferenceField({...domain,integer:false,max:1},config,noisy).candidates.map(c=>c.value),[.3],'arithmetic noise cannot remove an exact match at its own bounds');
+ const zero=resolveReferenceUse({...source,measures:[{...source.measures[0],value:0}]},{use:'step',measure:'span',numerator:1,denominator:1},1);
+ assert.equal(zero,undefined,'zero-step links remain unavailable');
+ assert.equal(resolveReferenceUse({...source,unit:'incompatible'},{use:'step',measure:'span',numerator:1,denominator:1},1),undefined,'shared resolver rejects unit mismatches even for future adapters');
+});
+
+test('Position editor composes registered axes and matches both visual centres in one atomic owner write',async()=>{
+ const {targetEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {resolveReferenceUse,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const {vectorMatchCandidate,sameVector}=await import('../src/properties/vectorStateField.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const source=validateRecipe({...recipe([{id:'a',generator:'group',params:{x:-50,y:-40},children:[{id:'offset-line',generator:'line',params:{length:80,x:60,y:20,angle:35}}]},{id:'b',generator:'dot',params:{size:20,x:120,y:90}}]),atomnic:{mode:'free'}});
+ const position=targetEditorDegrees(source,['a']).find(d=>d.id==='omnic.position');
+ assert.equal(position.label,'Position');assert.equal(position.axes.length,2);
+ assert.ok(targetEditorDegrees(source,['a'],[{id:'legacy.move',label:'Move',adjusts:position.properties}]).some(d=>d.axes?.length===2),'legacy move adjusters cannot swallow the vector editor');
+ assert.ok(!targetEditorDegrees(source,['a']).some(d=>d.id==='omnic.coordinate.x'));
+ assert.ok(targetDegrees(source,['a']).some(d=>d.id==='omnic.coordinate.x'),'scalar adapters remain discoverable for optional axes');
+ const snapshot=operationGeometry(source,evaluateRecipe(source));
+ const axes=position.axes.map(axis=>({property:axis.properties[0],domain:stateFieldDomain(targetParameter(axis)),reference:resolveReferenceUse(measuredReferenceFor(snapshot,axis,'b'),{...DEFAULT_REFERENCE_SETTINGS,use:'match'},Number(targetDegreeValue(source,axis)))}));
+ let validations=0;
+ const candidate=vectorMatchCandidate(axes,value=>{validations++;try{writeTargetDegree(source,position,value);return true;}catch{return false;}});
+ assert.ok(candidate);assert.equal(validations,1,'the combined tuple is validated once, not committed axis by axis');
+ const committed=writeTargetDegree(source,position,candidate),after=operationGeometry(committed,evaluateRecipe(committed));
+ const centre=view=>({x:view.bounds.x+view.bounds.width/2,y:view.bounds.y+view.bounds.height/2});
+ almost(centre(after.views.get('a')).x,centre(after.views.get('b')).x);almost(centre(after.views.get('a')).y,centre(after.views.get('b')).y);
+ assert.notEqual(committed.components[0].params.x,source.components[1].params.x,'an asymmetric group origin is not mistaken for its visual centre');
+ assert.equal(source.components[0].params.x,-50);assert.equal(source.components[0].params.y,-40,'source stays unchanged during preview/validation');
+ const current=Object.fromEntries(position.axes.map(axis=>[axis.properties[0],Number(targetDegreeValue(source,axis))]));
+ const session=mathematicalValueSession(current,sameVector);session.preview(candidate);assert.equal(session.receive({...candidate}),false);
+ assert.deepEqual(session.restore(),current,'cancellation restores all components');session.preview(candidate);session.commit(candidate);assert.deepEqual(session.restore(),candidate,'leaving after commit retains both coordinates');
+ const xOnly=writeTargetDegree(source,position,{[position.axes[0].properties[0]]:10});assert.equal(xOnly.components[0].params.x,10);assert.equal(xOnly.components[0].params.y,-40,'optional axis-only editing preserves the companion coordinate');
+ assert.throws(()=>writeTargetDegree(source,position,{...candidate,'omnic.coordinate.y':1000}));
+ assert.equal(vectorMatchCandidate([axes[0],{...axes[1],reference:undefined}],()=>true),undefined,'no partial centring when a component is unavailable');
+ const environment={x:-200,y:-100,width:400,height:200};
+ const envAxes=position.axes.map(axis=>({property:axis.properties[0],domain:stateFieldDomain(targetParameter(axis)),reference:resolveReferenceUse(measuredReferenceFor(snapshot,axis,'@environment',environment),{...DEFAULT_REFERENCE_SETTINGS,use:'match'},Number(targetDegreeValue(source,axis)))}));
+ const envCandidate=vectorMatchCandidate(envAxes,value=>{try{writeTargetDegree(source,position,value);return true;}catch{return false;}});
+ const envState=operationGeometry(writeTargetDegree(source,position,envCandidate),evaluateRecipe(writeTargetDegree(source,position,envCandidate)));
+ almost(centre(envState.views.get('a')).x,0);almost(centre(envState.views.get('a')).y,0);
+});
+
+test('future declared vector DOFs inherit grouping and atomic component candidate validation',async()=>{
+ const {vectorDegrees}=await import('../src/properties/editableDegrees.ts');
+ const {vectorMatchCandidate}=await import('../src/properties/vectorStateField.ts');
+ const leaves=['u','v','w'].map((axis,i)=>({id:`future.${axis}`,label:axis,properties:[`future.${axis}`],targets:[{id:'owner',input:{key:axis,property:`future.${axis}`,label:axis,freedom:{label:axis,symbol:axis,vector:{id:'future.vector',label:'Future vector',symbol:'◇',axis}}}}]}));
+ const grouped=vectorDegrees(leaves);assert.equal(grouped.length,1);assert.equal(grouped[0].axes.length,3);
+ const axes=leaves.map((a,i)=>({property:a.properties[0],domain:{min:-10,max:10,resolution:1,projection:'axis-x',unit:'future'},reference:{id:'source',label:'Source',unit:'future',use:'match',value:0,match:i+1}}));
+ assert.deepEqual(vectorMatchCandidate(axes,value=>Object.values(value).reduce((a,b)=>a+b,0)===6),{'future.u':1,'future.v':2,'future.w':3});
+ assert.equal(vectorMatchCandidate(axes,()=>false),undefined,'whole-vector constraints are authoritative');
+ assert.equal(vectorMatchCandidate(axes.map((a,i)=>i===2?{...a,limits:{max:2}}:a),()=>true),undefined,'optional component limits reject the entire tuple');
+});
+
+test('combined Position keeps shared partitions on both axes and uses the normal Match relation for centring',async()=>{
+ const {targetEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {resolveReferenceUse,createReferenceField,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {positionFieldDelta}=await import('../src/omnic/dofGesture.ts');
+ const {vectorMatchCandidate}=await import('../src/properties/vectorStateField.ts');
+ const source=validateRecipe({...recipe([{id:'a',generator:'group',params:{x:-50,y:-40},children:[{id:'offset',generator:'line',params:{length:80,x:60,y:20}}]},{id:'b',generator:'dot',params:{size:20,x:120,y:90}}]),atomnic:{mode:'free'}});
+ const group=targetEditorDegrees(source,['a']).find(d=>d.axes),snapshot=operationGeometry(source,evaluateRecipe(source));
+ const fields=count=>group.axes.map(degree=>{
+  const parameter=targetParameter(degree),start=Number(targetDegreeValue(source,degree));
+  return {axis:parameter.measurement==='center-x'?'x':'y',start,field:createReferenceField(stateFieldDomain(parameter),{mode:'symmetry',count,step:1,reference:start},resolveReferenceUse(measuredReferenceFor(snapshot,degree,'b'),DEFAULT_REFERENCE_SETTINGS,start))};
+ });
+ const coarse=positionFieldDelta(fields(4),{x:117,y:117},{x:117,y:117}),fine=positionFieldDelta(fields(16),{x:117,y:117},{x:117,y:117});
+ assert.notEqual(coarse.x,fine.x);assert.notEqual(coarse.y,fine.y,'one common partition count refines both coordinate fields');
+ const candidates=group.axes.map(degree=>({property:degree.properties[0],domain:stateFieldDomain(targetParameter(degree)),reference:resolveReferenceUse(measuredReferenceFor(snapshot,degree,'b'),{...DEFAULT_REFERENCE_SETTINGS,use:'match'},Number(targetDegreeValue(source,degree)))}));
+ const centre=vectorMatchCandidate(candidates,value=>{try{writeTargetDegree(source,group,value);return true;}catch{return false;}});
+ const committed=writeTargetDegree(source,group,centre),result=operationGeometry(committed,evaluateRecipe(committed));
+ for(const axis of ['x','y']){const extent=axis==='x'?'width':'height';almost(result.views.get('a').bounds[axis]+result.views.get('a').bounds[extent]/2,result.views.get('b').bounds[axis]+result.views.get('b').bounds[extent]/2);}
+ assert.equal(source.components[0].params.x,-50);assert.equal(source.components[0].params.y,-40);
+});
+
+test('math marks deselect consistently without repeated crossings toggling them back on',async()=>{
+ const {paintMathematicalSlots}=await import('../src/properties/mathematicalDial.ts');
+ const before={selected:['0:1','0:3'],modes:{'0:1':'recursive','0:3':'normal'}};
+ const removed=paintMathematicalSlots(before,['0:1'],'normal',true);
+ assert.deepEqual(removed.selected,['0:3']);assert.equal(removed.modes['0:1'],undefined);
+ assert.deepEqual(paintMathematicalSlots(before,['0:1','0:1'],'normal',true),removed);
+ assert.deepEqual(before.selected,['0:1','0:3']);
+ assert.deepEqual(paintMathematicalSlots(before,['0:1','0:3'],'normal',true).selected,[]);
+ assert.deepEqual(paintMathematicalSlots(removed,['0:1'],'recursive').selected,['0:3','0:1']);
+});
+
+test('MS geometry membership projects only complete authored edit owners, with stable rendered identities',async()=>{
+ const {selectedEditOwners}=await import('../src/omnic/msSelection.ts');
+ const {authoredNodeOwners}=await import('../src/omnic/contextGeometry.ts');
+ const source=validateRecipe(recipe([{id:'array',generator:'radial',params:{count:3}},{id:'single',generator:'line',params:{length:20}}]));
+ const evaluation=evaluateRecipe(source),owners=authoredNodeOwners(source,evaluation),array=evaluation.nodes.filter(n=>owners.get(n.id)==='array'),single=evaluation.nodes.find(n=>owners.get(n.id)==='single');
+ assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,new Set([array[0].id])),[],'partial MS selection cannot silently broaden into a whole-array edit');
+ assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,new Set([...array.map(n=>n.id),single.id])),['array','single']);
+ assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,new Set()),[]);
+ const restored=evaluateRecipe(source);assert.deepEqual(selectedEditOwners(restored.nodes,authoredNodeOwners(source,restored),new Set(array.map(n=>n.id))),['array'],'stable rendered identities survive renderer replacement');
+});
+
+test('reference possibility spaces preserve thresholds/fractions and route snap choices into the setting',async()=>{
+ const {createStateField,linearFieldCandidate}=await import('../src/properties/stateField.ts');
+ const {planeFieldCandidate}=await import('../src/properties/vectorStateField.ts');
+ const {selectedReferenceStep,resolveReferenceUse}=await import('../src/properties/referenceUse.ts');
+ const domain={min:0,max:80,resolution:.01,projection:'axis-y',thresholds:[{id:'meaningful',value:30}]};
+ const field=createStateField(domain,{mode:'symmetry',count:8,step:1,reference:0});
+ assert.equal(linearFieldCandidate(field,.375).value,30,'linear picking does not assume a scene X axis');
+ assert.ok(field.candidates.find(c=>c.value===30).thresholds.includes('meaningful'));
+ const axes=[{property:'future.horizontal',field},{property:'future.vertical',field}];
+ assert.deepEqual(planeFieldCandidate(axes,{x:.5,y:.25}),{'future.horizontal':40,'future.vertical':20});
+ assert.equal(planeFieldCandidate(axes,{x:.5,y:.25},()=>false),undefined,'owner legality filters the complete tuple');
+ assert.equal(planeFieldCandidate(axes,{x:2,y:0}),undefined);
+ const source={id:'target',label:'Target',unit:'length',value:80,min:0,max:80,measures:[{id:'width',label:'Width',symbol:'↔',unit:'length',value:80}]};
+ const settings={use:'step',measure:'width',numerator:1,denominator:1},before=structuredClone(source);
+ const current=resolveReferenceUse(source,settings,5),patch=selectedReferenceStep(settings,current.step,30);
+ assert.equal(resolveReferenceUse(source,{...settings,...patch},5).step,30);
+ assert.deepEqual(patch,{numerator:3,denominator:8},'fractional choice remains editable as integer math-dial operands');
+ assert.deepEqual(source,before,'selecting a snap value preserves source geometry/measurement');
+ assert.equal(selectedReferenceStep({...settings,use:'bounds'},80,30),undefined,'placement is not a snap-setting write');
+ assert.equal(selectedReferenceStep(settings,80,0),undefined);
+});
+
+test('a fresh wheel click commits even when React capture skips the popup native pointerdown',async t=>{
+ const prior=Object.getOwnPropertyDescriptor(globalThis,'window'),handlers=new Map();
+ globalThis.window={addEventListener:(name,handler)=>handlers.set(name,handler),removeEventListener:()=>{}};
+ t.after(()=>{if(prior)Object.defineProperty(globalThis,'window',prior);else delete globalThis.window;});
+ const pointer=await import('../src/ui/pointerOwnership.ts?wheel-opening-regression');
+ const {createStateActivation}=await import('../src/properties/stateSelection.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const press=()=>handlers.get('pointerdown')({pointerId:1,composedPath:()=>[]});
+ const release=()=>handlers.get('pointerup')({pointerId:1,pointerType:'mouse',buttons:0});
+ press();const opening=pointer.physicalPressVersion();assert.equal(pointer.physicalPointerHeld(),true);
+ release();assert.equal(pointer.isOpeningPress(opening),true,'the opener release/click tail stays guarded');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:0}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection),activation=createStateActivation(),session=mathematicalValueSession(0);
+ session.preview(90);
+ press();activation.press(90); // React capture consumes this press before popup-native capture.
+ assert.equal(pointer.isOpeningPress(opening),false,'the actual window stream saw the fresh press despite skipped native popup listeners');
+ release();const chosen=activation.take();
+ const committed=writeTargetDegree(source,degree,session.commit(chosen));
+ assert.equal(targetDegreeValue(committed,degree),90,'the first new left click commits through the existing owner');
+ assert.equal(activation.take(),undefined,'compatibility events cannot commit it twice');
+ assert.equal(session.restore(),90,'leaving the wheel keeps the committed angle');
+ press();const secondOpening=pointer.physicalPressVersion();release();
+ press();assert.equal(pointer.isOpeningPress(secondOpening),false,'a new outside click also releases a stale opening guard');release();
+});
+
+test('Self reference state follows source identity including explicit Self and unavailable external sources',async()=>{
+ const {selfReference}=await import('../src/properties/referenceUse.ts');
+ assert.equal(selfReference(undefined,['edited']),true);
+ assert.equal(selfReference('edited',['edited']),true);
+ assert.equal(selfReference('@environment',['edited']),false);
+ assert.equal(selfReference('other',['edited']),false);
+ assert.equal(selfReference('removed-source',['edited']),false,'an unavailable external reference is not mislabeled Self');
+ assert.equal(selfReference(undefined,['a','b']),true,'no explicit source retains the default self context');
+});
+
+test('click placement discovers the shared coordinate vector without changing geometry or preset-specific dispatch',async()=>{
+ const {targetPlacementDegree}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe(recipe([dot('a',20,0),{id:'rim',generator:'ring',params:{radius:30}},{id:'stroke',generator:'line',params:{length:40}}]));
+ const before=structuredClone(source);
+ for(const id of ['a','rim','stroke']){
+  const degree=targetPlacementDegree(source,[id]);assert.ok(degree?.axes?.length===2);
+  assert.deepEqual(degree.axes.map(a=>targetParameter(a).measurement).sort(),['center-x','center-y']);
+  assert.ok(degree.targets.every(t=>t.id===id),'the first selection owns the DOF; choosing its reference does not retarget it');
+ }
+ assert.equal(targetPlacementDegree(source,['missing']),undefined);
+ assert.equal(targetPlacementDegree(source,[]),undefined);
+ assert.deepEqual(source,before,'entry discovery and reference configuration do not edit coordinates');
+ const group=targetPlacementDegree(source,['a','rim']);assert.ok(group?.axes,'existing multi-selection retains common coordinate capability');
+});
+
+test('pointer and contextual Enter confirmation commit the same owner preview for scalar, zero and tuple candidates',async()=>{
+ const {confirmValue}=await import('../src/ui/valueConfirmation.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const {contextNavigationAction}=await import('../src/ui/contextNavigation.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{angle:0}}]));
+ const degree=targetDegrees(source,['a']).find(d=>targetParameter(d).selection);
+ for(const input of ['pointer','enter']){
+  const session=mathematicalValueSession(0);session.preview(90);let result=source;
+  const current={candidate:()=>90,onCommit:value=>{result=writeTargetDegree(source,degree,session.commit(value));}};
+  if(input==='pointer')confirmValue(current,90);else contextNavigationAction([{confirm:()=>confirmValue(current)}],'confirm')();
+  assert.equal(targetDegreeValue(result,degree),90);assert.equal(session.restore(),90,'leaving retains the accepted preview for either activation');
+ }
+ const committed=[];let candidate=0;
+ const current={candidate:()=>candidate,onCommit:value=>committed.push(value)};
+ assert.equal(confirmValue(current),true);assert.deepEqual(committed,[0],'zero is a real candidate');
+ candidate=undefined;assert.equal(confirmValue(current),false);
+ candidate=8;assert.equal(confirmValue({...current,disabled:true}),false);
+ const tuple={'omnic.coordinate.x':12,'omnic.coordinate.y':-4};
+ confirmValue({candidate:()=>tuple,onCommit:value=>committed.push(value)});
+ assert.deepEqual(committed,[0,tuple],'the same confirmation passes a tuple atomically without scalar coercion');
+});
+
+test('reference-first categorical DOFs use declared compatible sources without numeric coercion',async()=>{
+ const {compatibleReferenceSource}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe(recipe([dot('a'),{id:'rim',generator:'ring',params:{radius:12}}]));
+ const before=structuredClone(source);
+ for(const property of ['color','omnic.fill']){
+  const degree=targetDegrees(source,['a']).find(d=>d.id===property);
+  assert.equal(compatibleReferenceSource(source,degree,'a'),true,'Self remains selectable');
+  assert.equal(compatibleReferenceSource(source,degree,'rim'),true,'other sources declare the same writable kind');
+  assert.equal(compatibleReferenceSource(source,degree,'@environment'),false,'a raw environment does not invent color or fill');
+  assert.equal(compatibleReferenceSource(source,degree,'deleted'),false);
+ }
+ const rotation=targetDegrees(source,['a']).find(d=>d.id==='omnic.angle');
+ assert.equal(compatibleReferenceSource(source,rotation,'rim'),false,'a ring with no declared orientation does not invent Rotation');
+ assert.deepEqual(source,before,'source discovery/configuration never writes target values');
+});
+
+test('DOF editor identity separates explicit activations and owners without remounting ordinary renders',async()=>{
+ const {degreeEditorIdentity}=await import('../src/properties/editableDegrees.ts');
+ const {targetPlacementDegree}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe(recipe([dot('a',-20),dot('b',20)]));
+ const a=targetPlacementDegree(source,['a']),b=targetPlacementDegree(source,['b']);
+ assert.equal(a.id,b.id,'both owners expose Position');
+ const key=degreeEditorIdentity(a,'source',1);
+ assert.notEqual(key,degreeEditorIdentity(b,'source',1),'switching targets cannot reuse the old request session');
+ assert.notEqual(key,degreeEditorIdentity(a,'source',2),'reopening the same target must restart reference selection');
+ assert.equal(key,degreeEditorIdentity(structuredClone(a),'source',1),'ordinary equivalent metadata rerenders retain the active request');
+ assert.notEqual(key,degreeEditorIdentity(a,'options',1),'configuration stages remain separate from source selection');
+});
+
+test('relational DOFs remain available directly without a Relations category wrapper',async()=>{
+ const {targetEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ for(const spec of GENERATORS){
+  const source=validateRecipe(recipe([{id:'target',generator:spec.id,params:{},...(spec.id==='reference'?{reference:'library-object'}:{})}]));
+  const degrees=targetEditorDegrees(source,['target']);
+  assert.ok(degrees.every(d=>!d.group?.some(group=>group.id==='relation')));
+  for(const degree of degrees.filter(d=>d.axes||d.id==='omnic.angle'||d.id==='omnic.radius'))assert.equal(degree.group?.length??0,0,'Position, Rotation and Radius are direct dial entries');
+ }
+});
+
+test('path rules preserve click order, whole-unit motion and closure after complete instructions',async()=>{
+ const {DEFAULT_PATH_RULE,SQUARE_PATH_RULE,pathTrace,readPathRule}=await import('../src/omnic/pathRule.ts');
+ const bounds={left:-10,top:-10,right:10,bottom:10};
+ assert.equal(pathTrace(DEFAULT_PATH_RULE,bounds).steps,0,'a new wheel starts without implicit instructions');
+ const square=pathTrace(SQUARE_PATH_RULE,bounds);
+ assert.equal(square.reason,'closure');assert.equal(square.steps,8);assert.deepEqual(square.particle,{x:0,y:0});
+ assert.deepEqual(square.cells.slice(0,3).map(({x,y})=>[x,y]),[[0,-1],[0,-2],[1,-2]]);
+ const explicit=pathTrace({...DEFAULT_PATH_RULE,s:[[0,2],[90,2],[180,2],[270,2]],c:true},bounds);
+ assert.deepEqual(explicit.cells,square.cells,'explicit directions and compressed turning generate the same square');
+ for(const steps of [0,.5,1.1,-1,101])assert.throws(()=>readPathRule(JSON.stringify({...DEFAULT_PATH_RULE,s:[[0,steps]]})),/whole-unit/);
+ assert.throws(()=>readPathRule(JSON.stringify({...SQUARE_PATH_RULE,t:45})),/quarter turns/);
+ assert.throws(()=>pathTrace({...SQUARE_PATH_RULE,s:[[0,.5]]},bounds),/whole-unit/,'engine entry also validates program data');
+ const crossing=pathTrace({...DEFAULT_PATH_RULE,s:[[90,1],[270,1],[180,1]],c:true},bounds);
+ assert.equal(crossing.steps,3,'crossing the origin inside a sequence does not stop early');
+});
+
+test('path tracing bounds fixed work by unit moves and stops before an indivisible boundary move',async()=>{
+ const {DEFAULT_PATH_RULE,pathTrace}=await import('../src/omnic/pathRule.ts');
+ const straight={...DEFAULT_PATH_RULE,s:[[90,100]],l:true,m:3};
+ const result=pathTrace(straight,{left:-20,top:-20,right:20,bottom:20});
+ assert.equal(result.steps,3);assert.equal(result.reason,'limit');assert.deepEqual(result.particle,{x:3,y:0});
+ const edge=pathTrace({...straight,m:100},{left:-2,top:-2,right:2.2,bottom:2});
+ assert.equal(edge.steps,1);assert.equal(edge.reason,'boundary');assert.deepEqual(edge.particle,{x:1,y:0},'a partial final unit is never drawn');
+ const running=pathTrace({...straight,a:true,r:1},{left:-2,top:-2,right:2,bottom:2},0);
+ const cornerRule={...DEFAULT_PATH_RULE,s:[[90,1],[180,1]]},domain={left:-2,top:-2,right:2,bottom:2};
+ assert.equal(pathTrace(cornerRule,domain).steps,2);
+ assert.equal(pathTrace(cornerRule,{...domain,round:true}).steps,1,'circular substrates reject empty bounding-box corners');
+ assert.equal(running.reason,'running');assert.equal(running.moving,true,'a future boundary stop is not reported at time zero');
+});
+
+test('path coverage is additive per traversal, frame independent and bounded for indefinite loops',async()=>{
+ const {DEFAULT_PATH_RULE,pathTrace}=await import('../src/omnic/pathRule.ts');
+ const bounds={left:-5,top:-5,right:5,bottom:5};
+ const rule={...DEFAULT_PATH_RULE,s:[[90,1],[270,1]],l:true,p:10,m:20};
+ const fixed=pathTrace(rule,bounds);
+ assert.equal(fixed.cells.length,2);assert.ok(fixed.cells.every(c=>c.coverage===100),'ten passes of 10% reach exactly 100%');
+ const fine=pathTrace({...rule,p:1,m:200},bounds);assert.ok(fine.cells.every(c=>c.coverage===100),'one hundred passes of 1% reach exactly 100%');
+ const animated={...rule,a:true,r:5};
+ for(const time of [0,.1,.3,1,2,3])pathTrace(animated,bounds,time);
+ const atFour=pathTrace(animated,bounds,4);assert.deepEqual(atFour.cells,fixed.cells);assert.deepEqual(atFour.particle,fixed.particle);
+ const huge=pathTrace(animated,bounds,1e12);assert.equal(huge.cells.length,2);assert.equal(huge.moving,true);assert.ok(huge.cells.every(c=>c.coverage===100));
+ const discrete=pathTrace({...rule,d:true},bounds);assert.deepEqual(discrete.cells,fixed.cells,'trace style cannot alter traversal or deposition');
+});
+
+test('path generator integrates persistence, rendering, target edits and captured substrate bounds',async()=>{
+ const {SQUARE_PATH_RULE}=await import('../src/omnic/pathRule.ts');
+ const program=JSON.stringify(SQUARE_PATH_RULE);
+ const source=recipe([{id:'path',generator:'path-rule',params:{rule:program}}]);
+ const evaluated=evaluateRecipe(validateRecipe(JSON.parse(JSON.stringify(source))));
+ const trace=evaluated.nodes.filter(n=>n.kind!=='group');assert.equal(trace.length,4);assert.ok(trace.every(n=>n.cap===undefined&&n.thickness===1));
+ assert.match(renderSVG(evaluated),/stroke-linecap="round"/);
+ const marks=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,d:true})}}]));assert.ok(marks.nodes.filter(n=>n.kind!=='group').every(n=>n.kind==='dot'));
+ const animated=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,.5);
+ assert.ok(animated.motion);assert.ok(animated.nodes.some(n=>n.glow));assert.match(renderSVG(animated),/drop-shadow/);
+ const done=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,1);assert.equal(done.motion,false);
+ assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path'],{factor:.5})]}),/movement rule/,'generic transforms cannot bypass the indivisible substrate');
+ assert.throws(()=>validateRecipe(recipe([{id:'p',generator:'path-rule',params:{x:.5}}])),/Unsupported range/);
+ assert.throws(()=>evaluateRecipe(recipe([{id:'parent',generator:'group',params:{x:.5},children:source.components}])),/inherited offsets/);
+ assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path:edge:0:-2:0:0'],{factor:.5})]}),/movement rule/,'generated-cell selection cannot bypass substrate rules');
+ const origin={x:9.3,y:8.7};let id=0;
+ const inserted=insertConstruction({...recipe([]),atomnic:{viewSize:40,viewX:0,viewY:0}},source,origin,()=>`path-${++id}`).recipe;
+ assert.equal(inserted.components[0].params.x,9);assert.equal(inserted.components[0].params.y,9);
+ assert.equal(inserted.components[0].params.left,-20);assert.equal(inserted.components[0].params.right,20);
+ const ruleDegree=targetDegrees(inserted,[inserted.components[0].id]).find(d=>d.id==='omnic.pathRule');assert.ok(ruleDegree);
+ assert.equal(targetParameter(ruleDegree).editor,'path-rule');
+ assert.throws(()=>writeTargetDegree(inserted,ruleDegree,'broken'),/Invalid path rule/);
+ const budget=evaluateRecipe(recipe([{id:'long',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,s:[[90,100]],t:0,c:false,a:true}),left:-1000,right:1000,top:-1000,bottom:1000}}]),undefined,10000);
+ assert.ok(budget.nodes.length<=194);assert.ok(budget.diagnostics.some(d=>d.code==='path-budget'));
+});
+
+test('shared math session retains internal previews when consumers render only committed values',async()=>{
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const session=mathematicalValueSession(1);
+ session.preview(4);
+ assert.equal(session.receive(1),false,'unchanged committed prop is not an external replacement');
+ assert.equal(session.sampling,true);assert.equal(session.expected,4);
+ assert.equal(session.commit(4),4);assert.equal(session.receive(4),false);
+ session.preview(8);assert.equal(session.receive(4),false);
+ assert.equal(session.restore(),4,'cancel restores the committed number');
+ session.preview(8);assert.equal(session.receive(2),true,'an actual external change still interrupts the preview');
+ assert.equal(session.sampling,false);assert.equal(session.restore(),2);
+ const echoed=mathematicalValueSession(1);echoed.preview(4);assert.equal(echoed.receive(4),false);
+ assert.equal(echoed.restore(),1,'existing controlled live-preview consumers retain cancellation');
+});
+
+test('clearing mathematical marks restores a legal neutral value rather than retaining the old count',async()=>{
+ const {mathematicalEmptyValue,mathematicalEditValue}=await import('../src/properties/mathematicalDial.ts');
+ assert.equal(mathematicalEmptyValue(0,{min:1,max:100,integer:true}),1);
+ assert.equal(mathematicalEmptyValue(0,{min:0,max:100,integer:true}),0);
+ assert.equal(mathematicalEmptyValue(0,{min:-100,max:100,integer:true}),0);
+ assert.equal(mathematicalEmptyValue(mathematicalEditValue({anchor:5,index:0,rule:{kind:'increment',amount:2}}),{min:1,max:100,integer:true}),5,'empty increments retain their anchor');
+});
+
+test('new direction sequences reset old repetition while retaining presentation settings',async()=>{
+ const {SQUARE_PATH_RULE,startPathSequence,pathTrace}=await import('../src/omnic/pathRule.ts');
+ for(const angle of [0,90,180,270]){
+  const fresh=startPathSequence({...SQUARE_PATH_RULE,a:false,p:10,m:100},angle);
+  assert.deepEqual(fresh.s,[[angle,1]]);assert.equal(fresh.t,0);assert.equal(fresh.l,false);assert.equal(fresh.c,false);assert.equal(fresh.p,10);
+  const trace=pathTrace(fresh,{left:-100,top:-100,right:100,bottom:100});assert.equal(trace.steps,1);assert.equal(trace.reason,'sequence');
+ }
+ assert.deepEqual(SQUARE_PATH_RULE.s,[[0,2]],'new-program creation does not mutate its source');
 });

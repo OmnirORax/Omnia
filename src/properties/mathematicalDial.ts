@@ -36,31 +36,48 @@ export function mathematicalSelectionValue(base:number,activations:readonly Math
 }
 
 export type MathematicalDomain={min:number;max:number;integer?:boolean};
+export type MathematicalEditingRule={kind:'value'}|{kind:'increment';amount:number}|{kind:'match';reference:number;measurement:number;response:number};
+export type MathematicalEditContext={anchor:number;index:number;rule:MathematicalEditingRule};
+/** Numeral selection and the rule governing an edit are independent. Re-evaluate
+ * from a frozen starting value, never from the preceding hover/paint sample. */
+export function mathematicalEditValue({anchor,index,rule}:MathematicalEditContext){
+ if(!Number.isSafeInteger(index)||!Number.isFinite(anchor))return NaN;
+ if(rule.kind==='value')return index;
+ if(rule.kind==='match')return Number.isFinite(rule.reference)&&Number.isFinite(rule.measurement)&&Number.isFinite(rule.response)&&rule.response!==0?anchor+(rule.reference-rule.measurement)/rule.response:NaN;
+ if(!Number.isFinite(rule.amount)||rule.amount<=0)return NaN;
+ return index===0?anchor:Number((anchor+index*rule.amount).toPrecision(15));
+}
 /** Signed raw numerals. Decimal notation/equations remain a later extension. */
 export function mathematicalNumberValue(base:number,activations:readonly MathematicalActivation[],sign:1|-1=1){
  const magnitude=mathematicalSelectionValue(base,activations);
  return magnitude===0?0:sign*magnitude;
+}
+/** Empty raw numerals resolve to the nearest legal neutral value. */
+export function mathematicalEmptyValue(value:number,domain:MathematicalDomain){
+ const low=domain.integer?Math.ceil(domain.min):domain.min,high=domain.integer?Math.floor(domain.max):domain.max;
+ return Math.max(low,Math.min(high,value));
 }
 export function mathematicalValueAllowed(value:number,domain:MathematicalDomain){
  return Number.isFinite(value)&&Math.abs(value)<=Number.MAX_SAFE_INTEGER&&value>=domain.min&&value<=domain.max&&(!domain.integer||Number.isSafeInteger(value));
 }
 /** Gesture bookkeeping only; the property owner remains authoritative. Incoming
  * Undo/Redo or another editor invalidates the old scratch numeral/preview. */
-export function mathematicalValueSession(value:number){
- let committed=value,expected=value,sampling=false;
+export function mathematicalValueSession<T>(value:T,equal:(a:T,b:T)=>boolean=(a,b)=>a===b){
+ let committed=value,expected=value,received=value,sampling=false;
  return {
-  receive(next:number){if(next===expected)return false;committed=expected=next;sampling=false;return true;},
-  preview(next:number){expected=next;sampling=true;return next;},
-  commit(next:number){committed=expected=next;sampling=false;return next;},
+  receive(next:T){if(equal(next,received))return false;received=next;if(equal(next,expected))return false;committed=expected=next;sampling=false;return true;},
+  preview(next:T){expected=next;sampling=true;return next;},
+  commit(next:T){committed=expected=received=next;sampling=false;return next;},
   restore(){expected=committed;sampling=false;return committed;},
   get sampling(){return sampling;},
+  get expected(){return expected;},
  };
 }
 
 export type MathematicalMarks={selected:readonly string[];modes:Readonly<Record<string,MathematicalSlotMode>>};
 /** Painting stamps the cursor mode only into visited slots, retaining all other marks. */
-export function paintMathematicalSlots(before:MathematicalMarks,visited:readonly string[],brush:MathematicalSlotMode):MathematicalMarks{
+export function paintMathematicalSlots(before:MathematicalMarks,visited:readonly string[],brush:MathematicalSlotMode,erase=false):MathematicalMarks{
  const selected=new Set(before.selected),modes={...before.modes};let changed=false;
- for(const key of visited){if(!selected.has(key)){selected.add(key);changed=true;}if((modes[key]??'normal')!==brush){modes[key]=brush;changed=true;}}
+ for(const key of visited){if(erase){if(selected.delete(key))changed=true;delete modes[key];continue;}if(!selected.has(key)){selected.add(key);changed=true;}if((modes[key]??'normal')!==brush){modes[key]=brush;changed=true;}}
  return changed?{selected:[...selected],modes}:before;
 }

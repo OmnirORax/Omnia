@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
-import { isTypingTarget, preferredFeatureKey, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
+import { isTypingTarget, preferredFeatureKey, pointerFeatureKey, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
 import { useUI, useUITracked } from "./context";
 
 import { useToolCursor, type ToolCursorOptions } from "./toolCursor";
@@ -53,7 +53,9 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
       if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
       return event instanceof KeyboardEvent
         ? preferredFeatureKey(current.ui.shortcutBindings ?? {}, normalizeKey(event), candidate => featureActionRuntime.available(candidate), isTypingTarget(event.target), !!current.ui.shortcutsBlocked) === id
-        : matchesPointerShortcut(id, current.ui.shortcutBindings ?? {}, event, gestureModifiers);
+        : matchesPointerShortcut(id,current.ui.shortcutBindings??{},event,false)
+          ? pointerFeatureKey(current.ui.shortcutBindings??{},event,candidate=>featureActionRuntime.available(candidate),!!current.ui.shortcutsBlocked)===id
+          : matchesPointerShortcut(id,current.ui.shortcutBindings??{},event,gestureModifiers);
     },
     invoke: (id: FeatureActionFor<Owner>, input?: ActionInput) => featureActionRuntime.invoke(id, input),
     available: (id:FeatureActionFor<Owner>) => effectiveRef.current(id).enabled,

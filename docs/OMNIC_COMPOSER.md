@@ -439,12 +439,11 @@ remain in Generator controls. There is no automatic destructive flattening.
   Esc/cancel restores the pre-stroke recipe. A direct swept-segment test bounds
   work by unit count and catches units between pointer events. Erasing is whole-unit
   removal, not intradot carving; explicit dangling operator targets stay diagnostic.
-- **V / Select:** click a unit; Shift-click adds/removes. **Scope** Micro addresses
-  units; Macro addresses their nearest authored group (ungrouped root dots share
-  the construction). Ctrl+A selects all authored units. Context **group** gathers
-  selected units preserving IDs and coordinates; **remove** / Delete deletes them.
-  Context selectionUndo/selectionRedo changes only transient selection. Ordinary
-  shared Undo/Redo changes accepted construction, not each pointer preview.
+- **Selection:** MS owns membership, feedback and transient history. Click/drag
+  selects through MS; Q opens its configuration (V is an alias). Use MS for
+  multi-selection, not private Shift toggles or rectangle sweeps. Ctrl+A routes
+  authored targets into the same owner. Selection undo/redo uses MS history;
+  recipe undo/redo remains separate. Complete selected owners feed existing edits.
 - **G / Move:** drag selected units rigidly. A clicked unselected unit becomes the
   selection. Touching mode snaps the common translation and rejects overlap;
   Free uses its retained movement step. Invalid samples retain the last valid one.
@@ -455,11 +454,10 @@ remain in Generator controls. There is no automatic destructive flattening.
   configures constraints, paint target, imprint, step (Free only) and paint inputs
   in sequence. Select/Move configure their own relevant inputs. View configures only
   construction extent. Other functions' fields never appear alongside the current one.
-- **R / Rotate:** ordinary invocation skips setters, prompts for a pivot, then
-  permits dragging. Right-click → right-click Rotate (or R with the list open)
-  configures Scope → angular halving order → rotation step count, one at a time.
-  Confirm at the last step enters pivot picking. The retained one-step function
-  follows the same pivot prompt and applies the step without dragging.
+- **R / Rotate:** opens the rule-configured value slider for selected compatible
+  authored Rotation inputs. Drag previews and release applies. Its explicit mode
+  starts at ✣ Symmetry · 2³. See E03 below. The separate Step action retains the
+  older pivot workflow described next.
 - **Pivot/reference:** during pivot picking, right-click exposes Exact click and
   Detected target. Left-click selects that retained mode and returns to picking.
   Right-click Detected target exposes its Axis step; left-click retains the axis
@@ -484,14 +482,8 @@ remain in Generator controls. There is no automatic destructive flattening.
   independent of canonical semantics. **Fill** applies retained paint/fill to units.
   Existing Ordered operations shows/removes/reorders marks. Generator controls
   also supplies reusable copied operation tools, export and detailed operations.
-- **Property patterns:** right-click a unit, then choose Property patterns. Candidates
-  come from registered dot properties, ranked by shared-property similarity;
-  absolute position is excluded. Hover glows candidates; click selects that set;
-  + includes a criterion, − excludes it, Clear criteria removes criteria without
-  discarding the chosen selection. Size, fill, color, opacity, stroke, orientation and evaluated highlight descriptors
-  participate. Orientation include/exclude uses half a current angular step as
-  tolerance, with cyclic wrapping. The shared matcher is renderer-independent;
-  full integration with the global MS geometry/region UI is still pending.
+- **Selection settings:** the retained pattern command opens Q/MS. The private
+  Composer property-pattern panel is retired; rules and patterns belong to MS.
 - **World:** the same gestures address the active edited image in Omnium, including
   unsaved temporary work. Shared uses continue previewing together within the
   existing 32-source budget. Selection/pivot/grid/ghost are transient editing
@@ -534,7 +526,7 @@ the compact dial. Presets show their DOF radial first, including ⬤. Small inli
 value buttons open requested dials for progressive controls. Full dials are never
 mounted permanently alongside every field. They retain the half-size geometry;
 meta controls overflow below the ring, keeping its centre at the invoking cursor.
-Right-clicking a DOF still opens existing snap/step configuration.
+Right-clicking a numeric DOF opens the experimental dial editing-rule configuration.
 
 ± is available when the domain permits negatives. It reverses the active raw
 number/sign; subsequent marks use that sign. Slot notation currently represents
@@ -601,3 +593,392 @@ The advance-start-position button is removed. Meta controls are32px logical/16px
 ### MC hierarchy navigation
 
 Composer dials no longer render Back, Next, Confirm or checkmark navigation buttons. Alt+MB4 steps outward and Alt+MB5 advances through the nearest registered stage. Enter confirms via context.confirm; Esc cancels the current gesture/field/preview before stepping outward. Radial centres only drag; returning inward can restore the last stepped-out radial branch. Shared active-layer adapters and nested navigation registration supply these behaviors to applicable systems; no private mouse/key handler is added per dial. Plain MB4/5 history is retained.
+
+
+### E01: shared increment editing rule
+
+Composer numeric editors configure Value or Increment through the same dial.
+Increment uses `anchor + signed index * amount`; numeral slot arithmetic itself
+is unchanged. Rule/amount use the existing per-property session working-step
+scope, and the amount is edited by a requested child math dial. No property
+changes merely from configuration; hover and paint use existing previews/setters.
+Clear marks, exact entry, rule change, external owner updates and reopening
+rebase the anchor. Repeated previews do not increment the previous sample.
+
+Target and preset numeric DOF right-clicks now open rule configuration instead of
+the legacy jump-value field. Other numeric DOFs inherit the same PropertyEditor
+projection. Active adapters lend their real resolution alongside limits. Existing
+sliders outside Composer retain their behavior. The experiment is not yet a
+reference/rule binding system, does not affect direct dragging/commands, and
+does not persist mathematical expressions. See the living master plan and
+capability omnic.editing-rules for exact steps, limitations and pending acceptance.
+
+
+### E03: rotation state selection and mode configuration
+
+R on a compatible authored selection, or target/preset Rotation, opens the shared
+cyclic state wheel. Default ✣ Symmetry · 2³ offers eight states from north clockwise;
+hover previews, click applies, leaving restores the last committed angle. Click
+2³ to edit state count with the math dial; right-click mode chooses Symmetry,
+Halving or + Step, while left-click configures its variables. Settings remain
+open after a parameter commit until dismissed. Hold Alt to park the active
+DOF/mode/reference cursor indicators, click one, release Alt and configure.
+
+Reference → ⨮ Match starts a canvas object pick. Compatible authored orientation
+becomes the wheel reference; no geometry changes until a state is chosen. Self
+restores north. Missing references remain unavailable. Initially single-target,
+no active rotate/oscillation operators, no persistent constraints. Existing owner
+setters, legality, samples and chronological Undo/Redo remain authoritative.
+R edits authored orientation values; the separate Step action retains the older
+pivot/orbit workflow. Other numeric DOFs retain their existing editor.
+
+The older E02 Reference → Rule → Match numeric UI is removed. Its pure measured
+context models remain groundwork. See E03 in the living master plan and capability
+omnic.dof-state-wheel for test steps and explicit experiment limits.
+
+
+### E04: available-state fields across numeric DOFs
+
+Every numeric target/preset DOF now projects DofStateField from its registered
+Parameter domain. The shared numeric PropertyEditor projection also opens that
+field. Coordinates X/Y and length quantities use spatial/magnitude axes, cyclic
+rotation uses directions, and raw quantities such as Count/Opacity use radial
+addresses. Count has no implied physical axis. The same prepared-field nearest
+query, temporary owner preview, captured click commitment and history serve all.
+
+The rule expression opens the math dial directly. Its compact rule choices select
+Partitions/Symmetry, Halving or Step; that same dial configures divisions or step.
+The standalone Partitions/mode button and intermediate parameter radial are removed.
+Working limits remain at the value slider ends; exact entry remains on the math dial readout.
+Integer domains default to unit steps; other fields to partitions. Limits filter
+available states and never bypass hard domains; invalid/empty fields cannot apply.
+Reference picking now uses property/measurement/unit compatibility for numeric
+DOFs. The reference itself is a candidate when valid; Halving and Step derive
+further states from it. Alt parks indicators through the existing shared cursor.
+
+This supersedes the rotation-only editor and E01 Value/Increment presentation.
+No new per-DOF preview code is needed. Constraint preparation is bounded and target
+legality uses the existing setter; pointer motion only picks prepared candidates.
+The current spatial fields are single axes; arbitrary 2D regions, containment,
+collision, equations, nonnumeric field adapters and persistent bindings remain
+future domain/constraint work. See E04 and capability omnic.dof-state-wheel.
+
+
+### E05: rule maker and value slider
+
+Numeric DOF activation now opens the shared arrow/end-bar value slider, including
+Rotation. It traverses the current rule's generated values; drag previews and
+release commits. Arrows/wheel/keyboard step through the same sequence. Click the
+mode expression to configure the rule with ⠒❉. Right-click the left/right slider
+end bar to configure its lower/upper limit. Rule/bound configuration does not edit
+geometry. The previous selectable value-panel UI and standalone slider ½ picker
+are removed; Halving remains a rule. Alt indicators, references, validation and
+owner/history paths remain shared. See the E05 record and maintained walkthrough.
+
+
+### E06: clickable DOF information and gesture activation
+
+The Composer top always shows compact active DOF, mode/rule and ⟴ reference controls. Click one to open its existing editor; mode right-click chooses the generator and the expression opens ⠒❉ variables. During an edit the same information follows the cursor as a noninteractive echo. This supersedes earlier DOF Alt-parking descriptions; MS parking remains separate. MB3 (rebindable atomnic.dofOptions) toggles the settings radial at the cursor; MS/Shift priority is retained.
+
+Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
+
+Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.
+
+
+E06 presentation correction: the information strip exists only while a DOF is active. It uses icons/numeric expressions with descriptive tooltips and accessible labels; no inert default placeholder or visible text labels. The radar strip is inset inside its circular clipping boundary. The noninteractive cursor echo uses the same compact symbols.
+
+
+Latest E06 correction: remove the DOF-information cursor echo entirely, including its numeric-editor cursor zone plumbing; ordinary tool cursors remain. The active icon strip is the information location. A button-triggered editor must open below its actual button, not above/to its side: shared cursor tracking captures its bounds on activation before stage replacement, and shared popup placement centers the editor below it. Ancestor overlap may only move it further down in that column; explicit hover-branch radial anchors retain radial placement. Canvas/shortcut openings without a button keep cursor placement. Rule/reference settings and MS picking do not render the value slider alongside them; returning from configuration restores the numeric value editor. A readout such as 10.2949 is simply the current position value. These corrections supersede gesture-echo and lateral-separation descriptions above. Browser visual acceptance pending.
+
+
+Rotation discoverability: hover the existing outer edge band of a selected target with a registered Rotation DOF to switch to the same Rotation tool cursor used during the gesture. Hover and press share prepared bounds/margin, with only enter/leave transitions changing React state. No separate rendered handle, cursor text echo, preset-specific hit zone or per-motion geometry discovery is introduced. Browser confirmation pending.
+
+
+
+
+Reference entry correction: “MC” here meant the existing selector invoked by Q (selector.open). The mistaken MC selection list/request store/window-opening path is removed. The top ⟴ button invokes that same selector action directly; no reference options list or intermediate radial. Composer SVG primitives declare data-selection-boundary plus data-selection-id inside data-selection-scope, so ordinary Q can select authored Composer objects and reconnect boundaries after SVG replacement without crossing surfaces. A temporary reference request consumes the chosen object inside the current Composer: compatible other object sets the reference, the active object restores Self, empty Composer space selects Environment when supported. Acceptance/cancel restores previous selector selection/configuration. Configuration stays with the Q selector; no duplicate selector UI or hardcoded shortcut. Current authored/single-target/SVG reference limitations remain. Browser confirmation pending.
+
+
+Actual rotation-edge correction: remove outsideBoundary and the 2–8 scene-unit/object-size activation margin. Rotation hover and primary press both use rotationEdgeHit over a prepared index of selected evaluated primitives. Exact segment/circle distances include stroke width and fill; visible ink stays a move grab, empty space near actual rims (including hollow inner rims) qualifies. Bounding boxes only accelerate the search and retain the existing pivot calculation; they never decide activation. The band is eight CSS pixels in the local Composer via its existing coordinate adapter; the world-preview adapter supplies local projected-plane pixel scale. Geometry/index preparation happens when the selected evaluated snapshot changes; pointer queries do no scene discovery or DOM measurement. Future rendered primitive kinds need their geometry adapter, not preset-specific rotation zones. Hover state clears on view changes. Model regressions cover slanted/circular edges, false box corners, interiors, overlap, hidden geometry and zoom scales. Browser acceptance pending.
+
+
+Unselected hover correction: interaction previews must not require prior selection. Prepare rendered-geometry ownership and registered DOF capabilities per displayed snapshot; preview Move over applicable visible ink and Rotation near actual edges only when the target declares rotation. Hover never commits selection or geometry. An edge press on an unselected object selects the canonical authored owner and starts rotation in the same gesture; selected-group scope is preserved for its members. The common authored-node resolver is reused by reference measurements and hover discovery, including reused geometry. No per-preset hit handlers, per-motion registry discovery or new cursor renderer. Existing MS/Ctrl/Erase priority and geometry-only hit tolerance remain. Browser confirmation pending.
+
+
+Scalar grab correction: geometry chooses the DOF/tool before a press; once grabbed, scalar value execution is a virtual slider in free space. Shared createValueScrub serves relative RangeControl/DOF-icon drags and Composer edge rotation. The first meaningful movement (three CSS pixels) locks its arbitrary axis for that gesture. Continuing along it increases, reversing decreases, perpendicular motion is ignored. Screen displacement traverses the prepared value sequence/bounds; it does not follow the shape or compute cursor angle about its center. Press/jitter leaves the value untouched; release commits once and cancellation restores via existing owners. Edge rotation uses the generic value gesture; obsolete shape-following center/field gesture state is removed. Explicit legacy Step/pivot rotation remains separate. Two-axis direct placement keeps its existing spatial translation behavior. No extra floating slider is introduced. Browser acceptance pending.
+
+
+Latest Rotation correction: hovering actual edges shows the cue; one primary click selects its owner and opens the axis wheel on release, without editing the angle. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+
+
+### Shared MS selection ownership
+
+Composer no longer stores UI selection or a selection timeline. Rendered primitives
+opt into the generic `geometry.rendered` MS adapter with `data-selection-geometry`
+and stable scoped `data-selection-id`. Native SVG stroke hits and screen-scaled
+stroke bounds participate in shared selection/feedback, including zero-height lines.
+Ordinary click/drag publishes geometry through `useVisualSelection().setElements`;
+Q uses the existing selector rules/configuration. Programmatic selection uses the
+same history and does not replace an unchanged selection’s rules/scope. Temporary
+reference requests checkpoint and restore MS, while editing consumes the last
+accepted selection. New renderers should declare these shared boundaries instead
+of keeping their own membership, matching panel, feedback or history.
+
+The edit projection admits only complete authored owners. Partial generated-member
+MS selection stays exact/visible; whole-owner operations cannot broaden it silently.
+Per-member property overrides and arbitrary clipping remain future work. Drawing,
+erasing, recipe-authored selection operators and draft history remain distinct.
+Browser acceptance is pending; no browser suite run for this change.
+
+
+### Reference lens → on-spot possibility space
+
+An active numeric reference request now returns its chosen viewport point as well
+as the existing compatible reference. DofStateField opens the prepared limits,
+thresholds and fractional candidates there immediately. Cyclic values retain the
+axis wheel; scalars use a hover/click linear field. Registered two-component DOFs
+compose their component fields into the shared DofPlaneField, including threshold
+lines and default fractions. Tuple previews and commits remain atomic through the
+existing owner/session; no Position-specific centre action or new selection state.
+The nearby expression opens the existing math dial; generation stays in code.
+
+The active setter owns interpretation. Bounds/Match value picking previews and
+commits geometry; Step reference picking previews a proposed snap amount and
+commits its measured ratio/working step, without moving the object. Ordinary
+fractions retain integer numerator/denominator math-dial configuration where
+representable. No region menu follows a numeric source pick. Ordinary MS selection
+without a numeric request does not invent a DOF. Higher-dimensional projections,
+scene-aligned constraint overlays and exact clipping remain pending. Browser
+acceptance of this experimental interaction remains with the user.
+
+
+### Reference identity and direct MS entry
+
+The reference control shows ↫ for Self/no explicit source, and ⟴ for another source.
+Identity determines this independently of labels or whether the source’s current
+measurement is available. Primary click directly starts source targeting;
+right-click retains reference-use configuration. Q inside the active Composer
+numeric context, including its owned portal controllers, starts the same request.
+Other surfaces retain ordinary MS targeting. All MS entry starts in aiming rather
+than configuration. Accepting a target closes MS, retaining the selection/reference
+and continuing into the existing on-spot possibility field. The explicit MS
+settings command remains available through the shared function catalog.
+
+
+### First-press pickup across targets
+
+The local canvas receives pickup through a native listener on its stable surface,
+not React delegation through replaceable SVG descendants. A queued hover/selection
+render can replace a primitive during root capture before React bubble pickup;
+this previously lost the first press when switching targets. The native surface
+keeps that original press and captures subsequent movement/release. Unchanged
+SVG markup also retains its React HTML-prop identity to avoid needless subtree
+replacement. MS still owns membership and handles explicit aiming first.
+
+A focused local synthetic A → B → A → A → B event trace reproduced detached
+pressed primitives and lost pickup before the fix, then confirmed all five first
+presses captured and translated after it. This is diagnostic evidence, not general
+browser acceptance. No browser suite was run.
+
+Opening the rotation value wheel does not mutate the retained canvas tool into
+legacy drag rotation. Shared `targetGrabMode` resolves ordinary object pickup to
+movement in idle/configuration; rotation requires the explicitly armed legacy
+pivot stage. The retained tool name alone is insufficient. Actual movement pickup
+returns the phase to idle and retains existing position rules/references. The local
+and edited-world bridge use the same handlers. Eraser and explicit legacy pivot
+stages keep their prior dispatch; geometry legality and configured position fields
+still govern movement. Model regression covers intent and actual atom translation;
+user confirmation of repeated pickup after R/target-wheel editing is pending.
+
+
+### Unified rule configuration (2026-10-30)
+
+The Composer information strip contains DOF, rule expression and reference. Click
+the expression to open ⠒❉ directly; its compact icon row selects equal partitions
+(symmetry for cyclic domains), halving or additive step. Changing the rule keeps
+the dial open on its applicable count/step variable and retains the other working
+values, clamping count only to the chosen generator's existing capacity. Changing
+configuration alone does not move geometry. Slider/axis-wheel execution, semantic
+threshold preservation and the existing setters/history remain unchanged. Limits
+stay at slider endpoints; cyclic wheels retain ⊢/⊣ in their settings because they
+have no slider endpoints. There is no duplicate Partitions submenu. Reference Step keeps
+its measured multiplier/divisor configuration. The shared dial accepts consumer-
+provided rule choices and setters without adding another rule store or evaluator.
+Non-Composer dial consumers that do not supply choices retain their presentation.
+Static/model/build/backend verification precedes publication; browser confirmation
+of rule switching, variable editing and retained endpoint limits remains pending.
+
+
+### Shared click/Enter confirmation and MS completion (2026-10-30)
+
+Primary selection and Enter now confirm the same prepared candidate through
+`useValueConfirmation`, inherited by cyclic wheels, linear/plane fields and the
+math dial. Held value sliders register their existing finish transaction for
+Enter. No confirm/checkmark buttons or per-DOF key handlers are introduced.
+Confirmation writes through existing owners and retains the accepted value when
+the pointer leaves; Esc restores only an uncommitted preview. Single-value DOF preview selection accepts and finishes on primary release or
+Enter through the same stage lifecycle.
+
+The popup wrapper's duplicate opening-press boolean is removed; only the shared
+physical-press-version guard suppresses the actual opener tail. Nested action
+resolution considers confirm/cancel/back/advance independently so a cancel-only
+stroke cannot hide value confirmation. MS still has shortcut priority while
+selecting. Once a target is accepted its cursor/configuration/inventory close
+immediately; membership and feedback remain. Reopen Q for another pick. Partial
+geometry construction and rejected reference candidates are not target completion.
+Browser acceptance of click/Enter across these projections and MS closure remains
+pending; model, type, preview and backend checks precede publication.
+
+
+### Position-grid confirmation follow-up (2026-10-30)
+
+The fix is in shared popup lifecycle/input ownership, not Position or its grid.
+Parent navigation availability updates retain layer order; logical portal ancestry
+keeps the child value owner deepest. Registered popup interiors and active MS
+picking take precedence over generic empty-space dismissal. A boundary lens pick
+therefore reaches MS and the on-spot grid can accept its prepared tuple.
+
+Focused local synthetic trace verified four grid regions by left click and centre
+by Enter, each preserving the previewed coordinates after pointer leave. Direct
+Position and MS-reference entry were traced. No browser suite ran; general user
+acceptance remains pending. Existing value math, references, constraints, setters
+and recipe history are unchanged.
+
+
+### Enter finishes; leaving cancels an unconfirmed preview (2026-10-30)
+
+Entering an open popup activates its logical context without requiring a click
+first. This is shared `useActiveLayer` behavior, suppressed during an already
+held UI gesture; no per-DOF keyboard handling is added. Enter first accepts the
+current prepared candidate through its value owner, then finishes/advances the
+current popup stage. A rejected/no candidate can veto finishing. It must not
+leave the session live and require an outside click merely to finish.
+
+Leaving the value surface before confirmation still restores its previous value.
+That is intentional preview cancellation. After Enter acceptance, leaving or
+unmounting keeps the accepted value. Primary selection retains its existing
+interaction; this correction concerns keyboard scope and stage completion.
+
+Focused local synthetic checks verified this sequence for direct Position and
+MS-reference entry: unconfirmed leave restored the original tuple; hover-only
+Enter was available, accepted the preview, removed the grid and retained the exact
+tuple after leaving. No browser suite ran; general user-workspace acceptance is
+still pending.
+
+
+### DOF preview left-click completion (2026-10-30)
+
+The DOF preview is the value-execution surface, separate from ⠒❉ rule/number
+configuration. Its axis, linear and plane projections declare single selection.
+One primary release accepts the prepared value and finishes the preview stage,
+using the exact same shared completion as Enter. Continued hovering therefore
+cannot resume editing the just-accepted value. Unconfirmed pointer leave still
+restores the previous value; rejected choices do not finish.
+
+`ContextValueCompletion` supplies the nearest popup completion to the common
+value-confirmation adapter. All current/future DOF preview projections inherit
+the lifecycle by declaring single selection, without per-DOF close handlers.
+Default composing interactions retain their existing behavior. MathematicalDial
+has no implementation/appearance/category change in this correction.
+
+Focused synthetic checks verified direct and MS-reference DOF previews: left
+click accepted/finished, the grid disappeared, and the exact tuple persisted
+after leaving; unconfirmed leave restored the previous tuple. No browser suite
+ran. General user-workspace acceptance remains pending.
+
+
+### Reference-first target and DOF activation (2026-10-30)
+
+Within Composer, ordinary primary target activation selects that authored owner,
+activates its declared Position vector and immediately starts the existing MS
+reference request. A second click chooses Self or another compatible reference;
+a normal double-click can choose Self. MS closes on acceptance and the existing
+on-spot DOF preview opens. Hover previews, leave cancels an unconfirmed value,
+and primary selection/Enter accepts and finishes. Neither activation nor reference
+selection changes geometry. Ordinary held-target translation is retired.
+
+This is also the default activation of every target/preset DOF editor: right-click
+a target → choose Rotation → MS → choose Self/compatible other → rotation preview.
+Size, Count and other scalar/vector freedoms inherit the same entry. Categorical
+freedoms use the same MS request lifecycle for source identity/compatibility, then
+retain their actual value controls; no numeric measure is fabricated for color,
+fill or choices. Explicit rule/variable configuration remains separate. The shared
+DegreeValueEditor owns activation, not per-DOF buttons.
+
+First ordinary target activation replaces earlier membership with the pointed
+authored owner so the first selected target remains the edited owner while the
+second is only its reference. Existing precise MS configuration, authored groups,
+reference-use settings and shared setters/history remain. G opens Position
+reference selection for one selected authored target. Existing multi-target
+reference-field limitations remain; arbitrary clipping and generated-member
+overrides are not added. Source picking remains within Composer. Pen drawing on
+empty space, Eraser and explicitly invoked legacy pivot/Step keep their tools.
+
+Removed the ordinary move/translate gesture branches and their private prepared
+position fields; reusable engine transforms remain. The edited-world bridge uses
+the same input adapter, but reference picking still uses Composer's authored SVG
+surface. This is not a new world MS geometry adapter.
+
+Focused synthetic checks covered Self, Self double-click, other reference,
+Rotation/Size/Count/Fill from DOF categories, accepted preview completion, no
+geometry changes during selection, no ordinary drag translation and preserved
+empty-space pen strokes. Model regressions cover metadata-derived placement entry
+and compatible raw reference sources without mutation. General user-workspace
+acceptance remains pending; no browser suite ran.
+
+
+### Position reference re-entry and redundant dial entries (2026-10-30)
+
+Every explicit target/DOF activation now captures a fresh editor activation ID.
+The editor identity also includes its authored owners and requested stage.
+Previously, cancelling a Position reference pick then selecting another target
+could reuse the mounted Position/source editor, so the object became selected
+but its MS startup effect did not run. A new activation restarts that session;
+ordinary preview/value rerenders retain it. Existing DOF-from-dial routing stays
+reference-first and uses the same editor.
+
+The duplicate Relativity/reference-pick and Reference use entries are removed
+from the DOF settings options dial. The top ↫/⟴ indicator still selects a source
+and exposes reference-use configuration on right-click, including Bounds/Step/
+Match, compatible measurements and ratios. The other DOF categories remain.
+
+Focused local diagnostic reproduced cancellation → target switch selecting the
+object with MS closed before the fix. Four rapid alternating re-entries now
+opened MS, and the final Position choice committed. An independent Rotation
+from-dial source-pick check passed and its settings had no duplicate reference
+entries. Model regression checks owner/activation/stage identity and stability
+during equivalent rerenders. No browser suite ran; user-workspace acceptance
+remains pending.
+
+
+### Unsupported-reference feedback and Relations category removal (2026-10-31)
+
+Rejected MS reference picks now display a concise reason beside the cursor, such
+as “No Rotation reference.” MS stays active so another target can be chosen. A
+compatible Self pick accepts normally and clears the message. Empty clicks say
+“No target here”; outside-surface picks say “Pick inside Composer.” These are
+request feedback, not authored geometry or successful selection.
+
+Editor cleanup now cancels only its own request; an older editor cannot cancel
+a newer MS request during activation/remount. The previous duplicate-control
+removal did not remove the actual ⨮ Relations category. That category is now
+removed: Position, Rotation, Radius and spatial freedoms appear directly in DOF
+dials. Units/fill and Appearance keep their grouping; top reference-use settings
+remain accessible.
+
+Model checks cover rejected messages remaining unaccepted, valid recovery and
+stale-owner cancellation isolation, plus category removal across generators. A
+focused synthetic check verifies missing Rotation on a ring gives feedback while
+MS remains open, valid Self opens the rotation preview and clears feedback, and
+the Relations category is absent. No browser suite ran; general user-workspace
+acceptance remains pending.
+
+## Ordered path-rule experiment
+
+Right-click empty Composer space → ↱ Path rule opens an ordered circular direction
+editor directly, without reference selection. Whole-unit instruction counts use
+⠒❉. Loop, quarter turn, closure, fixed move limit, connected/separate trace,
+per-traversal coverage and drawing speed live in the same rule. Existing Play/pause
+runs the glowing drawing particle; fixed generation defaults to 100 unit moves.
+See [path-rule controls, bounds, limits and acceptance](OMNIC_PATH_RULES.md).
+This Composer-only experiment has model coverage; interactive acceptance is pending.

@@ -1,5 +1,11 @@
 # Worker onboarding: Omnia's shared mental model
 
+For global mathematical/reference/constraint work, read the
+[living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
+accepted baseline; PR #41 is discarded. Iterate small shared-module experiments
+with user feedback and update that plan before broadening the implementation.
+
+
 Read this once at the start of work, including after a context reset. It explains
 what the systems mean before you need to inspect their implementation. Read only
 the relevant subsystem reference afterward; do not rediscover the whole project

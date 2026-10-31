@@ -377,3 +377,53 @@ Within Composer, the shared property editor projects ⠒❉ through NumericEdito
 other surfaces keep their existing editors. This scope changes presentation only,
 never property identity, storage, values or owner history. See the number-editor
 contract in UI_COMPONENT_CONTRACT.md.
+
+
+Geometry measurements are adapter metadata on existing Omnic Parameter inputs,
+not additional writable properties. The same shared property (e.g. geometric
+extent) can map to circle radius or line length through its actual renderer.
+E02 projects current target/property addresses, domain, measured quantity and
+reference into properties/operationContext.ts. It does not maintain another DOF
+inventory. The E02 explicit Match UI is retired; NumericOperationScope now lends explicit
+cyclic-reference context to the shared state selector; UI controls never infer geometry. New supported inputs declare
+their actual measurement once and inherit contextual projection. New measurement
+kinds need a real renderer adapter; do not guess from names or pixels.
+
+
+Cyclic state selection is declared on actual Omnic inputs as period/north metadata.
+DegreeValueEditor chooses DofStateWheel from that capability, independently of
+preset or object identity. The common rule generator handles symmetry, halving and
+fixed-step alternatives; the math dial configures numeric variables. Registered
+owner setters and legality are reused. New domains need an actual state-domain
+adapter, not copied rotation UI or guessed property-name applicability.
+
+
+The available-state field generalizes numeric editing across Composer inputs.
+`stateFieldDomain` derives domains/projections from existing Parameter metadata;
+`createStateField` performs bounded generation, domain and owner-constraint filtering
+and projection once per configuration. `nearestFieldCandidate` reads prepared
+states only. `DofStateField` is the one interaction/preview projection, also used by
+MathematicalValueControl inside the existing Composer numeric scope. Math Dial is
+now a parameter/exact-value producer; outside editors retain their existing path.
+
+New geometric capabilities contribute actual domains, measurements, projections
+or constraints. They do not declare another state/value/history owner or copied
+preview implementation. Scalar/integer/cyclic and single spatial axes are supplied;
+vector/product/path fields and general geometric legality remain pending. Shared
+property aliases must retain quantity/unit compatibility when picking references.
+
+
+E05 execution contract supersedes the initial field panel: the mathematical dial
+is the rule maker. Shared RangeControl receives the prepared values and executes
+them by sequence index; nonuniform values are preserved. Slider end bars carry the
+limits, and rule-variable changes alone preserve the object. This is inherited by
+all numeric Composer DOFs; never create another value-dial or halving-slider path.
+
+
+### E06: clickable DOF information and gesture activation
+
+The Composer top always shows compact active DOF, mode/rule and ⟴ reference controls. Click one to open its existing editor; mode right-click chooses the generator and the expression opens ⠒❉ variables. During an edit the same information follows the cursor as a noninteractive echo. This supersedes earlier DOF Alt-parking descriptions; MS parking remains separate. MB3 (rebindable atomnic.dofOptions) toggles the settings radial at the cursor; MS/Shift priority is retained.
+
+Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
+
+Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.

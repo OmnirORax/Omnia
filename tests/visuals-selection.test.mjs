@@ -150,3 +150,86 @@ test("mouse history and selection defaults survive old settings, and rebinding d
   assert.equal(loaded.mouse.selectionModifier, "ctrl");
   delete globalThis.localStorage;
 });
+
+test('temporary MS requests reject unsupported picks and restore selection exactly once',async()=>{
+ const {selectionRequest}=await import('../src/appearance/selectionRequest.ts');
+ let restores=0,cancels=0;
+ const request=selectionRequest(value=>value==='supported',()=>cancels++,()=>restores++);
+ assert.equal(request.accept('unsupported'),false);assert.equal(restores,0);
+ assert.equal(request.accept('supported'),true);assert.equal(restores,1);
+ request.cancel();assert.equal(request.accept('supported'),false);assert.equal(restores,1);assert.equal(cancels,0);
+ const cancelled=selectionRequest(()=>true,()=>cancels++,()=>restores++);
+ cancelled.cancel();cancelled.cancel();assert.equal(cancelled.accept('supported'),false);
+ assert.equal(restores,2);assert.equal(cancels,1);
+});
+
+test('declared geometry boundaries retain identity through renderer replacement within their own surface',async()=>{
+ const {boundaryFor,boundaryElement}=await import('../src/appearance/visualSelection.ts');
+ const saved={document:globalThis.document,CSS:globalThis.CSS,getComputedStyle:globalThis.getComputedStyle};
+ try{
+  const scope={getAttribute:()=> 'composer-a'};
+  const node=(attrs,connected=true)=>({isConnected:connected,hasAttribute:key=>key in attrs,getAttribute:key=>attrs[key]??null,closest:selector=>selector==='[data-selection-scope]'?scope:null,getClientRects:()=>[{}]});
+  const previous=node({'data-selection-id':'component:unit'},false),replacement=node({'data-selection-id':'component:unit'});
+  let queried='';globalThis.document={body:{},querySelectorAll:selector=>{queried=selector;return [replacement];}};
+  globalThis.CSS={escape:value=>value};globalThis.getComputedStyle=()=>({visibility:'visible'});
+  const boundary=boundaryFor(previous);
+  assert.equal(boundary.key,'composer-a:data-selection-id:component:unit');
+  assert.equal(boundaryFor(replacement).key,boundary.key);
+  assert.equal(boundaryElement(boundary),replacement);
+  assert.equal(queried,'[data-selection-scope="composer-a"] [data-selection-id="component:unit"]','another surface with the same component ID cannot steal the selection');
+  const regular=node({'data-ui-function':'ordinary'});regular.closest=()=>null;
+  assert.equal(boundaryFor(regular).key,'data-ui-function:ordinary','existing unscoped control identities stay unchanged');
+ }finally{for(const [key,value] of Object.entries(saved)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
+});
+
+test('selector Enter resumes the same aiming flow as the checkmark and owns reference confirmation before popup Enter',async()=>{
+ const {selectionConfirmation,selectionRequest}=await import('../src/appearance/selectionRequest.ts');
+ const {preferredFeatureKey}=await import('../src/workspaceActions.ts');
+ const {createFeatureActionRuntime}=await import('../src/featureActions.ts');
+ let phase='configure',restores=0,underlying=0,aims=0;
+ const request=selectionRequest(value=>value==='target',()=>{},()=>restores++);
+ const runtime=createFeatureActionRuntime();
+ runtime.register('context.confirm',{enabled:()=>true,run:()=>underlying++});
+ runtime.register('selector.confirm',{enabled:()=>!!selectionConfirmation(phase,restores===0,false),run:()=>{
+  if(selectionConfirmation(phase,restores===0,false)==='aim'){phase='aim';aims++;}else request.accept('target');
+ }});
+ const enter=()=>{const id=preferredFeatureKey({},'Enter',id=>runtime.available(id));runtime.invoke(id);return id;};
+ assert.equal(enter(),'selector.confirm');assert.equal(phase,'aim');assert.equal(aims,1);assert.equal(underlying,0);
+ assert.equal(enter(),'selector.confirm');assert.equal(restores,1);assert.equal(underlying,0);
+ assert.equal(enter(),'context.confirm');assert.equal(underlying,1,'ordinary popup Enter returns after request completes');
+ assert.equal(selectionConfirmation('off',true,false),undefined);
+ assert.equal(selectionConfirmation('aim',false,false),undefined);
+ assert.equal(selectionConfirmation('locked',true,false),'accept');
+ assert.equal(selectionConfirmation('aim',true,true),undefined,'polygon keeps its own Enter command');
+ assert.equal(preferredFeatureKey({},'Enter',id=>['selector.finishGeometry','context.confirm'].includes(id)),'selector.finishGeometry');
+ assert.equal(preferredFeatureKey({},'Enter',id=>['selector.confirm','context.confirm'].includes(id),true),null,'native text entry is preserved');
+});
+
+test('MS opening contexts borrow targeting only within their surface and bypass pending requests',async()=>{
+ const {selectionOpenContexts}=await import('../src/appearance/selectionRequest.ts');
+ const contexts=selectionOpenContexts();let active=false,starts=0;
+ const stop=contexts.register({contains:target=>target==='canvas',open:()=>{if(!active)return false;starts++;return true;}});
+ assert.equal(contexts.open('canvas'),false,'no active DOF keeps normal MS targeting');
+ active=true;assert.equal(contexts.open('outside'),false,'an active Composer cannot hijack standalone MS');
+ assert.equal(contexts.open('canvas'),true);assert.equal(starts,1,'the active numeric consumer starts reference selection directly');
+ assert.equal(contexts.open('canvas',true),false,'opening the requested picker must not invoke its consumer recursively');assert.equal(starts,1);
+ stop();assert.equal(contexts.open('canvas'),false,'closed contexts cannot retain Q ownership');
+});
+
+test('an old editor cannot cancel a newer MS request, and rejection text never accepts a pick',async()=>{
+ const {cancelOwnedSelectionRequest,selectionRequest,selectionDecision}=await import('../src/appearance/selectionRequest.ts');
+ const oldOwner=Symbol(),newOwner=Symbol(),events=[],pending={current:undefined};
+ const old=selectionRequest(()=>true,()=>events.push('old cancel'),()=>events.push('old restore'));
+ pending.current={owner:oldOwner,cancelMS:old.cancel,finish:()=>events.push('old finish')};
+ assert.equal(cancelOwnedSelectionRequest(pending,oldOwner),true);
+ const request=selectionRequest(value=>selectionDecision(value==='valid'?true:'No Rotation reference').accepted,()=>events.push('new cancel'),()=>events.push('new restore'));
+ pending.current={owner:newOwner,cancelMS:request.cancel,finish:()=>events.push('new finish')};
+ const current=pending.current;
+ assert.equal(cancelOwnedSelectionRequest(pending,oldOwner),false,'stale unmount cleanup cannot stop the new cursor');
+ assert.equal(pending.current,current);assert.deepEqual(events,['old restore','old cancel','old finish']);
+ assert.deepEqual(selectionDecision('No Rotation reference'),{accepted:false,message:'No Rotation reference'});
+ assert.equal(request.accept('unsupported'),false);assert.equal(events.includes('new restore'),false,'rejection leaves MS pending for another target');
+ assert.equal(request.accept('valid'),true);assert.equal(events.filter(e=>e==='new restore').length,1);
+ assert.deepEqual(selectionDecision(true),{accepted:true,message:null});
+ assert.deepEqual(selectionDecision(false),{accepted:false,message:'Unsupported target'});
+});

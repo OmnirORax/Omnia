@@ -1,3 +1,5 @@
+import type {NativeSelectionShape} from './selectionLens';
+import {createElement} from 'react';
 import { createDecorationAllowance } from "../renderBudget";
 import { useEffect, useMemo, useRef, type RefObject, type CSSProperties } from "react";
 import { useAppearance } from "./Context";
@@ -161,7 +163,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
   guide: [Point, Point] | null;
   guides: { key: string; points: [Point, Point]; include: boolean; direction: boolean }[];
-  paths?: { key: string; points: Point[]; closed: boolean; disabledEdges: number[]; preview: boolean; include?: boolean }[];
+  paths?: { native?:NativeSelectionShape|null; key: string; points: Point[]; closed: boolean; disabledEdges: number[]; preview: boolean; include?: boolean }[];
 }) {
   const paints = useFeedbackPaints();
   const pulse = usePulseSettings();
@@ -373,6 +375,11 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
       <g style={feedbackStyle(pendingPaint)} opacity={pendingPaint.opacity * pendingPaint.contour}>{candidates.map(mark =>
         <rect key={mark.key} {...rectAttributes(mark)} className="visual-selection-seam" />)}</g>
       {paths.map(path => {
+        if(path.native){const shape=path.native,paint=path.preview?pendingPaint:paints.boundary;
+          return <g key={path.key} style={{color:feedbackInk(paint),opacity:paint.contour,filter:`drop-shadow(0 0 ${feedbackGlow(paint)} currentColor)`}}>
+            {createElement(shape.tag,{...shape.attributes,transform:shape.transform,fill:shape.fill?'currentColor':'none',stroke:shape.stroke?'currentColor':'none',strokeWidth:shape.strokeWidth,vectorEffect:shape.vectorEffect,strokeLinecap:shape.linecap,strokeLinejoin:shape.linejoin,fillRule:shape.fillRule,opacity:.6})}
+          </g>;
+        }
         const edges = pathEdges(path.points, path.closed);
         const stroke = (disabled: boolean) => edges.flatMap(([a, b], index) => path.disabledEdges.includes(index) === disabled
           ? [`M${a.x} ${a.y}L${b.x} ${b.y}`] : []).join(" ");

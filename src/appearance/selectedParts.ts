@@ -4,6 +4,9 @@ import type { VisualPart } from "./visualSelection";
 
 /** A nearest stable UI owner follows docking/reparenting. Structural steps are a fallback for unkeyed markup. */
 export function describeSelectedPart(part: VisualPart): SelectedPart | undefined {
+  // Renderer snapshots can outlive their DOM for one catalog-refresh frame.
+  // Keep membership/rules intact, but never address a removed visual host.
+  if(part.element.isConnected===false||part.range?.startContainer.isConnected===false)return;
   if (part.target.binding?.selection?.address === "target")
     return { base: part.target.id, owner: "app", part: { steps: [] }, label: part.target.label };
 
@@ -14,8 +17,9 @@ export function describeSelectedPart(part: VisualPart): SelectedPart | undefined
   const owner = fn ? `function:${fn}` : root.getAttribute("data-ui-resident-root") ?? root.getAttribute("data-ui-proxy-for") ?? "app";
   const steps: PartStep[] = [];
   for (let node: Element | null = element; node && node !== root; node = node.parentElement) {
+    const parent=node.parentElement;if(!parent)return;
     const key = PART_KEYS.find(key => node!.hasAttribute(key));
-    steps.unshift({ tag: node.localName, index: [...node.parentElement!.children].filter(child => child.localName === node!.localName).indexOf(node) + 1,
+    steps.unshift({ tag: node.localName, index: [...parent.children].filter(child => child.localName === node!.localName).indexOf(node) + 1,
       ...(key ? { key, value: node.getAttribute(key)! } : {}) });
   }
   const textNodes = [...element.childNodes].filter(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());

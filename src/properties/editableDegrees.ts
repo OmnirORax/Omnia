@@ -1,16 +1,15 @@
+const APPEARANCE_EYE_MASK='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M1 12Q12-1 23 12Q12 25 1 12ZM4 12Q12 3 20 12Q12 21 4 12Z"/><path fill-rule="evenodd" d="M19 12a7 7 0 1 0-14 0a7 7 0 1 0 14 0ZM17.5 12a5.5 5.5 0 1 1-11 0a5.5 5.5 0 1 1 11 0Z"/><path d="M12 8a4 4 0 1 1-4 4a2.7 2.7 0 0 0 4-4Z"/></svg>');
 /** A target adapter declares actual writable inputs, not inferred pixel traits.
  * Applicable operation adapters may combine inputs into one freedom adjuster. */
-export const VISUAL_FREEDOM_GROUP={id:"visual",label:"Appearance",symbol:"✨"} as const;
+export const VISUAL_FREEDOM_GROUP={id:"visual",label:"Appearance",symbol:"👁",symbolMask:APPEARANCE_EYE_MASK} as const;
 export const UNIT_FREEDOM_GROUP={id:"units",label:"Units / fill",symbol:"●●"} as const;
-export const RELATION_FREEDOM_GROUP={id:"relation",label:"Relations",symbol:"⨮"} as const;
-/** Retained export for spatial adapters; both project the same category identity. */
-export const POSITION_FREEDOM_GROUP=RELATION_FREEDOM_GROUP;
-export type FreedomGroup={id:string;label:string;symbol:string};
-export type FreedomPresentation={label:string;symbol:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[]};
+export type FreedomGroup={id:string;label:string;symbol:string;symbolMask?:string};
+export type VectorFreedom={id:string;label:string;symbol:string;axis:string;matchLabel?:string;matchSymbol?:string};
+export type FreedomPresentation={vector?:VectorFreedom;label:string;symbol:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[]};
 export type EditableInput={key:string;property:string;label:string;freedom?:FreedomPresentation};
 export type EditableTarget={id:string;inputs:readonly EditableInput[]};
 export type FreedomAdjuster={id:string;label:string;symbol?:string;adjusts:readonly string[]};
-export type EditableDegree={id:string;label:string;symbol?:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[];action?:string;properties:readonly string[];targets:readonly {id:string;input:EditableInput}[]};
+export type EditableDegree={axes?:readonly EditableDegree[];id:string;label:string;symbol?:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[];action?:string;properties:readonly string[];targets:readonly {id:string;input:EditableInput}[]};
 export function editableDegrees(targets:readonly EditableTarget[],adjusters:readonly FreedomAdjuster[]=[],coverage:'common'|'available'='common'):EditableDegree[] {
   if(!targets.length)return [];
   const allInputs=targets.flatMap(target=>target.inputs);
@@ -26,4 +25,23 @@ export function editableDegrees(targets:readonly EditableTarget[],adjusters:read
       targets:targets.flatMap(target=>properties.flatMap(id=>{const input=target.inputs.find(input=>input.property===id);return input?[{id:target.id,input}]:[];}))});
   }
   return result;
+}
+
+/** Vector presentation composes existing scalar owners; axis editors remain available. */
+export function vectorDegrees(degrees:readonly EditableDegree[]):EditableDegree[]{
+ const result:EditableDegree[]=[],used=new Set<string>();
+ for(const degree of degrees){
+  const vector=degree.targets[0]?.input.freedom?.vector;
+  if(!vector){result.push(degree);continue;}if(used.has(vector.id))continue;
+  const axes=degrees.filter(d=>d.targets[0]?.input.freedom?.vector?.id===vector.id);
+  if(axes.length<2){result.push(degree);continue;}used.add(vector.id);
+  result.push({id:vector.id,label:vector.label,symbol:vector.symbol,group:degree.group,properties:axes.flatMap(a=>a.properties),targets:axes.flatMap(a=>a.targets),axes});
+ }
+ return result;
+}
+
+/** An explicit activation starts a new editor session, even for the same DOF
+ * and owner. Ordinary value/hover renders retain the captured activation ID. */
+export function degreeEditorIdentity(degree:EditableDegree,stage:string,activation=0):string{
+ return JSON.stringify([degree.id,[...new Set(degree.targets.map(target=>target.id))],stage,activation]);
 }

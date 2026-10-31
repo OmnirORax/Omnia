@@ -6,7 +6,7 @@ import { activeToolCursor, cursorApplies, inCursorArea } from "../src/ui/toolCur
 import { PEN_SYMBOL, ERASER_SYMBOL } from "../src/ui/symbols.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout } from '../src/ui/radialMenuModel.ts';
+import { radialTree, radialSlot, radialDimensions, radialQuickSlot, radialLayout, radialRowLayout, radialRowAttachment } from '../src/ui/radialMenuModel.ts';
 import { circularFrameExtent, fitFrameShape } from '../src/ui/frameShape.ts';
 import {
   emptyUILayout,
@@ -434,4 +434,40 @@ test('cursor applicability follows operation zones and restores native behavior 
   assert.equal(inCursorArea({x:110,y:110},circle),false,'circular corners/rim are outside editing');
   assert.equal(inCursorArea({x:310,y:200},circle),false,'pointer capture cannot extend applicability');
   assert.equal(inCursorArea({x:110,y:110},{...circle,circle:false}),true);
+});
+
+test('outside-zone DOF settings dismiss outside controls but preserve popup interiors',async()=>{
+ const {dismissOutsideContext}=await import('../src/ui/activeContextModel.ts');
+ const inside={},outside={},calls=[];
+ const layers=new Map([[{contains:t=>t===inside},{close:()=>{},dismiss:()=>calls.push('settings'),dismissOutside:true}],[{contains:()=>false},{close:()=>{},dismiss:()=>calls.push('ordinary') }]]);
+ assert.equal(dismissOutsideContext(layers,inside),false);assert.deepEqual(calls,[]);
+ assert.equal(dismissOutsideContext(layers,outside),true);assert.deepEqual(calls,['settings']);
+});
+
+test('child rows preserve upright nonoverlapping controls along every parent axis',()=>{
+ for(const count of [1,2,7,20])for(const axis of [{x:1,y:0},{x:0,y:-1},{x:-3,y:4}]){
+  const nodes=Array.from({length:count},(_,i)=>({id:String(i),label:String(i),symbol:'○',setter:i}));
+  const row=radialRowLayout(nodes,axis),ux=row.axis.x,uy=row.axis.y;
+  for(const [i,slot] of row.slots.entries()){
+   const x=(slot.x-50)*row.extent/100,y=(slot.y-50)*row.extent/100;
+   assert.ok(Math.abs(x*uy-y*ux)<1e-8,'every child lies on the parent axis');
+   assert.equal(slot.size,24);
+   assert.ok(Math.abs(x)+slot.size/2<=row.extent/2&&Math.abs(y)+slot.size/2<=row.extent/2);
+   if(i){const prev=row.slots[i-1];assert.ok(Math.hypot(slot.x-prev.x,slot.y-prev.y)*row.extent/100>=25.99);}
+   const setterX=slot.setterX-slot.size/2,setterY=slot.setterY-slot.size/2;
+   assert.ok(Math.abs(setterX*ux+setterY*uy)<1e-8,'held value setters extend perpendicular to the row, away from siblings');
+  }
+ }
+});
+
+test('automatic child rows attach to the parent button centre without shell-dependent offsets',()=>{
+ for(const scale of [1,1.5,2])for(const axis of [{x:1,y:0},{x:0,y:-1},{x:-.6,y:.8}]){
+  const center={x:130,y:90},button={x:center.x+axis.x*37,y:center.y+axis.y*37,width:32*scale};
+  const length=76,anchor=radialRowAttachment(center,button,length,scale);
+  const first={x:anchor.x-axis.x*(length-24)*scale/2,y:anchor.y-axis.y*(length-24)*scale/2};
+  assert.ok(Math.abs((first.x-button.x)*axis.y-(first.y-button.y)*axis.x)<1e-8,'button and child centres are collinear');
+  assert.ok(Math.abs(Math.hypot(first.x-button.x,first.y-button.y)-(button.width/2+12*scale+2))<1e-8,'exact button-to-child gap at every scale');
+  const next=radialRowAttachment(anchor,first,50,scale,{axis,length});
+  assert.ok(Math.abs(Math.hypot(next.x-anchor.x,next.y-anchor.y)-(length*scale/2+25*scale+2))<1e-8,'nested rows clear the parent row');
+ }
 });

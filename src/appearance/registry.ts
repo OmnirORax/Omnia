@@ -453,6 +453,9 @@ for (const target of entries) if (target.properties) target.numberRanges = Objec
   const max = target.binding?.css ? (id === "glow" || id === "effectGlow" ? Math.min(spec.max!, RENDER_BUDGET.uiGlow) : id === "blur" ? Math.min(spec.max!, RENDER_BUDGET.uiBlur) : spec.max!) : spec.max!;
   return [[id, max === spec.max ? spec : { ...spec, max }]];
 }));
+// Renderer-declared geometry participates in MS without a second selector/store.
+entries.push({id:'geometry.rendered',parent:'all',label:'Rendered geometry',properties:[],binding:{selector:'[data-selection-geometry]',role:'icon'}});
+entries.push({id:'geometry.environment',parent:'all',label:'Rendered environment boundary',properties:[],binding:{selector:'[data-selection-environment]',role:'icon'}});
 export const TARGETS: readonly RegisteredTarget[] = groupVisualRoles(entries);
 const baseTargets = new Map(TARGETS.map(target => [target.id, target]));
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
