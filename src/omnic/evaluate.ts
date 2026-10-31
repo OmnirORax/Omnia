@@ -143,7 +143,10 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       const p={...defaultParams(definition(kind)!),...op.params,...override};
       const targets=affected();
       const primitives=targets.filter(node=>node.kind!=="group");
-      if(kind!=="fill"&&targets.some(node=>definition(generations.get(node.componentId)?.component.generator??"",true)?.substrateBounds))throw Error("Substrate-bound generators must change their movement rule instead of applying geometry transforms.");
+      if(kind!=="fill"&&targets.some(node=>definition(generations.get(node.componentId)?.component.generator??"",true)?.substrateBounds)){
+        diagnostics.push({code:"unsupported-substrate-transform",message:"Transform not applied: substrate-bound paths must change their movement rule.",operation:prefix+op.id});
+        return;
+      }
       const center=kind==="rotate"&&p.pivot==="center"&&primitives.length?{
         x:(Math.min(...primitives.map(n=>Math.min(n.x-n.radius,n.x2??n.x)))+Math.max(...primitives.map(n=>Math.max(n.x+n.radius,n.x2??n.x))))/2,
         y:(Math.min(...primitives.map(n=>Math.min(n.y-n.radius,n.y2??n.y)))+Math.max(...primitives.map(n=>Math.max(n.y+n.radius,n.y2??n.y))))/2

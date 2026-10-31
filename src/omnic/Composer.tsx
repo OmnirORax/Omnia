@@ -39,7 +39,7 @@ import type { ReactNode } from 'react';
 import { ProgressiveConfiguration } from '../ui/ProgressiveConfiguration';
 import { RadialMenu } from '../ui/RadialMenu';
 
-import { VISUAL_FREEDOM_GROUP, type EditableDegree } from '../properties/editableDegrees';
+import { type EditableDegree } from '../properties/editableDegrees';
 import { type DegreeEditValue, targetDegrees, targetEditorDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
 import { nameSymbol } from '../ui/nameSymbols';
 import { RangeSettingsScope } from '../ui/RangeControl';
@@ -310,11 +310,6 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     if (!commit({ ...recipe, components: parent ? updateComponents(recipe.components, parent, group => ({ ...group, children: [...group.children ?? [], component] })) : [...recipe.components, component] })) return;
     setFocus({ kind: "component", id: component.id }); setPicked([component.id]);
   };
-  const addOperation = (operator: string) => {
-    const spec = OPERATORS.find(value => value.id === operator); if (!spec) return;
-    const operation: Application = { id: id(), operator, params: {...defaultParams(spec),...(operator==="rotate"?{pivot:"center"}:{})}, targets: [...picked], enabled: true };
-    if (!commit({ ...recipe, operations: [...recipe.operations, operation] })) return; setFocus({ kind: "operation", id: operation.id });
-  };
   const changeOperation = (operationId: string, patch: Partial<Application>) => commit({ ...recipe, operations: recipe.operations.map(operation => operation.id === operationId ? { ...operation, ...patch } : operation) });
   const reorder = (operationId: string, offset: number) => {
     const operations = [...recipe.operations], index = operations.findIndex(operation => operation.id === operationId), next = index + offset;
@@ -358,17 +353,6 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     };
   if(radar) {
     const actionEntry=(key:string,label:string,symbol:string,group:readonly RadialGroup[],run:()=>void,configure?:()=>void):RadialEntry<ReactNode>=>({id:key,label,symbol,group,content:<><UIAction registerOnly id={key} label={label} symbol={symbol} category="Omnic" onClick={run} onConfigure={configure}/><FunctionControl id={key} mirror symbol={symbol} tooltip={`${label}${configure?' · Right-click configures':''}`}/></>});
-    const openEffect=(effect:Definition)=>{
-      try {
-        const selected=atomnicActive&&atomnicBridge?.selected.length?[...atomnicBridge.selected]:picked;
-        const targets=selected.length?selected:recipe.components.map(c=>c.id);
-        if(!targets.length)throw Error('Create or select a target before applying a motion effect.');
-        const existing=recipe.operations.find(op=>op.operator===effect.id&&op.targets.length===targets.length&&op.targets.every(target=>targets.includes(target)));
-        const next=existing?validateRecipe({...recipe,operations:recipe.operations.map(op=>op.id===existing.id?{...op,enabled:true}:op)}):applyOperationTool(recipe,operationTool({id:id(),operator:effect.id,params:defaultParams(effect),targets:[],enabled:true}),targets,id);
-        const operationId=existing?.id??next.operations.at(-1)!.id;
-        if(commit(next)){setPresetSession({ids:[operationId]});setRadarPanel({kind:'presets'});if(!playing)togglePlay();}
-      }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
-    };
     const entries:RadialEntry<ReactNode>[]=[
       ...FEATURE_ACTIONS.filter(action=>action.owner==='omnicComposer'&&'radial' in action).map(action=>({id:action.id,label:action.label,symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:<FunctionControl id={action.id} mirror symbol={'radial' in action?action.radial.symbol:'◇'} tooltip={action.description}/>})),
       {id:'omnic:copy-name',label:isNew?'Glyph name':'Copy name',symbol:'✎',group:[radialGroups.object,radialGroups.save],content:<FunctionControl id="omnic:copy-name" mirror symbol="✎" tooltip={`${isNew?'Glyph name':'Copy name'} · ${copyLabel}`}/>},
@@ -376,7 +360,6 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       ...components.map(c=>actionEntry(`omnic:component:${c.id}`,`${GENERATORS.find(g=>g.id===c.generator)?.label} · ${c.id.slice(0,6)}`,GENERATORS.find(g=>g.id===c.generator)?.symbol??'◇',[radialGroups.object,radialGroups.structure],()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);},()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);setRadarPanel({kind:'parameters',index:0});})),
       ...(activeComponent?[actionEntry(`omnic:remove-component:${activeComponent.id}`,'Remove selected component','×',[radialGroups.object,radialGroups.structure],()=>{commit({...recipe,components:removeComponent(recipe.components,activeComponent.id)});setFocus(null);})]:[]),
       ...(activeComponent?.reference?[actionEntry('omnic:radar-dependency','Dependency version','#',[radialGroups.object,radialGroups.structure],()=>setRadarPanel({kind:'dependency'}))]:[]),
-      ...OPERATORS.filter(effect=>effect.category==='mfx').map(effect=>actionEntry(`omnic:add-operator:${effect.id}`,effect.label,effect.symbol??'≈',[VISUAL_FREEDOM_GROUP,radialGroups.mfx],()=>openEffect(effect))),
       ...(activeOperation?[
         actionEntry(`omnic:enable-operation:${activeOperation.id}`,activeOperation.enabled?'Disable operation':'Enable operation',activeOperation.enabled?'◉':'○',[radialGroups.motion],()=>changeOperation(activeOperation.id,{enabled:!activeOperation.enabled})),
         actionEntry(`omnic:earlier-operation:${activeOperation.id}`,'Move operation earlier','↑',[radialGroups.motion],()=>reorder(activeOperation.id,-1)),
@@ -473,7 +456,6 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       </div>
     </UISection>
     <div>
-      <div className="omnic-row"><UIAction id="omnic:add-operator:oscillate" label="Semantic oscillation" category="Omnic" onClick={()=>addOperation('oscillate')} /></div>
       <div className="omnic-list">{recipe.operations.map((operation,index)=>operation.operator==="oscillate"?<div className="omnic-row" key={operation.id}>
         <input aria-label={`Enable operation ${index+1}`} type="checkbox" checked={operation.enabled} onChange={event=>changeOperation(operation.id,{enabled:event.target.checked})} />
         <button type="button" aria-pressed={focus?.kind === "operation" && focus.id === operation.id} onClick={()=>{setSample(null);setFocus({kind:"operation",id:operation.id});}}>{index+1}. {OPERATORS.find(operator=>operator.id===operation.operator)?.label ?? operation.operator}</button>

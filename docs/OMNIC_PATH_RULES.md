@@ -59,8 +59,11 @@ Creation captures the current Composer view bounds, including its circular radar
 boundary, as the substrate. Those bounds persist with the recipe, independently
 of later UI resize/zoom. The whole next unit cell must fit; a boundary collision
 pauses before that move and never shortens it. Non-Atomnic views use the captured
-substrate for stable framing. Ordinary scale/rotation/motion transforms are rejected
-on substrate-bound generators; edit the movement rule instead. Integer Position
+substrate for stable framing. Ordinary scale/rotation/motion transforms on substrate-bound generators are
+skipped atomically with an unsupported-transform diagnostic; edit the movement
+rule instead. A legacy incompatible operation no longer aborts evaluation or
+disables the pen. The obsolete mfx/Oscillation creation entry is removed; saved
+operations remain readable and retain their authored settings. Integer Position
 changes move the origin within the captured substrate.
 
 Continuous traces render whole-unit traversal edges as joined vector strokes with

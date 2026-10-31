@@ -1284,10 +1284,14 @@ test('path generator integrates persistence, rendering, target edits and capture
  const animated=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,.5);
  assert.ok(animated.motion);assert.ok(animated.nodes.some(n=>n.glow));assert.match(renderSVG(animated),/drop-shadow/);
  const done=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,1);assert.equal(done.motion,false);
- assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path'],{factor:.5})]}),/movement rule/,'generic transforms cannot bypass the indivisible substrate');
+ const blocked=evaluateRecipe({...source,operations:[op('scale','size',['path'],{factor:.5})]});
+ assert.deepEqual(blocked.nodes,evaluated.nodes,'rejected transforms preserve the indivisible substrate');
+ assert.ok(blocked.diagnostics.some(d=>d.operation==='scale'&&d.code==='unsupported-substrate-transform'));
  assert.throws(()=>validateRecipe(recipe([{id:'p',generator:'path-rule',params:{x:.5}}])),/Unsupported range/);
  assert.throws(()=>evaluateRecipe(recipe([{id:'parent',generator:'group',params:{x:.5},children:source.components}])),/inherited offsets/);
- assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path:edge:0:-2:0:0'],{factor:.5})]}),/movement rule/,'generated-cell selection cannot bypass substrate rules');
+ const blockedCell=evaluateRecipe({...source,operations:[op('scale','size',['path:edge:0:-2:0:0'],{factor:.5})]});
+ assert.deepEqual(blockedCell.nodes,evaluated.nodes,'generated-cell selection cannot bypass substrate rules');
+ assert.ok(blockedCell.diagnostics.some(d=>d.operation==='scale'&&d.code==='unsupported-substrate-transform'));
  const origin={x:9.3,y:8.7};let id=0;
  const inserted=insertConstruction({...recipe([]),atomnic:{viewSize:40,viewX:0,viewY:0}},source,origin,()=>`path-${++id}`).recipe;
  assert.equal(inserted.components[0].params.x,9);assert.equal(inserted.components[0].params.y,9);
@@ -1522,4 +1526,21 @@ test('drawing playback starts on the visible frame and never catches up stalled 
  const resumed=createPlaybackClock(times[2],12);
  assert.equal(resumed(50000),times[2],'paused time is excluded');
  almost(resumed(50100),times[2]+1/12);
+});
+
+
+test('legacy mfx on a substrate path cannot poison subsequent drawing or later operations',async()=>{
+ const {SQUARE_PATH_RULE}=await import('../src/omnic/pathRule.ts');
+ const base=validateRecipe({...recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify(SQUARE_PATH_RULE)}}],[op('old-mfx','oscillate',['path'])]),atomnic:{mode:'free'}});
+ const before=evaluateRecipe({...base,operations:[]});
+ const recovered=evaluateRecipe(base);
+ assert.deepEqual(recovered.nodes,before.nodes);
+ assert.equal(recovered.motion,false,'rejected motion does not start playback');
+ assert.equal(atomnicEditable(base,recovered),true,'a rejected operation must not leave the pen disabled');
+ assert.ok(recovered.diagnostics.some(d=>d.operation==='old-mfx'&&d.code==='unsupported-substrate-transform'));
+ const drawn=addAtom(base,{x:40,y:40},'new-dot');
+ const result=evaluateRecipe({...drawn,operations:[...drawn.operations,op('paint','fill',['new-dot'],{color:'#ff0000'})]});
+ assert.ok(result.nodes.some(n=>n.componentId==='new-dot'&&n.color==='#ff0000'),'drawing and later valid operations still execute');
+ assert.deepEqual(result.nodes.filter(n=>n.componentId==='path'),before.nodes.filter(n=>n.componentId==='path'));
+ assert.equal(drawn.operations[0].enabled,true,'recovery does not silently rewrite saved operations');
 });
