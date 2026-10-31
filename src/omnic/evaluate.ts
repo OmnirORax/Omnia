@@ -1,17 +1,19 @@
+import {pathTrace,readPathRule} from './pathRule.ts';
 import { snappedAngle } from "./rotation.ts";
 import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params, type RecipeResolver } from "./model.ts";
 import { defaultParams, definition } from "./registry.ts";
-export type StructuralNode = { id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; highlight?:{fraction:number;start:number;color:string;opacity:number} };
+export type StructuralNode = { id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
 export type Diagnostic = { code:string; message:string; target?:string; operation?:string };
 export type InterpretationResult = { operation:string; kind:"count"; value:number; scope:string[] };
-export type Evaluation = { results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
-type Generation={component:Component;root:StructuralNode;params:Params};
+export type Evaluation = { substrates?:{x:number;y:number;width:number;height:number}[]; results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
+type Generation={component:Component;root:StructuralNode;params:Params;origin:{x:number;y:number}};
 const num=(p:Params,key:string,base=0)=>typeof p[key]==="number"?p[key] as number:base;
 const rad=(degrees:number)=>degrees*Math.PI/180;
 export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Evaluation {
   const recipe=validateRecipe(input);
   if(!Number.isFinite(time))throw Error("Invalid evaluation time.");
   const nodes:StructuralNode[]=[],diagnostics:Diagnostic[]=[],frames:Frame[]=[],results:InterpretationResult[]=[];
+  const substrates:NonNullable<Evaluation["substrates"]>=[];
   const generations=new Map<string,Generation>(),byId=new Map<string,StructuralNode>();
   let work=0,motion=false;
   const spend=(n=1)=>{work+=n;if(work>LIMITS.work)throw Error("Omnic evaluation work budget exceeded.");};
@@ -27,6 +29,20 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
     const {root,component,params:p}=generation;
     const point=(suffix:string,x:number,y:number,kind:StructuralNode["kind"],radius=0)=>push({...base(root.id+suffix,root.componentId,root.id,p,x,y),kind,radius});
     if(component.generator==="dot"||component.generator==="ring")point(":shape",root.x,root.y,component.generator,num(p,component.generator==="ring"?"radius":"size",6));
+    if(component.generator==="path-rule"){
+      if(!Number.isInteger(root.x)||!Number.isInteger(root.y))throw Error("Substrate-bound positions require whole units, including inherited offsets.");
+      substrates.push({x:generation.origin.x+num(p,"left",-100),y:generation.origin.y+num(p,"top",-100),width:num(p,"right",100)-num(p,"left",-100),height:num(p,"bottom",100)-num(p,"top",-100)});
+      const rule=readPathRule(String(p.rule));
+      const trace=pathTrace(rule,{left:generation.origin.x+num(p,"left",-100)-root.x,top:generation.origin.y+num(p,"top",-100)-root.y,right:generation.origin.x+num(p,"right",100)-root.x,bottom:generation.origin.y+num(p,"bottom",100)-root.y,round:p.round!==false},time);
+      motion ||= trace.moving;
+      for(const cell of trace.cells){
+        const node=point(`:cell:${cell.x}:${cell.y}`,root.x+cell.x,root.y+cell.y,rule.d?"dot":"line",rule.d?.22:0);
+        node.opacity=cell.coverage/100;node.thickness=rule.d?0:1;
+        if(!rule.d){node.x-=.5;node.x2=node.x+1;node.y2=node.y;node.cap="butt";}
+      }
+      if(rule.a&&trace.particle){const node=point(":particle",root.x+trace.particle.x,root.y+trace.particle.y,"dot",.4);node.color="#ffffff";node.fill=true;node.thickness=0;node.glow=true;}
+      if(trace.reason==="boundary"||trace.reason==="budget")diagnostics.push({code:`path-${trace.reason}`,message:trace.reason==="boundary"?"Path paused at substrate boundary.":"Path paused at bounded trace capacity.",target:root.id});
+    }
     if(component.generator==="rings"){
       let radius=num(p,"radius",20),gap=num(p,"spacing",20);
       const angle=rad(num(p,"angle")),drift=num(p,"drift"),count=num(p,"count",3);
@@ -70,7 +86,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       if(level>LIMITS.depth)throw Error("Omnic combined component/reference depth exceeded.");
       const p={...defaultParams(definition(c.generator,true)!),...c.params},id=prefix+c.id;
       const root=push(base(id,id,owner,p,origin.x+num(p,"x"),origin.y+num(p,"y")));
-      const generation={component:c,root,params:p};generations.set(id,generation);
+      const generation={component:c,root,params:p,origin};generations.set(id,generation);
       generate(generation);
       c.children?.forEach(child=>component(child,id,root,level+1));
       if(c.generator==="reference"){
@@ -130,6 +146,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       const p={...defaultParams(definition(kind)!),...op.params,...override};
       const targets=affected();
       const primitives=targets.filter(node=>node.kind!=="group");
+      if(kind!=="fill"&&targets.some(node=>definition(generations.get(node.componentId)?.component.generator??"",true)?.substrateBounds))throw Error("Substrate-bound generators must change their movement rule instead of applying geometry transforms.");
       const center=kind==="rotate"&&p.pivot==="center"&&primitives.length?{
         x:(Math.min(...primitives.map(n=>Math.min(n.x-n.radius,n.x2??n.x)))+Math.max(...primitives.map(n=>Math.max(n.x+n.radius,n.x2??n.x))))/2,
         y:(Math.min(...primitives.map(n=>Math.min(n.y-n.radius,n.y2??n.y)))+Math.max(...primitives.map(n=>Math.max(n.y+n.radius,n.y2??n.y))))/2
@@ -181,5 +198,5 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
   for(const frame of frames)for(const target of frame.scope)if(!byId.has(target)&&!diagnostics.some(d=>d.code==="unresolved-frame-scope"&&d.target===target))diagnostics.push({code:"unresolved-frame-scope",message:`Frame scope ${target} is unresolved.`,target});
   ensureExtent();
   const primitives=nodes.filter(n=>n.kind!=="group"&&generations.has(n.componentId));
-  return {results,nodes,selection,diagnostics,properties:{count:primitives.length,selectedCount:primitives.filter(n=>selection.includes(n.id)).length,componentCount:generations.size},frames,motion};
+  return {...(substrates.length?{substrates}:{}),results,nodes,selection,diagnostics,properties:{count:primitives.length,selectedCount:primitives.filter(n=>selection.includes(n.id)).length,componentCount:generations.size},frames,motion};
 }

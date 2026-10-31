@@ -39,7 +39,7 @@ import { ProgressiveConfiguration } from '../ui/ProgressiveConfiguration';
 import { RadialMenu } from '../ui/RadialMenu';
 
 import { VISUAL_FREEDOM_GROUP, type EditableDegree } from '../properties/editableDegrees';
-import { type DegreeEditValue, targetEditorDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
+import { type DegreeEditValue, targetDegrees, targetEditorDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
 import { nameSymbol } from '../ui/nameSymbols';
 import { RangeSettingsScope } from '../ui/RangeControl';
 import { NumericEditorScope } from '../ui/NumericEditorScope';
@@ -119,6 +119,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const [toolId, setToolId] = useState("");
   const [generator, setGenerator] = useState(isNew ? "dot" : "radial"), [reference, setReference] = useState("");
   const [thresholds, setThresholds] = useState(false), [playing, setPlaying] = useState(false);
+  const playback=useRef<{recipe?:Recipe;seconds:number;html?:string;finished?:boolean}>({seconds:0});
   const [copyLabel, setCopyLabel] = useState(entity.label ? `${entity.label} variation` : isNew ? "Omnic object" : "Omnic variation");
   const [error, setError] = useState(""), [notice, setNotice] = useState("");
   const owner = `omnic.draft:${draftId}`;
@@ -140,6 +141,8 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     if (!evaluated.result) return "-50 -50 100 100";
     const atomnicBounds=atomnicViewBounds(recipe.atomnic);
     if(atomnicBounds)return [atomnicBounds.x,atomnicBounds.y,atomnicBounds.width,atomnicBounds.height].join(" ");
+    const substrate=evaluated.result.substrates?.[0];
+    if(substrate)return [substrate.x,substrate.y,substrate.width,substrate.height].join(" ");
     const seen = new Set<Recipe>(), cached = new Map<Recipe,number>();
     const excursion = (current: Recipe): number => {
       const known=cached.get(current);if(known!==undefined)return known;
@@ -226,6 +229,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const reset = () => { setBaseRevision(entity.omnic?.revision ?? null); commit(validateRecipe(entity.omnic ?? initialRecipe ?? createRecipe())); setPlaying(false); setPicked([]); };
   const togglePlay = () => {
     if (!playing && (evaluated.result?.nodes.length ?? 0) > RENDER_BUDGET.omnicAnimatedRoles) { setError(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles. The complete static structure is preserved.`); return; }
+    if(!playing&&playback.current.finished)playback.current={recipe,seconds:0};
     setPlaying(value => !value);
   };
   const stepRotation = () => {
@@ -263,12 +267,14 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     return () => window.removeEventListener("keydown", key, true);
   }, []);
   useEffect(() => {
-    if (!playing || !preview.current) return;
+    if(playback.current.recipe!==recipe)playback.current={recipe,seconds:0};
+    if (!preview.current) return;
+    if(!playing){if(playback.current.html)preview.current.innerHTML=playback.current.html;return;}
     if ((evaluated.result?.nodes.length ?? 0) > RENDER_BUDGET.omnicAnimatedRoles) { setError(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles. Static structure is preserved.`); setPlaying(false); return; }
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (media.matches || document.visibilityState === "hidden") { setPlaying(false); return; }
     let frame = 0, last = 0, slow = 0, visible = true;
-    const start = performance.now();
+    const start = performance.now(),elapsed=playback.current.seconds;
     const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (!visible) setPlaying(false); });
     observer.observe(preview.current);
     const stop = () => { if (document.visibilityState === "hidden" || media.matches) setPlaying(false); };
@@ -278,7 +284,11 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
         last = now;
         try {
           const began = performance.now();
-          preview.current.innerHTML = renderSVG(evaluateRecipe(recipe, resolve, (now - start) / 1000)).replace(/viewBox="[^"]*"/, `viewBox="${viewBox}"`);
+          const seconds=elapsed+(now-start)/1000,next=evaluateRecipe(recipe,resolve,seconds);
+          if(next.nodes.length>RENDER_BUDGET.omnicAnimatedRoles)throw Error(`Animated preview is limited to ${RENDER_BUDGET.omnicAnimatedRoles} generated roles.`);
+          const frameHTML=renderSVG(next).replace(/viewBox="[^"]*"/,`viewBox="${viewBox}"`);
+          preview.current.innerHTML=frameHTML;playback.current={recipe,seconds,html:frameHTML,finished:!next.motion};
+          if(!next.motion){setNotice(next.diagnostics[0]?.message??"Drawing completed.");setPlaying(false);return;}
           slow = performance.now() - began > 12 ? slow + 1 : 0;
           if (slow >= 3) { setNotice("Semantic motion paused to preserve responsiveness; the recipe is unchanged."); setPlaying(false); return; }
         }
@@ -287,7 +297,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
-    return () => { window.cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", stop); media.removeEventListener("change", stop); if (preview.current) preview.current.innerHTML = htmlRef.current; };
+    return () => { window.cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", stop); media.removeEventListener("change", stop); if (preview.current) preview.current.innerHTML = recipeRef.current===recipe?(playback.current.html??htmlRef.current):htmlRef.current; };
   }, [playing, recipe, resolve, html, viewBox]);
   const addGenerator = (kind=generator) => {
     const spec = GENERATORS.find(value => value.id === kind); if (!spec) return;
@@ -337,10 +347,10 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
         const tool=isOperationTool(source);
         const targets=atomnicActive?[...(atomnicBridge?.selected??[])]:picked;
         if(tool&&!targets.length)throw Error('Select a target before applying an operation preset.');
-        const inserted=tool?undefined:insertConstruction(recipeRef.current,source,presetPoint.current,id);
+        const inserted=tool?undefined:insertConstruction(recipeRef.current,source,presetPoint.current,id,{...presentationBounds,round:radar});
         const next=inserted?.recipe??applyOperationTool(recipeRef.current,source,targets,id);
         const ids=inserted?.ids??next.operations.slice(recipeRef.current.operations.length).map(op=>op.id);
-        if(commit(next)){if(radar)setPresetSession({ids});if(inserted){setPicked(inserted.roots);atomnicBridge?.select?.(inserted.roots);setFocus({kind:'component',id:inserted.roots[0]});}setError('');}
+        if(commit(next)){if(radar){const editor=targetDegrees(next,ids,[],[],'available').find(degree=>targetParameter(degree).editor);setPresetSession({ids,...(editor?{degree:editor.id}: {})});}if(inserted){setPicked(inserted.roots);atomnicBridge?.select?.(inserted.roots);setFocus({kind:'component',id:inserted.roots[0]});}setError('');}
       }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
     };
   if(radar) {
@@ -386,13 +396,14 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     const presetOptions=presetOpen&&!presetSession?[...PRESETS.map(p=>({id:p.id,label:p.label,symbol:p.symbol??GENERATORS.find(g=>g.id===p.recipe.components[0]?.generator)?.symbol??'❉',recipe:p.recipe})),...objects.filter(o=>o.omnic&&(presetIds.includes(o.id)||isOperationTool(o.omnic))).map(o=>({id:`saved:${o.id}`,label:o.label||o.id,symbol:isOperationTool(o.omnic!)?'✥':'❉',recipe:o.omnic!}))]:[];
     const presetPanel=presetSession?presetDegree?<PresetDegreeEditor key={`${presetDegree.id}:${presetSession.configure}`} recipe={recipe} degree={presetDegree} configure={presetSession.configure} onDismiss={closePreset} onPreview={value=>changePresetDegree(presetDegree,value,true)} onCommit={value=>changePresetDegree(presetDegree,value)}/>:<RadialMenu items={radialTree([...presetDegrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changePresetDegree(degree,value,true)} onCommit={value=>changePresetDegree(degree,value)} onOpen={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})}/>,content:<><UIAction registerOnly id={`omnic:preset-dof:${degree.id}`} category="Omnic" label={degree.label} onClick={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})} onConfigure={()=>setPresetSession({...presetSession,degree:degree.id,configure:true})}/><FunctionControl id={`omnic:preset-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.axes?'Vector':targetDegreeValue(recipe,degree)} · Right-click configures snaps`}/></>}))])} onClose={closePreset}/>:<RadialMenu items={presetOptions.map(option=>({id:option.id,label:option.label,symbol:option.symbol,group:[],content:<button type="button" title={option.label} aria-label={option.label} onClick={()=>choosePreset(option.recipe)}>{option.symbol}</button>}))} onClose={closePreset}/>;
     const panel=presetOpen?<form style={{display:'contents'}} onSubmit={event=>{event.preventDefault();confirmPreset();}} onKeyDown={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&event.target.type==='range'){event.preventDefault();event.stopPropagation();confirmPreset();}}}>{presetPanel}<button type="submit" hidden disabled={!presetSession}/></form>:legacyPanel;
+    const feedback=error||evaluated.error||notice||evaluated.result?.diagnostics[0]?.message;
     return <OperationReferenceScope surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope surface={preview} cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer-radar" data-selection-context><DofInformationHeader/>
       <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importFile}/>
       <UIField id="omnic:copy-name" label={isNew?'Glyph name':'Copy name'} category="Omnic" registerOnly><label>{isNew?'Glyph name':'Copy name'} <input aria-label={isNew?'Glyph name':'Copy name'} value={copyLabel} maxLength={200} onChange={event=>setCopyLabel(event.target.value)}/></label></UIField>
       <UIAction id="omnic:atomnic-mode" label={atomnicActive?'Atomnic on · turn off':'Atomnic off · turn on'} category="Omnic" registerOnly onClick={()=>{setRadarPanel(null);commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}});}}/>
       <AtomnicEditor cancelPreview={()=>setSample(null)} radar onSelect={ids=>{setPicked([...ids]);setFocus(ids[0]?{kind:'component',id:ids[0]}:null);}} activateTarget={targetContext.activate} bindParameters={targetContext.active} recipe={recipe} evaluation={evaluated.result} commit={commit} onBridge={setAtomnicBridge} surfaceRef={preview} markupRef={htmlRef} presentationBounds={presentationBounds} normalSelection={picked} documentEntries={entries} modeControl={<FunctionControl id="omnic:atomnic-mode" mirror symbol="⠒" symbolOpacity={atomnicActive?1:.5} tooltip={`Atomnic ${atomnicActive?'on':'off'} · toggle without replacing the composition`}/>} extraPanel={panel} panelStage={presetSession?.degree??(presetSession?'preset-dofs':radarPanel?.kind)} dismissPanel={()=>{if(presetOpen)closePreset();else if(radarPanel?.kind==='parameters'&&currentIndex>0)setRadarPanel({kind:'parameters',index:currentIndex-1});else setRadarPanel(null);}} panelRadial={presetOpen&&(!presetDegree||targetParameter(presetDegree).kind==='number')} confirmPanel={presetSession?confirmPreset:radarPanel?.kind==='parameters'?()=>currentIndex+1<fields.length?setRadarPanel({kind:'parameters',index:currentIndex+1}):setRadarPanel(null):radarPanel?.kind==='reference'&&reference?()=>{addGenerator('reference');setRadarPanel(null);}:radarPanel?.kind==='scope'&&activeOperation?()=>{changeOperation(activeOperation.id,{targets:[...picked]});setRadarPanel(null);}:undefined} onEmptyContext={point=>{presetPoint.current=point;setSample(null);setPresetSession(null);setRadarPanel({kind:'presets'});}} closePanel={()=>{if(presetOpen){if(presetSession?.degree){setSample(null);setPresetSession({...presetSession,degree:undefined});return;}closePreset();}else setRadarPanel(null);}}
         onPickGeometry={(point,role,replaceSelection=false)=>{const node=pickStructuralNode(evaluated.result?.nodes??[],point,role);const component=node&&(components.find(c=>c.id===node.componentId)??components.find(c=>node.id.startsWith(`${c.id}:ref:`)));if(component){const ids=!replaceSelection&&picked.includes(component.id)?picked:[component.id];setFocus({kind:'component',id:component.id});setPicked(ids);return ids;}return [];}}/>
-      {(error||evaluated.error||notice)&&<small className="omnic-radar-feedback" role={error||evaluated.error?'alert':'status'}>{error||evaluated.error||notice}</small>}
+      {feedback&&<small className="omnic-radar-feedback" role={error||evaluated.error?'alert':'status'}>{feedback}</small>}
     </div></RangeSettingsScope></NumericEditorScope></OperationReferenceScope>;
   }
   return <OperationReferenceScope surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope surface={preview} cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer" data-selection-context><DofInformationHeader/>

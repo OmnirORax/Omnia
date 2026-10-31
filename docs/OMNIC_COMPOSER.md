@@ -972,3 +972,13 @@ focused synthetic check verifies missing Rotation on a ring gives feedback while
 MS remains open, valid Self opens the rotation preview and clears feedback, and
 the Relations category is absent. No browser suite ran; general user-workspace
 acceptance remains pending.
+
+## Ordered path-rule experiment
+
+Right-click empty Composer space → ↱ Path rule opens an ordered circular direction
+editor directly, without reference selection. Whole-unit instruction counts use
+⠒❉. Loop, quarter turn, closure, fixed move limit, connected/separate trace,
+per-traversal coverage and drawing speed live in the same rule. Existing Play/pause
+runs the glowing drawing particle; fixed generation defaults to 100 unit moves.
+See [path-rule controls, bounds, limits and acceptance](OMNIC_PATH_RULES.md).
+This Composer-only experiment has model coverage; interactive acceptance is pending.

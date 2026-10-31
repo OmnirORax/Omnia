@@ -186,7 +186,7 @@ test('ungroup dissolves multiple nearest levels only when selected and retains l
 });
 
 test('all starter generators and presets reconstruct deterministically without drawing or renderer objects',()=>{
-  assert.deepEqual(GENERATORS.map(g=>g.id),['count-grid','dot','ring','rings','line','chain','radial','group','reference']);
+  assert.deepEqual(GENERATORS.map(g=>g.id),['path-rule','count-grid','dot','ring','rings','line','chain','radial','group','reference']);
   for(const preset of PRESETS){
     const source=createRecipe(preset.id), before=JSON.stringify(source), a=evaluateRecipe(source),b=evaluateRecipe(validateRecipe(JSON.parse(before)));
     assert.deepEqual(a,b);assert.equal(JSON.stringify(source),before);assert.equal(renderSVG(a),renderSVG(b));
@@ -1205,4 +1205,74 @@ test('relational DOFs remain available directly without a Relations category wra
   assert.ok(degrees.every(d=>!d.group?.some(group=>group.id==='relation')));
   for(const degree of degrees.filter(d=>d.axes||d.id==='omnic.angle'||d.id==='omnic.radius'))assert.equal(degree.group?.length??0,0,'Position, Rotation and Radius are direct dial entries');
  }
+});
+
+test('path rules preserve click order, whole-unit motion and closure after complete instructions',async()=>{
+ const {DEFAULT_PATH_RULE,SQUARE_PATH_RULE,pathTrace,readPathRule}=await import('../src/omnic/pathRule.ts');
+ const bounds={left:-10,top:-10,right:10,bottom:10};
+ assert.equal(pathTrace(DEFAULT_PATH_RULE,bounds).steps,0,'a new wheel starts without implicit instructions');
+ const square=pathTrace(SQUARE_PATH_RULE,bounds);
+ assert.equal(square.reason,'closure');assert.equal(square.steps,8);assert.deepEqual(square.particle,{x:0,y:0});
+ assert.deepEqual(square.cells.slice(0,3).map(({x,y})=>[x,y]),[[0,-1],[0,-2],[1,-2]]);
+ const explicit=pathTrace({...DEFAULT_PATH_RULE,s:[[0,2],[90,2],[180,2],[270,2]],c:true},bounds);
+ assert.deepEqual(explicit.cells,square.cells,'explicit directions and compressed turning generate the same square');
+ for(const steps of [0,.5,1.1,-1,101])assert.throws(()=>readPathRule(JSON.stringify({...DEFAULT_PATH_RULE,s:[[0,steps]]})),/whole-unit/);
+ assert.throws(()=>readPathRule(JSON.stringify({...SQUARE_PATH_RULE,t:45})),/quarter turns/);
+ assert.throws(()=>pathTrace({...SQUARE_PATH_RULE,s:[[0,.5]]},bounds),/whole-unit/,'engine entry also validates program data');
+ const crossing=pathTrace({...DEFAULT_PATH_RULE,s:[[90,1],[270,1],[180,1]],c:true},bounds);
+ assert.equal(crossing.steps,3,'crossing the origin inside a sequence does not stop early');
+});
+
+test('path tracing bounds fixed work by unit moves and stops before an indivisible boundary move',async()=>{
+ const {DEFAULT_PATH_RULE,pathTrace}=await import('../src/omnic/pathRule.ts');
+ const straight={...DEFAULT_PATH_RULE,s:[[90,100]],l:true,m:3};
+ const result=pathTrace(straight,{left:-20,top:-20,right:20,bottom:20});
+ assert.equal(result.steps,3);assert.equal(result.reason,'limit');assert.deepEqual(result.particle,{x:3,y:0});
+ const edge=pathTrace({...straight,m:100},{left:-2,top:-2,right:2.2,bottom:2});
+ assert.equal(edge.steps,1);assert.equal(edge.reason,'boundary');assert.deepEqual(edge.particle,{x:1,y:0},'a partial final unit is never drawn');
+ const running=pathTrace({...straight,a:true,r:1},{left:-2,top:-2,right:2,bottom:2},0);
+ const cornerRule={...DEFAULT_PATH_RULE,s:[[90,1],[180,1]]},domain={left:-2,top:-2,right:2,bottom:2};
+ assert.equal(pathTrace(cornerRule,domain).steps,2);
+ assert.equal(pathTrace(cornerRule,{...domain,round:true}).steps,1,'circular substrates reject empty bounding-box corners');
+ assert.equal(running.reason,'running');assert.equal(running.moving,true,'a future boundary stop is not reported at time zero');
+});
+
+test('path coverage is additive per traversal, frame independent and bounded for indefinite loops',async()=>{
+ const {DEFAULT_PATH_RULE,pathTrace}=await import('../src/omnic/pathRule.ts');
+ const bounds={left:-5,top:-5,right:5,bottom:5};
+ const rule={...DEFAULT_PATH_RULE,s:[[90,1],[270,1]],l:true,p:10,m:20};
+ const fixed=pathTrace(rule,bounds);
+ assert.equal(fixed.cells.length,2);assert.ok(fixed.cells.every(c=>c.coverage===100),'ten passes of 10% reach exactly 100%');
+ const fine=pathTrace({...rule,p:1,m:200},bounds);assert.ok(fine.cells.every(c=>c.coverage===100),'one hundred passes of 1% reach exactly 100%');
+ const animated={...rule,a:true,r:5};
+ for(const time of [0,.1,.3,1,2,3])pathTrace(animated,bounds,time);
+ const atFour=pathTrace(animated,bounds,4);assert.deepEqual(atFour.cells,fixed.cells);assert.deepEqual(atFour.particle,fixed.particle);
+ const huge=pathTrace(animated,bounds,1e12);assert.equal(huge.cells.length,2);assert.equal(huge.moving,true);assert.ok(huge.cells.every(c=>c.coverage===100));
+ const discrete=pathTrace({...rule,d:true},bounds);assert.deepEqual(discrete.cells,fixed.cells,'trace style cannot alter traversal or deposition');
+});
+
+test('path generator integrates persistence, rendering, target edits and captured substrate bounds',async()=>{
+ const {SQUARE_PATH_RULE}=await import('../src/omnic/pathRule.ts');
+ const program=JSON.stringify(SQUARE_PATH_RULE);
+ const source=recipe([{id:'path',generator:'path-rule',params:{rule:program}}]);
+ const evaluated=evaluateRecipe(validateRecipe(JSON.parse(JSON.stringify(source))));
+ const trace=evaluated.nodes.filter(n=>n.kind!=='group');assert.equal(trace.length,8);assert.ok(trace.every(n=>n.cap==='butt'&&n.thickness===1));
+ assert.match(renderSVG(evaluated),/stroke-linecap="butt"/);
+ const marks=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,d:true})}}]));assert.ok(marks.nodes.filter(n=>n.kind!=='group').every(n=>n.kind==='dot'));
+ const animated=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,.5);
+ assert.ok(animated.motion);assert.ok(animated.nodes.some(n=>n.glow));assert.match(renderSVG(animated),/drop-shadow/);
+ const done=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,1);assert.equal(done.motion,false);
+ assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path'],{factor:.5})]}),/movement rule/,'generic transforms cannot bypass the indivisible substrate');
+ assert.throws(()=>validateRecipe(recipe([{id:'p',generator:'path-rule',params:{x:.5}}])),/Unsupported range/);
+ assert.throws(()=>evaluateRecipe(recipe([{id:'parent',generator:'group',params:{x:.5},children:source.components}])),/inherited offsets/);
+ assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path:cell:0:-1'],{factor:.5})]}),/movement rule/,'generated-cell selection cannot bypass substrate rules');
+ const origin={x:9.3,y:8.7};let id=0;
+ const inserted=insertConstruction({...recipe([]),atomnic:{viewSize:40,viewX:0,viewY:0}},source,origin,()=>`path-${++id}`).recipe;
+ assert.equal(inserted.components[0].params.x,9);assert.equal(inserted.components[0].params.y,9);
+ assert.equal(inserted.components[0].params.left,-20);assert.equal(inserted.components[0].params.right,20);
+ const ruleDegree=targetDegrees(inserted,[inserted.components[0].id]).find(d=>d.id==='omnic.pathRule');assert.ok(ruleDegree);
+ assert.equal(targetParameter(ruleDegree).editor,'path-rule');
+ assert.throws(()=>writeTargetDegree(inserted,ruleDegree,'broken'),/Invalid path rule/);
+ const budget=evaluateRecipe(recipe([{id:'long',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,s:[[90,100]],t:0,c:false,a:true}),left:-1000,right:1000,top:-1000,bottom:1000}}]),undefined,10000);
+ assert.ok(budget.nodes.length<=194);assert.ok(budget.diagnostics.some(d=>d.code==='path-budget'));
 });

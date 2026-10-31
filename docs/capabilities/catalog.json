@@ -1008,7 +1008,7 @@
       "id": "omnic.motion",
       "title": "mfx: oscillation and playback",
       "where": "Reveal the Composer rim → mfx → Oscillation. Select target geometry first; no selection applies to the current composition.",
-      "behavior": "Oscillation is an ordinary registered motion effect applicable to existing geometry, not a construction preset. The mfx category is discovered from operator metadata and currently contains Oscillation. Choosing it reuses or adds a scoped operation, opens shared radial DOFs and starts the existing bounded preview when allowed. Accepted settings persist; replay/play-pause and saved recipes retain their existing identity.",
+      "behavior": "Oscillation is an ordinary registered motion effect applicable to existing geometry, not a construction preset. The mfx category is discovered from operator metadata and currently contains Oscillation. Choosing it reuses or adds a scoped operation, opens shared radial DOFs and starts the existing bounded preview when allowed. Accepted settings persist; replay/play-pause and saved recipes retain their existing identity. Shared playback now retains its elapsed clock and displayed frame on pause, resumes from that point, resets on recipe edits and checks aggregate generated-role count before every animation frame.",
       "steps": [
         {
           "do": "Select a line, ring, group or several units; open mfx → Oscillation.",
@@ -1030,7 +1030,7 @@
       "limits": "256 animated roles / 12fps; hidden/reduced-motion/slow previews pause. Atlas nodes are static.",
       "status": "Implemented for review in the open PR; browser acceptance pending",
       "verification": {
-        "browser": "mfx scope, settings and playback await user testing. No browser suite run.",
+        "browser": "mfx scope, settings and playback await user testing. No browser suite run. Shared pause/resume and completed-drawing replay changes await user acceptance.",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
       "related": [],
@@ -2545,6 +2545,63 @@
       "related": [
         "omnic.atomnic",
         "omnic.compose"
+      ]
+    },
+    {
+      "id": "omnic.path-rule",
+      "title": "Ordered direction paths, unit traces and drawing",
+      "where": "Omnic Composer → right-click empty space → ↱ Path rule. Existing paths: right-click their trace → Path rule. No reference selection is required for rule authoring.",
+      "behavior": "A circular cardinal-direction editor appends numbered instructions in click order. Each instruction has a whole-unit count edited with the existing math dial. Configure a constant quarter turn after each instruction, looping and closure; fixed generation defaults to at most 100 unit moves. Drawing uses the same traversal with a glowing particle and existing Play/pause. Connected substrate cells or separate marks share additive coverage per traversal, capped at 100%. Creation captures the current substrate bounds, including the radar circle; a blocked whole-unit move pauses. Playback retains elapsed time and its displayed frame on pause, replays after completion and resets after rule edits. Rule changes use existing preset/target setters and history. Spatial transforms cannot bypass the substrate unit contract.",
+      "steps": [
+        {
+          "do": "Right-click empty Composer space and choose ↱ Path rule. Click ↑, →, ↓, ←.",
+          "expect": "The circular editor opens immediately, with no MS request. A fresh rule contains no instructions; clicks become instructions 1–4, each initially one unit. The trace updates in that order."
+        },
+        {
+          "do": "Click a numbered instruction or the wheel centre, then change its count using the math dial.",
+          "expect": "Only that instruction changes. Counts are positive integers; no fractional or zero move is accepted. The selected chip shows the count."
+        },
+        {
+          "do": "Use ↺ to load the example square, then inspect ↻, ⟳ and ⊙ through their tooltips.",
+          "expect": "↑2, turn 90°, Loop and Closure generate an eight-unit square with side length 2. Closure stops at the origin after a complete sequence."
+        },
+        {
+          "do": "Disable Closure, set per-pass coverage to 10%, and set the fixed maximum to 80 moves.",
+          "expect": "The square is traversed ten times and every visited cell reaches exactly 100% coverage. Increasing the maximum does not increase saturation beyond 100%."
+        },
+        {
+          "do": "Switch to Drawing mode, use its Play/pause control, pause and resume; then enable Closure and replay.",
+          "expect": "The glowing particle follows unit moves. Pausing retains the trace and resuming continues its clock; closure retains the final frame. Replay after completion starts from the origin. Editing a rule starts a fresh run."
+        },
+        {
+          "do": "Create a straight path toward the substrate edge; toggle separate marks/connected trace and inspect the ≤100 limit.",
+          "expect": "The next whole cell must fit inside the captured bounds, including the radar circle. No partial final move is drawn. Trace style changes neither movement nor deposition; fixed generation counts unit moves, not instructions."
+        },
+        {
+          "do": "Close and reopen an existing path through its target DOFs, edit a count, then use Undo.",
+          "expect": "The same rule editor opens directly, without an MS reference request. The program persists and the normal history restores the previous accepted rule."
+        }
+      ],
+      "reference": "docs/OMNIC_PATH_RULES.md",
+      "sources": [
+        "src/omnic/pathRule.ts",
+        "src/omnic/PathRuleEditor.tsx",
+        "src/omnic/registry.ts",
+        "src/omnic/evaluate.ts",
+        "src/omnic/tools.ts",
+        "src/omnic/Composer.tsx"
+      ],
+      "actions": [],
+      "gestures": [],
+      "limits": "First experiment: cardinal directions and quarter turns, eight ordered instructions, 1–100 units per instruction, fixed cap 1–10000 moves (default 100), additive coverage 1–100%, speed 1–60 units/s. One-unit substrate-cell resolution; no arbitrary-angle or subpixel painting. Captured substrate bounds are not yet editable. Each trajectory is bounded to 192 cells/4096 transitions, with 32 cached plans and existing aggregate animation safeguards. Playback/saturation snapshots are transient; no durable painted-substrate storage, branching, bounce/wrap or multi-reference generation. Ordinary geometry transforms are unavailable on substrate-bound paths; use their rule and whole-unit Position.",
+      "status": "Implemented for review in the feature PR; production unchanged; browser acceptance pending",
+      "verification": {
+        "automated": "Model regressions exercise ordered/compressed square equivalence, minimum-unit and import validation, closure ordering, boundary and fixed limits, additive 10%/1% saturation, time-independent coverage, periodic loops, saved reconstruction, SVG projection, target editing and transform guards. Local test/type/build/backend gates run before delivery.",
+        "browser": "Awaiting user testing of wheel ordering, count edits, connected/separate traces, accumulation, animation controls, pause/resume and bounds. No browser suite run."
+      },
+      "related": [
+        "omnic.atomnic",
+        "omnic.motion"
       ]
     }
   ]

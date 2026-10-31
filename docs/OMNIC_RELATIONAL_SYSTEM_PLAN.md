@@ -718,3 +718,20 @@ DOF is the explicit entry, with existing R and ordinary dragging retained. This
 supersedes earlier hover activation guidance. Standalone DOF dials reveal immediate
 category rows automatically; attachment follows actual parent-button centres and
 edges rather than outer dial radii. Browser acceptance remains pending.
+
+### E13 — ordered unit-path construction (2026-10-31)
+
+User-approved experiment: a circular direction program with click-defined order,
+whole-unit counts, optional per-instruction turning, looping/closure, bounded fixed
+generation and particle drawing on a finite substrate. Continuous means keeping the
+trace connected while movement remains indivisible; it does not mean sub-unit
+motion. Additive coverage is per traversal, independent of refresh rate. This is a
+Composer-only construction experiment; it does not replace MS or fractional DOFs.
+
+See [the implementation/acceptance contract](OMNIC_PATH_RULES.md). Initial direction
+domain is cardinal, with quarter turns. One generic pure engine drives fixed and
+animated results; the square is an example rule. Existing math dial, writable
+property metadata, preset/target editors, history and shared playback are reused.
+Bounds are captured at construction, and cyclic trajectories are evaluated without
+unbounded trace logs. Model checks precede publication; all interactive acceptance
+remains pending. Earlier multi-selection discussion is unresolved and unchanged.

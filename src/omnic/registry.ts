@@ -1,16 +1,17 @@
+import {DEFAULT_PATH_RULE,readPathRule} from './pathRule.ts';
 import type {CyclicSelection} from '../properties/stateSelection.ts';
 import { UNIT_FREEDOM_GROUP, VISUAL_FREEDOM_GROUP, type FreedomPresentation } from "../properties/editableDegrees.ts";
 import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = { significantThresholds?:readonly {id:string;value:number}[]; selection?:CyclicSelection; unit?:string; measurement?:'center-x'|'center-y'|'radius'|'length'; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
+export type Parameter = { editor?:"path-rule"; significantThresholds?:readonly {id:string;value:number}[]; selection?:CyclicSelection; unit?:string; measurement?:'center-x'|'center-y'|'radius'|'length'; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
   highlight: () => void; setCount: (count: number) => void; select: () => void; connect: () => void; extract: () => void;
 };
-export type Definition = { id: string; label: string; symbol?: string; parameters: readonly Parameter[]; description?: string; input?: readonly string[]; output?: "structure"|"selection"|"property"; category?: string; preconditions?: readonly string[]; apply?: (context:OperatorContext) => void };
+export type Definition = { substrateBounds?:boolean; id: string; label: string; symbol?: string; parameters: readonly Parameter[]; description?: string; input?: readonly string[]; output?: "structure"|"selection"|"property"; category?: string; preconditions?: readonly string[]; apply?: (context:OperatorContext) => void };
 const number = (key: string, property: string, label: string, initial: number, min: number, max: number, step = .1, thresholds?:number[]): Parameter => ({key,property,label,kind:"number",initial,min,max,step,thresholds,significantThresholds:[]});
 const count:Parameter = {...number("count","omnic.count","Count",6,1,64,1,[1,2,3,4,6,8,12,16,32,64]),integer:true,freedom:{label:"Count",symbol:"●●",group:[UNIT_FREEDOM_GROUP]}};
 const radius:Parameter = {...number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]),unit:'length',measurement:'radius',freedom:{label:"Radius",symbol:"⊖"}};
@@ -24,6 +25,11 @@ const x:Parameter = {...number("x","omnic.coordinate.x","Position X",0,-300,300,
 const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,1),measurement:'center-y',freedom:{vector:{id:"omnic.position",label:"Position",symbol:"⊕",axis:"y"},label:"Position Y",symbol:"⊕Y"}};
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
+  {id:"path-rule",label:"Path rule",symbol:"↱",substrateBounds:true,parameters:[
+    {key:"rule",property:"omnic.pathRule",label:"Path rule",kind:"text",editor:"path-rule",initial:JSON.stringify(DEFAULT_PATH_RULE),freedom:{label:"Path rule",symbol:"↱"}},
+    {...x,integer:true},{...y,integer:true},color,
+    {key:"round",property:"omnic.substrate.round",label:"Circular substrate",kind:"toggle",initial:true,when:()=>false},
+    ...["left","top","right","bottom"].map(key=>({...number(key,`omnic.substrate.${key}`,`Substrate ${key}`,key==="left"||key==="top"?-100:100,-10000,10000,1),when:()=>false}))]},
   {id:"count-grid",label:"Count grid",symbol:"⬤",parameters:[{...count,initial:0,min:0,max:512},size,...paint,x,y]},
   {id:"dot",label:"Dot / disk",symbol:"●",parameters:[size,angle,...paint,x,y]},
   {id:"ring",label:"Ring / boundary",symbol:"○",parameters:[radius,{...fill,initial:false},thickness,color,opacity,x,y]},
@@ -87,6 +93,7 @@ export function checkedParams(input: unknown, spec: Definition): Record<string,V
     if (p.kind==="select" && !p.options?.some(o=>o.id===value)) throw Error(`Unsupported choice: ${key}`);
     if (p.kind==="text" && (typeof value!=="string" || value.length>200)) throw Error(`Invalid text: ${key}`);
     if (spec.id === "rotate" && key === "stops") rotationStops(String(value));
+    if (p.editor === "path-rule") readPathRule(String(value));
     params[key]=value as Value;
   }
   return params;
