@@ -98,6 +98,6 @@ rendering, target setters, placement capture and blocked transform bypasses.
 Browser interaction, appearance, playback pause/resume and usability await user
 confirmation; no browser suite was run.
 
-Nested math values retain their local hover preview until commit/cancel; they do
-not reset the active stroke with the old program value. The shared cursor is
+The shared dial session retains hover previews internally until commit/cancel;
+path counts use it directly without a local preview wrapper. The shared cursor is
 rendered above contextual popovers. Verify both interactions in the current preview.

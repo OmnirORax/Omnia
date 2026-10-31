@@ -17,11 +17,11 @@ type Point={x:number;y:number};
 type Stroke={erase:boolean;id:number;last:Point;slots:MathematicalStrokeSlot[];visited:readonly string[];before:MathematicalMarks;next:MathematicalMarks;brush:MathematicalSlotMode};
 /** Shared raw-number surface. The consumer supplies its domain and real setters.
  * Right-click chooses a brush; only left-click/held painting writes slot modes. */
-export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview,onCommit,onCancelPreview}:{
+export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview=()=>{},onCommit,onCancelPreview}:{
  value:number;min:number;max:number;integer?:boolean;label?:string;disabled?:boolean;configure?:boolean;
  rule?:{value:string;choices:readonly {id:string;label:string;icon:string}[];onChange:(id:string)=>void};
  editing?:{kind:'value'|'increment';amount:number;minimum:number;maximum:number;onKindChange:(kind:'value'|'increment')=>void;onAmountChange:(amount:number)=>void};
- onPreview:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
+ onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
 }){
  const [base,setBase]=useState<1|2>(2),[clockwise,setClockwise]=useState(true),[orders,setOrders]=useState(1);
  const [sign,setSign]=useState<1|-1>(()=>editing?.kind==='increment'?1:value<0?-1:1),[brush,setBrush]=useState<MathematicalSlotMode>('normal'),[painting,setPainting]=useState(false);

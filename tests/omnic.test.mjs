@@ -1276,3 +1276,18 @@ test('path generator integrates persistence, rendering, target edits and capture
  const budget=evaluateRecipe(recipe([{id:'long',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,s:[[90,100]],t:0,c:false,a:true}),left:-1000,right:1000,top:-1000,bottom:1000}}]),undefined,10000);
  assert.ok(budget.nodes.length<=194);assert.ok(budget.diagnostics.some(d=>d.code==='path-budget'));
 });
+
+test('shared math session retains internal previews when consumers render only committed values',async()=>{
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const session=mathematicalValueSession(1);
+ session.preview(4);
+ assert.equal(session.receive(1),false,'unchanged committed prop is not an external replacement');
+ assert.equal(session.sampling,true);assert.equal(session.expected,4);
+ assert.equal(session.commit(4),4);assert.equal(session.receive(4),false);
+ session.preview(8);assert.equal(session.receive(4),false);
+ assert.equal(session.restore(),4,'cancel restores the committed number');
+ session.preview(8);assert.equal(session.receive(2),true,'an actual external change still interrupts the preview');
+ assert.equal(session.sampling,false);assert.equal(session.restore(),2);
+ const echoed=mathematicalValueSession(1);echoed.preview(4);assert.equal(echoed.receive(4),false);
+ assert.equal(echoed.restore(),1,'existing controlled live-preview consumers retain cancellation');
+});

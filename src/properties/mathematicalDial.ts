@@ -58,11 +58,11 @@ export function mathematicalValueAllowed(value:number,domain:MathematicalDomain)
 /** Gesture bookkeeping only; the property owner remains authoritative. Incoming
  * Undo/Redo or another editor invalidates the old scratch numeral/preview. */
 export function mathematicalValueSession<T>(value:T,equal:(a:T,b:T)=>boolean=(a,b)=>a===b){
- let committed=value,expected=value,sampling=false;
+ let committed=value,expected=value,received=value,sampling=false;
  return {
-  receive(next:T){if(equal(next,expected))return false;committed=expected=next;sampling=false;return true;},
+  receive(next:T){if(equal(next,received))return false;received=next;if(equal(next,expected))return false;committed=expected=next;sampling=false;return true;},
   preview(next:T){expected=next;sampling=true;return next;},
-  commit(next:T){committed=expected=next;sampling=false;return next;},
+  commit(next:T){committed=expected=received=next;sampling=false;return next;},
   restore(){expected=committed;sampling=false;return committed;},
   get sampling(){return sampling;},
   get expected(){return expected;},

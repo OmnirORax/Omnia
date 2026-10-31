@@ -920,11 +920,14 @@ Position/Rotation/Radius/spacing freedoms remain directly available in target,
 preset and applicable MC projections. Units/fill and Appearance remain categories.
 Reference use configuration remains available through the top reference indicator.
 
-Embedded math-dial consumers must feed sampled values back through `value`, and
-restore their local sample on cancellation. An ignored `onPreview` causes the
-dial's controlled-value session to treat its own preview as an external reset,
-interrupting painting before release. Path-rule numeric fields now retain this
-sample locally without committing the construction on hover.
+The shared mathematical-value session owns local preview continuity. Repeated
+unchanged committed props do not invalidate its internal preview or stroke.
+`MathematicalDial` consumers may provide only `value` and `onCommit`; `onPreview`
+is optional for projecting a live sample elsewhere. Existing consumers that echo
+preview values retain cancellation semantics. An actual changed external value
+still interrupts scratch state, and accepted commits remain the cancellation
+baseline. Do not add private sample wrappers for commit-only numeric parameters.
+Path rule counts use the same shared component directly.
 
 The shared tool cursor is a manual top-layer popover, with transparent, noninput
 styling. Popup-target transitions raise it above contextual popovers; no layout
