@@ -5,6 +5,21 @@ import { selfInventory, resolvePropertyTarget } from "../src/properties/registry
 import { PROPERTY_REGISTRY, PROPERTIES, TARGETS } from "../src/appearance/registry.ts";
 import { PROPERTY_TREE } from "../src/appearance/propertyTree.ts";
 import { SETTINGS_PROPERTY_ADAPTERS } from "../src/properties/settingsAdapter.ts";
+import { GENERATORS, OPERATORS } from "../src/omnic/registry.ts";
+// [] explicitly means no additional domain landmarks. Cyclic/reference adapters
+// still contribute their own. Suggested numeric presets are a separate contract.
+for (const definition of [...GENERATORS, ...OPERATORS]) {
+  for (const input of definition.parameters.filter(input => input.kind === "number")) {
+    if (!Array.isArray(input.significantThresholds))
+      throw new Error(`Declare significant thresholds (or []): ${definition.id}/${input.key}`);
+    const ids = new Set();
+    for (const threshold of input.significantThresholds) {
+      if (!threshold.id?.trim() || ids.has(threshold.id) || !Number.isFinite(threshold.value))
+        throw new Error(`Invalid significant threshold: ${definition.id}/${input.key}`);
+      ids.add(threshold.id);
+    }
+  }
+}
 // Registration rejects incompatible definitions and missing properties. This checks
 // the projections/adapters too, so listing a consumer alone is not integration.
 const flatten = nodes => nodes.flatMap(node => [...(node.property ? [node.property] : []), ...flatten(node.children ?? [])]);

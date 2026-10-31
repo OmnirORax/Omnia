@@ -7,12 +7,14 @@ import {stateFieldDomain} from './stateFieldAdapter.ts';
 import {fieldReferenceFor} from './referenceGeometry.ts';
 /** One evaluated source inventory, independent of the receiving preset. */
 export function measuredReferenceFor(snapshot:OperationGeometry,degree:EditableDegree,id:string|undefined,environment?:ResizeRect):MeasuredReference|undefined{
- const ids=[...new Set(degree.targets.map(t=>t.id))];if(ids.length!==1||snapshot.evaluation.motion||snapshot.recipe.operations.some(op=>op.enabled&&(op.operator==='rotate'||op.operator==='oscillate')))return;
+ const ids=[...new Set(degree.targets.map(t=>t.id))];if(ids.length!==1||snapshot.evaluation.motion)return;
  const target=ids[0],source=id??target,parameter=targetParameter(degree),domain=stateFieldDomain(parameter);if(!domain)return;
  const view=snapshot.views.get(source),bounds=source==='@environment'?environment:view?.bounds;
  if(!bounds)return;
  const context=fieldReferenceFor(snapshot,degree,source,environment),unit=domain.unit??domain.quantity??parameter.property;
  const own=snapshot.views.get(target),axis=parameter.measurement==='center-x'?'x':parameter.measurement==='center-y'?'y':undefined;
+ if(axis&&own?.transformed||unit==='length'&&own?.scaled)return;
+ if(parameter.selection&&(own?.transformed||view?.transformed))return;
  const matchOffset=axis&&own?Number(targetDegreeValue(snapshot.recipe,degree))-(own.bounds[axis]+own.bounds[axis==='x'?'width':'height']/2):0;
  const sourceDegrees=source==='@environment'?[]:targetDegrees(snapshot.recipe,[source]);
  const unambiguous=(quantity:string)=>sourceDegrees.filter(d=>targetParameter(d).measurement===quantity).length===1;
@@ -24,6 +26,7 @@ export function measuredReferenceFor(snapshot:OperationGeometry,degree:EditableD
  }
  for(const other of sourceDegrees){
   const input=targetParameter(other),d=stateFieldDomain(input);if(!d||(d.unit??d.quantity)!==unit||input.measurement==='center-x'||input.measurement==='center-y'||input.measurement&&unambiguous(input.measurement))continue;
+  if(view?.transformed&&unit==='length')continue;
   const value=Number(targetDegreeValue(snapshot.recipe,other));if(Number.isFinite(value))measures.push({id:`value:${other.id}`,label:other.label,symbol:other.symbol??'●',unit,value});
  }
  if(!measures.length)return;

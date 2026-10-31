@@ -2,6 +2,47 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Evaluated static reference measurements (2026-10-31)
+
+Static rotation no longer disables all measured references. Evaluated geometry
+supplies unambiguous length/radius, world-axis extents and coordinate boundaries
+through the existing reference/use/rule fields. Position on an untransformed
+consumer can use a rotated source's length or width as a fractional step; length
+Match consumes the source's evaluated length. Source configuration does not edit
+geometry and all existing legality/preview/commit paths remain authoritative.
+
+Evaluation marks transformed/scaled geometry so unsupported consumer conversions
+stay unavailable. This is transient evaluation metadata, not recipe data or another
+reference inventory. A transformed consumer's coordinates/orientation, orientation
+from a transformed source, and scaled consumer length response remain unsupported.
+Raw transformed length parameters are not advertised as evaluated measurements.
+Animated snapshots remain unavailable. Width/height are world-aligned bounds;
+local frames, animation sampling and durable dependencies are separate work.
+
+Focused regressions cover half-length and width steps, exact matching, unaffected
+references, scaled source measurements and rejection of unsupported consumers.
+Browser interaction acceptance remains user-owned.
+
+## Threshold inheritance correction (2026-10-31)
+
+The math dial already configures shared fractions, halving, steps and measured
+ratios; no additional threshold editor or rule store is introduced. Domain
+preparation now merges custom significant thresholds with inherited cyclic axes,
+instead of discarding custom declarations on cyclic inputs. Reference thresholds
+join these in the existing generator. Coincident values remain one candidate with
+all landmark IDs; working limits, integrality and owner legality still filter it.
+
+The normal property build check requires registered numeric inputs to declare
+additional significant thresholds (or []), with finite values and unique nonempty
+IDs. An empty list adds no domain-specific landmarks; it does not suppress those
+supplied by cyclic/reference adapters. This validates declarations, not whether a
+domain's semantic coverage is complete, and does not invent significant values
+from old numeric presets. Future adapters inherit the same merge and execution.
+
+Model regression exercises scalar and cyclic extension inputs across partitions,
+halving and steps, overlapping domain/reference landmarks and rejected states.
+No new browser interaction is added; browser acceptance is not inferred.
+
 ## Rejection feedback and owned picker cleanup (2026-10-31)
 
 An unsupported reference is not the same as a failed MS opening. Shared temporary

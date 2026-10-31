@@ -47,7 +47,7 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
    {button('Turn after each instruction',`↻${directionLabel(rule.t)}`,turn,()=>{setTurn(!turn);setReplace(false);setSwapFrom(null);})}
    {button('Loop instruction sequence','⟳',rule.l,()=>write({l:!rule.l}))}
    {button('Stop at origin after a complete sequence','⊙',rule.c,()=>write({c:!rule.c}))}
-   {button(rule.a?'Drawing mode · use Composer Play to run':'Fixed generation','▶',rule.a,()=>write({a:!rule.a}))}
+   {button(rule.a?'Drawing mode':'Fixed generation','▶',rule.a,()=>write({a:!rule.a}))}
    {button(rule.d?'Separate marks':'Connected trace',rule.d?'⠒':'━',rule.d,()=>write({d:!rule.d}))}
   </div>
   <div className="path-rule-tools">
