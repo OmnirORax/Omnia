@@ -47,21 +47,36 @@ function compile(rule:PathRule,bounds:PathBounds):Plan {
  }
  cache.set(key,result);if(cache.size>32)cache.delete(cache.keys().next().value!);return result;
 }
-export type PathTrace={cells:(Point&{coverage:number})[];particle?:Point;steps:number;reason:Plan['reason']|'limit'|'running';moving:boolean};
+export type PathTrace={segments:(Point&{x2:number;y2:number;coverage:number})[];cells:(Point&{coverage:number})[];particle?:Point;steps:number;reason:Plan['reason']|'limit'|'running';moving:boolean};
 export function pathTrace(rule:PathRule,bounds:PathBounds,time=0):PathTrace {
  if(!Number.isFinite(time)||time<0)throw Error('Invalid path time.');
  const plan=compile(rule,bounds),points=plan.points,available=Math.max(0,points.length-1);
  const requested=rule.a?Math.min(Number.MAX_SAFE_INTEGER,Math.floor(time*rule.r)):rule.m;
  const total=plan.cycle===undefined?Math.min(requested,available):requested;
+ const edges=new Map<string,Point&{x2:number;y2:number;coverage:number}>();
  const counts=new Map<string,Point&{coverage:number}>();
- const deposit=(p:Point,visits:number)=>{const key=`${p.x},${p.y}`,old=counts.get(key);counts.set(key,{...p,coverage:Math.min(100,(old?.coverage??0)+visits*rule.p)});};
+ const deposit=(p:Point,visits:number,from:Point)=>{
+  const a=from.x<p.x||from.x===p.x&&from.y<p.y?from:p,b=a===from?p:from,keyEdge=`${a.x},${a.y}:${b.x},${b.y}`,edge=edges.get(keyEdge);edges.set(keyEdge,{...a,x2:b.x,y2:b.y,coverage:Math.min(100,(edge?.coverage??0)+visits*rule.p)});const key=`${p.x},${p.y}`,old=counts.get(key);counts.set(key,{...p,coverage:Math.min(100,(old?.coverage??0)+visits*rule.p)});};
  const prefix=plan.cycle??available,first=Math.min(total,prefix);
- for(let i=1;i<=first;i++)deposit(points[i],1);
+ for(let i=1;i<=first;i++)deposit(points[i],1,points[i-1]);
  let particle=points[Math.min(total,available)];
  if(plan.cycle!==undefined&&total>prefix){
   const length=available-prefix,cycles=Math.floor((total-prefix)/length),tail=(total-prefix)%length;
-  for(let i=1;i<=length;i++)if(cycles+(i<=tail?1:0))deposit(points[prefix+i],cycles+(i<=tail?1:0));
+  for(let i=1;i<=length;i++)if(cycles+(i<=tail?1:0))deposit(points[prefix+i],cycles+(i<=tail?1:0),points[prefix+i-1]);
   particle=points[prefix+tail];
  }
- return {cells:[...counts.values()],particle:particle?{...particle}:undefined,steps:total,reason:!rule.a&&total===rule.m?'limit':rule.a&&(plan.cycle!==undefined||total<available)?'running':plan.reason,moving:rule.a&&(plan.cycle!==undefined||total<available)};
+ return {segments:mergePathSegments([...edges.values()]),cells:[...counts.values()],particle:particle?{...particle}:undefined,steps:total,reason:!rule.a&&total===rule.m?'limit':rule.a&&(plan.cycle!==undefined||total<available)?'running':plan.reason,moving:rule.a&&(plan.cycle!==undefined||total<available)};
+}
+
+/** Merge adjacent collinear edges at equal coverage into continuous vector strokes. */
+function mergePathSegments(edges:PathTrace['segments']):PathTrace['segments']{
+ const groups=new Map<string,PathTrace['segments']>();
+ for(const edge of edges){const horizontal=edge.y===edge.y2,key=`${horizontal?'h':'v'}:${horizontal?edge.y:edge.x}:${edge.coverage}`;const group=groups.get(key)??[];group.push(edge);groups.set(key,group);}
+ const result:PathTrace['segments']=[];
+ for(const group of groups.values()){
+  const horizontal=group[0].y===group[0].y2;group.sort((a,b)=>horizontal?a.x-b.x:a.y-b.y);
+  let run={...group[0]};
+  for(const edge of group.slice(1)){if(run.x2===edge.x&&run.y2===edge.y){run.x2=edge.x2;run.y2=edge.y2;}else{result.push(run);run={...edge};}}result.push(run);
+ }
+ return result;
 }

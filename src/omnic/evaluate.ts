@@ -35,11 +35,8 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       const rule=readPathRule(String(p.rule));
       const trace=pathTrace(rule,{left:generation.origin.x+num(p,"left",-100)-root.x,top:generation.origin.y+num(p,"top",-100)-root.y,right:generation.origin.x+num(p,"right",100)-root.x,bottom:generation.origin.y+num(p,"bottom",100)-root.y,round:p.round!==false},time);
       motion ||= trace.moving;
-      for(const cell of trace.cells){
-        const node=point(`:cell:${cell.x}:${cell.y}`,root.x+cell.x,root.y+cell.y,rule.d?"dot":"line",rule.d?.22:0);
-        node.opacity=cell.coverage/100;node.thickness=rule.d?0:1;
-        if(!rule.d){node.x-=.5;node.x2=node.x+1;node.y2=node.y;node.cap="butt";}
-      }
+      if(rule.d)for(const cell of trace.cells){const node=point(`:cell:${cell.x}:${cell.y}`,root.x+cell.x,root.y+cell.y,"dot",.22);node.opacity=cell.coverage/100;node.thickness=0;}
+      else for(const segment of trace.segments){const node=point(`:edge:${segment.x}:${segment.y}:${segment.x2}:${segment.y2}`,root.x+segment.x,root.y+segment.y,"line");node.x2=root.x+segment.x2;node.y2=root.y+segment.y2;node.opacity=segment.coverage/100;node.thickness=1;}
       if(rule.a&&trace.particle){const node=point(":particle",root.x+trace.particle.x,root.y+trace.particle.y,"dot",.4);node.color="#ffffff";node.fill=true;node.thickness=0;node.glow=true;}
       if(trace.reason==="boundary"||trace.reason==="budget")diagnostics.push({code:`path-${trace.reason}`,message:trace.reason==="boundary"?"Path paused at substrate boundary.":"Path paused at bounded trace capacity.",target:root.id});
     }

@@ -1256,8 +1256,8 @@ test('path generator integrates persistence, rendering, target edits and capture
  const program=JSON.stringify(SQUARE_PATH_RULE);
  const source=recipe([{id:'path',generator:'path-rule',params:{rule:program}}]);
  const evaluated=evaluateRecipe(validateRecipe(JSON.parse(JSON.stringify(source))));
- const trace=evaluated.nodes.filter(n=>n.kind!=='group');assert.equal(trace.length,8);assert.ok(trace.every(n=>n.cap==='butt'&&n.thickness===1));
- assert.match(renderSVG(evaluated),/stroke-linecap="butt"/);
+ const trace=evaluated.nodes.filter(n=>n.kind!=='group');assert.equal(trace.length,4);assert.ok(trace.every(n=>n.cap===undefined&&n.thickness===1));
+ assert.match(renderSVG(evaluated),/stroke-linecap="round"/);
  const marks=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,d:true})}}]));assert.ok(marks.nodes.filter(n=>n.kind!=='group').every(n=>n.kind==='dot'));
  const animated=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,.5);
  assert.ok(animated.motion);assert.ok(animated.nodes.some(n=>n.glow));assert.match(renderSVG(animated),/drop-shadow/);
@@ -1265,7 +1265,7 @@ test('path generator integrates persistence, rendering, target edits and capture
  assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path'],{factor:.5})]}),/movement rule/,'generic transforms cannot bypass the indivisible substrate');
  assert.throws(()=>validateRecipe(recipe([{id:'p',generator:'path-rule',params:{x:.5}}])),/Unsupported range/);
  assert.throws(()=>evaluateRecipe(recipe([{id:'parent',generator:'group',params:{x:.5},children:source.components}])),/inherited offsets/);
- assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path:cell:0:-1'],{factor:.5})]}),/movement rule/,'generated-cell selection cannot bypass substrate rules');
+ assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path:edge:0:-2:0:0'],{factor:.5})]}),/movement rule/,'generated-cell selection cannot bypass substrate rules');
  const origin={x:9.3,y:8.7};let id=0;
  const inserted=insertConstruction({...recipe([]),atomnic:{viewSize:40,viewX:0,viewY:0}},source,origin,()=>`path-${++id}`).recipe;
  assert.equal(inserted.components[0].params.x,9);assert.equal(inserted.components[0].params.y,9);

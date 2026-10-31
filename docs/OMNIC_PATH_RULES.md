@@ -59,11 +59,12 @@ substrate for stable framing. Ordinary scale/rotation/motion transforms are reje
 on substrate-bound generators; edit the movement rule instead. Integer Position
 changes move the origin within the captured substrate.
 
-A connected trace deposits on unit substrate cells, represented by nonoverlapping
-square SVG cells. Discrete mode uses smaller separate marks at those same cells.
-This deliberately resolves overlaps to the substrate: revisiting or crossing an
-already visited cell adds coverage to that cell once per traversal, capped at 100%.
-It is not free-angle/subpixel brush painting. There is no time/dwell deposition.
+Continuous traces render whole-unit traversal edges as joined vector strokes with
+round caps. Collinear adjacent edges at equal coverage merge, eliminating cell
+seams. Repeated traversal accumulates coverage on canonical unit edges; discrete
+mode retains separate marks and cell coverage. Movement remains indivisible.
+At intersections of differently oriented translucent strokes SVG compositing still
+applies; exact additive painted-area coverage at crossings remains future work.
 A white glowing particle marks drawing position.
 
 The shared pure engine compiles each program/domain into a bounded trajectory.
