@@ -2,7 +2,7 @@ import {pathTrace,readPathRule} from './pathRule.ts';
 import { snappedAngle } from "./rotation.ts";
 import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params, type RecipeResolver } from "./model.ts";
 import { defaultParams, definition } from "./registry.ts";
-export type StructuralNode = { id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
+export type StructuralNode = { referenceTransformed?:boolean; referenceScaled?:boolean; id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
 export type Diagnostic = { code:string; message:string; target?:string; operation?:string };
 export type InterpretationResult = { operation:string; kind:"count"; value:number; scope:string[] };
 export type Evaluation = { substrates?:{x:number;y:number;width:number;height:number}[]; results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
@@ -156,7 +156,8 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
           node.fill=Boolean(p.fill);node.color=String(p.color);node.opacity=num(p,"opacity",1);
           const generation=generations.get(node.id);if(generation)Object.assign(generation.params,{fill:node.fill,color:node.color,opacity:node.opacity});
         }
-        if(kind==="size"){
+        if(kind=="size"){
+          node.referenceTransformed=true;node.referenceScaled=true;
           const factor=num(p,"factor",1);
           node.x=offset.x+(node.x-offset.x)*factor;node.y=offset.y+(node.y-offset.y)*factor;
           if(node.x2!==undefined)node.x2=offset.x+(node.x2-offset.x)*factor;
@@ -167,6 +168,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
         if(kind==="rotate"){
           if(p.scope==="region"){if(node.highlight)node.highlight={...node.highlight,start:node.highlight.start+rotation};continue;}
           if(p.scope==="each"&&node.kind==="group")continue;
+          node.referenceTransformed=true;
           const pivot=p.scope==="each"?{x:(node.x+(node.x2??node.x))/2,y:(node.y+(node.y2??node.y))/2}:p.pivot==="center"?center:offset;
           const angle=rad(rotation),cx=pivot.x+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotX"):0),cy=pivot.y+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotY"):0),cos=Math.cos(angle),sin=Math.sin(angle);
           const rotate=(x:number,y:number)=>({x:cx+(x-cx)*cos-(y-cy)*sin,y:cy+(x-cx)*sin+(y-cy)*cos});

@@ -2,6 +2,27 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Evaluated static reference measurements (2026-10-31)
+
+Static rotation no longer disables all measured references. Evaluated geometry
+supplies unambiguous length/radius, world-axis extents and coordinate boundaries
+through the existing reference/use/rule fields. Position on an untransformed
+consumer can use a rotated source's length or width as a fractional step; length
+Match consumes the source's evaluated length. Source configuration does not edit
+geometry and all existing legality/preview/commit paths remain authoritative.
+
+Evaluation marks transformed/scaled geometry so unsupported consumer conversions
+stay unavailable. This is transient evaluation metadata, not recipe data or another
+reference inventory. A transformed consumer's coordinates/orientation, orientation
+from a transformed source, and scaled consumer length response remain unsupported.
+Raw transformed length parameters are not advertised as evaluated measurements.
+Animated snapshots remain unavailable. Width/height are world-aligned bounds;
+local frames, animation sampling and durable dependencies are separate work.
+
+Focused regressions cover half-length and width steps, exact matching, unaffected
+references, scaled source measurements and rejection of unsupported consumers.
+Browser interaction acceptance remains user-owned.
+
 ## Threshold inheritance correction (2026-10-31)
 
 The math dial already configures shared fractions, halving, steps and measured

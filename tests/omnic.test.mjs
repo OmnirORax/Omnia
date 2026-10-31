@@ -1469,3 +1469,41 @@ test('Ctrl marquee separates click jitter from box selection and intersects actu
  assert.equal(structuralIdsInRect(evaluation.nodes,{x:20,y:20},{x:30,y:30}).has('diagonal'),true);
  const owners=new Set(['diagonal']);const selected=deleteComponents(source,owners);assert.deepEqual(selected.components.map(c=>c.id),['ring']);
 });
+
+
+test('rotated sources supply evaluated lengths and extents without disabling unrelated reference fields',async()=>{
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {resolveReferenceUse,createReferenceField,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{length:20,x:-100}},{id:'b',generator:'line',params:{length:80,x:100}},{id:'c',generator:'line',params:{length:30}}],[op('turn','rotate',['b'],{angle:45,pivot:'center'})]));
+ const snapshot=operationGeometry(source,evaluateRecipe(source)),degrees=targetDegrees(source,['a']);
+ const position=degrees.find(d=>d.id==='omnic.coordinate.x'),length=degrees.find(d=>d.id==='omnic.extent');
+ const measured=measuredReferenceFor(snapshot,position,'b');
+ almost(measured.measures.find(m=>m.id==='length').value,80);
+ almost(measured.measures.find(m=>m.id==='width').value,snapshot.views.get('b').bounds.width);
+ assert.ok(measured.thresholds.some(t=>t.id==='b/x:centre'));
+ for(const measure of ['length','width']){
+  const step=resolveReferenceUse(measured,{...DEFAULT_REFERENCE_SETTINGS,use:'step',measure,denominator:2},-100);
+  almost(step.step,measured.measures.find(m=>m.id===measure).value/2);
+  const field=createReferenceField(stateFieldDomain(targetParameter(position)),{mode:'symmetry',count:8,step:1,reference:-100},step);
+  assert.ok(field.candidates.some(c=>Math.abs(c.value-(-100+step.step))<1e-8));
+ }
+ const scalar=measuredReferenceFor(snapshot,length,'b'),match=resolveReferenceUse(scalar,{...DEFAULT_REFERENCE_SETTINGS,use:'match'},20);
+ almost(match.match,80);
+ const committed=writeTargetDegree(source,length,match.match);
+ almost(operationGeometry(committed,evaluateRecipe(committed)).views.get('a').measurements.get('length').value,80);
+ assert.ok(measuredReferenceFor(snapshot,position,'c'),'unrelated source remains usable');
+ const transformedPosition=targetDegrees(source,['b']).find(d=>d.id==='omnic.coordinate.x');
+ assert.equal(measuredReferenceFor(snapshot,transformedPosition,'a'),undefined,'unsupported authored coordinate conversion stays unavailable');
+ const rotation=degrees.find(d=>targetParameter(d).selection);
+ assert.equal(measuredReferenceFor(snapshot,rotation,'b'),undefined,'raw angle is not substituted for evaluated orientation');
+ const scaled=validateRecipe({...source,operations:[...source.operations,op('scale','size',['b'],{factor:2})]});
+ const scaledSnapshot=operationGeometry(scaled,evaluateRecipe(scaled));
+ almost(measuredReferenceFor(scaledSnapshot,length,'b').value,160,'source uses evaluated length, not its raw parameter');
+ const scaledTarget=targetDegrees(scaled,['b']).find(d=>d.id==='omnic.extent');
+ assert.equal(measuredReferenceFor(scaledSnapshot,scaledTarget,'a'),undefined,'scaled consumer needs a response adapter');
+ const moving=validateRecipe({...source,operations:[...source.operations,op('motion','oscillate',['b'],{})]});
+ assert.equal(measuredReferenceFor(operationGeometry(moving,evaluateRecipe(moving)),position,'b'),undefined,'animated snapshots remain unsupported');
+ assert.equal(source.components[0].params.length,20,'preparing references never writes geometry');
+});
