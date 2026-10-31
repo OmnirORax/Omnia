@@ -136,7 +136,11 @@ interactive wheel's glow. Interactive confirmation remains pending.
 
 Direction fractions identify the integer slice containing the heading; they never
 show decimal slice ordinals. Idle nodes/spokes do not glow; hover/selection supply
-the limited glow. Select a node/chip, choose ↗, then choose another heading to
-replace its direction while retaining count/order. Select ⇄, then another node or
+the limited glow. Drag an existing node around the circle to change its direction; drag it radially
+to change count. These dimensions can change together, without a mode button. Select ⇄, then another node or
 chip, to exchange those two units without shifting intervening instructions.
 Normal drag-to-reorder remains a move, distinct from Swap.
+
+Existing node drags use shared polar selection, with a small jitter threshold and
+press-offset preservation. Release accepts heading/count together. Cancellation
+discards the preview. New instruction creation and exact pair Swap are unchanged.

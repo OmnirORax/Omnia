@@ -23,3 +23,17 @@ export function createCountScrub(origin:Point,unit:number,max:number,initialCoun
  const levels=Math.floor(max/unit),scrub=createValueScrub({origin,width:Math.max(12,(levels-1)*12),value:initialCount/unit,min:1,max:levels,step:1});
  return {sample(point:Point){const count=scrub.sample(point);return count===undefined?undefined:count*unit;}};
 }
+
+/** Existing axis nodes combine angular heading and radial count, without modes. */
+export function createPolarCountDrag(config:{origin:Point;center:Point;initialAngle:number;initialCount:number;unit:number;levels:number;stepPixels:number;angles:readonly number[];period?:number}){
+ const radius=(p:Point)=>Math.hypot(p.x-config.center.x,p.y-config.center.y),angle=(p:Point)=>Math.atan2(p.x-config.center.x,config.center.y-p.y);
+ const initialRadius=radius(config.origin),initialPointer=angle(config.origin),period=config.period??360;
+ const wrap=(n:number)=>((n%period)+period)%period;
+ return {sample(point:Point){
+  if(!Number.isFinite(point.x)||!Number.isFinite(point.y)||Math.hypot(point.x-config.origin.x,point.y-config.origin.y)<3)return;
+  const target=radius(point)<1e-6?config.initialAngle:config.initialAngle+(angle(point)-initialPointer)/(Math.PI*2)*period;
+  const heading=config.angles.reduce((best,a)=>Math.abs(wrap(a-target+period/2)-period/2)<Math.abs(wrap(best-target+period/2)-period/2)?a:best,config.initialAngle);
+  const increments=Math.round((radius(point)-initialRadius)/Math.max(1e-6,config.stepPixels));
+  return {angle:heading,count:Math.max(1,Math.min(config.levels*config.unit,config.initialCount+increments*config.unit))};
+ }};
+}

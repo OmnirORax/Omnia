@@ -991,3 +991,10 @@ Axis-node order text uses an explicit light foreground/dark outline and a solid
 dark node centre. Its size is independent of the spoke's stroke/glow styling;
 selected/hover ring effects must not wash out the ordinal. Readability at user
 scale still requires visual confirmation.
+
+Existing angular instruction nodes use shared polar dragging: angular movement
+selects among field headings, while radial displacement adjusts whole-unit count.
+No direction-edit toggle is required. Count and heading accept atomically on
+release. An in-wheel drop remains a polar edit; reordering targets the numbered
+instruction row, while explicit Swap may target another node. New-instruction
+count scrubbing retains its existing first-motion axis behavior.

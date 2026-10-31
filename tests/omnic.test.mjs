@@ -1401,3 +1401,15 @@ test('slice addresses are integers and node swaps differ from reorder moves',asy
  const field=createStateField({min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial'},{mode:'symmetry',count:12,step:30,reference:0});
  for(let angle=0;angle<360;angle+=.25){const f=axisFraction(field,angle);assert.ok(Number.isInteger(f.index)&&f.index>=1&&f.index<=12);}
 });
+
+test('existing axis nodes rotate angularly and adjust count radially in one gesture',async()=>{
+ const {createPolarCountDrag}=await import('../src/ui/valueScrub.ts');
+ const drag=createPolarCountDrag({origin:{x:0,y:-50},center:{x:0,y:0},initialAngle:0,initialCount:7,unit:1,levels:12,stepPixels:5,angles:[0,45,90,135,180,225,270,315]});
+ assert.equal(drag.sample({x:1,y:-50}),undefined);
+ assert.deepEqual(drag.sample({x:50,y:0}),{angle:90,count:7},'moving around the circle changes direction only');
+ assert.deepEqual(drag.sample({x:0,y:-60}),{angle:0,count:9},'moving along the axis changes count only');
+ assert.deepEqual(drag.sample({x:60,y:0}),{angle:90,count:9},'both dimensions can change together');
+ assert.deepEqual(drag.sample({x:0,y:0}),{angle:0,count:1},'the centre clamps count without arbitrary heading jumps');
+ const scaled=createPolarCountDrag({origin:{x:0,y:-50},center:{x:0,y:0},initialAngle:0,initialCount:28,unit:4,levels:12,stepPixels:5,angles:[0,90,180,270]});
+ assert.deepEqual(scaled.sample({x:0,y:-55}),{angle:0,count:32});
+});
