@@ -1,12 +1,6 @@
 .path-rule-editor{display:flex;flex-direction:column;align-items:center;gap:4px;width:232px;padding:6px;background:var(--surface,#071c24);border:1px solid #60ddec66;border-radius:12px;color:#85efff}
-.path-direction-wheel{position:relative;width:132px;height:132px}
-.path-direction-wheel svg{position:absolute;inset:0;fill:none;stroke:#60ddec88;stroke-width:1}
-.path-direction-wheel path{stroke:#60ddec33}
-.path-rule-editor :is(.path-direction-wheel,.path-instructions,.path-rule-tools)>button{min-width:25px;min-height:25px;padding:2px 4px;border:1px solid #60ddec44;border-radius:8px;background:#08232ddd;color:inherit;cursor:pointer;font-size:12px}
-.path-rule-editor :is(.path-direction-wheel,.path-instructions,.path-rule-tools)>button:hover,.path-rule-editor :is(.path-direction-wheel,.path-instructions,.path-rule-tools)>button[aria-pressed=true]{border-color:#9fffff;box-shadow:0 0 5px #60ddec88}
-.path-direction{position:absolute;width:30px;height:30px;border-radius:50%!important}
-.path-direction-0{top:0;left:51px}.path-direction-1{right:0;top:51px}.path-direction-2{bottom:0;left:51px}.path-direction-3{left:0;top:51px}
-.path-direction-center{position:absolute;left:49px;top:49px;width:34px;height:34px;border-radius:50%!important}
+.path-rule-editor :is(.path-instructions,.path-rule-tools)>button{min-width:25px;min-height:25px;padding:2px 4px;border:1px solid #60ddec44;border-radius:8px;background:#08232ddd;color:inherit;cursor:pointer;font-size:12px}
+.path-rule-editor :is(.path-instructions,.path-rule-tools)>button:hover,.path-rule-editor :is(.path-instructions,.path-rule-tools)>button[aria-pressed=true]{border-color:#9fffff;box-shadow:0 0 5px #60ddec88}
 .path-instructions,.path-rule-tools{display:flex;justify-content:center;flex-wrap:wrap;gap:3px;max-width:100%}
 .path-instructions sup{font-size:8px;opacity:.7;margin-right:2px}
 

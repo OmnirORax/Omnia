@@ -945,3 +945,11 @@ Math slot input correction: right-click directly selects/stamps recursion on tha
 slot and commits its legal value. It does not cycle cursor brushes. Left-click
 retains normal fill/erase behavior. Repeated right-clicks stamp the same recursive
 mode; empty ring space does not alter the value. Shared consumers inherit this.
+
+Angular direction pickers reuse `DofAxisWheel` and `createStateField`, including
+rotation and path instruction/turn authoring. Declare the cyclic domain,
+fractions and meaningful thresholds; do not create another arrow-wheel renderer.
+The wheel defaults to single-value completion. Ordered rule authoring declares
+`selection="accumulate"` so choosing a direction appends without finishing the
+program. Both use identical hover/pointer/Enter candidate acceptance and scale.
+Path fractions start at eight, displayed by shared DofRuleExpression as 2³.

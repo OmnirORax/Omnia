@@ -13,7 +13,10 @@ Drag the frame/title or empty panel background to reposition the whole rule popu
 Switching a populated rule into drawing starts playback; its registered ⏯ control
 pauses/resumes it. Idle math dials yield Enter to parent confirmation.
 
-Click ↑, →, ↓, ← to append instructions in that order. The numbered chips show the
+Use the shared rotation axis wheel to append directions in click order. The 2³
+expression configures direction fractions through the shared math dial (1–64,
+initially eight); cardinal thresholds remain available. Right-click the wheel
+opens fraction configuration too. The numbered chips show the
 program; clicking a chip selects it and opens the existing math dial for its
 whole-unit move count. The wheel centre opens that count too. At most eight
 instructions are supported. ＋ arms a fresh sequence; the next direction replaces
@@ -48,9 +51,9 @@ existing context confirmation. Accepted individual rule edits remain undoable.
 
 The indivisible movement unit is one construction unit. Positive whole-unit counts
 are checked both at program import and in the pure engine. Starting positions,
-including inherited offsets, must also be whole units. Cardinal headings and
-quarter turns are the initial exact movement domain, independent of Atomnic's
-hexagonal touching-dot arrangement. Arbitrary angles are not yet offered.
+including inherited offsets, must also be whole units. Angular fractions supply headings independently of Atomnic's hexagonal layout.
+Travel distance remains one unit per move; vector coordinate components may be
+fractional. Coordinates are normalized to 1e-9 and closure uses a 1e-7 tolerance.
 
 Creation captures the current Composer view bounds, including its circular radar
 boundary, as the substrate. Those bounds persist with the recipe, independently

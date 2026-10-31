@@ -1217,7 +1217,7 @@ test('path rules preserve click order, whole-unit motion and closure after compl
  const explicit=pathTrace({...DEFAULT_PATH_RULE,s:[[0,2],[90,2],[180,2],[270,2]],c:true},bounds);
  assert.deepEqual(explicit.cells,square.cells,'explicit directions and compressed turning generate the same square');
  for(const steps of [0,.5,1.1,-1,101])assert.throws(()=>readPathRule(JSON.stringify({...DEFAULT_PATH_RULE,s:[[0,steps]]})),/whole-unit/);
- assert.throws(()=>readPathRule(JSON.stringify({...SQUARE_PATH_RULE,t:45})),/quarter turns/);
+ assert.throws(()=>readPathRule(JSON.stringify({...SQUARE_PATH_RULE,t:-45})),/valid directions/);
  assert.throws(()=>pathTrace({...SQUARE_PATH_RULE,s:[[0,.5]]},bounds),/whole-unit/,'engine entry also validates program data');
  const crossing=pathTrace({...DEFAULT_PATH_RULE,s:[[90,1],[270,1],[180,1]],c:true},bounds);
  assert.equal(crossing.steps,3,'crossing the origin inside a sequence does not stop early');
@@ -1308,4 +1308,16 @@ test('new direction sequences reset old repetition while retaining presentation 
   const trace=pathTrace(fresh,{left:-100,top:-100,right:100,bottom:100});assert.equal(trace.steps,1);assert.equal(trace.reason,'sequence');
  }
  assert.deepEqual(SQUARE_PATH_RULE.s,[[0,2]],'new-program creation does not mutate its source');
+});
+
+test('fractional direction paths use unit distances and the shared angular field preserves axes',async()=>{
+ const {DEFAULT_PATH_RULE,pathTrace,readPathRule}=await import('../src/omnic/pathRule.ts');
+ const {createStateField}=await import('../src/properties/stateField.ts');
+ const domain={min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial',thresholds:[0,90,180,270].map(value=>({id:`axis-${value}`,value}))};
+ for(const count of [8,7,32]){const field=createStateField(domain,{mode:'symmetry',count,step:45,reference:0});for(const axis of [0,90,180,270])assert.ok(field.candidates.some(c=>c.value===axis));}
+ for(const angle of [45,135,360/7]){
+  const rule=readPathRule(JSON.stringify({...DEFAULT_PATH_RULE,s:[[angle,1]]}));
+  const trace=pathTrace(rule,{left:-10,top:-10,right:10,bottom:10});
+  almost(Math.hypot(trace.particle.x,trace.particle.y),1);assert.equal(trace.steps,1);
+ }
 });

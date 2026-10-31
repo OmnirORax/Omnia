@@ -32,7 +32,7 @@ export function checkedParameter(parameter: Parameter, input: PropertyValue): Pr
   if (parameter.kind === "toggle" && typeof input !== "boolean") throw Error(`Expected boolean ${parameter.label}.`);
   if (parameter.kind === "color" && (typeof input !== "string" || !/^#[\da-f]{6}$/i.test(input))) throw Error(`Expected RGB ${parameter.label}.`);
   if (parameter.kind === "select" && !parameter.options?.some(option => option.id === input)) throw Error(`Unsupported ${parameter.label}.`);
-  if (parameter.kind === "text" && (typeof input !== "string" || input.length > 200)) throw Error(`Invalid ${parameter.label}.`);
+  if (parameter.kind === "text" && (typeof input !== "string" || input.length > (parameter.maxLength??200))) throw Error(`Invalid ${parameter.label}.`);
   if(parameter.editor==='path-rule')readPathRule(String(input));
   return input;
 }
@@ -43,7 +43,7 @@ const inputs = Object.fromEntries([...families].map(([property, group]) => {
     category:{id:"omnic",label:"Omnic structure"},
     ...(first.kind === "number" ? {min:Math.min(...group.map(p=>p.min!)),max:Math.max(...group.map(p=>p.max!)),step:Math.min(...group.map(p=>p.step ?? 1)),integer:group.every(p=>p.integer)} : {}),
     ...(first.options ? {options:first.options} : {}),
-    ...(first.kind === "text" ? {maxLength:200} : {}),
+    ...(first.kind === "text" ? {maxLength:Math.max(...group.map(p=>p.maxLength??200))} : {}),
   };
   return [property, { ...(definition ? {definition} : {}), initial:first.initial,
     read:(state:OmnicParameterState) => { const parameter=activeParameter(state,property)!; return state.params[parameter.key] ?? parameter.initial; },

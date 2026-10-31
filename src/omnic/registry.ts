@@ -5,7 +5,7 @@ import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = { editor?:"path-rule"; significantThresholds?:readonly {id:string;value:number}[]; selection?:CyclicSelection; unit?:string; measurement?:'center-x'|'center-y'|'radius'|'length'; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
+export type Parameter = {maxLength?:number; editor?:"path-rule"; significantThresholds?:readonly {id:string;value:number}[]; selection?:CyclicSelection; unit?:string; measurement?:'center-x'|'center-y'|'radius'|'length'; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
@@ -26,7 +26,7 @@ const y:Parameter = {...number("y","omnic.coordinate.y","Position Y",0,-300,300,
 const paint = [fill,thickness,color,opacity] as const;
 export const GENERATORS: readonly Definition[] = [
   {id:"path-rule",label:"Path rule",symbol:"↱",substrateBounds:true,parameters:[
-    {key:"rule",property:"omnic.pathRule",label:"Path rule",kind:"text",editor:"path-rule",initial:JSON.stringify(DEFAULT_PATH_RULE),freedom:{label:"Path rule",symbol:"↱"}},
+    {key:"rule",property:"omnic.pathRule",label:"Path rule",kind:"text",maxLength:512,editor:"path-rule",initial:JSON.stringify(DEFAULT_PATH_RULE),freedom:{label:"Path rule",symbol:"↱"}},
     {...x,integer:true},{...y,integer:true},color,
     {key:"round",property:"omnic.substrate.round",label:"Circular substrate",kind:"toggle",initial:true,when:()=>false},
     ...["left","top","right","bottom"].map(key=>({...number(key,`omnic.substrate.${key}`,`Substrate ${key}`,key==="left"||key==="top"?-100:100,-10000,10000,1),when:()=>false}))]},
@@ -91,7 +91,7 @@ export function checkedParams(input: unknown, spec: Definition): Record<string,V
     if (p.kind==="toggle" && typeof value!=="boolean") throw Error(`Expected boolean: ${key}`);
     if (p.kind==="color" && (typeof value!=="string" || !/^#[\da-f]{6}$/i.test(value))) throw Error(`Expected RGB color: ${key}`);
     if (p.kind==="select" && !p.options?.some(o=>o.id===value)) throw Error(`Unsupported choice: ${key}`);
-    if (p.kind==="text" && (typeof value!=="string" || value.length>200)) throw Error(`Invalid text: ${key}`);
+    if (p.kind==="text" && (typeof value!=="string" || value.length>(p.maxLength??200))) throw Error(`Invalid text: ${key}`);
     if (spec.id === "rotate" && key === "stops") rotationStops(String(value));
     if (p.editor === "path-rule") readPathRule(String(value));
     params[key]=value as Value;

@@ -1,3 +1,7 @@
+import {DofAxisWheel} from '../ui/DofAxisWheel';
+import {createStateField} from '../properties/stateField';
+import {DofRuleExpression} from '../ui/DofInformation';
+import '../ui/dofStateField.css';
 import {featureActionRuntime} from '../featureActions';
 import {UIAction} from '../ui/UIAction';
 import {FunctionControl} from '../ui/UIWorkspace';
@@ -5,27 +9,26 @@ import {useState} from 'react';
 import {MathematicalDial} from '../ui/MathematicalDial';
 import {SQUARE_PATH_RULE,startPathSequence,readPathRule,type PathRule} from './pathRule';
 import './pathRule.css';
-const directions=[{angle:0,icon:'↑'},{angle:90,icon:'→'},{angle:180,icon:'↓'},{angle:270,icon:'←'}];
+const directionLabel=(angle:number)=>({0:'↑',45:'↗',90:'→',135:'↘',180:'↓',225:'↙',270:'←',315:'↖'}[angle]??`${Number(angle.toFixed(2))}°`);
 /** Program authoring is rule configuration, not a reference/value selection. */
 export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:string)=>void}){
- const rule=readPathRule(value),[selected,setSelected]=useState(0),[number,setNumber]=useState<'steps'|'m'|'p'|'r'|null>(null),[turn,setTurn]=useState(false),[replace,setReplace]=useState(false);
+ const rule=readPathRule(value),[selected,setSelected]=useState(0),[number,setNumber]=useState<'steps'|'m'|'p'|'r'|'f'|null>(null),[turn,setTurn]=useState(false),[replace,setReplace]=useState(false);
+ const [hover,setHover]=useState<number|null>(null);
+ const field=createStateField({min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial',thresholds:[0,90,180,270].map(value=>({id:`axis-${value}`,value}))},{mode:'symmetry',count:rule.f??8,step:45,reference:0});
  const active=Math.min(selected,rule.s.length-1);
- const write=(patch:Partial<PathRule>)=>{const next=JSON.stringify({...rule,...patch});if(next.length<=200){readPathRule(next);onCommit(next);}};
+ const write=(patch:Partial<PathRule>)=>{const next=JSON.stringify({...rule,...patch});if(next.length<=512){readPathRule(next);onCommit(next);}};
  const pick=(angle:number)=>{
   if(turn){write({t:angle});setTurn(false);return;}
   if(replace){onCommit(JSON.stringify(startPathSequence(rule,angle)));setSelected(0);setNumber('steps');setReplace(false);return;}
   if(rule.s.length>=8)return;
   setSelected(rule.s.length);write({s:[...rule.s,[angle,1]]});
  };
- const amount=number==='steps'?(rule.s[active]?.[1]??1):number?rule[number]:1;
+ const amount=number==='steps'?(rule.s[active]?.[1]??1):number?(rule[number]??8):1;
  const button=(label:string,icon:string,pressed:boolean,run:()=>void)=><button type="button" title={label} aria-label={label} aria-pressed={pressed} onClick={run}>{icon}</button>;
  return <div className="path-rule-editor" data-popup-drag-frame>
-  <div className="path-direction-wheel" role="group" aria-label={turn?'Turn after each instruction':'Append directions in click order'}>
-   <svg viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="51"/><path d="M66 15V117M15 66H117"/></svg>
-   {directions.map(({angle,icon},i)=><button key={angle} type="button" className={`path-direction path-direction-${i}`} disabled={!turn&&!replace&&rule.s.length>=8} aria-label={turn?`Turn ${angle} degrees`:`Append ${icon}`} title={turn?`${angle}° after each instruction`:`${icon} · next instruction`} onClick={()=>pick(angle)}>{turn?`${angle}°`:icon}</button>)}
-   <button type="button" className="path-direction-center" title="Whole-unit steps for selected instruction" aria-label="Instruction steps" disabled={!rule.s.length} onClick={()=>setNumber(number==='steps'?null:'steps')}>{(rule.s[active]?.[1]??1)}</button>
-  </div>
-  <div className="path-instructions" role="group" aria-label="Instruction order">{rule.s.map(([angle,steps],i)=><button key={i} type="button" aria-label={`Instruction ${i+1}: ${directions.find(d=>d.angle===angle)!.icon}, ${steps} units`} aria-pressed={active===i} onClick={()=>{setSelected(i);setNumber('steps');}}><sup>{i+1}</sup>{directions.find(d=>d.angle===angle)!.icon}{steps}</button>)}</div>
+  <DofAxisWheel field={field} value={hover??(turn?rule.t:rule.s[active]?.[0]??0)} label={turn?'Turn':'Direction'} symbol={turn?'↻':'↑'} disabled={!turn&&!replace&&rule.s.length>=8} selection="accumulate" onPreview={setHover} onCancel={()=>setHover(null)} onCommit={pick} onConfigure={()=>setNumber('f')}/>
+  <div className="path-rule-tools"><button type="button" title="Direction fractions" aria-label="Direction fractions" onClick={()=>setNumber(number==='f'?null:'f')}><DofRuleExpression count={rule.f??8}/></button><button type="button" disabled={!rule.s.length} title="Instruction steps" aria-label="Instruction steps" onClick={()=>setNumber(number==='steps'?null:'steps')}>{rule.s[active]?.[1]??1}</button></div>
+  <div className="path-instructions" role="group" aria-label="Instruction order">{rule.s.map(([angle,steps],i)=><button key={i} type="button" aria-label={`Instruction ${i+1}: ${directionLabel(angle)}, ${steps} units`} aria-pressed={active===i} onClick={()=>{setSelected(i);setNumber('steps');}}><sup>{i+1}</sup>{directionLabel(angle)}{steps}</button>)}</div>
   <div className="path-rule-tools">
    {button('Start a new direction sequence','＋',replace,()=>{setReplace(!replace);setTurn(false);setNumber(null);})}
    {button('Remove selected instruction','⌫',false,()=>{if(rule.s.length>1){write({s:rule.s.filter((_,i)=>i!==active)});setSelected(Math.max(0,active-1));}})}
@@ -42,6 +45,6 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
    {button('Drawing speed · unit moves per second',`${rule.r}/s`,number==='r',()=>setNumber(number==='r'?null:'r'))}
    {button('Reset square rule','↺',false,()=>{onCommit(JSON.stringify(SQUARE_PATH_RULE));setSelected(0);setNumber(null);setTurn(false);setReplace(false);})}
   </div>
-  {number&&<MathematicalDial key={`${number}:${active}`} label={number==='steps'?'Whole-unit steps':number==='m'?'Maximum unit moves':number==='p'?'Coverage per pass (%)':'Unit moves per second'} value={amount} min={1} max={number==='m'?10000:number==='r'?60:100} integer onCommit={n=>{if(number==='steps')write({s:rule.s.map((s,i)=>i===active?[s[0],n]:s)});else write({[number]:n});}}/>}
+  {number&&<MathematicalDial key={`${number}:${active}`} label={number==='steps'?'Whole-unit steps':number==='f'?'Direction fractions':number==='m'?'Maximum unit moves':number==='p'?'Coverage per pass (%)':'Unit moves per second'} value={amount} min={1} max={number==='f'?64:number==='m'?10000:number==='r'?60:100} integer onCommit={n=>{if(number==='steps')write({s:rule.s.map((s,i)=>i===active?[s[0],n]:s)});else write({[number]:n});}}/>}
  </div>;
 }

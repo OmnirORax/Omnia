@@ -8,7 +8,7 @@ import {rangeLabel} from './rangeMath';
 import {claimUIPress,observeUIPress} from './pointerOwnership';
 /** The generated angular field is an axis wheel: hover previews, click commits.
  * Values and history remain with DofStateField's existing owner session. */
-export function DofAxisWheel({field,value,label,symbol,disabled,onPreview,onCommit,onCancel,onConfigure}:{field:StateField;value:number;label:string;symbol:string;disabled:boolean;onPreview:(n:number)=>void;onCommit:(n:number)=>void;onCancel:()=>void;onConfigure:()=>void}){
+export function DofAxisWheel({field,value,label,symbol,disabled,onPreview,onCommit,onCancel,onConfigure,selection='single'}:{selection?:'single'|'accumulate';field:StateField;value:number;label:string;symbol:string;disabled:boolean;onPreview:(n:number)=>void;onCommit:(n:number)=>void;onCancel:()=>void;onConfigure:()=>void}){
  const root=useRef<HTMLDivElement>(null),bounds=useRef<DOMRect|null>(null),hover=useRef<number|undefined>(undefined),activation=useRef(createStateActivation());
  const scale=useSyncExternalStore(radialScale.subscribe,radialScale.getSnapshot),size=RADIAL_GEOMETRY.minimumSize*6;
  useLayoutEffect(()=>{const node=root.current;if(!node)return;const measure=()=>{bounds.current=node.getBoundingClientRect();};const observer=new ResizeObserver(measure);observer.observe(node);const stop=observeUIPress(active=>{if(!active)measure();});window.addEventListener('resize',measure);measure();return()=>{observer.disconnect();stop();window.removeEventListener('resize',measure);};},[]);
@@ -19,7 +19,7 @@ export function DofAxisWheel({field,value,label,symbol,disabled,onPreview,onComm
   return axisFieldCandidate(field,point)?.value;
  };
  const preview=(next:number|undefined)=>{if(disabled||hover.current===next)return;hover.current=next;if(next===undefined)onCancel();else onPreview(next);};
- const confirm=useValueConfirmation({owner:root,selection:'single',candidate:()=>hover.current,onCommit,disabled});
+ const confirm=useValueConfirmation({owner:root,selection,candidate:()=>hover.current,onCommit,disabled});
  return <div ref={root} className="radial-menu dof-axis-wheel" role="group" aria-label={`${label} axis wheel`} data-ui-popup-interior style={{width:size*scale,height:size*scale}}
   onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
   onPointerMove={event=>preview(pick(event.clientX,event.clientY))}

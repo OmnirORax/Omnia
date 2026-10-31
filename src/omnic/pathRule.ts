@@ -1,7 +1,7 @@
 /** Whole-unit substrate traversal. Timing never participates in deposition. */
 export const PATH_UNIT = 1;
-export type PathRule = {s:[number,number][];t:number;l:boolean;c:boolean;m:number;a:boolean;p:number;d:boolean;r:number};
-export const DEFAULT_PATH_RULE:PathRule={s:[],t:0,l:false,c:false,m:100,a:false,p:100,d:false,r:8};
+export type PathRule = {f?:number;s:[number,number][];t:number;l:boolean;c:boolean;m:number;a:boolean;p:number;d:boolean;r:number};
+export const DEFAULT_PATH_RULE:PathRule={f:8,s:[],t:0,l:false,c:false,m:100,a:false,p:100,d:false,r:8};
 export const SQUARE_PATH_RULE:PathRule={...DEFAULT_PATH_RULE,s:[[0,2]],t:90,l:true,c:true};
 /** A new program must not inherit the previous program's repetition behavior. */
 export function startPathSequence(rule:PathRule,angle:number):PathRule{
@@ -10,7 +10,7 @@ export function startPathSequence(rule:PathRule,angle:number):PathRule{
 export function readPathRule(text:string):PathRule {
  let v:PathRule;try{v=JSON.parse(text);}catch{throw Error('Invalid path rule.');}
  const integer=(n:unknown,min:number,max:number)=>typeof n==='number'&&Number.isInteger(n)&&n>=min&&n<=max;
- if(!v||typeof v!=='object'||Object.keys(v).some(k=>!['s','t','l','c','m','a','p','d','r'].includes(k))||!Array.isArray(v.s)||v.s.length>8||v.s.some(s=>!Array.isArray(s)||s.length!==2||![0,90,180,270].includes(s[0])||!integer(s[1],1,100))||![0,90,180,270].includes(v.t)||!['l','c','a','d'].every(k=>typeof v[k as keyof PathRule]==='boolean')||!integer(v.m,1,10000)||!integer(v.p,1,100)||!integer(v.r,1,60))throw Error('Unsupported path rule: use whole-unit moves and quarter turns.');
+ if(!v||typeof v!=='object'||Object.keys(v).some(k=>!['f','s','t','l','c','m','a','p','d','r'].includes(k))||(v.f!==undefined&&!integer(v.f,1,64))||!Array.isArray(v.s)||v.s.length>8||v.s.some(s=>!Array.isArray(s)||s.length!==2||!(Number.isFinite(s[0])&&s[0]>=0&&s[0]<360)||!integer(s[1],1,100))||!(Number.isFinite(v.t)&&v.t>=0&&v.t<360)||!['l','c','a','d'].every(k=>typeof v[k as keyof PathRule]==='boolean')||!integer(v.m,1,10000)||!integer(v.p,1,100)||!integer(v.r,1,60))throw Error('Unsupported path rule: use whole-unit moves and valid directions.');
  return v;
 }
 export type PathBounds={left:number;top:number;right:number;bottom:number;round?:boolean};
@@ -35,15 +35,15 @@ function compile(rule:PathRule,bounds:PathBounds):Plan {
  else for(let n=0;n<4096;n++){
   const state=[x,y,index,remaining,turn].join(',');const prior=seen.get(state);
   if(prior!==undefined){result={points,cycle:prior,reason:'loop'};break;}seen.set(state,points.length-1);
-  const heading=(rule.s[index][0]+turn)%360,dx=heading===90?1:heading===270?-1:0,dy=heading===180?1:heading===0?-1:0;
-  const nx=x+dx,ny=y+dy,cell=`${nx},${ny}`;
+  const heading=(rule.s[index][0]+turn)%360,dx=Math.sin(heading*Math.PI/180),dy=-Math.cos(heading*Math.PI/180);
+  const nx=(Math.round((x+dx)*1e9)/1e9)||0,ny=(Math.round((y+dy)*1e9)/1e9)||0,cell=`${nx},${ny}`;
   if(!inside(nx,ny)){result={points,reason:'boundary'};break;}
   if(!cells.has(cell)&&cells.size>=192)break;
   x=nx;y=ny;cells.add(cell);points.push({x,y});remaining--;
   if(remaining===0){
-   turn=(turn+rule.t)%360;index++;
+   turn=Math.round(((turn+rule.t)%360)*1e9)/1e9;index++;
    if(index===rule.s.length){
-    if(rule.c&&x===0&&y===0){result={points,reason:'closure'};break;}
+    if(rule.c&&Math.hypot(x,y)<1e-7){result={points,reason:'closure'};break;}
     if(!rule.l){result={points,reason:'sequence'};break;}index=0;
    }
    remaining=rule.s[index][1];
@@ -75,7 +75,7 @@ export function pathTrace(rule:PathRule,bounds:PathBounds,time=0):PathTrace {
 /** Merge adjacent collinear edges at equal coverage into continuous vector strokes. */
 function mergePathSegments(edges:PathTrace['segments']):PathTrace['segments']{
  const groups=new Map<string,PathTrace['segments']>();
- for(const edge of edges){const horizontal=edge.y===edge.y2,key=`${horizontal?'h':'v'}:${horizontal?edge.y:edge.x}:${edge.coverage}`;const group=groups.get(key)??[];group.push(edge);groups.set(key,group);}
+ for(const edge of edges){const horizontal=edge.y===edge.y2,key=horizontal?`h:${edge.y}:${edge.coverage}`:edge.x===edge.x2?`v:${edge.x}:${edge.coverage}`:`d:${Math.round(Math.atan2(edge.y2-edge.y,edge.x2-edge.x)*1e6)}:${Math.round((edge.y* (edge.x2-edge.x)-edge.x*(edge.y2-edge.y))*1e6)}:${edge.coverage}`;const group=groups.get(key)??[];group.push(edge);groups.set(key,group);}
  const result:PathTrace['segments']=[];
  for(const group of groups.values()){
   const horizontal=group[0].y===group[0].y2;group.sort((a,b)=>horizontal?a.x-b.x:a.y-b.y);
