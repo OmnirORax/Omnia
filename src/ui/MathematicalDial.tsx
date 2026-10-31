@@ -23,7 +23,8 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  editing?:{kind:'value'|'increment';amount:number;minimum:number;maximum:number;onKindChange:(kind:'value'|'increment')=>void;onAmountChange:(amount:number)=>void};
  onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
 }){
- const [base,setBase]=useState<1|2>(2),[clockwise,setClockwise]=useState(true),[orders,setOrders]=useState(1);
+ const [base,setBase]=useState<1|2>(2),[orders,setOrders]=useState(1);
+ const clockwise=true;
  const [sign,setSign]=useState<1|-1>(()=>editing?.kind==='increment'?1:value<0?-1:1),[brush,setBrush]=useState<MathematicalSlotMode>('normal'),[painting,setPainting]=useState(false);
  const [marks,setMarks]=useState<MathematicalMarks>(emptyMarks),[sample,setSample]=useState<MathematicalMarks|null>(null);
  const [session]=useState(()=>mathematicalValueSession(value)),anchor=useRef(value);
@@ -135,7 +136,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    event.preventDefault();event.stopPropagation();if(disabled||drag.current)return;
    const next=brush==='normal'?'recursion':'normal';setBrush(next);if(hover.current)preview(hover.current.key,next);
   }}>
-   <span className="mathematical-dial-base" aria-label={`Base ${base}`} style={{width:base*minimum.size,height:base*minimum.size}}>{Array.from({length:base},(_,i)=><i key={i} style={{width:minimum.size,height:minimum.size}}/>)}</span>
+   <button type="button" disabled={disabled} className="mathematical-dial-base" aria-label={`Base ${base}; change base`} title={`Base ${base} · click to switch base`} onClick={()=>changeBase(base===1?2:1)} style={{width:base*minimum.size,height:base*minimum.size}}>{Array.from({length:base},(_,i)=><i key={i} style={{width:minimum.size,height:minimum.size}}/>)}</button>
    {rings.map(({order,radius,count})=><span key={order} className="mathematical-dial-order" role="group" aria-label={`Ring ${order+1}, ${count} slots`}>
     <svg className="mathematical-dial-hover-band" width={extent} height={extent} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius} fill="none" stroke="transparent" strokeWidth={minimum.size}/></svg>
     {order<orders&&<><span className="mathematical-dial-start-arrow" aria-hidden="true" style={{left:'50%',top:`${50-(radius+minimum.size/2)/extent*100}%`}}>{clockwise?'↻':'↺'}</span><span className="mathematical-dial-order-rim" aria-hidden="true" style={{width:2*(radius+minimum.size/2+1),height:2*(radius+minimum.size/2+1)}}/></>}
@@ -153,9 +154,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    <button type="button" disabled={disabled} className="mathematical-dial-readout" aria-label={`${label} value: ${value}`} title={`${label} · ${value} · click or right-click to type an exact value`} onClick={openExact} onContextMenu={event=>{event.preventDefault();event.stopPropagation();openExact();}}><output aria-live="polite">{value}</output></button>
    {editing&&<button type="button" className="mathematical-dial-rule" disabled={disabled} aria-label={`${label} editing rule`} title={editing.kind==='increment'?`Increment from ${anchor.current} by ${editing.amount} per selected step; click chooses rule, right-click sets amount`:'Absolute value; click to configure editing rule'} onClick={()=>{restore();setRulePopup({point:cursorPosition(),stage:'modes'});}} onContextMenu={event=>{event.preventDefault();event.stopPropagation();restore();setAmountSample(null);setRulePopup({point:cursorPosition(),stage:editing.kind==='increment'?'amount':'modes'});}}>Rule {editing.kind==='increment'?'+':'='}</button>}
    <div className="mathematical-dial-settings">
-    {([1,2] as const).map(n=><button type="button" disabled={disabled} key={n} title={`Base ${n}`} aria-pressed={base===n} onClick={()=>changeBase(n)}>{n}</button>)}
     {(min<0||editing?.kind==='increment')&&<button type="button" disabled={disabled} title="Change sign" aria-label={`${label} sign`} aria-pressed={sign<0} onClick={changeSign}>±</button>}
-    <button type="button" disabled={disabled} title="Reading direction" onClick={()=>{restore();setClockwise(!clockwise);}}>{clockwise?'↻':'↺'}</button>
     {canAddMathematicalRing(orders,marks.selected.map(key=>Number(key.split(':')[0])))&&<button type="button" disabled={disabled} title="Add outer ring" onClick={()=>{restore();setOrders(orders+1);}}>◎+</button>}
     <button type="button" title="Remove outer ring" disabled={disabled||orders===1} onClick={()=>{if(orders>1){const next={...marks,selected:marks.selected.filter(key=>Number(key.split(':')[0])<orders-1)};if(!valid(total(next)))return;commit(next);setOrders(orders-1);}}}>◎−</button>
     <button type="button" title="Clear marks; keep the current property value" disabled={disabled||!marks.selected.length} onClick={()=>{restore();anchor.current=session.restore();setMarks(emptyMarks());}}>⌫</button>

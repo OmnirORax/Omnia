@@ -934,3 +934,9 @@ styling. Popup-target transitions raise it above contextual popovers; no layout
 measurement is added to motion. This preserves the existing cursor owner/zone
 system rather than adding a cursor renderer for each editor. Interactive
 confirmation is pending.
+
+Shared math-dial chrome: reading is clockwise, with no direction toggle. The
+centre's base dots form the base-switch button (1/2); separate base buttons are
+removed. Numeric readout, ring/sign/clear controls sit in a vertical column on the
+right. All consumers use the same component and stylesheet. Browser acceptance
+pending.

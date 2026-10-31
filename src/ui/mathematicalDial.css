@@ -44,3 +44,8 @@
 
 .mathematical-dial .mathematical-dial-reference{width:max-content;min-width:0;padding:1px 5px;font-size:20px;line-height:1.1}
 .mathematical-dial-reference[aria-pressed=true]{outline:1px solid currentColor}
+
+.mathematical-dial{margin-right:48px}
+.mathematical-dial .mathematical-dial-base{pointer-events:auto;padding:0;background:transparent;border:0;cursor:pointer}
+.mathematical-dial-meta{top:0;left:calc(100% + 8px);transform:none;margin-top:0;gap:4px}
+.mathematical-dial-meta .mathematical-dial-settings{flex-direction:column;flex-wrap:nowrap;width:max-content;max-width:none}
