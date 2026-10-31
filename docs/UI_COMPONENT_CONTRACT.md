@@ -940,3 +940,8 @@ centre's base dots form the base-switch button (1/2); separate base buttons are
 removed. Numeric readout, ring/sign/clear controls sit in a vertical column on the
 right. All consumers use the same component and stylesheet. Browser acceptance
 pending.
+
+Math slot input correction: right-click directly selects/stamps recursion on that
+slot and commits its legal value. It does not cycle cursor brushes. Left-click
+retains normal fill/erase behavior. Repeated right-clicks stamp the same recursive
+mode; empty ring space does not alter the value. Shared consumers inherit this.
