@@ -1,3 +1,17 @@
+# User operating rules (required)
+
+Read [the user's complete agent instructions](docs/AGENT_OPERATING_RULES.md)
+when starting or resuming work. They include category-based implementation,
+ownership, future inheritance, lifecycle/recovery, performance, compactness and
+user-owned interaction testing. Challenge the framing and inspect the nearest
+working analogue before adding a new mechanism. A narrowly authorized browser
+check is not standing permission for further checks or suites.
+
+For warning/error/diagnostic work, read [the diagnostic contract and current
+limits](docs/DIAGNOSTICS.md). Classify the behavior and remedies at the shared
+boundary; do not add warning-specific repair UIs. Current Composer operation
+repairs are shared within Composer, not a completed global warning system.
+
 # Capability discovery and delivery (required)
 
 Before implementing a feature, read/search [docs/CAPABILITIES.md](docs/CAPABILITIES.md)

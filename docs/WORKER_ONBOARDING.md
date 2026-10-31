@@ -1,5 +1,11 @@
 # Worker onboarding: Omnia's shared mental model
 
+Read [the user's full operating instructions](AGENT_OPERATING_RULES.md), including
+category-based inheritance, ownership, lifecycle reasoning and user-owned browser
+acceptance. Warning/error work also requires [the diagnostic contract](DIAGNOSTICS.md):
+Composer operation repairs exist, but global diagnostic categories/remedies remain
+unfinished. Do not misreport that local shared implementation as app-wide coverage.
+
 For global mathematical/reference/constraint work, read the
 [living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
 accepted baseline; PR #41 is discarded. Iterate small shared-module experiments
