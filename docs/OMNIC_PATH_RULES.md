@@ -21,8 +21,8 @@ program; clicking a chip selects it and opens the existing math dial for its
 whole-unit move count. The wheel centre opens that count too. At most eight
 instructions are supported. ＋ arms a fresh sequence; the next direction replaces
 the old sequence, resets turn to zero and disables Loop and Closure. The old count
-editor closes when ＋ is armed; the new first instruction opens a fresh count dial. ⌫ removes the selected instruction
-when more than one remains. ↺ loads the example square rule.
+editor closes when ＋ is armed; the new first instruction opens a fresh count dial. ⌫ removes the selected instruction, including the last one. Right-clicking a
+numbered instruction chip removes that chip directly. ↺ loads the example square rule.
 
 Compact controls have descriptive tooltips and accessible names:
 
@@ -113,3 +113,7 @@ changes one count increment. The × control configures its multiplier with the
 math dial (2² gives four unit moves per increment). Direction remains fixed
 throughout the hold. Release commits one instruction and its count. Simple clicks
 retain a one-unit instruction; pointer cancellation/window blur discards the hold.
+
+The shared wheel uses bright fractional spokes, orange selected-direction feedback
+and a bright hover preview. The active instruction/count has a strong selected
+state; authored directions remain thresholds if fraction settings change.

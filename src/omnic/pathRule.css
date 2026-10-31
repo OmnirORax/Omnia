@@ -4,3 +4,5 @@
 .path-instructions,.path-rule-tools{display:flex;justify-content:center;flex-wrap:wrap;gap:3px;max-width:100%}
 .path-instructions sup{font-size:8px;opacity:.7;margin-right:2px}
 
+
+.path-rule-editor :is(.path-instructions,.path-rule-tools)>button[aria-pressed=true]{background:#174d5d;border:2px solid #ffad42;color:#fff;box-shadow:0 0 7px #ffad4288;font-weight:700}

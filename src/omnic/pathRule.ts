@@ -12,6 +12,11 @@ export function appendPathDirection(rule:PathRule,angle:number,count=1):PathRule
  if(rule.s.length>=8)throw Error('Path instruction capacity reached.');
  return readPathRule(JSON.stringify({...rule,s:[...rule.s,[angle,count]]}));
 }
+/** Remove exactly one authored instruction, including the final one. */
+export function removePathInstruction(rule:PathRule,index:number):PathRule{
+ if(!Number.isInteger(index)||index<0||index>=rule.s.length)throw Error('No such path instruction.');
+ return {...rule,s:rule.s.filter((_,i)=>i!==index)};
+}
 export function readPathRule(text:string):PathRule {
  let v:PathRule;try{v=JSON.parse(text);}catch{throw Error('Invalid path rule.');}
  const integer=(n:unknown,min:number,max:number)=>typeof n==='number'&&Number.isInteger(n)&&n>=min&&n<=max;

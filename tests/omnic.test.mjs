@@ -1355,3 +1355,12 @@ test('held direction counts use the shared free-space axis and configured whole-
  assert.deepEqual(program.s,[[90,12]]);assert.equal(pathTrace(program,{left:-100,top:-100,right:100,bottom:100}).steps,12);
  assert.throws(()=>createCountScrub({x:0,y:0},.5,100));
 });
+
+test('path instruction removal handles selected, final and stale entries without changing neighbours',async()=>{
+ const {DEFAULT_PATH_RULE,removePathInstruction,pathTrace}=await import('../src/omnic/pathRule.ts');
+ const program={...DEFAULT_PATH_RULE,s:[[0,2],[90,4],[180,3]]};
+ const next=removePathInstruction(program,1);assert.deepEqual(next.s,[[0,2],[180,3]]);assert.equal(program.s.length,3);
+ const empty=removePathInstruction({...DEFAULT_PATH_RULE,s:[[45,1]]},0);assert.deepEqual(empty.s,[]);
+ assert.equal(pathTrace(empty,{left:-10,top:-10,right:10,bottom:10}).steps,0);
+ assert.throws(()=>removePathInstruction(next,8));
+});
