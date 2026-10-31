@@ -30,7 +30,7 @@ import { UIField } from '../ui/UIField';
 import { UISection } from '../ui/UISection';
 import { useFeatureActions } from '../ui/useFeatureActions';
 import type { AtomnicInteraction,InteractionPoint as Point } from './atomnicInteraction';
-import { renderSVG,pickStructuralNode } from './svg';
+import { renderSVG,pickStructuralNode,structuralIdsInRect } from './svg';
 import type { Evaluation } from './evaluate';
 import { claimUIPress } from '../ui/pointerOwnership';
 import { featureActionRuntime, FEATURE_ACTIONS } from '../featureActions';
@@ -219,10 +219,17 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     down:(point,event)=>{
       if(event.button===2){secondary.current.press({point,event});return;}
       if(nativeSelectionTogglePress(event)){
+        cancel();dismissPanel?.();cancelPreview?.();setActiveDof(null);setPanel({kind:'functions'});
+        setGhost(undefined);setHovered([]);
         localSurface.current?.focus({preventScroll:true});activateTarget?.();
         const role=event.target instanceof Element?event.target.closest('[data-omnic-role]')?.getAttribute('data-omnic-role')??undefined:undefined;
-        const node=pickStructuralNode(evaluation?.nodes??[],point,role),owner=node&&selectionOwners.get(node.id);
-        if(owner){const elements=[...(localSurface.current?.querySelectorAll('[data-selection-geometry]')??[])].filter(element=>selectionOwners.get(element.getAttribute('data-omnic-role')??'')===owner);ms?.toggleElements(elements);}
+        const nodes=evaluation?.nodes??[],groups=new Map<string,Element[]>();
+        for(const element of localSurface.current?.querySelectorAll('[data-selection-geometry]')??[]){const owner=selectionOwners.get(element.getAttribute('data-omnic-role')??'');if(owner){const elements=groups.get(owner)??[];elements.push(element);groups.set(owner,elements);}}
+        const node=pickStructuralNode(nodes,point,role),owner=node&&selectionOwners.get(node.id),clicked=owner?groups.get(owner)??[]:[];
+        const box=localSurface.current!.getBoundingClientRect(),edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);
+        const project=(p:{x:number;y:number})=>({x:bounds.x+bounds.width/2+((p.x-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((p.y-box.top-(box.height-edge)/2)/edge-.5)*scale});
+        ms?.beginNativeSelection(event,{click:()=>clicked,area:(a,b)=>{const components=structuralIdsInRect(nodes,project(a),project(b)),owners=new Set(nodes.filter(n=>components.has(n.componentId)).map(n=>selectionOwners.get(n.id)));return [...owners].flatMap(id=>id?groups.get(id)??[]:[]);}});
+
         return;
       }
       if(referencePicker?.picking)return;

@@ -46,3 +46,8 @@ export function nativeSelectionTogglePress(event:{button:number;ctrlKey:boolean;
 export function selectionGroupIncluded<T>(wanted:readonly T[],selected:ReadonlySet<T>){
  return wanted.length>0&&!wanted.every(key=>selected.has(key));
 }
+
+/** Clicks toggle membership; a held box adds its complete owners on release. */
+export function nativeSelectionDragged(start:{x:number;y:number},end:{x:number;y:number}){
+ return Math.hypot(end.x-start.x,end.y-start.y)>=4;
+}

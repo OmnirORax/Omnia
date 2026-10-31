@@ -1436,3 +1436,14 @@ test('Ctrl membership toggles complete authored groups so multi-delete uses MS o
  const click={button:0,ctrlKey:true,metaKey:false,shiftKey:false,altKey:false};assert.equal(nativeSelectionTogglePress(click),true);assert.equal(nativeSelectionTogglePress({...click,shiftKey:true}),false);assert.equal(nativeSelectionTogglePress({...click,ctrlKey:false,metaKey:true}),true);
  assert.equal(selectionGroupIncluded(['a','b'],new Set(['a'])),true,'a partial group becomes a complete editable owner');
 });
+
+test('Ctrl marquee separates click jitter from box selection and intersects actual line geometry',async()=>{
+ const {nativeSelectionDragged}=await import('../src/appearance/selectionRequest.ts');
+ const {structuralIdsInRect}=await import('../src/omnic/svg.ts');
+ assert.equal(nativeSelectionDragged({x:0,y:0},{x:2,y:2}),false);assert.equal(nativeSelectionDragged({x:0,y:0},{x:4,y:0}),true);
+ const source=recipe([{id:'diagonal',generator:'line',params:{length:100,angle:45}},{id:'ring',generator:'ring',params:{x:100,radius:10}}]);
+ const evaluation=evaluateRecipe(source);
+ assert.equal(structuralIdsInRect(evaluation.nodes,{x:20,y:-30},{x:30,y:-20}).has('diagonal'),false,'empty line bounding-box corners do not count');
+ assert.equal(structuralIdsInRect(evaluation.nodes,{x:20,y:20},{x:30,y:30}).has('diagonal'),true);
+ const owners=new Set(['diagonal']);const selected=deleteComponents(source,owners);assert.deepEqual(selected.components.map(c=>c.id),['ring']);
+});

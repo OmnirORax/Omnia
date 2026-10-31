@@ -40,7 +40,13 @@ export function structuralIdsAlong(nodes:readonly StructuralNode[],a:{x:number;y
 export function structuralIdsInRect(nodes:readonly StructuralNode[],a:{x:number;y:number},b:{x:number;y:number}):Set<string>{
   const left=Math.min(a.x,b.x),right=Math.max(a.x,b.x),top=Math.min(a.y,b.y),bottom=Math.max(a.y,b.y),ids=new Set<string>();
   for(const n of nodes){if(n.kind==='group')continue;const t=Math.max(2,n.thickness/2);let hit=false;
-    if(n.kind==='line')hit=Math.max(Math.min(n.x,n.x2??n.x),left)-t<=Math.min(Math.max(n.x,n.x2??n.x),right)&&Math.max(Math.min(n.y,n.y2??n.y),top)-t<=Math.min(Math.max(n.y,n.y2??n.y),bottom);
+    if(n.kind==='line'){
+      let low=0,high=1;hit=true;
+      for(const [start,delta,min,max] of [[n.x,(n.x2??n.x)-n.x,left-t,right+t],[n.y,(n.y2??n.y)-n.y,top-t,bottom+t]]){
+        if(Math.abs(delta)<1e-12){if(start<min||start>max){hit=false;break;}}
+        else{const a=(min-start)/delta,b=(max-start)/delta;low=Math.max(low,Math.min(a,b));high=Math.min(high,Math.max(a,b));if(low>high){hit=false;break;}}
+      }
+    }
     else{const nx=Math.max(left,Math.min(right,n.x)),ny=Math.max(top,Math.min(bottom,n.y)),nearest=Math.hypot(nx-n.x,ny-n.y),furthest=Math.max(...[[left,top],[left,bottom],[right,top],[right,bottom]].map(([x,y])=>Math.hypot(x!-n.x,y!-n.y)));hit=nearest<=n.radius+t&&(n.fill||furthest>=n.radius-t);}
     if(hit)ids.add(n.componentId);
   }return ids;

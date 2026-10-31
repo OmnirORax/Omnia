@@ -163,7 +163,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
   selected: VisualPart[]; excluded: VisualPart[]; preview: VisualPart[]; candidate: SelectionRule | null;
   guide: [Point, Point] | null;
   guides: { key: string; points: [Point, Point]; include: boolean; direction: boolean }[];
-  paths?: { native?:NativeSelectionShape|null; key: string; points: Point[]; closed: boolean; disabledEdges: number[]; preview: boolean; include?: boolean }[];
+  paths?: { surface?:boolean; native?:NativeSelectionShape|null; key: string; points: Point[]; closed: boolean; disabledEdges: number[]; preview: boolean; include?: boolean }[];
 }) {
   const paints = useFeedbackPaints();
   const pulse = usePulseSettings();
@@ -385,6 +385,7 @@ export function VisualSelectionOverlay({ selected, excluded, preview, candidate,
           ? [`M${a.x} ${a.y}L${b.x} ${b.y}`] : []).join(" ");
         const pathPaint = path.preview && path.include !== undefined ? (path.include ? paints.included : paints.excluded) : paints.boundary;
         return <g key={path.key} className="visual-selection-path" style={{ color: feedbackInk(pathPaint), opacity: pathPaint.contour }}>
+          {path.surface&&<path d={`M${path.points.map(p=>`${p.x} ${p.y}`).join('L')}Z`} fill="currentColor" opacity={pathPaint.fill}/>}
           <path className="visual-selection-line" d={stroke(false)} fill="none" />
           <path className="visual-selection-line is-disabled" d={stroke(true)} fill="none" />
           {path.closed && path.points.length > 2 && path.points.length < 24 && path.points.map((p, index) => <circle key={index} className="visual-selection-line-end" cx={p.x} cy={p.y} r="2.5" />)}

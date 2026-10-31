@@ -599,3 +599,17 @@ checkpoint before the queued group toggle. Membership/history/feedback remain MS
 owned; existing editable-owner projection and Delete consume that selection.
 Standalone MS and non-opted-in surfaces retain their previous gestures. Interactive
 selection and mass-delete confirmation are pending.
+
+Ctrl/Command+drag on an opted-in Composer surface begins an MS-owned native area
+selection without requiring Q first. Under four CSS pixels it is an ordinary
+Ctrl-click toggle; a box adds complete intersected authored owners on release.
+The adapter captures its geometry/coordinate mapping once at press. MS owns the
+rectangle overlay, queued gesture lifecycle and final membership. Pointer motion
+uses cached geometry and a single queued frame; no history is written until
+release. Esc/blur/pointer cancellation discard the unfinished box. Active
+DOF/reference popups are dismissed when this selection starts, preventing the
+Position grid from reopening. The original composed event path determines native
+ownership even if MS hover replaced the pressed SVG. Standalone/world behavior is
+unchanged. Focused local browser assertions passed MS-off, aiming and pending
+reference states: visible box, two owners, no grid, Delete keeps the third object.
+No browser suite ran; user acceptance remains pending.
