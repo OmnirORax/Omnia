@@ -7,8 +7,9 @@ appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
 ## One circle, independent geometry
 
-Q (rebindable) toggles the stationary controller at the pointer and the compact aiming
-cursor. The circle is centered on the pointer and clamped near viewport edges.
+Q (rebindable) starts the compact aiming cursor directly. The MS settings command
+(`selector.configure`, unassigned by default) explicitly opens the stationary
+controller. In an active numeric context, Q directly starts reference targeting. The circle is centered on the pointer and clamped near viewport edges.
 The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
 Escape disables the tool and clears selection. Browser chrome clicks, window
@@ -88,8 +89,7 @@ mode buttons, pattern filters/counts and edge toggles. Modes are:
   distinct categories. Pointer-event-transparent nested text is recognized from
   its text-range geometry even when its parent receives the pointer event.
 - **Individual ·:** toggle only the pointed registered part, within the same scope.
-- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Before placement, Wheel changes containing-owner depth. The adapter uses the element rectangle and
-  selectable sides; Inside/Outside apply to its contents/exterior. Its stable
+- **Pointed geometry ○:** use a pointed component/frame contour as geometry. Standalone Wheel changes containing-owner depth as before. Composer’s opted-in lens surface instead previews the nearest registered boundary within its adjustable radius. Native SVG feedback preserves the source shape, screen transform and stroke; other surfaces retain their registered bounds/rounded feedback. Inside/Outside apply to the working scope. Its stable
   resident/function anchor follows docking/reparenting and size changes.
 - **Axis ↕ / direction ↑ / segment |:** drag an infinite line, forward ray or
   finite segment. Exact endpoint touches count. A click supplies a vertical axis,
@@ -425,7 +425,7 @@ changing membership. Explicit MS lock retains the current candidate and symbol;
 normal cursor movement does not retarget them. Unlock resumes hover detection.
 No Ctrl requirement or automatic editor-entry freeze is used.
 
-Opening/closing the meta MS controller through `selector.open` preserves the
+Opening/closing the meta MS controller through `selector.configure` preserves the
 current candidate and displayed preview. Returning to aiming does not pick the
 controller's former location; actual pointer motion resumes retargeting. Explicit
 clear, selection commits and geometry/configuration changes keep their own rules.
@@ -499,3 +499,117 @@ restores the normal cursor. Accepted membership, feedback visibility and editing
 scope remain intact; resume MS explicitly through its existing shortcut. This
 handoff runs on pointer entry/press, not polling, and never interrupts unfinished
 geometry drawing. Explicit parked/locked MS behavior remains separate.
+
+
+### E06: clickable DOF information and gesture activation
+
+The Composer top always shows compact active DOF, mode/rule and ⟴ reference controls. Click one to open its existing editor; mode right-click chooses the generator and the expression opens ⠒❉ variables. During an edit the same information follows the cursor as a noninteractive echo. This supersedes earlier DOF Alt-parking descriptions; MS parking remains separate. MB3 (rebindable atomnic.dofOptions) toggles the settings radial at the cursor; MS/Shift priority is retained.
+
+Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
+
+Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.
+
+### Enter confirmation and temporary reference consumers
+
+The registered `selector.confirm` action defaults to Enter. In configuration it
+resumes aiming through the same `aim` function as the ✓ control. During an aimed
+or locked temporary reference request it accepts the current candidate, retaining
+the request if unsupported. Visual-selector scope outranks underlying popup Enter;
+native focused-button activation is consumed by the same shared shortcut handler.
+No private key listener or forced geometry mode is added. Polygon completion keeps
+`selector.finishGeometry`, and typing targets retain native Enter. Saved bindings
+remain authoritative. The temporary request still restores prior selection and
+configuration exactly once. Browser verification of the reported reference-button
+resize-dial leakage remains pending.
+
+
+### Local boundary lens and source-shaped feedback
+
+Composer declares `data-selection-lens` on its editing surface. Only within such
+an opted-in surface is the aiming circle a spatial search lens, initially 18 CSS
+pixels in radius. Ordinary wheel changes radius within 4–160 pixels in Pattern, Individual and
+Boundary modes. It does not zoom the scene or change structural hierarchy.
+Shift-wheel retains geometry rotation; Ctrl-wheel retains native browser zoom.
+Before a working scope, Pattern/Individual discovers the nearest boundary; click
+places it and continues pattern/part selection. Temporary numeric reference requests
+carry the selected viewport point to their requesting editor, which opens its
+prepared possibility space there. No region menu is inserted after the pick. No new selection owner/history is introduced.
+
+`selectionLens.ts` snapshots native SVG geometry through its renderer API and
+screen matrix. The shared visual-measurement revision caches that snapshot. Search
+uses outline distances including stroke thickness, rather than curved shapes’ box
+corners. Non-SVG registered parts use their bounds. Feedback renders the native SVG
+shape attributes/matrix instead of synthetic rectangular guides or corner handles.
+Only whitelisted shape attributes are projected; no source event attributes or
+arbitrary markup are cloned. Shape queries do not read renderer geometry on motion.
+
+Native outline search is sampled (up to 512 points), and does not solve arbitrary
+raster contours, compound-path topology or clipping. Existing region matching is
+unchanged; exact source-shaped feedback is not a new containment solver. Lens size
+is transient. Model/static gates cover search geometry and caching; interactive
+acceptance remains pending with the user.
+
+
+### Detached renderer snapshots and standalone compatibility
+
+SVG replacement can disconnect selected elements before MS’s mutation observer
+refreshes the catalog. `describeSelectedPart` must skip disconnected hosts/text
+ranges and abandon an ancestry path when no parent exists. Never fabricate an
+appearance address for a removed subtree. Accepted rules and stable identities
+remain with MS; the next catalog refresh supplies the current rendered elements.
+A model regression reproduces the former null-parent `children` exception and
+checks recovery with the replacement geometry.
+
+Local-lens picking is an explicit surface capability, not a new global MS default.
+Outside opted-in surfaces, direct Pattern/Individual detection, neutral-frame
+behavior, pointed-boundary depth wheel and the fixed cursor remain the prior MS
+workflow. Lens search is restricted to the current surface. Future renderers opt
+in by declaring the shared surface capability, rather than adding feature-name
+conditions or a separate selector.
+
+
+### Direct opening and completion
+
+All `selector.open` entry points now start aiming immediately. Numeric editor
+scopes register contextual openers with MS; they use the highest-priority active
+DOF to start its existing source request. Surface and logical popup ownership
+restrict this to the relevant context. Shared `SelectionOpenContext` transport
+marks portal controllers automatically; it does not replace MS ownership/rules.
+A pending request bypasses the context opener so its own opening cannot recurse.
+Outside the active context, Q uses ordinary MS targeting with retained modes.
+
+Accepting a target closes MS’s cursor/configuration without clearing the selection
+or reference. Geometry-only construction remains in aiming until a target is
+selected. Explicit MS settings retains the existing controller and Enter-to-aim
+behavior; configuration no longer appears automatically on entry.
+
+Temporary reference picking yields secondary presses on registered
+`data-context-menu-owner` surfaces. MS cancels/restores the borrowed request and
+passes that press plus its native mouse/contextmenu tail to the surface. The
+surface's existing release gate still opens its menu once, after release. A
+pending request must not block arming that secondary release gate. Standalone
+MS selection/removal bindings are unchanged. Browser confirmation pending.
+
+Composer native Ctrl/Command+primary selection toggles complete authored objects
+through MS toggleElements; it does not run Position or source picking. The shared
+picker yields that gesture only on a data-selection-native-toggle surface. Such
+an adapter supplies its actual owner geometry, activates its existing command
+context and lends element groups to MS. Reference cancellation restores its
+checkpoint before the queued group toggle. Membership/history/feedback remain MS
+owned; existing editable-owner projection and Delete consume that selection.
+Standalone MS and non-opted-in surfaces retain their previous gestures. Interactive
+selection and mass-delete confirmation are pending.
+
+Ctrl/Command+drag on an opted-in Composer surface begins an MS-owned native area
+selection without requiring Q first. Under four CSS pixels it is an ordinary
+Ctrl-click toggle; a box adds complete intersected authored owners on release.
+The adapter captures its geometry/coordinate mapping once at press. MS owns the
+rectangle overlay, queued gesture lifecycle and final membership. Pointer motion
+uses cached geometry and a single queued frame; no history is written until
+release. Esc/blur/pointer cancellation discard the unfinished box. Active
+DOF/reference popups are dismissed when this selection starts, preventing the
+Position grid from reopening. The original composed event path determines native
+ownership even if MS hover replaced the pressed SVG. Standalone/world behavior is
+unchanged. Focused local browser assertions passed MS-off, aiming and pending
+reference states: visible box, two owners, no grid, Delete keeps the third object.
+No browser suite ran; user acceptance remains pending.

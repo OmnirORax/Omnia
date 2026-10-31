@@ -111,6 +111,23 @@ export function preferredFeatureKey(bindings: Record<string, string>, key: strin
   candidates.sort((a,b)=>priority(b)-priority(a));
   return candidates[0]?.id ?? null;
 }
+/** Pointer commands use the same scope priority plus their declared surface. */
+export function pointerFeatureKey(bindings:Record<string,string>,event:Pick<MouseEvent,'button'|'ctrlKey'|'altKey'|'shiftKey'|'metaKey'|'target'>,available:(id:string)=>boolean,blocked=false){
+ return preferredFeatureKey(bindings,normalizePointer(event),id=>{
+  if(!available(id))return false;const definition=FEATURE_ACTIONS.find(action=>action.id===id);
+  if(!definition||!('gestureSurface' in definition))return true;
+  const target=event.target as {closest?:(selector:string)=>unknown}|null;
+  return !!target?.closest?.(definition.gestureSurface);
+ },false,blocked);
+}
+/** Arbitrary saved residents share the scoped feature arbitration. An available
+ * content/selector/context command owns its key before a fallback resident. */
+export function residentShortcutAction(bindings:Record<string,string>,key:string,available:(id:string)=>boolean):string|null {
+ if(!key)return null;
+ const scoped=preferredFeatureKey(bindings,key,available);
+ if(scoped&&FEATURE_ACTIONS.find(action=>action.id===scoped)?.scope!=='global')return scoped;
+ return Object.entries(bindings).find(([id,binding])=>id.startsWith('button:')&&binding===key)?.[0]??null;
+}
 export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;
 /** Native pointer gesture modifiers may accompany a saved command. Exact
  * bindings are dispatched first; fallback never revives cleared/rebound inputs. */

@@ -1,7 +1,10 @@
-import { createContext, useContext, useLayoutEffect, useState, useCallback, useRef, type RefObject } from 'react';
+import { createContext, useContext, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import type {ContextNavigation} from './contextNavigation';
+export type {ContextNavigation} from './contextNavigation';
 import { cursorPosition } from './cursorPosition';
 import { uiPointerHeld } from './pointerOwnership';
 /** Shared editors announce logical stage changes, never value/hover updates. */
+export const ContextValueCompletion=createContext<((accept?:()=>boolean|void)=>boolean)|null>(null);
 export const ContextStage=createContext<(()=>void)|null>(null);
 export function useContextStage(identity:string){
   const open=useContext(ContextStage);
@@ -21,7 +24,6 @@ export function usePopupAnchor(position:{x:number;y:number}|null,identity?:strin
   return {anchor:stage?.key===key?stage.point:position,nextStage};
 }
 
-export type ContextNavigation={owner?:RefObject<HTMLElement|null>;cancel?:()=>void;back?:()=>void;advance?:()=>void;confirm?:()=>void};
 export const ContextNavigationRegistry=createContext<((navigation:ContextNavigation)=>()=>void)|null>(null);
 /** Nested editors lend navigation to the shared popup/MC instead of rendering copies. */
 export function useContextNavigation(navigation:ContextNavigation){

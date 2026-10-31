@@ -482,3 +482,178 @@ test('shared MC stage navigation resolves nearest applicable layer and retains f
  assert.deepEqual(calls,['inner','outer','cancel']);assert.deepEqual(stack,before);
  assert.equal(contextLayerAction([],layers,'confirm'),undefined);
 });
+
+test('nested popup surfaces own their events even when React bubbles through a parent',async()=>{
+ const {ownsPointerSurface}=await import('../src/ui/pointerOwnership.ts');
+ const parent={},child={},parentMath={},childMath={};
+ const childTarget={closest:selector=>selector==='[data-context-controller]'?child:selector==='.mathematical-dial'?childMath:null};
+ assert.equal(ownsPointerSurface(parent,childTarget,'[data-context-controller]'),false,'parent must not start dragging or suppress a child click');
+ assert.equal(ownsPointerSurface(child,childTarget,'[data-context-controller]'),true);
+ assert.equal(ownsPointerSurface(parentMath,childTarget,'.mathematical-dial'),false,'amount-slot painting must not edit the parent property');
+ assert.equal(ownsPointerSurface(childMath,childTarget,'.mathematical-dial'),true);
+ assert.equal(ownsPointerSurface(parent,null,'[data-context-controller]'),false);
+});
+
+
+test('secondary menus activate once on release in either native contextmenu order',async()=>{
+ const {createSecondaryRelease}=await import('../src/ui/secondaryRelease.ts');
+ const click=createSecondaryRelease();
+ assert.equal(click.hasPress(),false);
+ click.press('press');
+ assert.equal(click.hasPress(),true,'mouse-only right-button chords can detect an already recorded press');
+ assert.equal(click.context(),undefined,'press-time contextmenu must not expose controls');
+ assert.equal(click.release('release'),'release');
+ assert.equal(click.hasPress(),false);
+ assert.equal(click.context(),undefined,'the same click cannot open settings again');
+ click.press('press');
+ assert.equal(click.release('release'),undefined,'wait for native contextmenu when it follows release');
+ assert.equal(click.context(),'release');
+ assert.equal(click.context(),undefined);
+ click.press('cancelled');click.cancel();
+ assert.equal(click.release('release'),undefined);
+ assert.equal(click.context(),undefined);
+ click.press('abandoned');click.press('new');
+ assert.equal(click.context(),undefined);
+ assert.equal(click.release('latest'),'latest','new press replaces abandoned state');
+});
+
+
+test('saved button shortcuts yield to active scoped commands before reporting a missing resident',async()=>{
+ const {residentShortcutAction}=await import('../src/workspaceActions.ts');
+ const saved=normalizeSettings({bindings:{'button:context:node:edit':'R'}}).bindings;
+ assert.equal(saved['atomnic.rotate'],'R','different scopes retain their bindings');
+ assert.equal(residentShortcutAction(saved,'R',id=>id==='atomnic.rotate'),'atomnic.rotate');
+ assert.equal(residentShortcutAction(saved,'R',()=>false),'button:context:node:edit','saved node binding remains usable outside the content operation');
+ assert.equal(residentShortcutAction({...saved,'atomnic.rotate':''},'R',()=>true),'button:context:node:edit','explicit clears are respected');
+ assert.equal(residentShortcutAction({...saved,'atomnic.rotate':'T'},'T',id=>id==='atomnic.rotate'),'atomnic.rotate','rebound commands use the same arbitration');
+ assert.equal(residentShortcutAction(saved,'',()=>true),null);
+});
+
+
+test('newly appeared settings controls cannot inherit the opener right-click',async()=>{
+ const {contextPressOwnsControl}=await import('../src/ui/contextMenuOwnership.ts');
+ const canvas={},body={},popup={},sizeRange={},sizeInput={},icon={};
+ const openingPath=[canvas,body];
+ assert.equal(contextPressOwnsControl(openingPath,sizeInput),false,'size input mounted under the release must ignore it');
+ assert.equal(contextPressOwnsControl(openingPath,sizeRange),false);
+ assert.equal(contextPressOwnsControl(openingPath,undefined),true,'the original canvas menu still receives its context event');
+ assert.equal(contextPressOwnsControl([icon,popup,body],sizeInput),false,'another control in the same existing popup cannot receive the press either');
+ assert.equal(contextPressOwnsControl([sizeInput,sizeRange,popup,body],sizeInput),true,'a fresh deliberate settings click works');
+ assert.equal(contextPressOwnsControl(null,sizeInput),false,'unknown pointer origin cannot configure a newly visible control');
+ assert.equal(contextPressOwnsControl(null,sizeInput,true),true,'keyboard-native context invocation is explicitly allowed');
+});
+
+test('value sliders traverse a generated sequence without replacing its rule',async()=>{
+ const {rangeSequence,sequenceIndex,sequenceAt,sequenceStep}=await import('../src/ui/rangeMath.ts');
+ const values=rangeSequence([10,5,2.5,1.25,5,NaN],0,64);
+ assert.deepEqual(values,[1.25,2.5,5,10]);
+ assert.equal(sequenceAt(values,0),1.25);assert.equal(sequenceAt(values,1),10);
+ assert.equal(sequenceAt(values,.5),5,'nonlinear values are traversed by index, never linearly interpolated');
+ assert.equal(sequenceStep(values,5,-1),2.5);assert.equal(sequenceStep(values,5,1),10);
+ assert.equal(sequenceStep(values,6,-1),5);assert.equal(sequenceStep(values,6,1),10);
+ assert.equal(sequenceIndex(values,4.9),2);
+ assert.deepEqual(rangeSequence(values,2,8),[2.5,5],'limits filter execution without changing the generator');
+ assert.equal(sequenceAt([],1),undefined);assert.equal(sequenceStep([],1,1),undefined);
+ assert.equal(sequenceAt([7],.95),7);
+});
+
+test('DOF options inherit configurable pointer scope priority and physical press de-duplication',async()=>{
+ const {pointerFeatureKey,defaultSettings}=await import('../src/workspaceActions.ts');
+ const {pointerCommandGate}=await import('../src/ui/pointerCommandGate.ts');
+ const bindings=defaultSettings().bindings;
+ assert.equal(bindings['atomnic.dofOptions'],'MB3');
+ const event={button:1,ctrlKey:false,altKey:false,shiftKey:false,metaKey:false,target:{closest:s=>s.includes('data-atomnic-surface')?{}:null}};
+ assert.equal(pointerFeatureKey(bindings,event,id=>id==='atomnic.dofOptions'),'atomnic.dofOptions');
+ assert.equal(pointerFeatureKey(bindings,{...event,target:{closest:()=>null}},id=>id==='atomnic.dofOptions'),null);
+ assert.equal(pointerFeatureKey({...bindings,'selector.include':'MB3'},event,id=>['atomnic.dofOptions','selector.include'].includes(id)),'selector.include');
+ assert.equal(pointerFeatureKey({...bindings,'atomnic.dofOptions':'MB4'},{...event,button:3},id=>id==='atomnic.dofOptions'),'atomnic.dofOptions');
+ const gate=pointerCommandGate();gate.pointer(1);
+ assert.equal(gate.mouse(1),false,'compatibility mouse event cannot toggle twice');
+ assert.equal(gate.mouse(2),true,'a chord without pointerdown still dispatches');
+ gate.pointer(1);gate.release(1);assert.equal(gate.mouse(1),true);
+});
+
+test('free-space scalar scrubbing locks the first drag axis and reverses without following geometry',async()=>{
+ const {createValueScrub}=await import('../src/ui/valueScrub.ts');
+ const config={origin:{x:0,y:0},width:100,value:50,min:0,max:100,step:1};
+ const right=createValueScrub(config);
+ assert.equal(right.sample({x:2,y:0}),undefined,'press/jitter does not edit a value');
+ assert.equal(right.sample({x:4,y:0}),54);
+ assert.equal(right.sample({x:20,y:900}),70,'perpendicular motion does not change or relock the axis');
+ assert.equal(right.sample({x:-10,y:900}),40,'reversing past the start decreases');
+ const left=createValueScrub(config);assert.equal(left.sample({x:-4,y:0}),54);assert.equal(left.sample({x:-20,y:90}),70);
+ const down=createValueScrub(config);assert.equal(down.sample({x:0,y:4}),54);assert.equal(down.sample({x:900,y:20}),70);
+ const up=createValueScrub(config);assert.equal(up.sample({x:0,y:-4}),54);assert.equal(up.sample({x:900,y:-20}),70);
+ const diagonal=createValueScrub(config);assert.equal(diagonal.sample({x:3,y:4}),55);
+ assert.equal(diagonal.sample({x:-40,y:30}),50,'motion perpendicular to the original diagonal contributes zero');
+ assert.equal(diagonal.sample({x:30,y:40}),100);assert.equal(diagonal.sample({x:-30,y:-40}),0);
+});
+
+test('nested editor navigation resolves confirmation and cancellation independently',async()=>{
+ const {contextNavigationAction}=await import('../src/ui/contextNavigation.ts');
+ const outer={contains:node=>node===inner||node===leaf},inner={contains:node=>node===leaf},leaf={contains:()=>false};
+ const calls=[],entries=[{owner:{current:outer},confirm:()=>calls.push('outer confirm'),advance:()=>calls.push('outer advance')},{owner:{current:inner},confirm:()=>calls.push('preview commit')},{owner:{current:leaf},cancel:()=>calls.push('stroke cancel')}];
+ contextNavigationAction(entries,'confirm')();contextNavigationAction(entries,'cancel')();contextNavigationAction(entries,'advance')();
+ assert.deepEqual(calls,['preview commit','stroke cancel','outer advance'],'a cancel-only child cannot hide the current value confirmation');
+ assert.equal(contextNavigationAction(entries,'back'),undefined);
+ const reordered=[entries[1],entries[0],entries[2]];contextNavigationAction(reordered,'confirm')();
+ assert.equal(calls.at(-1),'preview commit','DOM containment, not effect registration order, selects the deeper owner');
+});
+
+test('popup dismissal yields to active input owners and every registered popup interior',async()=>{
+ const {dismissContextPointer}=await import('../src/ui/activeContextModel.ts');
+ const grid={},blankInside={},outside={},calls=[];
+ const parent={contains:node=>node===grid||node===blankInside},child={contains:node=>node===grid};
+ const layers=new Map([[parent,{close:()=>{},dismiss:()=>calls.push('parent')}],[child,{close:()=>{},dismissOutside:true,dismiss:()=>calls.push('child')}]]);
+ assert.equal(dismissContextPointer(layers,outside,true,false),false,'MS or another active input owner gets the press before either dismissal path');
+ assert.equal(dismissContextPointer(layers,grid,false,false),false,'a grid needs no control/button/role marker to own its popup interior');
+ assert.equal(dismissContextPointer(layers,blankInside,false,false),false,'a parent popup interior cannot dismiss its active child');
+ assert.deepEqual(calls,[]);
+ assert.equal(dismissContextPointer(layers,outside,false,true),true,'explicit outside-dismissal retains its consume-on-outside behavior');
+ assert.deepEqual(calls,['child']);
+ const generic=new Map([[parent,{close:()=>{},dismiss:()=>calls.push('generic')}]]);
+ assert.equal(dismissContextPointer(generic,outside,false,true),false,'ordinary native/content controls remain usable for generic dials');
+ assert.equal(dismissContextPointer(generic,outside,false,false),true);
+ assert.deepEqual(calls,['child','generic']);
+});
+
+test('logical popup parents register before portalled children and navigation updates preserve the deepest value owner',async()=>{
+ const {insertContextLayer,contextLayerAction}=await import('../src/ui/activeContextModel.ts');
+ const frame={kind:'frame',key:'composer'},outer={},inner={},leaf={},calls=[];
+ const layers=new Map([[inner,{ancestors:[outer],close:()=>{},confirm:()=>calls.push('inner')}]]);
+ let stack=insertContextLayer([frame],inner,layers);
+ layers.set(outer,{close:()=>{}});stack=insertContextLayer(stack,outer,layers);
+ assert.deepEqual(stack,[frame,{kind:'layer',element:outer},{kind:'layer',element:inner}],'late parent registration cannot put the parent above its child');
+ const before=[...stack];layers.get(outer).confirm=()=>calls.push('outer');
+ contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['inner'],'new parent actions cannot steal confirmation');
+ assert.deepEqual(stack,before,'action availability does not rebuild the scope stack');
+ layers.set(leaf,{ancestors:[inner,outer],close:()=>{},confirm:()=>calls.push('leaf')});stack=insertContextLayer(stack,leaf,layers);
+ stack=insertContextLayer(stack,outer,layers);
+ assert.deepEqual(stack.map(e=>e.element??e.key),['composer',outer,inner,leaf]);
+ contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['inner','leaf']);
+});
+
+test('Enter accepts the preview before finishing its stage, while rejected choices and cancel retain editing',async()=>{
+ const {confirmContextStage}=await import('../src/ui/contextNavigation.ts');
+ const {mathematicalValueSession}=await import('../src/properties/mathematicalDial.ts');
+ const {confirmValue}=await import('../src/ui/valueConfirmation.ts');
+ const session=mathematicalValueSession({x:1,y:2},(a,b)=>a.x===b.x&&a.y===b.y),calls=[];
+ session.preview({x:9,y:6});
+ assert.deepEqual(session.restore(),{x:1,y:2},'leaving an unconfirmed preview is still cancellation');
+ session.preview({x:9,y:6});
+ assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>session.expected,onCommit:value=>{session.commit(value);calls.push('commit');}}),()=>{calls.push('finish');session.restore();}),true);
+ assert.deepEqual(calls,['commit','finish'],'finishing may unmount/cancel the surface only after its owner accepts');
+ assert.deepEqual(session.restore(),{x:9,y:6},'leaving/unmount after Enter retains the accepted value');
+ assert.equal(confirmContextStage(()=>false,()=>calls.push('invalid finish')),false);
+ assert.deepEqual(calls,['commit','finish'],'invalid/no-candidate selection cannot close the stage');
+});
+
+test('hovering a popup activates its logical confirmation scope before any click',async()=>{
+ const {contextLayerScope,contextLayerAction}=await import('../src/ui/activeContextModel.ts');
+ const frame={kind:'frame',key:'composer'},parent={},child={},removed={},calls=[];
+ const layers=new Map([[parent,{close:()=>{},confirm:()=>calls.push('parent')}],[child,{ancestors:[parent,removed],close:()=>{},confirm:()=>calls.push('child')}] ]);
+ const stack=contextLayerScope([frame],child,layers);
+ assert.deepEqual(stack,[frame,{kind:'layer',element:parent},{kind:'layer',element:child}]);
+ contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['child'],'Enter has the child owner without a prior selection click');
+ assert.deepEqual(contextLayerScope([frame],removed,layers),[frame],'closed layers cannot reactivate');
+});

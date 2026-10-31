@@ -1,13 +1,14 @@
+import {featureActionRuntime} from '../featureActions';
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
-import { activeFrame, parentContext, contextLayerAction, contextStackFromScopes, dismissContextDials, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
+import { activeFrame, parentContext, contextLayerAction, contextStackFromScopes, insertContextLayer, contextLayerScope, dismissContextPointer, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
 import { FunctionControl } from "./UIWorkspace";
 import { ACTIONS } from '../workspaceActions';
 import { contextTargets } from './contextTargets';
-import { claimUIPress, uiPointerHeld, physicalPointerHeld } from "./pointerOwnership";
+import { claimUIPress, uiPointerHeld, physicalPointerHeld,physicalPressVersion,isOpeningPress } from "./pointerOwnership";
 
 const fieldSelector = 'input:not([type="button"]):not([type="submit"]),textarea,select,[contenteditable="true"]';
 const controllerSelector = '[data-context-controller],[data-ui-function^="context."],[data-shortcut-runner],omnium-appearance-recovery';
@@ -59,24 +60,27 @@ export function useCancelValueEdit<T extends HTMLElement>(ref: RefObject<T | nul
   }, [ref, identity]);
 }
 /** Shared popup adapters add a real intermediate level, including portalled ones. */
-export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string, dismiss?:()=>void, navigation?:{cancel?:()=>void;advance?:()=>void;confirm?:()=>void}) {
+export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>, close: () => void, parent?: string, dismiss?:()=>void, navigation?:{cancel?:()=>void;advance?:()=>void;confirm?:()=>void;dismissOutside?:boolean;ancestors?:readonly RefObject<HTMLElement|null>[]}) {
   const nav=useRef(navigation);nav.current=navigation;
   const ui = useOptionalUITracked(()=>[]), current = useRef(close), dismissal=useRef(dismiss); current.current = close;dismissal.current=dismiss;
   useLayoutEffect(()=>{
     const node=ref.current;if(!open||!node)return;
-    let opening=physicalPointerHeld();
-    const fresh=()=>{opening=false;};
-    const consume=(event:Event)=>{if(!opening)return;if(event instanceof MouseEvent&&event.type==='click'&&event.detail===0)return;event.preventDefault();event.stopImmediatePropagation();};
-    node.addEventListener('pointerdown',fresh,true);
+    const opening=physicalPointerHeld()?physicalPressVersion():null;
+    // React capture can stop pointerdown before it reaches this DOM node.
+    // Window's physical stream still sees the new press: guard only the press
+    // that opened this layer, never a subsequent choice inside or outside it.
+    const consume=(event:Event)=>{if(!isOpeningPress(opening))return;if(event instanceof MouseEvent&&event.type==='click'&&event.detail===0)return;event.preventDefault();event.stopImmediatePropagation();};
     for(const type of ['pointerup','mouseup','click','contextmenu'])node.addEventListener(type,consume,true);
-    return()=>{node.removeEventListener('pointerdown',fresh,true);for(const type of ['pointerup','mouseup','click','contextmenu'])node.removeEventListener(type,consume,true);};
+    return()=>{for(const type of ['pointerup','mouseup','click','contextmenu'])node.removeEventListener(type,consume,true);};
   },[open,ref]);
 
   useLayoutEffect(() => {
     const node = ref.current;
     if (!ui || !open || !node) return;
     const saved = ui.activeContext.getSnapshot(), owner = parent ?? activeFrame(saved)?.key;
-    ui.contextLayers.set(node, { parent: owner, close: () => current.current(),dismiss:dismiss?()=>dismissal.current?.():undefined,cancel:navigation?.cancel?()=>nav.current?.cancel?.():undefined,advance:navigation?.advance?()=>nav.current?.advance?.():undefined,confirm:navigation?.confirm?()=>nav.current?.confirm?.():undefined });
+    ui.contextLayers.set(node, { ancestors:navigation?.ancestors?.flatMap(ref=>ref.current?[ref.current]:[]),dismissOutside:navigation?.dismissOutside,parent: owner, close: () => current.current(),dismiss:dismiss?()=>dismissal.current?.():undefined,cancel:navigation?.cancel?()=>nav.current?.cancel?.():undefined,advance:navigation?.advance?()=>nav.current?.advance?.():undefined,confirm:navigation?.confirm?()=>nav.current?.confirm?.():undefined });
+    const enter=()=>{if(uiPointerHeld())return;const layer=ui.contextLayers.get(node);if(!layer)return;publish(ui,contextLayerScope(layer.parent?frameChain(ui,layer.parent):[],node,ui.contextLayers));};
+    node.addEventListener('pointerenter',enter);
     const focused = document.activeElement;
     // Nested portalled controllers retain their existing context ancestors.
     // Rebuilding only the frame chain drops the parent popup from Esc/Back.
@@ -84,13 +88,24 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
       ? saved.filter(entry => entry.kind !== "field" && (entry.kind === "frame" || entry.element.isConnected))
       : owner ? frameChain(ui, owner) : saved.filter(entry => entry.kind !== "field");
     publish(ui, focused instanceof HTMLElement && node.contains(focused) ? stackAt(ui, focused)
-      : [...ancestors, { kind: "layer", element: node }]);
+      : insertContextLayer(ancestors,node,ui.contextLayers));
     return () => {
+      node.removeEventListener('pointerenter',enter);
       ui.contextLayers.delete(node);
       const stack = ui.activeContext.getSnapshot(), index = stack.findIndex(entry => entry.kind === "layer" && entry.element === node);
       if (index >= 0) publish(ui, stack.slice(0, index));
     };
-  }, [open, ui?.activeContext, parent, ref, !!dismiss,!!navigation?.cancel,!!navigation?.advance,!!navigation?.confirm]);
+  }, [open, ui?.activeContext, parent, ref,navigation?.ancestors]);
+  // Availability changes update this layer in place. Re-registering the parent
+  // removes/reorders an already open child and sends Enter to the wrong owner.
+  useLayoutEffect(()=>{
+    const node=ref.current,layer=node&&ui?.contextLayers.get(node);if(!open||!ui||!layer)return;
+    layer.dismiss=dismiss?()=>dismissal.current?.():undefined;layer.dismissOutside=navigation?.dismissOutside;
+    layer.cancel=navigation?.cancel?()=>nav.current?.cancel?.():undefined;
+    layer.advance=navigation?.advance?()=>nav.current?.advance?.():undefined;
+    layer.confirm=navigation?.confirm?()=>nav.current?.confirm?.():undefined;
+    ui.activeContext.set([...ui.activeContext.getSnapshot()]);
+  },[open,ui?.activeContext,ref,!!dismiss,!!navigation?.cancel,!!navigation?.advance,!!navigation?.confirm,!!navigation?.dismissOutside]);
 }
 
 export function ActiveContextSystem() {
@@ -152,9 +167,12 @@ export function ActiveContextSystem() {
     const activate = (event: Event) => {
       if(event instanceof PointerEvent&&api.current.handle(event)){claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;}
       let element = event.target instanceof Element ? event.target : null;
-      if(event instanceof PointerEvent&&event.button===0&&!event.ctrlKey&&!event.metaKey&&latest.current.contextLayers.size>0&&element&&!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-ui-popup-interior],[data-omnic-role]')&&dismissContextDials(latest.current.contextLayers.values())) {
-        claimUIPress(event.pointerId,event.pointerType,event.buttons);
-        event.preventDefault();event.stopImmediatePropagation();return;
+      if(event instanceof PointerEvent&&event.button===0&&element){
+        const inputOwned=featureActionRuntime.available('selector.include');
+        const preserveContent=event.ctrlKey||event.metaKey||!!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-ui-popup-interior],[data-omnic-role]');
+        if(dismissContextPointer(latest.current.contextLayers,element,inputOwned,preserveContent)){
+          claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;
+        }
       }
       while (element && !(element instanceof HTMLElement)) element = element.parentElement;
       if (!(element instanceof HTMLElement) || element.closest(controllerSelector)) return;

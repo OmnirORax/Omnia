@@ -1,32 +1,39 @@
-import { useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent } from "react";
+import {contextNavigationAction,confirmContextStage} from './contextNavigation';
+import {SelectionOpenContext} from './SelectionOpenContext';
+import {cursorSample,popupInvocation} from './cursorPosition';
+import {placePopup,popupBelowButton,type PopupRect} from './popupPlacement';
+import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
-import { ContextStage, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
-import { claimUIPress, physicalPointerHeld } from "./pointerOwnership";
+import { ContextStage, ContextValueCompletion, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
+import { claimUIPress, ownsPointerSurface, popupDragHandle } from "./pointerOwnership";
+
+const PopupParents=createContext<readonly RefObject<HTMLDivElement|null>[]>([]);
 
 /** Transient contextual projection: reuse the caller's controls, never open or
  * persist unrelated controller categories just to invoke a common operation. */
-export function ContextualMasterController({ title, hint, position, onClose, onDismiss, onAdvance, onConfirm, onWheel, children, stage, radial = false, anchored = false }: {
+export function ContextualMasterController({ title, hint, position, onClose, onDismiss, onAdvance, onConfirm, onWheel, children, stage, radial = false, anchored = false, dismissOutside=false }: {
   title: string; hint?: string; position: { x: number; y: number } | null;
-  onClose: () => void; onAdvance?:()=>void;onConfirm?:()=>void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean; anchored?:boolean;
+  onClose: () => void; onAdvance?:()=>void;onConfirm?:()=>void; onDismiss?:()=>void; onWheel?: (event: WheelEvent) => void; children: ReactNode;stage?:string|number; radial?: boolean; anchored?:boolean; dismissOutside?:boolean;
 }) {
-  const root = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null),parents=useContext(PopupParents),selectionOwner=useContext(SelectionOpenContext);
+  const ancestry=useMemo(()=>[root,...parents],[parents]);
+  const invocation=useRef<Element|null>(null),buttonAnchor=useRef<PopupRect|null>(null);
+  useLayoutEffect(()=>{if(!position){invocation.current=null;buttonAnchor.current=null;return;}const captured=popupInvocation(),target=cursorSample().target;buttonAnchor.current=captured?.button??null;if(target instanceof Node&&root.current?.contains(target))return;invocation.current=captured?.boundary??(target instanceof Element?target.closest('[data-ui-popup-boundary]'):null);},[!!position,position?.x,position?.y,stage]);
   const navigation=useRef(new Map<symbol,ContextNavigation>());const [,refreshNavigation]=useState(0);
   const registerNavigation=useCallback((value:ContextNavigation)=>{const key=Symbol();navigation.current.set(key,value);refreshNavigation(n=>n+1);return()=>{navigation.current.delete(key);refreshNavigation(n=>n+1);};},[]);
-  const nestedNavigation=()=>{let selected:ContextNavigation|undefined;for(const candidate of navigation.current.values()){
-    const a=selected?.owner?.current,b=candidate.owner?.current;
-    if(!selected||!a||b&&a.contains(b))selected=candidate;
-  }return selected;};
+  const navigate=(action:'cancel'|'back'|'advance'|'confirm')=>contextNavigationAction(navigation.current.values(),action);
+  const finish=useRef(onClose);finish.current=onConfirm??onAdvance??onDismiss??onClose;
+  const completeValue=useCallback((accept?:()=>boolean|void)=>confirmContextStage(accept,()=>finish.current()),[]);
 
   const popup=usePopupAnchor(position,stage??title);
   const anchor=anchored?position:popup.anchor,nextStage=anchored?null:popup.nextStage;
-  const openingPress = useRef(false);
+  const owns=(target:EventTarget|null)=>ownsPointerSurface(root.current,target instanceof Element?target:null,'[data-context-controller]');
   const offset=useRef({x:0,y:0}),drag=useRef<{id:number;x:number;y:number;before:{x:number;y:number};handle:HTMLElement;moved:boolean}|null>(null),suppressClick=useRef(false);
   const cancelDrag=()=>{const active=drag.current;if(!active)return;offset.current=active.before;if(root.current)root.current.style.translate=`${offset.current.x}px ${offset.current.y}px`;drag.current=null;};
-  const closeLayer=()=>{if(drag.current)cancelDrag();else (nestedNavigation()?.back??onClose)();};
+  const closeLayer=()=>{if(drag.current)cancelDrag();else (navigate('back')??onClose)();};
   useLayoutEffect(()=>{offset.current={x:0,y:0};drag.current=null;if(root.current)root.current.style.translate='';},[anchor?.x,anchor?.y,stage,!!position]);
-  useLayoutEffect(() => { openingPress.current = !!position && physicalPointerHeld(); }, [!!position,anchor?.x,anchor?.y,stage]);
-  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{cancel:nestedNavigation()?.cancel,advance:nestedNavigation()?.advance??onAdvance,confirm:nestedNavigation()?.confirm??onConfirm??nestedNavigation()?.advance??onAdvance});
+  useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{ancestors:parents,dismissOutside,cancel:navigate('cancel'),advance:navigate('advance')??onAdvance,confirm:()=>completeValue(navigate('confirm'))});
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
     node.setAttribute("popover", "manual"); node.showPopover();
@@ -36,13 +43,17 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     const node = root.current; if (!node || !position) return;
     const fit = () => {
       const bounds = node.getBoundingClientRect();
-      node.style.left = `${radial?anchor!.x-bounds.width/2:anchor!.x}px`;
-      node.style.top = `${radial?anchor!.y-bounds.height/2:anchor!.y}px`;
+      const requested={x:radial?anchor!.x:anchor!.x+bounds.width/2,y:radial?anchor!.y:anchor!.y+bounds.height/2};
+      const owners=anchored?[]:[invocation.current,...parents.map(p=>p.current)].filter((owner):owner is Element=>!!owner&&owner.isConnected&&!node.contains(owner));
+      const parentBounds=owners.map(owner=>{const b=owner.getBoundingClientRect();return {x:b.left,y:b.top,width:b.width,height:b.height};}).filter(b=>b.width>0&&b.height>0);
+      const center=!anchored&&buttonAnchor.current?popupBelowButton(buttonAnchor.current,bounds,parentBounds):placePopup(parentBounds,bounds,requested);
+      node.style.left = `${center.x-bounds.width/2}px`;
+      node.style.top = `${center.y-bounds.height/2}px`;
     };
-    const observer = new ResizeObserver(fit); observer.observe(node); fit();
+    const observer = new ResizeObserver(fit); observer.observe(node);if(!anchored){for(const p of parents)if(p.current)observer.observe(p.current);if(invocation.current)observer.observe(invocation.current);}fit();
     window.addEventListener("resize", fit);
     return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
-  }, [anchor?.x,anchor?.y,radial]);
+  }, [anchor?.x,anchor?.y,radial,anchored,parents,stage]);
   useEffect(() => {
     const node = root.current; if (!node) return;
     const preventScroll = (event: globalThis.WheelEvent) => {
@@ -51,12 +62,15 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     node.addEventListener("wheel", preventScroll, { passive: false });
     return () => node.removeEventListener("wheel", preventScroll);
   }, [!!position, !!onWheel]);
-  return position && createPortal(<div ref={root} className={`contextual-master-controller ${radial?'contextual-master-controller-radial':'ui-frame-search-popup'}`} data-context-controller data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
+  return position && createPortal(<div ref={root} className={`contextual-master-controller ${radial?'contextual-master-controller-radial':'ui-frame-search-popup'}`} data-context-controller data-selection-context-owner={selectionOwner} data-ui-gesture-owner="content" data-ui-search data-ui-name-ignore
     onPointerDownCapture={event => {
-      openingPress.current = false;suppressClick.current=false;
-      if(!radial||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-dial-drag]'))return;
+      if(!owns(event.target))return;
+      suppressClick.current=false;
+      if(event.button!==0||!(event.target instanceof Element))return;
+      const handle=popupDragHandle<HTMLElement>(event.target,event.currentTarget,!radial);
+      if(!handle)return;
       event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);
-      drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,before:{...offset.current},handle:event.target.closest('[data-dial-drag]') as HTMLElement,moved:false};
+      drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,before:{...offset.current},handle,moved:false};
       event.currentTarget.setPointerCapture(event.pointerId);
     }}
     onPointerMoveCapture={event=>{const active=drag.current;if(!active||active.id!==event.pointerId)return;
@@ -64,7 +78,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
       if(!active.moved&&Math.hypot(dx,dy)<3)return;active.moved=true;
       offset.current={x:active.before.x+dx,y:active.before.y+dy};event.currentTarget.style.translate=`${offset.current.x}px ${offset.current.y}px`;
     }}
-    onPointerUpCapture={event=>{if(openingPress.current){event.preventDefault();event.stopPropagation();return;}const active=drag.current;if(!active||active.id!==event.pointerId)return;
+    onPointerUpCapture={event=>{if(!owns(event.target))return;const active=drag.current;if(!active||active.id!==event.pointerId)return;
       event.stopPropagation();drag.current=null;
       if(!active.moved&&active.handle.tagName==='BUTTON')active.handle.click();
       suppressClick.current=true;
@@ -72,15 +86,10 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     }}
     onPointerCancel={cancelDrag}
     onLostPointerCapture={()=>{if(drag.current)cancelDrag();}}
-    onClickCapture={event=>{if(openingPress.current&&event.detail>0){openingPress.current=false;event.preventDefault();event.stopPropagation();return;}if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
-    onContextMenuCapture={event => {
-      // A popup opened on pointerdown must not interpret that same press
-      // again when the browser dispatches contextmenu at its new contents.
-      if (openingPress.current) { event.preventDefault(); event.stopPropagation(); }
-    }}
+    onClickCapture={event=>{if(!owns(event.target))return;if(suppressClick.current){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{left:anchor!.x,top:anchor!.y}}>
-    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextNavigationRegistry.Provider value={registerNavigation}>{children}</ContextNavigationRegistry.Provider></ContextStage.Provider>
+    {!radial&&<><strong data-dial-drag style={{cursor:"grab",userSelect:"none",touchAction:"none"}} title={`Drag · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextValueCompletion.Provider value={completeValue}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextValueCompletion.Provider></ContextStage.Provider>
   </div>, document.body);
 }

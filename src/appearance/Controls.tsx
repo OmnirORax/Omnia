@@ -41,8 +41,8 @@ export function PropertyEditor(props: Parameters<typeof PropertyInput>[0] & { pr
     if (spec.kind !== "number") return undefined;
     const candidates = props.previewTargets ?? (ctx ? adjustmentTargets(ctx.state, ctx.targets, props.property, undefined, ctx.hierarchy.index) : []);
     const ranges = candidates.map(target => numericRange(target.numberRanges?.[props.property] ?? spec, key => ctx?.read(target, key)));
-    return { min: Math.max(spec.min!, props.limits?.min ?? -Infinity, ...ranges.map(range => range.min)), max: Math.min(spec.max!, props.limits?.max ?? Infinity, ...(ranges.length ? ranges.map(range => range.max) : [numericRange(spec).max])) };
-  }, [spec, props.limits?.min, props.limits?.max, props.previewTargets, ctx?.hierarchy, ctx?.state.sets, ctx?.state.locks, ctx?.state.disconnected, spec.numericRange ? ctx?.read : null]);
+    return { step:props.limits?.step??spec.step, min: Math.max(spec.min!, props.limits?.min ?? -Infinity, ...ranges.map(range => range.min)), max: Math.min(spec.max!, props.limits?.max ?? Infinity, ...(ranges.length ? ranges.map(range => range.max) : [numericRange(spec).max])) };
+  }, [spec, props.limits?.min, props.limits?.max, props.limits?.step, props.previewTargets, ctx?.hierarchy, ctx?.state.sets, ctx?.state.locks, ctx?.state.disconnected, spec.numericRange ? ctx?.read : null]);
   return <span data-appearance-editor data-ui-native-tag="transparent" className="property-activity-preview" style={{ display: "contents" }}
     onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
     onFocusCapture={() => setFocus(true)} onBlurCapture={event => {
@@ -72,7 +72,7 @@ function PropertyInput({
   label?: string;
   effectKinds?: readonly string[];
   choices?: readonly string[];
-  limits?: { min: number; max: number };
+  limits?: { min: number; max: number; step?:number };
 }) {
   const ctx = useAppearance();
   const numericEditor=useNumericEditor();
@@ -89,7 +89,7 @@ function PropertyInput({
     setNumber(Number(value));
   }, [value]);
   useEffect(() => {
-    if (p.kind !== "number" || numericEditor.mathematical && configuration!=='step') return;
+    if (p.kind !== "number" || numericEditor.mathematical) return;
     const node = input.current!;
     const commit = () => {
       if (editing.current) {
@@ -163,8 +163,8 @@ function PropertyInput({
       </div>
     );
   }
-  if(numericEditor.mathematical&&configuration!=='step')return <MathematicalValueControl
-    inline={numericPresentation==='inline'} label={label??p.label} disabled={disabled}
+  if(numericEditor.mathematical)return <MathematicalValueControl
+    inline={numericPresentation==='inline'} configure={configuration==='step'} configurationKey={property} step={limits?.step??p.step} label={label??p.label} disabled={disabled}
     value={Number(value)} min={limits?.min??p.min!} max={limits?.max??p.max!} integer={p.integer}
     onPreview={onPreview} onCommit={onCommit}/>;
   return <RangeControl

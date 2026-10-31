@@ -241,3 +241,21 @@ availability, typing, capture and blocked dialogs.
 ## Contextual hierarchy navigation
 
 MC owns context.previous (Alt+MB4), context.next (Alt+MB5), and context.confirm (Enter). Escape retains context.back. Plain side buttons retain configured mouse history. Active layers declare advance/confirm adapters; nested editors register their current callbacks with useContextNavigation rather than rendering Back/Confirm controls. The innermost stage receives navigation, native field Enter stays local, and registered active gestures cancel before stepping outward. Omnic adopts this for preset, DOF, sequential and halving editors; dial centres drag only.
+
+
+Saved arbitrary `button:` residents participate in scoped arbitration before their
+DOM/fallback runner consumes input. `residentShortcutAction` reuses
+`preferredFeatureKey`: an available selector/content/context feature yields the
+resident runner and is dispatched by its existing feature owner. With no applicable
+scoped feature, the saved resident retains its binding and normal availability
+notice. This prevents an unavailable node resident from stealing Composer R, without
+rewriting saved assignments, overriding explicit clears, or adding private keys.
+
+
+### E06: clickable DOF information and gesture activation
+
+The Composer top always shows compact active DOF, mode/rule and ⟴ reference controls. Click one to open its existing editor; mode right-click chooses the generator and the expression opens ⠒❉ variables. During an edit the same information follows the cursor as a noninteractive echo. This supersedes earlier DOF Alt-parking descriptions; MS parking remains separate. MB3 (rebindable atomnic.dofOptions) toggles the settings radial at the cursor; MS/Shift priority is retained.
+
+Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
+
+Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.

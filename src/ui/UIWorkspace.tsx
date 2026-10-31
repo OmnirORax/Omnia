@@ -1,3 +1,4 @@
+import {featureActionRuntime} from '../featureActions';
 import { ContextTargetController } from './ContextTargetController';
 import { ToolCursorLayer, rememberToolIcon } from "./toolCursor";
 import { ToolGlyph, toolIconFor } from "./toolIcon";
@@ -119,7 +120,7 @@ import { DockWorkspace, dockWorkspaceArea, useDockResident, useDockWorkspace } f
 import type { DockSide } from "./dockTree";
 import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
-import { buttonShortcutId, functionShortcutBinding, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
+import { residentShortcutAction, pointerFeatureKey, buttonShortcutId, functionShortcutBinding, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
 import { claimUIPress } from "./pointerOwnership";
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
@@ -637,8 +638,9 @@ export function UIWorkspace({
       const keyboard = event instanceof KeyboardEvent;
       if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || keyboard && (event.repeat || isTypingTarget(event.target))) return;
       const key = keyboard ? normalizeKey(event) : normalizePointer(event);
-      const id = Object.entries(shortcuts?.bindings ?? {}).find(([id, binding]) => id.startsWith("button:") && binding && binding === key)?.[0];
-      if (!id) return;
+      const id = keyboard ? residentShortcutAction(shortcuts?.bindings ?? {},key,candidate=>featureActionRuntime.available(candidate))
+        : pointerFeatureKey(shortcuts?.bindings??{},event,candidate=>featureActionRuntime.available(candidate))??Object.entries(shortcuts?.bindings??{}).find(([id,binding])=>id.startsWith("button:")&&binding&&binding===key)?.[0];
+      if (!id?.startsWith("button:")) return;
       event.preventDefault(); event.stopImmediatePropagation();
       if (!keyboard) { shortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); }
       invoke(id);

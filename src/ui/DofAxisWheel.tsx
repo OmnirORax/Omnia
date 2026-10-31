@@ -1,0 +1,59 @@
+import {createCountScrub,createPolarCountDrag} from './valueScrub';
+import {useValueConfirmation} from './useValueConfirmation';
+import {useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
+import {axisFieldCandidate,axisFraction,axisNodeAt,type StateField} from '../properties/stateField';
+import {createStateActivation} from '../properties/stateSelection';
+import {RADIAL_GEOMETRY} from './radialMenuModel';
+import {radialScale} from './radialMenuState';
+import {claimUIPress,observeUIPress} from './pointerOwnership';
+/** The generated angular field is an axis wheel: hover previews, click commits.
+ * Values and history remain with DofStateField's existing owner session. */
+export function DofAxisWheel({field,value,label,symbol,disabled,onPreview,onCommit,onCancel,onConfigure,selection='single',countDrag,selectedValue=value,axisCounts=[]}:{axisCounts?:readonly {angle:number;count:number;total:number;steps?:number;order?:number;selected?:boolean}[];selectedValue?:number;countDrag?:{unit:number;max:number;active?:boolean;total?:number;value?:number;onPreview:(angle:number,count:number)=>void;onCommit:(angle:number,count:number)=>void;dropTarget?:(point:{x:number;y:number})=>number|undefined;onReorder?:(from:number,to:number)=>void;onEditStart?:(order:number)=>boolean|void;onEditCommit?:(order:number,count:number,angle:number)=>void;onCancel:()=>void};selection?:'single'|'accumulate';field:StateField;value:number;label:string;symbol:string;disabled:boolean;onPreview:(n:number)=>void;onCommit:(n:number)=>void;onCancel:()=>void;onConfigure:()=>void}){
+ const [hoverNode,setHoverNode]=useState<number|undefined>();
+ const [previewValue,setPreviewValue]=useState<number|undefined>();
+ const fraction=axisFraction(field,previewValue??value);
+ const ticks=countDrag?Math.min(64,countDrag.total??Math.floor(countDrag.max/countDrag.unit)):0;
+ const selected=field.candidates.find(c=>Math.abs(c.value-(previewValue??value))<1e-7);
+ const handled=useRef(false);
+ const held=useRef<{id:number;angle:number;order?:number;initialCount?:number;count?:number;polar?:ReturnType<typeof createPolarCountDrag>;scrub:ReturnType<typeof createCountScrub>;config:NonNullable<typeof countDrag>}|null>(null);
+ useLayoutEffect(()=>{const stop=()=>{held.current?.config.onCancel();held.current=null;};window.addEventListener('blur',stop);return()=>{window.removeEventListener('blur',stop);};},[]);
+ const root=useRef<HTMLDivElement>(null),bounds=useRef<DOMRect|null>(null),hover=useRef<number|undefined>(undefined),activation=useRef(createStateActivation());
+ const scale=useSyncExternalStore(radialScale.subscribe,radialScale.getSnapshot),size=RADIAL_GEOMETRY.minimumSize*6;
+ useLayoutEffect(()=>{const node=root.current;if(!node)return;const measure=()=>{bounds.current=node.getBoundingClientRect();};const observer=new ResizeObserver(measure);observer.observe(node);const stop=observeUIPress(active=>{if(!active)measure();});window.addEventListener('resize',measure);measure();return()=>{observer.disconnect();stop();window.removeEventListener('resize',measure);};},[]);
+ const cancel=()=>{hover.current=undefined;setPreviewValue(undefined);onCancel();};
+ const nodeAt=(x:number,y:number,target:EventTarget|null)=>{
+  const order=target instanceof Element?Number(target.closest('[data-axis-node]')?.getAttribute('data-axis-node')):NaN;
+  const direct=axisCounts.find(a=>a.order===order);if(direct)return direct;
+  const box=bounds.current;if(!box||!box.width||!box.height)return;
+  return axisNodeAt(field,axisCounts,{x:(x-box.left)/box.width*2-1,y:(y-box.top)/box.height*2-1});
+ };
+ const pick=(x:number,y:number)=>{
+  const box=bounds.current;if(disabled||!box)return;
+  const point={x:(x-box.left)/box.width*2-1,y:(y-box.top)/box.height*2-1};
+  return axisFieldCandidate(field,point)?.value;
+ };
+ const preview=(next:number|undefined)=>{if(disabled||hover.current===next)return;hover.current=next;setPreviewValue(next);if(next===undefined)onCancel();else onPreview(next);};
+ const confirm=useValueConfirmation({owner:root,selection,candidate:()=>held.current?undefined:hover.current,onCommit,disabled});
+ return <div ref={root} className="radial-menu dof-axis-wheel" role="group" aria-label={`${label} axis wheel`} data-ui-popup-interior style={{width:size*scale,height:size*scale,touchAction:'none'}}
+  onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
+  onPointerMove={event=>{const active=held.current;if(active){if(active.id!==event.pointerId)return;const point={x:event.clientX,y:event.clientY};const polar=active.polar?.sample(point);if(polar){active.angle=polar.angle;active.count=polar.count;setPreviewValue(polar.angle);active.config.onPreview(polar.angle,polar.count);return;}if(active.polar)return;const n=active.scrub.sample(point);if(n!==undefined){active.count=n;active.config.onPreview(active.angle,active.count);}return;}const node=nodeAt(event.clientX,event.clientY,event.target);setHoverNode(node?.order);preview(node?.angle??pick(event.clientX,event.clientY));}}
+  onPointerLeave={()=>{if(held.current)return;setHoverNode(undefined);activation.current.cancel();cancel();}}
+  onPointerCancel={()=>{held.current?.config.onCancel();held.current=null;activation.current.cancel();cancel();}}
+  onLostPointerCapture={()=>{if(held.current){held.current.config.onCancel();held.current=null;}}}
+  onBlur={event=>{if(!(event.relatedTarget instanceof Node)||!event.currentTarget.contains(event.relatedTarget))cancel();}}
+  onPointerDownCapture={event=>{if(event.button!==0||disabled||(event.target instanceof Element&&event.target.closest('[data-dial-drag]')))return;event.stopPropagation();event.preventDefault();claimUIPress(event.pointerId,event.pointerType,event.buttons);handled.current=false;const node=nodeAt(event.clientX,event.clientY,event.target);const angle=node?.angle??pick(event.clientX,event.clientY);activation.current.press(angle);preview(angle);
+   if(countDrag&&angle!==undefined){if(node?.order!==undefined&&countDrag.onEditStart?.(node.order)===false){handled.current=true;activation.current.cancel();return;}held.current={id:event.pointerId,angle,order:node?.order,initialCount:node?.steps,config:countDrag,scrub:createCountScrub({x:event.clientX,y:event.clientY},countDrag.unit,Math.max(countDrag.max,node?.steps??0),node?.steps??countDrag.unit)};if(node&&bounds.current){const box=bounds.current,levels=Math.max(countDrag.total??Math.floor(countDrag.max/countDrag.unit),Math.ceil((node.steps??1)/countDrag.unit));held.current.polar=createPolarCountDrag({origin:{x:event.clientX,y:event.clientY},center:{x:box.left+box.width/2,y:box.top+box.height/2},initialAngle:angle,initialCount:node.steps??1,unit:countDrag.unit,levels,stepPixels:box.width*.28/levels,angles:field.candidates.map(c=>c.value),period:field.domain.cyclic?.period});}event.currentTarget.setPointerCapture(event.pointerId);}}}
+  onPointerUp={event=>{if(event.button!==0||disabled||(event.target instanceof Element&&event.target.closest('[data-dial-drag]')))return;event.preventDefault();event.stopPropagation();if(handled.current){handled.current=false;return;}const active=held.current;if(active){held.current=null;activation.current.cancel();active.config.onCancel();const target=active.order!==undefined?active.config.dropTarget?.({x:event.clientX,y:event.clientY}):undefined;if(active.order!==undefined&&target!==undefined&&target!==active.order&&active.config.onReorder){active.config.onReorder(active.order,target);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);return;}const polar=active.polar?.sample({x:event.clientX,y:event.clientY});if(polar)active.angle=polar.angle;const count=polar?.count??(active.polar?active.count:active.scrub.sample({x:event.clientX,y:event.clientY}))??active.count??active.initialCount??1;if(active.order!==undefined&&active.config.onEditCommit)active.config.onEditCommit(active.order,count,active.angle);else active.config.onCommit(active.angle,count);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);return;}const next=activation.current.take(pick(event.clientX,event.clientY));if(next!==undefined)confirm(next);}}
+  onClick={event=>{if(disabled||(event.target instanceof Element&&event.target.closest('[data-dial-drag]')))return;event.preventDefault();event.stopPropagation();}}
+  onContextMenu={event=>{event.preventDefault();event.stopPropagation();held.current?.config.onCancel();held.current=null;activation.current.cancel();cancel();onConfigure();}}>
+  <svg className="radial-menu-rims" viewBox="-1 -1 2 2" aria-hidden="true"><circle r=".8"/>{field.candidates.map(candidate=><line className={candidate.thresholds?.length?"dof-axis-threshold":undefined} data-selected={Math.abs(candidate.value-selectedValue)<1e-7} data-preview={previewValue!==undefined&&Math.abs(candidate.value-previewValue)<1e-7} key={candidate.id} x1="0" y1="0" x2={candidate.point.x} y2={candidate.point.y} vectorEffect="non-scaling-stroke"/>)}{selected&&ticks>0&&Array.from({length:ticks},(_,i)=>{const t=.3+.7*(i+1)/ticks,p=selected.point;return <line key={`count-${i}`} className="dof-axis-count-tick" x1={p.x*t-p.y*.025} y1={p.y*t+p.x*.025} x2={p.x*t+p.y*.025} y2={p.y*t-p.x*.025} vectorEffect="non-scaling-stroke"/>;})}
+  {axisCounts.map((a,i)=>{const p=field.candidates.find(c=>Math.abs(c.value-a.angle)<1e-7)?.point,t=.3+.7*a.count/a.total;
+   if(!p||countDrag?.active&&a.selected)return null;
+   return <g key={`node-${i}`} className="dof-axis-count-node" data-axis-node={a.order??i+1} data-hover={hoverNode===(a.order??i+1)} data-selected={a.selected}><circle style={{fill:'#03151e'}} cx={p.x*t} cy={p.y*t} r=".105"/><text style={{fill:'#f3fcff',stroke:'#03151e',paintOrder:'stroke'}} x={p.x*t} y={p.y*t}>{a.order??i+1}</text><title>Instruction {a.order??i+1}</title></g>;})}
+  {selected&&countDrag?.active&&countDrag.value!==undefined&&(()=>{const total=Math.max(countDrag.total??ticks,Math.ceil(countDrag.value/countDrag.unit)),t=.3+.7*Math.ceil(countDrag.value/countDrag.unit)/total;return <g className="dof-axis-count-node" data-selected="true"><circle style={{fill:'#03151e'}} cx={selected.point.x*t} cy={selected.point.y*t} r=".105"/><text style={{fill:'#f3fcff',stroke:'#03151e',paintOrder:'stroke'}} x={selected.point.x*t} y={selected.point.y*t}>{held.current?.order??axisCounts.length+1}</text></g>;})()}
+
+  </svg>
+  <span className="dof-axis-origin" data-dial-drag role="button" tabIndex={0} title="Move wheel" aria-label="Move wheel" style={{width:RADIAL_GEOMETRY.minimumSize*scale,height:RADIAL_GEOMETRY.minimumSize*scale}}>{symbol}</span>
+  <output className="dof-axis-readout" title={`${fraction.index}/${fraction.total}`}>{fraction.total?`${fraction.index}/${fraction.total}`:'∅'}</output>
+ </div>;
+}

@@ -1,7 +1,15 @@
+import {PathRuleEditor} from './PathRuleEditor';
+import {useLayoutEffect,useRef,useState,type ReactNode} from 'react';
+import {useOperationReferencePicker} from './OperationScope';
+import {VectorDegreeEditor} from './VectorDegreeEditor';
+import type {DofSettingsKind} from '../ui/DofInformation';
+import {DofStateField} from '../ui/DofStateField';
+import {stateFieldDomain} from './stateFieldAdapter';
+import {OperationDegreeScope} from './OperationScope';
 import { RangeControl } from '../ui/RangeControl';
 import type { Recipe } from './model';
 import type { EditableDegree } from '../properties/editableDegrees';
-import { targetParameter, targetDegreeValue } from './targetDegrees';
+import { type DegreeEditValue, targetParameter, targetDegreeValue } from './targetDegrees';
 import { PropertyEditor } from '../appearance/Controls';
 import { useNumericEditor } from '../ui/NumericEditorScope';
 /** The compact strip is the same shared numeric editor, with its secondary
@@ -9,10 +17,10 @@ import { useNumericEditor } from '../ui/NumericEditorScope';
 export function DegreeSetter({recipe,degree,onPreview,onCommit,onOpen}: {recipe:Recipe;degree:EditableDegree;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void;onOpen:()=>void}) {
   const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree);
   const numericEditor=useNumericEditor();
+ if((numericEditor.mathematical||degree.axes)&&!degree.action)return <button type="button" aria-label={`Open ${degree.label}`} title={degree.label} onClick={onOpen}>{degree.symbol??'⠒❉'}</button>;
   if(degree.action)return <button type="button" aria-label={`Configure ${degree.label}`} title={`Configure ${degree.label}`} onClick={onOpen}/>;
-  if(parameter.kind==='number'&&numericEditor.mathematical)return <button type="button" aria-label={`Open ${degree.label} dial`} title={`Open ${degree.label} dial`} onClick={onOpen}>⠒❉</button>;
   if(parameter.kind==='color')return <SpectrumSetter value={String(value)} onPreview={onPreview} onCommit={onCommit}/>;
-  if(parameter.kind==='number')return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} limits={{min:parameter.min!,max:parameter.max!}} onPreview={onPreview} onCommit={onCommit}/>;
+  if(parameter.kind==='number')return <PropertyEditor property={degree.properties[0]} label={degree.label} value={value} limits={{min:parameter.min!,max:parameter.max!,step:parameter.step}} onPreview={onPreview} onCommit={onCommit}/>;
   return <button type="button" aria-label={`${degree.label}: ${value}`} title={`${degree.label} · ${value}`} style={{opacity:value===false ? .3 : 1}} onClick={()=>{
     if(parameter.kind==='toggle')onCommit(!value);
     else if(parameter.kind==='select'&&parameter.options?.length){const options=parameter.options;onCommit(options[(options.findIndex(option=>option.id===value)+1)%options.length].id);}
@@ -29,7 +37,24 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 }
 
 /** One metadata-selected value editor for preset and selected-target requests. */
-export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit}:{recipe:Recipe;degree:EditableDegree;configure?:boolean;onPreview:(value:string|number|boolean)=>void;onCommit:(value:string|number|boolean)=>void}){
- const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree);
- return <PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure?'step':undefined} limits={parameter.kind==='number'?{min:parameter.min!,max:parameter.max!}:undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/>;
+export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit,onDismiss}:{recipe:Recipe;degree:EditableDegree;configure?:boolean|DofSettingsKind;onDismiss?:()=>void;onPreview:(value:DegreeEditValue)=>void;onCommit:(value:DegreeEditValue)=>void}){
+ const entry=configure===false?'source':configure,numeric=useNumericEditor(),targetKey=[...new Set(degree.targets.map(t=>t.id))].join('|');
+ useLayoutEffect(()=>numeric.activateDegree?.([...new Set(degree.targets.map(t=>t.id))],degree.id),[numeric.activateDegree,degree.id,targetKey]);
+ if(degree.axes)return <VectorDegreeEditor recipe={recipe} degree={degree} configure={entry} onPreview={onPreview} onCommit={onCommit} onDismiss={onDismiss}/>;
+ const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree),domain=stateFieldDomain(parameter);
+ if(parameter.editor==='path-rule')return <PathRuleEditor value={String(value)} onCommit={onCommit}/>;
+ return <OperationDegreeScope degree={degree}>{domain?<DofStateField property={degree.properties[0]} label={degree.label} symbol={degree.symbol} domain={domain} value={Number(value)} configure={entry} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>:<ReferencedProperty degree={degree} picking={entry==='source'} onDismiss={onDismiss}><PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure===true?'step':undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/></ReferencedProperty>}</OperationDegreeScope>;
+}
+
+/** Categorical freedoms share source selection and retain their actual editor. */
+function ReferencedProperty({degree,picking,children,onDismiss}:{degree:EditableDegree;picking:boolean;children:ReactNode;onDismiss?:()=>void}){
+ const picker=useOperationReferencePicker(),latest=useRef(picker);latest.current=picker;
+ const [ready,setReady]=useState(!picking),degreeRef=useRef(degree);degreeRef.current=degree;
+ const requestOwner=useRef(Symbol());
+ const targetKey=`${degree.id}:${[...new Set(degree.targets.map(t=>t.id))].join('|')}`;
+ useLayoutEffect(()=>{if(!picking){setReady(true);return;}setReady(false);let active=true,completed=false;const scope=latest.current;if(!scope){setReady(true);return;}
+  void scope.pickSource(degreeRef.current,requestOwner.current).then(source=>{completed=true;if(active){if(source)setReady(true);else onDismiss?.();}});
+  return()=>{active=false;if(!completed)scope.cancelPick(requestOwner.current);};
+ },[picking,targetKey]);
+ return ready?children:null;
 }

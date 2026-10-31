@@ -24,7 +24,7 @@ import { applySelectedValue, partEditable, resetSelectedParts, selectedPartId, s
 import { normalizePartScope, partSelector, scopeContains } from "../src/appearance/partScope.ts";
 import { lineBoxInterval, lineDomain, relativePoint, absolutePoint, paintStopDomain, nextPatternMode, toggleSelectionRegion, regionAllows, pathTouchesBox, pathVertices, conditionPoints, selectionWheelRotation } from "../src/appearance/selectionGeometry.ts";
 import { workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule } from "../src/appearance/selectionToggle.ts";
-import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide, roleFor, partPaint } from "../src/appearance/visualSelection.ts";
+import { pointerInSelectionScope, partAt, boundaryInRegion, matchingVisualParts, resolveVisualSelection, selectionLineGuide, roleFor, partPaint, partRects } from "../src/appearance/visualSelection.ts";
 
 test("inside and outside toggle independently through all four combinations", () => {
   for (const [current, side, expected] of [
@@ -1372,4 +1372,72 @@ test('all dial families stay within Dials while retaining shared semantic role a
  assert.equal(next.values['ui.dials.radial.rims'].color,'#123456');
  assert.equal(next.values['ui.fields.mathematicalDial.contours'].color,'#123456');
  assert.equal(next.values['ui.buttons.contour'],undefined);
+});
+
+
+test('rendered geometry uses native stroke hits and includes screen-scaled stroke in selection bounds',()=>{
+ const previous=globalThis.getComputedStyle;globalThis.getComputedStyle=()=>({stroke:'cyan',strokeWidth:'4'});
+ try{
+  const line={hasAttribute:name=>name==='data-selection-geometry',contains:()=>false,
+    getClientRects:()=>[{left:10,right:30,top:20,bottom:20}],getScreenCTM:()=>({a:2,b:0,c:0,d:2})};
+  const part={key:'line',element:line,role:'icon',target:{id:'geometry.rendered'}};
+  assert.equal(partAt([part],line,20,23),part,'native SVG painted-stroke hit survives a zero-height geometry box');
+  assert.deepEqual(partRects(part),[{left:6,right:34,top:16,bottom:24}]);
+ }finally{globalThis.getComputedStyle=previous;}
+});
+
+test('lens radius filters nearby boundaries without changing structure or accepting box corners as curved ink',async()=>{
+ const {resizeSelectionLens,nearestLensBoundary,lensBoundaryDistance}=await import('../src/appearance/selectionLens.ts');
+ const line={id:'line',box:{left:0,top:0,right:20,bottom:0},shape:{points:[{x:0,y:0},{x:20,y:0}],stroke:4}};
+ const ring={id:'ring',box:{left:0,top:0,right:100,bottom:100},shape:{points:Array.from({length:129},(_,i)=>({x:50+50*Math.cos(i*Math.PI/64),y:50+50*Math.sin(i*Math.PI/64)})),stroke:4}};
+ const geometry=item=>item;
+ assert.equal(nearestLensBoundary([line],{x:10,y:8},5,geometry),undefined);
+ assert.equal(nearestLensBoundary([line],{x:10,y:8},7,geometry),line,'larger radius reaches the same boundary, not a parent');
+ assert.equal(nearestLensBoundary([ring],{x:0,y:0},10,geometry),undefined,'empty corners of a curved source box are not boundaries');
+ assert.equal(nearestLensBoundary([ring],{x:50,y:1},4,geometry),ring);
+ assert.equal(lensBoundaryDistance({x:10,y:1},line.box,line.shape),0,'painted stroke is part of the boundary');
+ assert.ok(resizeSelectionLens(18,100)<18);assert.ok(resizeSelectionLens(18,-100)>18);
+ assert.equal(resizeSelectionLens(4,100),4);assert.equal(resizeSelectionLens(160,-100),160);
+});
+
+test('native selection snapshots preserve source shape and transform; repeated lens queries do not read renderer geometry',async()=>{
+ const {nativeSelectionShape,nearestLensBoundary}=await import('../src/appearance/selectionLens.ts');
+ const original=globalThis.getComputedStyle;let reads=0;
+ globalThis.getComputedStyle=()=>({stroke:'cyan',strokeWidth:'4',fill:'none',vectorEffect:'none'});
+ try{
+  const element={localName:'line',getScreenCTM:()=>({a:2,b:0,c:0,d:2,e:10,f:20}),getTotalLength:()=>20,getPointAtLength:t=>{reads++;return{x:t,y:0};},hasAttribute:name=>['x1','x2','y1','y2'].includes(name),getAttribute:name=>({x1:'0',x2:'20',y1:'0',y2:'0'})[name]};
+  const shape=nativeSelectionShape(element),snapshotReads=reads;
+  assert.equal(shape.tag,'line');assert.equal(shape.attributes.x2,'20');assert.equal(shape.transform,'matrix(2 0 0 2 10 20)');assert.equal(shape.stroke,8);assert.equal(shape.strokeWidth,4);
+  const candidate={box:{left:6,right:54,top:16,bottom:24},shape};
+  for(let i=0;i<20;i++)assert.equal(nearestLensBoundary([candidate],{x:30,y:25},2,item=>item),candidate);
+  assert.equal(reads,snapshotReads);
+ }finally{globalThis.getComputedStyle=original;}
+});
+
+test('selection addressing survives SVG replacement between acceptance and catalog refresh',t=>{
+ const saved=Object.fromEntries(['document','Node'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+ t.after(()=>{for(const [key,descriptor] of Object.entries(saved)){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}});
+ const element=(tag,parent=null)=>({localName:tag,parentElement:parent,children:[],childNodes:[],isConnected:true,closest:()=>null,hasAttribute:()=>false,getAttribute:()=>null,querySelector:()=>null});
+ const body=element('body'),svg=element('svg',body),circle=element('circle',svg);body.children=[svg];svg.children=[circle];
+ globalThis.document={body};globalThis.Node={TEXT_NODE:3};
+ const part={key:'geometry.rendered:stable-ring',element:circle,role:'icon',target:{id:'geometry.rendered',label:'Rendered geometry'}};
+ assert.equal(describeSelectedParts([part]).length,1,'mounted SVG can be addressed normally');
+ body.children=[];svg.parentElement=null;svg.isConnected=false;circle.isConnected=false;
+ assert.deepEqual(describeSelectedParts([part]),[],'the removed SVG must not become an invalid appearance address or crash rendering');
+ const replacement=element('svg',body),fresh=element('circle',replacement);body.children=[replacement];replacement.children=[fresh];
+ assert.equal(describeSelectedParts([{...part,element:fresh}]).length,1,'the refreshed stable selection becomes editable again');
+});
+
+test('ordinary MS retains direct pattern/individual detection; lens surfaces opt into boundary search',async()=>{
+ const {selectionDetectionMode}=await import('../src/appearance/selectionLens.ts');
+ for(const pattern of ['pattern','item']){
+  const config={pattern,contour:true,region:null};
+  assert.equal(selectionDetectionMode(config,false,false,false),pattern,'ordinary first click must not become a scope-setting click');
+  assert.equal(selectionDetectionMode(config,true,false,false),pattern);
+  assert.equal(selectionDetectionMode(config,false,false,true),'boundary','only an opted-in surface starts with lens boundary discovery');
+  assert.equal(selectionDetectionMode(config,true,true,true),pattern,'an existing lens scope permits part/pattern refinement');
+  assert.equal(selectionDetectionMode({...config,contour:false},false,false,false),'boundary','existing neutral geometry behavior remains');
+  assert.equal(selectionDetectionMode(config,false,true,false),'boundary','declared boundary behavior remains');
+ }
+ for(const pattern of ['axis','boundary','polygon','freehand'])assert.equal(selectionDetectionMode({pattern,contour:true,region:null},false,false,false),pattern);
 });
