@@ -63,7 +63,11 @@ substrate for stable framing. Ordinary scale/rotation/motion transforms on subst
 skipped atomically with an unsupported-transform diagnostic; edit the movement
 rule instead. A legacy incompatible operation no longer aborts evaluation or
 disables the pen. The obsolete mfx/Oscillation creation entry is removed; saved
-operations remain readable and retain their authored settings. Integer Position
+operations remain readable and retain their authored settings. Operation warnings
+offer Locate (open the offending settings), Disable and Remove. Repairs use the
+existing draft history; Undo restores the operation. Only exact local operation
+IDs are editable, so a diagnostic from a reused definition cannot delete a local
+operation by a coincident suffix. Resolving the operation clears its warning. Integer Position
 changes move the origin within the captured substrate.
 
 Continuous traces render whole-unit traversal edges as joined vector strokes with

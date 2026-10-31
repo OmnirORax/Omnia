@@ -1544,3 +1544,16 @@ test('legacy mfx on a substrate path cannot poison subsequent drawing or later o
  assert.deepEqual(result.nodes.filter(n=>n.componentId==='path'),before.nodes.filter(n=>n.componentId==='path'));
  assert.equal(drawn.operations[0].enabled,true,'recovery does not silently rewrite saved operations');
 });
+
+
+test('diagnostic repairs address only the exact operation and preserve authored geometry',async()=>{
+ const {diagnosticOperation,repairDiagnosticOperation}=await import('../src/omnic/diagnosticOperation.ts');
+ const source=validateRecipe(recipe([dot('a')],[op('bad','oscillate',['a']),op('keep','highlight',['a'])]));
+ const disabled=repairDiagnosticOperation(source,'bad','disable');
+ assert.equal(disabled.operations[0].enabled,false);assert.equal(source.operations[0].enabled,true);
+ assert.equal(disabled.components,source.components);assert.equal(disabled.operations[1],source.operations[1]);
+ const removed=repairDiagnosticOperation(source,'bad','remove');assert.deepEqual(removed.operations.map(o=>o.id),['keep']);assert.equal(removed.components,source.components);
+ assert.equal(diagnosticOperation(source,'reference/bad'),undefined);
+ assert.equal(repairDiagnosticOperation(source,'reference/bad','remove'),source,'foreign or stale diagnostics cannot delete local operations');
+ assert.equal(repairDiagnosticOperation(disabled,'bad','disable'),disabled,'already resolved actions do not create history');
+});
