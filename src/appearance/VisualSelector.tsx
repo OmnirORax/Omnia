@@ -1,5 +1,5 @@
 import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
-import {selectionRequest,selectionConfirmation,selectionOpenContexts} from './selectionRequest';
+import {selectionRequest,selectionConfirmation,selectionOpenContexts,selectionDecision,type SelectionDecision} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
@@ -28,7 +28,7 @@ import {
 
 type SelectionState = { boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
 export type ReferenceSelection={element:Element;boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
-type VisualSelection = SelectionState & { requesting:boolean;registerOpenContext:(context:{contains:(target:Element)=>boolean;open:()=>boolean})=>()=>void;setElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>boolean,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
+type VisualSelection = SelectionState & { requesting:boolean;registerOpenContext:(context:{contains:(target:Element)=>boolean;open:()=>boolean})=>()=>void;setElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "locked";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -53,7 +53,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const registerOpenContext=useCallback((context:{contains:(target:Element)=>boolean;open:()=>boolean})=>openContexts.current.register(context),[]);
   const requestedPick=useRef<{accept:(selection:ReferenceSelection)=>boolean;cancel:()=>void}|null>(null);
   const requestCheckpoint=useRef<{timeline:typeof timeline;configuration:SelectorConfiguration}|null>(null);
-  const [phase, setPhase] = useState<Phase>("off");
+  const [pickFeedback,setPickFeedback]=useState<string|null>(null),pickFeedbackRef=useRef(pickFeedback);pickFeedbackRef.current=pickFeedback;
+ const [phase, setPhase] = useState<Phase>("off");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [configuration, setConfiguration] = useState<SelectorConfiguration>({ ...DEFAULT_SELECTION_MASK, pattern: "pattern", patternRole: null,
     bounded: false, stopAtPaint: false, closed: false, rotation: 0 });
@@ -87,6 +88,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       ...(next.maskChange ? { maskChange: next.maskChange.map(rule => ({ ...rule, backgrounds: latest.current.configuration.backgrounds })) } : {}) };
     const previous = candidateRef.current;
     if (previous === next || previous && next && previous.definesScope === next.definesScope && ruleKey(previous.rule) === ruleKey(next.rule)) return;
+    if(pickFeedbackRef.current)setPickFeedback(null);
     candidateRef.current = next; setCandidate(next);
   }, []);
   const record = useCallback((change: (current: SelectionState) => SelectionState) => setTimeline(previous => {
@@ -191,7 +193,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   };
   const accept = (geometryOnly = false) => {
     const pick = candidateRef.current;
-    if (!pick) return;
+    if (!pick) {if(requestedPick.current)setPickFeedback('No target here');return;}
     const request=requestedPick.current;
     if(request){const p=point.current;if(p&&request.accept({element:p.element,boundary:pick.rule.boundary,constraint:pick.rule,parts:matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements),point:{x:p.x,y:p.y}})){
       requestedPick.current=null;completeSelection();
@@ -600,13 +602,13 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     setCatalog(parts);cancelDrawing();record(()=>({...emptySelection(),boundary:rules.length?boundaryFor(document.body):null,rules}));
     setPhase(before=>before==='locked'?'locked':'off');
   },[record]);
-  const requestPick=useCallback((accept:(selection:ReferenceSelection)=>boolean,cancel:()=>void)=>{
+  const requestPick=useCallback((accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>{
     const retained=requestCheckpoint.current??{timeline,configuration:{...configuration}};
     const previous=requestedPick.current;requestedPick.current=null;if(previous)previous.cancel();
     requestCheckpoint.current=retained;const checkpoint=retained.timeline,config=retained.configuration;
-    const restore=()=>{requestCheckpoint.current=null;gesture.current=null;polygon.current=null;setDrawing(false);setTimeline(checkpoint);setConfiguration(config);setPhase('off');setInventoryOpen(false);};
-    const request=selectionRequest(accept,cancel,restore);requestedPick.current=request;
-    setCandidatePick(null);setTimeline({states:[emptySelection()],index:0});shortcuts.invoke('selector.open');
+    const restore=()=>{setPickFeedback(null);requestCheckpoint.current=null;gesture.current=null;polygon.current=null;setDrawing(false);setTimeline(checkpoint);setConfiguration(config);setPhase('off');setInventoryOpen(false);};
+    const request=selectionRequest<ReferenceSelection>(selection=>{const result=selectionDecision(accept(selection));setPickFeedback(result.message);return result.accepted;},cancel,restore);requestedPick.current=request;
+    setPickFeedback(null);setCandidatePick(null);setTimeline({states:[emptySelection()],index:0});shortcuts.invoke('selector.open');
     return()=>{if(requestedPick.current===request){requestedPick.current=null;request.cancel();}};
   },[timeline,configuration,setCandidatePick]);
   const feedbackAvailable = phase !== "off" || hasSelection();
@@ -688,7 +690,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   return <Context.Provider value={contextValue}>
     {children}
     {active && feedbackVisible && createPortal(<VisualSelectionOverlay {...liveFeedback} />, document.body)}
-    {(phase === "aim" || phase === "locked") && createPortal(<SelectorCursor radius={lensActive?lensRadius:undefined} parked={phase === "locked"} configuration={configuration} include={true} initial={phase === "locked" ? lockedPosition : point.current ?? position} />, document.body)}
+    {(phase === "aim" || phase === "locked") && createPortal(<SelectorCursor feedback={pickFeedback} radius={lensActive?lensRadius:undefined} parked={phase === "locked"} configuration={configuration} include={true} initial={phase === "locked" ? lockedPosition : point.current ?? position} />, document.body)}
     {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position} onClose={close} onResume={aim} />, document.body)}
     {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
       style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}>

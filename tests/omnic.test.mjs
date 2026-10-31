@@ -438,8 +438,8 @@ test('selection sweep collects intervening dots, ring boundaries and lines witho
     assert.equal(degree.group[0].id,'visual');assert.equal(degree.group[0].label,'Appearance');assert.equal(degree.group[0].symbol,'👁');assert.ok(degree.group[0].symbolMask.startsWith('data:image/svg+xml,'));
   }
   for(const property of ['omnic.count','omnic.fill','omnic.thickness','omnic.strokeProgression'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'●●');
-  assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group[0].symbol,'⨮');
-  for(const property of ['omnic.spacing','omnic.ringDrift','omnic.ringGrowth','omnic.angle'])assert.equal(degrees.find(d=>d.properties.includes(property)).group[0].symbol,'⨮');
+  assert.equal(degrees.find(d=>d.properties.includes('omnic.radius')).group,undefined);
+  for(const property of ['omnic.spacing','omnic.ringDrift','omnic.ringGrowth','omnic.angle'])assert.equal(degrees.find(d=>d.properties.includes(property)).group,undefined);
 });
 
 
@@ -1195,4 +1195,14 @@ test('DOF editor identity separates explicit activations and owners without remo
  assert.notEqual(key,degreeEditorIdentity(a,'source',2),'reopening the same target must restart reference selection');
  assert.equal(key,degreeEditorIdentity(structuredClone(a),'source',1),'ordinary equivalent metadata rerenders retain the active request');
  assert.notEqual(key,degreeEditorIdentity(a,'options',1),'configuration stages remain separate from source selection');
+});
+
+test('relational DOFs remain available directly without a Relations category wrapper',async()=>{
+ const {targetEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ for(const spec of GENERATORS){
+  const source=validateRecipe(recipe([{id:'target',generator:spec.id,params:{},...(spec.id==='reference'?{reference:'library-object'}:{})}]));
+  const degrees=targetEditorDegrees(source,['target']);
+  assert.ok(degrees.every(d=>!d.group?.some(group=>group.id==='relation')));
+  for(const degree of degrees.filter(d=>d.axes||d.id==='omnic.angle'||d.id==='omnic.radius'))assert.equal(degree.group?.length??0,0,'Position, Rotation and Radius are direct dial entries');
+ }
 });

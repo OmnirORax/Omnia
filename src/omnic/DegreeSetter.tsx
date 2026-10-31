@@ -48,10 +48,11 @@ export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCom
 function ReferencedProperty({degree,picking,children,onDismiss}:{degree:EditableDegree;picking:boolean;children:ReactNode;onDismiss?:()=>void}){
  const picker=useOperationReferencePicker(),latest=useRef(picker);latest.current=picker;
  const [ready,setReady]=useState(!picking),degreeRef=useRef(degree);degreeRef.current=degree;
+ const requestOwner=useRef(Symbol());
  const targetKey=`${degree.id}:${[...new Set(degree.targets.map(t=>t.id))].join('|')}`;
  useLayoutEffect(()=>{if(!picking){setReady(true);return;}setReady(false);let active=true,completed=false;const scope=latest.current;if(!scope){setReady(true);return;}
-  void scope.pickSource(degreeRef.current).then(source=>{completed=true;if(active){if(source)setReady(true);else onDismiss?.();}});
-  return()=>{active=false;if(!completed)scope.cancelPick();};
+  void scope.pickSource(degreeRef.current,requestOwner.current).then(source=>{completed=true;if(active){if(source)setReady(true);else onDismiss?.();}});
+  return()=>{active=false;if(!completed)scope.cancelPick(requestOwner.current);};
  },[picking,targetKey]);
  return ready?children:null;
 }

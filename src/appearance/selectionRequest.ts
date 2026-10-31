@@ -25,3 +25,16 @@ export function selectionOpenContexts<T>(){
   open(target:T,requesting=false){if(requesting)return false;for(const context of [...contexts.values()].reverse())if(context.contains(target)&&context.open())return true;return false;},
  };
 }
+
+/** Cleanup may cancel only its own temporary request. A replaced editor must
+ * never clear a newer editor's MS session. Owner omission is explicit user cancel. */
+export function cancelOwnedSelectionRequest<T extends {owner:symbol;cancelMS?:()=>void;finish:()=>void}>(pending:{current:T|undefined},owner?:symbol):boolean{
+ const request=pending.current;if(!request||owner!==undefined&&request.owner!==owner)return false;
+ pending.current=undefined;request.cancelMS?.();request.finish();return true;
+}
+
+export type SelectionDecision=boolean|string;
+/** A rejection reason is feedback, never a truthy acceptance. */
+export function selectionDecision(result:SelectionDecision){
+ return result===true?{accepted:true,message:null}:{accepted:false,message:typeof result==='string'&&result?result:'Unsupported target'};
+}

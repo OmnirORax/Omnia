@@ -3,9 +3,6 @@ const APPEARANCE_EYE_MASK='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="
  * Applicable operation adapters may combine inputs into one freedom adjuster. */
 export const VISUAL_FREEDOM_GROUP={id:"visual",label:"Appearance",symbol:"👁",symbolMask:APPEARANCE_EYE_MASK} as const;
 export const UNIT_FREEDOM_GROUP={id:"units",label:"Units / fill",symbol:"●●"} as const;
-export const RELATION_FREEDOM_GROUP={id:"relation",label:"Relations",symbol:"⨮"} as const;
-/** Retained export for spatial adapters; both project the same category identity. */
-export const POSITION_FREEDOM_GROUP=RELATION_FREEDOM_GROUP;
 export type FreedomGroup={id:string;label:string;symbol:string;symbolMask?:string};
 export type VectorFreedom={id:string;label:string;symbol:string;axis:string;matchLabel?:string;matchSymbol?:string};
 export type FreedomPresentation={vector?:VectorFreedom;label:string;symbol:string;symbolOpacity?:number;symbolFill?:string;group?:readonly FreedomGroup[]};

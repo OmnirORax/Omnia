@@ -949,3 +949,26 @@ from-dial source-pick check passed and its settings had no duplicate reference
 entries. Model regression checks owner/activation/stage identity and stability
 during equivalent rerenders. No browser suite ran; user-workspace acceptance
 remains pending.
+
+
+### Unsupported-reference feedback and Relations category removal (2026-10-31)
+
+Rejected MS reference picks now display a concise reason beside the cursor, such
+as “No Rotation reference.” MS stays active so another target can be chosen. A
+compatible Self pick accepts normally and clears the message. Empty clicks say
+“No target here”; outside-surface picks say “Pick inside Composer.” These are
+request feedback, not authored geometry or successful selection.
+
+Editor cleanup now cancels only its own request; an older editor cannot cancel
+a newer MS request during activation/remount. The previous duplicate-control
+removal did not remove the actual ⨮ Relations category. That category is now
+removed: Position, Rotation, Radius and spatial freedoms appear directly in DOF
+dials. Units/fill and Appearance keep their grouping; top reference-use settings
+remain accessible.
+
+Model checks cover rejected messages remaining unaccepted, valid recovery and
+stale-owner cancellation isolation, plus category removal across generators. A
+focused synthetic check verifies missing Rotation on a ring gives feedback while
+MS remains open, valid Self opens the rotation preview and clears feedback, and
+the Relations category is absent. No browser suite ran; general user-workspace
+acceptance remains pending.

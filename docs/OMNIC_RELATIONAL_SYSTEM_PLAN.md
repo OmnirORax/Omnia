@@ -2,6 +2,18 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Rejection feedback and owned picker cleanup (2026-10-31)
+
+An unsupported reference is not the same as a failed MS opening. Shared temporary
+selection requests now return a short rejection reason; the existing cursor shows
+it and remains active for another pick. Literal true alone accepts. Empty/outside
+clicks also explain why they did not select. Cleanup is scoped to the requesting
+editor so an old editor cannot cancel a replacement request.
+
+The actual Relations category is removed from DOF metadata; its spatial freedoms
+are direct dial entries. Earlier work only removed different duplicate settings
+controls. Keep top reference-use configuration and the remaining useful categories.
+
 ## Reference re-entry correction (2026-10-30)
 
 Position's canvas entry reused a mounted DOF/source session after cancellation

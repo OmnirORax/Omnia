@@ -215,3 +215,21 @@ test('MS opening contexts borrow targeting only within their surface and bypass 
  assert.equal(contexts.open('canvas',true),false,'opening the requested picker must not invoke its consumer recursively');assert.equal(starts,1);
  stop();assert.equal(contexts.open('canvas'),false,'closed contexts cannot retain Q ownership');
 });
+
+test('an old editor cannot cancel a newer MS request, and rejection text never accepts a pick',async()=>{
+ const {cancelOwnedSelectionRequest,selectionRequest,selectionDecision}=await import('../src/appearance/selectionRequest.ts');
+ const oldOwner=Symbol(),newOwner=Symbol(),events=[],pending={current:undefined};
+ const old=selectionRequest(()=>true,()=>events.push('old cancel'),()=>events.push('old restore'));
+ pending.current={owner:oldOwner,cancelMS:old.cancel,finish:()=>events.push('old finish')};
+ assert.equal(cancelOwnedSelectionRequest(pending,oldOwner),true);
+ const request=selectionRequest(value=>selectionDecision(value==='valid'?true:'No Rotation reference').accepted,()=>events.push('new cancel'),()=>events.push('new restore'));
+ pending.current={owner:newOwner,cancelMS:request.cancel,finish:()=>events.push('new finish')};
+ const current=pending.current;
+ assert.equal(cancelOwnedSelectionRequest(pending,oldOwner),false,'stale unmount cleanup cannot stop the new cursor');
+ assert.equal(pending.current,current);assert.deepEqual(events,['old restore','old cancel','old finish']);
+ assert.deepEqual(selectionDecision('No Rotation reference'),{accepted:false,message:'No Rotation reference'});
+ assert.equal(request.accept('unsupported'),false);assert.equal(events.includes('new restore'),false,'rejection leaves MS pending for another target');
+ assert.equal(request.accept('valid'),true);assert.equal(events.filter(e=>e==='new restore').length,1);
+ assert.deepEqual(selectionDecision(true),{accepted:true,message:null});
+ assert.deepEqual(selectionDecision(false),{accepted:false,message:'Unsupported target'});
+});
