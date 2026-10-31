@@ -973,9 +973,16 @@ accepts heading/count together. Jitter/plain clicks retain ordinary one-unit
 selection. Preview count is transient and cancellation does not append. Rotation
 without countDrag retains its previous value selection behavior.
 
-Shared angular readouts use axisFraction's one-based address in offered states,
-including meaningful thresholds, instead of degree text. Hover is retained inside
+Shared angular readouts use axisFraction's one-based address in configured
+subdivisions instead of degree text; added threshold axes never change the denominator. Hover is retained inside
 the shared wheel so consumers cannot suppress its highlight by ignoring preview.
 The inherited base colour supplies clean stroke glow without coloured fills.
-Count-capable axes declare total positions, render ticks and live/persisted n/total
-labels, and avoid overlaying a duplicate saved label during the held preview.
+Count-capable axes declare total positions and render ticks plus physical numbered
+nodes. Node position represents count; its number represents instruction order.
+Do not substitute step-fraction text labels for those nodes.
+
+Interactive angular rims explicitly override decorative radial-menu opacity.
+Instruction nodes declare their own pointer targets, hover glow, in-place count
+dragging and optional reorder callbacks. A reorder drop resolves once on release,
+inside the owning rule editor; it preserves the instruction's direction/count.
+Rotation without count authoring retains the shared wheel's normal behavior.

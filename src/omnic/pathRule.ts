@@ -17,6 +17,11 @@ export function removePathInstruction(rule:PathRule,index:number):PathRule{
  if(!Number.isInteger(index)||index<0||index>=rule.s.length)throw Error('No such path instruction.');
  return {...rule,s:rule.s.filter((_,i)=>i!==index)};
 }
+/** Reorder an authored unit without changing its heading or step count. */
+export function reorderPathInstruction(rule:PathRule,from:number,to:number):PathRule{
+ if(![from,to].every(i=>Number.isInteger(i)&&i>=0&&i<rule.s.length))throw Error('No such path instruction.');
+ const s=[...rule.s],unit=s.splice(from,1)[0];s.splice(to,0,unit);return {...rule,s};
+}
 export function readPathRule(text:string):PathRule {
  let v:PathRule;try{v=JSON.parse(text);}catch{throw Error('Invalid path rule.');}
  const integer=(n:unknown,min:number,max:number)=>typeof n==='number'&&Number.isInteger(n)&&n>=min&&n<=max;

@@ -124,3 +124,12 @@ Ticks and live/saved count fractions appear along the axes. Shared angular glow
 uses the inherited base colour without a tinted fill. Next instruction closes the
 active count editor and clears chip selection without deletion. Backspace removes
 the active chip while ordinary text fields keep text editing.
+
+Correction: step subdivisions are represented by physical nodes on axes, numbered
+by instruction order, not step-fraction text labels. Hover a node to highlight it;
+hold-drag to adjust its count in place. Drop it onto another node or numbered chip
+to reorder, preserving its direction and count. Drop resolution happens once on
+release inside this editor. A new heading still appends an instruction. Direction
+readouts/chips/turn controls use fraction notation; added threshold axes do not
+inflate the configured denominator. Decorative-rim opacity no longer dims the
+interactive wheel's glow. Interactive confirmation remains pending.

@@ -18,8 +18,8 @@ export function createValueScrub(config:ScrubConfiguration){
 export type ValueScrub=ReturnType<typeof createValueScrub>;
 
 /** Whole-count dragging over the same first-motion axis as other scalar grabs. */
-export function createCountScrub(origin:Point,unit:number,max:number){
+export function createCountScrub(origin:Point,unit:number,max:number,initialCount=unit){
  if(!Number.isInteger(unit)||unit<1||!Number.isInteger(max)||max<unit)throw Error('Invalid count drag domain.');
- const levels=Math.floor(max/unit),scrub=createValueScrub({origin,width:Math.max(12,(levels-1)*12),value:1,min:1,max:levels,step:1});
+ const levels=Math.floor(max/unit),scrub=createValueScrub({origin,width:Math.max(12,(levels-1)*12),value:initialCount/unit,min:1,max:levels,step:1});
  return {sample(point:Point){const count=scrub.sample(point);return count===undefined?undefined:count*unit;}};
 }

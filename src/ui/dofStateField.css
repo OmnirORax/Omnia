@@ -39,22 +39,22 @@
 .dof-plane-field .dof-axis-threshold{stroke-width:1.5}
 .dof-plane-field output{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:11px;pointer-events:none}
 
-.dof-axis-wheel{color:#8cf4ff;background:radial-gradient(circle,#07313ed9,#021019e8);box-shadow:inset 0 0 16px #43dfff44}
-.dof-axis-wheel .radial-menu-rims{stroke:#75ecff;filter:drop-shadow(0 0 2px #48e4ff)}
-.dof-axis-wheel .radial-menu-rims line{stroke-width:1.2;opacity:.9}
-.dof-axis-wheel .radial-menu-rims .dof-axis-threshold{stroke-width:1.8;opacity:1}
-.dof-axis-wheel .radial-menu-rims line[data-preview=true]{stroke:#fff;stroke-width:2.4;opacity:1}
-.dof-axis-wheel .radial-menu-rims line[data-selected=true]{stroke:#ffad42;stroke-width:3;opacity:1}
-.dof-axis-readout{font-size:12px;font-weight:700;text-shadow:0 0 4px #00dfff;background:#03151ee6;border-radius:5px;padding:2px 4px}
-/* Clean glow uses the inherited base colour; selection never adds a muddy fill. */
+/* Angular interaction is not a translucent decorative menu rim. */
 .dof-axis-wheel{color:var(--omnium-accent,#60ddec);background:transparent;box-shadow:none}
-.dof-axis-wheel .radial-menu-rims{stroke:currentColor;filter:drop-shadow(0 0 1px currentColor)}
-.dof-axis-wheel .radial-menu-rims line{stroke-width:1;opacity:.65}
-.dof-axis-wheel .radial-menu-rims .dof-axis-threshold{stroke-width:1.5;opacity:.9}
-.dof-axis-wheel .radial-menu-rims line[data-selected=true]{stroke:currentColor;stroke-width:2.4;opacity:1}
-.dof-axis-wheel .radial-menu-rims line[data-preview=true]{stroke:currentColor;stroke-width:3.2;opacity:1;filter:drop-shadow(0 0 2px currentColor)}
-.dof-axis-readout{color:inherit;background:transparent;text-shadow:0 0 3px currentColor}
-.dof-axis-wheel .radial-menu-rims .dof-axis-count-tick{stroke-width:.7;opacity:.5}
-.dof-axis-count-label{fill:currentColor;stroke:none;font-size:.13px;font-weight:600;text-anchor:middle;dominant-baseline:central;paint-order:stroke;filter:none}
-.dof-axis-count-live{font-size:.16px;font-weight:700}
-.dof-axis-count-label[data-selected=true]{font-weight:700;filter:drop-shadow(0 0 1px currentColor)}
+.dof-axis-wheel .radial-menu-rims{opacity:1;stroke:currentColor;filter:drop-shadow(0 0 1px currentColor) drop-shadow(0 0 3px currentColor)}
+.dof-axis-wheel .radial-menu-rims line{stroke-width:1.1;opacity:.85}
+.dof-axis-wheel .radial-menu-rims .dof-axis-threshold{stroke-width:1.5;opacity:1}
+.dof-axis-wheel .radial-menu-rims line[data-selected=true]{stroke:currentColor;stroke-width:2.5;opacity:1}
+.dof-axis-wheel .radial-menu-rims line[data-preview=true]{stroke:currentColor;stroke-width:3.5;opacity:1;filter:drop-shadow(0 0 2px currentColor)}
+.dof-axis-readout{color:inherit;background:transparent;font-size:12px;font-weight:700;text-shadow:0 0 3px currentColor}
+.dof-axis-wheel .radial-menu-rims .dof-axis-count-tick{stroke-width:.7;opacity:.65}
+.dof-axis-wheel .radial-menu-rims .dof-axis-count-position{stroke-width:2;opacity:1}
+.dof-axis-count-label{fill:currentColor;stroke:none;font-size:.12px;font-weight:600;text-anchor:middle;dominant-baseline:central;filter:none}
+.dof-axis-count-live{font-size:.14px;font-weight:700}
+.dof-axis-count-label[data-selected=true]{font-weight:700}
+.dof-axis-count-node circle{fill:var(--surface,#03151e);stroke:currentColor;stroke-width:1.3px;vector-effect:non-scaling-stroke}
+.dof-axis-count-node text{fill:currentColor;stroke:none;font-size:.105px;font-weight:700;text-anchor:middle;dominant-baseline:central}
+.dof-axis-count-node[data-selected=true] circle{stroke-width:2px;filter:drop-shadow(0 0 2px currentColor)}
+.dof-axis-count-node{pointer-events:all;cursor:grab}
+.dof-axis-count-node[data-hover=true] circle{stroke-width:2.5px;filter:drop-shadow(0 0 3px currentColor)}
+.dof-axis-count-node text{pointer-events:none}

@@ -73,8 +73,8 @@ export function linearFieldCandidate(field:StateField,fraction:number){
  return field.candidates.reduce<StateFieldCandidate|undefined>((best,candidate)=>!best||Math.abs(candidate.value-value)<Math.abs(best.value-value)?candidate:best,undefined);
 }
 
-/** One-based address in the actual offered angular states, including thresholds. */
+/** Address in the configured subdivisions; extra landmarks do not change precision. */
 export function axisFraction(field:StateField,value:number){
- const index=field.candidates.findIndex(c=>Math.abs(c.value-value)<1e-7);
- return {index:index<0?0:index+1,total:field.candidates.length};
+ const total=field.candidates[0]?.derivation.count??0,period=field.domain.cyclic?.period??360,north=field.domain.cyclic?.north??0;
+ return {index:Number.isFinite(value)&&total?Number((1+(((value-north)%period+period)%period)/period*total).toFixed(6)):0,total};
 }

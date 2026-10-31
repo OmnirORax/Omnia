@@ -1375,3 +1375,19 @@ test('axis fraction addresses and twelve-position count drags share bounded one-
  let program=DEFAULT_PATH_RULE;for(let i=0;i<32;i++)program=appendPathDirection(program,0);
  assert.equal(program.s.length,32);assert.throws(()=>appendPathDirection(program,0),/capacity/);
 });
+
+test('direction fraction denominators do not grow when meaningful thresholds add extra axes',async()=>{
+ const {createStateField,axisFraction}=await import('../src/properties/stateField.ts');
+ const field=createStateField({min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial',thresholds:[{id:'east',value:90},{id:'prior',value:45}]},{mode:'symmetry',count:10,step:36,reference:0});
+ assert.ok(field.candidates.length>10);assert.deepEqual(axisFraction(field,72),{index:3,total:10});
+ assert.deepEqual(axisFraction(field,90),{index:3.5,total:10},'landmarks retain their position between configured fractions');
+});
+
+test('existing instruction count edits and reordering preserve unit identity data',async()=>{
+ const {DEFAULT_PATH_RULE,reorderPathInstruction}=await import('../src/omnic/pathRule.ts');
+ const {createCountScrub}=await import('../src/ui/valueScrub.ts');
+ const program={...DEFAULT_PATH_RULE,s:[[0,2],[45,7],[180,4]]};
+ const moved=reorderPathInstruction(program,2,0);assert.deepEqual(moved.s,[[180,4],[0,2],[45,7]]);assert.deepEqual(program.s,[[0,2],[45,7],[180,4]]);
+ const drag=createCountScrub({x:0,y:0},1,12,7);assert.equal(drag.sample({x:0,y:0}),undefined);assert.equal(drag.sample({x:12,y:0}),8);assert.equal(drag.sample({x:-12,y:0}),6);
+ assert.throws(()=>reorderPathInstruction(program,3,0),/No such/);
+});
