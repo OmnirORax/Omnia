@@ -986,3 +986,8 @@ Instruction nodes declare their own pointer targets, hover glow, in-place count
 dragging and optional reorder callbacks. A reorder drop resolves once on release,
 inside the owning rule editor; it preserves the instruction's direction/count.
 Rotation without count authoring retains the shared wheel's normal behavior.
+
+Axis-node order text uses an explicit light foreground/dark outline and a solid
+dark node centre. Its size is independent of the spoke's stroke/glow styling;
+selected/hover ring effects must not wash out the ordinal. Readability at user
+scale still requires visual confirmation.

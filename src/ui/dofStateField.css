@@ -53,7 +53,7 @@
 .dof-axis-count-live{font-size:.14px;font-weight:700}
 .dof-axis-count-label[data-selected=true]{font-weight:700}
 .dof-axis-count-node circle{fill:var(--surface,#03151e);stroke:currentColor;stroke-width:1.3px;vector-effect:non-scaling-stroke}
-.dof-axis-count-node text{fill:currentColor;stroke:none;font-size:.105px;font-weight:700;text-anchor:middle;dominant-baseline:central}
+.dof-axis-count-node text{fill:#f3fcff;stroke:#03151e;stroke-width:.012px;paint-order:stroke;font-size:.145px;font-weight:700;font-family:ui-monospace,monospace;text-anchor:middle;dominant-baseline:central}
 .dof-axis-count-node[data-selected=true] circle{stroke-width:1.8px;filter:none}
 .dof-axis-count-node{pointer-events:all;cursor:grab}
 .dof-axis-count-node[data-hover=true] circle{stroke-width:2px;filter:drop-shadow(0 0 1px currentColor)}
