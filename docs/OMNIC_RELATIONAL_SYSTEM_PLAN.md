@@ -2,6 +2,26 @@
 
 Status: working design, revised through experiments. Updated 2026-10-29.
 
+## Threshold inheritance correction (2026-10-31)
+
+The math dial already configures shared fractions, halving, steps and measured
+ratios; no additional threshold editor or rule store is introduced. Domain
+preparation now merges custom significant thresholds with inherited cyclic axes,
+instead of discarding custom declarations on cyclic inputs. Reference thresholds
+join these in the existing generator. Coincident values remain one candidate with
+all landmark IDs; working limits, integrality and owner legality still filter it.
+
+The normal property build check requires registered numeric inputs to declare
+additional significant thresholds (or []), with finite values and unique nonempty
+IDs. An empty list adds no domain-specific landmarks; it does not suppress those
+supplied by cyclic/reference adapters. This validates declarations, not whether a
+domain's semantic coverage is complete, and does not invent significant values
+from old numeric presets. Future adapters inherit the same merge and execution.
+
+Model regression exercises scalar and cyclic extension inputs across partitions,
+halving and steps, overlapping domain/reference landmarks and rejected states.
+No new browser interaction is added; browser acceptance is not inferred.
+
 ## Rejection feedback and owned picker cleanup (2026-10-31)
 
 An unsupported reference is not the same as a failed MS opening. Shared temporary

@@ -895,6 +895,28 @@ test('shared thresholds survive changing fractions, with hard constraints and ow
  }
 });
 
+test('future cyclic and scalar DOFs retain custom, inherited and reference thresholds through the shared rule pipeline',async()=>{
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {createReferenceField}=await import('../src/properties/referenceUse.ts');
+ const custom=[{id:'domain:landmark',value:17},{id:'domain:overlap',value:90}];
+ const input={kind:'number',key:'future',property:'future.dof',label:'Future DOF',initial:0,min:-180,max:360,step:.1,significantThresholds:custom};
+ const reference={id:'source',label:'Source',value:0,thresholds:[{id:'reference:landmark',value:23},{id:'reference:overlap',value:90}]};
+ for(const cyclic of [false,true]){
+  const domain=stateFieldDomain({...input,...(cyclic?{selection:{north:-90,period:360}}:{})});
+  for(const mode of ['symmetry','halving','step'])for(const count of [3,7,8]){
+   const field=createReferenceField(domain,{mode,count,step:11,reference:0},reference);
+   for(const value of [17,23,90])assert.ok(field.candidates.some(c=>c.value===value&&c.thresholds?.length),`${cyclic}/${mode}/${count}: ${value}`);
+   assert.equal(field.candidates.filter(c=>c.value===90).length,1,'overlapping landmarks are one candidate');
+   const overlap=field.candidates.find(c=>c.value===90);
+   for(const id of ['domain:overlap','reference:overlap',...(cyclic?['axis:2']:[])])assert.ok(overlap.thresholds.includes(id));
+   if(cyclic)for(const value of [-90,0,90,180])assert.ok(field.candidates.some(c=>c.value===value),'custom declarations cannot replace inherited axes');
+   assert.ok(!createReferenceField(domain,{mode,count,step:11,reference:0,max:10},reference).candidates.some(c=>c.value===17),'working limits remain authoritative');
+   assert.ok(!createReferenceField(domain,{mode,count,step:11,reference:0},reference,n=>n!==23).candidates.some(c=>c.value===23),'owner legality remains authoritative');
+  }
+ }
+ assert.deepEqual(input.significantThresholds,custom,'domain preparation does not mutate declarations');
+});
+
 test('Self and external geometry supply the same reference interval contract without editing geometry',async()=>{
  const {operationGeometry}=await import('../src/omnic/operationContext.ts');
  const {fieldReferenceFor}=await import('../src/omnic/referenceGeometry.ts');
