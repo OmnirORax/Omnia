@@ -137,6 +137,8 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   }, [sample, committedEvaluation, resolve]);
   useEffect(() => { if (!evaluated.error) onPreview?.(recipe,atomnicBridge??undefined); }, [recipe, evaluated.error, onPreview,atomnicBridge]);
   useEffect(() => () => onPreview?.(null), [onPreview]);
+  const priorMotion=useRef(!!evaluated.result?.motion);
+  useEffect(()=>{const moving=!!evaluated.result?.motion;if(moving&&!priorMotion.current)setPlaying(true);priorMotion.current=moving;},[evaluated.result?.motion]);
   const viewBox = useMemo(() => {
     if (!evaluated.result) return "-50 -50 100 100";
     const atomnicBounds=atomnicViewBounds(recipe.atomnic);

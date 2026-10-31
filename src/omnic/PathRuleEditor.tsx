@@ -1,3 +1,5 @@
+import {featureActionRuntime} from '../featureActions';
+import {UIAction} from '../ui/UIAction';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useState} from 'react';
 import {MathematicalDial} from '../ui/MathematicalDial';
@@ -17,7 +19,8 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
  };
  const amount=number==='steps'?(rule.s[active]?.[1]??1):number?rule[number]:1;
  const button=(label:string,icon:string,pressed:boolean,run:()=>void)=><button type="button" title={label} aria-label={label} aria-pressed={pressed} onClick={run}>{icon}</button>;
- return <div className="path-rule-editor" data-context-controller>
+ return <div className="path-rule-editor">
+  <span className="path-rule-grab" role="button" tabIndex={0} data-dial-drag title="Drag path rule" aria-label="Drag path rule">⠿</span>
   <div className="path-direction-wheel" role="group" aria-label={turn?'Turn after each instruction':'Append directions in click order'}>
    <svg viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="51"/><path d="M66 15V117M15 66H117"/></svg>
    {directions.map(({angle,icon},i)=><button key={angle} type="button" className={`path-direction path-direction-${i}`} disabled={!turn&&!replace&&rule.s.length>=8} aria-label={turn?`Turn ${angle} degrees`:`Append ${icon}`} title={turn?`${angle}° after each instruction`:`${icon} · next instruction`} onClick={()=>pick(angle)}>{turn?`${angle}°`:icon}</button>)}
@@ -36,7 +39,7 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
   <div className="path-rule-tools">
    {button('Fixed generation maximum unit moves',`≤${rule.m}`,number==='m',()=>setNumber(number==='m'?null:'m'))}
    {button('Additive coverage per pass',`${rule.p}%`,number==='p',()=>setNumber(number==='p'?null:'p'))}
-   {rule.a&&<FunctionControl id="omnic.play" mirror symbol="⏯" tooltip="Play / pause drawing; replay after completion"/>}
+   {rule.a&&<><UIAction id="omnic:path-play" label="Play / pause drawing" symbol="⏯" category="Omnic" registerOnly onClick={()=>featureActionRuntime.invoke('omnic.play')}/><FunctionControl id="omnic:path-play" mirror symbol="⏯" tooltip="Play / pause drawing; replay after completion"/></>}
    {button('Drawing speed · unit moves per second',`${rule.r}/s`,number==='r',()=>setNumber(number==='r'?null:'r'))}
    {button('Reset square rule','↺',false,()=>{onCommit(JSON.stringify(SQUARE_PATH_RULE));setSelected(0);setNumber(null);setTurn(false);setReplace(false);})}
   </div>

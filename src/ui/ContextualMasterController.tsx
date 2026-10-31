@@ -66,7 +66,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     onPointerDownCapture={event => {
       if(!owns(event.target))return;
       suppressClick.current=false;
-      if(!radial||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-dial-drag]'))return;
+      if(event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-dial-drag]'))return;
       event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);
       drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,before:{...offset.current},handle:event.target.closest('[data-dial-drag]') as HTMLElement,moved:false};
       event.currentTarget.setPointerCapture(event.pointerId);

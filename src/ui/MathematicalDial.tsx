@@ -74,7 +74,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   if(!valid(n))return;
   hover.current=null;setSample(null);setMarks(next);onCommit(session.commit(n));
  };
- const confirm=useValueConfirmation({owner:ringRef,candidate:()=>sample??undefined,onCommit:next=>{drag.current=null;setPainting(false);commit(next);},disabled});
+ const confirm=useValueConfirmation({owner:ringRef,candidate:()=>sample??undefined,onCommit:next=>{drag.current=null;setPainting(false);commit(next);},disabled,keyboard:!!sample});
  const cancel=()=>{setPainting(false);drag.current=null;restore();};
  useContextNavigation({owner:ringRef,cancel:painting?cancel:undefined});
  const cancelLatest=useRef(cancel);cancelLatest.current=cancel;

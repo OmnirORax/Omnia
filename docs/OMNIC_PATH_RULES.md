@@ -9,6 +9,10 @@ Right-click empty Composer space, choose **↱ Path rule**. The clicked origin s
 to a whole construction unit, and the circular direction editor opens immediately
 without an MS reference request. A fresh rule has no implicit instructions.
 
+Drag the ⠿ grip to reposition the whole rule popup using shared popup dragging.
+Switching a populated rule into drawing starts playback; its registered ⏯ control
+pauses/resumes it. Idle math dials yield Enter to parent confirmation.
+
 Click ↑, →, ↓, ← to append instructions in that order. The numbered chips show the
 program; clicking a chip selects it and opens the existing math dial for its
 whole-unit move count. The wheel centre opens that count too. At most eight
