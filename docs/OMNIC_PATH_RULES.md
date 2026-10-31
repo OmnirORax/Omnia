@@ -9,7 +9,7 @@ Right-click empty Composer space, choose **↱ Path rule**. The clicked origin s
 to a whole construction unit, and the circular direction editor opens immediately
 without an MS reference request. A fresh rule has no implicit instructions.
 
-Drag the ⠿ grip to reposition the whole rule popup using shared popup dragging.
+Drag the frame/title or empty panel background to reposition the whole rule popup using shared popup dragging.
 Switching a populated rule into drawing starts playback; its registered ⏯ control
 pauses/resumes it. Idle math dials yield Enter to parent confirmation.
 

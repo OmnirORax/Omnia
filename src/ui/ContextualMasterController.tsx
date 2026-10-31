@@ -66,9 +66,11 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     onPointerDownCapture={event => {
       if(!owns(event.target))return;
       suppressClick.current=false;
-      if(event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-dial-drag]'))return;
+      if(event.button!==0||!(event.target instanceof Element))return;
+      const handle=event.target.closest<HTMLElement>('[data-dial-drag]')??(!radial&&!event.target.closest('button,input,select,textarea,a,[role=button],.mathematical-dial')?(event.target.closest<HTMLElement>('[data-popup-drag-frame]')??(event.target===event.currentTarget?event.currentTarget:null)):null);
+      if(!handle)return;
       event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);
-      drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,before:{...offset.current},handle:event.target.closest('[data-dial-drag]') as HTMLElement,moved:false};
+      drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,before:{...offset.current},handle,moved:false};
       event.currentTarget.setPointerCapture(event.pointerId);
     }}
     onPointerMoveCapture={event=>{const active=drag.current;if(!active||active.id!==event.pointerId)return;
@@ -88,6 +90,6 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{left:anchor!.x,top:anchor!.y}}>
-    {!radial&&<><strong title={`Master controller · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextValueCompletion.Provider value={completeValue}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextValueCompletion.Provider></ContextStage.Provider>
+    {!radial&&<><strong data-dial-drag style={{cursor:"grab",userSelect:"none",touchAction:"none"}} title={`Drag · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextValueCompletion.Provider value={completeValue}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextValueCompletion.Provider></ContextStage.Provider>
   </div>, document.body);
 }
