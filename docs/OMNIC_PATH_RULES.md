@@ -13,8 +13,8 @@ Drag the frame/title or empty panel background to reposition the whole rule popu
 Switching a populated rule into drawing starts playback; its registered ⏯ control
 pauses/resumes it. Idle math dials yield Enter to parent confirmation.
 
-Use the shared rotation axis wheel to choose the first direction. Press Next
-instruction before each subsequent addition. The 2³
+Use empty space in the shared rotation axis wheel to append directions. Next
+instruction is optional. The 2³
 expression configures direction fractions through the shared math dial (1–64,
 initially eight); cardinal thresholds remain available. Right-click the wheel
 opens fraction configuration too. The numbered chips show the
@@ -146,7 +146,6 @@ Existing node drags use shared polar selection, with a small jitter threshold an
 press-offset preservation. Release accepts heading/count together. Cancellation
 discards the preview. New instruction creation and exact pair Swap are unchanged.
 
-Creation is explicit after the first unit: press Next instruction to arm one
-addition. Existing-node clicks select/edit rather than append; ordinary wheel
-clicks during editing do not create another node. Shared geometry-based node
+Empty wheel space appends a new instruction directly. Existing-node clicks
+select/edit rather than append; Next instruction optionally clears the editor. Shared geometry-based node
 hit testing prevents missing SVG metadata from falling through to creation.
