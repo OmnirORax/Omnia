@@ -1,21 +1,21 @@
 /** Whole-unit substrate traversal. Timing never participates in deposition. */
 export const PATH_UNIT = 1;
-export type PathRule = {f?:number;s:[number,number][];t:number;l:boolean;c:boolean;m:number;a:boolean;p:number;d:boolean;r:number};
-export const DEFAULT_PATH_RULE:PathRule={f:8,s:[],t:0,l:false,c:false,m:100,a:false,p:100,d:false,r:8};
+export type PathRule = {b?:number;f?:number;s:[number,number][];t:number;l:boolean;c:boolean;m:number;a:boolean;p:number;d:boolean;r:number};
+export const DEFAULT_PATH_RULE:PathRule={b:1,f:8,s:[],t:0,l:false,c:false,m:100,a:false,p:100,d:false,r:8};
 export const SQUARE_PATH_RULE:PathRule={...DEFAULT_PATH_RULE,s:[[0,2]],t:90,l:true,c:true};
 /** A new program must not inherit the previous program's repetition behavior. */
-export function startPathSequence(rule:PathRule,angle:number):PathRule{
- return readPathRule(JSON.stringify({...rule,s:[[angle,1]],t:0,l:false,c:false}));
+export function startPathSequence(rule:PathRule,angle:number,count=1):PathRule{
+ return readPathRule(JSON.stringify({...rule,s:[[angle,count]],t:0,l:false,c:false}));
 }
 /** Picking a heading appends an ordered instruction; it never replaces the program. */
-export function appendPathDirection(rule:PathRule,angle:number):PathRule{
+export function appendPathDirection(rule:PathRule,angle:number,count=1):PathRule{
  if(rule.s.length>=8)throw Error('Path instruction capacity reached.');
- return readPathRule(JSON.stringify({...rule,s:[...rule.s,[angle,1]]}));
+ return readPathRule(JSON.stringify({...rule,s:[...rule.s,[angle,count]]}));
 }
 export function readPathRule(text:string):PathRule {
  let v:PathRule;try{v=JSON.parse(text);}catch{throw Error('Invalid path rule.');}
  const integer=(n:unknown,min:number,max:number)=>typeof n==='number'&&Number.isInteger(n)&&n>=min&&n<=max;
- if(!v||typeof v!=='object'||Object.keys(v).some(k=>!['f','s','t','l','c','m','a','p','d','r'].includes(k))||(v.f!==undefined&&!integer(v.f,1,64))||!Array.isArray(v.s)||v.s.length>8||v.s.some(s=>!Array.isArray(s)||s.length!==2||!(Number.isFinite(s[0])&&s[0]>=0&&s[0]<360)||!integer(s[1],1,100))||!(Number.isFinite(v.t)&&v.t>=0&&v.t<360)||!['l','c','a','d'].every(k=>typeof v[k as keyof PathRule]==='boolean')||!integer(v.m,1,10000)||!integer(v.p,1,100)||!integer(v.r,1,60))throw Error('Unsupported path rule: use whole-unit moves and valid directions.');
+ if(!v||typeof v!=='object'||Object.keys(v).some(k=>!['b','f','s','t','l','c','m','a','p','d','r'].includes(k))||(v.b!==undefined&&!integer(v.b,1,100))||(v.f!==undefined&&!integer(v.f,1,64))||!Array.isArray(v.s)||v.s.length>8||v.s.some(s=>!Array.isArray(s)||s.length!==2||!(Number.isFinite(s[0])&&s[0]>=0&&s[0]<360)||!integer(s[1],1,100))||!(Number.isFinite(v.t)&&v.t>=0&&v.t<360)||!['l','c','a','d'].every(k=>typeof v[k as keyof PathRule]==='boolean')||!integer(v.m,1,10000)||!integer(v.p,1,100)||!integer(v.r,1,60))throw Error('Unsupported path rule: use whole-unit moves and valid directions.');
  return v;
 }
 export type PathBounds={left:number;top:number;right:number;bottom:number;round?:boolean};

@@ -964,3 +964,11 @@ Recursive math marks use two unfilled concentric SVG circles as the mark itself 
 never the normal selected-disk fill. Right-click toggles a recursive slot off;
 right-click a normal selected slot converts it to recursion first. Left-click
 retains ordinary deselection. Shared limits and empty-selection reset still apply.
+
+Angular rule authoring may declare `countDrag` on the shared DofAxisWheel. A
+primary press captures its heading, and existing scalar scrub logic selects an
+integer count along the first movement axis. The configured unit multiplies each
+increment. Pointer capture keeps the heading stable outside the wheel; release
+accepts heading/count together. Jitter/plain clicks retain ordinary one-unit
+selection. Preview count is transient and cancellation does not append. Rotation
+without countDrag retains its previous value selection behavior.

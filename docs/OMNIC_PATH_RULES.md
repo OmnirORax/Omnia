@@ -106,3 +106,10 @@ confirmation; no browser suite was run.
 The shared dial session retains hover previews internally until commit/cancel;
 path counts use it directly without a local preview wrapper. The shared cursor is
 rendered above contextual popovers. Verify both interactions in the current preview.
+
+Press a direction and drag before releasing to set its instruction count. The
+first meaningful motion locks a free-space scalar axis; every 12 CSS pixels
+changes one count increment. The × control configures its multiplier with the
+math dial (2² gives four unit moves per increment). Direction remains fixed
+throughout the hold. Release commits one instruction and its count. Simple clicks
+retain a one-unit instruction; pointer cancellation/window blur discards the hold.

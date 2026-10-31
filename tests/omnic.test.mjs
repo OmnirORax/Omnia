@@ -1343,3 +1343,15 @@ test('shared angular picks preserve the path authoring pipeline and click-define
  const next=appendPathDirection(program,45);assert.deepEqual(next.s.slice(0,4),program.s);
  assert.equal(pathTrace(program,{left:-10,top:-10,right:10,bottom:10}).steps,6);
 });
+
+test('held direction counts use the shared free-space axis and configured whole-unit multiplier',async()=>{
+ const {createCountScrub}=await import('../src/ui/valueScrub.ts');
+ const {DEFAULT_PATH_RULE,appendPathDirection,pathTrace}=await import('../src/omnic/pathRule.ts');
+ const drag=createCountScrub({x:0,y:0},4,100);
+ assert.equal(drag.sample({x:1,y:1}),undefined,'a plain press has no count scrub');
+ assert.equal(drag.sample({x:12,y:0}),8);assert.equal(drag.sample({x:24,y:30}),12,'perpendicular movement does not change the locked axis');
+ assert.equal(drag.sample({x:0,y:0}),4);assert.equal(drag.sample({x:10000,y:0}),100);
+ const program=appendPathDirection({...DEFAULT_PATH_RULE,b:4},90,12);
+ assert.deepEqual(program.s,[[90,12]]);assert.equal(pathTrace(program,{left:-100,top:-100,right:100,bottom:100}).steps,12);
+ assert.throws(()=>createCountScrub({x:0,y:0},.5,100));
+});
