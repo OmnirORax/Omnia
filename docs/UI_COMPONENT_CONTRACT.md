@@ -919,3 +919,15 @@ The actual ⨮ Relations category wrapper is retired from freedom metadata. Its
 Position/Rotation/Radius/spacing freedoms remain directly available in target,
 preset and applicable MC projections. Units/fill and Appearance remain categories.
 Reference use configuration remains available through the top reference indicator.
+
+Embedded math-dial consumers must feed sampled values back through `value`, and
+restore their local sample on cancellation. An ignored `onPreview` causes the
+dial's controlled-value session to treat its own preview as an external reset,
+interrupting painting before release. Path-rule numeric fields now retain this
+sample locally without committing the construction on hover.
+
+The shared tool cursor is a manual top-layer popover, with transparent, noninput
+styling. Popup-target transitions raise it above contextual popovers; no layout
+measurement is added to motion. This preserves the existing cursor owner/zone
+system rather than adding a cursor renderer for each editor. Interactive
+confirmation is pending.

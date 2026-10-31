@@ -1283,3 +1283,5 @@ body{caret-color:transparent}
 input,textarea,[contenteditable]:not([contenteditable="false"]){caret-color:auto}
 
 .selector-pick-feedback{position:absolute;left:100%;top:100%;width:max-content;max-width:240px;padding:2px 4px;border:1px solid currentColor;border-radius:3px;background:#07131ef2;color:var(--warning,#ffd27d);font-size:11px;line-height:1.25;white-space:nowrap}
+
+.tool-cursor[popover]{margin:0;padding:0;border:0;background:transparent;overflow:visible;bottom:auto;right:auto}

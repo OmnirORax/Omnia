@@ -36,6 +36,7 @@ export function ToolCursorLayer(){
     if(!captured.current)return;
     captured.current.replaceChildren(...(snapshot?[snapshot.cloneNode(true)]:[]));
   },[snapshot,request?.key]);
+  const popup=useRef<Element|null>(null);
   const current=useRef(request);current.current=request;
   const paint=()=>{
     const active=current.current,node=root.current;if(!active||!node)return;
@@ -45,6 +46,9 @@ export function ToolCursorLayer(){
   useLayoutEffect(()=>{
     const follow=(sample=cursorSample())=>{
       point.current=sample;refresh(sample);
+      const nextPopup=sample.target instanceof Element?sample.target.closest('[popover]'):null;
+      if(nextPopup!==popup.current){popup.current=nextPopup;const node=root.current;if(node&&selected){node.hidePopover();node.showPopover();}}
+
       if(selected!==current.current){if(root.current)root.current.style.visibility='hidden';delete document.documentElement.dataset.toolCursor;return;}
       if(selected&&root.current){
         if(root.current.style.visibility!=='visible')root.current.style.visibility='visible';
@@ -57,9 +61,10 @@ export function ToolCursorLayer(){
     return()=>{stopPointer();stopZones();delete document.documentElement.dataset.toolCursor;};
   },[]);
   useLayoutEffect(()=>{
-    if(root.current)root.current.style.visibility='visible';paint();
+    const node=root.current;
+    if(node){node.setAttribute('popover','manual');node.style.visibility='visible';node.hidePopover();node.showPopover();}paint();
     document.documentElement.toggleAttribute('data-tool-cursor',!!request&&!request.parked);
-    return()=>{delete document.documentElement.dataset.toolCursor;};
+    return()=>{node?.hidePopover();delete document.documentElement.dataset.toolCursor;};
   },[request]);
   useLayoutEffect(()=>()=>{snapshots.clear();},[]);
   if(!request)return null;

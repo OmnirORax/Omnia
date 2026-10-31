@@ -42,6 +42,11 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
    {button('Drawing speed · unit moves per second',`${rule.r}/s`,number==='r',()=>setNumber(number==='r'?null:'r'))}
    {button('Reset square rule','↺',false,()=>{onCommit(JSON.stringify(SQUARE_PATH_RULE));setSelected(0);setNumber(null);setTurn(false);setReplace(false);})}
   </div>
-  {number&&<MathematicalDial label={number==='steps'?'Whole-unit steps':number==='m'?'Maximum unit moves':number==='p'?'Coverage per pass (%)':'Unit moves per second'} value={amount} min={1} max={number==='m'?10000:number==='r'?60:100} integer onPreview={()=>{}} onCommit={n=>{if(number==='steps')write({s:rule.s.map((s,i)=>i===active?[s[0],n]:s)});else write({[number]:n});}}/>}
+  {number&&<PathAmountDial key={`${number}:${active}`} label={number==='steps'?'Whole-unit steps':number==='m'?'Maximum unit moves':number==='p'?'Coverage per pass (%)':'Unit moves per second'} value={amount} min={1} max={number==='m'?10000:number==='r'?60:100} integer onCommit={n=>{if(number==='steps')write({s:rule.s.map((s,i)=>i===active?[s[0],n]:s)});else write({[number]:n});}}/>}
  </div>;
+}
+
+function PathAmountDial(props:Omit<Parameters<typeof MathematicalDial>[0],'onPreview'|'onCancelPreview'>){
+ const [sample,setSample]=useState<number|null>(null);
+ return <MathematicalDial {...props} value={sample??props.value} onPreview={setSample} onCancelPreview={()=>setSample(null)} onCommit={n=>{setSample(null);props.onCommit(n);}}/>;
 }
