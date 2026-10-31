@@ -1380,7 +1380,7 @@ test('direction fraction denominators do not grow when meaningful thresholds add
  const {createStateField,axisFraction}=await import('../src/properties/stateField.ts');
  const field=createStateField({min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial',thresholds:[{id:'east',value:90},{id:'prior',value:45}]},{mode:'symmetry',count:10,step:36,reference:0});
  assert.ok(field.candidates.length>10);assert.deepEqual(axisFraction(field,72),{index:3,total:10});
- assert.deepEqual(axisFraction(field,90),{index:3.5,total:10},'landmarks retain their position between configured fractions');
+ assert.deepEqual(axisFraction(field,90),{index:3,total:10},'landmarks report the integer slice containing them');
 });
 
 test('existing instruction count edits and reordering preserve unit identity data',async()=>{
@@ -1390,4 +1390,14 @@ test('existing instruction count edits and reordering preserve unit identity dat
  const moved=reorderPathInstruction(program,2,0);assert.deepEqual(moved.s,[[180,4],[0,2],[45,7]]);assert.deepEqual(program.s,[[0,2],[45,7],[180,4]]);
  const drag=createCountScrub({x:0,y:0},1,12,7);assert.equal(drag.sample({x:0,y:0}),undefined);assert.equal(drag.sample({x:12,y:0}),8);assert.equal(drag.sample({x:-12,y:0}),6);
  assert.throws(()=>reorderPathInstruction(program,3,0),/No such/);
+});
+
+test('slice addresses are integers and node swaps differ from reorder moves',async()=>{
+ const {DEFAULT_PATH_RULE,swapPathInstructions,changePathDirection}=await import('../src/omnic/pathRule.ts');
+ const {createStateField,axisFraction}=await import('../src/properties/stateField.ts');
+ const program={...DEFAULT_PATH_RULE,s:Array.from({length:8},(_,i)=>[i*45,i+1])};
+ const swapped=swapPathInstructions(program,5,7);assert.deepEqual(swapped.s[5],program.s[7]);assert.deepEqual(swapped.s[7],program.s[5]);assert.deepEqual(swapped.s[6],program.s[6],'intermediate units stay in place');
+ const turned=changePathDirection(program,5,90);assert.deepEqual(turned.s[5],[90,6]);assert.deepEqual(turned.s[4],program.s[4]);
+ const field=createStateField({min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial'},{mode:'symmetry',count:12,step:30,reference:0});
+ for(let angle=0;angle<360;angle+=.25){const f=axisFraction(field,angle);assert.ok(Number.isInteger(f.index)&&f.index>=1&&f.index<=12);}
 });

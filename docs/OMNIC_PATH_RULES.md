@@ -133,3 +133,10 @@ release inside this editor. A new heading still appends an instruction. Directio
 readouts/chips/turn controls use fraction notation; added threshold axes do not
 inflate the configured denominator. Decorative-rim opacity no longer dims the
 interactive wheel's glow. Interactive confirmation remains pending.
+
+Direction fractions identify the integer slice containing the heading; they never
+show decimal slice ordinals. Idle nodes/spokes do not glow; hover/selection supply
+the limited glow. Select a node/chip, choose ↗, then choose another heading to
+replace its direction while retaining count/order. Select ⇄, then another node or
+chip, to exchange those two units without shifting intervening instructions.
+Normal drag-to-reorder remains a move, distinct from Swap.

@@ -22,6 +22,15 @@ export function reorderPathInstruction(rule:PathRule,from:number,to:number):Path
  if(![from,to].every(i=>Number.isInteger(i)&&i>=0&&i<rule.s.length))throw Error('No such path instruction.');
  const s=[...rule.s],unit=s.splice(from,1)[0];s.splice(to,0,unit);return {...rule,s};
 }
+/** Exchange two units without shifting intermediate instructions. */
+export function swapPathInstructions(rule:PathRule,a:number,b:number):PathRule{
+ if(![a,b].every(i=>Number.isInteger(i)&&i>=0&&i<rule.s.length))throw Error('No such path instruction.');
+ const s=[...rule.s];[s[a],s[b]]=[s[b],s[a]];return {...rule,s};
+}
+export function changePathDirection(rule:PathRule,index:number,angle:number):PathRule{
+ if(!Number.isInteger(index)||index<0||index>=rule.s.length)throw Error('No such path instruction.');
+ return readPathRule(JSON.stringify({...rule,s:rule.s.map((s,i)=>i===index?[angle,s[1]]:s)}));
+}
 export function readPathRule(text:string):PathRule {
  let v:PathRule;try{v=JSON.parse(text);}catch{throw Error('Invalid path rule.');}
  const integer=(n:unknown,min:number,max:number)=>typeof n==='number'&&Number.isInteger(n)&&n>=min&&n<=max;
