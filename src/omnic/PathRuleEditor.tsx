@@ -7,7 +7,7 @@ import {UIAction} from '../ui/UIAction';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useState} from 'react';
 import {MathematicalDial} from '../ui/MathematicalDial';
-import {SQUARE_PATH_RULE,startPathSequence,readPathRule,type PathRule} from './pathRule';
+import {SQUARE_PATH_RULE,appendPathDirection,startPathSequence,readPathRule,type PathRule} from './pathRule';
 import './pathRule.css';
 const directionLabel=(angle:number)=>({0:'↑',45:'↗',90:'→',135:'↘',180:'↓',225:'↙',270:'←',315:'↖'}[angle]??`${Number(angle.toFixed(2))}°`);
 /** Program authoring is rule configuration, not a reference/value selection. */
@@ -21,7 +21,7 @@ export function PathRuleEditor({value,onCommit}:{value:string;onCommit:(value:st
   if(turn){write({t:angle});setTurn(false);return;}
   if(replace){onCommit(JSON.stringify(startPathSequence(rule,angle)));setSelected(0);setNumber('steps');setReplace(false);return;}
   if(rule.s.length>=8)return;
-  setSelected(rule.s.length);write({s:[...rule.s,[angle,1]]});
+  setSelected(rule.s.length);onCommit(JSON.stringify(appendPathDirection(rule,angle)));setNumber('steps');
  };
  const amount=number==='steps'?(rule.s[active]?.[1]??1):number?(rule[number]??8):1;
  const button=(label:string,icon:string,pressed:boolean,run:()=>void)=><button type="button" title={label} aria-label={label} aria-pressed={pressed} onClick={run}>{icon}</button>;

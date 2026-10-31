@@ -7,6 +7,11 @@ export const SQUARE_PATH_RULE:PathRule={...DEFAULT_PATH_RULE,s:[[0,2]],t:90,l:tr
 export function startPathSequence(rule:PathRule,angle:number):PathRule{
  return readPathRule(JSON.stringify({...rule,s:[[angle,1]],t:0,l:false,c:false}));
 }
+/** Picking a heading appends an ordered instruction; it never replaces the program. */
+export function appendPathDirection(rule:PathRule,angle:number):PathRule{
+ if(rule.s.length>=8)throw Error('Path instruction capacity reached.');
+ return readPathRule(JSON.stringify({...rule,s:[...rule.s,[angle,1]]}));
+}
 export function readPathRule(text:string):PathRule {
  let v:PathRule;try{v=JSON.parse(text);}catch{throw Error('Invalid path rule.');}
  const integer=(n:unknown,min:number,max:number)=>typeof n==='number'&&Number.isInteger(n)&&n>=min&&n<=max;

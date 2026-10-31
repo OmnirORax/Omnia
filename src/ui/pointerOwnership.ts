@@ -92,3 +92,11 @@ export function contentOwnsPointer(target:{closest:(selector:string)=>unknown}|n
 export function ownsPointerSurface(surface:unknown,target:{closest:(selector:string)=>unknown}|null,selector:string):boolean{
   return !!surface&&!!target&&target.closest(selector)===surface;
 }
+
+/** Popup backgrounds may drag, but embedded custom controls own their gestures.
+ * Explicit handles retain priority (including a wheel's centre drag handle). */
+export function popupDragHandle<T>(target:{closest:(selector:string)=>T|null},surface:T,allowFrame:boolean):T|null{
+ const explicit=target.closest('[data-dial-drag]');if(explicit)return explicit;
+ if(!allowFrame||target.closest('button,input,select,textarea,a,[role=button],[data-ui-popup-interior],[data-ui-control]'))return null;
+ return target.closest('[data-popup-drag-frame]')??(target===surface?surface:null);
+}

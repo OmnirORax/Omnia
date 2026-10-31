@@ -1321,3 +1321,25 @@ test('fractional direction paths use unit distances and the shared angular field
   almost(Math.hypot(trace.particle.x,trace.particle.y),1);assert.equal(trace.steps,1);
  }
 });
+
+test('shared frame dragging yields to custom embedded controls but retains explicit handles',async()=>{
+ const {popupDragHandle}=await import('../src/ui/pointerOwnership.ts');
+ const frame={},wheel={},centre={},button={};
+ const target=(ancestors)=>({closest:selector=>selector.split(',').map(s=>ancestors[s]).find(Boolean)??null});
+ assert.equal(popupDragHandle(target({'[data-popup-drag-frame]':frame}),frame,true),frame);
+ assert.equal(popupDragHandle(target({'[data-popup-drag-frame]':frame,'[data-ui-popup-interior]':wheel}),frame,true),null,'axis-wheel SVG descendants own their press');
+ assert.equal(popupDragHandle(target({'[data-popup-drag-frame]':frame,button}),frame,true),null);
+ assert.equal(popupDragHandle(target({'[data-dial-drag]':centre,'[data-popup-drag-frame]':frame,'[data-ui-popup-interior]':wheel}),frame,true),centre,'wheel centre remains an explicit drag handle');
+ assert.equal(popupDragHandle(target({'[data-popup-drag-frame]':frame}),frame,false),null);
+});
+
+test('shared angular picks preserve the path authoring pipeline and click-defined instruction order',async()=>{
+ const {DEFAULT_PATH_RULE,appendPathDirection,pathTrace}=await import('../src/omnic/pathRule.ts');
+ let program=DEFAULT_PATH_RULE;
+ for(const heading of [0,90,180,270])program=appendPathDirection(program,heading);
+ assert.deepEqual(program.s,[[0,1],[90,1],[180,1],[270,1]]);
+ program={...program,s:program.s.map(([a,n],i)=>[a,i===1?3:n])};
+ assert.deepEqual(program.s,[[0,1],[90,3],[180,1],[270,1]],'count editing changes only the selected ordered instruction');
+ const next=appendPathDirection(program,45);assert.deepEqual(next.s.slice(0,4),program.s);
+ assert.equal(pathTrace(program,{left:-10,top:-10,right:10,bottom:10}).steps,6);
+});

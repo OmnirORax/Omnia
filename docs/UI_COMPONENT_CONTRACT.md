@@ -953,3 +953,9 @@ The wheel defaults to single-value completion. Ordered rule authoring declares
 `selection="accumulate"` so choosing a direction appends without finishing the
 program. Both use identical hover/pointer/Enter candidate acceptance and scale.
 Path fractions start at eight, displayed by shared DofRuleExpression as 2³.
+
+Popup frame drag capture must yield to declared `data-ui-popup-interior` and
+`data-ui-control` surfaces as well as native controls. Their SVG descendants are
+interactive content, not empty frame background. Explicit `data-dial-drag`
+handles retain priority, including wheel centres. Shared popupDragHandle owns
+this routing so embedding a value field does not require private drag exclusions.

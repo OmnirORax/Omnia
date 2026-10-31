@@ -6,7 +6,7 @@ import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useRef,
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
 import { ContextStage, ContextValueCompletion, ContextNavigationRegistry, type ContextNavigation, usePopupAnchor } from './ContextStage';
-import { claimUIPress, ownsPointerSurface } from "./pointerOwnership";
+import { claimUIPress, ownsPointerSurface, popupDragHandle } from "./pointerOwnership";
 
 const PopupParents=createContext<readonly RefObject<HTMLDivElement|null>[]>([]);
 
@@ -67,7 +67,7 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
       if(!owns(event.target))return;
       suppressClick.current=false;
       if(event.button!==0||!(event.target instanceof Element))return;
-      const handle=event.target.closest<HTMLElement>('[data-dial-drag]')??(!radial&&!event.target.closest('button,input,select,textarea,a,[role=button],.mathematical-dial')?(event.target.closest<HTMLElement>('[data-popup-drag-frame]')??(event.target===event.currentTarget?event.currentTarget:null)):null);
+      const handle=popupDragHandle<HTMLElement>(event.target,event.currentTarget,!radial);
       if(!handle)return;
       event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);
       drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,before:{...offset.current},handle,moved:false};
