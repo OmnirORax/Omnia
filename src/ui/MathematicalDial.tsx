@@ -136,7 +136,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   <div ref={ringRef} className="mathematical-dial-ring" style={{width:extent,height:extent}} onContextMenu={event=>{
    event.preventDefault();event.stopPropagation();if(disabled||drag.current)return;
    const slot=event.target instanceof Element?event.target.closest<HTMLElement>('[data-math-slot]'):null;
-   if(slot&&ringRef.current?.contains(slot)){const next=paintMathematicalSlots(marks,[slot.dataset.mathSlot!],'recursion');commit(next);}
+   if(slot&&ringRef.current?.contains(slot)){const key=slot.dataset.mathSlot!,erase=marks.selected.includes(key)&&modeAt(marks,key)==='recursion';const next=paintMathematicalSlots(marks,[key],'recursion',erase);commit(next);}
   }}>
    <button type="button" disabled={disabled} className="mathematical-dial-base" aria-label={`Base ${base}; change base`} title={`Base ${base} · click to switch base`} onClick={()=>changeBase(base===1?2:1)} style={{width:base*minimum.size,height:base*minimum.size}}>{Array.from({length:base},(_,i)=><i key={i} style={{width:minimum.size,height:minimum.size}}/>)}</button>
    {rings.map(({order,radius,count})=><span key={order} className="mathematical-dial-order" role="group" aria-label={`Ring ${order+1}, ${count} slots`}>
@@ -147,7 +147,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
      const candidate=paintMathematicalSlots(marks,[key],brush,marks.selected.includes(key)),n=total(candidate),contribution=sign*mathematicalSlotValue(base,i+1,brush);
      return <button type="button" key={key} disabled={disabled} className="mathematical-dial-slot" data-ui-paint-owner="geometry" data-math-slot={key} data-mode={mode} data-selected={displayed.selected.includes(key)} data-preview={!!sample&&displayed.selected.includes(key)&&(!marks.selected.includes(key)||modeAt(marks,key)!==mode)} style={{width:minimum.size,height:minimum.size,left:`${50+Math.sin(turn)*radius/extent*100}%`,top:`${50-Math.cos(turn)*radius/extent*100}%`}}
       aria-label={`Ring ${order+1}, slot ${i+1}, brush ${brush}, contribution ${contribution}`} aria-pressed={marks.selected.includes(key)} aria-disabled={candidate.selected.length>0&&!valid(n)} title={`Slot ${i+1} · ${sign<0?'−':''}${brush==='normal'?`${base}×${i+1}`:`${base}^${i+2}`} = ${contribution} · ${editing?.kind==='increment'?`${anchor.current} + (${numeral(candidate)} × ${editing.amount}) = `:''}${n} · right-click applies recursion`}
-      onMouseEnter={()=>preview(key)} onMouseLeave={restore} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)confirm(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true"/></button>;
+      onMouseEnter={()=>preview(key)} onMouseLeave={restore} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)confirm(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true">{mode==='recursion'&&<svg viewBox="0 0 20 20" width="100%" height="100%"><circle cx="10" cy="10" r="5" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>}</span></button>;
     })}
    </span>)}
   </div>

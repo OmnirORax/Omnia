@@ -6,7 +6,7 @@
 .mathematical-dial .mathematical-dial-slot{position:absolute;transform:translate(-50%,-50%);min-width:0;padding:0;border:1px solid currentColor;border-radius:50%;background:transparent;display:grid;place-items:center}
 .mathematical-dial-slot[aria-disabled=true]{opacity:.35}
 .mathematical-dial-mark{position:absolute;inset:0;border-radius:50%;pointer-events:none}
-.mathematical-dial-slot[data-mode="recursion"] .mathematical-dial-mark{inset:4px;border:3px double currentColor}
+.mathematical-dial-slot[data-mode="recursion"] .mathematical-dial-mark{inset:0;border:0;background:transparent}
 .mathematical-dial-slot[data-selected=true] .mathematical-dial-mark{background:currentColor}
 .mathematical-dial-slot[data-start=true]::before{content:'';position:absolute;left:50%;bottom:100%;width:3px;height:3px;background:currentColor;border-radius:50%}
 .mathematical-dial-base{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;outline:1px solid currentColor;border-radius:50%;pointer-events:none}
@@ -49,3 +49,6 @@
 .mathematical-dial .mathematical-dial-base{pointer-events:auto;padding:0;background:transparent;border:0;cursor:pointer}
 .mathematical-dial-meta{top:0;left:calc(100% + 8px);transform:none;margin-top:0;gap:4px}
 .mathematical-dial-meta .mathematical-dial-settings{flex-direction:column;flex-wrap:nowrap;width:max-content;max-width:none}
+
+.mathematical-dial-slot[data-mode="recursion"][data-selected=true] .mathematical-dial-mark{background:transparent}
+.mathematical-dial-mark svg{display:block;pointer-events:none}
