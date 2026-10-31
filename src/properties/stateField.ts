@@ -78,3 +78,13 @@ export function axisFraction(field:StateField,value:number){
  const total=field.candidates[0]?.derivation.count??0,period=field.domain.cyclic?.period??360,north=field.domain.cyclic?.north??0;
  return {index:Number.isFinite(value)&&total?Math.min(total,1+Math.floor(((((value-north)%period+period)%period)/period*total)+1e-9)):0,total};
 }
+
+/** Hit authored axis nodes from their rendered geometry, independent of SVG targets. */
+export function axisNodeAt<T extends {angle:number;count:number;total:number}>(field:StateField,nodes:readonly T[],point:{x:number;y:number}):T|undefined{
+ let nearest:T|undefined,distance=.13;
+ for(const node of nodes){const p=field.candidates.find(c=>Math.abs(c.value-node.angle)<1e-7)?.point;if(!p||node.total<=0)continue;
+  const t=.3+.7*node.count/node.total,d=Math.hypot(point.x-p.x*t,point.y-p.y*t);
+  if(d<=distance){nearest=node;distance=d;}
+ }
+ return nearest;
+}

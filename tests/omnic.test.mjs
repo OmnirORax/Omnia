@@ -1413,3 +1413,12 @@ test('existing axis nodes rotate angularly and adjust count radially in one gest
  const scaled=createPolarCountDrag({origin:{x:0,y:-50},center:{x:0,y:0},initialAngle:0,initialCount:28,unit:4,levels:12,stepPixels:5,angles:[0,90,180,270]});
  assert.deepEqual(scaled.sample({x:0,y:-55}),{angle:0,count:32});
 });
+
+test('axis node targeting uses rendered geometry even when SVG press targets are missing',async()=>{
+ const {createStateField,axisNodeAt}=await import('../src/properties/stateField.ts');
+ const field=createStateField({min:0,max:360,resolution:1,cyclic:{period:360,north:0},projection:'radial'},{mode:'symmetry',count:8,step:45,reference:0});
+ const nodes=[{angle:90,count:4,total:8,order:1},{angle:180,count:7,total:8,order:2}];
+ assert.equal(axisNodeAt(field,nodes,{x:.8*(.3+.7*4/8),y:0}),nodes[0]);
+ assert.equal(axisNodeAt(field,nodes,{x:0,y:.8*(.3+.7*7/8)}),nodes[1]);
+ assert.equal(axisNodeAt(field,nodes,{x:-.8,y:0}),undefined);
+});
