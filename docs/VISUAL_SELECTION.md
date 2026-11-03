@@ -63,7 +63,7 @@ that selection must open no dial automatically. Right-click-only entry awaits re
 Q (rebindable) starts the compact aiming cursor directly; pressing Q again while
 MS is active opens its selection settings. The MS settings command
 (`selector.configure`, unassigned by default) explicitly opens the stationary
-controller. In an active numeric context, Q directly starts reference targeting. The circle is centered on the pointer and clamped near viewport edges.
+controller. Q always starts ordinary MS. A numeric control must explicitly request reference targeting through its reference control; merely having a numeric editor open cannot repurpose Q. The circle is centered on the pointer and clamped near viewport edges.
 The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
 Esc from selection settings returns to aiming with membership intact; Esc from

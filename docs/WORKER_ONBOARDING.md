@@ -274,6 +274,8 @@ trailing click must not activate its button. Cancellation restores the original.
 
 ## Shared commands, shortcuts and search
 
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
 Declare behavior commands once in ACTIONS. Component-owned commands belong in
 featureActions and useFeatureActions, rather than private key listeners and a
 second shortcut list. Both shortcut screens, defaults, hints, conflict scopes and

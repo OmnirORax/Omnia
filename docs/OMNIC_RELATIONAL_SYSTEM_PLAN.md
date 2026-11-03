@@ -1,5 +1,7 @@
 # Omnic mathematical relationships: living master plan
 
+Current selection correction (2026-11-03): Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
 Status: working design, revised through experiments. Updated 2026-10-29.
 
 ## Evaluated static reference measurements (2026-10-31)

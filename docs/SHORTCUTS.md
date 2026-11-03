@@ -1,5 +1,7 @@
 # Shared shortcuts and feature commands
 
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
 Every feature command belongs to `ACTIONS` in `workspaceActions.ts`. Its global
 entries and the component-owned `FEATURE_ACTIONS` manifest form one catalog, not
 two user-facing inventories. Both shortcut screens, defaults, saved binding

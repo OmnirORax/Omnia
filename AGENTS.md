@@ -143,6 +143,8 @@ aiming for continuation; borrowed single-reference acceptance still restores and
 closes its request. Shift+Q is no longer selected-property editing. Use shared
 selector commands, scoped range discovery and transient selection history.
 
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
 **Interaction ownership:** read [the current lifecycle and regression route](docs/OMNIC_INTERACTION_LIFECYCLE.md)
 for selection/editing work. Resolve ownership from the physical event path, not
 mutable SVG ancestry; keep the registered root/context for the whole gesture.

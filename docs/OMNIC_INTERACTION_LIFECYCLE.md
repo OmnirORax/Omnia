@@ -1,5 +1,7 @@
 # Omnic selection and editing lifecycle
 
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
 This is the current interaction contract. Selection, property editing, temporary
 reference picking and navigation context are different owners. A correction must
 preserve the whole sequence rather than change one click in isolation.
@@ -97,7 +99,7 @@ future adapters.
 
 ### Recorded verification, 2026-11-03
 
-The corrected PR #44 working tree passed **41 named Chromium interaction
+The corrected PR #44 working tree passed **45 named Chromium interaction
 sequences**, with zero uncaught page errors, after reproducing the old failures.
 Both Atomnic modes passed; additional runs exercised Ctrl/Alt/Shift together,
 a same-key global binding conflict (also through Master Controller), and saved
@@ -109,3 +111,5 @@ The complete model/architecture suite, preview build (including TypeScript /
 property contracts), and backend checks also passed. This evidence applies to the
 local disposable fixture and code changes in this delivery. User hardware /
 workspace and other browser acceptance remain separate.
+
+The follow-up reproduced Q opening a numeric setter during the reported selection sequence. Removing numeric-context interception keeps Q owned by MS. Four additional checks cover Q → held Shift+Q → successive clicks → Q configuration and Ctrl+Q continuation after Rotation, in both Atomnic modes. All 45 checks passed with no uncaught page errors; explicit reference accept/cancel remains covered.

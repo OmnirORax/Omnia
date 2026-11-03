@@ -202,6 +202,79 @@ try {
       await noPopup();
     });
     await check(
+      `${profile}: Q plus held Shift+Q selects multiple targets without entering a setter`,
+      async () => {
+        await pick("line");
+        await selected(["line"]);
+        await noPopup();
+        const start = await point("dot-0");
+        await page.mouse.move(start.x, start.y);
+        await page.keyboard.press("q");
+        await page.waitForTimeout(100);
+        await noPopup();
+        await page.keyboard.down("Shift");
+        await page.keyboard.down("q");
+        try {
+          await clickOwner("dot-0");
+          await selected(["dot-0", "dot-1", "line"]);
+          await clickOwner("dot-2");
+          await selected(["dot-0", "dot-1", "dot-2", "line"]);
+          await noPopup();
+        } finally {
+          await page.keyboard.up("q");
+          await page.keyboard.up("Shift");
+        }
+        await page.keyboard.press("q");
+        await page.keyboard.press("q");
+        await page
+          .getByRole("dialog", { name: "Visual selection controller", exact: true })
+          .waitFor();
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+        await pick("dot-0");
+        await pick("dot-2", ["Shift"]);
+        await selected(["dot-0", "dot-1", "dot-2"]);
+      },
+    );
+    await check(
+      `${profile}: ordinary Q after Rotation keeps Ctrl selection and Q configuration independent`,
+      async () => {
+        await pick("line");
+        await page.keyboard.press("r");
+        await page
+          .getByRole("dialog", { name: "Master controller — Rotation", exact: true })
+          .waitFor();
+        const start = await point("line");
+        await page.mouse.move(start.x, start.y);
+        await page.keyboard.press("q");
+        await page.keyboard.down("Control");
+        await page.keyboard.down("q");
+        try {
+          await clickOwner("dot-0");
+          await selected(["dot-0"]);
+          await clickOwner("dot-2");
+          await selected(["dot-0", "dot-2"]);
+          await page.keyboard.down("q");
+          await noPopup();
+        } finally {
+          await page.keyboard.up("q");
+          await page.keyboard.up("Control");
+        }
+        await page.keyboard.press("q");
+        await page.keyboard.press("q");
+        await page
+          .getByRole("dialog", { name: "Visual selection controller", exact: true })
+          .waitFor();
+        await selected(["dot-0", "dot-2"]);
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+        await pick("dot-0");
+        await pick("dot-2", ["Shift"]);
+        await selected(["dot-0", "dot-1", "dot-2"]);
+        assert.deepEqual(await shape(), baseline);
+      },
+    );
+    await check(
       `${profile}: right-click opens once on release and retains the full selection`,
       async () => {
         const p = await point("dot-1");

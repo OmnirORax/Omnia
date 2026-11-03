@@ -1,5 +1,7 @@
 # Omnic composer: Stage 1 contract
 
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
 Current interaction ownership and opt-in regression: see
 [the lifecycle contract](OMNIC_INTERACTION_LIFECYCLE.md). Physical event paths
 retain the surface through SVG refresh; passive selection yields editor/gesture
