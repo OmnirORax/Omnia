@@ -895,6 +895,28 @@ test('shared thresholds survive changing fractions, with hard constraints and ow
  }
 });
 
+test('future cyclic and scalar DOFs retain custom, inherited and reference thresholds through the shared rule pipeline',async()=>{
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const {createReferenceField}=await import('../src/properties/referenceUse.ts');
+ const custom=[{id:'domain:landmark',value:17},{id:'domain:overlap',value:90}];
+ const input={kind:'number',key:'future',property:'future.dof',label:'Future DOF',initial:0,min:-180,max:360,step:.1,significantThresholds:custom};
+ const reference={id:'source',label:'Source',value:0,thresholds:[{id:'reference:landmark',value:23},{id:'reference:overlap',value:90}]};
+ for(const cyclic of [false,true]){
+  const domain=stateFieldDomain({...input,...(cyclic?{selection:{north:-90,period:360}}:{})});
+  for(const mode of ['symmetry','halving','step'])for(const count of [3,7,8]){
+   const field=createReferenceField(domain,{mode,count,step:11,reference:0},reference);
+   for(const value of [17,23,90])assert.ok(field.candidates.some(c=>c.value===value&&c.thresholds?.length),`${cyclic}/${mode}/${count}: ${value}`);
+   assert.equal(field.candidates.filter(c=>c.value===90).length,1,'overlapping landmarks are one candidate');
+   const overlap=field.candidates.find(c=>c.value===90);
+   for(const id of ['domain:overlap','reference:overlap',...(cyclic?['axis:2']:[])])assert.ok(overlap.thresholds.includes(id));
+   if(cyclic)for(const value of [-90,0,90,180])assert.ok(field.candidates.some(c=>c.value===value),'custom declarations cannot replace inherited axes');
+   assert.ok(!createReferenceField(domain,{mode,count,step:11,reference:0,max:10},reference).candidates.some(c=>c.value===17),'working limits remain authoritative');
+   assert.ok(!createReferenceField(domain,{mode,count,step:11,reference:0},reference,n=>n!==23).candidates.some(c=>c.value===23),'owner legality remains authoritative');
+  }
+ }
+ assert.deepEqual(input.significantThresholds,custom,'domain preparation does not mutate declarations');
+});
+
 test('Self and external geometry supply the same reference interval contract without editing geometry',async()=>{
  const {operationGeometry}=await import('../src/omnic/operationContext.ts');
  const {fieldReferenceFor}=await import('../src/omnic/referenceGeometry.ts');
@@ -1262,10 +1284,14 @@ test('path generator integrates persistence, rendering, target edits and capture
  const animated=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,.5);
  assert.ok(animated.motion);assert.ok(animated.nodes.some(n=>n.glow));assert.match(renderSVG(animated),/drop-shadow/);
  const done=evaluateRecipe(recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify({...SQUARE_PATH_RULE,a:true})}}]),undefined,1);assert.equal(done.motion,false);
- assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path'],{factor:.5})]}),/movement rule/,'generic transforms cannot bypass the indivisible substrate');
+ const blocked=evaluateRecipe({...source,operations:[op('scale','size',['path'],{factor:.5})]});
+ assert.deepEqual(blocked.nodes,evaluated.nodes,'rejected transforms preserve the indivisible substrate');
+ assert.ok(blocked.diagnostics.some(d=>d.operation==='scale'&&d.code==='unsupported-substrate-transform'));
  assert.throws(()=>validateRecipe(recipe([{id:'p',generator:'path-rule',params:{x:.5}}])),/Unsupported range/);
  assert.throws(()=>evaluateRecipe(recipe([{id:'parent',generator:'group',params:{x:.5},children:source.components}])),/inherited offsets/);
- assert.throws(()=>evaluateRecipe({...source,operations:[op('scale','size',['path:edge:0:-2:0:0'],{factor:.5})]}),/movement rule/,'generated-cell selection cannot bypass substrate rules');
+ const blockedCell=evaluateRecipe({...source,operations:[op('scale','size',['path:edge:0:-2:0:0'],{factor:.5})]});
+ assert.deepEqual(blockedCell.nodes,evaluated.nodes,'generated-cell selection cannot bypass substrate rules');
+ assert.ok(blockedCell.diagnostics.some(d=>d.operation==='scale'&&d.code==='unsupported-substrate-transform'));
  const origin={x:9.3,y:8.7};let id=0;
  const inserted=insertConstruction({...recipe([]),atomnic:{viewSize:40,viewX:0,viewY:0}},source,origin,()=>`path-${++id}`).recipe;
  assert.equal(inserted.components[0].params.x,9);assert.equal(inserted.components[0].params.y,9);
@@ -1446,4 +1472,88 @@ test('Ctrl marquee separates click jitter from box selection and intersects actu
  assert.equal(structuralIdsInRect(evaluation.nodes,{x:20,y:-30},{x:30,y:-20}).has('diagonal'),false,'empty line bounding-box corners do not count');
  assert.equal(structuralIdsInRect(evaluation.nodes,{x:20,y:20},{x:30,y:30}).has('diagonal'),true);
  const owners=new Set(['diagonal']);const selected=deleteComponents(source,owners);assert.deepEqual(selected.components.map(c=>c.id),['ring']);
+});
+
+
+test('rotated sources supply evaluated lengths and extents without disabling unrelated reference fields',async()=>{
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const {measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {resolveReferenceUse,createReferenceField,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const {stateFieldDomain}=await import('../src/omnic/stateFieldAdapter.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'line',params:{length:20,x:-100}},{id:'b',generator:'line',params:{length:80,x:100}},{id:'c',generator:'line',params:{length:30}}],[op('turn','rotate',['b'],{angle:45,pivot:'center'})]));
+ const snapshot=operationGeometry(source,evaluateRecipe(source)),degrees=targetDegrees(source,['a']);
+ const position=degrees.find(d=>d.id==='omnic.coordinate.x'),length=degrees.find(d=>d.id==='omnic.extent');
+ const measured=measuredReferenceFor(snapshot,position,'b');
+ almost(measured.measures.find(m=>m.id==='length').value,80);
+ almost(measured.measures.find(m=>m.id==='width').value,snapshot.views.get('b').bounds.width);
+ assert.ok(measured.thresholds.some(t=>t.id==='b/x:centre'));
+ for(const measure of ['length','width']){
+  const step=resolveReferenceUse(measured,{...DEFAULT_REFERENCE_SETTINGS,use:'step',measure,denominator:2},-100);
+  almost(step.step,measured.measures.find(m=>m.id===measure).value/2);
+  const field=createReferenceField(stateFieldDomain(targetParameter(position)),{mode:'symmetry',count:8,step:1,reference:-100},step);
+  assert.ok(field.candidates.some(c=>Math.abs(c.value-(-100+step.step))<1e-8));
+ }
+ const scalar=measuredReferenceFor(snapshot,length,'b'),match=resolveReferenceUse(scalar,{...DEFAULT_REFERENCE_SETTINGS,use:'match'},20);
+ almost(match.match,80);
+ const committed=writeTargetDegree(source,length,match.match);
+ almost(operationGeometry(committed,evaluateRecipe(committed)).views.get('a').measurements.get('length').value,80);
+ assert.ok(measuredReferenceFor(snapshot,position,'c'),'unrelated source remains usable');
+ const transformedPosition=targetDegrees(source,['b']).find(d=>d.id==='omnic.coordinate.x');
+ assert.equal(measuredReferenceFor(snapshot,transformedPosition,'a'),undefined,'unsupported authored coordinate conversion stays unavailable');
+ const rotation=degrees.find(d=>targetParameter(d).selection);
+ assert.equal(measuredReferenceFor(snapshot,rotation,'b'),undefined,'raw angle is not substituted for evaluated orientation');
+ const scaled=validateRecipe({...source,operations:[...source.operations,op('scale','size',['b'],{factor:2})]});
+ const scaledSnapshot=operationGeometry(scaled,evaluateRecipe(scaled));
+ almost(measuredReferenceFor(scaledSnapshot,length,'b').value,160,'source uses evaluated length, not its raw parameter');
+ const scaledTarget=targetDegrees(scaled,['b']).find(d=>d.id==='omnic.extent');
+ assert.equal(measuredReferenceFor(scaledSnapshot,scaledTarget,'a'),undefined,'scaled consumer needs a response adapter');
+ const moving=validateRecipe({...source,operations:[...source.operations,op('motion','oscillate',['b'],{})]});
+ assert.equal(measuredReferenceFor(operationGeometry(moving,evaluateRecipe(moving)),position,'b'),undefined,'animated snapshots remain unsupported');
+ assert.equal(source.components[0].params.length,20,'preparing references never writes geometry');
+});
+
+
+test('drawing playback starts on the visible frame and never catches up stalled UI time',async()=>{
+ const {createPlaybackClock}=await import('../src/omnic/playbackClock.ts');
+ const {pathTrace,SQUARE_PATH_RULE}=await import('../src/omnic/pathRule.ts');
+ const clock=createPlaybackClock(0,12),rule={...SQUARE_PATH_RULE,a:true,r:8};
+ const bounds={left:-100,top:-100,right:100,bottom:100};
+ assert.equal(clock(5000),0,'startup work is not animation time');
+ const times=[clock(5100),clock(9000),clock(9100)];
+ const traces=times.map(t=>pathTrace(rule,bounds,t));
+ assert.deepEqual(traces.map(t=>t.steps),[0,1,2],'long stalls cannot skip straight to completion');
+ assert.ok(traces.every(t=>t.moving));
+ const resumed=createPlaybackClock(times[2],12);
+ assert.equal(resumed(50000),times[2],'paused time is excluded');
+ almost(resumed(50100),times[2]+1/12);
+});
+
+
+test('legacy mfx on a substrate path cannot poison subsequent drawing or later operations',async()=>{
+ const {SQUARE_PATH_RULE}=await import('../src/omnic/pathRule.ts');
+ const base=validateRecipe({...recipe([{id:'path',generator:'path-rule',params:{rule:JSON.stringify(SQUARE_PATH_RULE)}}],[op('old-mfx','oscillate',['path'])]),atomnic:{mode:'free'}});
+ const before=evaluateRecipe({...base,operations:[]});
+ const recovered=evaluateRecipe(base);
+ assert.deepEqual(recovered.nodes,before.nodes);
+ assert.equal(recovered.motion,false,'rejected motion does not start playback');
+ assert.equal(atomnicEditable(base,recovered),true,'a rejected operation must not leave the pen disabled');
+ assert.ok(recovered.diagnostics.some(d=>d.operation==='old-mfx'&&d.code==='unsupported-substrate-transform'));
+ const drawn=addAtom(base,{x:40,y:40},'new-dot');
+ const result=evaluateRecipe({...drawn,operations:[...drawn.operations,op('paint','fill',['new-dot'],{color:'#ff0000'})]});
+ assert.ok(result.nodes.some(n=>n.componentId==='new-dot'&&n.color==='#ff0000'),'drawing and later valid operations still execute');
+ assert.deepEqual(result.nodes.filter(n=>n.componentId==='path'),before.nodes.filter(n=>n.componentId==='path'));
+ assert.equal(drawn.operations[0].enabled,true,'recovery does not silently rewrite saved operations');
+});
+
+
+test('diagnostic repairs address only the exact operation and preserve authored geometry',async()=>{
+ const {diagnosticOperation,repairDiagnosticOperation}=await import('../src/omnic/diagnosticOperation.ts');
+ const source=validateRecipe(recipe([dot('a')],[op('bad','oscillate',['a']),op('keep','highlight',['a'])]));
+ const disabled=repairDiagnosticOperation(source,'bad','disable');
+ assert.equal(disabled.operations[0].enabled,false);assert.equal(source.operations[0].enabled,true);
+ assert.equal(disabled.components,source.components);assert.equal(disabled.operations[1],source.operations[1]);
+ const removed=repairDiagnosticOperation(source,'bad','remove');assert.deepEqual(removed.operations.map(o=>o.id),['keep']);assert.equal(removed.components,source.components);
+ assert.equal(diagnosticOperation(source,'reference/bad'),undefined);
+ assert.equal(repairDiagnosticOperation(source,'reference/bad','remove'),source,'foreign or stale diagnostics cannot delete local operations');
+ assert.equal(repairDiagnosticOperation(disabled,'bad','disable'),disabled,'already resolved actions do not create history');
 });

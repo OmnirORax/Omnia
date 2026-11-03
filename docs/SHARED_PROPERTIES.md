@@ -399,6 +399,13 @@ adapter, not copied rotation UI or guessed property-name applicability.
 
 
 The available-state field generalizes numeric editing across Composer inputs.
+Numeric adapters declare additional `significantThresholds` (or `[]`); the build
+checks registered declarations for finite values and unique nonempty IDs. Cyclic
+adapters merge those declarations with inherited axes, and the shared generator
+merges reference landmarks, deduplicates values while retaining their IDs, then
+filters limits/integrality/owner legality. Existing math-dial configuration and
+preview/commit paths apply without another threshold editor. Declaration checks
+do not establish semantic completeness or promote suggested presets to landmarks.
 `stateFieldDomain` derives domains/projections from existing Parameter metadata;
 `createStateField` performs bounded generation, domain and owner-constraint filtering
 and projection once per configuration. `nearestFieldCandidate` reads prepared

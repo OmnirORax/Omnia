@@ -15,7 +15,7 @@ export function operationGeometry(recipe:Recipe,evaluation:Evaluation,stateOwner
   let id=owners.get(node.id);
   while(id){let list=groups.get(id);if(!list){list=[];groups.set(id,list);}list.push(node);id=components.get(id)?.parent;}
  }
- const views=new Map<string,{bounds:NonNullable<ReturnType<typeof primitiveBounds>>;measurements:Map<Quantity,MeasurementReference>}>();
+ const views=new Map<string,{bounds:NonNullable<ReturnType<typeof primitiveBounds>>;transformed:boolean;scaled:boolean;measurements:Map<Quantity,MeasurementReference>}>();
  for(const [id,nodes] of groups){
   const own=nodes.filter(n=>n.componentId===id),display=own.length?own:nodes,bounds=primitiveBounds(display);if(!bounds)continue;
   const component=components.get(id)!.component,measurements=new Map<Quantity,MeasurementReference>();
@@ -25,7 +25,7 @@ export function operationGeometry(recipe:Recipe,evaluation:Evaluation,stateOwner
    const value=quantity==='center-x'?bounds.x+bounds.width/2:quantity==='center-y'?bounds.y+bounds.height/2:quantity==='radius'?first?.radius:first?.x2===undefined||first.y2===undefined?undefined:Math.hypot(first.x2-first.x,first.y2-first.y);
    if(value!==undefined&&Number.isFinite(value))measurements.set(quantity,{id:`${id}/${quantity}`,owner:id,quantity,unit:'scene-length',value});
   }
-  views.set(id,{bounds,measurements});
+  views.set(id,{bounds,measurements,transformed:display.some(node=>node.referenceTransformed),scaled:display.some(node=>node.referenceScaled)});
  }
  return {recipe,evaluation,components,views,stateOwner};
 }

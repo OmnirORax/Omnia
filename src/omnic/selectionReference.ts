@@ -2,7 +2,8 @@ import type {Recipe} from './model.ts';
 import type {EditableDegree} from '../properties/editableDegrees.ts';
 import {targetDegrees,targetDegreeValue,targetParameter} from './targetDegrees.ts';
 /** Numeric references use the same property, quantity and declared units.
- * Reject transformed/animated scenes until an evaluated orientation adapter exists. */
+ * Raw fallback remains conservative for transformed scenes; evaluated geometry
+ * adapters can supply supported measurements independently. */
 export function selectionReference(recipe:Recipe,target:EditableDegree,id:string){
  if(target.targets.some(t=>t.id===id)||recipe.operations.some(op=>op.enabled&&(op.operator==='rotate'||op.operator==='oscillate')))return;
  const fresh=targetDegrees(recipe,[...new Set(target.targets.map(t=>t.id))]).find(d=>d.id===target.id);if(!fresh)return;

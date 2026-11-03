@@ -59,8 +59,15 @@ Creation captures the current Composer view bounds, including its circular radar
 boundary, as the substrate. Those bounds persist with the recipe, independently
 of later UI resize/zoom. The whole next unit cell must fit; a boundary collision
 pauses before that move and never shortens it. Non-Atomnic views use the captured
-substrate for stable framing. Ordinary scale/rotation/motion transforms are rejected
-on substrate-bound generators; edit the movement rule instead. Integer Position
+substrate for stable framing. Ordinary scale/rotation/motion transforms on substrate-bound generators are
+skipped atomically with an unsupported-transform diagnostic; edit the movement
+rule instead. A legacy incompatible operation no longer aborts evaluation or
+disables the pen. The obsolete mfx/Oscillation creation entry is removed; saved
+operations remain readable and retain their authored settings. Operation warnings
+offer Locate (open the offending settings), Disable and Remove. Repairs use the
+existing draft history; Undo restores the operation. Only exact local operation
+IDs are editable, so a diagnostic from a reused definition cannot delete a local
+operation by a coincident suffix. Resolving the operation clears its warning. Integer Position
 changes move the origin within the captured substrate.
 
 Continuous traces render whole-unit traversal edges as joined vector strokes with
@@ -79,7 +86,9 @@ There is no ever-growing segment log. Limits: 192 visited cells per trajectory,
 256-role/12fps animation budgets. A capacity stop is reported, not interpreted as
 closure. Fixed generation also observes its chosen unit-move limit.
 
-Play/pause retains elapsed time and the last displayed frame. A completed drawing
+Playback time starts at the first displayed frame. Each displayed update advances
+by at most one configured frame interval, so startup/layout stalls do not skip
+short drawings to completion. Play/pause retains elapsed time and the last displayed frame. A completed drawing
 retains its final frame; Play restarts it. Editing the recipe starts a fresh run.
 Playback state is transient, not saved saturation or independent authored geometry.
 Visibility/reduced-motion/slow-frame safeguards remain. Multiple animations share

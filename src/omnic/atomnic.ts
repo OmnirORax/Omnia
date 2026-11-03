@@ -1,3 +1,4 @@
+import type {Evaluation} from './evaluate.ts';
 import { deleteComponents } from './componentTargets.ts';
 import type { Component, Params, Recipe } from './model.ts';
 import { validateRecipe } from './model.ts';
@@ -9,7 +10,10 @@ export type Atom=Point & {id:string;group:string;component:Component;origin:Poin
 export const atomnicSettings=(recipe:Recipe)=>({...atomnicDefaults(),...recipe.atomnic});
 /** Other generators share the recipe; geometry-transform operators need their
  * evaluated-coordinate adapter before direct authored-dot gestures are safe. */
-export const atomnicEditable=(recipe:Recipe)=>recipe.operations.every(op=>!op.enabled||op.operator==='highlight');
+export const atomnicEditable=(recipe:Recipe,evaluation?:Pick<Evaluation,'diagnostics'>)=>{
+ const rejected=new Set(evaluation?.diagnostics.filter(d=>d.code==='unsupported-substrate-transform').map(d=>d.operation));
+ return recipe.operations.every(op=>!op.enabled||op.operator==='highlight'||rejected.has(op.id));
+};
 export function atoms(recipe:Recipe):Atom[] {
   const result:Atom[]=[];
   const walk=(items:Component[],origin:Point,group:string)=>items.forEach(component=>{

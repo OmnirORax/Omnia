@@ -124,7 +124,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   }catch(failure){error(failure);}};
   // Atomnic is a tool profile in the same recipe. Other generators remain
   // rendered; only authored dots are direct Atomnic gesture targets.
-  const compatible=isAtomnic&&atomnicEditable(recipe);
+  const compatible=isAtomnic&&atomnicEditable(recipe,evaluation??undefined);
   const rotationIds=normalSelection.length?normalSelection:[...selected];
   const rotationDegree=targetDegrees(recipe,rotationIds).find(d=>targetParameter(d).selection);
   const rotationKey=rotationIds.join('|');
