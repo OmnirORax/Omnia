@@ -1,5 +1,7 @@
 # Shared shortcuts and feature commands
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
 
 Every feature command belongs to `ACTIONS` in `workspaceActions.ts`. Its global
@@ -311,3 +313,5 @@ the original event path so capture-time SVG replacement cannot change which
 context owns the press. Active reference picking retains its editor context;
 contextController windows do not activate on inspection-key refresh. See
 [the interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).
+
+Selection entry commands may declare `activationScope` for runtime arbitration. This is the scope their shortcut activates, so entry does not lose to a retained editor before that scope is open. Installation/default conflict checks still use `scope`; user bindings are not migrated or silently assigned. Native typing, blocked input and explicit clears retain the shared protections.

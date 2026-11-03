@@ -1,5 +1,7 @@
 # Omnic selection and editing lifecycle
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
 
 This is the current interaction contract. Selection, property editing, temporary
@@ -12,7 +14,7 @@ preserve the whole sequence rather than change one click in isolation.
 | --- | --- | --- |
 | Ordinary target/edge click | Select its authored owner; open no editor | Recipe and identities |
 | Ctrl-click, Shift-click, modifier marquee | Toggle one owner, add spatial range or add marquee members | Other accepted members; no dial on modifier release |
-| End native selection press | Release MS input, retain membership | Selection/history; no property request |
+| End selection press | Release the gesture; retain membership and an explicitly opened MS session | Selector cursor/aiming until exit or editing; native modifier picks begun while off remain off |
 | Right-click selected owner | On secondary release/context event, open compatible DOFs for the entire accepted set | Other selected owners; no value change |
 | Right-click another owner | Inspect that owner through the existing selection adapter | Unrelated geometry/history |
 | Right-click DOF | Open its existing configuration | Target scope and values until an explicit edit |
@@ -99,7 +101,7 @@ future adapters.
 
 ### Recorded verification, 2026-11-03
 
-The corrected PR #44 working tree passed **45 named Chromium interaction
+The corrected PR #44 working tree passed **48 named Chromium interaction
 sequences**, with zero uncaught page errors, after reproducing the old failures.
 Both Atomnic modes passed; additional runs exercised Ctrl/Alt/Shift together,
 a same-key global binding conflict (also through Master Controller), and saved
@@ -113,3 +115,5 @@ local disposable fixture and code changes in this delivery. User hardware /
 workspace and other browser acceptance remain separate.
 
 The follow-up reproduced Q opening a numeric setter during the reported selection sequence. Removing numeric-context interception keeps Q owned by MS. Four additional checks cover Q → held Shift+Q → successive clicks → Q configuration and Ctrl+Q continuation after Rotation, in both Atomnic modes. All 45 checks passed with no uncaught page errors; explicit reference accept/cancel remains covered.
+
+The cursor/session follow-up reproduced disappearance after the first native pick. Gesture completion now preserves explicitly opened MS; native modifier picks begun while off remain off, and requested reference acceptance closes explicitly. Two new on/off-mode checks assert the visible selector cursor after successive picks, its disappearance on Esc, and reappearance on Q. A third starts MS with Q also assigned to Rotation and verifies selector entry after Esc. All 48 sequences passed with no uncaught page errors. Runtime entry priority uses declared activationScope; saved-binding conflict/default rules and native typing protections remain unchanged.

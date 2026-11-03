@@ -1,5 +1,7 @@
 # User operating rules (required)
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Before implementing or modifying behavior:
 
 1. Classify its applicable behavioral categories and identify the state/behavior
@@ -128,7 +130,7 @@ select-all and releasing modifiers only select. Right-click the selected target 
 open its compatible DOF dial for the full set. Explicit DOF controls/shortcuts still
 open the requested editor. Do not add automatic Position-reference entry or
 rotation-wheel opening to selection callbacks or modifier release.
-Do not leave MS aiming after native selection or require an extra completion key.
+Release native gestures without an extra completion key. Preserve an explicitly opened MS session; modifier selection begun while MS is off remains off.
 A fresh pointer press ends suppression of the preceding press's tail. Declared
 context-menu owners receive a whole secondary press after selection (including
 standalone MS); ordinary UI retains MS removal. Pending geometry stays protected.

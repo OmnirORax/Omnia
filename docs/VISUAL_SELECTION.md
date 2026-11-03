@@ -1,5 +1,7 @@
 # Visual selector and shared controller
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Appearance has one property pool and one master editing system. Selection reuses
 registered visual parts, capabilities and renderer adapters. Geometry, inclusion baselines,
 toggling and property editing are separate; selection never creates

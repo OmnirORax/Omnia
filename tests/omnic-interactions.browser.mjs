@@ -275,6 +275,36 @@ try {
       },
     );
     await check(
+      `${profile}: MS cursor persists across picks and Escape then Q restarts targeting`,
+      async () => {
+        await pick("line");
+        await page.keyboard.press("q");
+        await page.locator('[data-tool-cursor-owner="visual-selector"]').waitFor();
+        await pick("dot-0", ["Control"]);
+        await selected(["dot-0", "line"]);
+        await page.locator('[data-tool-cursor-owner="visual-selector"]').waitFor();
+        await pick("dot-2", ["Control"]);
+        await selected(["dot-0", "dot-2", "line"]);
+        await page.locator('[data-tool-cursor-owner="visual-selector"]').waitFor();
+        await page.keyboard.press("Escape");
+        await page
+          .locator('[data-tool-cursor-owner="visual-selector"]')
+          .waitFor({ state: "detached" });
+        await page.keyboard.press("q");
+        await page.locator('[data-tool-cursor-owner="visual-selector"]').waitFor();
+        await noPopup();
+        await page.keyboard.press("q");
+        await page
+          .getByRole("dialog", { name: "Visual selection controller", exact: true })
+          .waitFor();
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+        await pick("dot-0");
+        await pick("dot-2", ["Shift"]);
+        await selected(["dot-0", "dot-1", "dot-2"]);
+      },
+    );
+    await check(
       `${profile}: right-click opens once on release and retains the full selection`,
       async () => {
         const p = await point("dot-1");
@@ -657,6 +687,25 @@ try {
       await closeDials(["line"]);
     },
   );
+  const entryCollision = defaultSettings();
+  entryCollision.bindings["atomnic.rotate"] = "Q";
+  await fixture(true, entryCollision);
+  await check("MS entry retains priority over a retained same-key DOF after Escape", async () => {
+    await pick("line");
+    await page.keyboard.press("q");
+    await page.locator('[data-tool-cursor-owner="visual-selector"]').waitFor();
+    await noPopup();
+    await pick("dot-0", ["Control"]);
+    await selected(["dot-0", "line"]);
+    await page.keyboard.press("Escape");
+    await selected([]);
+    await pick("line");
+    await page.keyboard.press("q");
+    await page.locator('[data-tool-cursor-owner="visual-selector"]').waitFor();
+    await noPopup();
+    await page.keyboard.press("q");
+    await page.getByRole("dialog", { name: "Visual selection controller", exact: true }).waitFor();
+  });
   assert.deepEqual(report.errors, [], "no runtime errors");
   console.log(`PASS ${report.checks.length} interaction sequences`);
 } catch (error) {

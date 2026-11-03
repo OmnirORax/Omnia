@@ -127,7 +127,9 @@ export function preferredFeatureKey(bindings: Record<string, string>, key: strin
   const rank = (scope: string) => scope === "visualSelector" ? 5 : scope === "composerDegree" ? 4 : scope === "contentEditing" ? 2 : scope === "uiContext" ? 1 : 0;
   const candidates = FEATURE_ACTIONS.filter(action => shortcutBinding(action.id, bindings) === key && available(action.id) &&
     (!typing || "allowTyping" in action && action.allowTyping) && (!blocked || "allowBlocked" in action && action.allowBlocked));
-  const priority=(action:typeof candidates[number])=>action.scope==='visualSelector'?5:'contextual' in action&&contextTargets.override(action.id)&&!uiPointerHeld()?3:rank(action.scope);
+  // Entry commands route in the scope they activate, while saved-binding/default
+  // conflict rules keep their declared installation scope.
+  const priority=(action:typeof candidates[number])=>'activationScope' in action?rank(action.activationScope):action.scope==='visualSelector'?5:'contextual' in action&&contextTargets.override(action.id)&&!uiPointerHeld()?3:rank(action.scope);
   candidates.sort((a,b)=>priority(b)-priority(a));
   return candidates[0]?.id ?? null;
 }
@@ -144,7 +146,8 @@ export function pointerFeatureKey(bindings:Record<string,string>,event:Pick<Mous
 export function residentShortcutAction(bindings:Record<string,string>,key:string,available:(id:string)=>boolean):string|null {
  if(!key)return null;
  const scoped=preferredFeatureKey(bindings,key,available);
- if(scoped&&FEATURE_ACTIONS.find(action=>action.id===scoped)?.scope!=='global')return scoped;
+ const command=FEATURE_ACTIONS.find(action=>action.id===scoped);
+ if(scoped&&command&&('activationScope' in command||command.scope!=='global'))return scoped;
  return Object.entries(bindings).find(([id,binding])=>id.startsWith('button:')&&binding===key)?.[0]??null;
 }
 export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;

@@ -746,3 +746,13 @@ test('surface command ownership follows the physical path when capture renders r
  assert.equal(eventPathMatches({target:moved},'[data-command-surface]'),true,'programmatic inputs without a physical path retain ancestry fallback');
  assert.equal(eventPathMatches({target:null},'[data-command-surface]'),false);
 });
+
+ test('MS entry has selector routing priority before opening and after exit, without changing saved default conflicts',async()=>{
+ const {preferredFeatureKey,residentShortcutAction}=await import('../src/workspaceActions.ts');
+ const saved={'selector.open':'Q','atomnic.rotate':'Q','button:retained-dof':'Q'};
+ const available=id=>['selector.open','atomnic.rotate'].includes(id);
+ assert.equal(preferredFeatureKey(saved,'Q',available),'selector.open');
+ assert.equal(residentShortcutAction(saved,'Q',available),'selector.open');
+ assert.equal(preferredFeatureKey(saved,'Q',available,true),null,'native text entry retains Q');
+ assert.equal(preferredFeatureKey({...saved,'selector.open':''},'Q',available),'atomnic.rotate','explicit clears remain authoritative');
+ });

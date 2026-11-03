@@ -1,5 +1,7 @@
 # Worker onboarding: Omnia's shared mental model
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Read [the operating instructions in AGENTS.md](../AGENTS.md#user-operating-rules-required), including
 category-based inheritance, ownership, lifecycle reasoning and user-owned browser
 acceptance. Warning/error work also requires [the diagnostic contract](DIAGNOSTICS.md):

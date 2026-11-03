@@ -108,8 +108,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (next === current) return previous;
     return appendTransient(previous,next);
   }), []);
-  // Completion closes selector UI, never its accepted membership/history/feedback.
-  const completeSelection=useCallback(()=>{gesture.current=null;polygon.current=null;setDrawing(false);setCandidatePick(null);setInventoryOpen(false);setPhase('off');},[setCandidatePick]);
+  // A completed press releases the gesture, not an explicitly opened MS session.
+  // Native modifier picks begun while off stay off; accepted references end MS.
+  const completeSelection=useCallback((endSession=false)=>{gesture.current=null;polygon.current=null;setDrawing(false);setCandidatePick(null);setInventoryOpen(false);setPhase(before=>!endSession&&(before==='aim'||before==='configure')?'aim':'off');},[setCandidatePick]);
   const cancelDrawing = () => { nativeGesture.current=null;setNativeMarquee(null);gesture.current = null; polygon.current = null; setDrawing(false); setCandidatePick(null); };
   const toggleSelection = (constraint: SelectionConstraint) => record(current => {
     const parts = latest.current.catalog;
@@ -208,7 +209,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if (!pick) {if(requestedPick.current)setPickFeedback('No target here');return;}
     const request=requestedPick.current;
     if(request){const p=point.current;if(p&&request.accept({element:p.element,boundary:pick.rule.boundary,constraint:pick.rule,parts:matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements),point:{x:p.x,y:p.y}})){
-      requestedPick.current=null;completeSelection();
+      requestedPick.current=null;completeSelection(true);
     }return;}
     if (pick.definesScope) {
       const { include: _include, backgrounds: _backgrounds, ...constraint } = pick.rule;
@@ -707,7 +708,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if(!current.objects.length&&included.length===wanted.size&&included.every(p=>wanted.has(p.key)))return;
     if(elements.length)rangeAnchor.current=boundaryFor(selectionRangeUnit(elements[0]));
     setCatalog(parts);cancelDrawing();record(()=>({...emptySelection(),boundary:rules.length?boundaryFor(document.body):null,rules}));
-    setPhase(before=>before==='locked'?'locked':'off');
+    setPhase(before=>before==='locked'?'locked':before==='aim'||before==='configure'?'aim':'off');
   },[record]);
   const requestPick=useCallback((accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>{
     const retained=requestCheckpoint.current??{timeline,configuration:{...configuration}};
