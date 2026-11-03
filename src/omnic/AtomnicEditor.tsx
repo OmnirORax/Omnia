@@ -143,13 +143,13 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     snapshot:()=>{
       const root=localSurface.current!,groups=ownerElements();
       const units=[...groups].flatMap(([id,elements])=>{const boxes=elements.map(element=>element.getBoundingClientRect()).filter(box=>box.width||box.height);return boxes.length?[{id,box:{left:Math.min(...boxes.map(b=>b.left)),top:Math.min(...boxes.map(b=>b.top)),right:Math.max(...boxes.map(b=>b.right)),bottom:Math.max(...boxes.map(b=>b.bottom))}}]:[];});
+      const box=root.getBoundingClientRect(),edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);
+      const project=(p:Point)=>({x:bounds.x+bounds.width/2+((p.x-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((p.y-box.top-(box.height-edge)/2)/edge-.5)*scale});
       const area=(a:Point,b:Point)=>{
-        const box=root.getBoundingClientRect(),edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);
-        const project=(p:Point)=>({x:bounds.x+bounds.width/2+((p.x-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((p.y-box.top-(box.height-edge)/2)/edge-.5)*scale});
         const nodes=evaluation?.nodes??[],components=structuralIdsInRect(nodes,project(a),project(b));
         return [...new Set(nodes.filter(node=>components.has(node.componentId)).flatMap(node=>selectionOwners.get(node.id)??[]))];
       };
-      return {units,area,selected:[...selectedRef.current],hit:p=>{const node=pickStructuralNode(evaluation?.nodes??[],local({currentTarget:root,clientX:p.x,clientY:p.y}));return node?selectionOwners.get(node.id):undefined;}};
+      return {units,area,elements:(ids:readonly string[])=>ids.flatMap(id=>groups.get(id)??[]),selected:[...selectedRef.current],hit:p=>{const node=pickStructuralNode(evaluation?.nodes??[],project(p));return node?selectionOwners.get(node.id):undefined;}};
     },
     elements:ids=>{const groups=ownerElements();return ids.flatMap(id=>groups.get(id)??[]);},
     apply:()=>{},

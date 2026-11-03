@@ -357,3 +357,37 @@ test('native selection resolves the physical event path and survives replacement
  const transaction=finish({x:11,y:1});assert.deepEqual(transaction.after,['first','second']);registry.apply(transaction.id,transaction.after);assert.deepEqual(selected,['first','second']);
  const canceled=registry.beginPointer(replacement,{x:11,y:1},'toggle',[replacement,root]);currentRoot={contains:()=>true};assert.equal(canceled({x:11,y:1}),undefined,'replacing the actual surface cancels instead of retargeting a new owner');
 });
+
+ test('marquee preview grows and shrinks from prepared geometry without selecting, changing anchors or committing',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},elements={a:{},b:{},keep:{}};
+ let snapshots=0,applies=0,completes=0,selected=['keep'],context='one';
+ const units=[{id:'keep',box:{left:50,right:52,top:0,bottom:2}},...['a','b'].map((id,i)=>({id,box:{left:10+i*10,right:12+i*10,top:0,bottom:2}}))];
+ registry.register({element:()=>root,context:()=>context,snapshot:()=>{snapshots++;return {units,selected,elements:ids=>ids.map(id=>elements[id]),hit:()=>undefined};},apply:ids=>{applies++;selected=[...ids];},onComplete:()=>completes++});
+ const gesture=registry.beginPointer(root,{x:0,y:0},'toggle');
+ assert.equal(gesture.preview({x:1,y:1}),undefined,'jitter does not start marquee feedback');assert.equal(snapshots,0);
+ assert.deepEqual(gesture.preview({x:13,y:3}).after,['keep','a']);
+ assert.deepEqual(gesture.preview({x:23,y:3}).after,['keep','a','b']);
+ const shrunk=gesture.preview({x:13,y:3});assert.deepEqual(shrunk.after,['keep','a']);assert.deepEqual(shrunk.elements,[elements.keep,elements.a]);
+ assert.equal(snapshots,1,'all preview queries reuse one prepared snapshot');assert.deepEqual(selected,['keep']);assert.equal(applies,0);assert.equal(completes,0);
+ const accepted=gesture({x:13,y:3});assert.deepEqual(accepted.after,shrunk.after);assert.equal(snapshots,2,'release revalidates current geometry once');
+ registry.apply(accepted.id,accepted.after);registry.complete(accepted.id,accepted.after,{x:13,y:3});assert.equal(applies,1);assert.equal(completes,1);
+ const pending=registry.beginPointer(root,{x:0,y:0},'toggle');pending.preview({x:23,y:3});context='two';assert.equal(pending.preview({x:13,y:3}),undefined);assert.equal(pending({x:23,y:3}),undefined);assert.deepEqual(selected,['keep','a'],'discarded preview cannot change membership');
+ });
+
+ test('a shrinking marquee remains a drag when returned to its press origin',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},selected=['keep'];
+ registry.register({element:()=>root,snapshot:()=>({units:[{id:'target',box:{left:10,right:12,top:0,bottom:2}}],selected,hit:()=>undefined}),apply:()=>assert.fail('preview must not commit')});
+ const gesture=registry.beginPointer(root,{x:0,y:0},'toggle');assert.deepEqual(gesture.preview({x:15,y:3}).after,['keep','target']);
+ assert.deepEqual(gesture.preview({x:0,y:0}).after,['keep']);assert.deepEqual(gesture({x:0,y:0}).after,['keep'],'release cannot turn the drag back into a click');
+ });
+
+ test('live marquee queries do not move the accepted spatial range anchor',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},units=['a','b','c'].map((id,i)=>({id,box:{left:i*10,right:i*10+2,top:0,bottom:2}}));
+ registry.register({element:()=>root,snapshot:()=>({units,selected:[],hit:p=>units.find(unit=>p.x>=unit.box.left&&p.x<=unit.box.right)?.id}),apply:()=>assert.fail('preview must not commit')});
+ registry.anchor(root,{x:11,y:1});const gesture=registry.beginPointer(root,{x:1,y:1},'toggle');
+ assert.deepEqual(gesture.preview({x:24,y:3}).after,['a','b','c']);
+ assert.deepEqual(registry.prepare(root,{x:21,y:1},'range').after,['b','c'],'preview at a cannot replace the accepted anchor b');
+ });
