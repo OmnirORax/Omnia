@@ -1,5 +1,12 @@
 # Omnic composer: Stage 1 contract
 
+Current interaction ownership and opt-in regression: see
+[the lifecycle contract](OMNIC_INTERACTION_LIFECYCLE.md). Physical event paths
+retain the surface through SVG refresh; passive selection yields editor/gesture
+cancellation, temporary MS preserves navigation context and remote controller
+refreshes retain the source. Nonnumeric DOFs never enter numeric reference picking.
+
+
 **Current presentation:** the whole Composer is the circular radar: editing inside,
 tools on its rim. It is not a rectangle containing a radial popup or a headless
 world-only editor. Atomnic on/off shares the same canvas and recipe. Presets and reusable tools retain rim entry routes; scalar properties are available from target right-click. Structure/construction, Motion, Selection, Transform, Fill/marking, Inspection/toolbox, Configure selected component and Operation scope are removed from the radial; reusable commands and saved data remain. Data/evaluation/history/library/

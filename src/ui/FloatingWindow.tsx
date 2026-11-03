@@ -61,7 +61,7 @@ export function FloatingWindow({
   openingKey?: string | number;
   className?: string;
   modal?: boolean;
-  /** Controller chrome retains the source target while operating its remote controls. */
+  /** Controller chrome and inspection refreshes retain the source editing context. */
   contextController?: boolean;
   onInteract?: () => void;
   shape?:'rectangle'|'circle';
@@ -99,7 +99,7 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, raise] = useWindowLayer();
-  useLayoutEffect(() => { if (!saved.closed && !state.collapsed) activateFrameContext(ui, key); }, [id, openingKey]);
+  useLayoutEffect(() => { if (!contextController && !saved.closed && !state.collapsed) activateFrameContext(ui, key); }, [id, openingKey,contextController]);
   // Mounting a caller-controlled window is an explicit open request. Repair
   // stale closed flags from tab/fallback closes through the same model path.
   useLayoutEffect(() => {

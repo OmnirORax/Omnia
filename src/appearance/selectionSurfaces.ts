@@ -20,7 +20,7 @@ export function spatialSelectionRange(units:readonly SelectionUnit[],anchor:stri
  * commands/history; the adapter never implements keyboard or selection policy. */
 export function createSelectionSurfaces(){
   let sequence=0;const surfaces=new Map<string,SelectionSurface>(),anchors=new Map<string,string>();
-  const find=(element:Element)=>{const found=[...surfaces].reverse().find(([,surface])=>{const root=surface.element();return root===element||root?.contains(element);});return found?[`${found[0]}/${encodeURIComponent(found[1].context?.()??'')}`,found[1]] as const:undefined;};
+  const find=(element:Element,path:readonly EventTarget[]=[])=>{const found=[...surfaces].reverse().find(([,surface])=>{const root=surface.element();return !!root&&(path.length?path.includes(root):root===element||root.contains(element));});return found?[`${found[0]}/${encodeURIComponent(found[1].context?.()??'')}`,found[1]] as const:undefined;};
   const current=(id:string)=>{const surface=surfaces.get(id.split('/')[0]);return surface&&id===`${id.split('/')[0]}/${encodeURIComponent(surface.context?.()??'')}`?surface:undefined;};
   const prepare=(element:Element,point:SelectionPoint,mode:'toggle'|'range'|'area',nativeOnly=false,end=point)=>{
     const found=find(element);if(!found||nativeOnly&&!found[1].nativePicking)return;
@@ -38,9 +38,9 @@ export function createSelectionSurfaces(){
     prepare,
     /** Retain surface/context and delay membership until release. Native tools
      * never receive this press, its drag, or its trailing click. */
-    beginPointer(element:Element,start:SelectionPoint,mode:'toggle'|'range'){
-      const found=find(element);if(!found)return;const id=found[0];found[1].onStart?.();
-      return (end:SelectionPoint)=>find(element)?.[0]===id?prepare(element,start,nativeSelectionDragged(start,end)?'area':mode,false,end):undefined;
+    beginPointer(element:Element,start:SelectionPoint,mode:'toggle'|'range',path:readonly EventTarget[]=[]){
+      const found=find(element,path);if(!found)return;const id=found[0],root=found[1].element();found[1].onStart?.();
+      return (end:SelectionPoint)=>root&&found[1].element()===root&&current(id)?prepare(root,start,nativeSelectionDragged(start,end)?'area':mode,false,end):undefined;
     },
     complete(id:string,ids:readonly string[],point:SelectionPoint){current(id)?.onComplete?.(ids,point);},
     apply(id:string,ids:readonly string[]){const surface=current(id);if(!surface)return;const snapshot=surface.snapshot(),valid=new Set(snapshot.valid??snapshot.units.map(unit=>unit.id));surface.apply(ids.filter(id=>valid.has(id)));},

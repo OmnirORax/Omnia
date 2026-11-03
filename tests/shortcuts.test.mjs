@@ -735,3 +735,14 @@ test('MS targeted/spatial chords follow its opening binding and preserve explici
  assert.equal(preferredFeatureKey(rebound,'Ctrl+K',available,true),null,'typing remains native');
  assert.equal(preferredFeatureKey(rebound,'Ctrl+K',()=>false),null,'inactive MS cannot consume global shortcuts');
 });
+
+test('surface command ownership follows the physical path when capture renders replace or move targets',async()=>{
+ const {eventPathMatches}=await import('../src/ui/pointerOwnership.ts');
+ const detached={closest:()=>null},surface={matches:selector=>selector==='[data-command-surface]'};
+ const physical={target:detached,composedPath:()=>[detached,surface]};
+ assert.equal(eventPathMatches(physical,'[data-command-surface]'),true,'refreshing an SVG descendant must not lose its declared input surface');
+ const moved={closest:()=>surface};
+ assert.equal(eventPathMatches({target:moved,composedPath:()=>[moved,{matches:()=>false}]},'[data-command-surface]'),false,'a newly mounted/moved owner cannot inherit another surface press');
+ assert.equal(eventPathMatches({target:moved},'[data-command-surface]'),true,'programmatic inputs without a physical path retain ancestry fallback');
+ assert.equal(eventPathMatches({target:null},'[data-command-surface]'),false);
+});

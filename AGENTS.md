@@ -143,6 +143,19 @@ aiming for continuation; borrowed single-reference acceptance still restores and
 closes its request. Shift+Q is no longer selected-property editing. Use shared
 selector commands, scoped range discovery and transient selection history.
 
+**Interaction ownership:** read [the current lifecycle and regression route](docs/OMNIC_INTERACTION_LIFECYCLE.md)
+for selection/editing work. Resolve ownership from the physical event path, not
+mutable SVG ancestry; keep the registered root/context for the whole gesture.
+Accepted membership alone must not capture an editor's or held gesture's Esc.
+Use the shared press-state subscription; actual gesture cancellation precedes rim
+navigation and cannot leave a preview to commit on mouse release. Active MS lends
+picking without activating its pointed frame; remote contextController windows
+must not steal context on inspection refresh. Only numeric properties enter the
+numeric reference workflow. Preserve the complete select → right-click → DOF →
+configure/reference → edit → Back/cancel → select sequence before delivery.
+The user explicitly authorized the focused browser investigation on 2026-11-03;
+its opt-in script is not standing permission for unrelated future browser suites.
+
 **Composer DOF correction (2026-11-03):** a selected target's assigned DOF
 shortcut opens its editor; pressing that same shortcut again while the same DOF
 and targets are active opens its configuration. Shift+R is no longer Rotation

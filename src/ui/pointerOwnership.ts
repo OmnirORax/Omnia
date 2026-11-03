@@ -13,6 +13,14 @@ const listeners = new Set<(active: boolean) => void>();
 const notify = () => listeners.forEach(listener => listener(held.size > 0));
 
 export const uiPointerHeld = () => held.size > 0;
+/** The physical path survives synchronous renders that detach the pressed node.
+ * Use it for input ownership; current DOM ancestry can already describe a new UI. */
+export function eventPathMatches(event:{target:unknown;composedPath?:()=>readonly unknown[]},selector:string):boolean {
+  const path=event.composedPath?.()??[];
+  if(path.length)return path.some(node=>!!node&&typeof node==='object'&&'matches' in node&&typeof node.matches==='function'&&node.matches(selector));
+  const target=event.target as {closest?:(selector:string)=>unknown}|null;
+  return !!target?.closest?.(selector);
+}
 export function claimUIPress(pointerId: number, pointerType = "mouse", buttons = 1) {
   held.set(pointerId, { kind: pointerType || "mouse", buttons: buttons || 1 });
   notify();

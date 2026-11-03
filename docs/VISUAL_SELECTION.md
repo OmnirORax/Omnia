@@ -679,3 +679,12 @@ ownership even if MS hover replaced the pressed SVG. Standalone/world behavior i
 unchanged. Focused local browser assertions passed MS-off, aiming and pending
 reference states: visible box, two owners, no grid, Delete keeps the third object.
 No browser suite ran; user acceptance remains pending.
+
+## Selection and editing ownership
+
+See [the interaction lifecycle and opt-in regression](OMNIC_INTERACTION_LIFECYCLE.md).
+Native surface gestures retain their stable root/context through capture-time SVG
+replacement. Active MS retains input priority; accepted membership yields Esc to
+editor fields/layers. Temporary numeric picking preserves the editor context,
+including when remote Master Controller contents refresh. Selection remains
+passive until an explicit right-click/editor/shortcut request.

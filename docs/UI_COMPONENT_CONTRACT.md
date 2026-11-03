@@ -1005,3 +1005,11 @@ No direction-edit toggle is required. Count and heading accept atomically on
 release. An in-wheel drop remains a polar edit; reordering targets the numbered
 instruction row, while explicit Swap may target another node. New-instruction
 count scrubbing retains its existing first-motion axis behavior.
+
+Physical surface routing uses pointerOwnership.eventPathMatches: the original
+composed path is authoritative when present, with ancestry fallback only for
+inputs without a physical path. Capture-time node replacement or movement must
+not lose the owner or assign that press to newly mounted UI. Active MS picking
+does not activate the pointed frame. FloatingWindow contextController windows
+retain the source context during automatic opening/inspection refreshes. See
+[Omnic interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).

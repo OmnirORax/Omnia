@@ -1,5 +1,5 @@
 import { contextTargets } from './ui/contextTargets.ts';
-import { uiPointerHeld } from './ui/pointerOwnership.ts';
+import { uiPointerHeld, eventPathMatches } from './ui/pointerOwnership.ts';
 import { validateValue } from "./properties/registry.ts";
 import { PROPERTY_REGISTRY, loadController } from "./appearance/registry.ts";
 import type { Controller, Value } from "./appearance/model";
@@ -132,12 +132,11 @@ export function preferredFeatureKey(bindings: Record<string, string>, key: strin
   return candidates[0]?.id ?? null;
 }
 /** Pointer commands use the same scope priority plus their declared surface. */
-export function pointerFeatureKey(bindings:Record<string,string>,event:Pick<MouseEvent,'button'|'ctrlKey'|'altKey'|'shiftKey'|'metaKey'|'target'>,available:(id:string)=>boolean,blocked=false){
+export function pointerFeatureKey(bindings:Record<string,string>,event:Pick<MouseEvent,'button'|'ctrlKey'|'altKey'|'shiftKey'|'metaKey'|'target'>&{composedPath?:()=>readonly EventTarget[]},available:(id:string)=>boolean,blocked=false){
  return preferredFeatureKey(bindings,normalizePointer(event),id=>{
   if(!available(id))return false;const definition=FEATURE_ACTIONS.find(action=>action.id===id);
   if(!definition||!('gestureSurface' in definition))return true;
-  const target=event.target as {closest?:(selector:string)=>unknown}|null;
-  return !!target?.closest?.(definition.gestureSurface);
+  return eventPathMatches(event,definition.gestureSurface);
  },false,blocked);
 }
 /** Arbitrary saved residents share the scoped feature arbitration. An available

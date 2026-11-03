@@ -357,3 +357,14 @@ test('surface completion notifications are optional and separate from membership
  const count=events.length;context='atlas-b';registry.complete(range.id,range.after,{x:21,y:1});assert.equal(events.length,count,'old contexts cannot notify another atlas');
  off();registry.complete(range.id,range.after,{x:21,y:1});assert.equal(events.length,count,'removed owners cannot receive stale completion');
 });
+
+test('native selection resolves the physical event path and survives replacement of SVG descendants',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),pressed={},replacement={},root={contains:node=>node===replacement};let currentRoot=root,selected=['first'];
+ const units=['first','second'].map((id,i)=>({id,box:{left:i*10,right:i*10+2,top:0,bottom:2}}));
+ registry.register({element:()=>currentRoot,snapshot:()=>({units,selected,hit:()=> 'second'}),apply:ids=>{selected=[...ids];}});
+ assert.equal(registry.beginPointer(pressed,{x:11,y:1},'toggle'),undefined,'detached target containment alone loses the gesture');
+ const finish=registry.beginPointer(pressed,{x:11,y:1},'toggle',[pressed,root]);assert.equal(typeof finish,'function','the original physical path retains its declared surface');
+ const transaction=finish({x:11,y:1});assert.deepEqual(transaction.after,['first','second']);registry.apply(transaction.id,transaction.after);assert.deepEqual(selected,['first','second']);
+ const canceled=registry.beginPointer(replacement,{x:11,y:1},'toggle',[replacement,root]);currentRoot={contains:()=>true};assert.equal(canceled({x:11,y:1}),undefined,'replacing the actual surface cancels instead of retargeting a new owner');
+});

@@ -299,3 +299,13 @@ The Composer top always shows compact active DOF, mode/rule and ⟴ reference co
 Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
 
 Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.
+
+## Retained selection versus active input
+
+Active MS keeps its existing priority. Accepted membership after MS input has
+finished yields Esc to a field/popup before clearing selection. Composer gesture
+cancel is not a second popup navigation owner. Physical surface matching uses
+the original event path so capture-time SVG replacement cannot change which
+context owns the press. Active reference picking retains its editor context;
+contextController windows do not activate on inspection-key refresh. See
+[the interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).

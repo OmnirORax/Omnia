@@ -38,10 +38,11 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 
 /** One metadata-selected value editor for preset and selected-target requests. */
 export function DegreeValueEditor({recipe,degree,configure=false,pickReference=true,onPreview,onCommit,onDismiss}:{recipe:Recipe;degree:EditableDegree;configure?:boolean|DofSettingsKind;pickReference?:boolean;onDismiss?:()=>void;onPreview:(value:DegreeEditValue)=>void;onCommit:(value:DegreeEditValue)=>void}){
- const entry=configure===false&&pickReference?'source':configure,numeric=useNumericEditor(),targetKey=[...new Set(degree.targets.map(t=>t.id))].join('|');
- useLayoutEffect(()=>numeric.activateDegree?.([...new Set(degree.targets.map(t=>t.id))],degree.id),[numeric.activateDegree,degree.id,targetKey]);
+ const parameter=targetParameter(degree),references=parameter.kind==='number';
+ const entry=references?(configure===false&&pickReference?'source':configure):configure==='source'?false:configure,numeric=useNumericEditor(),targetKey=[...new Set(degree.targets.map(t=>t.id))].join('|');
+ useLayoutEffect(()=>{if(references)numeric.activateDegree?.([...new Set(degree.targets.map(t=>t.id))],degree.id);},[numeric.activateDegree,degree.id,targetKey,references]);
  if(degree.axes)return <VectorDegreeEditor recipe={recipe} degree={degree} configure={entry} onPreview={onPreview} onCommit={onCommit} onDismiss={onDismiss}/>;
- const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree),domain=stateFieldDomain(parameter);
+ const value=targetDegreeValue(recipe,degree),domain=stateFieldDomain(parameter);
  if(parameter.editor==='path-rule')return <PathRuleEditor value={String(value)} onCommit={onCommit}/>;
  return <OperationDegreeScope degree={degree}>{domain?<DofStateField property={degree.properties[0]} label={degree.label} symbol={degree.symbol} domain={domain} value={Number(value)} configure={entry} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>:<ReferencedProperty degree={degree} picking={entry==='source'} onDismiss={onDismiss}><PropertyEditor numericPresentation="inline" property={degree.properties[0]} label={degree.label} value={value} configuration={configure===true?'step':undefined} choices={parameter.options?.map(option=>option.id)} onPreview={onPreview} onCommit={onCommit}/></ReferencedProperty>}</OperationDegreeScope>;
 }

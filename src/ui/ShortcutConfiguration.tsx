@@ -8,7 +8,7 @@ import type { PropertyBindings } from "../properties/CoupledProperties";
 import { useUI } from "./context";
 import { ContextualMasterController } from "./ContextualMasterController";
 import { ACTION_CONFIGURATION_EVENT, configurationTarget } from "./shortcutConfiguration";
-import { claimUIPress } from "./pointerOwnership";
+import { claimUIPress, eventPathMatches } from "./pointerOwnership";
 export function ShortcutConfiguration({ mouse, bindings }: { mouse: WorkspaceSettings["mouse"]; bindings: PropertyBindings }) {
   const ui = useUI(), latest = useRef({ ui, mouse }); latest.current = { ui, mouse };
   const cursor = useRef({ x: 160, y: 120 });
@@ -24,7 +24,7 @@ export function ShortcutConfiguration({ mouse, bindings }: { mouse: WorkspaceSet
       if (ui.shortcutCapturing || event.defaultPrevented || !event.shiftKey || event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target))) return;
       if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
       // Holding Shift must still permit ordinary clicks on the configuration itself.
-      if (event instanceof PointerEvent && event.target instanceof Element && event.target.closest("[data-context-controller]") &&
+      if (event instanceof PointerEvent && event.target instanceof Element && eventPathMatches(event,"[data-context-controller]") &&
         (event.button === 0 || event.button === 2 && event.target.closest("[data-configuration-option],[data-configuration-lock]"))) {
         clearRecordedShortcutPress(); return;
       }
@@ -33,7 +33,7 @@ export function ShortcutConfiguration({ mouse, bindings }: { mouse: WorkspaceSet
         if (gesture.active?.id === candidate) return true;
         const action = ACTIONS.find(action => action.id === candidate);
         const surface = action && "gestureSurface" in action ? action.gestureSurface : undefined;
-        return featureActionRuntime.available(candidate) && (!surface || event.target instanceof Element && !!event.target.closest(surface));
+        return featureActionRuntime.available(candidate) && (!surface || event.target instanceof Element && !!eventPathMatches(event,surface));
       }, { MB4: mouse.backButton, MB5: mouse.forwardButton });
       if (!id) return;
       event.preventDefault(); event.stopImmediatePropagation();

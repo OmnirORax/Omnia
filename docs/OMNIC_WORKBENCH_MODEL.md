@@ -15,6 +15,11 @@ without clearing membership. Explicit DOF controls/shortcuts remain available. D
 accessible, including immediately after a selection. Modifier continuation still
 works; no extra confirmation key. See VISUAL_SELECTION.md. Browser retest pending.
 
+Input ownership uses the physical press path and the stable registered surface.
+Accepted selection yields to editor/gesture Back; active picking preserves its
+source editor context, including through remote controller refresh. See
+[the lifecycle and focused regression](OMNIC_INTERACTION_LIFECYCLE.md).
+
 For global mathematical/reference/constraint work, read the
 [living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
 accepted baseline; PR #41 is discarded. Iterate small shared-module experiments

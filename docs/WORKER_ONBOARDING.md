@@ -718,3 +718,9 @@ Right-click an already selected target to open its compatible DOF dial for the f
 set; explicit DOF controls/shortcuts remain available. Declared editor context-menu owners receive
 secondary input without clearing membership; old click tails end at a fresh press.
 Surface onStart cleanup/precise area hits preserve renderer behavior. See VISUAL_SELECTION.md.
+
+For selection/editor corrections, read [the interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).
+It separates physical surface ownership, passive membership, active MS, popup
+navigation, remote controller refresh and numeric reference capabilities. The
+user requested the included focused browser regression for this investigation;
+keep its evidence distinct from arbitrary future browser authorization.

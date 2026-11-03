@@ -166,6 +166,9 @@ export function ActiveContextSystem() {
   useEffect(() => {
     const activate = (event: Event) => {
       if(event instanceof PointerEvent&&api.current.handle(event)){claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;}
+      // A picker lends input to the scene, not its editor's navigation context.
+      // Activating the pointed frame here would orphan the still-open popup.
+      if(event instanceof PointerEvent&&!latest.current.shortcutsBlocked&&!latest.current.shortcutCapturing&&featureActionRuntime.available('selector.include'))return;
       let element = event.target instanceof Element ? event.target : null;
       if(event instanceof PointerEvent&&event.button===0&&element){
         const inputOwned=featureActionRuntime.available('selector.include');

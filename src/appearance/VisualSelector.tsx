@@ -4,9 +4,10 @@ import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDet
 import {nativeSelectionDragged,selectionRequest,selectionConfirmation,selectionOpenContexts,selectionDecision,type SelectionDecision} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
-import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
+import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentProps } from "react";
+import { useUITracked } from '../ui/context';
 import { createPortal } from "react-dom";
-import { claimUIPress } from "../ui/pointerOwnership";
+import { claimUIPress, eventPathMatches, observeUIPress, uiPointerHeld } from "../ui/pointerOwnership";
 import { cursorPosition } from "../ui/cursorPosition";
 import { useFeatureActions } from "../ui/useFeatureActions";
 import { clearRecordedShortcutPress, recordedShortcutTail } from "../featureActions";
@@ -47,6 +48,9 @@ const isPath = (mode: PatternMode) => mode === "rectangle" || mode === "ellipse"
 
 /** Geometry defines a working set; later include/exclude rules refine it. */
 export function VisualSelectionProvider({ children, onInspect, masterOpen }: { children: ReactNode; onInspect?: (key: string) => void; masterOpen?: boolean }) {
+  const ui=useUITracked(value=>[value.activeContext]);
+  const editingContext=useSyncExternalStore(ui.activeContext.subscribe,()=>ui.activeContext.getSnapshot().some(entry=>entry.kind==='layer'||entry.kind==='field'));
+  const heldInput=useSyncExternalStore(observeUIPress,uiPointerHeld);
   const [lockedPosition, setLockedPosition] = useState<Point>({ x: 0, y: 0 });
   const [view, setView] = useState<SelectionView>("auto");
   const [timeline, setTimeline] = useState(() => ({ states: [emptySelection()], index: 0 }));
@@ -305,7 +309,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   };
   const beginSurfacePointer=(event:PointerEvent)=>{
     const mode=selectionPointerMode(event);if(!mode||!(event.target instanceof Element))return false;
-    const start={x:event.clientX,y:event.clientY},finish=selectionSurfaces.beginPointer(event.target,start,mode);if(!finish)return false;
+    const start={x:event.clientX,y:event.clientY},finish=selectionSurfaces.beginPointer(event.target,start,mode,event.composedPath());if(!finish)return false;
     const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
     cancelDrawing();nativeGesture.current={id:event.pointerId,start,end:start,finish:end=>{const transaction=finish(end);if(transaction)applySurfacePick(transaction,end);}};
     setDrawing(true);return true;
@@ -435,7 +439,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     "selector.feedbackView": { enabled: phase !== "off" || hasSelection(), run: () => setView(feedbackVisible ? "preview" : "selection") },
     "selector.deselect": { enabled: canConfigure, run: deselectAt },
     "selector.edit": { enabled: hasSelection(), run: input => { const p = inputPosition(input); edit(p.x, p.y); } },
-    "selector.cancel": { enabled: !!nativeGesture.current || phase !== "off" || hasSelection(), run: disable },
+    "selector.cancel": { enabled: !!nativeGesture.current || phase !== "off" || hasSelection()&&!editingContext&&!heldInput, run: disable },
     "selector.undo": { enabled: canConfigure, run: undo },
     "selector.redo": { enabled: canConfigure, run: redo },
     "selector.redoAlternate": { enabled: canConfigure, run: redo },
@@ -504,11 +508,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   }, [patternGroups, matches.included]);
   useEffect(() => {
     let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0, contextHandoff = false;
-    const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
-    const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(`${selectorChrome},${APPEARANCE_EDITOR}`);
+    const shortcutUI = (event: Event) => eventPathMatches(event,".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
+    const outsideChrome = (event: Event) => event.target instanceof Element && !eventPathMatches(event,`${selectorChrome},${APPEARANCE_EDITOR}`);
     const down = (event: PointerEvent) => {
       clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false; consumedUntil=0;
-      if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
+      if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
       // The registered surface owns modifier selection even before MS opens.
       // Active MS dispatches through its normal command router into begin().
       if(outsideChrome(event)&&(latest.current.phase==='off'||latest.current.phase==='locked')&&actions.current.beginSurfacePointer(event)){
@@ -518,7 +522,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       }
       // Accepted selection yields to declared editor context menus. The new
       // secondary press owns its native tail; no primary tail may suppress it.
-      if (event.button === 2 && event.target.closest('[data-context-menu-owner]')&&!nativeGesture.current&&!gesture.current&&!polygon.current) {
+      if (event.button === 2 && eventPathMatches(event,'[data-context-menu-owner]')&&!nativeGesture.current&&!gesture.current&&!polygon.current) {
         contextHandoff = true; consumedPointer = null; consumedUntil = 0;
         actions.current.close(); return;
       }
@@ -576,7 +580,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       // Parked MS ignores pointer motion; ordinary app input remains live.
       if (latest.current.phase === "locked" || latest.current.phase === "edit") return;
       if (event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) { setCandidatePick(null); return; }
-      if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element)) return;
+      if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element)) return;
       point.current = { element: event.target, x: event.clientX, y: event.clientY };
       const current = latest.current;
       if (current.phase === "aim" && current.selection.scope && !current.configuration.contour && !current.configuration.region && current.selection.scope.path?.closed && outsideChrome(event)) {
@@ -604,14 +608,14 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     };
     const preventClick = (event: MouseEvent) => {
       if (contextHandoff && event.button === 2) return;
-      if (!event.isTrusted || shortcuts.blocked() || shortcutUI(event.target) || latest.current.phase === "locked" && event.button !== commandButton) return;
+      if (!event.isTrusted || shortcuts.blocked() || shortcutUI(event) || latest.current.phase === "locked" && event.button !== commandButton) return;
       if (event.button === commandButton || performance.now() < consumedUntil && outsideChrome(event)) {
         event.preventDefault(); event.stopImmediatePropagation();
         if (event.type === "click" || event.type === "auxclick") commandButton = -1;
       }
     };
     const wheel = (event: WheelEvent) => {
-      if (shortcuts.blocked() || shortcutUI(event.target) || !outsideChrome(event) ||
+      if (shortcuts.blocked() || shortcutUI(event) || !outsideChrome(event) ||
           (latest.current.phase !== "aim" && latest.current.phase !== "configure")) return;
       const current = latest.current;
       const rotation = selectionWheelRotation(event, current.configuration.pattern, !!current.selection.scope, innerHeight);
@@ -640,7 +644,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const context = (event: MouseEvent) => {
       if (contextHandoff) return;
       if (recordedShortcutTail(event)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
-      if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery") || !outsideChrome(event)) return;
+      if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery") || !outsideChrome(event)) return;
       const keyboard = event.button !== 2 && event.clientX === 0 && event.clientY === 0;
       if (latest.current.phase === "locked") return;
       if (hasSelection() && keyboard) {

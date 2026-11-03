@@ -7,6 +7,7 @@ import { useToolCursor, type ToolCursorOptions } from "./toolCursor";
 import { ToolGlyph } from "./toolIcon";
 
 import { ContextDOFConfiguration } from './ContextTargetController';
+import { eventPathMatches } from './pointerOwnership';
 import { contextTargets } from './contextTargets';
 const noContextSubscription=()=>()=>{};
 const noContextSnapshot=()=>0;
@@ -47,7 +48,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
     matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent, gestureModifiers = true) => {
       const current = latest.current;
       const definition = FEATURE_ACTIONS.find(action => action.id === id)!;
-      if ("gestureSurface" in definition && event instanceof MouseEvent && (!(event.target instanceof Element) || !event.target.closest(definition.gestureSurface))) return false;
+      if ("gestureSurface" in definition && event instanceof MouseEvent && !eventPathMatches(event,definition.gestureSurface)) return false;
       if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked && !("allowBlocked" in definition && definition.allowBlocked) || event.defaultPrevented || !effectiveRef.current(id).enabled) return false;
       if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
       if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
