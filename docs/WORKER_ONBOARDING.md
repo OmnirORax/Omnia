@@ -712,8 +712,9 @@ Composer and atlas Ctrl/Shift clicks now belong to the registered MS surface
 gesture owner, including when MS was off. It claims the whole pointer lifecycle;
 Ctrl toggles an owner, Shift adds a spatial range and modifier drag adds a marquee.
 Do not add private native selection handlers to an editing tool. Native release
-finishes MS input while retaining membership, then surface onComplete presents the
-accepted selection; Composer opens compatible DOF dials immediately. Keyboard
-select-all uses the same presenter. Declared editor context-menu owners receive
+finishes MS input while retaining membership. Ordinary target/edge clicks, native
+Ctrl/Shift selection, select-all and modifier release open no dials or references.
+Right-click an already selected target to open its compatible DOF dial for the full
+set; explicit DOF controls/shortcuts remain available. Declared editor context-menu owners receive
 secondary input without clearing membership; old click tails end at a fresh press.
 Surface onStart cleanup/precise area hits preserve renderer behavior. See VISUAL_SELECTION.md.

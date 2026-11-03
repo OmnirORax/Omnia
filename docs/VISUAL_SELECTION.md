@@ -37,10 +37,12 @@ Shift ranges retain source-order fallback within one declared surface/frame.
 
 The shared MS capture owner claims modifier pointer-down, motion, release and the
 trailing native click. Membership changes on release. The native gesture then finishes without clearing
-selection; the surface `onComplete` callback presents its accepted targets.
-Composer immediately opens the existing compatible target-DOF radial for the full
-set. Its keyboard select-all bridge uses the same presenter. No separate Enter or
-Esc is required before editing, and another modifier press still extends membership.
+selection. It does not open a dial, start reference picking or wait for another
+confirmation key. Keep selecting with Ctrl/Shift as needed; releasing modifiers
+also opens nothing. Keyboard select-all and ordinary target/edge clicks follow the
+same selection-only rule. Right-click an already selected target to open its
+compatible DOF dial for the full accepted set. Explicit DOF buttons and assigned
+shortcuts remain available.
 Normal Composer target /
 reference editing and atlas single-selection never also receive the gesture.
 Active MS honors its configured selection click, including clears/rebindings and
@@ -53,7 +55,8 @@ restoring its checkpoint before the new membership is committed. Surface/context
 replacement and pointer cancellation abandon the gesture without selecting.
 Neither range traverses unrelated surfaces. On 2026-11-03 the user confirmed manual
 Ctrl selection and their Shift+A global selection in da3c28f; they reported dial /
-right-click access failed. The completion correction awaits their retest.
+right-click access failed. The next preview opened dials too soon; the user clarified
+that selection must open no dial automatically. Right-click-only entry awaits retest.
 
 ## One circle, independent geometry
 

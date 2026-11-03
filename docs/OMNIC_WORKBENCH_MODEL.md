@@ -7,10 +7,11 @@ future user-decided controls. Shortcut rows derive from registered DOFs and reus
 existing Rotation/Position identities. Other contexts retain their own rules.
 See [shortcut contract](SHORTCUTS.md#composer-dof-shortcuts).
 
-Selection handoff correction (2026-11-03): completed native Ctrl/Shift selection
-opens the existing compatible target-DOF radial for the full accepted set. The
-shared MS owner releases input without clearing membership; keyboard select-all
-uses the same presenter. Declared Composer/atlas right-click owners remain
+Selection handoff correction (2026-11-03): selection never automatically opens
+a dial. Ordinary target/edge clicks, Ctrl/Shift picks, select-all and releasing
+modifiers only select. Right-click an already selected target to open its compatible
+DOF radial for the full set. The shared MS owner releases native selection input
+without clearing membership. Explicit DOF controls/shortcuts remain available. Declared Composer/atlas right-click owners remain
 accessible, including immediately after a selection. Modifier continuation still
 works; no extra confirmation key. See VISUAL_SELECTION.md. Browser retest pending.
 
