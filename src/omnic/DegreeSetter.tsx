@@ -37,8 +37,8 @@ function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(valu
 }
 
 /** One metadata-selected value editor for preset and selected-target requests. */
-export function DegreeValueEditor({recipe,degree,configure=false,onPreview,onCommit,onDismiss}:{recipe:Recipe;degree:EditableDegree;configure?:boolean|DofSettingsKind;onDismiss?:()=>void;onPreview:(value:DegreeEditValue)=>void;onCommit:(value:DegreeEditValue)=>void}){
- const entry=configure===false?'source':configure,numeric=useNumericEditor(),targetKey=[...new Set(degree.targets.map(t=>t.id))].join('|');
+export function DegreeValueEditor({recipe,degree,configure=false,pickReference=true,onPreview,onCommit,onDismiss}:{recipe:Recipe;degree:EditableDegree;configure?:boolean|DofSettingsKind;pickReference?:boolean;onDismiss?:()=>void;onPreview:(value:DegreeEditValue)=>void;onCommit:(value:DegreeEditValue)=>void}){
+ const entry=configure===false&&pickReference?'source':configure,numeric=useNumericEditor(),targetKey=[...new Set(degree.targets.map(t=>t.id))].join('|');
  useLayoutEffect(()=>numeric.activateDegree?.([...new Set(degree.targets.map(t=>t.id))],degree.id),[numeric.activateDegree,degree.id,targetKey]);
  if(degree.axes)return <VectorDegreeEditor recipe={recipe} degree={degree} configure={entry} onPreview={onPreview} onCommit={onCommit} onDismiss={onDismiss}/>;
  const parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree),domain=stateFieldDomain(parameter);

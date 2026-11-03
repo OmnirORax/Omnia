@@ -7,6 +7,33 @@ normalization, action functions and conflict checks derive from it automatically
 Never add a feature's key to a private event handler and separately describe it
 in a shortcut list.
 
+## Composer DOF shortcuts
+
+Shortcuts & functions → **Omnic Composer** lists property commands derived from
+registered generator/operator inputs and vector metadata. Rotation retains
+`atomnic.rotate` / R; Position retains `atomnic.move` / G. Other DOFs start
+unassigned. No duplicate Radius/Rotation/Position registry or value store is added.
+Select a compatible target, then invoke its assigned property shortcut to open the
+existing editor with the retained reference. Press the same shortcut again while
+the same DOF/targets are active to open configuration. A held key never counts as
+another press. Switching target or closing the editor starts a fresh invocation.
+
+These commands declare `configurationTrigger: repeat` and the `composerDegree`
+scope. Their Ctrl/Alt/Shift combinations are captured, preserved on reload and
+matched exactly, rather than consumed by the Shift-configuration router. No new
+modifier meanings/defaults are assigned. Existing functions outside this declared
+capability retain Shift configuration. Browser/OS-reserved shortcuts cannot be
+made universally available by the app.
+
+The shared priority is active MS → Composer DOF → active geometry context → content
+editing → UI context → globals/resident fallback. The Composer supplies active
+context to `useFeatureActions` through its shared context owner; mounted editors
+do not retain shortcuts after another context is activated. Contextual MC/editor
+controls preserve that target through the existing controller marker. Native text
+entry, capture, blocked dialogs, unsupported target DOFs and cleared bindings stay
+protected. Future declared inputs inherit inventory and routing through the same
+metadata; new owners provide their actual activation/capabilities, not key listeners.
+
 ## Adding a feature
 
 Declare each command once in `featureActions.ts`: stable ID, owner, category,

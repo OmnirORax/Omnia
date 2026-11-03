@@ -1,5 +1,12 @@
 # Shared UI component contract
 
+Remote controller windows declare `FloatingWindow.contextController`; the shared
+controller marker then covers their chrome as well as content. Controller launch
+controls carry the same marker. This preserves the active geometry/source target
+when opening, moving or operating Master Controller, without per-feature focus
+listeners or hardcoded window IDs in context routing. Native text-entry priority
+remains authoritative.
+
 Visual-hierarchy targeting uses a binary inherited edit mask: parents set the subtree baseline, and later child toggles create exceptions. Toggling a parent in either direction clears prior exceptions in that subtree. Excluding a target does not change its rendered appearance; the existing plug separately bypasses/restores saved styling. Current editors use `toggleTarget`; old isolate selections remain readable and become equivalent inherited masks on the first binary edit. The targeting/power controls use square hit areas and symmetric SVG geometry, with no isolate state in the UI.
 
 Compactness applies to every new or changed feature. Prefer content-sized surfaces,

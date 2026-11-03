@@ -64,3 +64,20 @@ test('whole-number domains are declared once and shared by numeral editing and r
   assert.equal(commitOmnicParameter({},parameter,input)[parameter.key],Math.round(input));
  }
 });
+
+test('DOF shortcut entry resolves live scalar/vector capabilities and repeated activation checks the target',async()=>{
+  const {commandDegree,repeatedDegree}=await import('../src/omnic/degreeCommands.ts');
+  const {selectedEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+  const recipe={version:1,revision:0,components:[{id:'ring',generator:'ring',params:{}},{id:'dot',generator:'dot',params:{}}],operations:[],frames:[]};
+  const ring=selectedEditorDegrees(recipe,['ring']),dot=selectedEditorDegrees(recipe,['dot']);
+  assert.ok(commandDegree(ring,'omnic.radius'));
+  assert.equal(commandDegree(dot,'omnic.radius'),undefined);
+  assert.ok(commandDegree(ring,'omnic.position').axes);
+  assert.equal(commandDegree(ring,'omnic.coordinate.x').axes,undefined,'individual vector axes remain assignable');
+  const radius=commandDegree(ring,'omnic.radius');
+  assert.equal(repeatedDegree(radius,undefined),false);
+  assert.equal(repeatedDegree(radius,commandDegree(selectedEditorDegrees(recipe,['ring']),'omnic.radius')),true);
+  assert.equal(repeatedDegree(radius,commandDegree(ring,'omnic.position')),false);
+  const other={...radius,targets:radius.targets.map(target=>({...target,id:'another-ring'}))};
+  assert.equal(repeatedDegree(radius,other),false,'changing target starts a new edit instead of configuring a stale one');
+});

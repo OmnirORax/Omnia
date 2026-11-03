@@ -657,3 +657,41 @@ test('hovering a popup activates its logical confirmation scope before any click
  contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['child'],'Enter has the child owner without a prior selection click');
  assert.deepEqual(contextLayerScope([frame],removed,layers),[frame],'closed layers cannot reactivate');
 });
+
+test('Composer DOF shortcuts derive from writable metadata, reusing existing Rotation and Position identities', async () => {
+  const { composerDegreeActions } = await import('../src/omnic/degreeCommands.ts');
+  const { GENERATORS, OPERATORS } = await import('../src/omnic/registry.ts');
+  const generated=FEATURE_ACTIONS.filter(action=>action.owner==='omnicDegrees');
+  assert.ok(generated.some(action=>action.degreeProperty==='omnic.radius'));
+  assert.ok(generated.some(action=>action.degreeProperty==='omnic.extent'));
+  assert.ok(generated.some(action=>action.degreeProperty==='opacity'));
+  assert.ok(generated.every(action=>action.category==='Omnic Composer'&&action.defaultKey===''));
+  assert.ok(!generated.some(action=>action.degreeProperty==='omnic.angle'||action.degreeProperty==='omnic.position'),'existing complete adjusters have no duplicate rows');
+  assert.equal(FEATURE_ACTIONS.find(action=>action.id==='atomnic.rotate').defaultKey,'R');
+  for(const parameter of [...GENERATORS,...OPERATORS].flatMap(definition=>definition.parameters))
+    assert.ok(generated.some(action=>action.degreeProperty===parameter.property)||FEATURE_ACTIONS.some(action=>'adjusts' in action&&action.adjusts.length===1&&action.adjusts.includes(parameter.property)),parameter.property);
+  assert.ok(composerDegreeActions().some(action=>action.degreeProperty==='omnic.position'),'vector freedom is discovered from axis metadata');
+});
+
+test('Composer modifier combinations survive reload and route ahead of globals without opening Shift configuration', async () => {
+  const { preferredFeatureKey, residentShortcutAction, repeatConfigured } = await import('../src/workspaceActions.ts');
+  const { configurationTarget } = await import('../src/ui/shortcutConfiguration.ts');
+  const radius='omnic.dof.omnic.radius';
+  const saved=normalizeSettings({bindings:{[radius]:'Ctrl+Shift+R','atomnic.rotate':'R',newNode:'Ctrl+Shift+R','button:global':'R'}});
+  assert.equal(saved.bindings[radius],'Ctrl+Shift+R');
+  assert.equal(normalizeSettings(saved).bindings[radius],'Ctrl+Shift+R');
+  assert.equal(repeatConfigured(radius),true);
+  assert.equal(keyConflict({[radius]:'Ctrl+R',newNode:'Ctrl+R'},radius,'Ctrl+R'),null);
+  assert.equal(keyConflict({[radius]:'R','atomnic.rotate':'R'},radius,'R'),'atomnic.rotate');
+  assert.equal(preferredFeatureKey(saved.bindings,'Ctrl+Shift+R',id=>id===radius),radius);
+  assert.equal(configurationTarget(saved.bindings,'Ctrl+Shift+R',id=>id===radius),null);
+  assert.equal(configurationTarget(saved.bindings,'Shift+R',id=>id==='atomnic.rotate'),null,'Shift no longer configures Rotation');
+  assert.equal(residentShortcutAction(saved.bindings,'R',id=>id==='atomnic.rotate'),'atomnic.rotate');
+  assert.equal(residentShortcutAction(saved.bindings,'R',()=>false),'button:global','leaving the context restores ordinary bindings');
+  assert.equal(preferredFeatureKey(saved.bindings,'Ctrl+Shift+R',id=>id===radius,true),null,'native typing remains protected');
+  assert.equal(preferredFeatureKey(saved.bindings,'Ctrl+Shift+R',id=>id===radius,false,true),null,'blocked dialogs remain protected');
+  assert.equal(preferredFeatureKey({...saved.bindings,[radius]:''},'Ctrl+Shift+R',id=>id===radius),null,'clears remain cleared');
+  const overlapping={...saved.bindings,[radius]:'E','atomnic.erase':'E','selector.pattern':'E'};
+  assert.equal(preferredFeatureKey(overlapping,'E',id=>[radius,'atomnic.erase'].includes(id)),radius);
+  assert.equal(preferredFeatureKey(overlapping,'E',id=>[radius,'atomnic.erase','selector.pattern'].includes(id)),'selector.pattern','active MS retains priority');
+});

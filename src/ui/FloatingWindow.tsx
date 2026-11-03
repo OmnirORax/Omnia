@@ -35,6 +35,7 @@ export function FloatingWindow({
   openingKey,
   className = "",
   modal = false,
+  contextController = false,
   onInteract,
   shape = 'rectangle',
 }: {
@@ -60,6 +61,8 @@ export function FloatingWindow({
   openingKey?: string | number;
   className?: string;
   modal?: boolean;
+  /** Controller chrome retains the source target while operating its remote controls. */
+  contextController?: boolean;
   onInteract?: () => void;
   shape?:'rectangle'|'circle';
 }) {
@@ -239,6 +242,7 @@ export function FloatingWindow({
               : undefined
           }
           data-ui-resident-root={key}
+          data-context-controller={contextController || undefined}
           onClick={(e) => e.stopPropagation()}
         >
           <FrameChrome

@@ -104,6 +104,16 @@ limitations, state ownership and performance constraints; it is not a feature sp
 
 # Universal Master Controller signature
 
+**Composer DOF correction (2026-11-03):** a selected target's assigned DOF
+shortcut opens its editor; pressing that same shortcut again while the same DOF
+and targets are active opens its configuration. Shift+R is no longer Rotation
+configuration. Ctrl/Alt/Shift combinations are assignable to Composer DOF commands;
+do not invent per-DOF modifier meanings before the user specifies them. Other
+functions retain their existing Shift configuration. Generate Composer DOF shortcut
+rows from registered input/vector metadata, reuse existing action IDs, and preserve
+active MS, native text entry, capture, blocked-dialog and contextual MC ownership.
+This explicit correction supersedes the universal Shift rule below for these DOFs.
+
 **Shift + any configured shortcut opens that function's adaptive Master Controller
 configuration. Repeated presses cycle choices; hovering/focusing an MC option
 selects that temporary choice. Releasing Shift executes the selected choice once. Right-click an MC option applies and locks its future default; left-click

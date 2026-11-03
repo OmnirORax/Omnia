@@ -98,16 +98,21 @@ export function actionScope(id: string): string {
   const action = ACTIONS.find(action => action.id === id);
   return action && "scope" in action ? action.scope : "global";
 }
+/** Repeat-configured functions reserve no modifier: their shifted chords execute normally. */
+export function repeatConfigured(id: string): boolean {
+  const action = ACTIONS.find(action => action.id === id.replace(/^button:/, ''));
+  return !!action && 'configurationTrigger' in action && action.configurationTrigger === 'repeat';
+}
 export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
 export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
 /** Resolve overlapping feature keys by active scope, never listener mount order.
  * An active selector owns its commands before content editors, UI frames, then global actions. */
 export function preferredFeatureKey(bindings: Record<string, string>, key: string, available: (id: string) => boolean, typing = false, blocked = false): string | null {
   if (!key) return null;
-  const rank = (scope: string) => scope === "visualSelector" ? 3 : scope === "contentEditing" ? 2 : scope === "uiContext" ? 1 : 0;
+  const rank = (scope: string) => scope === "visualSelector" ? 5 : scope === "composerDegree" ? 4 : scope === "contentEditing" ? 2 : scope === "uiContext" ? 1 : 0;
   const candidates = FEATURE_ACTIONS.filter(action => shortcutBinding(action.id, bindings) === key && available(action.id) &&
     (!typing || "allowTyping" in action && action.allowTyping) && (!blocked || "allowBlocked" in action && action.allowBlocked));
-  const priority=(action:typeof candidates[number])=>action.scope==='visualSelector'?4:'contextual' in action&&contextTargets.override(action.id)&&!uiPointerHeld()?3:rank(action.scope);
+  const priority=(action:typeof candidates[number])=>action.scope==='visualSelector'?5:'contextual' in action&&contextTargets.override(action.id)&&!uiPointerHeld()?3:rank(action.scope);
   candidates.sort((a,b)=>priority(b)-priority(a));
   return candidates[0]?.id ?? null;
 }
@@ -245,7 +250,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     // Shift is now the universal configuration modifier. Migrate displaced
     // assignments to free non-Shift defaults, preserving deliberate clears.
     for (const [id, binding] of Object.entries(defaults.bindings)) {
-      if (!binding.split("+").includes("Shift")) continue;
+      if (!binding.split("+").includes("Shift") || repeatConfigured(id)) continue;
       const metadata = ACTIONS.find(action => action.id === id);
       const proposed = metadata?.defaultKey && !metadata.defaultKey.split("+").includes("Shift") ? metadata.defaultKey :
         ["Ctrl", "Alt", ...binding.split("+").filter(part => !["Ctrl", "Alt", "Shift"].includes(part))].join("+");

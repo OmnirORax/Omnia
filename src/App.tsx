@@ -54,7 +54,7 @@ import {
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
-import { ACTIONS, SETTINGS_KEY, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
+import { ACTIONS, SETTINGS_KEY, repeatConfigured, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
 import type { ContextAction, ContextTarget, NavigationCommand } from "./SpatialWorkspace";
@@ -1105,7 +1105,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   useLayoutEffect(() => {
     const assignBinding = (key: string) => {
       if (!capturing) return;
-      if (key.split("+").includes("Shift")) { setError("Shift opens a function’s Master Controller configuration. Choose a shortcut without Shift."); return; }
+      if (key.split("+").includes("Shift") && !repeatConfigured(capturing)) { setError("Shift opens a function’s Master Controller configuration. Choose a shortcut without Shift."); return; }
       const conflict = keyConflict(settings.bindings, capturing, key);
       if (conflict) { setError(`Key ${key} is already assigned to ${ACTIONS.find((a) => a.id === conflict)?.label ?? settings.buttonLabels[conflict] ?? conflict}.`); return; }
       setSettings((old) => ({ ...old, bindings: { ...old.bindings, [capturing]: key }, buttonLabels: capturing.startsWith("button:") ? { ...old.buttonLabels, [capturing]: captureLabel.current || old.buttonLabels[capturing] || capturing.slice(7) } : old.buttonLabels }));
@@ -1231,13 +1231,13 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("searchUI", "Global UI search", <button aria-label="Global UI search" onClick={() => setSearchOpen(true)}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>);
   replaceFunction("settings", "Workspace settings", <button onClick={() => setSettingsOpen(true)}>Workspace settings</button>);
   replaceFunction("theme", "Toggle neon appearance", <button aria-pressed={settings.appearance.theme === "neon"} onClick={() => runAction("theme")}>Theme: {settings.appearance.theme === "neon" ? "Neon" : "Classic"}</button>);
-  replaceFunction("appearance", "Master controller", <button onClick={() => setThemeOpen(true)}>Master controller</button>);
+  replaceFunction("appearance", "Master controller", <button data-context-controller onClick={() => setThemeOpen(true)}>Master controller</button>);
   // Old resident IDs keep their placement and appearance, while editing the same
   // registry as the master controller. Unused legacy controls leave the library.
   const savedThemeControls = new Set([...Object.keys(uiLayout.items), ...[...Object.values(uiLayout.windows), ...uiLayout.frames].flatMap(frame => (frame.members ?? []).filter(m => m.kind === "function").map(m => m.id))]);
   for(const property of PROPERTIES.filter(property => property.category?.id === "visual"))replaceFunction(`ui:master:${property.id}`, property.label, <AppearanceAdjustment property={property.id}/>, true);
   for(const [id,control] of Object.entries(LEGACY_CONTROLS))if(savedThemeControls.has(id))replaceFunction(id,control.label,<label>{control.label}<AppearanceAdjustment property={control.property} target={control.target}/></label>,true);
-  for(const id of ["ui:animation:scope","ui:animation:inherit","ui:animation:targets","ui:appearance:scope","ui:appearance:inherit","ui:atmosphere"])if(savedThemeControls.has(id))replaceFunction(id,"Master controller",<button onClick={()=>setThemeOpen(true)}>Open Master controller</button>);
+  for(const id of ["ui:animation:scope","ui:animation:inherit","ui:animation:targets","ui:appearance:scope","ui:appearance:inherit","ui:atmosphere"])if(savedThemeControls.has(id))replaceFunction(id,"Master controller",<button data-context-controller onClick={()=>setThemeOpen(true)}>Open Master controller</button>);
   replaceFunction("ui:appearance:theme", "Theme preset", <label>Theme preset<select aria-label="Theme preset" value={settings.appearance.theme} onChange={event => setSettings(old=>({...old,appearance:{...old.appearance,theme:event.target.value as WorkspaceSettings["appearance"]["theme"]}}))}><option value="neon">Neon</option><option value="classic">Classic</option></select></label>,true);
   replaceFunction("ui:appearance:importFont", "Import font", <button disabled={fontImporting} onClick={() => fontInput.current?.click()}>{fontImporting ? "Importing font…" : "Import font"}</button>);
   replaceFunction("ui:resetAppearance", "Preview default appearance", <button onClick={()=>restoreAppearance(defaultSettings().appearance)}>Preview default appearance</button>);
@@ -2294,7 +2294,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           isNew={omnicIsNew} initialRecipe={omnicIsNew ? newOmnicDraft() : undefined} onPreview={previewOmnic}
           onCopy={(recipe,label) => createOmnicObject(recipe,label,omnicIsNew ? undefined : omnicObject.id, omnicIsNew ? omnicNewDraft! : undefined)} onClose={() => setOmnicEditorId(null)} /></Suspense>
       </FloatingWindow>}
-      {themeOpen && <FloatingWindow id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} onMinimize={() => {
+      {themeOpen && <FloatingWindow contextController id="theme" openAtCursor={false} openingKey={masterInspection || undefined} title="Master controller" width={350} height={600} x={Math.max(8, window.innerWidth - 374)} y={90} onClose={() => setThemeOpen(false)} onMinimize={() => {
         if (appearancePending) { setAppearanceExit("minimize"); return false; }
         return true;
       }} footer={appearancePending ? <AppearancePreviewActions awaitingChoice={!!appearanceExit} onContinue={() => setAppearanceExit(null)} /> : undefined}>
