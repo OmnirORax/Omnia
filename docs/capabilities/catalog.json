@@ -2808,25 +2808,29 @@
     },
     {
       "id": "selector.range",
-      "title": "MS repeated configuration, Shift range selection and Escape navigation",
-      "where": "Start MS with Q. Press Q again for settings. In a source-ordered Composer/UI surface, pick an item then Shift-click another.",
-      "behavior": "MS uses repeat-to-configure. Q while active opens existing selection settings. Esc from settings returns to aiming without clearing membership; Esc outside settings cancels MS. Ordinary standalone picks retain aiming so selection can continue. Shift plus the configured selection click includes both endpoints and eligible units between them in source/DOM order inside the same nearest declared selection surface or resident frame, respecting the active geometric scope. An ordinary pick resets the anchor, later Shift picks retain it; stale/out-of-scope anchors start at the new endpoint. Range inclusion adds to membership through one transient MS history operation. Explicit modified bindings retain priority, and the shared pointer matcher preserves modifiers required by saved bindings. Borrowed single-reference acceptance still closes/restores its checkpoint; Shift-range can cancel the request before adding to restored membership. No private Composer selection store or key listener is introduced.",
+      "title": "MS targeted toggle, spatial range and repeated configuration",
+      "where": "Start MS with Q. Hover a glyph/node and press Ctrl+Q to toggle it; hover another and press Shift+Q to extend spatially. Q again opens settings; Esc backs out/cancels. Shortcuts & functions → Visual selector lists both commands.",
+      "behavior": "Ctrl + the live MS opening shortcut toggles only the pointed object while retaining other membership. Shift + that shortcut adds the previous anchor, pointed endpoint and objects intersecting their projected screen-space rectangle. Composer adapters provide authored owners, precise geometry hits and whole-owner primitive elements; atlas adapters provide placement IDs, raycasting and projected bounds from existing native selection machinery. DOM order no longer decides spatial ranges between separate glyphs. Default Ctrl+Q / Shift+Q follow a rebound MS opening key; explicit rebindings/clears win and derived defaults yield to existing same-scope assignments. Both actions use normal catalog dispatch and scope/input protection. Surface geometry is prepared on command, not pointer/frame polling. Composer records existing MS part rules; atlas records native before/after memberships in the same transient MS history. Replay validates current identities and atlas context. Q again configures; Esc from settings returns to aiming and otherwise cancels/clears. Shift-click uses a renderer adapter when available, with the earlier source-order fallback retained for ordinary UI.",
       "steps": [
         {
-          "do": "Press Q, press Q again, then press Esc.",
-          "expect": "MS starts aiming, opens selection settings, then returns to aiming with current selection intact."
+          "do": "Start MS, hover one glyph/node and press Ctrl+Q; hover a second and press Ctrl+Q. Toggle the first again.",
+          "expect": "The pointed objects are selected individually; toggling one removes only that object and retains the other."
         },
         {
-          "do": "Pick one of several ordered eligible items within the same surface. Shift-click a later item, then Shift-click an earlier item.",
-          "expect": "Each range includes its endpoints and the intervening units in source order. The original anchor remains; existing membership is retained."
+          "do": "Pick/toggle an anchor. Hover an endpoint with other objects spatially between them and press Shift+Q, in Composer and in the atlas.",
+          "expect": "The anchor, endpoint and objects intersecting their screen-space rectangle are included, regardless of their source/library order. Objects outside that area remain unchanged."
         },
         {
-          "do": "Undo/redo the range. Shift-click an item in another frame, or remove the previous anchor before picking.",
-          "expect": "The range is one MS history operation. An absent/out-of-scope anchor starts at the new endpoint without selecting across unrelated surfaces."
+          "do": "Undo/redo a selection. Switch atlas and step old selection history; point outside a registered surface.",
+          "expect": "Selection history remains transient; old context/removed identities cannot change another atlas. An out-of-scope pointed miss does nothing."
         },
         {
-          "do": "Press Esc while aiming. Rebind the MS opening and selection commands and repeat the interaction.",
-          "expect": "MS cancels/clears before underlying window commands. Rebound commands retain repeated configuration and declared Shift-range behavior; cleared bindings do not revive."
+          "do": "Rebind MS opening from Q to K. Test Ctrl+K and Shift+K; explicitly clear or rebind either action.",
+          "expect": "Derived defaults follow K. Explicit assignments/clears remain authoritative; other same-scope commands keep their existing bindings."
+        },
+        {
+          "do": "Press Q again to open settings, then Esc, then Esc again. Type in an input while MS shortcuts are assigned.",
+          "expect": "The established configuration/back/cancel behavior remains; ordinary typing and input protection remain native."
         }
       ],
       "reference": "docs/VISUAL_SELECTION.md",
@@ -2836,17 +2840,24 @@
         "src/appearance/visualSelection.ts",
         "src/featureActions.ts",
         "src/ui/shortcutConfiguration.ts",
-        "src/workspaceActions.ts"
+        "src/workspaceActions.ts",
+        "src/appearance/selectionSurfaces.ts",
+        "src/appearance/useSelectionSurface.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/omnic/AtomnicEditor.tsx"
       ],
-      "actions": [],
+      "actions": [
+        "selector.togglePointed",
+        "selector.extendSpatial"
+      ],
       "gestures": [
         "selector.range"
       ],
       "status": "Implemented for review; production deployment and browser acceptance pending",
-      "limits": "Order is source/DOM order inside one surface/frame, not an inferred spatial order of 3D atlas nodes. Range works on registered, visible eligible units; it does not select hidden/arbitrary pixels. Native text selection keeps its existing ownership. Browser selection/keyboard interaction remains user-verified.",
+      "limits": "Spatial range means intersection with a screen-space rectangle between endpoint centers, not a 3D depth volume or inferred semantic order. Only registered visible object units are picked. Native atlas selection supports its existing placement workflows; this does not add arbitrary pixel/mesh property inference. Ordinary DOM/UI Shift-click retains source-order fallback. Browser/OS-reserved chords may remain unavailable. Browser interaction acceptance pending.",
       "verification": {
-        "browser": "Pending user acceptance; browser suites not run",
-        "automated": "Passed full model/architecture suite, self-contained preview build (including TypeScript/property contracts), and backend type checks. Focused regressions cover range ordering/missing anchors, implicit-unit versus explicit geometric scopes, request-opening lifecycle, Escape phases and modifier priority/rebinding."
+        "browser": "Pending user acceptance of Ctrl+Q, Shift+Q and selection feedback in both surfaces",
+        "automated": "Passed complete model/architecture suite, preview build (TypeScript/property contracts included), and backend type checks. Regressions cover derived chords/rebindings/clears/conflicts, one-object toggling, spatial rectangle membership, missing anchors/IDs and atlas-context replay. The source pre-push gate repeats required checks at the delivered commit."
       },
       "related": [
         "selector.core"

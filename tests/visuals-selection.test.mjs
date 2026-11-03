@@ -261,3 +261,39 @@ test('range can leave a pointed unit while retaining explicitly drawn working ge
  assert.equal(rangeWorkingScope(drawn),drawn);
  assert.equal(selectorOpenPhase('aim',true),'aim','a newly borrowed request starts picking, rather than interpreting its own opening as repeated Q');
 });
+
+test('spatial glyph range includes intervening objects by projected area rather than source order',async()=>{
+ const {spatialSelectionRange}=await import('../src/appearance/selectionSurfaces.ts');
+ const unit=(id,x,y)=>({id,box:{left:x-1,right:x+1,top:y-1,bottom:y+1}});
+ const units=[unit('outside',30,0),unit('end',10,10),unit('between',5,5),unit('anchor',0,0),unit('below',5,20)];
+ assert.deepEqual(spatialSelectionRange(units,'anchor','end'),['end','between','anchor']);
+ assert.deepEqual(spatialSelectionRange(units,'end','anchor'),['end','between','anchor']);
+ assert.deepEqual(spatialSelectionRange(units,'deleted','end'),['end']);
+ assert.deepEqual(spatialSelectionRange([...units,unit('overlap',10,10)],undefined,'end'),['end'],'without an anchor only the endpoint is selected');
+ assert.deepEqual(spatialSelectionRange(units,'anchor','missing'),[]);
+});
+test('MS surface adapters toggle exactly one target, retain anchors and isolate separate canvases',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),first={contains:()=>false},second={};
+ let selected=['a'],applied=[];
+ const units=['a','b','c'].map((id,i)=>({id,box:{left:i*10-1,right:i*10+1,top:-1,bottom:1}}));
+ const off=registry.register({element:()=>first,snapshot:()=>({units,selected,hit:p=>p.x===10?'b':'c'}),apply:ids=>{selected=[...ids];applied.push([...ids]);}});
+ const toggle=registry.prepare(first,{x:10,y:0},'toggle');
+ assert.deepEqual(toggle.before,['a']);assert.deepEqual(toggle.after,['a','b']);
+ registry.apply(toggle.id,toggle.after);assert.deepEqual(selected,['a','b']);
+ const range=registry.prepare(first,{x:20,y:0},'range');
+ assert.deepEqual(range.after,['a','b','c']);
+ registry.apply(range.id,range.after);registry.apply(range.id,toggle.before);assert.deepEqual(selected,['a'],'the existing MS timeline can apply before/after snapshots for undo');
+ assert.equal(registry.prepare(second,{x:10,y:0},'toggle'),undefined);
+ registry.apply(range.id,['a','removed']);assert.deepEqual(selected,['a'],'stale ids are filtered before native setters');
+ off();assert.equal(registry.prepare(first,{x:10,y:0},'toggle'),undefined);
+});
+
+test('surface selection replay cannot affect a different atlas context',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),element={contains:()=>false};let context='atlas-a',applies=0;
+ registry.register({element:()=>element,context:()=>context,snapshot:()=>({units:[{id:'same-id',box:{left:0,top:0,right:2,bottom:2}}],selected:[],hit:()=> 'same-id'}),apply:()=>applies++});
+ const transaction=registry.prepare(element,{x:1,y:1},'toggle');
+ context='atlas-b';registry.apply(transaction.id,transaction.after);assert.equal(applies,0);
+ context='atlas-a';registry.apply(transaction.id,transaction.after);assert.equal(applies,1);
+});

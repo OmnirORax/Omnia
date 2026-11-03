@@ -104,7 +104,22 @@ export function repeatConfigured(id: string): boolean {
   return !!action && 'configurationTrigger' in action && action.configurationTrigger === 'repeat';
 }
 export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
-export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
+export function shortcutBinding(id:string,bindings:Record<string,string>):string {
+  const action=ACTIONS.find(action=>action.id===id),saved=bindings[id];
+  if(action&&'bindingSource' in action&&(saved===undefined||saved===action.defaultKey)){
+    const source=bindings[action.bindingSource]??ACTIONS.find(candidate=>candidate.id===action.bindingSource)?.defaultKey??'';
+    if(!source||source.split('+').includes(action.bindingModifier))return '';
+    const parts=source.split('+'),key=parts.pop()!;
+    const chord=['Ctrl','Alt','Shift'].filter(modifier=>modifier===action.bindingModifier||parts.includes(modifier)).concat(key).join('+');
+    if(ACTIONS.some(other=>other.id!==id&&!('bindingSource' in other)&&('scope' in other?other.scope:'global')===action.scope&&(bindings[other.id]??other.defaultKey)===chord))return '';
+    return chord;
+  }
+  return saved??action?.defaultKey??'';
+}
+export function allowsShiftShortcut(id:string):boolean {
+  const action=ACTIONS.find(action=>action.id===id.replace(/^button:/,''));
+  return !!action&&'configurationTrigger' in action;
+}
 /** Resolve overlapping feature keys by active scope, never listener mount order.
  * An active selector owns its commands before content editors, UI frames, then global actions. */
 export function preferredFeatureKey(bindings: Record<string, string>, key: string, available: (id: string) => boolean, typing = false, blocked = false): string | null {
@@ -156,7 +171,7 @@ export function actionForKey(bindings: WorkspaceSettings["bindings"], key: strin
 }
 export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: string, key: string): string | null {
   if (!key) return null;
-  return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key && actionScope(id) === actionScope(actionId))?.[0] ?? null;
+  return Object.entries(bindings).find(([id]) => id !== actionId && shortcutBinding(id,bindings) === key && actionScope(id) === actionScope(actionId))?.[0] ?? null;
 }
 export function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'));
@@ -257,7 +272,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     // Shift is now the universal configuration modifier. Migrate displaced
     // assignments to free non-Shift defaults, preserving deliberate clears.
     for (const [id, binding] of Object.entries(defaults.bindings)) {
-      if (!binding.split("+").includes("Shift") || repeatConfigured(id)) continue;
+      if (!binding.split("+").includes("Shift") || allowsShiftShortcut(id)) continue;
       const metadata = ACTIONS.find(action => action.id === id);
       const proposed = metadata?.defaultKey && !metadata.defaultKey.split("+").includes("Shift") ? metadata.defaultKey :
         ["Ctrl", "Alt", ...binding.split("+").filter(part => !["Ctrl", "Alt", "Shift"].includes(part))].join("+");

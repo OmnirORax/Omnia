@@ -1,3 +1,4 @@
+import { selectionSurfaces, spatialSelectionRange } from "./selectionSurfaces";
 import { orderedSelectionRange, rangeWorkingScope, selectorOpenPhase, selectorEscapePhase } from "./selectionRange";
 import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
 import {nativeSelectionDragged,nativeSelectionTogglePress,selectionGroupIncluded,selectionRequest,selectionConfirmation,selectionOpenContexts,selectionDecision,type SelectionDecision} from './selectionRequest';
@@ -27,7 +28,7 @@ import {
   type SelectionBoundary, type SelectionConstraint, type SelectionRule, type VisualPart, type VisualRole,
 } from "./visualSelection";
 
-type SelectionState = { boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
+type SelectionState = { surfaces?:Record<string,readonly string[]>; boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
 export type ReferenceSelection={element:Element;boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
 type NativeSelectionCallbacks={click:()=>readonly Element[];area:(start:Point,end:Point)=>readonly Element[]};
 type VisualSelection = SelectionState & { requesting:boolean;registerOpenContext:(context:{contains:(target:Element)=>boolean;open:()=>boolean})=>()=>void;setElements:(elements:readonly Element[])=>void;toggleElements:(elements:readonly Element[],append?:boolean)=>void;beginNativeSelection:(event:PointerEvent,callbacks:NativeSelectionCallbacks)=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
@@ -51,6 +52,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const [view, setView] = useState<SelectionView>("auto");
   const [timeline, setTimeline] = useState(() => ({ states: [emptySelection()], index: 0 }));
   const selection = timeline.states[timeline.index];
+  const appliedSurfaces=useRef<Record<string,readonly string[]>>({});
+  useEffect(()=>{
+    const next=selection.surfaces??{},previous=appliedSurfaces.current;appliedSurfaces.current=next;
+    for(const id of new Set([...Object.keys(previous),...Object.keys(next)]))if(JSON.stringify(previous[id])!==JSON.stringify(next[id]))selectionSurfaces.apply(id,next[id]??[]);
+  },[selection.surfaces]);
   const openContexts=useRef(selectionOpenContexts<Element>());
   const registerOpenContext=useCallback((context:{contains:(target:Element)=>boolean;open:()=>boolean})=>openContexts.current.register(context),[]);
   const requestedPick=useRef<{accept:(selection:ReferenceSelection)=>boolean;cancel:()=>void;opened:boolean}|null>(null);
@@ -83,7 +89,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const toggleCandidate = useRef<{ catalog: VisualPart[]; selection: SelectionState; measurements: ReturnType<typeof createVisualMeasurements>; picks: Map<string, Pick> } | null>(null);
   const latest = useRef({ phase, configuration, catalog, selection, measurements });
   latest.current = { phase, configuration, catalog, selection, measurements };
-  const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0;
+  const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0 || Object.values(latest.current.selection.surfaces??{}).some(ids=>ids.length>0);
   const lensGeometry=useMemo(()=>new Map(catalog.filter(part=>part.element.closest('[data-selection-lens]')).map(part=>{const rects=measurements.rects(part);const box=rects.length?{left:Math.min(...rects.map(r=>r.left)),right:Math.max(...rects.map(r=>r.right)),top:Math.min(...rects.map(r=>r.top)),bottom:Math.max(...rects.map(r=>r.bottom))}:measurements.bounds(part.element);return[part,{box,shape:measurements.shape(part.element)}] as const;})),[catalog,measurements]);
   const lens=useRef({radius:lensRadius,geometry:lensGeometry});lens.current={radius:lensRadius,geometry:lensGeometry};
   const lensPart=(parts:VisualPart[],x:number,y:number)=>nearestLensBoundary(parts,{x,y},lens.current.radius,part=>lens.current.geometry.get(part)!);
@@ -283,11 +289,45 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       ...(latest.current.configuration.patternRole ? { role: latest.current.configuration.patternRole } : {}) } });
     accept(true); polygon.current = null; setDrawing(false);
   };
+  const spatialPick=(mode:'toggle'|'range',p:{x:number;y:number},nativeOnly=false)=>{
+    const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return false;
+    const transaction=selectionSurfaces.prepare(element,p,mode,nativeOnly);if(!transaction)return false;
+    const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
+    cancelDrawing();
+    if(transaction.elements){setElements(transaction.elements);setPhase('aim');return true;}
+    setTimeline(previous=>{
+      const current=previous.states[previous.index],before={...current,boundary:current.boundary??boundaryFor(document.body),surfaces:{...current.surfaces,[transaction.id]:transaction.before}};
+      const states=previous.states.map((state,index)=>index===previous.index?before:state);
+      return appendTransient({...previous,states},{...before,surfaces:{...before.surfaces,[transaction.id]:transaction.after}});
+    });
+    setPhase('aim');return true;
+  };
+  const pointedMembership=(mode:'toggle'|'range',input?:KeyboardEvent|MouseEvent)=>{
+    const p=inputPosition(input);if(spatialPick(mode,p))return;
+    const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return;
+    const current=latest.current,working=rangeWorkingScope(current.selection.scope);
+    const eligible=(working?matchingVisualParts(current.catalog,{...working,include:true},current.measurements):current.catalog).filter(part=>current.configuration.backgrounds||part.role!=='background');
+    const surface=element.closest('[data-selection-lens]'),hit=surface?lensPart(eligible.filter(part=>surface.contains(part.element)),p.x,p.y):partAt(eligible,element,p.x,p.y,current.measurements);
+    if(!hit)return;const endpoint=boundaryFor(selectionRangeUnit(hit.element));
+    if(mode==='toggle'){rangeAnchor.current=endpoint;toggleSelection({boundary:endpoint,backgrounds:current.configuration.backgrounds});}
+    else{
+      const units=orderedSelectionUnits(eligible,endpoint.element),boxes=units.flatMap(unit=>{const box=boundaryRect(unit);return box?[{id:unit.key,box}]:[];});
+      const ids=new Set(spatialSelectionRange(boxes,rangeAnchor.current?.key,endpoint.key));
+      record(selection=>({...selection,boundary:boundaryFor(document.body),scope:working,mask:working?selection.mask:null,objects:[],rules:[...selection.rules,...units.filter(unit=>ids.has(unit.key)).map(boundary=>({boundary,include:true,backgrounds:current.configuration.backgrounds,...(working?{scope:working}:{})}))]}));
+      if(!rangeAnchor.current)rangeAnchor.current=endpoint;
+    }
+    cancelDrawing();setPhase('aim');
+  };
   const begin = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
     const config = latest.current.configuration, p = { x: event.clientX, y: event.clientY };
     settledPoint.current = null;
     setPhase("aim");
+    const pElement=event.target;
+    if(!requestedPick.current){
+      if((event.shiftKey||!isLine(config.pattern)&&!isPath(config.pattern))&&spatialPick(event.shiftKey?'range':'toggle',p,!event.shiftKey))return;
+      selectionSurfaces.anchor(pElement,p);
+    }
     const checkpoint=event.shiftKey?requestCheckpoint.current:null;
     if(event.shiftKey&&requestedPick.current){const request=requestedPick.current;requestedPick.current=null;request.cancel();setPhase('aim');}
     if(!requestedPick.current){
@@ -361,6 +401,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       retainedPreview.current=false;settledPoint.current=null;setCandidatePick(null);
       setCatalog(collectVisualParts());setPosition(p);point.current={...p,element};setInventoryOpen(false);setPhase('aim');
     } },
+    "selector.togglePointed":{enabled:phase!=='off'||hasSelection(),run:input=>pointedMembership('toggle',input)},
+    "selector.extendSpatial":{enabled:phase!=='off'||hasSelection(),run:input=>pointedMembership('range',input)},
     "selector.configure":{enabled:true,run:input=>{const p=inputPosition(input);setCatalog(collectVisualParts());setPosition(p);setPhase('configure');}},
     "selector.lock": { enabled: phase !== "off", run: input => {
       if (phase === "locked") {

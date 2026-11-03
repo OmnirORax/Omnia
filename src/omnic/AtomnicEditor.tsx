@@ -1,3 +1,4 @@
+import { useSelectionSurface } from "../appearance/useSelectionSurface";
 import { selectedEditorDegrees } from "./targetDegrees";
 import { commandDegree, repeatedDegree } from "./degreeCommands";
 import {nativeSelectionTogglePress} from '../appearance/selectionRequest';
@@ -132,6 +133,20 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const rotationKey=rotationIds.join('|');
   const selectedRotationRoles=useMemo(()=>HOVER_TOOL_DETECTION_ENABLED&&evaluation&&rotationDegree?new Set(targetNodes(evaluation,rotationIds).map(node=>node.id)):undefined,[evaluation,rotationKey,!!rotationDegree]);
   const selectionOwners=useMemo(()=>evaluation?authoredNodeOwners(recipe,evaluation):new Map<string,string>(),[recipe,evaluation]);
+  const ownerElements=()=>{
+    const groups=new Map<string,Element[]>();
+    for(const element of localSurface.current?.querySelectorAll('[data-selection-geometry]')??[]){const owner=selectionOwners.get(element.getAttribute('data-omnic-role')??'');if(owner){const items=groups.get(owner)??[];items.push(element);groups.set(owner,items);}}
+    return groups;
+  };
+  useSelectionSurface(localSurface,{
+    snapshot:()=>{
+      const root=localSurface.current!,groups=ownerElements();
+      const units=[...groups].flatMap(([id,elements])=>{const boxes=elements.map(element=>element.getBoundingClientRect()).filter(box=>box.width||box.height);return boxes.length?[{id,box:{left:Math.min(...boxes.map(b=>b.left)),top:Math.min(...boxes.map(b=>b.top)),right:Math.max(...boxes.map(b=>b.right)),bottom:Math.max(...boxes.map(b=>b.bottom))}}]:[];});
+      return {units,selected:[...selectedRef.current],hit:p=>{const node=pickStructuralNode(evaluation?.nodes??[],local({currentTarget:root,clientX:p.x,clientY:p.y}));return node?selectionOwners.get(node.id):undefined;}};
+    },
+    elements:ids=>{const groups=ownerElements();return ids.flatMap(id=>groups.get(id)??[]);},
+    apply:()=>{},
+  });
   const hoverAffordances=useMemo(()=>HOVER_TOOL_DETECTION_ENABLED&&evaluation?prepareHoverAffordances(recipe,evaluation):undefined,[recipe,evaluation]);
   useEffect(()=>{updateRotationHover(false);updateMoveHover(false);},[selectedRotationRoles,hoverAffordances,bounds.x,bounds.y,bounds.width,bounds.height]);
   const hoverSelection=rotationDegree&&selectedRotationRoles?{ids:rotationIds,rotation:rotationDegree,roles:selectedRotationRoles}:undefined;
@@ -236,8 +251,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         setGhost(undefined);setHovered([]);
         localSurface.current?.focus({preventScroll:true});activateTarget?.();
         const role=event.target instanceof Element?event.target.closest('[data-omnic-role]')?.getAttribute('data-omnic-role')??undefined:undefined;
-        const nodes=evaluation?.nodes??[],groups=new Map<string,Element[]>();
-        for(const element of localSurface.current?.querySelectorAll('[data-selection-geometry]')??[]){const owner=selectionOwners.get(element.getAttribute('data-omnic-role')??'');if(owner){const elements=groups.get(owner)??[];elements.push(element);groups.set(owner,elements);}}
+        const nodes=evaluation?.nodes??[],groups=ownerElements();
         const node=pickStructuralNode(nodes,point,role),owner=node&&selectionOwners.get(node.id),clicked=owner?groups.get(owner)??[]:[];
         const box=localSurface.current!.getBoundingClientRect(),edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);
         const project=(p:{x:number;y:number})=>({x:bounds.x+bounds.width/2+((p.x-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((p.y-box.top-(box.height-edge)/2)/edge-.5)*scale});

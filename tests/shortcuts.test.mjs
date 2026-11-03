@@ -230,7 +230,8 @@ test("Shift universally resolves the base action, scoped commands, custom button
 
 test("Shift executable bindings migrate without stealing keys or reviving clears", () => {
   const defaults = defaultSettings();
-  assert.ok(Object.values(defaults.bindings).every(binding => !binding.split("+").includes("Shift")));
+  assert.equal(defaults.bindings["selector.extendSpatial"],"Shift+Q");
+  assert.ok(Object.entries(defaults.bindings).every(([id,binding]) => id==="selector.extendSpatial"||!binding.split("+").includes("Shift")));
   const migrated = normalizeSettings({ bindings: { searchUI: "Shift+S", redo: "Ctrl+Shift+Z", "selector.lock": "Shift+MB3", newChild: "", "button:custom": "Shift+P" } });
   assert.equal(migrated.bindings.searchUI, "Ctrl+Alt+S");
   assert.equal(migrated.bindings.redo, "Ctrl+Y");
@@ -710,4 +711,27 @@ test('selector Shift-range remains a declared pointer gesture and Q repeat frees
  assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':''},event),false);
  assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':'MB2'},event),false);
  assert.equal(matchesPointerShortcut('selector.include',bindings,{...event,altKey:true}),false);
+});
+
+test('MS targeted/spatial chords follow its opening binding and preserve explicit rebindings and clears',async()=>{
+ const {shortcutBinding,preferredFeatureKey,allowsShiftShortcut}=await import('../src/workspaceActions.ts');
+ const {configurationTarget}=await import('../src/ui/shortcutConfiguration.ts');
+ const defaults=defaultSettings().bindings;
+ assert.equal(shortcutBinding('selector.togglePointed',defaults),'Ctrl+Q');
+ assert.equal(shortcutBinding('selector.togglePointed',{...defaults,'selector.open':'MB3'}),'','a derived default cannot steal the existing MS lock binding');
+ assert.equal(shortcutBinding('selector.extendSpatial',defaults),'Shift+Q');
+ const rebound=normalizeSettings({bindings:{...defaults,'selector.open':'K'}}).bindings;
+ assert.equal(shortcutBinding('selector.togglePointed',rebound),'Ctrl+K');
+ assert.equal(shortcutBinding('selector.extendSpatial',rebound),'Shift+K');
+ assert.equal(functionShortcutBinding('selector.extendSpatial',rebound),'Shift+K');
+ assert.equal(shortcutBinding('selector.extendSpatial',{...rebound,'selector.extendSpatial':''}),'');
+ assert.equal(shortcutBinding('selector.togglePointed',{...rebound,'selector.togglePointed':'Alt+M'}),'Alt+M');
+ assert.equal(shortcutBinding('selector.extendSpatial',normalizeSettings({bindings:{...rebound,'selector.extendSpatial':'Ctrl+Shift+P'}}).bindings),'Ctrl+Shift+P');
+ const available=id=>['selector.open','selector.togglePointed','selector.extendSpatial'].includes(id);
+ assert.equal(preferredFeatureKey(rebound,'Ctrl+K',available),'selector.togglePointed');
+ assert.equal(preferredFeatureKey(rebound,'Shift+K',available),'selector.extendSpatial');
+ assert.equal(configurationTarget(rebound,'Shift+K',available),null,'the generic Shift router cannot swallow spatial extension');
+ assert.equal(allowsShiftShortcut('selector.extendSpatial'),true);
+ assert.equal(preferredFeatureKey(rebound,'Ctrl+K',available,true),null,'typing remains native');
+ assert.equal(preferredFeatureKey(rebound,'Ctrl+K',()=>false),null,'inactive MS cannot consume global shortcuts');
 });

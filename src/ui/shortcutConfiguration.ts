@@ -1,10 +1,10 @@
 import { FEATURE_ACTIONS } from "../featureActions.ts";
-import { ACTIONS, actionScope, shortcutBinding, preferredFeatureKey, repeatConfigured, matchesGestureShortcut } from "../workspaceActions.ts";
+import { ACTIONS, actionScope, shortcutBinding, preferredFeatureKey, repeatConfigured, allowsShiftShortcut, matchesGestureShortcut } from "../workspaceActions.ts";
 /** Shared Shift routing yields to declared repeat commands and native gesture modifiers. */
 export function configurationTarget(bindings: Record<string, string>, chord: string, available: (id: string) => boolean, pointerFallback: Record<string, string> = {}): string | null {
   const parts = chord.split("+"); if (!parts.includes("Shift")) return null;
   const exact = preferredFeatureKey(bindings, chord, available);
-  if (exact && repeatConfigured(exact)) return null;
+  if (exact && allowsShiftShortcut(exact)) return null;
   // Declared native selection modifiers keep their pointer gesture, including Shift-range.
   if (/^MB[1-5]$/.test(parts.at(-1) ?? '') && FEATURE_ACTIONS.some(action =>
     'pointerGestureModifiers' in action && (action.pointerGestureModifiers as readonly string[]).includes('Shift') && available(action.id) &&

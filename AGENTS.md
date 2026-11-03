@@ -106,8 +106,13 @@ limitations, state ownership and performance constraints; it is not a feature sp
 
 **MS correction (2026-11-03):** Q starts targeting; Q again while MS is active
 opens selection settings. Esc from settings returns to aiming with selection
-intact; Esc outside settings cancels MS. Shift-click extends an inclusive range
-in source order within the same declared surface/frame. Standalone picks keep MS
+intact; Esc outside settings cancels MS. Ctrl + the assigned MS opening shortcut
+(Ctrl+Q by default) toggles the pointed object. Shift + that shortcut (Shift+Q)
+adds objects intersecting the projected rectangle between anchor and endpoint.
+Renderer adapters supply actual owners, hit tests and bounds; do not confuse
+spatial range with document order. Shift-click uses the adapter where available,
+retaining source-order fallback in ordinary UI. Derived chords follow rebinding;
+explicit assignments/clears and existing same-scope bindings remain authoritative. Standalone picks keep MS
 aiming for continuation; borrowed single-reference acceptance still restores and
 closes its request. Shift+Q is no longer selected-property editing. Use shared
 selector commands, scoped range discovery and transient selection history.

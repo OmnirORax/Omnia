@@ -88,6 +88,18 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
   templates and normal interface history; scoped defaults can coexist with
   global assignments.
 
+## Visual selector targeted selection
+
+MS exposes `selector.togglePointed` (Ctrl+Q) and `selector.extendSpatial` (Shift+Q)
+while selection is active. Their default chords derive from the live
+`selector.open` binding; custom rebindings/clears remain authoritative. Only
+non-colliding defaults follow the source. `configurationTrigger: direct` lets
+explicit modifier chords reach their declared action instead of generic Shift
+configuration. Ctrl toggles one pointed owner; Shift extends through the rectangle
+between projected anchor/endpoint bounds using the surface adapter. No private
+literal Ctrl+Q/Shift+Q handlers or separate renderer selection store.
+See [selection surfaces and limits](VISUAL_SELECTION.md#targeted-toggle-and-spatial-range-shortcuts).
+
 ## Visual selector integration
 
 The selector command group includes configuration/aiming (Q), geometry modes

@@ -5,6 +5,35 @@ registered visual parts, capabilities and renderer adapters. Geometry, inclusion
 toggling and property editing are separate; selection never creates
 appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
+## Targeted toggle and spatial range shortcuts
+
+While MS is active, **Ctrl+Q** toggles only the object at the pointer, retaining
+other selected objects. **Shift+Q** adds the anchor, pointed endpoint and visible
+objects intersecting their screen-space rectangle. The anchor is the previous
+pick/toggle in that surface, or the last selected object if no anchor exists.
+The rectangle is projected screen space, not document order or a 3D depth volume.
+
+Both commands derive from the live MS opening binding: if Q becomes K, defaults
+become Ctrl+K / Shift+K. They are listed/rebindable/clearable in Shortcuts → Visual
+selector. Explicit custom assignments and clears win; a derived default yields to
+an existing same-scope binding. Native text entry, capture, blocking and active
+scope rules remain shared. Q again still configures; Esc still backs out/cancels.
+
+`selectionSurfaces` registers actual rendered surfaces. Composer supplies authored
+edit owners, geometric hits and whole-owner elements from its existing MS native
+selection adapter. Atlas supplies placement IDs, raycasting and projected bounds
+from its existing rectangle-selection path. Bounds/snapshots are read on commands,
+not on hover or every frame. Composer membership remains ordinary MS part rules;
+canvas memberships store before/after snapshots in the same transient MS timeline.
+Undo/Redo/clear replay through registered native setters. Surface identity includes
+the atlas context, so old selection history cannot act on another atlas.
+
+Shift-click uses a spatial surface adapter when available. Ordinary DOM/UI ranges
+retain the existing source-order fallback within one declared surface/frame.
+Neither range traverses unrelated surfaces. Temporary reference picking yields to
+explicit multi-selection before changing membership. Pointed misses do nothing.
+Browser/OS-reserved combinations may be unavailable; browser acceptance is pending.
+
 ## One circle, independent geometry
 
 Q (rebindable) starts the compact aiming cursor directly; pressing Q again while

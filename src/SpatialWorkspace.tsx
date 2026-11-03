@@ -1,3 +1,4 @@
+import { selectionSurfaces } from "./appearance/selectionSurfaces";
 import { NodeDocument } from "./text/NodeDocument";
 import type { NodeText } from "./text/model";
 import {featureActionRuntime} from './featureActions';
@@ -434,6 +435,19 @@ export default function SpatialWorkspace(props: Props) {
       aim(event);
       return raycaster.intersectObjects(meshes.current.filter((mesh) => mesh.visible), false).filter((hit) => hit.object.userData.nodeId !== except);
     };
+    const stopSelectionSurface=selectionSurfaces.register({
+      element:()=>renderer.domElement,context:()=>callbacks.current.omnicPreviewContext,nativePicking:true,
+      snapshot:()=>{
+        const rect=host.getBoundingClientRect();
+        const units=[...(textScene.current?.nodes??[])].flatMap(([id,item])=>{
+          const center=item.group.position.clone().project(camera);if(!item.sprite.visible||center.z < -1||center.z > 1)return [];
+          const box=screenBounds(item.sprite,camera,rect.width,rect.height);
+          return [{id,box:{left:rect.left+box.x,top:rect.top+box.y,right:rect.left+box.x+box.width,bottom:rect.top+box.y+box.height}}];
+        });
+        return {units,valid:callbacks.current.document.placements.map(placement=>placement.id),selected:callbacks.current.selectedIds.size?[...callbacks.current.selectedIds]:callbacks.current.selectedId?[callbacks.current.selectedId]:[],hit:p=>hits({clientX:p.x,clientY:p.y})[0]?.object.userData.nodeId as string|undefined};
+      },
+      apply:ids=>callbacks.current.onSelection([...ids]),
+    });
     const cursorWorld = (event: PointerEvent) => {
       aim(event);
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), controls.target);
@@ -685,7 +699,7 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.removeEventListener("wheel", noteWheel, true);
       stopHeldNudges(); nudging.finish(true); nudgeEngine.current = null; props.heldNudges.stop();
       navigation.dispose(); navigationEngine.current = null;
-      stopHierarchyHighlight(); hierarchyPulse.dispose();
+      stopSelectionSurface();stopHierarchyHighlight(); hierarchyPulse.dispose();
       pointerOwner.dispose();
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
       renderer.domElement.removeEventListener("pointerdown", down, true);
