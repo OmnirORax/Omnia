@@ -1,3 +1,4 @@
+import { validateNodeText, type NodeText } from "../text/model.ts";
 import { validateRecipe, validateRecipeReferences, referenceComponents, type Recipe } from "../omnic/model.ts";
 import { parseAtlas as parseLegacyAtlas, type Atlas as LegacyAtlas } from "./model.ts";
 import { defaultNodeOffset } from "./labels.ts";
@@ -10,6 +11,10 @@ export type Entity = {
   id: string; label: string; aliases: string[]; notes: string;
   /** Canonical structural definition, shared by every placement of this object. */
   omnic?: Recipe;
+  /** Explicit English spellings for paste annotation; never inferred equivalence. */
+  lexiconWords?: string[];
+  /** Editable text and independent references to canonical Omnic objects. */
+  text?: NodeText;
   /** Immutable saved structural revisions; their dependency references are pinned. */
   omnicHistory?: Recipe[];
 };
@@ -279,6 +284,11 @@ export function validateDocument(doc: Document): Document {
       !e.aliases.every((a) => str(a, 500))
     )
       fail("Invalid entity.");
+  const glyphIds = new Set(doc.entities.filter(e => e.omnic).map(e => e.id));
+  for (const entity of doc.entities) {
+    if (entity.lexiconWords !== undefined && (!entity.omnic || !Array.isArray(entity.lexiconWords) || entity.lexiconWords.length > 256 || entity.lexiconWords.some(word => !str(word, 200) || !word.trim()))) fail("Invalid lexicon words.");
+    if (entity.text !== undefined) validateNodeText(entity.text, glyphIds);
+  }
   const omnic = new Map<string, Recipe>();
   for (const entity of doc.entities) if (entity.omnic !== undefined) {
     validateRecipe(entity.omnic);

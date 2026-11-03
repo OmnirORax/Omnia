@@ -13,6 +13,20 @@ All existing Master Controller, selector, compactness and performance contracts
 still apply. This supersedes the Stage 1 deferral of library organization and
 explicit version pins in [OMNIC_COMPOSER.md](OMNIC_COMPOSER.md).
 
+## English variants and editable node documents
+
+The existing canonical library also supplies the explicit paste lexicon. Select a
+saved Composer object, set its comma-separated **English variants**, then choose
+**Save name / tags / words**. `Entity.lexiconWords` records only user-authored
+mappings; label/aliases/tags never silently become lexical equivalence. Existing
+recipes, collection/family/filter organization, revisions, pins and cross-atlas
+sharing remain in place. The internal `Recipe` type still means the structural
+Composer definition; no replacement glyph asset library is introduced.
+
+Click a node name → **Document** for ordinary mixed text/glyph editing. Canonical
+`Entity.text` stores plain strings and live object IDs as independent siblings.
+See [node document contract](NODE_DOCUMENTS.md) and [capability walkthrough](CAPABILITIES.md#atlas-documents).
+
 ## Identity and persistence
 
 `omnic/workspace.ts` defines the version-1 `omnium-workspace` envelope. It has a

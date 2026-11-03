@@ -213,6 +213,15 @@ being searchable or movable does not establish its property capabilities. The
 shared property registry now connects initial appearance and nonvisual consumers;
 other legacy functions/settings still need migration.
 
+## Node documents and explicit paste lexicon
+
+Nodes now have an optional editable document outside the inspector (node name →
+Document). English variants on saved canonical Composer objects drive paste-time
+glyph insertion. English and glyph references remain independently deletable;
+this is a manual translation scaffold, not a finalized interpretation engine.
+Reuse the existing cross-atlas library and workspace owner. See
+[NODE_DOCUMENTS.md](NODE_DOCUMENTS.md) for data, clipboard and performance limits.
+
 ## Knowledge, presentation and state ownership
 
 Version-2 documents separate entities, compositions, typed relationships,

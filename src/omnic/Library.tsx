@@ -24,6 +24,7 @@ const tags=(text:string)=>[...new Set(text.split(',').map(tag=>tag.trim()).filte
 export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}:Props){
   const [filter,setFilter]=useState<StructuralFilter>({}),[selectedId,setSelectedId]=useState(''),[page,setPage]=useState(0);
   const [newName,setNewName]=useState(''),[parentCollection,setParentCollection]=useState('');
+  const [draftWords,setDraftWords]=useState('');
   const [draftLabel,setDraftLabel]=useState(''),[draftTags,setDraftTags]=useState(''),[revision,setRevision]=useState<number|null>(null);
   const [error,setError]=useState(''),[notice,setNotice]=useState('');
   const [indexed,setIndexed]=useState<Map<string,IndexEntry>>(()=>new Map());
@@ -46,7 +47,7 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}
   const results=useMemo(()=>objects.filter(entity=>matchesLibrary(entity,metadata.get(entity.id),indexed.get(entity.id),filter,collections)),[objects,metadata,indexed,filter,collections]);
   const selected=objects.find(e=>e.id===selectedId),item=selected?metadata.get(selected.id):undefined;
   const dependents=useMemo(()=>objects.filter(e=>e.omnic&&referenceComponents(e.omnic).some(c=>c.reference===selectedId)).length,[objects,selectedId]);
-  useEffect(()=>{setDraftLabel(selected?.label??'');setDraftTags(item?.tags.join(', ')??'');setRevision(null);},[selectedId,selected?.label,item?.tags]);
+  useEffect(()=>{setDraftWords(selected?.lexiconWords?.join(', ')??'');setDraftLabel(selected?.label??'');setDraftTags(item?.tags.join(', ')??'');setRevision(null);},[selectedId,selected?.label,selected?.lexiconWords,item?.tags]);
   useEffect(()=>{setPage(0);},[filter]);
   const preview=useMemo(()=>{
     if(!selected||revision===null)return '';
@@ -95,7 +96,7 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}
     </UISection>
     {selected&&<UISection id="omnic-library-object" title={selected.label||'Object'}>
       <div className="omnic-row"><FunctionControl id="omnic.library.open"/><FunctionControl id="omnic.library.place"/><FunctionControl id="omnic.library.copy"/></div>
-      <div className="omnic-row"><UIField id="omnic:library-name" label="Object name" category="Omnic"><input aria-label="Object name" maxLength={500} value={draftLabel} onChange={e=>setDraftLabel(e.target.value)}/></UIField><UIField id="omnic:library-tags" label="Object tags" category="Omnic"><input aria-label="Object tags" maxLength={3200} placeholder="Tags, separated by commas" value={draftTags} onChange={e=>setDraftTags(e.target.value)}/></UIField><UIAction id="omnic:update-object" label="Save name / tags" category="Omnic" onClick={()=>attempt(()=>onChange(organizeObject({...workspace,entities:workspace.entities.map(e=>e.id===selected.id?{...e,label:draftLabel}:e)},selected.id,{tags:tags(draftTags)})))}/></div>
+      <div className="omnic-row"><UIField id="omnic:library-name" label="Object name" category="Omnic"><input aria-label="Object name" maxLength={500} value={draftLabel} onChange={e=>setDraftLabel(e.target.value)}/></UIField><UIField id="omnic:library-tags" label="Object tags" category="Omnic"><input aria-label="Object tags" maxLength={3200} placeholder="Tags, separated by commas" value={draftTags} onChange={e=>setDraftTags(e.target.value)}/></UIField><UIField id="omnic:lexicon-words" label="English variants" category="Omnic"><input aria-label="English variants" maxLength={51456} title="Explicit English words or phrases for this glyph, separated by commas. Case-insensitive; conflicting mappings stay English." placeholder="English variants, separated by commas" value={draftWords} onChange={e=>setDraftWords(e.target.value)}/></UIField><UIAction id="omnic:update-object" label="Save name / tags / words" category="Omnic" onClick={()=>attempt(()=>onChange(organizeObject({...workspace,entities:workspace.entities.map(e=>e.id===selected.id?{...e,label:draftLabel,lexiconWords:tags(draftWords)}:e)},selected.id,{tags:tags(draftTags)})))}/></div>
       <div className="omnic-row"><label><input type="checkbox" checked={item?.preset??false} onChange={e=>attempt(()=>onChange(organizeObject(workspace,selected.id,{preset:e.target.checked})))}/>Reusable preset</label>{workspace.library.collections.map(c=><label key={c.id}><input type="checkbox" checked={item?.collections.includes(c.id)??false} onChange={e=>attempt(()=>onChange(organizeObject(workspace,selected.id,{collections:e.target.checked?[...(item?.collections??[]),c.id]:(item?.collections??[]).filter(id=>id!==c.id)})))}/>{c.name}</label>)}</div>
       <small>Used in {workspace.atlases.filter(a=>a.document.placements.some(p=>p.entityId===selected.id)).length} atlases · {dependents} dependent objects</small>
       {item?.derivedFrom&&<button type="button" onClick={()=>setSelectedId(item.derivedFrom!)}>Copied from {workspace.entities.find(e=>e.id===item.derivedFrom)?.label||item.derivedFrom}</button>}

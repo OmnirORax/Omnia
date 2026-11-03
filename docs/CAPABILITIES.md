@@ -58,6 +58,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Position through the shared DOF editor](#omnic-position-vector) | Implemented for preview review; not production deployed. | Omnic Composer → right-click a target → ⊕ Position. Position uses the normal top DOF/mode/fractions/reference controls. |
 | [Shared MS selection inside Omnic Composer](#omnic-ms-selection) | Implemented for review on the workbench PR; not deployed to production. | Open Omnic Composer. Click/drag selects through MS. Q starts targeting directly; an active numeric context uses Q for its reference. MS settings is the explicit configuration command. |
 | [Ordered direction paths, unit traces and drawing](#omnic-path-rule) | Implemented for review in the feature PR; production unchanged; browser acceptance pending | Omnic Composer → right-click empty space → ↱ Path rule. Existing paths: right-click their trace → Path rule. No reference selection is required for rule authoring. |
+| [Editable node documents and English–Omnic paste lexicon](#atlas-documents) | Implemented for review; production deployment and browser acceptance pending | Click a 3D node name → Document. Its Lexicon button opens the existing Omnic library; select a saved Composer object → English variants → Save name / tags / words. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1300,6 +1301,31 @@ A circular cardinal-direction editor appends numbered instructions in click orde
 **Command IDs:** `path.removeInstruction`.
 
 **Related:** [Target-derived radial DOF adjusters in the Omnic radar](#omnic-atomnic), [Legacy oscillation compatibility and playback](#omnic-motion).
+
+<a id="atlas-documents"></a>
+## Editable node documents and English–Omnic paste lexicon
+
+**ID:** `atlas.documents` · **Status:** Implemented for review; production deployment and browser acceptance pending
+
+**Where:** Click a 3D node name → Document. Its Lexicon button opens the existing Omnic library; select a saved Composer object → English variants → Save name / tags / words.
+
+A basic node-linked document renders directly over the atlas at its node anchor, outside the inspector. Type, select, delete, cut, copy and paste with native browser editing/undo. External plain-text paste inserts an independent live Omnic object reference before each longest matching explicit English word/phrase, preserving the original spelling, punctuation and whitespace. English can be deleted independently until only glyphs remain. English variants are explicit comma-separated mappings on the existing workspace-wide canonical object; case-insensitive exact word matching, longest phrases, no inferred synonyms. Conflicting mappings stay English. Internal copy/cut/paste preserves glyph identity without annotating again. Document edits save after 700 ms idle and on blur/close/page hide through the existing workspace/history/storage owner; typing does not commit each keystroke or rebuild 3D name textures. Shared object changes update existing glyph references. Existing library collections, tags, filters, cross-atlas placement, revision/pin/copy and cloud/export paths remain intact. Node documents and mappings travel with atlas/workspace JSON; independent atlas import remaps document references.
+
+**Minimal working test**
+
+1. Save a Composer object. Open Omnic library, select it, enter make, create, produce in English variants, and click Save name / tags / words. **Expected:** The variants persist on that same canonical object; its Composer structure and existing organization remain intact.
+2. Click a node name in the atlas, choose Document, and paste Make, create! followed by a line break and produce. **Expected:** The document appears at the node outside the inspector. The saved glyph precedes each matching word; spelling, punctuation and the line break remain.
+3. Select and delete the English next to a glyph; type new text, use Enter, and undo/redo. Cut/copy and paste a mixed selection into another node document in the same workspace. **Expected:** The glyph remains independently editable/deletable. Internal clipboard transfer retains object references and adds no duplicate annotation. Native text undo remains available.
+4. Wait for Saved locally, close/reopen Document, switch atlas and reopen another placement of the same canonical entity. Export/import the workspace or import an exported atlas independently. **Expected:** The body persists and reused placements share it. Workspace export keeps the shared library and atlases; independent atlas import remaps glyph IDs to its independent imported objects.
+5. Map the same English variant to two distinct objects, then paste it. Paste an unmapped word or a substring inside a longer word. **Expected:** Conflicting and unmapped words remain English; substrings are not annotated.
+
+**Limits / unavailable behavior:** Paste-time annotation only; typed words and old passages are not automatically reannotated. No semantic disambiguation, stemming or Obsidian bulk importer. One open document surface at a time. Per document: 200,000 text characters and 4,000 glyph occurrences; existing 8 MB workspace and 5 MB atlas-import budgets remain. Static glyph renderings reuse one image per object, load lazily, and share a 32,000-primitive preparation budget; excessive or unevaluable structures retain their references with an Open Omnic preview-budget placeholder. No animation in running text. Internal clipboard preserves references within a workspace; outside apps receive text plus bracketed glyph names, and cross-workspace unknown glyph IDs reject paste. Use JSON export for lossless transfer. Drag/drop and rich formatting are excluded. Saves blocked by limits remain unsaved and report errors; reduce contents or copy them out before leaving. Browser smoothness, caret behavior, native clipboard/undo and newline rendering await user verification.
+
+**Verification:** browser — Pending user interaction acceptance; no browser suites run. Automated — Passed node --run test, node --run build:preview (TypeScript and property contracts included), and node --run backend:check. Portable regressions cover matching, conflicts, independent deletion, limits, round-trip and import reference remapping. Browser acceptance remains pending..
+
+**Details:** [subsystem guide](NODE_DOCUMENTS.md). **Implementation:** [src/text/model.ts](../src/text/model.ts), [src/text/dom.ts](../src/text/dom.ts), [src/text/NodeDocument.tsx](../src/text/NodeDocument.tsx), [src/graph/structural.ts](../src/graph/structural.ts), [src/omnic/Library.tsx](../src/omnic/Library.tsx), [src/omnic/workspace.ts](../src/omnic/workspace.ts), [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx).
+
+**Related:** [Shared library, multiple atlases and copy provenance](#library-objects).
 
 ## Exact registered command inventory
 

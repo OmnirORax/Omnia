@@ -1,3 +1,5 @@
+import { NodeDocument } from "./text/NodeDocument";
+import type { NodeText } from "./text/model";
 import {featureActionRuntime} from './featureActions';
 import { setToolCursorZone } from "./ui/toolCursorZone";
 import { createNudgeGesture } from "./navigation/nudgeGesture";
@@ -61,6 +63,9 @@ type Props = {
   colorPreview?: ColorPreview | null;
   atlas: Atlas;
   document: Document;
+  saveStatus: string;
+  onSaveText: (entityId: string, text: NodeText) => boolean;
+  onOpenLibrary: () => void;
   variantDisplay: ReturnType<typeof projectVariants>;
   expandedVariants: ReadonlySet<string>;
   optionNodeId: string | null;
@@ -122,6 +127,11 @@ export default function SpatialWorkspace(props: Props) {
   const { atlas, selectedId, settings, command, document: doc } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const optionBarRef = useRef<HTMLDivElement>(null);
+  const documentAnchor = useRef<HTMLDivElement>(null);
+  const [documentNodeId, setDocumentNodeId] = useState<string | null>(null);
+  const documentNodeRef = useRef(documentNodeId); documentNodeRef.current = documentNodeId;
+  const documentEntity = doc.entities.find(e => e.id === doc.placements.find(p => p.id === documentNodeId)?.entityId);
+  useEffect(() => { stateRef.current?.requestRender(); }, [documentNodeId]);
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = useMemo(() => projectSpatial(atlas), [atlas]);
@@ -226,6 +236,7 @@ export default function SpatialWorkspace(props: Props) {
           if (element.style.top !== top) element.style.top = top;
         };
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
+        anchorElement(documentAnchor.current, documentNodeRef.current ?? "", true);
         const selected = textScene.current?.nodes.get(callbacks.current.selectedId ?? "")?.anchor ?? worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
         if (selectedBackground || hierarchyBackground !== null) applyBackgroundFeedback();
@@ -859,10 +870,14 @@ export default function SpatialWorkspace(props: Props) {
     {error && <div className="spatial-error" role="alert">{error}</div>}
     <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "auto" ? "node: object center · selected branch: orbit · no selection: look" : activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
     {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
+      <button data-ui-id="open-node-document" onClick={() => { setDocumentNodeId(props.optionNodeId); props.onDismissOptions(); }}>Document</button>
       {NODE_OPTIONS.map((option) => <div className="node-option" key={option.id}>
         <button aria-expanded={props.expandedVariants.has(props.optionNodeId!)} onClick={() => props.onToggleVariants(props.optionNodeId!)}>{option.label}</button>
         {option.id === "variants" && <button className="variant-add" aria-label={`Add variant for ${graph.nodes.find((n) => n.id === props.optionNodeId)?.label || "node"}`} title="Add variant" onContextMenu={(event) => event.preventDefault()} onClick={() => props.onAddVariant(props.optionNodeId!)}>+</button>}
       </div>)}
+    </div>}
+    {documentEntity && documentNodeId && <div className="node-document-anchor" ref={documentAnchor}>
+      <NodeDocument key={documentEntity.id} entity={documentEntity} entities={doc.entities} saveStatus={props.saveStatus} onSave={props.onSaveText} onLibrary={props.onOpenLibrary} onClose={() => setDocumentNodeId(null)} />
     </div>}
     <div className="spatial-controls">
       <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />

@@ -2231,6 +2231,13 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
               document={document}
+              saveStatus={saveStatus}
+              onSaveText={(entityId, text) => {
+                const current = documentRef.current;
+                if (!current.entities.some(entity => entity.id === entityId)) return false;
+                return commitDocument({ ...current, entities: current.entities.map(entity => entity.id === entityId ? { ...entity, text } : entity) });
+              }}
+              onOpenLibrary={() => setOmnicLibraryOpen(true)}
               selectedId={selection?.kind === "node" ? selection.id : null}
               variantDisplay={variantDisplay}
               selectedIds={selectedIds}
