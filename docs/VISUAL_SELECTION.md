@@ -28,11 +28,26 @@ canvas memberships store before/after snapshots in the same transient MS timelin
 Undo/Redo/clear replay through registered native setters. Surface identity includes
 the atlas context, so old selection history cannot act on another atlas.
 
-Shift-click uses a spatial surface adapter when available. Ordinary DOM/UI ranges
-retain the existing source-order fallback within one declared surface/frame.
-Neither range traverses unrelated surfaces. Temporary reference picking yields to
-explicit multi-selection before changing membership. Pointed misses do nothing.
-Browser/OS-reserved combinations may be unavailable; browser acceptance is pending.
+**Ctrl-click** toggles exactly the pointed authored object without replacing the
+others. **Shift-click** adds the spatial range between the previous anchor and the
+pointed endpoint. Both work on registered Composer/atlas surfaces before opening
+MS, and while MS is active. Ctrl/Shift drag adds a marquee without removing existing
+members; a modified empty click leaves membership unchanged. Ordinary DOM/UI
+Shift ranges retain source-order fallback within one declared surface/frame.
+
+The shared MS capture owner claims modifier pointer-down, motion, release and the
+trailing native click. Membership changes on release, so normal Composer target /
+reference editing and atlas single-selection never also receive the gesture.
+Active MS honors its configured selection click, including clears/rebindings and
+exact-command priority. Outside active MS the registered surfaces provide the
+native Ctrl/Shift primary-click convention. Selection adapters may clean up active
+owner tools with `onStart`, and supply precise `snapshot.area` hits; Composer reuses
+its actual structural intersections rather than coarse bounding-box corners.
+Borrowed single-reference picking yields to explicit modifier multi-selection,
+restoring its checkpoint before the new membership is committed. Surface/context
+replacement and pointer cancellation abandon the gesture without selecting.
+Neither range traverses unrelated surfaces. Browser interaction acceptance remains
+pending after the user's report that the previous modifier-click path failed.
 
 ## One circle, independent geometry
 

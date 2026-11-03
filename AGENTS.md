@@ -119,6 +119,12 @@ opens selection settings. Esc from settings returns to aiming with selection
 intact; Esc outside settings cancels MS. Ctrl + the assigned MS opening shortcut
 (Ctrl+Q by default) toggles the pointed object. Shift + that shortcut (Shift+Q)
 adds objects intersecting the projected rectangle between anchor and endpoint.
+Ctrl-click toggles and Shift-click extends the range on registered Composer/atlas
+surfaces, including before MS opens. The shared MS capture owner claims the entire
+modifier press/drag/release/click tail; normal tools must not replace membership.
+Owner onStart cleanup and precise area hits belong in the existing surface adapter;
+do not restore a private Composer Ctrl-selection path. Active MS still respects its
+configured selection click; blocked/capture/editor chrome remains protected.
 Renderer adapters supply actual owners, hit tests and bounds; do not confuse
 spatial range with document order. Shift-click uses the adapter where available,
 retaining source-order fallback in ordinary UI. Derived chords follow rebinding;

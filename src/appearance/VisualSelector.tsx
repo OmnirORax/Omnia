@@ -1,7 +1,7 @@
-import { selectionSurfaces, spatialSelectionRange } from "./selectionSurfaces";
+import { selectionSurfaces, spatialSelectionRange, selectionPointerMode } from "./selectionSurfaces";
 import { orderedSelectionRange, rangeWorkingScope, selectorOpenPhase, selectorEscapePhase } from "./selectionRange";
 import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
-import {nativeSelectionDragged,nativeSelectionTogglePress,selectionGroupIncluded,selectionRequest,selectionConfirmation,selectionOpenContexts,selectionDecision,type SelectionDecision} from './selectionRequest';
+import {nativeSelectionDragged,selectionRequest,selectionConfirmation,selectionOpenContexts,selectionDecision,type SelectionDecision} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
 import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
@@ -30,8 +30,7 @@ import {
 
 type SelectionState = { surfaces?:Record<string,readonly string[]>; boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
 export type ReferenceSelection={element:Element;boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
-type NativeSelectionCallbacks={click:()=>readonly Element[];area:(start:Point,end:Point)=>readonly Element[]};
-type VisualSelection = SelectionState & { requesting:boolean;registerOpenContext:(context:{contains:(target:Element)=>boolean;open:()=>boolean})=>()=>void;setElements:(elements:readonly Element[])=>void;toggleElements:(elements:readonly Element[],append?:boolean)=>void;beginNativeSelection:(event:PointerEvent,callbacks:NativeSelectionCallbacks)=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
+type VisualSelection = SelectionState & { requesting:boolean;registerOpenContext:(context:{contains:(target:Element)=>boolean;open:()=>boolean})=>()=>void;setElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "locked";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -73,9 +72,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const [geometry, setGeometry] = useState(0);
   const [inspectionRequest, requestInspection] = useState(0);
   const [inventoryOpen, setInventoryOpen] = useState(false);
-  const nativeGesture=useRef<{id:number;start:Point;end:Point;callbacks:NativeSelectionCallbacks}|null>(null);
+  const nativeGesture=useRef<{id:number;start:Point;end:Point;finish:(end:Point)=>void}|null>(null);
   const [nativeMarquee,setNativeMarquee]=useState<{start:Point;end:Point}|null>(null);
-  const nativeFinish=useRef<(elements:readonly Element[],append:boolean)=>void>(()=>{});
   const [drawing, setDrawing] = useState(false);
   const [automaticRegion, setAutomaticRegion] = useState<SelectionSide>("inside");
   const point = useRef<{ x: number; y: number; element: Element } | null>(null);
@@ -289,9 +287,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       ...(latest.current.configuration.patternRole ? { role: latest.current.configuration.patternRole } : {}) } });
     accept(true); polygon.current = null; setDrawing(false);
   };
-  const spatialPick=(mode:'toggle'|'range',p:{x:number;y:number},nativeOnly=false)=>{
-    const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return false;
-    const transaction=selectionSurfaces.prepare(element,p,mode,nativeOnly);if(!transaction)return false;
+  const applySurfacePick=(transaction:NonNullable<ReturnType<typeof selectionSurfaces.prepare>>)=>{
     const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
     cancelDrawing();
     if(transaction.elements){setElements(transaction.elements);setPhase('aim');return true;}
@@ -301,6 +297,17 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       return appendTransient({...previous,states},{...before,surfaces:{...before.surfaces,[transaction.id]:transaction.after}});
     });
     setPhase('aim');return true;
+  };
+  const spatialPick=(mode:'toggle'|'range',p:{x:number;y:number},nativeOnly=false)=>{
+    const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return false;
+    const transaction=selectionSurfaces.prepare(element,p,mode,nativeOnly);return transaction?applySurfacePick(transaction):false;
+  };
+  const beginSurfacePointer=(event:PointerEvent)=>{
+    const mode=selectionPointerMode(event);if(!mode||!(event.target instanceof Element))return false;
+    const start={x:event.clientX,y:event.clientY},finish=selectionSurfaces.beginPointer(event.target,start,mode);if(!finish)return false;
+    const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
+    cancelDrawing();nativeGesture.current={id:event.pointerId,start,end:start,finish:end=>{const transaction=finish(end);if(transaction)applySurfacePick(transaction);}};
+    setDrawing(true);return true;
   };
   const pointedMembership=(mode:'toggle'|'range',input?:KeyboardEvent|MouseEvent)=>{
     const p=inputPosition(input);if(spatialPick(mode,p))return;
@@ -320,6 +327,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   };
   const begin = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
+    if(event instanceof PointerEvent&&beginSurfacePointer(event))return;
     const config = latest.current.configuration, p = { x: event.clientX, y: event.clientY };
     settledPoint.current = null;
     setPhase("aim");
@@ -450,8 +458,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     "selector.releaseGeometry": { enabled: canConfigure && !!selection.scope, run: () => { cancelDrawing(); record(current => ({ ...current, scope: null })); } },
     "selector.closePath": { enabled: canConfigure && configuration.pattern === "freehand", run: () => setConfiguration(config => ({ ...config, closed: !config.closed })) },
   });
-  const actions = useRef({ pickAt, close, accept, edit, begin, rotateGeometry });
-  actions.current = { pickAt, close, accept, edit, begin, rotateGeometry };
+  const actions = useRef({ pickAt, close, accept, edit, begin, rotateGeometry, beginSurfacePointer });
+  actions.current = { pickAt, close, accept, edit, begin, rotateGeometry, beginSurfacePointer };
   const matches = useMemo(() => resolveVisualSelection(catalog, selection.boundary, selection.rules, measurements), [catalog, selection, geometry]);
   selectedRef.current = matches.included;
   const editableParts = useMemo(() => describeSelectedParts(matches.included), [matches]);
@@ -500,9 +508,12 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const down = (event: PointerEvent) => {
       clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false;
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
-      if(nativeSelectionTogglePress(event)&&event.composedPath().some(target=>target instanceof Element&&target.matches('[data-selection-native-toggle]'))){
-        if(requestedPick.current)actions.current.close();
-        consumedPointer=null;consumedUntil=0;return;
+      // The registered surface owns modifier selection even before MS opens.
+      // Active MS dispatches through its normal command router into begin().
+      if(outsideChrome(event)&&(latest.current.phase==='off'||latest.current.phase==='locked')&&actions.current.beginSurfacePointer(event)){
+        commandButton=event.button;consumedPointer=event.pointerId;consumedUntil=performance.now()+1500;
+        claimUIPress(event.pointerId,event.pointerType,event.buttons);
+        event.preventDefault();event.stopImmediatePropagation();return;
       }
       // A borrowed picker yields secondary input to registered context menus.
       // Keep this press and its native tail together; standalone MS is unchanged.
@@ -531,8 +542,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       const native=nativeGesture.current;
       if(native&&native.id===event.pointerId){
         nativeGesture.current=null;cancelAnimationFrame(frame);frame=0;setNativeMarquee(null);setDrawing(false);
-        const end={x:event.clientX,y:event.clientY},dragged=nativeSelectionDragged(native.start,end);
-        nativeFinish.current(dragged?native.callbacks.area(native.start,end):native.callbacks.click(),dragged);
+        const end={x:event.clientX,y:event.clientY};
+        native.finish(end);
         commandButton=event.button;consumedPointer=null;consumedUntil=performance.now()+1500;
         event.preventDefault();event.stopImmediatePropagation();return;
       }
@@ -696,28 +707,6 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     setCatalog(parts);cancelDrawing();record(()=>({...emptySelection(),boundary:rules.length?boundaryFor(document.body):null,rules}));
     setPhase(before=>before==='locked'?'locked':'off');
   },[record]);
-  const toggleElements=useCallback((elements:readonly Element[],append=false)=>{
-    if(requestedPick.current||!elements.length)return;
-    rangeAnchor.current=boundaryFor(selectionRangeUnit(elements[0]));
-    const parts=collectVisualParts(),measure=createVisualMeasurements();
-    const group=elements.map(element=>({boundary:boundaryFor(element),include:true,backgrounds:true}));
-    const wanted=new Set(group.flatMap(rule=>matchingVisualParts(parts,rule,measure).map(p=>p.key)));
-    if(!wanted.size)return;
-    setCatalog(parts);cancelDrawing();
-    record(current=>{
-      const included=resolveVisualSelection(parts,current.boundary,current.rules,measure).included;
-      const include=append||selectionGroupIncluded([...wanted],new Set(included.map(p=>p.key)));
-      const retained=included.map(part=>({boundary:boundaryFor(part.element),part:part.key,include:true,backgrounds:true}));
-      return {...emptySelection(),boundary:boundaryFor(document.body),rules:[...retained,...group.map(rule=>({...rule,include}))]};
-    });
-    completeSelection();
-  },[record,completeSelection]);
-  nativeFinish.current=toggleElements;
-  const beginNativeSelection=useCallback((event:PointerEvent,callbacks:NativeSelectionCallbacks)=>{
-    gesture.current=null;polygon.current=null;setCandidatePick(null);
-    nativeGesture.current={id:event.pointerId,start:{x:event.clientX,y:event.clientY},end:{x:event.clientX,y:event.clientY},callbacks};
-    setNativeMarquee(null);setDrawing(true);
-  },[setCandidatePick]);
   const requestPick=useCallback((accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void)=>{
     const retained=requestCheckpoint.current??{timeline,configuration:{...configuration}};
     const previous=requestedPick.current;requestedPick.current=null;if(previous)previous.cancel();
@@ -730,9 +719,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const feedbackAvailable = phase !== "off" || hasSelection();
   const feedbackBinding = shortcuts.binding("selector.feedbackView");
   const requesting=!!requestedPick.current;
-  const contextValue = useMemo(() => ({ ...selection,requesting,registerOpenContext,setElements,toggleElements,beginNativeSelection,undoSelection:undo,redoSelection:redo,canUndo:timeline.index>0,canRedo:timeline.index<timeline.states.length-1, parts: matches.included, properties, clear, selectObject, inspectionKey,
+  const contextValue = useMemo(() => ({ ...selection,requesting,registerOpenContext,setElements,undoSelection:undo,redoSelection:redo,canUndo:timeline.index>0,canRedo:timeline.index<timeline.states.length-1, parts: matches.included, properties, clear, selectObject, inspectionKey,
     feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick }),
-    [selection,requesting,registerOpenContext,setElements,toggleElements,beginNativeSelection,timeline.index,timeline.states.length, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
+    [selection,requesting,registerOpenContext,setElements,timeline.index,timeline.states.length, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
   const active = phase !== "off" || !!selection.boundary || !!nativeMarquee;
   const wasMasterOpen = useRef(masterOpen);
   useEffect(() => {

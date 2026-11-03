@@ -297,3 +297,46 @@ test('surface selection replay cannot affect a different atlas context',async()=
  context='atlas-b';registry.apply(transaction.id,transaction.after);assert.equal(applies,0);
  context='atlas-a';registry.apply(transaction.id,transaction.after);assert.equal(applies,1);
 });
+
+test('native Ctrl/Shift selection claims registered surfaces before ordinary target editing',async()=>{
+ const {selectionPointerMode,createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const event={button:0,ctrlKey:false,shiftKey:false,metaKey:false,altKey:false};
+ assert.equal(selectionPointerMode(event),undefined);
+ assert.equal(selectionPointerMode({...event,ctrlKey:true}),'toggle');
+ assert.equal(selectionPointerMode({...event,metaKey:true}),'toggle');
+ assert.equal(selectionPointerMode({...event,shiftKey:true}),'range');
+ assert.equal(selectionPointerMode({...event,ctrlKey:true,shiftKey:true}),'range');
+ assert.equal(selectionPointerMode({...event,ctrlKey:true,altKey:true}),undefined);
+ assert.equal(selectionPointerMode({...event,ctrlKey:true,button:2}),undefined);
+ const registry=createSelectionSurfaces(),root={contains:node=>node===child},child={},unrelated={};
+ let selected=['a'];
+ const units=['a','b','c'].map((id,i)=>({id,box:{left:i*10-1,right:i*10+1,top:-1,bottom:1}}));
+ registry.register({element:()=>root,snapshot:()=>({units,selected,hit:p=>units.find(unit=>Math.abs((unit.box.left+1)-p.x)<2)?.id}),apply:ids=>{selected=[...ids];}});
+ const click=registry.beginPointer(child,{x:10,y:0},selectionPointerMode({...event,ctrlKey:true}));
+ assert.equal(typeof click,'function','descendant targets are claimed without opening MS first');
+ assert.deepEqual(selected,['a'],'pointer down only owns the gesture; no single-target replacement');
+ const added=click({x:10,y:0});assert.deepEqual(added.after,['a','b']);registry.apply(added.id,added.after);
+ const removed=registry.beginPointer(child,{x:10,y:0},'toggle')({x:10,y:0});
+ assert.deepEqual(removed.after,['a'],'Ctrl-click toggles only its target');registry.apply(removed.id,removed.after);
+ const range=registry.beginPointer(child,{x:20,y:0},'range')({x:20,y:0});
+ assert.deepEqual(range.after,['a','b','c'],'Shift-click adds the spatial objects between the anchor and endpoint');
+ const miss=registry.beginPointer(child,{x:100,y:0},'toggle');assert.equal(miss({x:100,y:0}),undefined,'blank modified clicks do not clear selection');
+ assert.equal(registry.beginPointer(unrelated,{x:10,y:0},'toggle'),undefined,'other controls retain native handling');
+});
+test('modified pointer drags add a bounded marquee and cancel on surface/context replacement',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={};let context='first',selected=['keep'];
+ const units=[{id:'keep',box:{left:50,right:51,top:50,bottom:51}},{id:'inside',box:{left:2,right:3,top:2,bottom:3}},{id:'outside',box:{left:20,right:21,top:20,bottom:21}}];
+ const off=registry.register({element:()=>root,context:()=>context,snapshot:()=>({units,selected,hit:()=>undefined}),apply:()=>{}});
+ const drag=registry.beginPointer(root,{x:0,y:0},'toggle');
+ assert.deepEqual(drag({x:10,y:10}).after,['keep','inside'],'Ctrl marquee adds instead of replacing prior selection');
+ const canceled=registry.beginPointer(root,{x:0,y:0},'range');context='second';assert.equal(canceled({x:10,y:10}),undefined);
+ const removed=registry.beginPointer(root,{x:0,y:0},'toggle');off();assert.equal(removed({x:10,y:10}),undefined);
+});
+test('registered selection gestures run owner cleanup once and use precise renderer marquee hits',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={};let starts=0;
+ registry.register({element:()=>root,onStart:()=>starts++,snapshot:()=>({selected:['keep'],units:[{id:'bounding-box-only',box:{left:0,right:10,top:0,bottom:10}}],hit:()=>undefined,area:()=>['actual-ink']}),apply:()=>assert.fail('preparing must not commit')});
+ const finish=registry.beginPointer(root,{x:0,y:0},'toggle');
+ assert.equal(starts,1);assert.deepEqual(finish({x:10,y:10}).after,['keep','actual-ink']);assert.equal(starts,1);
+});

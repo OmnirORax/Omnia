@@ -1,7 +1,6 @@
 import { useSelectionSurface } from "../appearance/useSelectionSurface";
 import { selectedEditorDegrees } from "./targetDegrees";
 import { commandDegree, repeatedDegree } from "./degreeCommands";
-import {nativeSelectionTogglePress} from '../appearance/selectionRequest';
 import {authoredNodeOwners} from './contextGeometry';
 import {selfReference} from '../properties/referenceUse';
 import {useVisualSelection} from '../appearance/VisualSelector';
@@ -139,10 +138,17 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     return groups;
   };
   useSelectionSurface(localSurface,{
+    onStart:()=>{cancel();dismissPanel?.();cancelPreview?.();setActiveDof(null);setPanel({kind:'functions'});setGhost(undefined);localSurface.current?.focus({preventScroll:true});activateTarget?.();},
     snapshot:()=>{
       const root=localSurface.current!,groups=ownerElements();
       const units=[...groups].flatMap(([id,elements])=>{const boxes=elements.map(element=>element.getBoundingClientRect()).filter(box=>box.width||box.height);return boxes.length?[{id,box:{left:Math.min(...boxes.map(b=>b.left)),top:Math.min(...boxes.map(b=>b.top)),right:Math.max(...boxes.map(b=>b.right)),bottom:Math.max(...boxes.map(b=>b.bottom))}}]:[];});
-      return {units,selected:[...selectedRef.current],hit:p=>{const node=pickStructuralNode(evaluation?.nodes??[],local({currentTarget:root,clientX:p.x,clientY:p.y}));return node?selectionOwners.get(node.id):undefined;}};
+      const area=(a:Point,b:Point)=>{
+        const box=root.getBoundingClientRect(),edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);
+        const project=(p:Point)=>({x:bounds.x+bounds.width/2+((p.x-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((p.y-box.top-(box.height-edge)/2)/edge-.5)*scale});
+        const nodes=evaluation?.nodes??[],components=structuralIdsInRect(nodes,project(a),project(b));
+        return [...new Set(nodes.filter(node=>components.has(node.componentId)).flatMap(node=>selectionOwners.get(node.id)??[]))];
+      };
+      return {units,area,selected:[...selectedRef.current],hit:p=>{const node=pickStructuralNode(evaluation?.nodes??[],local({currentTarget:root,clientX:p.x,clientY:p.y}));return node?selectionOwners.get(node.id):undefined;}};
     },
     elements:ids=>{const groups=ownerElements();return ids.flatMap(id=>groups.get(id)??[]);},
     apply:()=>{},
@@ -246,19 +252,6 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     },
     down:(point,event)=>{
       if(event.button===2){secondary.current.press({point,event});return;}
-      if(nativeSelectionTogglePress(event)){
-        cancel();dismissPanel?.();cancelPreview?.();setActiveDof(null);setPanel({kind:'functions'});
-        setGhost(undefined);setHovered([]);
-        localSurface.current?.focus({preventScroll:true});activateTarget?.();
-        const role=event.target instanceof Element?event.target.closest('[data-omnic-role]')?.getAttribute('data-omnic-role')??undefined:undefined;
-        const nodes=evaluation?.nodes??[],groups=ownerElements();
-        const node=pickStructuralNode(nodes,point,role),owner=node&&selectionOwners.get(node.id),clicked=owner?groups.get(owner)??[]:[];
-        const box=localSurface.current!.getBoundingClientRect(),edge=Math.min(box.width,box.height),scale=Math.max(bounds.width,bounds.height);
-        const project=(p:{x:number;y:number})=>({x:bounds.x+bounds.width/2+((p.x-box.left-(box.width-edge)/2)/edge-.5)*scale,y:bounds.y+bounds.height/2+((p.y-box.top-(box.height-edge)/2)/edge-.5)*scale});
-        ms?.beginNativeSelection(event,{click:()=>clicked,area:(a,b)=>{const components=structuralIdsInRect(nodes,project(a),project(b)),owners=new Set(nodes.filter(n=>components.has(n.componentId)).map(n=>selectionOwners.get(n.id)));return [...owners].flatMap(id=>id?groups.get(id)??[]:[]);}});
-
-        return;
-      }
       if(referencePicker?.picking)return;
       secondary.current.cancel();
       activateTarget?.();
@@ -385,7 +378,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       <FunctionControl id={`atomnic:context:${id.slice(8)}`} mirror symbol={symbol} tooltip={`${operationLabel(id)}${hasInputs?' · Left-click uses retained settings; right-click configures':''}`} /></>;
   };
   const radialEntries:RadialEntry<ReactNode>[]=radialActions.filter(action=>action.id!=='atomnic.draw'&&!('radial' in action&&'inset' in action.radial)).map(action=>({id:action.id,label:operationLabel(action.id),symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:radialControl(action)}));
-  const surface=<div ref={attachSurface} tabIndex={-1} className="omnic-preview atomnic-surface" data-atomnic-surface data-selection-lens data-selection-native-toggle data-selection-scope={cursorZone} data-ui-gesture-owner="content" data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();api.context(e.nativeEvent);}} dangerouslySetInnerHTML={surfaceMarkup}
+  const surface=<div ref={attachSurface} tabIndex={-1} className="omnic-preview atomnic-surface" data-atomnic-surface data-selection-lens data-selection-scope={cursorZone} data-ui-gesture-owner="content" data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();api.context(e.nativeEvent);}} dangerouslySetInnerHTML={surfaceMarkup}
       onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerLeave={()=>{updateRotationHover(false);updateMoveHover(false);}} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />;
   const quickActions=radialActions.filter(action=>'radial' in action&&'inset' in action.radial);
   const rim=<RadialMenu heldOpen={!!extraPanel} quickItems={radar?[...quickActions.filter(action=>action.id!=='atomnic.erase').map(action=>radialControl(action)),...(modeControl?[modeControl]:[])]:undefined} quickEnd={radar?quickActions.filter(action=>action.id==='atomnic.erase').map(action=>radialControl(action)):undefined} items={radialTree([...radialEntries,...documentEntries])} navigationRef={radialNavigation} onNavigationChange={setRadialContext} onClose={()=>setMenu(null)}

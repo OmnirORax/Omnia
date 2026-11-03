@@ -2810,9 +2810,17 @@
     {
       "id": "selector.range",
       "title": "MS targeted toggle, spatial range and repeated configuration",
-      "where": "Start MS with Q. Hover a glyph/node and press Ctrl+Q to toggle it; hover another and press Shift+Q to extend spatially. Q again opens settings; Esc backs out/cancels. Shortcuts & functions → Visual selector lists both commands.",
-      "behavior": "Ctrl + the live MS opening shortcut toggles only the pointed object while retaining other membership. Shift + that shortcut adds the previous anchor, pointed endpoint and objects intersecting their projected screen-space rectangle. Composer adapters provide authored owners, precise geometry hits and whole-owner primitive elements; atlas adapters provide placement IDs, raycasting and projected bounds from existing native selection machinery. DOM order no longer decides spatial ranges between separate glyphs. Default Ctrl+Q / Shift+Q follow a rebound MS opening key; explicit rebindings/clears win and derived defaults yield to existing same-scope assignments. Both actions use normal catalog dispatch and scope/input protection. Surface geometry is prepared on command, not pointer/frame polling. Composer records existing MS part rules; atlas records native before/after memberships in the same transient MS history. Replay validates current identities and atlas context. Q again configures; Esc from settings returns to aiming and otherwise cancels/clears. Shift-click uses a renderer adapter when available, with the earlier source-order fallback retained for ordinary UI.",
+      "where": "Start MS with Q. Hover a glyph/node and press Ctrl+Q to toggle it; hover another and press Shift+Q to extend spatially. Q again opens settings; Esc backs out/cancels. Shortcuts & functions → Visual selector lists both commands. In Composer or atlas, Ctrl-click toggles and Shift-click adds a range, even before opening MS.",
+      "behavior": "Ctrl + the live MS opening shortcut toggles only the pointed object while retaining other membership. Shift + that shortcut adds the previous anchor, pointed endpoint and objects intersecting their projected screen-space rectangle. Composer adapters provide authored owners, precise geometry hits and whole-owner primitive elements; atlas adapters provide placement IDs, raycasting and projected bounds from existing native selection machinery. DOM order no longer decides spatial ranges between separate glyphs. Default Ctrl+Q / Shift+Q follow a rebound MS opening key; explicit rebindings/clears win and derived defaults yield to existing same-scope assignments. Both actions use normal catalog dispatch and scope/input protection. Surface geometry is prepared on command, not pointer/frame polling. Composer records existing MS part rules; atlas records native before/after memberships in the same transient MS history. Replay validates current identities and atlas context. Q again configures; Esc from settings returns to aiming and otherwise cancels/clears. Shift-click uses a renderer adapter when available, with the earlier source-order fallback retained for ordinary UI. Shared MS owns modifier pointer-down through drag/release and native click tail on registered surfaces. Ctrl-click toggles one object; Shift-click adds the spatial range; modifier drag adds a marquee, while blank clicks preserve membership. Ordinary target/reference editing or atlas single-selection cannot replace the result. Owner cleanup and precise area hits use the same renderer adapter. Borrowed reference picking yields before committing multi-selection; canceled/replaced contexts do not commit. Active MS honors configured selection clicks and exact-command priority; native off/parked surface gestures use Ctrl/Shift primary click.",
       "steps": [
+        {
+          "do": "Before opening MS, Ctrl-click two separate objects in Composer and in the atlas, then Ctrl-click the first again. Repeat while MS is active and while a Position reference pick is pending.",
+          "expect": "Each release toggles only its pointed object, preserving the other selection. No ordinary target setter or single-reference acceptance runs from the same click."
+        },
+        {
+          "do": "Select an anchor; Shift-click an endpoint with other objects between them. Ctrl/Shift-drag a box, click blank space with a modifier, and cancel a held gesture.",
+          "expect": "Shift adds the spatial range; marquee adds actual intersecting objects without clearing prior members. Blank clicks/canceled gestures preserve membership."
+        },
         {
           "do": "Start MS, hover one glyph/node and press Ctrl+Q; hover a second and press Ctrl+Q. Toggle the first again.",
           "expect": "The pointed objects are selected individually; toggling one removes only that object and retains the other."
@@ -2845,7 +2853,8 @@
         "src/appearance/selectionSurfaces.ts",
         "src/appearance/useSelectionSurface.ts",
         "src/SpatialWorkspace.tsx",
-        "src/omnic/AtomnicEditor.tsx"
+        "src/omnic/AtomnicEditor.tsx",
+        "src/appearance/selectionRequest.ts"
       ],
       "actions": [
         "selector.togglePointed",
@@ -2857,8 +2866,8 @@
       "status": "Implemented for review; production deployment and browser acceptance pending",
       "limits": "Spatial range means intersection with a screen-space rectangle between endpoint centers, not a 3D depth volume or inferred semantic order. Only registered visible object units are picked. Native atlas selection supports its existing placement workflows; this does not add arbitrary pixel/mesh property inference. Ordinary DOM/UI Shift-click retains source-order fallback. Browser/OS-reserved chords may remain unavailable. Browser interaction acceptance pending.",
       "verification": {
-        "browser": "Pending user acceptance of Ctrl+Q, Shift+Q and selection feedback in both surfaces",
-        "automated": "Passed complete model/architecture suite, preview build (TypeScript/property contracts included), and backend type checks. Regressions cover derived chords/rebindings/clears/conflicts, one-object toggling, spatial rectangle membership, missing anchors/IDs and atlas-context replay. The source pre-push gate repeats required checks at the delivered commit."
+        "browser": "User reports modifier clicks still replaced selection in the preceding preview (2026-11-03). Shared pointer-ownership correction implemented; user retest pending. No browser suites run.",
+        "automated": "Passed complete model/architecture suite, preview build (including TypeScript/property contracts), and backend type checks. Focused regressions cover modifier policy, delayed release/toggling/range, owner cleanup, precise area callbacks, blank/outside clicks and canceled context/surface lifetimes, alongside existing binding/conflict/history tests. The pre-push gate repeats all required checks on the delivered source. User browser retest remains pending."
       },
       "related": [
         "selector.core"

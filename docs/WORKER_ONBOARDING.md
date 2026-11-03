@@ -707,3 +707,9 @@ of React/Rnd className/inline geometry refreshes. This prevents native popover b
 and position jumps on focus/collapse/reopen. Preserve base coordinates while
 collapsing a projected window. Shared useWindowLayer raises only when below the
 current front layer, avoiding repeated local rerenders on same-window grabs.
+
+Composer and atlas Ctrl/Shift clicks now belong to the registered MS surface
+gesture owner, including when MS was off. It claims the whole pointer lifecycle;
+Ctrl toggles an owner, Shift adds a spatial range and modifier drag adds a marquee.
+Do not add private native selection handlers to an editing tool. Surface onStart
+cleanup/precise area hits preserve renderer behavior. See VISUAL_SELECTION.md.
