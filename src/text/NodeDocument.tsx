@@ -1,11 +1,12 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
+import { annotateTextNode, editableTextNodes, textPoint } from "./live";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
 import type { Entity } from '../graph/structural';
 import { RENDER_BUDGET } from '../renderBudget';
 import { omnicBudgetAsset } from '../omnic/presentation';
 import { evaluateRecipe } from '../omnic/evaluate';
 import { objectResolver } from '../omnic/revisions';
 import { renderSVG } from '../omnic/svg';
-import { compileLexicon, validateNodeText, type NodeText } from './model';
+import { compileLexicon, annotatedText, lexiconWindow, validateNodeText, type NodeText } from './model';
 import { escapeHTML, readTextDOM, textHTML, TEXT_CLIPBOARD } from './dom';
 import './document.css';
 
@@ -23,8 +24,11 @@ const empty: NodeText = { version: 1, content: [] };
 export function NodeDocument(props: Props) {
   const editor = useRef<HTMLDivElement>(null), latest = useRef(props); latest.current = props;
   const pending = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const annotating=useRef(false),composing=useRef(false);
+  const beforeInput=useRef<{node:Text;offset:number;prefix:Element|null}|undefined>(undefined);
+
   const committed = useRef(JSON.stringify(props.entity.text ?? empty));
-  const [status, setStatus] = useState('Saved'), [error, setError] = useState('');
+  const [status, setStatus] = useState('Saved'), [error, setError] = useState(''),[detectionError,setDetectionError]=useState('');
   const previousObjects = useRef<Entity[]>([]);
   const glyphObjects = useMemo(() => {
     const next = props.entities.filter(e => e.omnic), previous = previousObjects.current;
@@ -74,6 +78,30 @@ export function NodeDocument(props: Props) {
     setStatus('Editing…'); clearTimeout(pending.current);
     pending.current = setTimeout(() => saveRef.current(), 700);
   };
+  const detect=(kind:'insert'|'delete',full=false)=>{
+    const root=editor.current;if(!root||annotating.current||composing.current)return;
+    annotating.current=true;setDetectionError('');
+    try{
+      const selection=window.getSelection(),caret=selection?textPoint(selection.anchorNode,selection.anchorOffset):undefined;
+      const points=full?editableTextNodes(root).map(node=>({node,offset:node.length})): [caret,beforeInput.current].filter((point):point is {node:Text;offset:number;prefix?:Element|null}=>!!point&&root.contains(point.node));
+      const seen=new Set<Text>();
+      for(const point of points){if(seen.has(point.node))continue;seen.add(point.node);const window=full?{start:0,end:point.node.length}:lexiconWindow(point.node.data,Math.min(point.offset,point.node.length));annotateTextNode(root,point.node,window.start,window.end,annotate,glyphHTML,kind);}
+      if(kind==='delete'){
+        const prefix=beforeInput.current?.prefix;
+        if(prefix?.isConnected&&prefix.hasAttribute('data-node-word')){const next=prefix.nextSibling;if(!next?.textContent||/^\s/.test(next.textContent)){prefix.removeAttribute('data-node-word');prefix.setAttribute('data-node-detached','true');}}
+      }
+    }catch(failure){setDetectionError(failure instanceof Error?failure.message:String(failure));}
+    finally{annotating.current=false;beforeInput.current=undefined;}
+  };
+  const refreshRef=useRef(()=>{});refreshRef.current=()=>{
+    const root=editor.current;if(!root||annotating.current||composing.current)return;
+    annotating.current=true;setDetectionError('');let edited=false;
+    try{for(const node of editableTextNodes(root))edited=annotateTextNode(root,node,0,node.length,annotate,glyphHTML,'refresh')||edited;}
+    catch(failure){setDetectionError(failure instanceof Error?failure.message:String(failure));}
+    finally{annotating.current=false;}
+    if(edited)changed();
+  };
+  useEffect(()=>{const timer=setTimeout(()=>refreshRef.current(),0);return()=>clearTimeout(timer);},[annotate]);
   const copy = (event: ClipboardEvent<HTMLDivElement>) => {
     const selection = window.getSelection();
     if (!selection?.rangeCount || selection.isCollapsed) return false;
@@ -110,16 +138,21 @@ export function NodeDocument(props: Props) {
   return <section className="node-document" aria-label={`Document: ${props.entity.label || 'Untitled'}`} data-ui-gesture-owner="content"
     onPointerDown={event => event.stopPropagation()} onWheel={event => event.stopPropagation()} onContextMenu={event => event.stopPropagation()}>
     <header><strong>{props.entity.label || 'Untitled'}</strong><small role="status">{status === "Saved" ? props.saveStatus : status}</small>
-      <button data-ui-id="node-document-lexicon" title="Omnic library: select an object and set its English variants" onClick={props.onLibrary}>Lexicon</button>
+      <button data-ui-id="node-document-lexicon" title="Live matching is always on. Open the library to save a glyph’s English variants." onClick={props.onLibrary}>Lexicon</button>
       <button data-ui-id="node-document-close" aria-label="Close node document" onClick={() => { if (save()) props.onClose(); }}>×</button></header>
-    {error && <div role="alert">{error}</div>}
+    {(error||detectionError) && <div role="alert">{error||detectionError}</div>}
     <div ref={editor} className="node-document-content" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Node document"
-      spellCheck data-placeholder="Type or paste text…" onInput={changed} onBlur={() => save()}
+      spellCheck data-placeholder="Type or paste text…"
+      onBeforeInput={()=>{const selection=window.getSelection(),point=selection?textPoint(selection.anchorNode,selection.anchorOffset):undefined;beforeInput.current=point?{...point,prefix:point.node.previousSibling instanceof Element?point.node.previousSibling:null}:undefined;}}
+      onCompositionStart={()=>{composing.current=true;}}
+      onCompositionEnd={()=>{composing.current=false;detect('insert');changed();}}
+      onInput={event=>{if(annotating.current)return;const type=(event.nativeEvent as InputEvent).inputType??'';if(!type.startsWith('history'))detect(type.startsWith('delete')?'delete':'insert');else for(const marker of editor.current?.querySelectorAll('[data-node-caret]')??[])marker.remove();changed();}}
+      onBlur={()=>save()}
       onPaste={event => {
         event.preventDefault();
         try {
           const internal = event.clipboardData.getData(TEXT_CLIPBOARD);
-          const value: NodeText = internal ? JSON.parse(internal) : annotate(event.clipboardData.getData('text/plain'));
+          const value: NodeText = internal ? JSON.parse(internal) : annotatedText(event.clipboardData.getData('text/plain'),annotate);
           validateNodeText(value, new Set(objects.keys()));
           // Validate the replacement before touching the browser's native undo stack.
           const selection = window.getSelection(), range = selection?.rangeCount ? selection.getRangeAt(0) : null;

@@ -102,6 +102,16 @@ For AI music/wallpaper generation, playback or media services, also read
 [docs/AI_MEDIA_HANDOFF.md](docs/AI_MEDIA_HANDOFF.md). It records current backend/asset
 limitations, state ownership and performance constraints; it is not a feature spec.
 
+# Live node-document lexicon (2026-11-03)
+
+Glyph matching is automatic during typing, paste, opening existing content and
+saved lexicon changes. Lexicon opens the existing library; it is not an activation
+switch. Keep one mixed document with inline canonical Composer references.
+Automatic occurrences may link to their English source (`word`); deleting English
+detaches and preserves the glyph (`word: null`). Do not introduce a second text /
+glyph node store. Preserve composition, caret, undo, independent deletion, shared
+workspace history/portability and bounded typing work. See [NODE_DOCUMENTS.md](docs/NODE_DOCUMENTS.md).
+
 # Universal Master Controller signature
 
 **MS correction (2026-11-03):** Q starts targeting; Q again while MS is active

@@ -2670,29 +2670,29 @@
     },
     {
       "id": "atlas.documents",
-      "title": "Editable node documents and English–Omnic paste lexicon",
+      "title": "Editable node documents and live English–Omnic glyph detection",
       "where": "Click a 3D node name → Document. Its Lexicon button opens the existing Omnic library; select a saved Composer object → English variants → Save name / tags / words.",
-      "behavior": "A basic node-linked document renders directly over the atlas at its node anchor, outside the inspector. Type, select, delete, cut, copy and paste with native browser editing/undo. External plain-text paste inserts an independent live Omnic object reference before each longest matching explicit English word/phrase, preserving the original spelling, punctuation and whitespace. English can be deleted independently until only glyphs remain. English variants are explicit comma-separated mappings on the existing workspace-wide canonical object; case-insensitive exact word matching, longest phrases, no inferred synonyms. Conflicting mappings stay English. Internal copy/cut/paste preserves glyph identity without annotating again. Document edits save after 700 ms idle and on blur/close/page hide through the existing workspace/history/storage owner; typing does not commit each keystroke or rebuild 3D name textures. Shared object changes update existing glyph references. Existing library collections, tags, filters, cross-atlas placement, revision/pin/copy and cloud/export paths remain intact. Node documents and mappings travel with atlas/workspace JSON; independent atlas import remaps document references.",
+      "behavior": "Node-linked documents render directly at the atlas node outside the inspector. Type, select, delete, cut, copy and paste normally. Saved English variants on existing canonical Composer objects drive always-on detection during typing, paste, opening existing content and saved lexicon changes. Lexicon opens the library rather than activating matching. Matches receive independent inline glyph references before the retained English; glyphs are embedded objects, not Unicode stand-ins. Automatic occurrences retain a small English link so typing can revise a still-automatic suggestion and lexicon corrections can update it. Deleting English detaches the glyph and preserves it, allowing the document to become only Omnic. Legacy adjacent matches are adopted without duplicate glyphs. Match exact whole words/phrases case-insensitively, preserving punctuation and whitespace; conflicts stay English. Ordinary typing checks a bounded local window and reuses glyph images, while existing-content/lexicon refresh runs separately. Caret markers preserve the insertion point and never enter saved text; composition pauses detection. Native history input is not immediately reannotated. Workspace persistence/history, cross-atlas identity, library organization and import remapping remain shared.",
       "steps": [
         {
-          "do": "Save a Composer object. Open Omnic library, select it, enter make, create, produce in English variants, and click Save name / tags / words.",
-          "expect": "The variants persist on that same canonical object; its Composer structure and existing organization remain intact."
+          "do": "Save a Composer glyph. In Omnic library, select it, enter Macro, Constraint, Freedom in English variants and click Save name / tags / words.",
+          "expect": "The mapping is stored on that same canonical object; no separate lexicon activation is needed."
         },
         {
-          "do": "Click a node name in the atlas, choose Document, and paste Make, create! followed by a line break and produce.",
-          "expect": "The document appears at the node outside the inspector. The saved glyph precedes each matching word; spelling, punctuation and the line break remain."
+          "do": "Open a node Document and type freedom, then paste test, freedom is good, macro > micro.",
+          "expect": "An inline glyph appears before recognized words as you type or paste, while original English and punctuation remain. Detection does not require a trailing space."
         },
         {
-          "do": "Select and delete the English next to a glyph; type new text, use Enter, and undo/redo. Cut/copy and paste a mixed selection into another node document in the same workspace.",
-          "expect": "The glyph remains independently editable/deletable. Internal clipboard transfer retains object references and adds no duplicate annotation. Native text undo remains available."
+          "do": "Put the same English into a document before a mapping exists; save its variants in the library, or reopen the document after updating the app.",
+          "expect": "Existing English receives the recognized glyphs automatically without being repasted. Already annotated occurrences are not duplicated."
         },
         {
-          "do": "Wait for Saved locally, close/reopen Document, switch atlas and reopen another placement of the same canonical entity. Export/import the workspace or import an exported atlas independently.",
-          "expect": "The body persists and reused placements share it. Workspace export keeps the shared library and atlases; independent atlas import remaps glyph IDs to its independent imported objects."
+          "do": "Delete the English beside an automatic glyph, including backspacing it letter by letter. Continue typing elsewhere; close/reopen, export/import the workspace, or import the atlas independently.",
+          "expect": "The glyph remains independently, with the English link detached when that word is gone. Saved references and occurrence links survive; independent imports remap canonical IDs."
         },
         {
-          "do": "Map the same English variant to two distinct objects, then paste it. Paste an unmapped word or a substring inside a longer word.",
-          "expect": "Conflicting and unmapped words remain English; substrings are not annotated."
+          "do": "Extend a still-automatic matched word into an unmapped longer word, undo, and try a conflicting synonym mapping.",
+          "expect": "The automatic suggestion can revise with inserted English; native Undo/Redo is not immediately fought by reannotation. Conflicting mappings remain English."
         }
       ],
       "reference": "docs/NODE_DOCUMENTS.md",
@@ -2703,15 +2703,16 @@
         "src/graph/structural.ts",
         "src/omnic/Library.tsx",
         "src/omnic/workspace.ts",
-        "src/SpatialWorkspace.tsx"
+        "src/SpatialWorkspace.tsx",
+        "src/text/live.ts"
       ],
       "actions": [],
       "gestures": [],
       "status": "Implemented for review; production deployment and browser acceptance pending",
-      "limits": "Paste-time annotation only; typed words and old passages are not automatically reannotated. No semantic disambiguation, stemming or Obsidian bulk importer. One open document surface at a time. Per document: 200,000 text characters and 4,000 glyph occurrences; existing 8 MB workspace and 5 MB atlas-import budgets remain. Static glyph renderings reuse one image per object, load lazily, and share a 32,000-primitive preparation budget; excessive or unevaluable structures retain their references with an Open Omnic preview-budget placeholder. No animation in running text. Internal clipboard preserves references within a workspace; outside apps receive text plus bracketed glyph names, and cross-workspace unknown glyph IDs reject paste. Use JSON export for lossless transfer. Drag/drop and rich formatting are excluded. Saves blocked by limits remain unsaved and report errors; reduce contents or copy them out before leaving. Browser smoothness, caret behavior, native clipboard/undo and newline rendering await user verification.",
+      "limits": "No semantic disambiguation, stemming, bulk Obsidian importer, rich formatting or separate glyph-only node store. One open document at a time. Typing uses a bounded local window; initial/full lexicon refresh can process an entire existing document. Existing 200,000 text-character, 4,000 occurrence, 8 MB workspace and 5 MB atlas-import limits remain. Glyph preparation keeps its shared 32,000-primitive budget with explicit fallback images for excessive structures. A native automatic insertion may be a separate undo step; browser caret, IME, clipboard, undo and responsiveness remain user-verified. Saved mappings require Save name / tags / words; unsaved library draft fields do not drive detection. Outside apps receive bracketed names, while internal clipboard/JSON preserve structural references and occurrence links.",
       "verification": {
-        "browser": "Pending user interaction acceptance; no browser suites run",
-        "automated": "Passed node --run test, node --run build:preview (TypeScript and property contracts included), and node --run backend:check. Portable regressions cover matching, conflicts, independent deletion, limits, round-trip and import reference remapping. Browser acceptance remains pending."
+        "browser": "Pending user verification of live typing, existing-text refresh, caret/undo and English deletion; no browser suites run",
+        "automated": "Passed node --run test, node --run build:preview (including TypeScript/property contracts), and node --run backend:check. Regressions cover screenshot-word matching, immediate exact detection, prefix/deletion/link policies, bounded windows, metadata validation and import round-trip. Browser acceptance remains pending."
       },
       "related": [
         "library.objects"

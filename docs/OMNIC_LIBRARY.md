@@ -15,7 +15,7 @@ explicit version pins in [OMNIC_COMPOSER.md](OMNIC_COMPOSER.md).
 
 ## English variants and editable node documents
 
-The existing canonical library also supplies the explicit paste lexicon. Select a
+The existing canonical library also supplies the explicit live lexicon. Select a
 saved Composer object, set its comma-separated **English variants**, then choose
 **Save name / tags / words**. `Entity.lexiconWords` records only user-authored
 mappings; label/aliases/tags never silently become lexical equivalence. Existing
