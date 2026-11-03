@@ -233,3 +233,31 @@ test('an old editor cannot cancel a newer MS request, and rejection text never a
  assert.deepEqual(selectionDecision(true),{accepted:true,message:null});
  assert.deepEqual(selectionDecision(false),{accepted:false,message:'Unsupported target'});
 });
+
+test('MS repeated entry configures, Escape returns to aiming, then cancels',async()=>{
+ const {selectorOpenPhase,selectorEscapePhase}=await import('../src/appearance/selectionRange.ts');
+ let phase='off';phase=selectorOpenPhase(phase);assert.equal(phase,'aim');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'configure');
+ phase=selectorEscapePhase(phase);assert.equal(phase,'aim');
+ phase=selectorEscapePhase(phase);assert.equal(phase,'off');
+ assert.equal(selectorOpenPhase('locked'),'configure');
+});
+test('Shift range includes endpoints in either direction and handles missing anchors safely',async()=>{
+ const {orderedSelectionRange}=await import('../src/appearance/selectionRange.ts');
+ const items=['a','b','c','d','e'],key=item=>item;
+ assert.deepEqual(orderedSelectionRange(items,'b','e',key),['b','c','d','e']);
+ assert.deepEqual(orderedSelectionRange(items,'e','b',key),['b','c','d','e']);
+ assert.deepEqual(orderedSelectionRange(items,'c','c',key),['c']);
+ assert.deepEqual(orderedSelectionRange(items,'removed','d',key),['d']);
+ assert.deepEqual(orderedSelectionRange(items,'a','removed',key),[]);
+ assert.deepEqual(orderedSelectionRange(items.slice(2),'a','e',key),['e'],'another scope cannot drag an old anchor across unrelated content');
+});
+
+test('range can leave a pointed unit while retaining explicitly drawn working geometry',async()=>{
+ const {rangeWorkingScope,selectorOpenPhase}=await import('../src/appearance/selectionRange.ts');
+ const drawn={path:'authored geometry'},unit={ownerFrame:true,scope:drawn};
+ assert.equal(rangeWorkingScope(unit),drawn);
+ assert.equal(rangeWorkingScope({ownerFrame:true}),null,'a first unit does not constrain the next range to its own bounds');
+ assert.equal(rangeWorkingScope(drawn),drawn);
+ assert.equal(selectorOpenPhase('aim',true),'aim','a newly borrowed request starts picking, rather than interpreting its own opening as repeated Q');
+});

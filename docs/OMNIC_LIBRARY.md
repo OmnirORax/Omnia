@@ -27,6 +27,21 @@ Click a node name → **Document** for ordinary mixed text/glyph editing. Canoni
 `Entity.text` stores plain strings and live object IDs as independent siblings.
 See [node document contract](NODE_DOCUMENTS.md) and [capability walkthrough](CAPABILITIES.md#atlas-documents).
 
+## Saved glyph rendering and save actions
+
+**Save shared** updates the current canonical definition (and its live shared
+uses); **Save copy** creates and opens an independent object with its own identity.
+New-object Save shared creates its first canonical definition. Library **Save
+name / tags / words** updates metadata/lexicon, not Composer geometry.
+
+Canonical glyph previews derive SVG images from saved definitions. Their XML
+attributes must always have quoted values, even presence-only selection markers.
+The October 30 MS integration used HTML boolean shorthand, accepted by inline
+Composer HTML but rejected by SVG image decoding. This is corrected in the shared
+SVG exporter; existing canonical definitions regenerate without recreation.
+Model checks cover saved/draft image output; all eight preset assets were also
+validated with an independent XML parser. Browser acceptance remains pending.
+
 ## Identity and persistence
 
 `omnic/workspace.ts` defines the version-1 `omnium-workspace` envelope. It has a

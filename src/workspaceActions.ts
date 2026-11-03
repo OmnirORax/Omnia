@@ -140,9 +140,16 @@ export function matchesPointerShortcut(id: string, bindings: Record<string, stri
   const key = normalizePointer(event);
   if (matchesShortcut(id, bindings, key)) return true;
   const action = FEATURE_ACTIONS.find(action => action.id === id);
-  if (!gestureModifiers || !action || !("pointerGestureModifiers" in action) || !event.ctrlKey || event.metaKey) return false;
-  const modifiers: readonly string[] = action.pointerGestureModifiers;
-  return matchesShortcut(id, bindings, key.split("+").filter(part => !modifiers.includes(part)).join("+"));
+  if (!gestureModifiers || !action || !("pointerGestureModifiers" in action) || event.metaKey) return false;
+  return matchesGestureShortcut(id, bindings, key);
+}
+/** Optional gesture modifiers never remove modifiers required by a saved binding. */
+export function matchesGestureShortcut(id:string,bindings:Record<string,string>,key:string):boolean {
+  const action=FEATURE_ACTIONS.find(action=>action.id===id);
+  if(!action||!('pointerGestureModifiers' in action))return false;
+  const required=shortcutBinding(id,bindings).split('+');
+  const optional=(action.pointerGestureModifiers as readonly string[]).filter(modifier=>!required.includes(modifier));
+  return matchesShortcut(id,bindings,key.split('+').filter(part=>!optional.includes(part)).join('+'));
 }
 export function actionForKey(bindings: WorkspaceSettings["bindings"], key: string): ActionId | null {
   return ACTIONS.find((action) => !isFeatureAction(action.id) && bindings[action.id] === key)?.id ?? null;
@@ -278,6 +285,7 @@ export function functionShortcutBinding(functionId: string | undefined, bindings
   const source = ACTIONS.find(action => "configurationAction" in action && action.configurationAction === id);
   const base = source && shortcutBinding(source.id, bindings);
   if (!base) return "";
+  if (repeatConfigured(source.id)) return `${base} again`;
   const parts = base.split("+"); parts.splice(parts.length - 1, 0, "Shift"); return parts.join("+");
 }
 export type ButtonShortcuts = {

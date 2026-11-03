@@ -7,12 +7,14 @@ appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
 ## One circle, independent geometry
 
-Q (rebindable) starts the compact aiming cursor directly. The MS settings command
+Q (rebindable) starts the compact aiming cursor directly; pressing Q again while
+MS is active opens its selection settings. The MS settings command
 (`selector.configure`, unassigned by default) explicitly opens the stationary
 controller. In an active numeric context, Q directly starts reference targeting. The circle is centered on the pointer and clamped near viewport edges.
 The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
-Escape disables the tool and clears selection. Browser chrome clicks, window
+Esc from selection settings returns to aiming with membership intact; Esc from
+aiming cancels the tool and clears selection. Browser chrome clicks, window
 blur and tab hiding are not app commands: preserve tool phase, configuration,
 selection, editor and pointed preview. Only release unfinished input (never
 accept it), pending animation callbacks and press ownership. Resume aiming on
@@ -69,11 +71,17 @@ pointer using the current selector constraint, and clears all selection when the
 pointed target is not selected (including empty space). Removal never includes
 an unselected peer, even in a mixed pattern. Unplaced closed geometry falls back
 to the pointed selected part. Both removals use the transient selection timeline.
-Shift + the selector binding (Shift+Q by default) opens the selected-property MC
-through the existing edit action, replacing generic selector Shift configuration.
-The controller's edit button, platform keyboard context gesture and explicit MC
-remain available. Legacy default RMB editing migrates once to deselection; newer
-custom bindings/clears remain intact. Shortcut metadata and handlers remain shared and rebindable. Optional Ctrl is transparent to the selection command's saved pointer binding; exact modified
+Repeat the assigned selector shortcut (Q by default) while MS is active to open
+selection configuration. Selected-property editing remains its explicit edit
+button/catalog action; Shift+Q no longer routes there. Shift plus the configured
+selection click adds the inclusive range between the previous ordinary pick and
+the new endpoint, in DOM/source order within the same declared selection surface
+or resident frame. Range discovery uses registered eligible parts and the active
+geometric scope; it never spans unrelated frames or invents a 3D spatial order.
+Missing/deleted/out-of-scope anchors start at the new endpoint. An ordinary pick
+updates the anchor; repeated Shift picks retain it. One range change is one
+transient MS history entry. Legacy RMB editing migrations remain unchanged.
+Optional Ctrl/Shift gesture modifiers are transparent to the selection command's saved pointer binding; exact modified
 commands keep priority. MS consumes owned press/release/click events even when
 no command matches, so underlying controls cannot activate.
 
@@ -493,12 +501,11 @@ that selection; another selection reveals it again. Clearing selection restores
 its ordinary saved expansion state. Hover-only preview does not reveal it.
 
 
-After an accepted selection, entering Master Controller (including its frame
-chrome/contextual projections) or a shared property editor ends MS aiming and
-restores the normal cursor. Accepted membership, feedback visibility and editing
-scope remain intact; resume MS explicitly through its existing shortcut. This
-handoff runs on pointer entry/press, not polling, and never interrupts unfinished
-geometry drawing. Explicit parked/locked MS behavior remains separate.
+Standalone MS now remains in aiming after ordinary target acceptance, allowing
+subsequent Shift-range picks. Controller/editor chrome remains excluded from picks;
+Esc explicitly leaves selection. Borrowed reference acceptance and native
+Ctrl-selection adapters retain their completion/restoration lifecycle. This
+supersedes the former automatic handoff to editing on pointer entry.
 
 
 ### E06: clickable DOF information and gesture activation
@@ -578,9 +585,9 @@ marks portal controllers automatically; it does not replace MS ownership/rules.
 A pending request bypasses the context opener so its own opening cannot recurse.
 Outside the active context, Q uses ordinary MS targeting with retained modes.
 
-Accepting a target closes MS’s cursor/configuration without clearing the selection
-or reference. Geometry-only construction remains in aiming until a target is
-selected. Explicit MS settings retains the existing controller and Enter-to-aim
+Accepting a borrowed single-reference target closes MS and restores its saved
+selection checkpoint. Ordinary standalone target picks retain aiming for further
+selection; Q again configures and Esc navigates back/cancels. Explicit MS settings retains the existing controller and Enter-to-aim
 behavior; configuration no longer appears automatically on entry.
 
 Temporary reference picking yields secondary presses on registered

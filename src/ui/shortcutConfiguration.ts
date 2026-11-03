@@ -1,9 +1,14 @@
-import { ACTIONS, actionScope, shortcutBinding, preferredFeatureKey, repeatConfigured } from "../workspaceActions.ts";
-/** Shared Shift routing yields exact/repeated Composer DOF commands their modifiers. */
+import { FEATURE_ACTIONS } from "../featureActions.ts";
+import { ACTIONS, actionScope, shortcutBinding, preferredFeatureKey, repeatConfigured, matchesGestureShortcut } from "../workspaceActions.ts";
+/** Shared Shift routing yields to declared repeat commands and native gesture modifiers. */
 export function configurationTarget(bindings: Record<string, string>, chord: string, available: (id: string) => boolean, pointerFallback: Record<string, string> = {}): string | null {
   const parts = chord.split("+"); if (!parts.includes("Shift")) return null;
   const exact = preferredFeatureKey(bindings, chord, available);
   if (exact && repeatConfigured(exact)) return null;
+  // Declared native selection modifiers keep their pointer gesture, including Shift-range.
+  if (/^MB[1-5]$/.test(parts.at(-1) ?? '') && FEATURE_ACTIONS.some(action =>
+    'pointerGestureModifiers' in action && (action.pointerGestureModifiers as readonly string[]).includes('Shift') && available(action.id) &&
+    matchesGestureShortcut(action.id, bindings, chord))) return null;
   const base = parts.filter(part => part !== "Shift").join("+"); if (!base) return null;
   const matches = [...ACTIONS.map(action => action.id as string), ...Object.keys(bindings).filter(id => id.startsWith("button:"))]
     .filter(id => shortcutBinding(id, bindings) === base);

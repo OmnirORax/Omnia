@@ -92,7 +92,7 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
 
 The selector command group includes configuration/aiming (Q), geometry modes
 (E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), deselect pointed pattern or all (RMB/MB2), selected-property editing
-(Shift + selector shortcut, default Shift+Q), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
+(explicit selector.edit action), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
 unassigned commands for BG detection, Selection / Preview, contour, inside/outside, releasing geometry, closing paths,
 finite bounds, color stops, Self inventory and logical Mouse selection. The separate exclude
 command is retired. Exact untouched older pointer bundles migrate to these
@@ -227,12 +227,13 @@ availability, capture and protected recovery rules remain authoritative. Shift
 configuration resolves the same priority. Do not rely on listener mount order.
 
 
-The selector action declares `configurationAction: selector.edit`: universal Shift
-routing opens the existing selected-property MC instead of its old generic Shift
-configuration. This follows the live base binding and uses shared catalog dispatch;
-there is no private Shift+Q listener or executable Shift binding. Shortcut search
-shows the derived editing gesture. Q is the new selector default; legacy default
-MB3/RMB-edit settings migrate when Q is free, preserving other custom assignments.
+The selector declares `configurationTrigger: repeat` and links its derived settings
+hint to `selector.configure`. Q starts aiming; Q again configures. Esc returns
+from configuration to aiming, then cancels outside configuration. Shift+Q no longer
+opens selected properties. Shift plus the saved selection pointer binding adds a
+source-order range within the current surface, through declared gesture modifiers.
+Exact modified bindings retain priority; required saved modifiers are never stripped.
+Explicit clears, temporary reference checkpoints and native text entry remain protected.
 
 
 ## Held node movement

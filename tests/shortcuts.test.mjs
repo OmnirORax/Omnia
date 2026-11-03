@@ -74,7 +74,8 @@ test("pointer gesture modifiers preserve selector picking and explicit bindings 
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Q" }, pointer), false);
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "MB2" }, pointer), false);
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "MB2" }, { ...pointer, button: 2 }), true, "native preview also works with a rebound pointer action");
-  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, shiftKey: true }), false, "unrelated modifiers retain exact semantics");
+  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, shiftKey: true }), true, "Shift is the declared range modifier");
+  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, altKey: true }), false, "unrelated modifiers retain exact semantics");
   assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, ctrlKey: false, metaKey: true }), false, "the native Ctrl preview gesture does not consume Command clicks");
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Ctrl+MB1" }, pointer, false), true);
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Ctrl+MB1" }, { ...pointer, ctrlKey: false }), false);
@@ -361,15 +362,16 @@ test("a searchable popup resident retains its dismissal layer after field focus"
   assert.deepEqual(nested.map(entry => entry.kind), ["frame", "layer"], "DOM nesting and portals preserve the same dismissal order");
 });
 
-test("RMB edit migrates to deselection and Shift-selector delegates to selected-property editing", async () => {
+test("RMB edit migrates to deselection and repeated selector entry exposes settings", async () => {
   const settings = normalizeSettings({ bindings: { "selector.open": "MB3", "selector.edit": "MB2" } });
   assert.equal(settings.bindings["selector.open"], "Q");
   assert.equal(settings.bindings["selector.edit"], ""); assert.equal(settings.bindings["selector.deselect"], "MB2");
   const modern = normalizeSettings({ bindings: { "selector.deselect": "", "selector.edit": "Ctrl+P", "selector.open": "K" } });
   assert.equal(modern.bindings["selector.deselect"], ""); assert.equal(modern.bindings["selector.edit"], "Ctrl+P");
-  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Q", "selector.edit": "" }), "Shift+Q");
-  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Ctrl+P", "selector.edit": "" }), "Ctrl+Shift+P");
-  assert.equal(FEATURE_ACTIONS.find(action => action.id === "selector.open").configurationAction, "selector.edit");
+  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Q", "selector.edit": "" }), "");
+  assert.equal(functionShortcutBinding("selector.configure", { "selector.open": "Q", "selector.configure": "" }), "Q again");
+  assert.equal(functionShortcutBinding("selector.configure", { "selector.open": "Ctrl+P", "selector.configure": "" }), "Ctrl+P again");
+  assert.equal(FEATURE_ACTIONS.find(action => action.id === "selector.open").configurationAction, "selector.configure");
 });
 
 
@@ -694,4 +696,18 @@ test('Composer modifier combinations survive reload and route ahead of globals w
   const overlapping={...saved.bindings,[radius]:'E','atomnic.erase':'E','selector.pattern':'E'};
   assert.equal(preferredFeatureKey(overlapping,'E',id=>[radius,'atomnic.erase'].includes(id)),radius);
   assert.equal(preferredFeatureKey(overlapping,'E',id=>[radius,'atomnic.erase','selector.pattern'].includes(id)),'selector.pattern','active MS retains priority');
+});
+
+test('selector Shift-range remains a declared pointer gesture and Q repeat frees Shift+Q',async()=>{
+ const {configurationTarget}=await import('../src/ui/shortcutConfiguration.ts');
+ const bindings=defaultSettings().bindings,active=id=>['selector.include','selector.open'].includes(id);
+ const event={button:0,ctrlKey:false,metaKey:false,altKey:false,shiftKey:true};
+ assert.equal(matchesPointerShortcut('selector.include',bindings,event),true);
+ assert.equal(configurationTarget(bindings,'Shift+MB1',active),null);
+ assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':'Ctrl+MB1'},{...event,ctrlKey:true}),true);
+ assert.equal(configurationTarget({...bindings,'selector.include':'Ctrl+MB1'},'Ctrl+Shift+MB1',active),null);
+ assert.equal(configurationTarget(bindings,'Shift+Q',active),null);
+ assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':''},event),false);
+ assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':'MB2'},event),false);
+ assert.equal(matchesPointerShortcut('selector.include',bindings,{...event,altKey:true}),false);
 });

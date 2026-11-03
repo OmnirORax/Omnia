@@ -104,6 +104,14 @@ limitations, state ownership and performance constraints; it is not a feature sp
 
 # Universal Master Controller signature
 
+**MS correction (2026-11-03):** Q starts targeting; Q again while MS is active
+opens selection settings. Esc from settings returns to aiming with selection
+intact; Esc outside settings cancels MS. Shift-click extends an inclusive range
+in source order within the same declared surface/frame. Standalone picks keep MS
+aiming for continuation; borrowed single-reference acceptance still restores and
+closes its request. Shift+Q is no longer selected-property editing. Use shared
+selector commands, scoped range discovery and transient selection history.
+
 **Composer DOF correction (2026-11-03):** a selected target's assigned DOF
 shortcut opens its editor; pressing that same shortcut again while the same DOF
 and targets are active opens its configuration. Shift+R is no longer Rotation

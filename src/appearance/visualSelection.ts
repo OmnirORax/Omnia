@@ -112,6 +112,14 @@ export function collectVisualParts(): VisualPart[] {
   return parts;
 }
 
+export const selectionRangeUnit=(element:Element)=>element.closest('[data-selection-boundary],[data-ui-function]')??element;
+const selectionRangeScope=(element:Element)=>element.closest('[data-selection-scope],[data-ui-resident-root]')??document.body;
+/** Build the ordered range only on a pick. Catalog/renderer roles supply eligible units;
+ * the nearest declared surface/frame prevents selection spilling into another editor. */
+export function orderedSelectionUnits(parts:readonly VisualPart[],endpoint:Element){
+  const scope=selectionRangeScope(endpoint),units=[...new Set(parts.map(part=>selectionRangeUnit(part.element)))].filter(unit=>selectionRangeScope(unit)===scope);
+  return units.sort((a,b)=>a===b?0:a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1).map(element=>boundaryFor(element));
+}
 export function boundaryFor(element: Element): SelectionBoundary {
   const scopeId=element.closest('[data-selection-scope]')?.getAttribute('data-selection-scope')??undefined;
   const attribute = element.hasAttribute("data-selection-id") ? "data-selection-id" : element.hasAttribute("data-ui-function") ? "data-ui-function" :

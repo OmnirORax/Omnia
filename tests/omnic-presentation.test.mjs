@@ -22,3 +22,20 @@ test('shared dependencies invalidate derived views while unrelated placement edi
   const recipe=doc.entities[0].omnic;const next=saveOmnicDefinition(doc,'child',{...recipe,components:recipe.components.map(c=>({...c,params:{...c.params,count:3}}))});
   assert.notEqual(omnicAsset(next,'parent').dataUrl,before);
 });
+
+test('derived glyph images use XML-valued selection attributes for saved and live renderers',async()=>{
+  const {PRESETS}=await import('../src/omnic/presets.ts');
+  const {omnicDraftAssets}=await import('../src/omnic/presentation.ts');
+  for(const preset of PRESETS){
+    const doc={...emptyDocument(),entities:[{id:'glyph',label:'Glyph',notes:'',aliases:[],omnic:preset.recipe}]};
+    const asset=omnicAsset(doc,'glyph'),draft=omnicDraftAssets(doc,'glyph',preset.recipe)('glyph');
+    for(const output of [asset,draft]){
+      const svg=Buffer.from(output.dataUrl.split(',')[1],'base64').toString('utf8');
+      assert.match(svg,/<svg\s+xmlns="http:\/\/www.w3.org\/2000\/svg"/);
+      assert.match(svg,/data-selection-environment=""/);
+      assert.match(svg,/data-selection-boundary=""/);
+      assert.doesNotMatch(svg,/\sdata-[\w:-]+(?=\s|\/?>)/,'HTML boolean attributes cannot be decoded as an SVG image');
+    }
+    assert.equal(doc.assets,undefined,'derived render data never replaces the canonical glyph');
+  }
+});

@@ -353,8 +353,9 @@ pointer-transparent. Q is the current default toggle between these states.
 The circle controls 🞅 Frame, ◉ In-frame and ⏺ Outside frame independently;
 it never blocks the geometry mode. Each includes its region; In-frame leaves the
 frame itself out. One LMB action toggles membership; RMB removes the pointed selected pattern or
-clears all if its target is unselected. Shift + the selector shortcut (Shift+Q)
-opens selected-property editing. With all
+clears all if its target is unselected. Repeating the selector shortcut opens its settings; Esc returns to selection
+then cancels. Shift-click selects an inclusive range within one source surface.
+Selected-property editing remains an explicit action. With all
 three off, a click establishes a neutral frame, then pattern detection follows
 the pointer inside or outside it without changing inclusion. Previews are automatic
 before a boundary/selection; then hold Ctrl: additions green, removal preview hides
