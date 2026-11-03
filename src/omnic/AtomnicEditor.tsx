@@ -138,6 +138,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     return groups;
   };
   useSelectionSurface(localSurface,{
+    onComplete:(ids,point)=>{if(ids.length)showDegrees(ids,point);else cancel();},
     onStart:()=>{cancel();dismissPanel?.();cancelPreview?.();setActiveDof(null);setPanel({kind:'functions'});setGhost(undefined);localSurface.current?.focus({preventScroll:true});activateTarget?.();},
     snapshot:()=>{
       const root=localSurface.current!,groups=ownerElements();
@@ -178,7 +179,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     setActiveDof({ids:[...ids],property:degree.id});setMenu(cursorPosition());activateDegreePanel(degree,'source');setPhase('configure');
   };
   const settleGesture=()=>{const active=gesture.current;gesture.current=null;setCursorOperation(null);if(active?.next!==active?.base&&active)commit(active.next);};
-  const showDegrees=(ids:readonly string[])=>{if(!ids.length)return;settleGesture();dismissPanel?.();setDegrees(targetEditorDegrees(recipeRef.current,ids));setMenu(cursorPosition());setPanel({kind:'target'});};
+  const showDegrees=(ids:readonly string[],point=cursorPosition())=>{if(!ids.length)return;settleGesture();referencePicker?.cancelPick();cancelPreview?.();dismissPanel?.();setActiveDof(null);setDegrees(targetEditorDegrees(recipeRef.current,ids));setMenu(point);setPanel({kind:'target'});activateTarget?.();};
   const showDegreesRef=useRef(showDegrees);showDegreesRef.current=showDegrees;
   useLayoutEffect(()=>numericEditor.registerDegrees?.(ids=>showDegreesRef.current(ids)),[numericEditor.registerDegrees]);
   const toggleDofOptions=()=>{
@@ -233,7 +234,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   },[]);
   const handlers=useRef({select:(_ids:readonly string[])=>{},down:(_p:Point,_e:PointerEvent)=>{},move:(_p:Point,_e:PointerEvent)=>{},up:(_p:Point,_e:PointerEvent)=>{},context:(_p:Point,_e:PointerEvent)=>{},cancel});
   handlers.current={
-    select:ids=>{if(!ids.length){setMenu(null);setPanel({kind:'functions'});setPhase('idle');setCursorOperation(null);setHovered([]);gesture.current=null;}onSelect?.(ids);},
+    select:ids=>{if(!ids.length){setMenu(null);setPanel({kind:'functions'});setPhase('idle');setCursorOperation(null);setHovered([]);gesture.current=null;}else{referencePicker?.cancelPick();showDegrees(ids);}onSelect?.(ids);},
 
     context:(point,event)=>{
       activateTarget?.();pointer.current={x:event.clientX,y:event.clientY};const target=hit(point);

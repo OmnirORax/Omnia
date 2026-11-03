@@ -7,6 +7,13 @@ future user-decided controls. Shortcut rows derive from registered DOFs and reus
 existing Rotation/Position identities. Other contexts retain their own rules.
 See [shortcut contract](SHORTCUTS.md#composer-dof-shortcuts).
 
+Selection handoff correction (2026-11-03): completed native Ctrl/Shift selection
+opens the existing compatible target-DOF radial for the full accepted set. The
+shared MS owner releases input without clearing membership; keyboard select-all
+uses the same presenter. Declared Composer/atlas right-click owners remain
+accessible, including immediately after a selection. Modifier continuation still
+works; no extra confirmation key. See VISUAL_SELECTION.md. Browser retest pending.
+
 For global mathematical/reference/constraint work, read the
 [living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
 accepted baseline; PR #41 is discarded. Iterate small shared-module experiments

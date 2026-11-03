@@ -2,7 +2,7 @@ import { nativeSelectionDragged } from './selectionRequest.ts';
 export type SelectionPoint={x:number;y:number};
 export type SelectionBox={left:number;top:number;right:number;bottom:number};
 export type SelectionUnit={id:string;box:SelectionBox};
-export type SelectionSurface={element:()=>Element|null;context?:()=>string;nativePicking?:boolean;onStart?:()=>void;snapshot:()=>{units:readonly SelectionUnit[];valid?:readonly string[];selected:readonly string[];area?:(start:SelectionPoint,end:SelectionPoint)=>readonly string[];hit:(point:SelectionPoint)=>string|undefined};elements?:(ids:readonly string[])=>readonly Element[];apply:(ids:readonly string[])=>void};
+export type SelectionSurface={element:()=>Element|null;context?:()=>string;nativePicking?:boolean;onStart?:()=>void;onComplete?:(ids:readonly string[],point:SelectionPoint)=>void;snapshot:()=>{units:readonly SelectionUnit[];valid?:readonly string[];selected:readonly string[];area?:(start:SelectionPoint,end:SelectionPoint)=>readonly string[];hit:(point:SelectionPoint)=>string|undefined};elements?:(ids:readonly string[])=>readonly Element[];apply:(ids:readonly string[])=>void};
 /** Native modifiers belong to selection before an editing tool can replace it. */
 export function selectionPointerMode(event:{button:number;ctrlKey:boolean;metaKey:boolean;shiftKey:boolean;altKey:boolean}):'toggle'|'range'|undefined {
   if(event.button!==0||event.altKey)return;
@@ -21,6 +21,7 @@ export function spatialSelectionRange(units:readonly SelectionUnit[],anchor:stri
 export function createSelectionSurfaces(){
   let sequence=0;const surfaces=new Map<string,SelectionSurface>(),anchors=new Map<string,string>();
   const find=(element:Element)=>{const found=[...surfaces].reverse().find(([,surface])=>{const root=surface.element();return root===element||root?.contains(element);});return found?[`${found[0]}/${encodeURIComponent(found[1].context?.()??'')}`,found[1]] as const:undefined;};
+  const current=(id:string)=>{const surface=surfaces.get(id.split('/')[0]);return surface&&id===`${id.split('/')[0]}/${encodeURIComponent(surface.context?.()??'')}`?surface:undefined;};
   const prepare=(element:Element,point:SelectionPoint,mode:'toggle'|'range'|'area',nativeOnly=false,end=point)=>{
     const found=find(element);if(!found||nativeOnly&&!found[1].nativePicking)return;
     const [id,surface]=found,snapshot=surface.snapshot(),hit=snapshot.hit(point);if(!hit&&mode!=='area')return;
@@ -41,7 +42,8 @@ export function createSelectionSurfaces(){
       const found=find(element);if(!found)return;const id=found[0];found[1].onStart?.();
       return (end:SelectionPoint)=>find(element)?.[0]===id?prepare(element,start,nativeSelectionDragged(start,end)?'area':mode,false,end):undefined;
     },
-    apply(id:string,ids:readonly string[]){const base=id.split('/')[0],surface=surfaces.get(base);if(!surface||id!==`${base}/${encodeURIComponent(surface.context?.()??'')}`)return;const snapshot=surface.snapshot(),valid=new Set(snapshot.valid??snapshot.units.map(unit=>unit.id));surface.apply(ids.filter(id=>valid.has(id)));},
+    complete(id:string,ids:readonly string[],point:SelectionPoint){current(id)?.onComplete?.(ids,point);},
+    apply(id:string,ids:readonly string[]){const surface=current(id);if(!surface)return;const snapshot=surface.snapshot(),valid=new Set(snapshot.valid??snapshot.units.map(unit=>unit.id));surface.apply(ids.filter(id=>valid.has(id)));},
   };
 }
 export const selectionSurfaces=createSelectionSurfaces();

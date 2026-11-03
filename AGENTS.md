@@ -122,13 +122,20 @@ adds objects intersecting the projected rectangle between anchor and endpoint.
 Ctrl-click toggles and Shift-click extends the range on registered Composer/atlas
 surfaces, including before MS opens. The shared MS capture owner claims the entire
 modifier press/drag/release/click tail; normal tools must not replace membership.
+On release, finish the native selection gesture without clearing its membership
+and notify the surface onComplete adapter; Composer opens compatible target DOF
+dials for the accepted full set. Keyboard select-all uses that same dial presenter.
+Do not leave MS aiming after native selection or require an extra completion key.
+A fresh pointer press ends suppression of the preceding press's tail. Declared
+context-menu owners receive a whole secondary press after selection (including
+standalone MS); ordinary UI retains MS removal. Pending geometry stays protected.
 Owner onStart cleanup and precise area hits belong in the existing surface adapter;
 do not restore a private Composer Ctrl-selection path. Active MS still respects its
 configured selection click; blocked/capture/editor chrome remains protected.
 Renderer adapters supply actual owners, hit tests and bounds; do not confuse
 spatial range with document order. Shift-click uses the adapter where available,
 retaining source-order fallback in ordinary UI. Derived chords follow rebinding;
-explicit assignments/clears and existing same-scope bindings remain authoritative. Standalone picks keep MS
+explicit assignments/clears and existing same-scope bindings remain authoritative. Standalone keyboard/pattern picks keep MS
 aiming for continuation; borrowed single-reference acceptance still restores and
 closes its request. Shift+Q is no longer selected-property editing. Use shared
 selector commands, scoped range discovery and transient selection history.

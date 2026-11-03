@@ -196,6 +196,7 @@ export default function SpatialWorkspace(props: Props) {
     catch { setError("3D rendering is unavailable in this browser."); return; }
     renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr));
     renderer.setClearColor(0x101927);
+    renderer.domElement.setAttribute('data-context-menu-owner','');
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0x101927);
     const camera = new THREE.PerspectiveCamera(DEFAULT_CAMERA_FOV, 1, 0.05, 100000);

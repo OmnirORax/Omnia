@@ -340,3 +340,20 @@ test('registered selection gestures run owner cleanup once and use precise rende
  const finish=registry.beginPointer(root,{x:0,y:0},'toggle');
  assert.equal(starts,1);assert.deepEqual(finish({x:10,y:10}).after,['keep','actual-ink']);assert.equal(starts,1);
 });
+
+test('completed surface selection presents its accepted targets without replaying editors on undo',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},events=[];let selected=['a'],context='atlas-a';
+ const units=['a','b','c'].map((id,i)=>({id,box:{left:i*10,right:i*10+2,top:0,bottom:2}}));
+ const off=registry.register({element:()=>root,context:()=>context,snapshot:()=>({units,selected,hit:p=>units.find(unit=>p.x>=unit.box.left&&p.x<=unit.box.right)?.id}),apply:ids=>{selected=[...ids];events.push(['selection',...ids]);},onComplete:(ids,point)=>events.push(['dial',...ids,point.x])});
+ const finish=registry.beginPointer(root,{x:11,y:1},'toggle');
+ assert.deepEqual(events,[],'press alone does not open an editor or select a single target');
+ const transaction=finish({x:11,y:1});registry.apply(transaction.id,transaction.after);registry.complete(transaction.id,transaction.after,{x:11,y:1});
+ assert.deepEqual(events,[['selection','a','b'],['dial','a','b',11]],'the dial receives the accepted full set and release point');
+ registry.apply(transaction.id,transaction.before);
+ assert.deepEqual(events.at(-1),['selection','a'],'history replay restores membership without reopening a dial');
+ const range=registry.beginPointer(root,{x:21,y:1},'range')({x:21,y:1});registry.apply(range.id,range.after);registry.complete(range.id,range.after,{x:21,y:1});
+ assert.deepEqual(events.at(-1),['dial','a','b','c',21],'opening a dial does not prevent another modifier selection');
+ const count=events.length;context='atlas-b';registry.complete(range.id,range.after,{x:21,y:1});assert.equal(events.length,count,'old contexts cannot open an editor in another atlas');
+ off();registry.complete(range.id,range.after,{x:21,y:1});assert.equal(events.length,count,'removed owners cannot reopen a stale dial');
+});

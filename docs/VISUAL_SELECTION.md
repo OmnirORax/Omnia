@@ -36,7 +36,12 @@ members; a modified empty click leaves membership unchanged. Ordinary DOM/UI
 Shift ranges retain source-order fallback within one declared surface/frame.
 
 The shared MS capture owner claims modifier pointer-down, motion, release and the
-trailing native click. Membership changes on release, so normal Composer target /
+trailing native click. Membership changes on release. The native gesture then finishes without clearing
+selection; the surface `onComplete` callback presents its accepted targets.
+Composer immediately opens the existing compatible target-DOF radial for the full
+set. Its keyboard select-all bridge uses the same presenter. No separate Enter or
+Esc is required before editing, and another modifier press still extends membership.
+Normal Composer target /
 reference editing and atlas single-selection never also receive the gesture.
 Active MS honors its configured selection click, including clears/rebindings and
 exact-command priority. Outside active MS the registered surfaces provide the
@@ -46,8 +51,9 @@ its actual structural intersections rather than coarse bounding-box corners.
 Borrowed single-reference picking yields to explicit modifier multi-selection,
 restoring its checkpoint before the new membership is committed. Surface/context
 replacement and pointer cancellation abandon the gesture without selecting.
-Neither range traverses unrelated surfaces. Browser interaction acceptance remains
-pending after the user's report that the previous modifier-click path failed.
+Neither range traverses unrelated surfaces. On 2026-11-03 the user confirmed manual
+Ctrl selection and their Shift+A global selection in da3c28f; they reported dial /
+right-click access failed. The completion correction awaits their retest.
 
 ## One circle, independent geometry
 
@@ -112,7 +118,13 @@ The shared command keeps ID `selector.include` for compatibility and is labeled
 Toggle pointed pattern / define geometry. The retired `selector.exclude` command
 is removed. LMB toggles selection; RMB removes the selected pattern at the
 pointer using the current selector constraint, and clears all selection when the
-pointed target is not selected (including empty space). Removal never includes
+pointed target is not selected (including empty space). Declared editor context-menu
+owners (Composer and atlas) instead receive the whole right-click press, release
+and native menu event after selection. MS closes its input phase while retaining
+accepted membership; a borrowed reference restores its checkpoint. Geometry still
+being drawn is protected. A fresh press also resets the previous press's native
+tail suppression, so immediately right-clicking after a modifier selection works
+without a timing delay. Removal elsewhere never includes
 an unselected peer, even in a mixed pattern. Unplaced closed geometry falls back
 to the pointed selected part. Both removals use the transient selection timeline.
 Repeat the assigned selector shortcut (Q by default) while MS is active to open

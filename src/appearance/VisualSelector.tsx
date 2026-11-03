@@ -287,16 +287,17 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       ...(latest.current.configuration.patternRole ? { role: latest.current.configuration.patternRole } : {}) } });
     accept(true); polygon.current = null; setDrawing(false);
   };
-  const applySurfacePick=(transaction:NonNullable<ReturnType<typeof selectionSurfaces.prepare>>)=>{
+  const applySurfacePick=(transaction:NonNullable<ReturnType<typeof selectionSurfaces.prepare>>,completedAt?:Point)=>{
     const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
     cancelDrawing();
-    if(transaction.elements){setElements(transaction.elements);setPhase('aim');return true;}
+    const finish=()=>{if(completedAt){completeSelection();selectionSurfaces.complete(transaction.id,transaction.after,completedAt);}else setPhase('aim');};
+    if(transaction.elements){setElements(transaction.elements);finish();return true;}
     setTimeline(previous=>{
       const current=previous.states[previous.index],before={...current,boundary:current.boundary??boundaryFor(document.body),surfaces:{...current.surfaces,[transaction.id]:transaction.before}};
       const states=previous.states.map((state,index)=>index===previous.index?before:state);
       return appendTransient({...previous,states},{...before,surfaces:{...before.surfaces,[transaction.id]:transaction.after}});
     });
-    setPhase('aim');return true;
+    finish();return true;
   };
   const spatialPick=(mode:'toggle'|'range',p:{x:number;y:number},nativeOnly=false)=>{
     const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return false;
@@ -306,7 +307,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const mode=selectionPointerMode(event);if(!mode||!(event.target instanceof Element))return false;
     const start={x:event.clientX,y:event.clientY},finish=selectionSurfaces.beginPointer(event.target,start,mode);if(!finish)return false;
     const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
-    cancelDrawing();nativeGesture.current={id:event.pointerId,start,end:start,finish:end=>{const transaction=finish(end);if(transaction)applySurfacePick(transaction);}};
+    cancelDrawing();nativeGesture.current={id:event.pointerId,start,end:start,finish:end=>{const transaction=finish(end);if(transaction)applySurfacePick(transaction,end);}};
     setDrawing(true);return true;
   };
   const pointedMembership=(mode:'toggle'|'range',input?:KeyboardEvent|MouseEvent)=>{
@@ -506,7 +507,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const shortcutUI = (target: EventTarget | null) => target instanceof Element && !!target.closest(".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
     const outsideChrome = (event: Event) => event.target instanceof Element && !event.target.closest(`${selectorChrome},${APPEARANCE_EDITOR}`);
     const down = (event: PointerEvent) => {
-      clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false;
+      clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false; consumedUntil=0;
       if (shortcuts.blocked() || shortcutUI(event.target) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
       // The registered surface owns modifier selection even before MS opens.
       // Active MS dispatches through its normal command router into begin().
@@ -515,9 +516,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         claimUIPress(event.pointerId,event.pointerType,event.buttons);
         event.preventDefault();event.stopImmediatePropagation();return;
       }
-      // A borrowed picker yields secondary input to registered context menus.
-      // Keep this press and its native tail together; standalone MS is unchanged.
-      if (requestedPick.current && event.button === 2 && event.target.closest('[data-context-menu-owner]')) {
+      // Accepted selection yields to declared editor context menus. The new
+      // secondary press owns its native tail; no primary tail may suppress it.
+      if (event.button === 2 && event.target.closest('[data-context-menu-owner]')&&!nativeGesture.current&&!gesture.current&&!polygon.current) {
         contextHandoff = true; consumedPointer = null; consumedUntil = 0;
         actions.current.close(); return;
       }
