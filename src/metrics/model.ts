@@ -1,10 +1,10 @@
-export type TimerOptions = { mode: 'stopwatch' | 'countdown'; durationSeconds: number };
+export type TimerOptions = { mode: 'stopwatch' | 'countdown'; durationSeconds: number; attemptId?: string; benchmarkId?: string; actorId?: string };
 export type Split = { number: number; elapsedMs: number; splitMs: number; clicks: number; splitClicks: number };
-export type Result = TimerOptions & { number: number; elapsedMs: number; clicks: number; laps: readonly Split[]; reason: 'finished' | 'timeout' };
+export type Result = TimerOptions & { number: number; elapsedMs: number; clicks: number; laps: readonly Split[]; reason: 'finished' | 'timeout'; interrupted?: boolean };
 export type ScoreState = {
   phase: 'idle' | 'running' | 'paused' | 'finished';
   options: TimerOptions; elapsedMs: number; clicks: number; laps: readonly Split[];
-  results: readonly Result[]; reason?: Result['reason'];
+  results: readonly Result[]; interrupted?: boolean; reason?: Result['reason'];
 };
 export const SCORE_LIMITS = { laps: 100, results: 20 } as const;
 export const clicksPerSecond = (clicks: number, elapsedMs: number) => elapsedMs > 0 ? clicks * 1000 / elapsedMs : 0;
@@ -21,7 +21,7 @@ export function createScoreTracker(now: () => number = () => performance.now()) 
   const publish = (next: ScoreState) => { state = next; for (const listener of listeners) listener(); };
   const elapsed = () => accumulated + (state.phase === 'running' ? Math.max(0, now() - startedAt) : 0);
   const complete = (elapsedMs: number, reason: Result['reason']) => {
-    const result: Result = { ...state.options, number: ++sequence, elapsedMs, clicks: state.clicks, laps: state.laps, reason };
+    const result: Result = { ...state.options, number: ++sequence, elapsedMs, clicks: state.clicks, laps: state.laps, reason, interrupted: state.interrupted };
     accumulated = elapsedMs;
     publish({ ...state, phase: 'finished', elapsedMs, reason, results: [result, ...state.results].slice(0, SCORE_LIMITS.results) });
   };
@@ -47,7 +47,7 @@ export function createScoreTracker(now: () => number = () => performance.now()) 
       if (state.phase !== 'paused') {
         if (!['stopwatch', 'countdown'].includes(options.mode) || !Number.isFinite(options.durationSeconds) || options.durationSeconds < 1 || options.durationSeconds > 86400) throw Error('Choose a timer duration between 1 second and 24 hours.');
         accumulated = 0;
-        state = { ...state, phase: 'idle', options: { ...options }, elapsedMs: 0, clicks: 0, laps: [], reason: undefined };
+        state = { ...state, phase: 'idle', options: { ...options }, elapsedMs: 0, clicks: 0, laps: [], reason: undefined, interrupted: false };
       }
       startedAt = now();
       publish({ ...state, phase: 'running' });
@@ -55,11 +55,16 @@ export function createScoreTracker(now: () => number = () => performance.now()) 
     pause() {
       if (state.phase !== 'running') return;
       const value = sample(); if (value === null) return;
-      accumulated = value; publish({ ...state, phase: 'paused', elapsedMs: value });
+      accumulated = value; publish({ ...state, phase: 'paused', elapsedMs: value, interrupted: true });
     },
     finish() {
       if (state.phase !== 'running' && state.phase !== 'paused') return;
       const value = sample(); if (value !== null) complete(value, 'finished');
+    },
+    clearOnline() {
+      const results = state.results.filter(result => !result.attemptId);
+      if (state.options.attemptId) { accumulated = 0; publish({ ...state, options: { mode: 'stopwatch', durationSeconds: 10 }, phase: 'idle', elapsedMs: 0, clicks: 0, laps: [], reason: undefined, interrupted: false, results }); }
+      else if (results.length !== state.results.length) publish({ ...state, results });
     },
     reset() {
       accumulated = 0;

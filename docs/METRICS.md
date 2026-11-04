@@ -1,7 +1,7 @@
 # Metrics
 
-Open **UI library → 📊 Metrics → 📊 Score tracker**, or search Score tracker.
-Metrics is a single category; there are no Tracking or Performance subcategories.
+Open **♾️ → 📊 Score tracker** next to View, or use UI library → ♾️.
+The ♾️ system contains the tracker, Questboard and Leaderboard.
 All timer commands start unassigned and use the shared shortcut/action registry.
 
 The dedicated area counts genuine primary clicks and native keyboard activations
@@ -57,3 +57,75 @@ See [the maintained walkthrough](CAPABILITIES.md#metrics-score). Deterministic
 model checks exercise countdown boundaries, throttled updates, pause/resume,
 captured settings, exactly-once completion, reset and bounded retention. Browser
 interaction and visual acceptance remain with the user; builds do not establish it.
+
+## ♾️ quests and online rankings
+
+The top-level **♾️** menu sits immediately after View. It contains Score tracker,
+Questboard and Leaderboard. The library also shows ♾️; the former Metrics library
+resident ID is retained for saved layout compatibility, while its default display
+label changes. Shared property IDs and the `metrics-score` window remain stable.
+Existing customized labels/arrangements retain the shared layout behavior.
+
+Quests are server-defined: 20 clicks/5 seconds, 50/10 seconds, 150/30 seconds.
+Attempt runs the existing tracker countdown with a server-issued attempt identity.
+Only genuine primary clicks count online; free practice still supports keyboard
+activation. Let the timer finish uninterrupted. Pausing/closing, resetting or
+finishing early prevents ranking; use Reset before starting another attempt.
+A completed result submits automatically; a lost response can be retried from the
+board with the same attempt/count. Quest hand-in awards **+1 star once per quest
+per account**. Stars are derived from immutable claims, never a client balance.
+A qualifying earlier submitted attempt can complete its matching quest.
+
+The leaderboard has separate 5/10/30/60-second primary-click benchmarks, each with
+its own versioned identity. It ranks each account's best result, uses shared ranks
+for equal scores, shows the first 50 accounts and your own rank, and uses anonymous
+Player labels rather than emails. Boards refresh every ten seconds while open
+and expanded, with no hidden-tab polling requests; Refresh is also available.
+Cloud submissions happen only on completion, never on each click/timer tick.
+Account switches invalidate pending UI work and clear online scores/attempt state.
+The existing Auth session is the only identity owner; no separate account system.
+
+### Deployment and verification
+
+Apply **supabase/migrations/20261104000100_click_quests.sql** to the existing
+Supabase project through its normal reviewed migration path. This adds tables,
+RLS and authenticated RPCs; it does not require an Edge Function code update or
+change existing workspace schemas, grants, assets or Auth/signup configuration.
+Hosted application of this migration is not performed/verified by the source PR.
+Frontend builds need the existing public Supabase URL/key; visual GitHack builds
+without those values remain local-only. Do not sign into private accounts on the
+public GitHack origin. Use the configured protected frontend for account testing.
+
+Public signup remains disabled. Create two confirmed test users in Supabase Auth
+administration and set their passwords there. Sign in A, attempt a quest and hand
+it in; verify one star and a ranked result. Sign in B in another browser profile,
+complete the same benchmark, then refresh both boards: both scores should appear
+in the same order, while claims/stars remain separate. A duplicate hand-in must
+not award a second star. A 5-second score must not appear on the 10-second board.
+
+`node scripts/test-metrics-db.mjs` runs the migration and real SQL checks against
+a disposable network-isolated PostgreSQL 17 container with synthetic Auth IDs.
+It checks grants/RLS, two-account ownership, early/late submission, idempotent
+completion, changed replay rejection, benchmark separation and unique rewards.
+It is not hosted Supabase/Auth/browser verification. Never run its synthetic Auth
+bootstrap against a real project. The ordinary model suite covers interruption
+and account-reset handling; user browser acceptance is still pending.
+
+Server attempt limits are 10/minute and 100/day/account; submissions must arrive
+after the configured duration and within a further 30 seconds, with at most 100
+reported clicks/second. These bounds and authenticated ownership do not prove
+physical input: scores are client-reported and this prototype is not tamper-proof
+competitive anti-cheat. Quests cannot yet be authored/customized in the UI.
+
+### Persistence boundary
+
+Attempts and one-time claims persist in Supabase, independently of workspace
+membership and UI undo. Rankings are shared among authenticated app accounts;
+private attempts and claims are readable only by their owning account. No
+workspace content is published. No browser-local persistent progress mirror is
+created, so unavailable cloud storage never silently becomes a second authority.
+An additive migration preserves existing data and older clients can keep using
+the former features. Roll back frontend code without dropping authored attempts
+or claims; do not amend or reverse the applied migration to revert the UI.
+Workspace/UI exports do not contain this account-level cloud ledger; server
+backups must include these tables. No full-environment restore is claimed.

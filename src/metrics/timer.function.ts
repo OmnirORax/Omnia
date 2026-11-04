@@ -3,7 +3,7 @@ import type { WorkspaceSettings } from '../workspaceActions';
 export const TIMER_CONSUMER = 'metrics.timer';
 export const TIMER_MODE = 'metrics.timer.mode';
 export const TIMER_DURATION = 'metrics.timer.duration';
-const category = { id: 'metrics', label: '📊 Metrics' };
+const category = { id: 'metrics', label: '♾️' };
 /** Preferences use the existing functionValues owner, UI history and templates.
  * Scores, clock samples and runs are deliberately transient. */
 export default defineFunction<WorkspaceSettings>({

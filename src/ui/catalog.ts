@@ -60,9 +60,11 @@ export const LIBRARY_CATEGORIES = [
   "Metrics",
 ];
 /** Category presentation is metadata; category identity stays searchable and stable. */
-const LIBRARY_CATEGORY_SYMBOLS: Record<string, string> = { Metrics: '📊' };
-export const libraryCategoryLabel = (category: string) => [LIBRARY_CATEGORY_SYMBOLS[category], category].filter(Boolean).join(' ');
+const LIBRARY_CATEGORY_SYMBOLS: Record<string, string> = {};
+const LIBRARY_CATEGORY_LABELS: Record<string, string> = {Metrics:'♾️'};
+export const libraryCategoryLabel = (category: string) => [LIBRARY_CATEGORY_SYMBOLS[category], LIBRARY_CATEGORY_LABELS[category] ?? category].filter(Boolean).join(' ');
 export function libraryCategory(fn: { id: string; category?: string }) {
+  if (fn.category === "♾️") return "Metrics"; // Keep the existing library resident identity.
   if (/^ui:(export|import|saveTemplate|loadTemplate)$/.test(fn.id)) return "File";
   if (["undo", "redo", "deleteSelected"].includes(fn.id) || fn.category === "Selection")
     return "Edit";

@@ -471,3 +471,11 @@ test('automatic child rows attach to the parent button centre without shell-depe
   assert.ok(Math.abs(Math.hypot(next.x-anchor.x,next.y-anchor.y)-(length*scale/2+25*scale+2))<1e-8,'nested rows clear the parent row');
  }
 });
+
+test('new native panels inherit their declared neighbor without rewriting saved custom ordering', async()=>{
+ const {mergeNativeOrder}=await import('../src/ui/layout.ts');
+ const saved=['file','view','workspace','custom'];
+ assert.deepEqual(mergeNativeOrder(saved,['file','view','infinity','workspace']),['file','view','infinity','workspace','custom']);
+ assert.deepEqual(saved,['file','view','workspace','custom']);
+ assert.deepEqual(mergeNativeOrder(['infinity','workspace','view'],['view','infinity','workspace']),['infinity','workspace','view']);
+});

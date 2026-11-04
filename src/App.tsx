@@ -1358,6 +1358,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             </>}
             {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
+          <UIPanel id="menu:infinity" title="♾️" menu>
+            {["metrics.open", "quests.open", "leaderboard.open"].map(id => <FunctionControl id={id} key={id} />)}
+          </UIPanel>
           <UIPanel id="menu:workspace" title="Workspace" menu>
             {["settings", "shortcuts", "ui:devMode", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>

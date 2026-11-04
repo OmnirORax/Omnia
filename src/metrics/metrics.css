@@ -17,3 +17,4 @@
 .metrics-table th, .metrics-table td { padding: 3px 4px; text-align: right; white-space: nowrap; }
 .metrics-table th:first-child, .metrics-table td:first-child { text-align: left; }
 .metrics-tracker .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.metrics-quest { display: grid; gap: 4px; padding: 6px 0; border-bottom: 1px solid currentColor; }

@@ -1,3 +1,4 @@
+import {QuestSystem} from './QuestSystem';
 import { memo, useEffect, useState, useSyncExternalStore } from 'react';
 import { FloatingWindow } from '../ui/FloatingWindow';
 import { FunctionControl } from '../ui/UIWorkspace';
@@ -49,7 +50,7 @@ export function ScoreTracker({ bindings }: { bindings: PropertyBindings }) {
     const timeout = window.setTimeout(() => tracker.tick(), Math.ceil(tracker.remainingMs()) + 1);
     return () => window.clearTimeout(timeout);
   }, [tracker, phase]);
-  return open ? <FloatingWindow id={WINDOW_ID} title="📊 Score tracker" width={370} height={520} openAtCursor={false}
+  return <><QuestSystem tracker={tracker} onPlay={reveal}/>{open ? <FloatingWindow id={WINDOW_ID} title="📊 Score tracker" width={370} height={520} openAtCursor={false}
     onClose={() => { tracker.pause(); setOpen(false); }}>
     <div className="metrics-tracker">
       <TimerSettings bindings={bindings} />
@@ -57,17 +58,17 @@ export function ScoreTracker({ bindings }: { bindings: PropertyBindings }) {
       <div className="metrics-actions">
         {['metrics.start', 'metrics.pause', 'metrics.lap', 'metrics.finish', 'metrics.reset'].map(id => <FunctionControl key={id} id={id} />)}
       </div>
-      <ClickArea tracker={tracker} running={phase === 'running'} />
+      <ClickArea tracker={tracker} running={phase === 'running'} benchmark={!!tracker.getSnapshot().options.attemptId} />
       <ScoreDetails tracker={tracker} />
     </div>
-  </FloatingWindow> : null;
+  </FloatingWindow> : null}</>;
 }
 
 const TimerSettings = memo(function TimerSettings({ bindings }: { bindings: PropertyBindings }) {
   return <div className="metrics-settings" title="Preferences apply to the next new run. Resume keeps the current mode and duration.">
-    <UIField id="metrics:mode" label="Timer mode" category="Metrics"><CoupledField bindings={bindings} consumer={TIMER_CONSUMER} property={TIMER_MODE} /></UIField>
+    <UIField id="metrics:mode" label="Timer mode" category="♾️"><CoupledField bindings={bindings} consumer={TIMER_CONSUMER} property={TIMER_MODE} /></UIField>
     {bindings.values[TIMER_CONSUMER][TIMER_MODE] === 'countdown' &&
-      <UIField id="metrics:duration" label="Countdown duration (seconds)" category="Metrics"><CoupledField bindings={bindings} consumer={TIMER_CONSUMER} property={TIMER_DURATION} /></UIField>}
+      <UIField id="metrics:duration" label="Countdown duration (seconds)" category="♾️"><CoupledField bindings={bindings} consumer={TIMER_CONSUMER} property={TIMER_DURATION} /></UIField>}
   </div>;
 });
 
@@ -102,11 +103,11 @@ function ScoreReadout({ tracker, preferences }: { tracker: Tracker; preferences:
   </div>;
 }
 
-const ClickArea = memo(function ClickArea({ tracker, running }: { tracker: Tracker; running: boolean }) {
+const ClickArea = memo(function ClickArea({ tracker, running, benchmark }: { tracker: Tracker; running: boolean; benchmark: boolean }) {
   return <button type="button" className="metrics-click-area" data-ui-id="metrics:test-area" data-ui-gesture-owner="content"
     disabled={!running} aria-label="Click test area" title="Only genuine primary clicks or keyboard activations here count while running. Controls and other app surfaces do not count."
     onKeyDown={event => { if (event.repeat) event.preventDefault(); }}
-    onClick={event => { if (event.isTrusted && !event.defaultPrevented && event.button === 0) tracker.click(); }}>
+    onClick={event => { if (event.isTrusted && !event.defaultPrevented && event.button === 0 && (!benchmark || event.detail > 0)) tracker.click(); }}>
     <span aria-hidden="true">🖱️</span><span>{running ? 'Click here' : 'Start or resume to click'}</span>
   </button>;
 });

@@ -103,3 +103,16 @@ test('historical backups inherit timer defaults and new preferences round-trip t
   assert.equal(JSON.stringify(restored.workspace), originalWorkspace);
   assert.deepEqual(normalizeSettings(restored.ui.settings).functionValues[TIMER_CONSUMER], settings.functionValues[TIMER_CONSUMER]);
 });
+
+test('online runs retain their attempt identity, reject interrupted eligibility and clear on account changes',()=>{
+ const {tracker,advance}=fixture();
+ tracker.start({...countdown,attemptId:'a',benchmarkId:'primary-5s-v1',actorId:'account-a'});
+ tracker.click();tracker.pause();tracker.start(stopwatch);advance(5000);tracker.tick();
+ assert.equal(tracker.getSnapshot().results[0].interrupted,true);
+ assert.equal(tracker.getSnapshot().results[0].attemptId,'a');
+ tracker.clearOnline();assert.equal(tracker.getSnapshot().results.length,0);assert.equal(tracker.getSnapshot().options.actorId,undefined);
+ tracker.start(stopwatch);advance(10);tracker.finish();
+ const practice=tracker.getSnapshot().results[0];
+ tracker.start({...countdown,attemptId:'b',actorId:'account-b'});tracker.clearOnline();
+ assert.equal(tracker.getSnapshot().phase,'idle');assert.equal(tracker.getSnapshot().results[0],practice);
+});

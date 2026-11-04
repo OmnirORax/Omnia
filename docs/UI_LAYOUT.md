@@ -73,3 +73,12 @@ Model coverage includes a frozen workspace-v1 fixture, current combined round
 trip and malformed/newer-format rejection, plus paired recovery/fallback and stale
 companion replacement. Browser cross-profile restore/font/persistence acceptance
 remains pending. No automatic cloud synchronization is introduced.
+
+## Newly introduced native panels
+
+The shared native-strip order merger inserts an absent new panel beside its
+nearest declared native neighbor. Existing saved panel/custom-resident ordering
+is retained; an explicitly saved placement for the new panel is authoritative.
+This lets the new ♾️ menu appear after View in an existing layout without
+resetting the toolbar or writing a migration over authored positions. The
+library retains its former Metrics resident ID with the default label ♾️.

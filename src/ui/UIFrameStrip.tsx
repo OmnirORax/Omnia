@@ -2,7 +2,7 @@ import { Children, isValidElement, useLayoutEffect, useRef, useState, useSyncExt
 import { Rnd } from "react-rnd";
 import { flushSync } from "react-dom";
 import { useUI } from "./context";
-import { getContainer, ownerOf, residentKey, updateContainer, type WindowState } from "./layout";
+import { getContainer, ownerOf, residentKey, mergeNativeOrder, updateContainer, type WindowState } from "./layout";
 import { DockArea } from "./DockArea";
 import { FloatingWindow } from "./FloatingWindow";
 import { useDockWorkspace } from "./DockWorkspace";
@@ -55,7 +55,7 @@ export function UIFrameStrip({ id, title = "Panels", vertical = false, children 
   const members = getContainer(ui.layout, rowContainer)?.members ?? [];
   // Older sidebar order stores plain panel IDs. Keep those templates working.
   const saved = (ui.layout.nativeOrders?.[id] ?? []).map(key => nativeKeys.includes(`window:panel:${key}`) ? `window:panel:${key}` : key);
-  const keys = [...new Set([...saved, ...nativeKeys, ...members.map(residentKey)])];
+  const keys = mergeNativeOrder(saved, nativeKeys, members.map(residentKey));
   const rows = <div className={`ui-frame-strip ${vertical ? "is-vertical" : ""}`} data-ui-frame-strip={rowContainer} data-ui-frame-order={id} data-ui-frame-native={JSON.stringify(nativeKeys)}>
     {native.map(child => {
       const key = `window:panel:${child.props.id}`;
