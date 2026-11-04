@@ -961,3 +961,17 @@ export function detachFunction(
   else items[id] = { ...items[id], home: false, x, y };
   return validateUILayout({ ...released, items });
 }
+
+/** Insert newly introduced native residents beside their declared neighbors,
+ * retaining every explicit saved order and existing custom resident. */
+export function mergeNativeOrder(saved: readonly string[], native: readonly string[], extras: readonly string[] = []): string[] {
+  const keys = [...new Set(saved)];
+  for (let index = 0; index < native.length; index++) {
+    const key = native[index]; if (keys.includes(key)) continue;
+    const previous = native.slice(0, index).reverse().find(value => keys.includes(value));
+    const next = native.slice(index + 1).find(value => keys.includes(value));
+    const at = previous ? keys.indexOf(previous) + 1 : next ? keys.indexOf(next) : keys.length;
+    keys.splice(at, 0, key);
+  }
+  return [...new Set([...keys, ...extras])];
+}

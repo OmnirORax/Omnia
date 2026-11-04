@@ -222,6 +222,14 @@ other legacy functions/settings still need migration.
 
 ## Workspace plus UI portability
 
+The ♾️ system sits beside View and in the UI library, with Score tracker,
+Questboard and per-benchmark online Leaderboard. Its score tracker counts only
+the dedicated click area and shares a stopwatch/countdown lifecycle with laps and
+bounded in-tab results. Timer preferences use discovered function inputs and UI
+settings/templates; practice measurements are transient. Online attempts and
+one-time star claims require the additive cloud migration; hosted rollout and
+two-account acceptance are pending. See [METRICS.md](METRICS.md).
+
 Export workspace now wraps the existing workspace and current version-3 UI template
 in one versioned backup. Import restores both; old workspace-only files preserve UI.
 Recover previous workspace restores a saved original pair. Standalone UI/atlas

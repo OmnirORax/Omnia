@@ -203,5 +203,12 @@ test('all workspace commit paths reject oversized UTF-8 data while preserving th
  test('frozen combined v1 backup preserves authored data, UI resources and cleared shortcuts',async()=>{
  const {readFile}=await import('node:fs/promises');const {parseWorkspaceBackup}=await import('../src/omnic/workspaceBackup.ts');
  const text=await readFile(new URL('./fixtures/workspace-backup-v1.json',import.meta.url),'utf8'),source=JSON.parse(text),restored=parseWorkspaceBackup(text);
- assert.deepEqual(restored.workspace,source.workspace);assert.deepEqual(JSON.parse(JSON.stringify(restored.ui)),source.ui);assert.equal(restored.ui.settings.bindings['selector.open'],'');assert.equal(restored.ui.layout.assets[0].id,'fixture-icon');
+ const {defaultSettings}=await import('../src/workspaceActions.ts');
+ const restoredUI=JSON.parse(JSON.stringify(restored.ui)),defaults=defaultSettings().bindings;
+ // Keep the historical fixture frozen. Newly introduced commands acquire their
+ // declared defaults; every authored historical binding/resource stays exact.
+ for(const [id,binding] of Object.entries(restoredUI.settings.bindings))if(!Object.hasOwn(source.ui.settings.bindings,id)){
+  assert.ok(Object.hasOwn(defaults,id),`unknown synthesized binding: ${id}`);assert.equal(binding,defaults[id]);delete restoredUI.settings.bindings[id];
+ }
+ assert.deepEqual(restored.workspace,source.workspace);assert.deepEqual(restoredUI,source.ui);assert.equal(restored.ui.settings.bindings['selector.open'],'');assert.equal(restored.ui.layout.assets[0].id,'fixture-icon');
  });

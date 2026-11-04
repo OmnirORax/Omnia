@@ -9,7 +9,7 @@ Implementation: Supabase PostgreSQL/Auth/Storage plus an authenticated TypeScrip
 - Private PNG/JPEG/WebP uploads, server-side signature/size/type validation, download, and retryable deletion.
 - Database grants and row-level policies; no ordinary client can change membership or finalize a file by writing table rows.
 - Optional frontend connection in Workspace settings → Cloud connection, using the existing shared UI section, fields, and action catalog.
-- Local-only tooling and an isolated backend permission suite. A first bounded OpenAI scene generation operation and private attempt ledger are described in [scene generation](SCENE_GENERATION.md); paid generation is gated off until configured. No public signup, automatic cloud atlas synchronization, durable job runner, collaboration, quest system, or GitHub publishing integration.
+- Local-only tooling and an isolated backend permission suite. A first bounded OpenAI scene generation operation and private attempt ledger are described in [scene generation](SCENE_GENERATION.md); paid generation is gated off until configured. No public signup, automatic cloud atlas synchronization, durable job runner, collaboration or GitHub publishing integration. The click quest subsystem below requires its separate migration.
 
 The atlas still autosaves to the existing browser storage. Signing in creates no cloud copy. The Stage 2 library provides an explicit
 workspace snapshot save/load path once its migration/function update is installed. Cloud assets are separate resources and are not inserted into the atlas. The scene feature can explicitly apply a generated private image as the workspace background; uploading an ordinary file does not automatically apply it.
@@ -208,3 +208,12 @@ environment setting still overrides this default. The local developer default st
 no health/permission check is skipped and no hosted backend is changed. This
 registry-distribution change awaits the normal automatic CI result; no local
 Docker startup or manual workflow retry was run for this follow-up.
+
+## ♾️ click quests and leaderboards
+
+The source now includes authenticated click benchmarks, per-account attempts,
+one-time quest claims and shared best-per-account rankings through PostgreSQL
+RPCs. See [METRICS.md](METRICS.md) for the additive migration, limits, privacy,
+rollout and two-account acceptance route. Hosted migration is pending. Public
+signup remains disabled; use administratively created confirmed test accounts.
+No Edge Function update is required for these RPCs.
