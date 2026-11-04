@@ -648,3 +648,20 @@ masks, with no new samples, textures, passes, geometry or per-frame CPU work.
 Model arithmetic is checked against independent pixel-area quadrature and stroke
 area conservation. No browser/performance suite was run for this revision; the
 reported 40% visual case remains user acceptance. Saved data is unchanged.
+
+### Neon/canvas pixel-density alignment, 2026-11-04
+
+Neon EffectComposer creation and resize now use renderer.getPixelRatio(), whose
+owner in SpatialWorkspace has already applied the shared scenePixels/maxSceneDpr
+limits. The separate hardcoded 1× effect ceiling could reduce a high-density
+canvas to a lower-resolution intermediate and upscale it again. Both paths now
+use the same budgeted ratio. This also avoids overallocating effects relative to
+a canvas whose device pixel ratio is below one (for example browser zoom).
+
+No caps, sample counts, passes, saved data or glow resolution policy change.
+Effects may consume more pixels than before where the existing canvas budget
+permits a ratio above one (up to 1.25, or 56.25% more pixel area); this remains
+within the 1.5-million-pixel cap. Large cap-bound views receive no resolution
+increase, and finite pixel resolution still limits tiny glyphs. Required model,
+build/backend checks do not establish the user's 30% visual case; user acceptance
+remains pending. No additional browser/performance suite was run.

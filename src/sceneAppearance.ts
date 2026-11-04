@@ -1,4 +1,4 @@
-import { RENDER_BUDGET, budgetPixelRatio, sceneSampleCount } from "./renderBudget";
+import { sceneSampleCount } from "./renderBudget";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -127,7 +127,9 @@ export function createSceneAppearance(
     resize(w: number, h: number) {
       width = w;
       height = h;
-      if (composer) { composer.setPixelRatio(budgetPixelRatio(w, h, 1, RENDER_BUDGET.scenePixels, 1)); composer.setSize(w, h); }
+      // The canvas owner already applies the shared DPR/pixel budget. Keep effect
+      // buffers at that density instead of introducing a second 1x ceiling.
+      if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
     },
     render() {
       const now = performance.now();
@@ -158,7 +160,7 @@ export function createSceneAppearance(
             composer.addPass(bloom);
             output = new OutputPass();
             composer.addPass(output);
-            composer.setPixelRatio(budgetPixelRatio(width, height, 1, RENDER_BUDGET.scenePixels, 1));
+            composer.setPixelRatio(renderer.getPixelRatio());
             composer.setSize(width, height);
           }
           composer.render();
