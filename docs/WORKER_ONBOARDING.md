@@ -220,6 +220,15 @@ being searchable or movable does not establish its property capabilities. The
 shared property registry now connects initial appearance and nonvisual consumers;
 other legacy functions/settings still need migration.
 
+## Workspace plus UI portability
+
+Export workspace now wraps the existing workspace and current version-3 UI template
+in one versioned backup. Import restores both; old workspace-only files preserve UI.
+Recover previous workspace restores a saved original pair. Standalone UI/atlas
+exports remain, and cloud snapshots remain workspace-only. Unsaved Composer drafts,
+all saved theme presets and cloud-media bytes are not covered. See
+[the compatibility and coverage details](OMNIC_LIBRARY.md#combined-workspace-and-ui-export-2026-11-04).
+
 ## Node documents and live lexicon
 
 Nodes now have an optional editable document outside the inspector (node name →

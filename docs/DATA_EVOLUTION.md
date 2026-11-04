@@ -88,7 +88,7 @@ Update it when adding or changing an owner. There is no complete audit yet.
 | Saved state | Existing boundary / routes | Existing checks |
 | --- | --- | --- |
 | Atlas documents and legacy atlas migration | `src/graph/structural.ts`; `src/App.tsx` initial load and atlas import/export | `tests/structural.test.mjs`, `tests/model.test.mjs` |
-| Workspace-wide entities, atlases, lexicon and library | `src/omnic/workspace.ts`; JSON workspace import/export in `src/omnic/Library.tsx` | `tests/omnic-workspace.test.mjs`, `tests/omnic-document.test.mjs` |
+| Workspace-wide entities, atlases, lexicon and library | `src/omnic/workspace.ts`, `src/omnic/workspaceBackup.ts`; JSON workspace import/export in `src/omnic/Library.tsx` | `tests/omnic-workspace.test.mjs`, `tests/omnic-document.test.mjs` |
 | Active and before-replacement local workspace slots | `src/omnic/workspaceStorage.ts`; IndexedDB with localStorage fallback; `src/App.tsx` autosave | `tests/omnic-storage.test.mjs` |
 | Glyph definitions, revisions and recoverable Composer drafts | `src/omnic/model.ts`, `src/omnic/Composer.tsx`, `src/omnic/draftHistory.ts` | `tests/omnic.test.mjs`, `tests/omnic-draft.test.mjs`, workspace tests |
 | UI layout, shortcuts, settings and UI-template import/export | `src/ui/layout.ts`, `src/workspaceActions.ts`, `src/App.tsx` | `tests/ui-layout.test.mjs`, `tests/shortcuts.test.mjs` |
@@ -102,7 +102,7 @@ not proof of complete environment recovery.
 
 Known gaps and next bounded work:
 
-- No single full-environment backup/restore covers workspace, UI, all drafts,
+- Combined workspace/UI export now covers the current layout/settings, icons and referenced fonts (see OMNIC_LIBRARY.md). No full-environment backup/restore covers all drafts,
   saved themes and asset bytes together. Define coverage and restore reporting
   before presenting such an archive as a full backup.
 - No comprehensive released-version fixture corpus or general downgrade/stale-tab
@@ -115,7 +115,7 @@ Known gaps and next bounded work:
 - Hosted deployment/restore state, including the reported Supabase pause, has not
   been verified by this documentation change.
 
-This change establishes developer instructions and review requirements only. It
+The initial contract change established developer instructions and review requirements only. It
 adds no new runtime migration engine, full backup, cloud sync or automatic
 compatibility-impact detector. Close the gaps through bounded changes with
 historical fixtures and recovery evidence, starting before the next affected

@@ -201,3 +201,37 @@ and hosted rollout must be distinguished from model/local backend evidence.
   verification retained. These are test-environment adaptations, not app changes.
 - No browser suite or new performance trace was run; user acceptance remains pending.
 - Hosted migration/function deployment was not performed.
+
+## Combined workspace and UI export (2026-11-04)
+
+Omnic library → Export workspace now downloads `omnium-workspace-backup.json`:
+`omnium-workspace-backup` version 1 wraps the unchanged version-1 workspace and a
+version-3 UI template. It includes the current UI layout/settings/shortcuts,
+current appearance, embedded UI icons and referenced custom fonts. Standalone UI
+and individual-atlas exports remain available. Cloud snapshots remain workspace-only.
+
+Import workspace validates the complete envelope before replacement. Historical
+`omnium-workspace` version-1 files still load without changing UI. Unknown envelope,
+workspace or UI versions reject safely. Font preparation and local recovery writes
+must succeed first; edits during asynchronous preparation abort replacement.
+Recover previous workspace restores the pre-import workspace/UI pair. UI appearance
+is applied through its existing owner so it survives reload. Ordinary undo remains
+separate for workspace, UI and appearance; one Undo is not a combined restore.
+
+The before-replace slot stores an `omnium-workspace-replacement` version-1 envelope
+when UI is included, atomically as one IndexedDB/fallback value. Workspace-only
+readers in the current app can unwrap it; old apps reject the new recovery format.
+A later workspace-only import/cloud load writes a plain workspace to the same
+slot, removing the earlier UI companion. The active workspace format is unchanged.
+Original-pair recovery is local to this browser/profile/origin, not an independent
+backup. Separate local persistence owners still report their own save failures.
+
+This is not a full environment archive: unsaved Composer drafts, all saved theme
+presets, unused fonts, credentials, undo history and private cloud-media bytes are
+excluded. Save shared before exporting Composer work. Workspace stays within 8 MB;
+UI uses the existing font/template allowances; the envelope enforces their sum.
+
+Model coverage includes a frozen workspace-v1 fixture, current combined round
+trip and malformed/newer-format rejection, plus paired recovery/fallback and stale
+companion replacement. Browser cross-profile restore/font/persistence acceptance
+remains pending. No automatic cloud synchronization is introduced.

@@ -176,3 +176,32 @@ test('all workspace commit paths reject oversized UTF-8 data while preserving th
   assert.throws(()=>withActiveDocument(original,{...activeDocument(original),entities}),/8 MB/);
   assert.equal(JSON.stringify(original),unchanged);assert.deepEqual(parseWorkspace(unchanged),original);
 });
+
+ test('combined workspace backups retain UI and historical workspace-only files retain no UI replacement',async()=>{
+ const {createWorkspaceBackup,parseWorkspaceBackup}=await import('../src/omnic/workspaceBackup.ts');
+ const {emptyUILayout}=await import('../src/ui/layout.ts');const {defaultSettings}=await import('../src/workspaceActions.ts');
+ const workspace=createWorkspace(shared(),'portable','atlas'),layout=emptyUILayout(),settings=defaultSettings();
+ layout.panels['@settings']=true;settings.bindings['selector.open']='';settings.bindings['atomnic.rotate']='Ctrl+Alt+R';
+ const template={format:'omnium-ui-template',version:3,layout,settings,fonts:[]},original=JSON.stringify({workspace,template});
+ const backup=createWorkspaceBackup(workspace,template),roundtrip=parseWorkspaceBackup(JSON.stringify(backup));
+ assert.deepEqual(roundtrip.workspace,workspace);assert.deepEqual(roundtrip.ui.layout,layout);assert.equal(roundtrip.ui.settings.bindings['selector.open'],'');assert.equal(roundtrip.ui.settings.bindings['atomnic.rotate'],'Ctrl+Alt+R');
+ assert.equal(JSON.stringify({workspace,template}),original,'export leaves source objects untouched');
+ const legacy=parseWorkspaceBackup(JSON.stringify(workspace));assert.deepEqual(legacy.workspace,workspace);assert.equal(legacy.ui,undefined,'historical workspace files never supply default UI');
+ for(const change of [b=>b.version=2,b=>b.ui.version=4,b=>b.workspace.version=9,b=>b.ui.layout.version=99,b=>b.ui.fonts=[{id:'bad'}],b=>delete b.ui,b=>b.ui.settings=[]]){
+  const candidate=structuredClone(backup);change(candidate);assert.throws(()=>parseWorkspaceBackup(JSON.stringify(candidate)),'unknown or damaged component rejects the whole backup');
+ }
+ const {WORKSPACE_BACKUP_BYTES}=await import('../src/omnic/workspaceBackup.ts');assert.throws(()=>parseWorkspaceBackup(' '.repeat(WORKSPACE_BACKUP_BYTES+1)),/size limit/);
+ });
+
+ test('frozen historical workspace-v1 export remains readable without synthesizing UI',async()=>{
+ const {readFile}=await import('node:fs/promises');const {parseWorkspaceBackup}=await import('../src/omnic/workspaceBackup.ts');
+ const text=await readFile(new URL('./fixtures/workspace-v1.json',import.meta.url),'utf8'),original=JSON.parse(text),restored=parseWorkspaceBackup(text);
+ assert.deepEqual(restored.workspace,original);assert.equal(restored.ui,undefined);assert.equal(restored.workspace.entities[0].notes,'Authored note retained.');
+ assert.equal(restored.workspace.id,'legacy-workspace-v1');assert.equal(restored.workspace.activeAtlasId,'legacy-atlas');
+ });
+
+ test('frozen combined v1 backup preserves authored data, UI resources and cleared shortcuts',async()=>{
+ const {readFile}=await import('node:fs/promises');const {parseWorkspaceBackup}=await import('../src/omnic/workspaceBackup.ts');
+ const text=await readFile(new URL('./fixtures/workspace-backup-v1.json',import.meta.url),'utf8'),source=JSON.parse(text),restored=parseWorkspaceBackup(text);
+ assert.deepEqual(restored.workspace,source.workspace);assert.deepEqual(JSON.parse(JSON.stringify(restored.ui)),source.ui);assert.equal(restored.ui.settings.bindings['selector.open'],'');assert.equal(restored.ui.layout.assets[0].id,'fixture-icon');
+ });

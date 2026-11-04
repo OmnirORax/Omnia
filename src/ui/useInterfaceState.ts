@@ -56,7 +56,7 @@ export function useInterfaceState(
     journal.record("interface", a, b, categories, [...contexts], group);
   };
   const commit = useCallback(
-    (change: (s: InterfaceState) => InterfaceState, group?: string) => {
+    (change: (s: InterfaceState) => InterfaceState, group?: string, strict=false) => {
       try {
         const current = currentState(ref.current);
         const next = change(current);
@@ -88,6 +88,7 @@ export function useInterfaceState(
         publish(nextSession);
         record(before, nextSession, group ?? (typing ? `field:${typing}` : event ? `event:${event.type}:${event.timeStamp}` : undefined));
       } catch (e) {
+        if(strict)throw e;
         error.current(`UI was not changed. ${e instanceof Error ? e.message : String(e)}`);
       }
     },
