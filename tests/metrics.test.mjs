@@ -1,3 +1,4 @@
+import {QUEST_AUTHOR,QUEST_TARGET,QUEST_SECONDS} from '../src/metrics/quest.function.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -115,4 +116,20 @@ test('online runs retain their attempt identity, reject interrupted eligibility 
  const practice=tracker.getSnapshot().results[0];
  tracker.start({...countdown,attemptId:'b',actorId:'account-b'});tracker.clearOnline();
  assert.equal(tracker.getSnapshot().phase,'idle');assert.equal(tracker.getSnapshot().results[0],practice);
+});
+
+
+test('old saved settings acquire author defaults and authored preferences use shared backup validation',()=>{
+ const historical=parseWorkspaceBackup(readFileSync(new URL('fixtures/workspace-backup-v1.json',import.meta.url),'utf8'));
+ let settings=historical.ui.settings;
+ const bindings=settingsPropertyBindings(settings,change=>{settings=change(settings);});
+ assert.equal(bindings.values[QUEST_AUTHOR][QUEST_TARGET],20);
+ assert.equal(bindings.values[QUEST_AUTHOR][QUEST_SECONDS],5);
+ bindings.commit([{consumer:QUEST_AUTHOR,property:QUEST_TARGET,value:10},{consumer:QUEST_AUTHOR,property:QUEST_SECONDS,value:7}]);
+ const restored=parseWorkspaceBackup(JSON.stringify(createWorkspaceBackup(historical.workspace,{...historical.ui,settings})));
+ const next=settingsPropertyBindings(restored.ui.settings,()=>{});
+ assert.equal(next.values[QUEST_AUTHOR][QUEST_TARGET],10);
+ assert.equal(next.values[QUEST_AUTHOR][QUEST_SECONDS],7);
+ assert.deepEqual(restored.workspace,historical.workspace);
+ assert.equal(restored.ui.settings.bindings['selector.open'],'');
 });

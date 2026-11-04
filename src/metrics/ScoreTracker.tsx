@@ -50,7 +50,7 @@ export function ScoreTracker({ bindings }: { bindings: PropertyBindings }) {
     const timeout = window.setTimeout(() => tracker.tick(), Math.ceil(tracker.remainingMs()) + 1);
     return () => window.clearTimeout(timeout);
   }, [tracker, phase]);
-  return <><QuestSystem tracker={tracker} onPlay={reveal}/>{open ? <FloatingWindow id={WINDOW_ID} title="📊 Score tracker" width={370} height={520} openAtCursor={false}
+  return <><QuestSystem tracker={tracker} onPlay={reveal} bindings={bindings}/>{open ? <FloatingWindow id={WINDOW_ID} title="📊 Score tracker" width={370} height={520} openAtCursor={false}
     onClose={() => { tracker.pause(); setOpen(false); }}>
     <div className="metrics-tracker">
       <TimerSettings bindings={bindings} />

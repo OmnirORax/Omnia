@@ -217,3 +217,10 @@ RPCs. See [METRICS.md](METRICS.md) for the additive migration, limits, privacy,
 rollout and two-account acceptance route. Hosted migration is pending. Public
 signup remains disabled; use administratively created confirmed test accounts.
 No Edge Function update is required for these RPCs.
+
+Quest authoring extends this domain with migration `20261104000200_quest_authoring.sql`:
+`create_click_quest` and `click_quest_board` use the existing authenticated RPC
+boundary. The private authorship ledger enforces per-account limits; requirement
+uniqueness preserves original quest/reward identities. Use the [one-file SQL
+Editor setup](setup/README.md); it needs dashboard access, not a token in chat.
+Hosted rollout is still separate from local PostgreSQL evidence.

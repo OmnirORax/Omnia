@@ -228,7 +228,9 @@ the dedicated click area and shares a stopwatch/countdown lifecycle with laps an
 bounded in-tab results. Timer preferences use discovered function inputs and UI
 settings/templates; practice measurements are transient. Online attempts and
 one-time star claims require the additive cloud migration; hosted rollout and
-two-account acceptance are pending. See [METRICS.md](METRICS.md).
+two-account acceptance are pending. New quest uses shared number inputs and
+server-authored immutable goals; exact duplicates reuse identities and rewards.
+See [METRICS.md](METRICS.md) and the [SQL setup steps](setup/README.md).
 
 Export workspace now wraps the existing workspace and current version-3 UI template
 in one versioned backup. Import restores both; old workspace-only files preserve UI.
