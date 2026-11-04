@@ -30,6 +30,23 @@ limits](docs/DIAGNOSTICS.md). Classify the behavior and remedies at the shared
 boundary; do not add warning-specific repair UIs. Current Composer operation
 repairs are shared within Composer, not a completed global warning system.
 
+# Saved-data compatibility (required for all contributors)
+
+Read [the data evolution contract](docs/DATA_EVOLUTION.md) before changes that can
+alter saved data/settings, identities, references, defaults, interpretation,
+validation, persistence, exports/imports, recovery or backend formats. Assess
+persistence impact for every change; explain unaffected changes briefly in the PR.
+Reuse existing owners and shared format logic. Provide contextual compatibility
+or versioned migration with historical fixtures for affected contracts. Preserve
+originals until conversion validates and saves successfully; unknown/newer or
+unreadable data must never become defaults that overwrite the original. Account
+for older clients/tabs, failures, rollback and hosted deployment separately.
+Retired implementation does not make authored content disposable; deliberate
+retirement of irrelevant preferences must be documented. Update the owner map
+when boundaries change. These are development requirements, not a claim that
+all current systems already implement them. Do not claim automatic full backup,
+lossless migration or cross-device sync without implementing and verifying it.
+
 # Capability discovery and delivery (required)
 
 Before implementing a feature, read/search [docs/CAPABILITIES.md](docs/CAPABILITIES.md)

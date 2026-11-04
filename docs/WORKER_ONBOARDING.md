@@ -8,6 +8,11 @@ acceptance. Warning/error work also requires [the diagnostic contract](DIAGNOSTI
 Composer operation repairs exist, but global diagnostic categories/remedies remain
 unfinished. Do not misreport that local shared implementation as app-wide coverage.
 
+Every change needs a contextual saved-data impact assessment. Before changing
+persistent structures or their meaning, read [DATA_EVOLUTION.md](DATA_EVOLUTION.md)
+for the required compatibility/migration/recovery workflow, current owners and
+known gaps. The developer owns this work; the user should not have to request it.
+
 For global mathematical/reference/constraint work, read the
 [living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
 accepted baseline; PR #41 is discarded. Iterate small shared-module experiments

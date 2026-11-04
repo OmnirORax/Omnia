@@ -149,3 +149,5 @@ verify only. GitHub Pages hosting is disabled; its old workflow retains build/te
 checks. See [deployment operations and verification](docs/CLOUDFLARE_DEPLOYMENT.md).
 Each visitor's atlas remains in that visitor's browser and is not published with
 the app; local data does not automatically transfer between hosting origins.
+
+Contributor requirement: [saved-data evolution and compatibility](docs/DATA_EVOLUTION.md), including migration/recovery responsibilities and current coverage gaps.
