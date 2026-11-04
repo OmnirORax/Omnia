@@ -8,6 +8,11 @@ acceptance. Warning/error work also requires [the diagnostic contract](DIAGNOSTI
 Composer operation repairs exist, but global diagnostic categories/remedies remain
 unfinished. Do not misreport that local shared implementation as app-wide coverage.
 
+Every change needs a contextual saved-data impact assessment. Before changing
+persistent structures or their meaning, read [DATA_EVOLUTION.md](DATA_EVOLUTION.md)
+for the required compatibility/migration/recovery workflow, current owners and
+known gaps. The developer owns this work; the user should not have to request it.
+
 For global mathematical/reference/constraint work, read the
 [living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
 accepted baseline; PR #41 is discarded. Iterate small shared-module experiments
@@ -214,6 +219,15 @@ Automatic native-button discovery is not automatic property detection. An action
 being searchable or movable does not establish its property capabilities. The
 shared property registry now connects initial appearance and nonvisual consumers;
 other legacy functions/settings still need migration.
+
+## Workspace plus UI portability
+
+Export workspace now wraps the existing workspace and current version-3 UI template
+in one versioned backup. Import restores both; old workspace-only files preserve UI.
+Recover previous workspace restores a saved original pair. Standalone UI/atlas
+exports remain, and cloud snapshots remain workspace-only. Unsaved Composer drafts,
+all saved theme presets and cloud-media bytes are not covered. See
+[the compatibility and coverage details](OMNIC_LIBRARY.md#combined-workspace-and-ui-export-2026-11-04).
 
 ## Node documents and live lexicon
 

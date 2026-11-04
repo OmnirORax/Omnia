@@ -13,15 +13,15 @@ import {saveOmnicDefinition} from './document';
 import {evaluateRecipe} from './evaluate';
 import {renderSVG} from './svg';
 import {WorkspaceCloud} from './WorkspaceCloud';
-import {activeDocument,addWorkspaceAtlas,organizeObject,parseWorkspace,validateFilter,withActiveDocument,collectionScope,WORKSPACE_BYTES,type OmnicWorkspace,type StructuralFilter} from './workspace';
+import {activeDocument,addWorkspaceAtlas,organizeObject,validateFilter,withActiveDocument,collectionScope,type OmnicWorkspace,type StructuralFilter} from './workspace';
 import {referenceComponents,type Recipe} from './model';
-import {readWorkspaceSlot,saveWorkspaceSlot} from './workspaceStorage';
+import {WORKSPACE_BACKUP_BYTES} from './workspaceBackup';
 import './composer.css';
 
-type Props={workspace:OmnicWorkspace;onChange:(next:OmnicWorkspace)=>void;onSwitch:(id:string)=>void;onOpen:(id:string)=>void;onPlace:(id:string)=>void;onCopy:(recipe:Recipe,label:string,source:string)=>void};
+type Props={onExport:()=>Promise<string>;onImport:(text:string)=>Promise<boolean>;onRecover:()=>Promise<boolean>;workspace:OmnicWorkspace;onChange:(next:OmnicWorkspace)=>void;onSwitch:(id:string)=>void;onOpen:(id:string)=>void;onPlace:(id:string)=>void;onCopy:(recipe:Recipe,label:string,source:string)=>void};
 const PAGE=32;
 const tags=(text:string)=>[...new Set(text.split(',').map(tag=>tag.trim()).filter(Boolean))];
-export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}:Props){
+export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy,onExport,onImport,onRecover}:Props){
   const [filter,setFilter]=useState<StructuralFilter>({}),[selectedId,setSelectedId]=useState(''),[page,setPage]=useState(0);
   const [newName,setNewName]=useState(''),[parentCollection,setParentCollection]=useState('');
   const [draftWords,setDraftWords]=useState('');
@@ -29,7 +29,7 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}
   const [error,setError]=useState(''),[notice,setNotice]=useState('');
   const [indexed,setIndexed]=useState<Map<string,IndexEntry>>(()=>new Map());
   const numericParameters=useMemo(()=>[...new Map([...GENERATORS,...OPERATORS].flatMap(d=>d.parameters).filter(p=>p.kind==='number').map(p=>[p.property,p])).values()],[]);
-  const index=useMemo(()=>workspaceLibraryIndex(workspace.id),[workspace.id]),input=useRef<HTMLInputElement>(null),currentWorkspace=useRef(workspace);currentWorkspace.current=workspace;
+  const index=useMemo(()=>workspaceLibraryIndex(workspace.id),[workspace.id]),input=useRef<HTMLInputElement>(null);
   const objects=useMemo(()=>workspace.entities.filter(entity=>!!entity.omnic),[workspace.entities]);
   const resolver=useMemo(()=>objectResolver(workspace.entities),[workspace.entities]);
   // Yield between bounded evaluations. Rows never mount SVG previews; only the
@@ -56,14 +56,14 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}
   },[selected,revision,resolver]);
   const attempt=(run:()=>void)=>{try{run();setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}};
   const set=(patch:Partial<StructuralFilter>)=>setFilter(previous=>{const next={...previous,...patch};for(const key of Object.keys(next))if(next[key as keyof StructuralFilter]===undefined||next[key as keyof StructuralFilter]==='')delete next[key as keyof StructuralFilter];return next;});
-  const download=()=>{const data=JSON.stringify(workspace);if(new TextEncoder().encode(data).length>WORKSPACE_BYTES)throw Error('Workspace exceeds the export budget.');const url=URL.createObjectURL(new Blob([data],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='omnium-workspace.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+  const download=async()=>{const data=await onExport();const url=URL.createObjectURL(new Blob([data],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='omnium-workspace-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   useFeatureActions('omnicLibrary',{
     'omnic.library.open':{enabled:!!selected,run:()=>selected&&onOpen(selected.id)},
     'omnic.library.place':{enabled:!!selected,run:()=>attempt(()=>selected&&onPlace(selected.id))},
     'omnic.library.copy':{enabled:!!selected,run:()=>attempt(()=>selected&&onCopy(selected.omnic!,`${selected.label} copy`,selected.id))},
-    'omnic.workspace.export':{enabled:true,run:()=>attempt(download)},
+    'omnic.workspace.export':{enabled:true,run:()=>void download().then(()=>{setError('');setNotice('Workspace and UI exported.');}).catch(error=>setError(error instanceof Error?error.message:String(error)))},
     'omnic.workspace.import':{enabled:true,run:()=>input.current?.click()},
-    'omnic.workspace.recover':{enabled:true,run:()=>void (async()=>{try{const backup=await readWorkspaceSlot('before-replace');if(!backup)throw Error('No local replacement backup exists.');if(currentWorkspace.current!==workspace)throw Error('Local work changed. Retry recovery after editing.');onChange(backup);setNotice('Local replacement backup restored.');setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}})()},
+    'omnic.workspace.recover':{enabled:true,run:()=>void onRecover().then(ui=>{setNotice(ui?'Workspace and UI backup restored.':'Workspace backup restored; UI unchanged.');setError('');}).catch(error=>setError(error instanceof Error?error.message:String(error)))},
   });
   const collectionName=(id:string)=>workspace.library.collections.find(c=>c.id===id)?.name??id;
   return <div className="omnic-composer omnic-library">
@@ -71,7 +71,7 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy}
       <div className="omnic-row"><UIField id="omnic:active-atlas" label="Active atlas" category="Omnic"><select aria-label="Active atlas" value={workspace.activeAtlasId} onChange={event=>onSwitch(event.target.value)}>{workspace.atlases.map(atlas=><option key={atlas.id} value={atlas.id}>{atlas.name}</option>)}</select></UIField>
         <FunctionControl id="omnic.workspace.export"/><FunctionControl id="omnic.workspace.import"/><FunctionControl id="omnic.workspace.recover"/>
       </div>
-      <input ref={input} type="file" accept="application/json,.json" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;void (async()=>{try{if(file.size>WORKSPACE_BYTES)throw Error('Workspace exceeds 8 MB.');const next=parseWorkspace(await file.text());await saveWorkspaceSlot(workspace,'before-replace');if(currentWorkspace.current!==workspace)throw Error('Local work changed during import. Retry after editing.');onChange(next);setSelectedId('');setNotice('Workspace imported. Undo restores the previous workspace.');setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}})();}}/>
+      <input ref={input} type="file" accept="application/json,.json" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;void (async()=>{try{if(file.size>WORKSPACE_BACKUP_BYTES)throw Error('Workspace backup exceeds its size limit.');const restoredUI=await onImport(await file.text());setSelectedId('');setNotice(restoredUI?'Workspace and UI imported. Recover previous workspace restores both.':'Legacy workspace imported; UI unchanged.');setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}})();}}/>
     </UISection>
     <UISection id="omnic-library-browse" title={`Objects · ${results.length}`}>
       <div className="omnic-row">

@@ -1551,36 +1551,45 @@
       "id": "library.persistence",
       "title": "Local workspace autosave, portability and recovery",
       "where": "Library → Export workspace / Import workspace / Recover previous workspace; File → Import/Export JSON for individual atlases.",
-      "behavior": "IndexedDB autosaves locally. Workspace import/cloud load retain a durable previous-workspace backup. Atlas imports remap independent canonical identities rather than merging equal legacy IDs.",
+      "behavior": "IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. Standalone Save UI template and ordinary atlas export remain available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.",
       "steps": [
         {
-          "do": "Create two atlases with organization metadata, reload, and export the workspace.",
-          "expect": "Both atlases and organization survive reload and are included in the export."
+          "do": "Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose Omnic library → Export workspace.",
+          "expect": "One omnium-workspace-backup.json file contains both workspace and UI; current custom fonts referenced by the appearance are embedded."
         },
         {
-          "do": "Import that workspace, then Recover previous workspace or Undo.",
-          "expect": "The imported state loads; the previous state is recoverable."
+          "do": "Change the UI and workspace, then Import workspace using that combined file.",
+          "expect": "Both saved workspace and UI return. Referenced custom fonts are prepared before replacement; changes during asynchronous preparation abort the restore."
         },
         {
-          "do": "Import an atlas whose old IDs overlap existing IDs.",
-          "expect": "It becomes an independent atlas with remapped canonical identities."
+          "do": "Choose Recover previous workspace.",
+          "expect": "The pre-import workspace and UI return together. An ordinary workspace-only/cloud replacement creates a workspace-only recovery record and cannot revive stale UI from an earlier import."
+        },
+        {
+          "do": "Import an old omnium-workspace v1 file, or try a damaged/unsupported newer combined file.",
+          "expect": "A valid old workspace replaces workspace only. A damaged or unsupported component rejects the combined import before replacing either domain."
         }
       ],
       "reference": "docs/OMNIC_LIBRARY.md",
       "sources": [
         "src/omnic/workspaceStorage.ts",
-        "src/omnic/workspace.ts"
+        "src/omnic/workspace.ts",
+        "src/omnic/workspaceBackup.ts",
+        "src/omnic/Library.tsx",
+        "src/App.tsx",
+        "tests/fixtures/workspace-v1.json",
+        "tests/fixtures/workspace-backup-v1.json"
       ],
       "actions": [
         "omnic.workspace.recover",
         "omnic.workspace.export",
         "omnic.workspace.import"
       ],
-      "limits": "8 MB workspace commit/export/cloud budget; 5 MB atlas import/export limit. Local images have separate backup requirements.",
+      "limits": "Workspace and cloud snapshots retain the 8 MB budget; UI uses the existing 15 MiB font allowance plus 5 MB template allowance. The combined envelope has their summed byte budget plus 1 KB overhead. Individual atlases retain 5 MB limits. This is workspace plus current UI, not a complete environment archive: unsaved Composer drafts, all saved theme presets, unreferenced fonts, authentication/session data, undo history and private cloud media bytes are not included. Save shared before exporting Composer work. Browser profile/origin recovery slots are not independent backups. New combined files require a current importer; older apps reject their format. UI persistence and workspace persistence retain their existing owners and failure messages.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Combined cross-profile restore, custom font decoding and storage-denied usability are pending user/browser acceptance; no browser success inferred from model/build checks.",
+        "automated": "Model checks cover combined round trip, explicit cleared/rebound shortcuts, frozen workspace-v1 compatibility, unsupported/damaged components, size limits, source preservation and paired recovery in IndexedDB/local fallback. Required model/build/backend gates run before publication."
       },
       "related": [],
       "gestures": []

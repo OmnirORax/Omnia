@@ -808,19 +808,20 @@ Live references follow edits. Pinned references use saved revisions with frozen 
 
 **Where:** Library → Export workspace / Import workspace / Recover previous workspace; File → Import/Export JSON for individual atlases.
 
-IndexedDB autosaves locally. Workspace import/cloud load retain a durable previous-workspace backup. Atlas imports remap independent canonical identities rather than merging equal legacy IDs.
+IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. Standalone Save UI template and ordinary atlas export remain available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.
 
 **Minimal working test**
 
-1. Create two atlases with organization metadata, reload, and export the workspace. **Expected:** Both atlases and organization survive reload and are included in the export.
-2. Import that workspace, then Recover previous workspace or Undo. **Expected:** The imported state loads; the previous state is recoverable.
-3. Import an atlas whose old IDs overlap existing IDs. **Expected:** It becomes an independent atlas with remapped canonical identities.
+1. Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose Omnic library → Export workspace. **Expected:** One omnium-workspace-backup.json file contains both workspace and UI; current custom fonts referenced by the appearance are embedded.
+2. Change the UI and workspace, then Import workspace using that combined file. **Expected:** Both saved workspace and UI return. Referenced custom fonts are prepared before replacement; changes during asynchronous preparation abort the restore.
+3. Choose Recover previous workspace. **Expected:** The pre-import workspace and UI return together. An ordinary workspace-only/cloud replacement creates a workspace-only recovery record and cannot revive stale UI from an earlier import.
+4. Import an old omnium-workspace v1 file, or try a damaged/unsupported newer combined file. **Expected:** A valid old workspace replaces workspace only. A damaged or unsupported component rejects the combined import before replacing either domain.
 
-**Limits / unavailable behavior:** 8 MB workspace commit/export/cloud budget; 5 MB atlas import/export limit. Local images have separate backup requirements.
+**Limits / unavailable behavior:** Workspace and cloud snapshots retain the 8 MB budget; UI uses the existing 15 MiB font allowance plus 5 MB template allowance. The combined envelope has their summed byte budget plus 1 KB overhead. Individual atlases retain 5 MB limits. This is workspace plus current UI, not a complete environment archive: unsaved Composer drafts, all saved theme presets, unreferenced fonts, authentication/session data, undo history and private cloud media bytes are not included. Save shared before exporting Composer work. Browser profile/origin recovery slots are not independent backups. New combined files require a current importer; older apps reject their format. UI persistence and workspace persistence retain their existing owners and failure messages.
 
-**Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
+**Verification:** browser — Combined cross-profile restore, custom font decoding and storage-denied usability are pending user/browser acceptance; no browser success inferred from model/build checks.. Automated — Model checks cover combined round trip, explicit cleared/rebound shortcuts, frozen workspace-v1 compatibility, unsupported/damaged components, size limits, source preservation and paired recovery in IndexedDB/local fallback. Required model/build/backend gates run before publication..
 
-**Details:** [subsystem guide](OMNIC_LIBRARY.md). **Implementation:** [src/omnic/workspaceStorage.ts](../src/omnic/workspaceStorage.ts), [src/omnic/workspace.ts](../src/omnic/workspace.ts).
+**Details:** [subsystem guide](OMNIC_LIBRARY.md). **Implementation:** [src/omnic/workspaceStorage.ts](../src/omnic/workspaceStorage.ts), [src/omnic/workspace.ts](../src/omnic/workspace.ts), [src/omnic/workspaceBackup.ts](../src/omnic/workspaceBackup.ts), [src/omnic/Library.tsx](../src/omnic/Library.tsx), [src/App.tsx](../src/App.tsx), [tests/fixtures/workspace-v1.json](../tests/fixtures/workspace-v1.json), [tests/fixtures/workspace-backup-v1.json](../tests/fixtures/workspace-backup-v1.json).
 
 **Command IDs:** `omnic.workspace.recover`, `omnic.workspace.export`, `omnic.workspace.import`.
 
@@ -1497,8 +1498,8 @@ Labels, descriptions and defaults are read from the same catalog as the applicat
 | Edit object · `omnic.library.open` | Unassigned | Edit object through the shared workspace library. | [Shared library, multiple atlases and copy provenance](#library-objects) |
 | Place shared object · `omnic.library.place` | Unassigned | Place shared object through the shared workspace library. | [Shared library, multiple atlases and copy provenance](#library-objects) |
 | Create independent copy · `omnic.library.copy` | Unassigned | Create independent copy through the shared workspace library. | [Shared library, multiple atlases and copy provenance](#library-objects) |
-| Export workspace · `omnic.workspace.export` | Unassigned | Export workspace through the shared workspace library. | [Local workspace autosave, portability and recovery](#library-persistence) |
-| Import workspace · `omnic.workspace.import` | Unassigned | Import workspace through the shared workspace library. | [Local workspace autosave, portability and recovery](#library-persistence) |
+| Export workspace · `omnic.workspace.export` | Unassigned | Export all atlases, saved glyphs/library and the current UI layout, shortcuts, appearance, icons and referenced fonts in one versioned file. Unsaved Composer drafts and cloud assets are separate. | [Local workspace autosave, portability and recovery](#library-persistence) |
+| Import workspace · `omnic.workspace.import` | Unassigned | Restore workspace and included UI from a combined export; old workspace-only files leave UI unchanged. Preserve the previous pair for recovery. | [Local workspace autosave, portability and recovery](#library-persistence) |
 | Omnic library · `omnic.library` | Unassigned | Browse shared objects, structural families, revisions and workspace atlases. | [Shared library, multiple atlases and copy provenance](#library-objects) |
 | New Omnic object · `omnic.create` | Unassigned | New Omnic object through the shared composer and canonical object state. | [Circular Omnic composer: editing inside, tools on the rim](#omnic-compose) |
 | Open Omnic composer · `omnic.open` | Unassigned | Open Omnic composer through the shared composer and canonical object state. | [Circular Omnic composer: editing inside, tools on the rim](#omnic-compose) |

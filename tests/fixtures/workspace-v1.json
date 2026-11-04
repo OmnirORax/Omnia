@@ -1,0 +1,57 @@
+{
+  "format": "omnium-workspace",
+  "version": 1,
+  "id": "legacy-workspace-v1",
+  "name": "My workspace",
+  "revision": 0,
+  "entities": [
+    {
+      "id": "legacy-entity",
+      "label": "Preserved English",
+      "aliases": [
+        "invariant"
+      ],
+      "notes": "Authored note retained."
+    }
+  ],
+  "atlases": [
+    {
+      "id": "legacy-atlas",
+      "name": "Atlas",
+      "document": {
+        "format": "omnium-atlas",
+        "version": 2,
+        "revision": 0,
+        "placements": [],
+        "compositions": [],
+        "relationshipTypes": [
+          {
+            "id": "legacy-untyped",
+            "name": "Unclassified",
+            "symbol": "",
+            "definition": "Legacy or not yet classified",
+            "roles": [
+              {
+                "id": "source",
+                "name": "From"
+              },
+              {
+                "id": "target",
+                "name": "To"
+              }
+            ]
+          }
+        ],
+        "relationships": [],
+        "frames": [],
+        "activeFrameId": null
+      }
+    }
+  ],
+  "activeAtlasId": "legacy-atlas",
+  "library": {
+    "items": [],
+    "collections": [],
+    "families": []
+  }
+}

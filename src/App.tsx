@@ -1,4 +1,5 @@
-import {readWorkspaceSlot,saveWorkspaceSlot} from "./omnic/workspaceStorage";
+import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,type WorkspaceUI} from './omnic/workspaceBackup';
+import {readWorkspaceSlot,readWorkspaceReplacement,saveWorkspaceSlot} from "./omnic/workspaceStorage";
 import { activeDocument, createWorkspace, validateWorkspace, withActiveDocument, importWorkspaceAtlas, workspaceHistory, restoreWorkspaceHistory, advanceWorkspaceRevisions, type OmnicWorkspace as WorkspaceSnapshot } from "./omnic/workspace";
 import { OmnicWorkspaceActions } from "./omnic/WorkspaceActions";
 import { forkOmnicDefinition, saveOmnicDefinition } from "./omnic/document";
@@ -157,6 +158,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const [checkpoints, setCheckpoints] = useState(loadCheckpoints);
   const [recoveryError, setRecoveryError] = useState("");
   const previewAppearance = appearancePreview ?? ui.settings.appearance;
+  // Committed nonappearance settings and current appearance are stable owners;
+  // a pending appearance draft may rebuild ui.settings on unrelated renders.
+  const backupUI=useRef({layout:savedUILayout,settings:savedSettings,appearance:previewAppearance});backupUI.current={layout:savedUILayout,settings:savedSettings,appearance:previewAppearance};
   const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
   const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
   const propertyBindings = settingsPropertyBindings(settings, setSettings);
@@ -208,7 +212,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     root.style.setProperty("--omnium-frame-opacity", String(a.windowOpacity * a.opacity * 0.22));
   }, [renderedAppearance]);
   useControlGlow(settings.appearance.controlGlow, settings.appearance.accent, settings.appearance.theme);
-  const uiCurrent = useRef(savedUILayout); uiCurrent.current = savedUILayout;
   useEffect(() => { if (!ui.dirty) return; try { localStorage.setItem(UI_LAYOUT_KEY, JSON.stringify(savedUILayout)); } catch { setError("UI arrangement could not be saved locally. Export a UI template to keep it."); } }, [savedUILayout, ui.dirty]);
   const [expandedVariants, setExpandedVariants] = useState<Set<string>>(() => new Set());
   const atlas = useMemo(() => editorView(document, expandedVariants), [document, expandedVariants]);
@@ -474,9 +477,38 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  async function captureWorkspaceUI(snapshot=backupUI.current):Promise<WorkspaceUI>{
+    return validateWorkspaceUI({format:'omnium-ui-template',version:3,layout:snapshot.layout,settings:{...snapshot.settings,appearance:snapshot.appearance},fonts:(await Promise.all(appearanceFonts(snapshot.appearance).map(embeddedFont))).flat()});
+  }
+  const unchangedBackupUI=(snapshot:typeof backupUI.current)=>backupUI.current.layout===snapshot.layout&&backupUI.current.settings===snapshot.settings&&backupUI.current.appearance===snapshot.appearance;
+  async function exportWorkspaceBackup(){
+    const captured=workspaceRef.current,uiSnapshot=backupUI.current,template=await captureWorkspaceUI(uiSnapshot);
+    if(workspaceRef.current!==captured||!unchangedBackupUI(uiSnapshot))throw Error('Work changed while preparing the export. Retry after editing.');
+    return JSON.stringify(createWorkspaceBackup(captured,template));
+  }
+  async function restoreWorkspaceBackup(source:{workspace:WorkspaceSnapshot;ui?:WorkspaceUI},preserve=true){
+    const captured=workspaceRef.current,uiSnapshot=backupUI.current;
+    // Validate both domains before any replacement; retain one original pair.
+    const next=validateWorkspace(advanceWorkspaceRevisions(captured,source.workspace));
+    const template=source.ui?validateWorkspaceUI(source.ui):undefined;
+    const guard=()=>{if(workspaceRef.current!==captured||!unchangedBackupUI(uiSnapshot))throw Error('Local work changed during restore. Retry after editing.');};
+    if(preserve){const originalUI=await captureWorkspaceUI(uiSnapshot);guard();await saveWorkspaceSlot(captured,'before-replace',originalUI);guard();}
+    if(template){await restoreTemplateFont(template.settings.appearance,template.fonts);guard();}
+    guard();
+    if(template){ui.commit(()=>({layout:template.layout,settings:template.settings}),undefined,true);ui.applyAppearance(template.settings.appearance);setAppearancePreview(null);}
+    commitWorkspace(next);
+    return !!template;
+  }
+  async function importWorkspaceBackup(text:string){return restoreWorkspaceBackup(parseWorkspaceBackup(text));}
+  async function recoverWorkspaceBackup(){
+    const captured=workspaceRef.current,uiSnapshot=backupUI.current,previous=await readWorkspaceReplacement();
+    if(!previous)throw Error('No local replacement backup exists.');
+    if(workspaceRef.current!==captured||!unchangedBackupUI(uiSnapshot))throw Error('Local work changed. Retry recovery after editing.');
+    return restoreWorkspaceBackup({workspace:previous.workspace,...(previous.ui!==undefined?{ui:validateWorkspaceUI(previous.ui)}:{})},false);
+  }
   async function exportTemplate() {
     try {
-      const template = { format: "omnium-ui-template", version: 3, layout: uiCurrent.current, settings: { ...ui.settings, appearance: previewAppearance }, fonts: (await Promise.all(appearanceFonts(previewAppearance).map(embeddedFont))).flat() };
+      const template = await captureWorkspaceUI();
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }),
       );
@@ -2287,7 +2319,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
-        <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
+        <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary onExport={exportWorkspaceBackup} onImport={importWorkspaceBackup} onRecover={recoverWorkspaceBackup} workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
       </FloatingWindow>}
       {omnicObject && <FloatingWindow id="omnic-composer" shape="circle" title={`Omnic · ${omnicObject.label || "object"}`} width={360} height={360} onClose={() => setOmnicEditorId(null)}>
         <Suspense fallback={null}><OmnicComposer radar key={`${workspace.id}:${omnicObject.id}`} workspaceId={workspace.id} presetIds={workspace.library.items.filter(item=>item.preset).map(item=>item.entityId)} entity={omnicObject} objects={document.entities} history={actionHistory} onSave={saveOmnic}
