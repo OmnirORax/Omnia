@@ -1,3 +1,4 @@
+import {inheritMaterialCoverage} from './materialCoverage';
 import { sceneEdgeAA } from "./sceneEdgeAA";
 import { bloomSize } from "./renderBudget";
 import * as THREE from "three";
@@ -11,13 +12,13 @@ export class SceneGlow extends Pass {
   private bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.22, 0, 0);
   private cache = new Map<THREE.Material, THREE.Material>();
   private mix = new THREE.ShaderMaterial({
-    uniforms: { texel: { value: new THREE.Vector2(1, 1) }, base: { value: null }, glow: { value: this.bloom.renderTargetsHorizontal[0].texture } },
+    uniforms: { edgeAA: {value:1}, texel: { value: new THREE.Vector2(1, 1) }, base: { value: null }, glow: { value: this.bloom.renderTargetsHorizontal[0].texture } },
     vertexShader: 'varying vec2 uv0; void main(){uv0=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `uniform sampler2D base; uniform sampler2D glow; varying vec2 uv0; ${sceneEdgeAA} void main(){vec4 center=texture2D(base,uv0);gl_FragColor=vec4(edgeColor(base,uv0,center.rgb)+texture2D(glow,uv0).rgb,center.a);}`,
+    fragmentShader: `uniform float edgeAA; uniform sampler2D base; uniform sampler2D glow; varying vec2 uv0; ${sceneEdgeAA} void main(){vec4 center=texture2D(base,uv0);gl_FragColor=vec4((edgeAA>.5?edgeColor(base,uv0,center.rgb):center.rgb)+texture2D(glow,uv0).rgb,center.a);}`,
     depthTest: false, depthWrite: false,
   });
   private quad = new FullScreenQuad(this.mix);
-  constructor(private scene: THREE.Scene, private camera: THREE.Camera, _samples: number) { super(); this.target.samples = 0; }
+  constructor(private scene: THREE.Scene, private camera: THREE.Camera, samples: number) { super(); this.mix.uniforms.edgeAA.value=samples>0?0:1;this.target.samples = 0; }
   configure(strength: number, spread: number) {
     this.bloom.strength = strength;
     // Keep only the close blur scales. Broad, low-resolution layers create haze.
@@ -28,6 +29,7 @@ export class SceneGlow extends Pass {
     if (!material) {
       if (original instanceof THREE.ShaderMaterial || original instanceof THREE.LineBasicMaterial || original instanceof THREE.PointsMaterial || original instanceof THREE.SpriteMaterial) material = original.clone();
       else material = new THREE.MeshBasicMaterial({ map: (original as Colored).map, alphaMap: (original as Colored).alphaMap, side: original.side });
+      inheritMaterialCoverage(original,material);
       this.cache.set(original, material);
     }
     material.transparent = original.transparent; material.opacity = original.opacity;

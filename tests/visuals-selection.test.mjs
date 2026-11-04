@@ -223,13 +223,16 @@ test('an old editor cannot cancel a newer MS request, and rejection text never a
  assert.deepEqual(selectionDecision(false),{accepted:false,message:'Unsupported target'});
 });
 
-test('MS repeated entry configures, Escape returns to aiming, then cancels',async()=>{
+test('MS entry cycles aim, configure, closed, aim; Escape separately backs out and cancels',async()=>{
  const {selectorOpenPhase,selectorEscapePhase}=await import('../src/appearance/selectionRange.ts');
  let phase='off';phase=selectorOpenPhase(phase);assert.equal(phase,'aim');
  phase=selectorOpenPhase(phase);assert.equal(phase,'configure');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'off','third opening shortcut closes without a selection-clear command');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'aim');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'configure');
  phase=selectorEscapePhase(phase);assert.equal(phase,'aim');
  phase=selectorEscapePhase(phase);assert.equal(phase,'off');
- assert.equal(selectorOpenPhase('locked'),'configure');
+ assert.equal(selectorOpenPhase('locked'),'configure');assert.equal(selectorOpenPhase('configure',true),'aim','borrowed reference entry still starts fresh');
 });
 test('Shift range includes endpoints in either direction and handles missing anchors safely',async()=>{
  const {orderedSelectionRange}=await import('../src/appearance/selectionRange.ts');
@@ -390,4 +393,18 @@ test('native selection resolves the physical event path and survives replacement
  registry.anchor(root,{x:11,y:1});const gesture=registry.beginPointer(root,{x:1,y:1},'toggle');
  assert.deepEqual(gesture.preview({x:24,y:3}).after,['a','b','c']);
  assert.deepEqual(registry.prepare(root,{x:21,y:1},'range').after,['b','c'],'preview at a cannot replace the accepted anchor b');
+ });
+
+ test('registered MS sessions own their source surface, yield outside UI, and never follow replaced roots/contexts',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),ink={},toolbar={},controller={},frame={contains:element=>element===toolbar};let context='first';
+ const root={contains:element=>element===ink,closest:()=>frame};let liveRoot=root;
+ const stop=registry.register({element:()=>liveRoot,context:()=>context,snapshot:()=>({units:[],selected:[],hit:()=>undefined}),apply:()=>{}});
+ registry.beginSession(ink);assert.equal(registry.sessionScoped(),true);assert.equal(registry.sessionOwns(ink),true);assert.equal(registry.sessionOwns(controller),false,'Master Controller is not a Composer selection target');
+ assert.equal(registry.sessionOwns({},[ink,root]),true,'physical press path survives replaced descendants');assert.equal(registry.sessionOwns(ink,[controller]),false,'physical path cannot acquire a different surface');
+ registry.beginSession(toolbar);assert.equal(registry.sessionScoped(),true,'entry over source chrome still finds its registered content owner');assert.equal(registry.sessionOwns(toolbar),false,'toolbar controls remain controls');
+ context='second';assert.equal(registry.sessionOwns(ink),false,'atlas/source identity changes cannot retain selection capture');
+ registry.beginSession(ink);liveRoot={contains:()=>true};assert.equal(registry.sessionOwns(ink),false,'new content root cannot inherit input');
+ registry.endSession();assert.equal(registry.sessionScoped(),false);assert.equal(registry.sessionOwns(controller),true,'unscoped standalone MS retains its existing global behavior');
+ liveRoot=root;registry.beginSession(ink);stop();assert.equal(registry.sessionOwns(ink),false,'disposed surfaces cannot retain input');
  });

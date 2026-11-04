@@ -36,7 +36,15 @@ export function createSelectionSurfaces(){
     else {const box={left:Math.min(point.x,end.x),right:Math.max(point.x,end.x),top:Math.min(point.y,end.y),bottom:Math.max(point.y,end.y)};for(const unit of snapshot.units)if(unit.box.left<=box.right&&unit.box.right>=box.left&&unit.box.top<=box.bottom&&unit.box.bottom>=box.top)selected.add(unit.id);if(hit)anchor(hit);}
     const after=[...selected];return {id,before,after,elements:(snapshot.elements??(commitAnchor?surface.elements:undefined))?.(after),units:snapshot.units.filter(unit=>selected.has(unit.id))};
   };
+  let session:{id:string;surface:SelectionSurface;root:Element}|undefined;
+  const sessionOwns=(element:Element,path:readonly EventTarget[]=[])=>!session||current(session.id)===session.surface&&session.surface.element()===session.root&&(path.length?path.includes(session.root):session.root===element||session.root.contains(element));
   return {
+    beginSession(element?:Element){
+      const found=element&&(find(element)??[...surfaces].reverse().flatMap(([key,surface])=>{const root=surface.element();return root?.closest?.('[data-selection-context]')?.contains(element)?[[`${key}/${encodeURIComponent(surface.context?.()??'')}`,surface] as const]:[];})[0]);
+      const root=found?.[1].element();session=found&&root?{id:found[0],surface:found[1],root}:undefined;
+    },
+    endSession(){session=undefined;},sessionOwns,
+    sessionScoped:()=>!!session,
     register(surface:SelectionSurface){const id=`surface-${++sequence}`;surfaces.set(id,surface);return()=>{surfaces.delete(id);for(const key of anchors.keys())if(key.startsWith(`${id}/`))anchors.delete(key);};},
     anchor(element:Element,point:SelectionPoint){const found=find(element);if(!found)return;const hit=found[1].snapshot().hit(point);if(hit)anchors.set(found[0],hit);},
     prepare,

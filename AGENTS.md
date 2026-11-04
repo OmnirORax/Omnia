@@ -30,6 +30,8 @@ limits](docs/DIAGNOSTICS.md). Classify the behavior and remedies at the shared
 boundary; do not add warning-specific repair UIs. Current Composer operation
 repairs are shared within Composer, not a completed global warning system.
 
+The assigned MS opening shortcut (Q by default) cycles off → aiming → MS configuration → off, then repeats. Closing through Q retains accepted membership/history and releases targeting; it never clears the selection. Esc retains its separate behavior: from configuration return to aiming, then cancel/clear normal MS selection; canceling a borrowed reference restores its prior selection. Existing explicit clear/removal commands remain available. Automatic Master Controller selection inspection is unchanged.
+
 # Saved-data compatibility (required for all contributors)
 
 Read [the data evolution contract](docs/DATA_EVOLUTION.md) before changes that can
@@ -165,6 +167,8 @@ selector commands, scoped range discovery and transient selection history.
 Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
 
 Modifier marquee feedback is live while held: Ctrl/Shift-drag previews the current intersected owners as the rectangle grows or shrinks, before release. Preview does not change accepted membership, anchors, geometry or selection history. Release commits once; Esc, blur or pointer cancellation removes the preview. Reuse the registered surface snapshot and area-hit adapter, prepare geometry once per gesture, and coalesce feedback to animation frames. Snapshot adapters may return a cached elements resolver for native-ink preview; otherwise projected unit boxes provide feedback. Do not call geometry discovery or layout measurement from each area query.
+
+Normal MS sessions opened on a registered content surface are bounded to that source root/context. The selector cursor and hover/wheel targeting apply there; a primary/secondary press or focus change on other controls ends normal targeting without consuming the control input or clearing accepted membership. Selector-owned configuration remains usable. ActiveContext preserves the source only for pointer picks inside that boundary. Standalone UI MS remains global. Explicit borrowed reference requests retain their rejection/cancel contract and navigation context.
 
 **Interaction ownership:** read [the current lifecycle and regression route](docs/OMNIC_INTERACTION_LIFECYCLE.md)
 for selection/editing work. Resolve ownership from the physical event path, not
@@ -590,3 +594,5 @@ Scalar grab correction: geometry chooses the DOF/tool before a press; once grabb
 
 
 Latest Rotation correction: hovering actual edges shows the cue; a primary edge click only selects its owner. Right-click the target to choose Rotation, or use its assigned DOF shortcut; selection does not open the wheel. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+
+Window onInteract callbacks commit on confirmed click, never mouse-down: raising/focusing is separate from pinning/toggling. Reuse the shared drag activation guard for physical tails across reparented surfaces; preserve keyboard/programmatic clicks and actual preview gestures. See UI_COMPONENT_CONTRACT.md.

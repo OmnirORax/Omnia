@@ -213,7 +213,6 @@ export function FloatingWindow({
           event.stopPropagation();
           if (!(event.currentTarget instanceof Element) || !event.currentTarget.contains(event.target as Node)) return;
           raise();
-          onInteract?.();
         }}
         onDragStop={(_, data) => { set({ x: data.x, y: data.y }); }}
         onResizeStop={(_, __, ref, ___, position) =>
@@ -226,6 +225,11 @@ export function FloatingWindow({
       >
         <div
           ref={ref}
+          onClickCapture={(event)=>{
+            // Shared window interaction commits only after the drag guard accepts
+            // a click. Mouse-down may raise/focus a window, but cannot pin/activate it.
+            if(!event.defaultPrevented&&event.currentTarget.contains(event.target as Node))onInteract?.();
+          }}
           role={role}
           aria-label={label}
           aria-modal={(modal && !state.collapsed) || undefined}
