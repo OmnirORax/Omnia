@@ -139,12 +139,18 @@ can slightly soften high-contrast detail; it is not free or a hardware FPS claim
 Direct non-bloom rendering retains its existing rendering path.
 
 
-Node/binder canvas labels now use bilinear minification without mipmap generation.
-This avoids cross-fading blurred mip levels as soon as zoom drops below a texel’s
-native scale, and removes label mip allocation/rebuild work. It does not raise the
-scene pixel/DPR caps or add rendering passes. Very small text still loses detail
-at finite resolution and can alias at a distance; browser quality/performance
-verification remains with the user. This is not a system-wide lag resolution.
+Node/binder canvas labels use trilinear mipmapped minification (2026-11-04
+correction). Bilinear-only minification undersampled thin strokes as labels
+became smaller, trading earlier mip softness for breakup/aliasing. GPU-generated
+mip levels average covered texels and blend between scales; magnification retains
+bilinear filtering. The shared textSprite path applies to nodes and binders.
+This adds approximately one third to full-chain label texture storage and mip
+regeneration when a label is repainted. It adds no scene passes, scene/DPR budget
+increase, per-zoom canvas redraws or new persistent data. Existing electric glyph
+masks already use Three.js default trilinear mipmapping. Finite screen resolution,
+custom-font fine detail, glow and the bounded scene compositor still limit tiny
+text. Visual quality and responsiveness require user verification; this is not a
+claim that 40% labels remain as readable as larger 100% labels.
 
 
 Held-arrow movement previously committed every OS key repeat through React
@@ -557,3 +563,105 @@ the already-validated topology. Every other edit/import retains full validation.
 Boundary checks cover invalid coordinates, dimensions and dangling membership.
 No local browser profiling or Docker tests were run; quick/calm release, docking
 and Undo remain for the user to test.
+
+## Scene coverage correction, 2026-11-04
+
+Texture mipmaps do not antialias polygon/line coverage in the world render target.
+The base neon composer previously used samples: 0 and spatial edge smoothing;
+the direct WebGL context also requested no antialiasing. Base targets now request
+up to four coverage samples, capped by device capability and the shared
+sceneSamples budget. The direct context requests hardware antialiasing. The glow
+mask and blur remain single-sampled at the existing 512px bound. The final
+composite uses the MSAA-resolved base without the additional spatial edge filter;
+devices with zero samples retain the existing edge-filter fallback.
+
+The 1.5 MP scene-pixel and DPR bounds remain. Multisample color/depth buffers and
+resolve cost are additional GPU work/memory; pixel caps do not make MSAA free.
+No per-zoom label repaint or extra scene draw was introduced. This addresses
+coverage aliasing, not the physical loss of tiny font/glyph detail or all blur
+caused by limited output resolution. The earlier label mipmap correction remains.
+User visual/responsiveness acceptance of the supplied distant-ring case is pending.
+
+## Analytic selection/hover ring coverage, 2026-11-04
+
+The nominal 0.96–1.0 selection band previously relied on triangle edges and a few
+coverage samples. It now computes circular inner/outer coverage from local radial
+distance and screen-space derivatives. Subtracting clamped edge integrals retains
+fractional stroke coverage when the band is narrower than a pixel, without
+multiplying overlapping smoothstep ramps. An isotropic derivative length avoids
+orientation-dependent widening from Manhattan fwidth. Nominal radius/thickness,
+billboarding, pulse, style and picking owners remain unchanged.
+
+The support mesh spans 0.835–1.125 with 64 angular segments. Its edges are outside
+the nominal band; shader coverage defines the visible circle. This shades a wider
+annular fringe instead of an entire bounding quad, adding fragment work around
+visible outlines but no textures, scene passes, per-zoom rebuilds or resolution
+increase. Very tiny/subpixel rings remain physically limited. The glow material
+inherits the same coverage adapter; otherwise a derived material would shade the
+support mesh instead of the actual stroke. Base/glow shader inheritance and style
+independence are model-tested. This is a ring-specific correction, not a claim
+that every authored glyph/font now uses analytic rendering. User visual and
+responsiveness acceptance of the reported ring case remains pending.
+
+## Native analytic Composer glyph batches, 2026-11-04
+
+Canonical glyph SVG assets can carry an immutable, transient evaluated plan through
+a WeakMap. The world visual adapter renders eligible circle/ring/line primitives
+as one instanced batch per placement. Source coordinates are normalized on CPU
+before Float32 upload; square SVG viewport framing, intrinsic linear colors,
+opacity, authored thickness, fill and round/butt caps are retained. Fragment
+coverage is evaluated in screen space. The base and glow mask share the shader
+adapter. No per-zoom rasterization or shape discovery is added.
+
+Evaluation/resolver/revision caches are reused; portable SVG output remains byte-
+equivalent and no new asset/recipe fields are saved. Existing 32-source limits stay
+in place; at most 128 primitives per eligible glyph can use this path. Motion,
+highlights, intrinsic glow, degenerate circle geometry, larger compositions and
+editing overlays fall back to SVG. Manual image overrides remain image assets.
+Texture-dependent electric ink also falls back, with generation-guarded async
+handoffs and native-mode return when the effect is disabled. Draft-ready callbacks
+stay deferred so callers can install their pending view before receiving them.
+
+Native views avoid their glyph bitmap allocation but add bounded instance data and
+analytic fragment work; primitive support quads can overlap. No whole-scene pixel
+budget increase or new render pass. Extremely small strokes retain authored
+fractional opacity instead of silently thickening. GPU correctness smoke checks
+are not a visual quality or performance benchmark; user acceptance of the reported
+50% glyph case remains pending.
+
+### Orientation-aware pixel coverage, 2026-11-04
+
+Native glyphs and selection rings now share square-pixel edge-area coverage.
+The earlier angle-independent linear ramp estimated a radial pixel width; thin
+curves could vary as their edge direction crossed pixel rows. The new piecewise
+integral accounts for both projected pixel axes. Circle normals come from the
+analytic radial direction, avoiding quad-to-quad finite-difference normal changes.
+Outer-minus-inner coverage preserves authored stroke area rather than imposing a
+minimum thickness. Line bodies integrate opposite edges separately to preserve subpixel stroke area;
+round caps use radial coverage and butt caps use separable endpoint coverage
+(an approximation at oblique corners). All normals project the same pixel axes.
+
+The local tangent approximation is not exact circle/pixel integration at radii
+near a pixel, and cannot restore detail lost to finite scene/display resolution.
+This adds bounded fragment arithmetic to the existing batches and inherited glow
+masks, with no new samples, textures, passes, geometry or per-frame CPU work.
+Model arithmetic is checked against independent pixel-area quadrature and stroke
+area conservation. No browser/performance suite was run for this revision; the
+reported 40% visual case remains user acceptance. Saved data is unchanged.
+
+### Neon/canvas pixel-density alignment, 2026-11-04
+
+Neon EffectComposer creation and resize now use renderer.getPixelRatio(), whose
+owner in SpatialWorkspace has already applied the shared scenePixels/maxSceneDpr
+limits. The separate hardcoded 1× effect ceiling could reduce a high-density
+canvas to a lower-resolution intermediate and upscale it again. Both paths now
+use the same budgeted ratio. This also avoids overallocating effects relative to
+a canvas whose device pixel ratio is below one (for example browser zoom).
+
+No caps, sample counts, passes, saved data or glow resolution policy change.
+Effects may consume more pixels than before where the existing canvas budget
+permits a ratio above one (up to 1.25, or 56.25% more pixel area); this remains
+within the 1.5-million-pixel cap. Large cap-bound views receive no resolution
+increase, and finite pixel resolution still limits tiny glyphs. Required model,
+build/backend checks do not establish the user's 30% visual case; user acceptance
+remains pending. No additional browser/performance suite was run.

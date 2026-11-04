@@ -1,5 +1,7 @@
 # Omnic composer: Stage 1 contract
 
+Composer top toolbar now includes the existing Omnic library command (☷), in both Atomnic modes. It opens the same workspace-wide library; no extra library state or new shortcut identity. Normal MS sessions opened on a registered content surface are bounded to that source root/context. The selector cursor and hover/wheel targeting apply there; a primary/secondary press or focus change on other controls ends normal targeting without consuming the control input or clearing accepted membership. Selector-owned configuration remains usable. ActiveContext preserves the source only for pointer picks inside that boundary. Standalone UI MS remains global. Explicit borrowed reference requests retain their rejection/cancel contract and navigation context.
+
 Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
 
 Current interaction ownership and opt-in regression: see
@@ -997,3 +999,5 @@ selection, select-all and releasing modifiers open no dial or reference picker.
 Right-click an already selected target for its compatible DOF ring over the full
 set; explicit DOF controls/shortcuts remain available. This replaces automatic
 Position reference entry and edge-click rotation-wheel opening. See VISUAL_SELECTION.md.
+
+Eligible saved Composer circle/ring/line glyphs now use native batched analytic world rendering through transient presentation metadata; SVG/export identity stays unchanged. Existing world source budgets, complex/decorated/edit-overlay SVG fallbacks and texture-effect switching remain. See PERFORMANCE_RESULTS.md for eligibility and verification limits.

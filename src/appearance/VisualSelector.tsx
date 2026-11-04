@@ -4,7 +4,7 @@ import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDet
 import {selectionRequest,selectionConfirmation,selectionDecision,type SelectionDecision} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
-import { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentProps } from "react";
+import { useCallback, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type ComponentProps } from "react";
 import { useUITracked } from '../ui/context';
 import { createPortal } from "react-dom";
 import { claimUIPress, eventPathMatches, observeUIPress, uiPointerHeld } from "../ui/pointerOwnership";
@@ -236,7 +236,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     record(current => current.objects.includes(id) ? { ...current, objects: current.objects.filter(selected => selected !== id) } : { ...emptySelection(), objects: [id] });
     requestInspection(value => value + 1); completeSelection();
   }, [record, setCandidatePick, completeSelection]);
-  const close = () => { const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
+  const close = () => { selectionSurfaces.endSession();const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
   const disable = () => { if(selectorEscapePhase(latest.current.phase)==="aim"){cancelDrawing();aim();return;}if(nativeGesture.current){cancelDrawing();setDrawing(false);return;}const requested=!!requestedPick.current;close();if(!requested)clear(); };
   const undo = () => { cancelDrawing(); setTimeline(previous => stepTransient(previous,-1)); };
   const redo = () => { cancelDrawing(); setTimeline(previous => stepTransient(previous,1)); };
@@ -304,7 +304,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   };
   const spatialPick=(mode:'toggle'|'range',p:{x:number;y:number},nativeOnly=false)=>{
     const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return false;
-    const transaction=selectionSurfaces.prepare(element,p,mode,nativeOnly);return transaction?applySurfacePick(transaction):false;
+    const transaction=selectionSurfaces.prepare(element,p,mode,nativeOnly);if(transaction&&latest.current.phase==='off'&&!requestedPick.current)selectionSurfaces.beginSession(element);return transaction?applySurfacePick(transaction):false;
   };
   const beginSurfacePointer=(event:PointerEvent)=>{
     const mode=selectionPointerMode(event);if(!mode||!(event.target instanceof Element))return false;
@@ -386,6 +386,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     pickAt(event.target, p.x, p.y);
     if (!gesture.current) accept();
   };
+  useLayoutEffect(()=>{if(phase==='off')selectionSurfaces.endSession();},[phase]);
+  useEffect(()=>()=>selectionSurfaces.endSession(),[]);
   const canConfigure = phase === "configure" || phase === "aim";
   const lineMode = isLine(configuration.pattern);
   const inputPosition = (input?: KeyboardEvent | MouseEvent) => input instanceof MouseEvent ? { x: input.clientX, y: input.clientY } : cursorPosition();
@@ -414,7 +416,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       const p=inputPosition(input),element=document.elementFromPoint(p.x,p.y)??document.body;
       const firstRequestOpen=requestedPick.current&&!requestedPick.current.opened;
       if(requestedPick.current)requestedPick.current.opened=true;
-      if(selectorOpenPhase(latest.current.phase,!!firstRequestOpen)==='configure'){cancelDrawing();setCatalog(collectVisualParts());setPosition(p);setPhase('configure');return;}
+      const outsideSource=!requestedPick.current&&selectionSurfaces.sessionScoped()&&!selectionSurfaces.sessionOwns(element)&&!element.closest('[data-visual-selector]');
+      const next=selectorOpenPhase(latest.current.phase==='configure'?'configure':outsideSource?'off':latest.current.phase,!!firstRequestOpen);
+      if(next==='off'){close();return;}
+      if(next==='configure'){cancelDrawing();setCatalog(collectVisualParts());setPosition(p);setPhase('configure');return;}
+      selectionSurfaces.beginSession(requestedPick.current?undefined:element);
       retainedPreview.current=false;settledPoint.current=null;setCandidatePick(null);
       setCatalog(collectVisualParts());setPosition(p);point.current={...p,element};setInventoryOpen(false);setPhase('aim');
     } },
@@ -519,6 +525,11 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const down = (event: PointerEvent) => {
       clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false; consumedUntil=0;
       if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
+      // A normal registered-surface session never owns another window's press.
+      // Reference requests retain their existing scoped rejection workflow.
+      if(latest.current.phase!=='off'&&!requestedPick.current&&selectionSurfaces.sessionScoped()&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())&&!eventPathMatches(event,'[data-visual-selector]')&&!nativeGesture.current&&!gesture.current&&!polygon.current){
+        consumedPointer=null;actions.current.close();return;
+      }
       // The registered surface owns modifier selection even before MS opens.
       // Active MS dispatches through its normal command router into begin().
       if(outsideChrome(event)&&(latest.current.phase==='off'||latest.current.phase==='locked')&&actions.current.beginSurfacePointer(event)){
@@ -592,6 +603,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       if (latest.current.phase === "locked" || latest.current.phase === "edit") return;
       if (event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) { setCandidatePick(null); return; }
       if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element)) return;
+      if(!requestedPick.current&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())){setCandidatePick(null);return;}
       point.current = { element: event.target, x: event.clientX, y: event.clientY };
       const current = latest.current;
       if (current.phase === "aim" && current.selection.scope && !current.configuration.contour && !current.configuration.region && current.selection.scope.path?.closed && outsideChrome(event)) {
@@ -628,6 +640,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const wheel = (event: WheelEvent) => {
       if (shortcuts.blocked() || shortcutUI(event) || !outsideChrome(event) ||
           (latest.current.phase !== "aim" && latest.current.phase !== "configure")) return;
+      if(!requestedPick.current&&event.target instanceof Element&&!selectionSurfaces.sessionOwns(event.target,event.composedPath()))return;
       const current = latest.current;
       const rotation = selectionWheelRotation(event, current.configuration.pattern, !!current.selection.scope, innerHeight);
       if (rotation) {
@@ -647,6 +660,10 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       const radius=resizeSelectionLens(lens.current.radius,event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?innerHeight:1));
       lens.current.radius=radius;setLensRadius(radius);settledPoint.current=null;
       const p=point.current;if(p)actions.current.pickAt(p.element,p.x,p.y);
+    };
+    const focus = (event: FocusEvent) => {
+      if(latest.current.phase==='off'||requestedPick.current||nativeGesture.current||gesture.current||polygon.current||!(event.target instanceof Element))return;
+      if(selectionSurfaces.sessionScoped()&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())&&!eventPathMatches(event,'[data-visual-selector]'))actions.current.close();
     };
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
@@ -688,6 +705,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     window.addEventListener("auxclick", preventClick, true);
     window.addEventListener("wheel", wheel, { capture: true, passive: false });
     window.addEventListener("keydown", key, true);
+    window.addEventListener("focusin", focus, true);
     window.addEventListener("contextmenu", context, true);
     window.addEventListener(PAGE_INPUT_SUSPEND, blur);
     document.addEventListener("visibilitychange", hidden);
@@ -703,6 +721,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       window.removeEventListener("auxclick", preventClick, true);
       window.removeEventListener("wheel", wheel, true);
       window.removeEventListener("keydown", key, true);
+      window.removeEventListener("focusin", focus, true);
       window.removeEventListener("contextmenu", context, true);
       window.removeEventListener(PAGE_INPUT_SUSPEND, blur);
       document.removeEventListener("visibilitychange", hidden);

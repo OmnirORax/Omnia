@@ -50,9 +50,10 @@ export function useDragActivationGuard() {
     };
     const click = (e: MouseEvent) => {
       if (
-        performance.now() < blocked.current &&
-        e.target instanceof Element &&
-        e.target.closest(UI)
+        // A UI drag can finish over a different surface after reparenting.
+        // Consume its physical click tail anywhere, but preserve keyboard and
+        // programmatic activation (detail 0).
+        e.detail > 0 && performance.now() < blocked.current
       ) {
         e.preventDefault();
         e.stopImmediatePropagation();
