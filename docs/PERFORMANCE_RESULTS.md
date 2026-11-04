@@ -139,12 +139,18 @@ can slightly soften high-contrast detail; it is not free or a hardware FPS claim
 Direct non-bloom rendering retains its existing rendering path.
 
 
-Node/binder canvas labels now use bilinear minification without mipmap generation.
-This avoids cross-fading blurred mip levels as soon as zoom drops below a texel’s
-native scale, and removes label mip allocation/rebuild work. It does not raise the
-scene pixel/DPR caps or add rendering passes. Very small text still loses detail
-at finite resolution and can alias at a distance; browser quality/performance
-verification remains with the user. This is not a system-wide lag resolution.
+Node/binder canvas labels use trilinear mipmapped minification (2026-11-04
+correction). Bilinear-only minification undersampled thin strokes as labels
+became smaller, trading earlier mip softness for breakup/aliasing. GPU-generated
+mip levels average covered texels and blend between scales; magnification retains
+bilinear filtering. The shared textSprite path applies to nodes and binders.
+This adds approximately one third to full-chain label texture storage and mip
+regeneration when a label is repainted. It adds no scene passes, scene/DPR budget
+increase, per-zoom canvas redraws or new persistent data. Existing electric glyph
+masks already use Three.js default trilinear mipmapping. Finite screen resolution,
+custom-font fine detail, glow and the bounded scene compositor still limit tiny
+text. Visual quality and responsiveness require user verification; this is not a
+claim that 40% labels remain as readable as larger 100% labels.
 
 
 Held-arrow movement previously committed every OS key repeat through React

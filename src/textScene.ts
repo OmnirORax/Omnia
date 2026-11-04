@@ -83,10 +83,12 @@ export function textSprite(value: string, color: string, selected = false, node 
   paint(color, textColor, textGlow);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  // Small text should not blend progressively blurrier mip levels while zooming.
-  // One bilinear sample keeps antialiasing without extra texture allocations/passes.
-  texture.generateMipmaps = false;
-  texture.minFilter = THREE.LinearFilter;
+  // Minification must integrate the texels covered by each screen pixel.
+  // Bilinear-only sampling skips thin glyph strokes at reduced world scales.
+  // GPU mip levels provide coverage without per-zoom canvas redraws or passes.
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   const sprite = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({

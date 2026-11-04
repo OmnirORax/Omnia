@@ -742,3 +742,5 @@ It separates physical surface ownership, passive membership, active MS, popup
 navigation, remote controller refresh and numeric reference capabilities. The
 user requested the included focused browser regression for this investigation;
 keep its evidence distinct from arbitrary future browser authorization.
+
+World node/binder labels use mipmapped minification through textSprite. Do not disable mipmaps to sharpen one zoom level: that causes thin-stroke undersampling at smaller scales. Keep finite-pixel/compositor limits and mip memory/repaint costs explicit; see PERFORMANCE_RESULTS.md. This is rendering policy, not a saved-data format change.
