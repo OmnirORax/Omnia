@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {attachMaterialCoverage} from './materialCoverage.ts';
+import {attachMaterialCoverage,pixelCoverageGLSL} from './materialCoverage.ts';
 import type {GlyphVectorPlan} from './omnic/vectorPlan.ts';
 /** One instanced draw per eligible glyph; topology/attributes are prepared once.
  * Current SVG viewport is square with xMidYMid meet. Picking stays with its owner. */
@@ -35,34 +35,40 @@ export function vectorGlyph(plan:GlyphVectorPlan,initial:{color?:string;opacity?
     glyphLine=glyphEnds;glyphParams=glyphShape;glyphInk=glyphColor;
     glyphViewport=glyphPoint;
     transformed=vec3(glyphViewport.x,-glyphViewport.y,0.0);`);
-   shader.fragmentShader=`varying vec2 glyphPoint;varying vec4 glyphLine;varying vec4 glyphParams;varying vec3 glyphInk;varying vec2 glyphViewport;\n`+shader.fragmentShader.replace('#include <alphatest_fragment>',`
+   shader.fragmentShader=pixelCoverageGLSL+`varying vec2 glyphPoint;varying vec4 glyphLine;varying vec4 glyphParams;varying vec3 glyphInk;varying vec2 glyphViewport;\n`+shader.fragmentShader.replace('#include <alphatest_fragment>',`
     if(abs(glyphViewport.x)>.5||abs(glyphViewport.y)>.5)discard;
     vec2 gx=dFdx(glyphPoint),gy=dFdy(glyphPoint);
-    float pixel=max(sqrt(.5*(dot(gx,gx)+dot(gy,gy))),.00001);
     float coverage;
     if(glyphParams.z<1.5){
       float radius=length(glyphPoint-glyphLine.xy);
-      float outer=clamp((glyphParams.x+glyphParams.y-radius)/pixel+.5,0.,1.);
-      float inner=glyphParams.z<.5||glyphParams.x<=glyphParams.y?0.:clamp((max(0.,glyphParams.x-glyphParams.y)-radius)/pixel+.5,0.,1.);
+      vec2 normal=(glyphPoint-glyphLine.xy)/max(radius,.0000001);
+      float dx=dot(normal,gx),dy=dot(normal,gy);
+      float outer=pixelCoverage(glyphParams.x+glyphParams.y-radius,dx,dy);
+      float inner=glyphParams.z<.5||glyphParams.x<=glyphParams.y?0.:pixelCoverage(glyphParams.x-glyphParams.y-radius,dx,dy);
       coverage=max(0.,outer-inner);
     }else{
       vec2 delta=glyphLine.zw-glyphLine.xy;float len=length(delta);vec2 axis=len>.00001?delta/len:vec2(1.,0.);
-      float distance;
+      vec2 normal=vec2(-axis.y,axis.x),local=glyphPoint-(glyphLine.xy+glyphLine.zw)*.5;
+      float along=dot(local,axis),across=dot(local,normal);
+      float nx=dot(normal,gx),ny=dot(normal,gy);
+      float sides=pixelCoverage(glyphParams.y-across,nx,ny)-pixelCoverage(-glyphParams.y-across,nx,ny);
       if(glyphParams.z>2.5){
-        vec2 local=glyphPoint-(glyphLine.xy+glyphLine.zw)*.5;
-        vec2 q=abs(vec2(dot(local,axis),dot(local,vec2(-axis.y,axis.x))))-vec2(len*.5,glyphParams.y);
-        distance=length(max(q,0.))+min(max(q.x,q.y),0.);
-        if(len<.00001)distance=1.e10;
+        float ax=dot(axis,gx),ay=dot(axis,gy);
+        float caps=pixelCoverage(len*.5-along,ax,ay)-pixelCoverage(-len*.5-along,ax,ay);
+        coverage=len<.00001?0.:sides*caps;
+      }else if(abs(along)<=len*.5&&len>.00001){
+        coverage=sides;
       }else{
-        float t=len>.00001?clamp(dot(glyphPoint-glyphLine.xy,delta)/dot(delta,delta),0.,1.):0.;
-        distance=length(glyphPoint-(glyphLine.xy+t*delta))-glyphParams.y;
+        vec2 offset=local-axis*clamp(along,-len*.5,len*.5);
+        float radius=length(offset);vec2 capNormal=offset/max(radius,.0000001);
+        coverage=pixelCoverage(glyphParams.y-radius,dot(capNormal,gx),dot(capNormal,gy));
       }
-      coverage=glyphParams.y<=0.?0.:clamp(.5-distance/pixel,0.,1.);
+      if(glyphParams.y<=0.)coverage=0.;
     }
     diffuseColor.rgb*=glyphInk;diffuseColor.a*=coverage*glyphParams.w;
     #include <alphatest_fragment>`);
   };
-  target.customProgramCacheKey=()=> 'omnium.vector-glyph.coverage.v1';
+  target.customProgramCacheKey=()=> 'omnium.vector-glyph.coverage.v2';
  });
  const mesh=new THREE.Mesh(geometry,material),group=new THREE.Group();group.add(mesh);
  group.userData.vectorGlyph=true;group.userData.primitiveCount=plan.nodes.length;

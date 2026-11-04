@@ -628,3 +628,23 @@ budget increase or new render pass. Extremely small strokes retain authored
 fractional opacity instead of silently thickening. GPU correctness smoke checks
 are not a visual quality or performance benchmark; user acceptance of the reported
 50% glyph case remains pending.
+
+### Orientation-aware pixel coverage, 2026-11-04
+
+Native glyphs and selection rings now share square-pixel edge-area coverage.
+The earlier angle-independent linear ramp estimated a radial pixel width; thin
+curves could vary as their edge direction crossed pixel rows. The new piecewise
+integral accounts for both projected pixel axes. Circle normals come from the
+analytic radial direction, avoiding quad-to-quad finite-difference normal changes.
+Outer-minus-inner coverage preserves authored stroke area rather than imposing a
+minimum thickness. Line bodies integrate opposite edges separately to preserve subpixel stroke area;
+round caps use radial coverage and butt caps use separable endpoint coverage
+(an approximation at oblique corners). All normals project the same pixel axes.
+
+The local tangent approximation is not exact circle/pixel integration at radii
+near a pixel, and cannot restore detail lost to finite scene/display resolution.
+This adds bounded fragment arithmetic to the existing batches and inherited glow
+masks, with no new samples, textures, passes, geometry or per-frame CPU work.
+Model arithmetic is checked against independent pixel-area quadrature and stroke
+area conservation. No browser/performance suite was run for this revision; the
+reported 40% visual case remains user acceptance. Saved data is unchanged.

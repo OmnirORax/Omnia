@@ -1453,8 +1453,28 @@ test('ordinary MS retains direct pattern/individual detection; lens surfaces opt
  analyticSelectionRing(source);inheritMaterialCoverage(source,mask);
  const compile=material=>{const shader={vertexShader:'#include <begin_vertex>',fragmentShader:'#include <alphatest_fragment>'};material.onBeforeCompile(shader,{});return shader;};
  const base=compile(source),glow=compile(mask);assert.deepEqual(glow,base,'mask and base use identical geometric coverage');
- assert.ok(base.fragmentShader.includes('dFdx(ringRadius)'));assert.ok(base.fragmentShader.includes('ringOuter-ringInner'));
+ assert.ok(base.fragmentShader.includes('dot(normal,dFdx(selectionRingPoint))'));assert.ok(base.fragmentShader.includes('ringOuter-ringInner'));
  assert.equal(source.opacity,.45);assert.equal(mask.opacity,.2);assert.equal(source.color.getHex(),0x60ddec);assert.equal(mask.color.getHex(),0xffffff);
  assert.equal(source.customProgramCacheKey(),mask.customProgramCacheKey());
  const unrelated=new THREE.MeshBasicMaterial();const before=unrelated.onBeforeCompile;inheritMaterialCoverage(new THREE.MeshBasicMaterial(),unrelated);assert.equal(unrelated.onBeforeCompile,before,'ordinary materials do not acquire ring coverage');
+ });
+
+ test('analytic pixel coverage matches independently sampled pixel areas across edge angles',async()=>{
+ const {pixelCoverageGLSL}=await import('../src/materialCoverage.ts');
+ // Execute the scalar GLSL arithmetic, then compare to geometric quadrature,
+ // rather than comparing the formula with a second copy of itself.
+ const body=pixelCoverageGLSL.replace(/float pixelCoverage\(float distance, float dx, float dy\)/,'function coverage(distance,dx,dy)').replace(/\bfloat\b/g,'let');
+ const coverage=new Function('max','min','abs','pow','clamp',body+';return coverage;')(Math.max,Math.min,Math.abs,Math.pow,(x,a,b)=>Math.max(a,Math.min(b,x)));
+ const size=200;
+ for(const angle of [0,.001,.2,Math.PI/4,1.2,Math.PI/2]){
+  const dx=Math.cos(angle),dy=Math.sin(angle);
+  for(const distance of [-.65,-.3,0,.17,.49,.7]){
+   let inside=0;for(let x=0;x<size;x++)for(let y=0;y<size;y++)if(distance+dx*((x+.5)/size-.5)+dy*((y+.5)/size-.5)>=0)inside++;
+   const actual=coverage(distance,dx,dy);assert.ok(Math.abs(actual-inside/(size*size))<.004,`angle ${angle}, distance ${distance}`);
+   assert.ok(Math.abs(actual+coverage(-distance,dx,dy)-1)<1e-10,'complementary edges conserve coverage');
+  }
+  let area=0;const width=.12,step=.002;
+  for(let d=-1;d<1;d+=step)area+=(coverage(d+width/2,dx,dy)-coverage(d-width/2,dx,dy))*step;
+  assert.ok(Math.abs(area-width)<.00001,'thin strokes retain integrated authored width');
+ }
  });
