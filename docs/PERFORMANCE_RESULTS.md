@@ -581,3 +581,24 @@ No per-zoom label repaint or extra scene draw was introduced. This addresses
 coverage aliasing, not the physical loss of tiny font/glyph detail or all blur
 caused by limited output resolution. The earlier label mipmap correction remains.
 User visual/responsiveness acceptance of the supplied distant-ring case is pending.
+
+## Analytic selection/hover ring coverage, 2026-11-04
+
+The nominal 0.96–1.0 selection band previously relied on triangle edges and a few
+coverage samples. It now computes circular inner/outer coverage from local radial
+distance and screen-space derivatives. Subtracting clamped edge integrals retains
+fractional stroke coverage when the band is narrower than a pixel, without
+multiplying overlapping smoothstep ramps. An isotropic derivative length avoids
+orientation-dependent widening from Manhattan fwidth. Nominal radius/thickness,
+billboarding, pulse, style and picking owners remain unchanged.
+
+The support mesh spans 0.835–1.125 with 64 angular segments. Its edges are outside
+the nominal band; shader coverage defines the visible circle. This shades a wider
+annular fringe instead of an entire bounding quad, adding fragment work around
+visible outlines but no textures, scene passes, per-zoom rebuilds or resolution
+increase. Very tiny/subpixel rings remain physically limited. The glow material
+inherits the same coverage adapter; otherwise a derived material would shade the
+support mesh instead of the actual stroke. Base/glow shader inheritance and style
+independence are model-tested. This is a ring-specific correction, not a claim
+that every authored glyph/font now uses analytic rendering. User visual and
+responsiveness acceptance of the reported ring case remains pending.

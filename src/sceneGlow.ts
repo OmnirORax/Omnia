@@ -1,3 +1,4 @@
+import {inheritMaterialCoverage} from './materialCoverage';
 import { sceneEdgeAA } from "./sceneEdgeAA";
 import { bloomSize } from "./renderBudget";
 import * as THREE from "three";
@@ -28,6 +29,7 @@ export class SceneGlow extends Pass {
     if (!material) {
       if (original instanceof THREE.ShaderMaterial || original instanceof THREE.LineBasicMaterial || original instanceof THREE.PointsMaterial || original instanceof THREE.SpriteMaterial) material = original.clone();
       else material = new THREE.MeshBasicMaterial({ map: (original as Colored).map, alphaMap: (original as Colored).alphaMap, side: original.side });
+      inheritMaterialCoverage(original,material);
       this.cache.set(original, material);
     }
     material.transparent = original.transparent; material.opacity = original.opacity;

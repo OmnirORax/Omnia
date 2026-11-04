@@ -1446,3 +1446,15 @@ test('ordinary MS retains direct pattern/individual detection; lens surfaces opt
  const {sceneSampleCount}=await import('../src/renderBudget.ts');
  assert.equal(sceneSampleCount(0),0);assert.equal(sceneSampleCount(1),1);assert.equal(sceneSampleCount(2),2);assert.equal(sceneSampleCount(8),4);assert.equal(sceneSampleCount(NaN),0);assert.equal(sceneSampleCount(-1),0);
  });
+
+ test('analytic selection-ring coverage survives glow-mask derivation without changing material style',async()=>{
+ const THREE=await import('three');const {analyticSelectionRing,inheritMaterialCoverage}=await import('../src/materialCoverage.ts');
+ const source=new THREE.MeshBasicMaterial({color:0x60ddec,opacity:.45,transparent:true}),mask=new THREE.MeshBasicMaterial({color:0xffffff,opacity:.2,transparent:true});
+ analyticSelectionRing(source);inheritMaterialCoverage(source,mask);
+ const compile=material=>{const shader={vertexShader:'#include <begin_vertex>',fragmentShader:'#include <alphatest_fragment>'};material.onBeforeCompile(shader,{});return shader;};
+ const base=compile(source),glow=compile(mask);assert.deepEqual(glow,base,'mask and base use identical geometric coverage');
+ assert.ok(base.fragmentShader.includes('dFdx(ringRadius)'));assert.ok(base.fragmentShader.includes('ringOuter-ringInner'));
+ assert.equal(source.opacity,.45);assert.equal(mask.opacity,.2);assert.equal(source.color.getHex(),0x60ddec);assert.equal(mask.color.getHex(),0xffffff);
+ assert.equal(source.customProgramCacheKey(),mask.customProgramCacheKey());
+ const unrelated=new THREE.MeshBasicMaterial();const before=unrelated.onBeforeCompile;inheritMaterialCoverage(new THREE.MeshBasicMaterial(),unrelated);assert.equal(unrelated.onBeforeCompile,before,'ordinary materials do not acquire ring coverage');
+ });

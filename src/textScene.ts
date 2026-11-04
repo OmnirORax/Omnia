@@ -1,3 +1,4 @@
+import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
 import { structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
 import type { OmnicWorldPreview } from "./omnic/worldPreview";
@@ -216,9 +217,10 @@ export function buildTextScene(
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
     // Picking volumes remain fully invisible, even while hovered or selected.
     const outline = new THREE.Mesh(
-      new THREE.RingGeometry(0.96, 1, 96),
+      new THREE.RingGeometry(0.835, 1.125, 64),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.75, depthWrite: false, depthTest: false, side: THREE.DoubleSide }),
     );
+    analyticSelectionRing(outline.material);
     outline.visible = selected; outline.userData.selected = selected;
     outline.renderOrder = 20;
     sprite.userData.hoverOutline = outline;
