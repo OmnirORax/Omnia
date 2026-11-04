@@ -1,3 +1,4 @@
+import {selectionSurfaces} from '../appearance/selectionSurfaces';
 import {featureActionRuntime} from '../featureActions';
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
@@ -168,10 +169,10 @@ export function ActiveContextSystem() {
       if(event instanceof PointerEvent&&api.current.handle(event)){claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;}
       // A picker lends input to the scene, not its editor's navigation context.
       // Activating the pointed frame here would orphan the still-open popup.
-      if(event instanceof PointerEvent&&!latest.current.shortcutsBlocked&&!latest.current.shortcutCapturing&&featureActionRuntime.available('selector.include'))return;
+      if(event instanceof PointerEvent&&!latest.current.shortcutsBlocked&&!latest.current.shortcutCapturing&&featureActionRuntime.available('selector.include')&&event.target instanceof Element&&selectionSurfaces.sessionOwns(event.target,event.composedPath()))return;
       let element = event.target instanceof Element ? event.target : null;
       if(event instanceof PointerEvent&&event.button===0&&element){
-        const inputOwned=featureActionRuntime.available('selector.include');
+        const inputOwned=featureActionRuntime.available('selector.include')&&selectionSurfaces.sessionOwns(element,event.composedPath());
         const preserveContent=event.ctrlKey||event.metaKey||!!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-ui-popup-interior],[data-omnic-role]');
         if(dismissContextPointer(latest.current.contextLayers,element,inputOwned,preserveContent)){
           claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;

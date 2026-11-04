@@ -166,6 +166,8 @@ Q always starts ordinary MS, even with a numeric editor open. Only an explicit r
 
 Modifier marquee feedback is live while held: Ctrl/Shift-drag previews the current intersected owners as the rectangle grows or shrinks, before release. Preview does not change accepted membership, anchors, geometry or selection history. Release commits once; Esc, blur or pointer cancellation removes the preview. Reuse the registered surface snapshot and area-hit adapter, prepare geometry once per gesture, and coalesce feedback to animation frames. Snapshot adapters may return a cached elements resolver for native-ink preview; otherwise projected unit boxes provide feedback. Do not call geometry discovery or layout measurement from each area query.
 
+Normal MS sessions opened on a registered content surface are bounded to that source root/context. The selector cursor and hover/wheel targeting apply there; a primary/secondary press or focus change on other controls ends normal targeting without consuming the control input or clearing accepted membership. Selector-owned configuration remains usable. ActiveContext preserves the source only for pointer picks inside that boundary. Standalone UI MS remains global. Explicit borrowed reference requests retain their rejection/cancel contract and navigation context.
+
 **Interaction ownership:** read [the current lifecycle and regression route](docs/OMNIC_INTERACTION_LIFECYCLE.md)
 for selection/editing work. Resolve ownership from the physical event path, not
 mutable SVG ancestry; keep the registered root/context for the whole gesture.

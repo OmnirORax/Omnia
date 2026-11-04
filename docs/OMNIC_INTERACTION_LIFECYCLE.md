@@ -1,5 +1,7 @@
 # Omnic selection and editing lifecycle
 
+Normal MS sessions opened on a registered content surface are bounded to that source root/context. The selector cursor and hover/wheel targeting apply there; a primary/secondary press or focus change on other controls ends normal targeting without consuming the control input or clearing accepted membership. Selector-owned configuration remains usable. ActiveContext preserves the source only for pointer picks inside that boundary. Standalone UI MS remains global. Explicit borrowed reference requests retain their rejection/cancel contract and navigation context.
+
 Modifier marquee feedback is live while held: Ctrl/Shift-drag previews the current intersected owners as the rectangle grows or shrinks, before release. Preview does not change accepted membership, anchors, geometry or selection history. Release commits once; Esc, blur or pointer cancellation removes the preview. Reuse the registered surface snapshot and area-hit adapter, prepare geometry once per gesture, and coalesce feedback to animation frames. Snapshot adapters may return a cached elements resolver for native-ink preview; otherwise projected unit boxes provide feedback. Do not call geometry discovery or layout measurement from each area query.
 
 Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
@@ -119,3 +121,12 @@ workspace and other browser acceptance remain separate.
 The follow-up reproduced Q opening a numeric setter during the reported selection sequence. Removing numeric-context interception keeps Q owned by MS. Four additional checks cover Q → held Shift+Q → successive clicks → Q configuration and Ctrl+Q continuation after Rotation, in both Atomnic modes. All 45 checks passed with no uncaught page errors; explicit reference accept/cancel remains covered.
 
 The cursor/session follow-up reproduced disappearance after the first native pick. Gesture completion now preserves explicitly opened MS; native modifier picks begun while off remain off, and requested reference acceptance closes explicitly. Two new on/off-mode checks assert the visible selector cursor after successive picks, its disappearance on Esc, and reappearance on Q. A third starts MS with Q also assigned to Rotation and verifies selector entry after Esc. All 48 sequences passed with no uncaught page errors. Runtime entry priority uses declared activationScope; saved-binding conflict/default rules and native typing protections remain unchanged.
+
+Focused source-scope regression (2026-11-04):
+`OMNIA_INTERACTION_FOCUS=composer-scope node tests/omnic-interactions.browser.mjs`
+runs four physical-input checks in disposable local Chromium contexts: MC click
+handoff retains selected geometry and the Composer toolbar library opens, each
+with Atomnic on and off. All four passed without uncaught page errors. This is
+focused evidence, not a new run of the full earlier 48-sequence matrix or user
+hardware acceptance. Model scope checks cover root/context changes, source-chrome
+entry, physical paths, disposal and standalone global fallback.

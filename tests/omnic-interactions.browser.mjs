@@ -161,7 +161,53 @@ async function closeDials(ids) {
   await noPopup();
 }
 
-try {
+async function runComposerScope() {
+  for (const active of [true, false]) {
+    await fixture(active);
+    await pick("line");
+    const p = await point("line");
+    await page.mouse.move(p.x, p.y);
+    await page.keyboard.press("q");
+    await page.locator('[data-tool-cursor-owner="visual-selector"]').waitFor();
+    await check(`Composer ${active}: MC click leaves MS and opens its control`, async () => {
+      await page.getByText("Geometry · 1 selected", { exact: true }).click();
+      await page.waitForFunction(
+        async () =>
+          !(await import("/src/featureActions.ts")).featureActionRuntime.available(
+            "selector.include",
+          ),
+      );
+      await page
+        .locator('[data-tool-cursor-owner="visual-selector"]')
+        .waitFor({ state: "detached" });
+      await selected(["line"]);
+    });
+    await fixture(active);
+    await pick("line");
+    const q = await point("line");
+    await page.mouse.move(q.x, q.y);
+    await page.keyboard.press("q");
+    await check(`Composer ${active}: toolbar library opens during MS`, async () => {
+      await page
+        .locator('.omnic-composer-tools [data-ui-function="omnic.library"]')
+        .first()
+        .click();
+      await page.locator('[data-ui-resident-root="window:omnic-library"]').first().waitFor();
+      await page.waitForFunction(
+        async () =>
+          !(await import("/src/featureActions.ts")).featureActionRuntime.available(
+            "selector.include",
+          ),
+      );
+      await page
+        .locator('[data-tool-cursor-owner="visual-selector"]')
+        .waitFor({ state: "detached" });
+    });
+  }
+  assert.deepEqual(report.errors, []);
+  console.log("PASS source scope and toolbar checks");
+}
+async function runDefault() {
   for (const active of [true, false]) {
     await fixture(active);
     const profile = active ? "Atomnic on" : "Atomnic off",
@@ -708,6 +754,10 @@ try {
   });
   assert.deepEqual(report.errors, [], "no runtime errors");
   console.log(`PASS ${report.checks.length} interaction sequences`);
+}
+try {
+  if (process.env.OMNIA_INTERACTION_FOCUS === "composer-scope") await runComposerScope();
+  else await runDefault();
 } catch (error) {
   report.failure = { check: current, message: error.stack };
   if (page) {
