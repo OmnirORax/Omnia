@@ -1,3 +1,5 @@
+import {fileURLToPath} from 'node:url';
+import {resolve} from 'node:path';
 import {readFileSync,writeFileSync} from 'node:fs';
 const literal=text=>"'"+text.replaceAll("'","''")+"'";
 const files=['20261104000100_click_quests.sql','20261104000200_quest_authoring.sql'];
@@ -26,5 +28,7 @@ begin
  end if;
 end $apply$;`;
 });
-const sql=header+blocks.join('\n')+"\nnotify pgrst, 'reload schema';\ncommit;\nselect 'Questboard migrations installed. Use the configured cloud app and sign in.' as status;\n";
+export const sql=header+blocks.join('\n')+"\nnotify pgrst, 'reload schema';\ncommit;\nselect 'Questboard migrations installed. Use the configured cloud app and sign in.' as status;\n";
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
 if(process.argv[2]){writeFileSync(process.argv[2],sql);console.log('Questboard SQL setup file written.');}else process.stdout.write(sql);
+}

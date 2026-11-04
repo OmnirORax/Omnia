@@ -224,3 +224,12 @@ boundary. The private authorship ledger enforces per-account limits; requirement
 uniqueness preserves original quest/reward identities. Use the [one-file SQL
 Editor setup](setup/README.md); it needs dashboard access, not a token in chat.
 Hosted rollout is still separate from local PostgreSQL evidence.
+
+Quest migrations can now deploy through `Deploy Supabase quest migrations` on
+trusted master changes or manual dispatch. The repository secret
+`SUPABASE_ACCESS_TOKEN` authenticates database management; existing public project
+URL selects the guarded Omnia target. See [deployment steps](setup/README.md#github-deployment-instead-of-sql-editor).
+This workflow installs only the two quest migrations, validates history and
+verifies schema availability; it does not replace general backend deployments.
+New workflows require merge before GitHub enables dispatch. Hosted success must
+be confirmed from the run, not inferred from local tests.

@@ -56,3 +56,21 @@ node scripts/export-metrics-migrations.mjs docs/setup/questboard-setup.sql
 `node scripts/test-metrics-db.mjs` checks fresh install, exact replay, changed
 history refusal and prior-claim preservation against disposable PostgreSQL.
 Hosted Supabase and browser acceptance are separate, and remain unverified here.
+
+## GitHub deployment instead of SQL Editor
+
+With repository secret `SUPABASE_ACCESS_TOKEN` and the existing
+`VITE_SUPABASE_URL` variable configured, merge the reviewed PR containing
+`.github/workflows/supabase-metrics.yml`. A trusted `master` push affecting its
+listed quest migration/deployment files runs isolated PostgreSQL checks, applies
+only the two quest migrations, and verifies function/reward-constraint presence.
+The existing `cloudflare-production` environment approval restrictions apply.
+No token is available to pull-request jobs. This does not change Auth, origins,
+Edge Functions or unrelated migrations. Deployment is restricted to the existing
+Omnia project. Failures report HTTP status without response/token payloads.
+
+After merging, **Actions → Deploy Supabase quest migrations** reports the result.
+**Run workflow → master → plan** checks pending versions without writing;
+**apply** retries installation safely. The workflow must first exist on the
+GitHub default branch; it cannot be activated directly from an unmerged PR.
+The SQL Editor route above is an alternative, not a prerequisite.
