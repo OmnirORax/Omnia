@@ -563,3 +563,21 @@ the already-validated topology. Every other edit/import retains full validation.
 Boundary checks cover invalid coordinates, dimensions and dangling membership.
 No local browser profiling or Docker tests were run; quick/calm release, docking
 and Undo remain for the user to test.
+
+## Scene coverage correction, 2026-11-04
+
+Texture mipmaps do not antialias polygon/line coverage in the world render target.
+The base neon composer previously used samples: 0 and spatial edge smoothing;
+the direct WebGL context also requested no antialiasing. Base targets now request
+up to four coverage samples, capped by device capability and the shared
+sceneSamples budget. The direct context requests hardware antialiasing. The glow
+mask and blur remain single-sampled at the existing 512px bound. The final
+composite uses the MSAA-resolved base without the additional spatial edge filter;
+devices with zero samples retain the existing edge-filter fallback.
+
+The 1.5 MP scene-pixel and DPR bounds remain. Multisample color/depth buffers and
+resolve cost are additional GPU work/memory; pixel caps do not make MSAA free.
+No per-zoom label repaint or extra scene draw was introduced. This addresses
+coverage aliasing, not the physical loss of tiny font/glyph detail or all blur
+caused by limited output resolution. The earlier label mipmap correction remains.
+User visual/responsiveness acceptance of the supplied distant-ring case is pending.

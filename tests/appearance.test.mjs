@@ -1441,3 +1441,8 @@ test('ordinary MS retains direct pattern/individual detection; lens surfaces opt
  }
  for(const pattern of ['axis','boundary','polygon','freehand'])assert.equal(selectionDetectionMode({pattern,contour:true,region:null},false,false,false),pattern);
 });
+
+ test('scene coverage samples respect device capability and the fixed shared bound',async()=>{
+ const {sceneSampleCount}=await import('../src/renderBudget.ts');
+ assert.equal(sceneSampleCount(0),0);assert.equal(sceneSampleCount(1),1);assert.equal(sceneSampleCount(2),2);assert.equal(sceneSampleCount(8),4);assert.equal(sceneSampleCount(NaN),0);assert.equal(sceneSampleCount(-1),0);
+ });

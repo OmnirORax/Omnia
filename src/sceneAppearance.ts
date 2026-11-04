@@ -1,4 +1,4 @@
-import { RENDER_BUDGET, budgetPixelRatio } from "./renderBudget";
+import { RENDER_BUDGET, budgetPixelRatio, sceneSampleCount } from "./renderBudget";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -149,11 +149,11 @@ export function createSceneAppearance(
           if (!composer) {
             const target = new THREE.WebGLRenderTarget(width, height, {
               type: THREE.HalfFloatType,
-              samples: 0,
+              samples: sceneSampleCount(renderer.capabilities.maxSamples),
             });
             composer = new EffectComposer(renderer, target);
             composer.addPass(new RenderPass(scene, camera));
-            bloom = new SceneGlow(scene, camera, renderer.capabilities.maxSamples);
+            bloom = new SceneGlow(scene, camera, target.samples);
             bloom.configure(appearance.glow, appearance.glowSpread);
             composer.addPass(bloom);
             output = new OutputPass();

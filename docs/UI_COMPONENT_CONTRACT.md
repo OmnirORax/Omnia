@@ -1013,3 +1013,18 @@ not lose the owner or assign that press to newly mounted UI. Active MS picking
 does not activate the pointed frame. FloatingWindow contextController windows
 retain the source context during automatic opening/inspection refreshes. See
 [Omnic interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).
+
+## Confirmed interaction versus dragging
+
+FloatingWindow.onInteract is a confirmed-click callback. Mouse-down may raise or
+focus a window, but must not pin, toggle or execute its interaction callback.
+The window content capture handler runs after the shared window-level drag guard;
+portalled descendants outside the DOM root cannot activate the source window.
+The shared activation guard consumes a UI drag's physical click tail even if a
+reparented/dismissed source leaves that tail on another surface. Keyboard and
+programmatic clicks (detail zero) are independent activation and remain usable.
+A fresh physical press clears stale suppression. Native field editing and actual
+preview/scrub gestures keep their own press/move/release lifecycle. Reuse these
+boundaries instead of adding shortcut/window-specific drag exceptions.
+
+Focused regression: `node tests/drag-activation.browser.mjs` uses a disposable local browser context and synthetic layout. On 2026-11-04 all five press/drag/click/command/keyboard checks passed without uncaught page errors. It is opt-in, not added to default delivery suites and not a rendering performance benchmark.

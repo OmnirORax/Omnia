@@ -192,7 +192,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     const host = hostRef.current; if (!host) return;
     let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ antialias: false }); }
+    try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
     catch { setError("3D rendering is unavailable in this browser."); return; }
     renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr));
     renderer.setClearColor(0x101927);

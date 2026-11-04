@@ -3,7 +3,7 @@
 export const RENDER_BUDGET = {
   omnicTextPrimitives: 32_000,
   omnicSceneSources: 32, omnicTextureEdge: 256, omnicAnimatedRoles: 256, omnicFps: 12, omnicDraftBatchMs: 4,
-  scenePixels: 1_500_000, overlayPixels: 1_000_000, maxSceneDpr: 1.25,
+  sceneSamples: 4, scenePixels: 1_500_000, overlayPixels: 1_000_000, maxSceneDpr: 1.25,
   bloomEdge: 512, uiGlow: .8, uiBlur: 8, effectFps: 20, uiEffectHosts: 24, particles: 500, lightningSegments: 800, electricPixels: 400_000,
 } as const;
 export const budgetPixelRatio = (width: number, height: number, dpr: number, pixels: number, maxDpr: number) =>
@@ -39,3 +39,6 @@ export function publishUIEffectBudget(sources: number) {
   if (sources === uiEffectSources) return;
   uiEffectSources = sources; for (const listener of listeners) listener();
 }
+
+/** Coverage samples stay bounded by both the shared budget and device support. */
+export const sceneSampleCount=(maxSamples:number)=>Math.max(0,Math.min(RENDER_BUDGET.sceneSamples,Math.floor(Number.isFinite(maxSamples)?maxSamples:0)));
