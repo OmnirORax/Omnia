@@ -106,7 +106,7 @@ export function QuestSystem({tracker,onPlay,bindings}:{tracker:Tracker;onPlay:()
        <strong>{quest.target} clicks in {b.seconds}s</strong><small>{questCategory(b.seconds).label} · {Math.min(best,quest.target)}/{quest.target} · ⭐ +1 · {claimed?'Claimed':complete?'Ready to hand in':'Available'}</small>
        <div className="metrics-actions"><UIAction id={`quest:${quest.id}:play`} label={`Attempt ${quest.target} in ${b.seconds}s`} category="♾️" disabled={busy||phase==='running'||phase==='paused'} onClick={()=>begin(b)}/>
        <UIAction id={`quest:${quest.id}:claim`} label={`Hand in ${quest.target} in ${b.seconds}s`} category="♾️" disabled={busy||claimed||!complete} onClick={()=>updateLocal(current=>claimLocalQuest(current,quest.id))}/>
-       <UIAction id={`quest:${quest.id}:rank`} label={`Rankings ${b.seconds}s`} category="♾️" onClick={()=>{setBenchmark(b.id);reveal('leaderboard');}}/></div>
+       <UIAction id={`quest:${quest.id}:rank`} label={`Rankings ${b.seconds}s`} category="♾️" disabled={!client||!account||!data?.benchmarks.some(online=>online.id===b.id)} onClick={()=>{setBenchmark(b.id);reveal('leaderboard');}}/></div>
       </div>;
      })}
      {boardData&&!filters.matched&&<small role="status">No quests match these filters.</small>}
