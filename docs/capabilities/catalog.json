@@ -3009,7 +3009,7 @@
       "id": "omnic.glyph-images",
       "title": "Saved Omnic glyphs render as valid SVG node images",
       "where": "Save a Composer object and place its shared object in an atlas; reload an existing glyph placement.",
-      "behavior": "Saved and live glyph presentations share the structural SVG exporter. Presence-only selection markers now have quoted XML values so the same output works inline in Composer and as a decoded SVG image for atlas nodes and document glyphs. Existing canonical definitions regenerate their views without being recreated. The generic question-mark failure fallback remains for actually missing/broken imported assets.",
+      "behavior": "Saved and live glyph presentations share the structural SVG exporter. Presence-only selection markers now have quoted XML values so the same output works inline in Composer and as a decoded SVG image for atlas nodes and document glyphs. Existing canonical definitions regenerate their views without being recreated. The generic question-mark failure fallback remains for actually missing/broken imported assets. Eligible canonical Composer glyphs now carry a transient evaluated render plan for native analytic circle/ring/line display in the world. One instanced batch per glyph preserves SVG framing, colors, opacity and round/butt caps without a bitmap texture. Portable SVG/export bytes and manual image overrides are unchanged. The existing 32-source world budget remains; eligibility is capped at 128 primitives per glyph. Motion, highlights, intrinsic glow, unsupported/oversized compositions and editing overlays retain SVG rendering. Texture-dependent electric ink switches to raster and can return to native display after the effect changes.",
       "steps": [
         {
           "do": "Open an existing saved Omnic object that showed a question mark and reload the updated app.",
@@ -3018,6 +3018,10 @@
         {
           "do": "Edit its glyph and Save shared; place the same object again or paste a mapped word into a node document.",
           "expect": "Shared uses and document glyphs derive the same valid exporter output. Save copy still creates an independent identity."
+        },
+        {
+          "do": "Save a Composer glyph containing a ring and a line, display it as a world node, and reduce zoom through approximately 50%. Change its appearance, then enable/disable electric ink.",
+          "expect": "Eligible primitives use native analytic coverage rather than a bitmap sprite; framing/colors/opacity remain. Electric ink keeps its texture-based appearance and switching back restores native display. Unsupported compositions retain their prior SVG path. Small-detail visual/responsiveness acceptance remains with the user."
         }
       ],
       "reference": "docs/OMNIC_LIBRARY.md",
@@ -3025,15 +3029,17 @@
         "src/omnic/svg.ts",
         "src/omnic/presentation.ts",
         "src/textScene.ts",
-        "src/visualScene.ts"
+        "src/visualScene.ts",
+        "src/omnic/vectorPlan.ts",
+        "src/vectorGlyph.ts"
       ],
       "actions": [],
       "gestures": [],
       "status": "Implemented for review; production deployment and browser acceptance pending",
-      "limits": "Repairs generated canonical Omnic SVG output; arbitrary broken imported image files still require valid assets. Visual result awaits browser/user verification.",
+      "limits": "Repairs generated canonical Omnic SVG output; arbitrary broken imported image files still require valid assets. Visual result awaits browser/user verification. Native glyph display currently covers at most 128 static undecorated primitives within the existing world source budget. Authored SVG/PNG imports and unsupported effects retain raster filtering. Analytic stroke opacity retains authored thickness rather than inventing a minimum reading size; subpixel detail remains limited. Additional instance/fragment work is bounded per glyph; native views avoid bitmap allocation but complex scenes still need user responsiveness acceptance.",
       "verification": {
-        "browser": "Pending user confirmation of the reported node display",
-        "automated": "Reproduced pre-fix XML parse failure. All eight preset SVG images parse with Python ElementTree after the fix; saved/live output regression added. Complete model/architecture suite, preview build and backend type checks passed."
+        "browser": "A local synthetic GPU correctness check passed circle/line output and transparent support at 128/32 pixels for base/derived glow materials, with no shader/GL errors. This does not establish actual atlas visual quality or interactive performance; user acceptance remains pending.",
+        "automated": "Models cover transient asset plans, unchanged portable SVG output, eligibility budgets/fallbacks, one-batch geometry, normalized framing, color/opacity/caps, glow shader inheritance, deferred/disposed handoffs and native/raster transitions. Required build/backend checks run before delivery."
       },
       "related": [
         "omnic.saving",

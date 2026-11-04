@@ -602,3 +602,29 @@ support mesh instead of the actual stroke. Base/glow shader inheritance and styl
 independence are model-tested. This is a ring-specific correction, not a claim
 that every authored glyph/font now uses analytic rendering. User visual and
 responsiveness acceptance of the reported ring case remains pending.
+
+## Native analytic Composer glyph batches, 2026-11-04
+
+Canonical glyph SVG assets can carry an immutable, transient evaluated plan through
+a WeakMap. The world visual adapter renders eligible circle/ring/line primitives
+as one instanced batch per placement. Source coordinates are normalized on CPU
+before Float32 upload; square SVG viewport framing, intrinsic linear colors,
+opacity, authored thickness, fill and round/butt caps are retained. Fragment
+coverage is evaluated in screen space. The base and glow mask share the shader
+adapter. No per-zoom rasterization or shape discovery is added.
+
+Evaluation/resolver/revision caches are reused; portable SVG output remains byte-
+equivalent and no new asset/recipe fields are saved. Existing 32-source limits stay
+in place; at most 128 primitives per eligible glyph can use this path. Motion,
+highlights, intrinsic glow, degenerate circle geometry, larger compositions and
+editing overlays fall back to SVG. Manual image overrides remain image assets.
+Texture-dependent electric ink also falls back, with generation-guarded async
+handoffs and native-mode return when the effect is disabled. Draft-ready callbacks
+stay deferred so callers can install their pending view before receiving them.
+
+Native views avoid their glyph bitmap allocation but add bounded instance data and
+analytic fragment work; primitive support quads can overlap. No whole-scene pixel
+budget increase or new render pass. Extremely small strokes retain authored
+fractional opacity instead of silently thickening. GPU correctness smoke checks
+are not a visual quality or performance benchmark; user acceptance of the reported
+50% glyph case remains pending.

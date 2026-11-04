@@ -1,3 +1,5 @@
+import {vectorAsset} from './omnic/vectorPlan.ts';
+import {vectorGlyph} from './vectorGlyph.ts';
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { Visual, VisualAsset } from "./graph/assets";
@@ -8,8 +10,9 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
-  appearance: { color?: string; opacity?: number; brightness?: number; textColor?: string; textGlow?: number } = {},
+  appearance: { color?: string; opacity?: number; brightness?: number; textureOnly?:boolean; textColor?: string; textGlow?: number } = {},
   imageResolution = 512,
+  rasterFallback=false,
 ) {
   const group = new THREE.Group();
   const restyle: (() => void)[] = [];
@@ -26,6 +29,25 @@ export function visualObject(
     if (appearance.textColor !== undefined) update();
   };
   const asset = assets.find((a) => a.id === visual.assetId);
+  const plan=asset&&vectorAsset(asset);
+  if(plan&&!visual.character&&!rasterFallback){
+    let current:THREE.Group|undefined,pending:THREE.Group|undefined,mode:boolean|undefined,generation=0;
+    const swap=()=>{
+      const raster=!!appearance.textureOnly;if(mode===raster)return;mode=raster;const ticket=++generation;
+      if(pending){group.remove(pending);disposeVisual(pending);pending=undefined;}
+      let child:THREE.Group;
+      const ready=()=>{
+        if(group.userData.disposed||ticket!==generation||pending!==child)return;
+        if(current){group.remove(current);disposeVisual(current);}current=child;pending=undefined;
+        child.userData.setAppearance?.(appearance);child.visible=true;requestRender();
+      };
+      child=raster?visualObject(visual,assets,makeText,ready,appearance,imageResolution,true):vectorGlyph(plan,appearance);
+      child.visible=false;pending=child;group.add(child);
+      if(!raster)queueMicrotask(ready);
+    };
+    group.userData.setAppearance=(next:typeof appearance)=>{appearance=next;current?.userData.setAppearance?.(next);pending?.userData.setAppearance?.(next);swap();};
+    swap();return group;
+  }
   const fallback = () => {
     if (!group.userData.disposed) {
       const label = makeText("?");

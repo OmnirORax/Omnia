@@ -2,7 +2,7 @@ import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
 import { structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
 import type { OmnicWorldPreview } from "./omnic/worldPreview";
-import { brightHex } from "./appearance/resolve";
+import { brightHex, effectsFor } from "./appearance/resolve";
 import { connected } from "./appearance/model";
 import { TARGETS } from "./appearance/registry";
 import * as THREE from "three";
@@ -211,7 +211,7 @@ export function buildTextScene(
     text.material.opacity = style.opacity;
     const hasVisual = !!(displayedVisual?.assetId || displayedVisual?.character);
     const footprint = visualFootprint(labelSize(node.label), displayedVisual, sphereDiameter);
-    const visual = hasVisual ? visualObject(displayedVisual!, derivedAsset ? [derivedAsset] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity }, derivedAsset ? RENDER_BUDGET.omnicTextureEdge : 512) : undefined;
+    const visual = hasVisual ? visualObject(displayedVisual!, derivedAsset ? [derivedAsset] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity,textureOnly:effectsFor(theme,'symbols.nodes').effect==='electric-text' }, derivedAsset ? RENDER_BUDGET.omnicTextureEdge : 512) : undefined;
     const sprite: LabelMesh = footprint.sphere
       ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
       : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
@@ -385,7 +385,7 @@ export function buildTextScene(
         item.hitIndices.forEach((index, i) => { nodeHits[index] = i && item.showText ? item.text : item.sprite; });
         visual.visible = true;
         if (first) requestRender(); else requestPaint();
-      }, { opacity: item.opacity }, RENDER_BUDGET.omnicTextureEdge);
+      }, { opacity: item.opacity,textureOnly:effectsFor(currentTheme,'symbols.nodes').effect==='electric-text' }, RENDER_BUDGET.omnicTextureEdge);
       visual.visible = false;
       visual.scale.setScalar(item.visualSize);
       visual.position.copy(item.visual?.position ?? new THREE.Vector3());
@@ -416,7 +416,7 @@ export function buildTextScene(
       }
       const symbol=symbolStyle(next,'symbols.nodes',override?.color,style.color);
       if(item.visual)item.visual.userData.glowIntensity=override?.glow??symbol.glow;
-      item.visual?.userData.setAppearance?.({ opacity: item.opacity*symbol.opacity, brightness:symbol.brightness, textColor:symbol.color, textGlow:override?.glow??symbol.glow });
+      item.visual?.userData.setAppearance?.({textureOnly:effectsFor(next,'symbols.nodes').effect==='electric-text', opacity: item.opacity*symbol.opacity, brightness:symbol.brightness, textColor:symbol.color, textGlow:override?.glow??symbol.glow });
     }
     for (const item of connectors) applyConnectorTheme(item, next, preview);
   }

@@ -1,17 +1,18 @@
+import {glyphVectorPlan,rememberVectorAsset,type GlyphVectorPlan} from './vectorPlan.ts';
 import { isOperationTool } from "./tools.ts";
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import type { Document, Placement } from "../graph/structural.ts";
 import type { Visual, VisualAsset } from "../graph/assets.ts";
 import { referenceComponents, type Recipe, type RecipeResolver } from "./model.ts";
 import { evaluateRecipe } from "./evaluate.ts";
-import { renderSVG } from "./svg.ts";
+import { renderSVG, evaluationBounds } from "./svg.ts";
 import type { AtomnicInteraction } from "./atomnicInteraction";
 import {objectResolver} from './revisions.ts';
 const contexts = new WeakMap<Document,{recipes:Map<string,Recipe>;stamp:string;resolve:ReturnType<typeof objectResolver>;assets:Map<string,VisualAsset>}>();
 const recipeTokens=new WeakMap<Recipe,number>();let nextRecipeToken=0;
 const token=(recipe:Recipe)=>{let value=recipeTokens.get(recipe);if(value===undefined){value=++nextRecipeToken;recipeTokens.set(recipe,value);}return value;};
 const pools=new WeakMap<Document["entities"],{recipes:Map<string,Recipe>;stamp:string;resolve:ReturnType<typeof objectResolver>}>();
-const compiled = new WeakMap<Recipe,Map<string,string>>();
+const compiled = new WeakMap<Recipe,Map<string,{dataUrl:string;vector?:GlyphVectorPlan}>>();
 const liveIndexes = new WeakMap<Document['entities'], { users: Map<string, Set<string>>; affected: Map<string, Set<string>> }>();
 
 /** Resolve live dependent identities once per immutable pool/edited identity.
@@ -56,16 +57,17 @@ export function omnicAsset(doc:Document,entityId:string):VisualAsset|undefined {
 }
 function recipeAsset(entityId: string, recipe: Recipe, resolve: RecipeResolver, stamp: string, feedback?:AtomnicInteraction): VisualAsset {
   let cache=compiled.get(recipe);if(!cache){cache=new Map();compiled.set(recipe,cache);}
-  let dataUrl=cache.get(stamp);
-  if(!dataUrl){
-    let svg:string;
-    try { svg=renderSVG(evaluateRecipe(recipe,resolve,0),feedback); } catch { return {...omnicBudgetAsset,id:`omnic:${entityId}`}; }
+  let entry=cache.get(stamp);
+  if(!entry){
+    let svg:string,vector:GlyphVectorPlan|undefined;
+    try { const evaluated=evaluateRecipe(recipe,resolve,0),bounds=feedback?.bounds??evaluationBounds(evaluated);svg=renderSVG(evaluated,{...feedback,bounds});if(!feedback?.ghost&&!feedback?.pivot&&!feedback?.gridPitch&&!feedback?.hovered?.length)vector=glyphVectorPlan(evaluated,bounds); } catch { return {...omnicBudgetAsset,id:`omnic:${entityId}`}; }
     // Renderer output uses ASCII escapes for identifiers; UTF-8 encoding stays portable.
     const bytes=new TextEncoder().encode(svg);let binary='';for(const b of bytes)binary+=String.fromCharCode(b);
-    dataUrl=`data:image/svg+xml;base64,${btoa(binary)}`;
-    if(cache.size>=4)cache.delete(cache.keys().next().value!);cache.set(stamp,dataUrl);
+    entry={dataUrl:`data:image/svg+xml;base64,${btoa(binary)}`,vector};
+    if(cache.size>=4)cache.delete(cache.keys().next().value!);cache.set(stamp,entry);
   }
-  const asset:VisualAsset={id:`omnic:${entityId}`,name:"Omnic structure",kind:"image",dataUrl};
+  const asset:VisualAsset={id:`omnic:${entityId}`,name:"Omnic structure",kind:"image",dataUrl:entry.dataUrl};
+  rememberVectorAsset(asset,entry.vector);
   return asset;
 }
 /** A bounded renderer requests only its visible affected roots. No draft mutates

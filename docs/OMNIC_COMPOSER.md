@@ -999,3 +999,5 @@ selection, select-all and releasing modifiers open no dial or reference picker.
 Right-click an already selected target for its compatible DOF ring over the full
 set; explicit DOF controls/shortcuts remain available. This replaces automatic
 Position reference entry and edge-click rotation-wheel opening. See VISUAL_SELECTION.md.
+
+Eligible saved Composer circle/ring/line glyphs now use native batched analytic world rendering through transient presentation metadata; SVG/export identity stays unchanged. Existing world source budgets, complex/decorated/edit-overlay SVG fallbacks and texture-effect switching remain. See PERFORMANCE_RESULTS.md for eligibility and verification limits.
