@@ -763,3 +763,8 @@ transient selection/reset/reveal, shared controls and pagination. Questboard is
 the first adapter, with Speed/Endurance categories and account status. Other
 systems declare their facets rather than copy the implementation; specialized
 Omnic saved structural queries are not migrated. See [FILTERING.md](FILTERING.md).
+
+Questboard is now local-first and works offline in GitHack. Its versioned browser
+owner preserves quests/bests/claims across reloads; only Leaderboard needs Auth.
+Old cloud quest records remain on the server and are not silently migrated.
+See the current behavior at the top of METRICS.md.
