@@ -1,5 +1,7 @@
 # Worker onboarding: Omnia's shared mental model
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Read [the operating instructions in AGENTS.md](../AGENTS.md#user-operating-rules-required), including
 category-based inheritance, ownership, lifecycle reasoning and user-owned browser
 acceptance. Warning/error work also requires [the diagnostic contract](DIAGNOSTICS.md):
@@ -213,6 +215,17 @@ being searchable or movable does not establish its property capabilities. The
 shared property registry now connects initial appearance and nonvisual consumers;
 other legacy functions/settings still need migration.
 
+## Node documents and live lexicon
+
+Nodes now have an optional editable document outside the inspector (node name →
+Document). English variants on saved canonical Composer objects drive live
+glyph insertion on typing, paste, opening old content and saved mapping changes.
+Lexicon opens the library; it does not activate matching. Automatic occurrences
+link to English, then detach while retaining their glyph when English is deleted. English and glyph references remain independently deletable;
+this is a manual translation scaffold, not a finalized interpretation engine.
+Reuse the existing cross-atlas library and workspace owner. See
+[NODE_DOCUMENTS.md](NODE_DOCUMENTS.md) for data, clipboard and performance limits.
+
 ## Knowledge, presentation and state ownership
 
 Version-2 documents separate entities, compositions, typed relationships,
@@ -262,6 +275,8 @@ offset, move the intended resident, and commit one operation on release. A drag'
 trailing click must not activate its button. Cancellation restores the original.
 
 ## Shared commands, shortcuts and search
+
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
 
 Declare behavior commands once in ACTIONS. Component-owned commands belong in
 featureActions and useFeatureActions, rather than private key listeners and a
@@ -344,8 +359,9 @@ pointer-transparent. Q is the current default toggle between these states.
 The circle controls 🞅 Frame, ◉ In-frame and ⏺ Outside frame independently;
 it never blocks the geometry mode. Each includes its region; In-frame leaves the
 frame itself out. One LMB action toggles membership; RMB removes the pointed selected pattern or
-clears all if its target is unselected. Shift + the selector shortcut (Shift+Q)
-opens selected-property editing. With all
+clears all if its target is unselected. Repeating the selector shortcut opens its settings; Esc returns to selection
+then cancels. Shift-click selects an inclusive range within one source surface.
+Selected-property editing remains an explicit action. With all
 three off, a click establishes a neutral frame, then pattern detection follows
 the pointer inside or outside it without changing inclusion. Previews are automatic
 before a boundary/selection; then hold Ctrl: additions green, removal preview hides
@@ -695,3 +711,20 @@ of React/Rnd className/inline geometry refreshes. This prevents native popover b
 and position jumps on focus/collapse/reopen. Preserve base coordinates while
 collapsing a projected window. Shared useWindowLayer raises only when below the
 current front layer, avoiding repeated local rerenders on same-window grabs.
+
+Composer and atlas Ctrl/Shift clicks now belong to the registered MS surface
+gesture owner, including when MS was off. It claims the whole pointer lifecycle;
+Ctrl toggles an owner, Shift adds a spatial range and modifier drag adds a marquee.
+Do not add private native selection handlers to an editing tool. Native release
+finishes MS input while retaining membership. Ordinary target/edge clicks, native
+Ctrl/Shift selection, select-all and modifier release open no dials or references.
+Right-click an already selected target to open its compatible DOF dial for the full
+set; explicit DOF controls/shortcuts remain available. Declared editor context-menu owners receive
+secondary input without clearing membership; old click tails end at a fresh press.
+Surface onStart cleanup/precise area hits preserve renderer behavior. See VISUAL_SELECTION.md.
+
+For selection/editor corrections, read [the interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).
+It separates physical surface ownership, passive membership, active MS, popup
+navigation, remote controller refresh and numeric reference capabilities. The
+user requested the included focused browser regression for this investigation;
+keep its evidence distinct from arbitrary future browser authorization.

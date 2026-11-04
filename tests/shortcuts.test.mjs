@@ -74,7 +74,8 @@ test("pointer gesture modifiers preserve selector picking and explicit bindings 
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Q" }, pointer), false);
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "MB2" }, pointer), false);
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "MB2" }, { ...pointer, button: 2 }), true, "native preview also works with a rebound pointer action");
-  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, shiftKey: true }), false, "unrelated modifiers retain exact semantics");
+  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, shiftKey: true }), true, "Shift is the declared range modifier");
+  assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, altKey: true }), false, "unrelated modifiers retain exact semantics");
   assert.equal(matchesPointerShortcut("selector.include", bindings, { ...pointer, ctrlKey: false, metaKey: true }), false, "the native Ctrl preview gesture does not consume Command clicks");
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Ctrl+MB1" }, pointer, false), true);
   assert.equal(matchesPointerShortcut("selector.include", { ...bindings, "selector.include": "Ctrl+MB1" }, { ...pointer, ctrlKey: false }), false);
@@ -229,7 +230,8 @@ test("Shift universally resolves the base action, scoped commands, custom button
 
 test("Shift executable bindings migrate without stealing keys or reviving clears", () => {
   const defaults = defaultSettings();
-  assert.ok(Object.values(defaults.bindings).every(binding => !binding.split("+").includes("Shift")));
+  assert.equal(defaults.bindings["selector.extendSpatial"],"Shift+Q");
+  assert.ok(Object.entries(defaults.bindings).every(([id,binding]) => id==="selector.extendSpatial"||!binding.split("+").includes("Shift")));
   const migrated = normalizeSettings({ bindings: { searchUI: "Shift+S", redo: "Ctrl+Shift+Z", "selector.lock": "Shift+MB3", newChild: "", "button:custom": "Shift+P" } });
   assert.equal(migrated.bindings.searchUI, "Ctrl+Alt+S");
   assert.equal(migrated.bindings.redo, "Ctrl+Y");
@@ -361,15 +363,16 @@ test("a searchable popup resident retains its dismissal layer after field focus"
   assert.deepEqual(nested.map(entry => entry.kind), ["frame", "layer"], "DOM nesting and portals preserve the same dismissal order");
 });
 
-test("RMB edit migrates to deselection and Shift-selector delegates to selected-property editing", async () => {
+test("RMB edit migrates to deselection and repeated selector entry exposes settings", async () => {
   const settings = normalizeSettings({ bindings: { "selector.open": "MB3", "selector.edit": "MB2" } });
   assert.equal(settings.bindings["selector.open"], "Q");
   assert.equal(settings.bindings["selector.edit"], ""); assert.equal(settings.bindings["selector.deselect"], "MB2");
   const modern = normalizeSettings({ bindings: { "selector.deselect": "", "selector.edit": "Ctrl+P", "selector.open": "K" } });
   assert.equal(modern.bindings["selector.deselect"], ""); assert.equal(modern.bindings["selector.edit"], "Ctrl+P");
-  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Q", "selector.edit": "" }), "Shift+Q");
-  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Ctrl+P", "selector.edit": "" }), "Ctrl+Shift+P");
-  assert.equal(FEATURE_ACTIONS.find(action => action.id === "selector.open").configurationAction, "selector.edit");
+  assert.equal(functionShortcutBinding("selector.edit", { "selector.open": "Q", "selector.edit": "" }), "");
+  assert.equal(functionShortcutBinding("selector.configure", { "selector.open": "Q", "selector.configure": "" }), "Q again");
+  assert.equal(functionShortcutBinding("selector.configure", { "selector.open": "Ctrl+P", "selector.configure": "" }), "Ctrl+P again");
+  assert.equal(FEATURE_ACTIONS.find(action => action.id === "selector.open").configurationAction, "selector.configure");
 });
 
 
@@ -657,3 +660,99 @@ test('hovering a popup activates its logical confirmation scope before any click
  contextLayerAction(stack,layers,'confirm')();assert.deepEqual(calls,['child'],'Enter has the child owner without a prior selection click');
  assert.deepEqual(contextLayerScope([frame],removed,layers),[frame],'closed layers cannot reactivate');
 });
+
+test('Composer DOF shortcuts derive from writable metadata, reusing existing Rotation and Position identities', async () => {
+  const { composerDegreeActions } = await import('../src/omnic/degreeCommands.ts');
+  const { GENERATORS, OPERATORS } = await import('../src/omnic/registry.ts');
+  const generated=FEATURE_ACTIONS.filter(action=>action.owner==='omnicDegrees');
+  assert.ok(generated.some(action=>action.degreeProperty==='omnic.radius'));
+  assert.ok(generated.some(action=>action.degreeProperty==='omnic.extent'));
+  assert.ok(generated.some(action=>action.degreeProperty==='opacity'));
+  assert.ok(generated.every(action=>action.category==='Omnic Composer'&&action.defaultKey===''));
+  assert.ok(!generated.some(action=>action.degreeProperty==='omnic.angle'||action.degreeProperty==='omnic.position'),'existing complete adjusters have no duplicate rows');
+  assert.equal(FEATURE_ACTIONS.find(action=>action.id==='atomnic.rotate').defaultKey,'R');
+  for(const parameter of [...GENERATORS,...OPERATORS].flatMap(definition=>definition.parameters))
+    assert.ok(generated.some(action=>action.degreeProperty===parameter.property)||FEATURE_ACTIONS.some(action=>'adjusts' in action&&action.adjusts.length===1&&action.adjusts.includes(parameter.property)),parameter.property);
+  assert.ok(composerDegreeActions().some(action=>action.degreeProperty==='omnic.position'),'vector freedom is discovered from axis metadata');
+});
+
+test('Composer modifier combinations survive reload and route ahead of globals without opening Shift configuration', async () => {
+  const { preferredFeatureKey, residentShortcutAction, repeatConfigured } = await import('../src/workspaceActions.ts');
+  const { configurationTarget } = await import('../src/ui/shortcutConfiguration.ts');
+  const radius='omnic.dof.omnic.radius';
+  const saved=normalizeSettings({bindings:{[radius]:'Ctrl+Shift+R','atomnic.rotate':'R',newNode:'Ctrl+Shift+R','button:global':'R'}});
+  assert.equal(saved.bindings[radius],'Ctrl+Shift+R');
+  assert.equal(normalizeSettings(saved).bindings[radius],'Ctrl+Shift+R');
+  assert.equal(repeatConfigured(radius),true);
+  assert.equal(keyConflict({[radius]:'Ctrl+R',newNode:'Ctrl+R'},radius,'Ctrl+R'),null);
+  assert.equal(keyConflict({[radius]:'R','atomnic.rotate':'R'},radius,'R'),'atomnic.rotate');
+  assert.equal(preferredFeatureKey(saved.bindings,'Ctrl+Shift+R',id=>id===radius),radius);
+  assert.equal(configurationTarget(saved.bindings,'Ctrl+Shift+R',id=>id===radius),null);
+  assert.equal(configurationTarget(saved.bindings,'Shift+R',id=>id==='atomnic.rotate'),null,'Shift no longer configures Rotation');
+  assert.equal(residentShortcutAction(saved.bindings,'R',id=>id==='atomnic.rotate'),'atomnic.rotate');
+  assert.equal(residentShortcutAction(saved.bindings,'R',()=>false),'button:global','leaving the context restores ordinary bindings');
+  assert.equal(preferredFeatureKey(saved.bindings,'Ctrl+Shift+R',id=>id===radius,true),null,'native typing remains protected');
+  assert.equal(preferredFeatureKey(saved.bindings,'Ctrl+Shift+R',id=>id===radius,false,true),null,'blocked dialogs remain protected');
+  assert.equal(preferredFeatureKey({...saved.bindings,[radius]:''},'Ctrl+Shift+R',id=>id===radius),null,'clears remain cleared');
+  const overlapping={...saved.bindings,[radius]:'E','atomnic.erase':'E','selector.pattern':'E'};
+  assert.equal(preferredFeatureKey(overlapping,'E',id=>[radius,'atomnic.erase'].includes(id)),radius);
+  assert.equal(preferredFeatureKey(overlapping,'E',id=>[radius,'atomnic.erase','selector.pattern'].includes(id)),'selector.pattern','active MS retains priority');
+});
+
+test('selector Shift-range remains a declared pointer gesture and Q repeat frees Shift+Q',async()=>{
+ const {configurationTarget}=await import('../src/ui/shortcutConfiguration.ts');
+ const bindings=defaultSettings().bindings,active=id=>['selector.include','selector.open'].includes(id);
+ const event={button:0,ctrlKey:false,metaKey:false,altKey:false,shiftKey:true};
+ assert.equal(matchesPointerShortcut('selector.include',bindings,event),true);
+ assert.equal(configurationTarget(bindings,'Shift+MB1',active),null);
+ assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':'Ctrl+MB1'},{...event,ctrlKey:true}),true);
+ assert.equal(configurationTarget({...bindings,'selector.include':'Ctrl+MB1'},'Ctrl+Shift+MB1',active),null);
+ assert.equal(configurationTarget(bindings,'Shift+Q',active),null);
+ assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':''},event),false);
+ assert.equal(matchesPointerShortcut('selector.include',{...bindings,'selector.include':'MB2'},event),false);
+ assert.equal(matchesPointerShortcut('selector.include',bindings,{...event,altKey:true}),false);
+});
+
+test('MS targeted/spatial chords follow its opening binding and preserve explicit rebindings and clears',async()=>{
+ const {shortcutBinding,preferredFeatureKey,allowsShiftShortcut}=await import('../src/workspaceActions.ts');
+ const {configurationTarget}=await import('../src/ui/shortcutConfiguration.ts');
+ const defaults=defaultSettings().bindings;
+ assert.equal(shortcutBinding('selector.togglePointed',defaults),'Ctrl+Q');
+ assert.equal(shortcutBinding('selector.togglePointed',{...defaults,'selector.open':'MB3'}),'','a derived default cannot steal the existing MS lock binding');
+ assert.equal(shortcutBinding('selector.extendSpatial',defaults),'Shift+Q');
+ const rebound=normalizeSettings({bindings:{...defaults,'selector.open':'K'}}).bindings;
+ assert.equal(shortcutBinding('selector.togglePointed',rebound),'Ctrl+K');
+ assert.equal(shortcutBinding('selector.extendSpatial',rebound),'Shift+K');
+ assert.equal(functionShortcutBinding('selector.extendSpatial',rebound),'Shift+K');
+ assert.equal(shortcutBinding('selector.extendSpatial',{...rebound,'selector.extendSpatial':''}),'');
+ assert.equal(shortcutBinding('selector.togglePointed',{...rebound,'selector.togglePointed':'Alt+M'}),'Alt+M');
+ assert.equal(shortcutBinding('selector.extendSpatial',normalizeSettings({bindings:{...rebound,'selector.extendSpatial':'Ctrl+Shift+P'}}).bindings),'Ctrl+Shift+P');
+ const available=id=>['selector.open','selector.togglePointed','selector.extendSpatial'].includes(id);
+ assert.equal(preferredFeatureKey(rebound,'Ctrl+K',available),'selector.togglePointed');
+ assert.equal(preferredFeatureKey(rebound,'Shift+K',available),'selector.extendSpatial');
+ assert.equal(configurationTarget(rebound,'Shift+K',available),null,'the generic Shift router cannot swallow spatial extension');
+ assert.equal(allowsShiftShortcut('selector.extendSpatial'),true);
+ assert.equal(preferredFeatureKey(rebound,'Ctrl+K',available,true),null,'typing remains native');
+ assert.equal(preferredFeatureKey(rebound,'Ctrl+K',()=>false),null,'inactive MS cannot consume global shortcuts');
+});
+
+test('surface command ownership follows the physical path when capture renders replace or move targets',async()=>{
+ const {eventPathMatches}=await import('../src/ui/pointerOwnership.ts');
+ const detached={closest:()=>null},surface={matches:selector=>selector==='[data-command-surface]'};
+ const physical={target:detached,composedPath:()=>[detached,surface]};
+ assert.equal(eventPathMatches(physical,'[data-command-surface]'),true,'refreshing an SVG descendant must not lose its declared input surface');
+ const moved={closest:()=>surface};
+ assert.equal(eventPathMatches({target:moved,composedPath:()=>[moved,{matches:()=>false}]},'[data-command-surface]'),false,'a newly mounted/moved owner cannot inherit another surface press');
+ assert.equal(eventPathMatches({target:moved},'[data-command-surface]'),true,'programmatic inputs without a physical path retain ancestry fallback');
+ assert.equal(eventPathMatches({target:null},'[data-command-surface]'),false);
+});
+
+ test('MS entry has selector routing priority before opening and after exit, without changing saved default conflicts',async()=>{
+ const {preferredFeatureKey,residentShortcutAction}=await import('../src/workspaceActions.ts');
+ const saved={'selector.open':'Q','atomnic.rotate':'Q','button:retained-dof':'Q'};
+ const available=id=>['selector.open','atomnic.rotate'].includes(id);
+ assert.equal(preferredFeatureKey(saved,'Q',available),'selector.open');
+ assert.equal(residentShortcutAction(saved,'Q',available),'selector.open');
+ assert.equal(preferredFeatureKey(saved,'Q',available,true),null,'native text entry retains Q');
+ assert.equal(preferredFeatureKey({...saved,'selector.open':''},'Q',available),'atomnic.rotate','explicit clears remain authoritative');
+ });

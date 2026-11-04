@@ -1,11 +1,42 @@
 # Shared shortcuts and feature commands
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
 Every feature command belongs to `ACTIONS` in `workspaceActions.ts`. Its global
 entries and the component-owned `FEATURE_ACTIONS` manifest form one catalog, not
 two user-facing inventories. Both shortcut screens, defaults, saved binding
 normalization, action functions and conflict checks derive from it automatically.
 Never add a feature's key to a private event handler and separately describe it
 in a shortcut list.
+
+## Composer DOF shortcuts
+
+Shortcuts & functions → **Omnic Composer** lists property commands derived from
+registered generator/operator inputs and vector metadata. Rotation retains
+`atomnic.rotate` / R; Position retains `atomnic.move` / G. Other DOFs start
+unassigned. No duplicate Radius/Rotation/Position registry or value store is added.
+Select a compatible target, then invoke its assigned property shortcut to open the
+existing editor with the retained reference. Press the same shortcut again while
+the same DOF/targets are active to open configuration. A held key never counts as
+another press. Switching target or closing the editor starts a fresh invocation.
+
+These commands declare `configurationTrigger: repeat` and the `composerDegree`
+scope. Their Ctrl/Alt/Shift combinations are captured, preserved on reload and
+matched exactly, rather than consumed by the Shift-configuration router. No new
+modifier meanings/defaults are assigned. Existing functions outside this declared
+capability retain Shift configuration. Browser/OS-reserved shortcuts cannot be
+made universally available by the app.
+
+The shared priority is active MS → Composer DOF → active geometry context → content
+editing → UI context → globals/resident fallback. The Composer supplies active
+context to `useFeatureActions` through its shared context owner; mounted editors
+do not retain shortcuts after another context is activated. Contextual MC/editor
+controls preserve that target through the existing controller marker. Native text
+entry, capture, blocked dialogs, unsupported target DOFs and cleared bindings stay
+protected. Future declared inputs inherit inventory and routing through the same
+metadata; new owners provide their actual activation/capabilities, not key listeners.
 
 ## Adding a feature
 
@@ -61,11 +92,23 @@ key/hold duration from this metadata; ordinary rebinding cannot disable recovery
   templates and normal interface history; scoped defaults can coexist with
   global assignments.
 
+## Visual selector targeted selection
+
+MS exposes `selector.togglePointed` (Ctrl+Q) and `selector.extendSpatial` (Shift+Q)
+while selection is active. Their default chords derive from the live
+`selector.open` binding; custom rebindings/clears remain authoritative. Only
+non-colliding defaults follow the source. `configurationTrigger: direct` lets
+explicit modifier chords reach their declared action instead of generic Shift
+configuration. Ctrl toggles one pointed owner; Shift extends through the rectangle
+between projected anchor/endpoint bounds using the surface adapter. No private
+literal Ctrl+Q/Shift+Q handlers or separate renderer selection store.
+See [selection surfaces and limits](VISUAL_SELECTION.md#targeted-toggle-and-spatial-range-shortcuts).
+
 ## Visual selector integration
 
 The selector command group includes configuration/aiming (Q), geometry modes
 (E), toggle pattern / define geometry (LMB/MB1, stable ID `selector.include`), deselect pointed pattern or all (RMB/MB2), selected-property editing
-(Shift + selector shortcut, default Shift+Q), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
+(explicit selector.edit action), polygon finish (Enter), disable/clear (Esc), selection undo/redo and
 unassigned commands for BG detection, Selection / Preview, contour, inside/outside, releasing geometry, closing paths,
 finite bounds, color stops, Self inventory and logical Mouse selection. The separate exclude
 command is retired. Exact untouched older pointer bundles migrate to these
@@ -200,12 +243,13 @@ availability, capture and protected recovery rules remain authoritative. Shift
 configuration resolves the same priority. Do not rely on listener mount order.
 
 
-The selector action declares `configurationAction: selector.edit`: universal Shift
-routing opens the existing selected-property MC instead of its old generic Shift
-configuration. This follows the live base binding and uses shared catalog dispatch;
-there is no private Shift+Q listener or executable Shift binding. Shortcut search
-shows the derived editing gesture. Q is the new selector default; legacy default
-MB3/RMB-edit settings migrate when Q is free, preserving other custom assignments.
+The selector declares `configurationTrigger: repeat` and links its derived settings
+hint to `selector.configure`. Q starts aiming; Q again configures. Esc returns
+from configuration to aiming, then cancels outside configuration. Shift+Q no longer
+opens selected properties. Shift plus the saved selection pointer binding adds a
+source-order range within the current surface, through declared gesture modifiers.
+Exact modified bindings retain priority; required saved modifiers are never stripped.
+Explicit clears, temporary reference checkpoints and native text entry remain protected.
 
 
 ## Held node movement
@@ -259,3 +303,15 @@ The Composer top always shows compact active DOF, mode/rule and ⟴ reference co
 Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
 
 Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.
+
+## Retained selection versus active input
+
+Active MS keeps its existing priority. Accepted membership after MS input has
+finished yields Esc to a field/popup before clearing selection. Composer gesture
+cancel is not a second popup navigation owner. Physical surface matching uses
+the original event path so capture-time SVG replacement cannot change which
+context owns the press. Active reference picking retains its editor context;
+contextController windows do not activate on inspection-key refresh. See
+[the interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).
+
+Selection entry commands may declare `activationScope` for runtime arbitration. This is the scope their shortcut activates, so entry does not lose to a retained editor before that scope is open. Installation/default conflict checks still use `scope`; user bindings are not migrated or silently assigned. Native typing, blocked input and explicit clears retain the shared protections.

@@ -1,7 +1,8 @@
 import type { Component, Recipe } from './model.ts';
 import { validateRecipe } from './model.ts';
 import { applicableParameters, definition, type Parameter, type Value } from './registry.ts';
-import { legalAtoms } from './atomnic.ts';
+import { legalAtoms, atomnicSettings } from './atomnic.ts';
+import { componentIndex, memberTargets } from './componentTargets.ts';
 import { editableDegrees, vectorDegrees, type EditableDegree, type FreedomAdjuster } from '../properties/editableDegrees.ts';
 
 const components=(items:readonly Component[]):Component[]=>items.flatMap(item=>[item,...components(item.children??[])]);
@@ -19,6 +20,11 @@ export function targetEditorDegrees(...args:Parameters<typeof targetDegrees>){
  // Vector editors own their tuple; legacy action adjusters remain available via
  // their action routing, rather than swallowing one of the optional axes.
  return vectorDegrees(targetDegrees(recipe,ids,adjusters.filter(a=>!a.adjusts.some(p=>vectorProperties.has(p))),fixed,coverage));
+}
+/** The selected-owner editor scope is shared by radial and keyboard entry. */
+export function selectedEditorDegrees(recipe:Recipe,ids:readonly string[]):EditableDegree[] {
+  const index=componentIndex(recipe),group=ids.some(id=>index.get(id)?.component.generator==='group');
+  return targetEditorDegrees(recipe,group?memberTargets(recipe,ids):ids,[],recipe.atomnic?.active&&atomnicSettings(recipe).mode==='constrained'?['omnic.extent']:[],group?'available':'common');
 }
 /** Default placement entry derives from declared coordinate measurements, not
  * a preset, target ID, parameter name or UI position in the DOF list. */

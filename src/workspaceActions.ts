@@ -1,5 +1,5 @@
 import { contextTargets } from './ui/contextTargets.ts';
-import { uiPointerHeld } from './ui/pointerOwnership.ts';
+import { uiPointerHeld, eventPathMatches } from './ui/pointerOwnership.ts';
 import { validateValue } from "./properties/registry.ts";
 import { PROPERTY_REGISTRY, loadController } from "./appearance/registry.ts";
 import type { Controller, Value } from "./appearance/model";
@@ -98,26 +98,47 @@ export function actionScope(id: string): string {
   const action = ACTIONS.find(action => action.id === id);
   return action && "scope" in action ? action.scope : "global";
 }
+/** Repeat-configured functions reserve no modifier: their shifted chords execute normally. */
+export function repeatConfigured(id: string): boolean {
+  const action = ACTIONS.find(action => action.id === id.replace(/^button:/, ''));
+  return !!action && 'configurationTrigger' in action && action.configurationTrigger === 'repeat';
+}
 export const isFeatureAction = (id: string) => FEATURE_ACTIONS.some(action => action.id === id);
-export const shortcutBinding = (id: string, bindings: Record<string, string>) => bindings[id] ?? ACTIONS.find(action => action.id === id)?.defaultKey ?? "";
+export function shortcutBinding(id:string,bindings:Record<string,string>):string {
+  const action=ACTIONS.find(action=>action.id===id),saved=bindings[id];
+  if(action&&'bindingSource' in action&&(saved===undefined||saved===action.defaultKey)){
+    const source=bindings[action.bindingSource]??ACTIONS.find(candidate=>candidate.id===action.bindingSource)?.defaultKey??'';
+    if(!source||source.split('+').includes(action.bindingModifier))return '';
+    const parts=source.split('+'),key=parts.pop()!;
+    const chord=['Ctrl','Alt','Shift'].filter(modifier=>modifier===action.bindingModifier||parts.includes(modifier)).concat(key).join('+');
+    if(ACTIONS.some(other=>other.id!==id&&!('bindingSource' in other)&&('scope' in other?other.scope:'global')===action.scope&&(bindings[other.id]??other.defaultKey)===chord))return '';
+    return chord;
+  }
+  return saved??action?.defaultKey??'';
+}
+export function allowsShiftShortcut(id:string):boolean {
+  const action=ACTIONS.find(action=>action.id===id.replace(/^button:/,''));
+  return !!action&&'configurationTrigger' in action;
+}
 /** Resolve overlapping feature keys by active scope, never listener mount order.
  * An active selector owns its commands before content editors, UI frames, then global actions. */
 export function preferredFeatureKey(bindings: Record<string, string>, key: string, available: (id: string) => boolean, typing = false, blocked = false): string | null {
   if (!key) return null;
-  const rank = (scope: string) => scope === "visualSelector" ? 3 : scope === "contentEditing" ? 2 : scope === "uiContext" ? 1 : 0;
+  const rank = (scope: string) => scope === "visualSelector" ? 5 : scope === "composerDegree" ? 4 : scope === "contentEditing" ? 2 : scope === "uiContext" ? 1 : 0;
   const candidates = FEATURE_ACTIONS.filter(action => shortcutBinding(action.id, bindings) === key && available(action.id) &&
     (!typing || "allowTyping" in action && action.allowTyping) && (!blocked || "allowBlocked" in action && action.allowBlocked));
-  const priority=(action:typeof candidates[number])=>action.scope==='visualSelector'?4:'contextual' in action&&contextTargets.override(action.id)&&!uiPointerHeld()?3:rank(action.scope);
+  // Entry commands route in the scope they activate, while saved-binding/default
+  // conflict rules keep their declared installation scope.
+  const priority=(action:typeof candidates[number])=>'activationScope' in action?rank(action.activationScope):action.scope==='visualSelector'?5:'contextual' in action&&contextTargets.override(action.id)&&!uiPointerHeld()?3:rank(action.scope);
   candidates.sort((a,b)=>priority(b)-priority(a));
   return candidates[0]?.id ?? null;
 }
 /** Pointer commands use the same scope priority plus their declared surface. */
-export function pointerFeatureKey(bindings:Record<string,string>,event:Pick<MouseEvent,'button'|'ctrlKey'|'altKey'|'shiftKey'|'metaKey'|'target'>,available:(id:string)=>boolean,blocked=false){
+export function pointerFeatureKey(bindings:Record<string,string>,event:Pick<MouseEvent,'button'|'ctrlKey'|'altKey'|'shiftKey'|'metaKey'|'target'>&{composedPath?:()=>readonly EventTarget[]},available:(id:string)=>boolean,blocked=false){
  return preferredFeatureKey(bindings,normalizePointer(event),id=>{
   if(!available(id))return false;const definition=FEATURE_ACTIONS.find(action=>action.id===id);
   if(!definition||!('gestureSurface' in definition))return true;
-  const target=event.target as {closest?:(selector:string)=>unknown}|null;
-  return !!target?.closest?.(definition.gestureSurface);
+  return eventPathMatches(event,definition.gestureSurface);
  },false,blocked);
 }
 /** Arbitrary saved residents share the scoped feature arbitration. An available
@@ -125,7 +146,8 @@ export function pointerFeatureKey(bindings:Record<string,string>,event:Pick<Mous
 export function residentShortcutAction(bindings:Record<string,string>,key:string,available:(id:string)=>boolean):string|null {
  if(!key)return null;
  const scoped=preferredFeatureKey(bindings,key,available);
- if(scoped&&FEATURE_ACTIONS.find(action=>action.id===scoped)?.scope!=='global')return scoped;
+ const command=FEATURE_ACTIONS.find(action=>action.id===scoped);
+ if(scoped&&command&&('activationScope' in command||command.scope!=='global'))return scoped;
  return Object.entries(bindings).find(([id,binding])=>id.startsWith('button:')&&binding===key)?.[0]??null;
 }
 export const matchesShortcut = (id: string, bindings: Record<string, string>, key: string) => !!key && shortcutBinding(id, bindings) === key;
@@ -135,16 +157,23 @@ export function matchesPointerShortcut(id: string, bindings: Record<string, stri
   const key = normalizePointer(event);
   if (matchesShortcut(id, bindings, key)) return true;
   const action = FEATURE_ACTIONS.find(action => action.id === id);
-  if (!gestureModifiers || !action || !("pointerGestureModifiers" in action) || !event.ctrlKey || event.metaKey) return false;
-  const modifiers: readonly string[] = action.pointerGestureModifiers;
-  return matchesShortcut(id, bindings, key.split("+").filter(part => !modifiers.includes(part)).join("+"));
+  if (!gestureModifiers || !action || !("pointerGestureModifiers" in action) || event.metaKey) return false;
+  return matchesGestureShortcut(id, bindings, key);
+}
+/** Optional gesture modifiers never remove modifiers required by a saved binding. */
+export function matchesGestureShortcut(id:string,bindings:Record<string,string>,key:string):boolean {
+  const action=FEATURE_ACTIONS.find(action=>action.id===id);
+  if(!action||!('pointerGestureModifiers' in action))return false;
+  const required=shortcutBinding(id,bindings).split('+');
+  const optional=(action.pointerGestureModifiers as readonly string[]).filter(modifier=>!required.includes(modifier));
+  return matchesShortcut(id,bindings,key.split('+').filter(part=>!optional.includes(part)).join('+'));
 }
 export function actionForKey(bindings: WorkspaceSettings["bindings"], key: string): ActionId | null {
   return ACTIONS.find((action) => !isFeatureAction(action.id) && bindings[action.id] === key)?.id ?? null;
 }
 export function keyConflict(bindings: WorkspaceSettings["bindings"], actionId: string, key: string): string | null {
   if (!key) return null;
-  return Object.entries(bindings).find(([id, binding]) => id !== actionId && binding === key && actionScope(id) === actionScope(actionId))?.[0] ?? null;
+  return Object.entries(bindings).find(([id]) => id !== actionId && shortcutBinding(id,bindings) === key && actionScope(id) === actionScope(actionId))?.[0] ?? null;
 }
 export function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'));
@@ -245,7 +274,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     // Shift is now the universal configuration modifier. Migrate displaced
     // assignments to free non-Shift defaults, preserving deliberate clears.
     for (const [id, binding] of Object.entries(defaults.bindings)) {
-      if (!binding.split("+").includes("Shift")) continue;
+      if (!binding.split("+").includes("Shift") || allowsShiftShortcut(id)) continue;
       const metadata = ACTIONS.find(action => action.id === id);
       const proposed = metadata?.defaultKey && !metadata.defaultKey.split("+").includes("Shift") ? metadata.defaultKey :
         ["Ctrl", "Alt", ...binding.split("+").filter(part => !["Ctrl", "Alt", "Shift"].includes(part))].join("+");
@@ -273,6 +302,7 @@ export function functionShortcutBinding(functionId: string | undefined, bindings
   const source = ACTIONS.find(action => "configurationAction" in action && action.configurationAction === id);
   const base = source && shortcutBinding(source.id, bindings);
   if (!base) return "";
+  if (repeatConfigured(source.id)) return `${base} again`;
   const parts = base.split("+"); parts.splice(parts.length - 1, 0, "Shift"); return parts.join("+");
 }
 export type ButtonShortcuts = {

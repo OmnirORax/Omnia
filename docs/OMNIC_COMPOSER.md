@@ -1,5 +1,14 @@
 # Omnic composer: Stage 1 contract
 
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
+Current interaction ownership and opt-in regression: see
+[the lifecycle contract](OMNIC_INTERACTION_LIFECYCLE.md). Physical event paths
+retain the surface through SVG refresh; passive selection yields editor/gesture
+cancellation, temporary MS preserves navigation context and remote controller
+refreshes retain the source. Nonnumeric DOFs never enter numeric reference picking.
+
+
 **Current presentation:** the whole Composer is the circular radar: editing inside,
 tools on its rim. It is not a rectangle containing a radial popup or a headless
 world-only editor. Atomnic on/off shares the same canvas and recipe. Presets and reusable tools retain rim entry routes; scalar properties are available from target right-click. Structure/construction, Motion, Selection, Transform, Fill/marking, Inspection/toolbox, Configure selected component and Operation scope are removed from the radial; reusable commands and saved data remain. Data/evaluation/history/library/
@@ -708,7 +717,7 @@ Unselected hover correction: interaction previews must not require prior selecti
 Scalar grab correction: geometry chooses the DOF/tool before a press; once grabbed, scalar value execution is a virtual slider in free space. Shared createValueScrub serves relative RangeControl/DOF-icon drags and Composer edge rotation. The first meaningful movement (three CSS pixels) locks its arbitrary axis for that gesture. Continuing along it increases, reversing decreases, perpendicular motion is ignored. Screen displacement traverses the prepared value sequence/bounds; it does not follow the shape or compute cursor angle about its center. Press/jitter leaves the value untouched; release commits once and cancellation restores via existing owners. Edge rotation uses the generic value gesture; obsolete shape-following center/field gesture state is removed. Explicit legacy Step/pivot rotation remains separate. Two-axis direct placement keeps its existing spatial translation behavior. No extra floating slider is introduced. Browser acceptance pending.
 
 
-Latest Rotation correction: hovering actual edges shows the cue; one primary click selects its owner and opens the axis wheel on release, without editing the angle. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+Latest Rotation correction: hovering actual edges shows the cue; a primary edge click only selects its owner. Right-click the target to choose Rotation, or use its assigned DOF shortcut; selection does not open the wheel. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
 
 
 ### Shared MS selection ownership
@@ -982,3 +991,9 @@ per-traversal coverage and drawing speed live in the same rule. Existing Play/pa
 runs the glowing drawing particle; fixed generation defaults to 100 unit moves.
 See [path-rule controls, bounds, limits and acceptance](OMNIC_PATH_RULES.md).
 This Composer-only experiment has model coverage; interactive acceptance is pending.
+
+Current selection entry (2026-11-03): ordinary target/edge clicks, Ctrl/Shift
+selection, select-all and releasing modifiers open no dial or reference picker.
+Right-click an already selected target for its compatible DOF ring over the full
+set; explicit DOF controls/shortcuts remain available. This replaces automatic
+Position reference entry and edge-click rotation-wheel opening. See VISUAL_SELECTION.md.

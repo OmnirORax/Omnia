@@ -65,7 +65,7 @@ export function evaluationBounds(evaluation:Evaluation) {
 }
 function element(node:StructuralNode,selected:boolean) {
   if(node.kind==="group")return "";
-  const attrs=`data-selection-geometry data-selection-boundary data-selection-id="${esc(node.id)}" data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}" aria-label="${esc(node.id)}" style="${node.glow?`color:${esc(node.color)};filter:drop-shadow(0 0 2px currentColor);`:""}fill:${node.fill?esc(node.color):"none"};stroke:${esc(node.color)}" stroke="${esc(node.color)}" stroke-width="${number(node.thickness)}" opacity="${number(node.opacity)}" fill="${node.fill?esc(node.color):"none"}"${selected?' data-omnic-selected="true"':''}`;
+  const attrs=`data-selection-geometry="" data-selection-boundary="" data-selection-id="${esc(node.id)}" data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}" aria-label="${esc(node.id)}" style="${node.glow?`color:${esc(node.color)};filter:drop-shadow(0 0 2px currentColor);`:""}fill:${node.fill?esc(node.color):"none"};stroke:${esc(node.color)}" stroke="${esc(node.color)}" stroke-width="${number(node.thickness)}" opacity="${number(node.opacity)}" fill="${node.fill?esc(node.color):"none"}"${selected?' data-omnic-selected="true"':''}`;
   const title=`<title>${esc(node.id)}</title>`;
   const base = node.kind==="line"?`<line ${attrs} x1="${number(node.x)}" y1="${number(node.y)}" x2="${number(node.x2??node.x)}" y2="${number(node.y2??node.y)}" stroke-linecap="${node.cap??"round"}">${title}</line>`:`<circle ${attrs} cx="${number(node.x)}" cy="${number(node.y)}" r="${number(node.radius)}">${title}</circle>`;
   const mark=node.highlight;
@@ -83,7 +83,9 @@ function element(node:StructuralNode,selected:boolean) {
   }
   return `<g opacity="${number(node.opacity)}" data-omnic-role="${esc(node.id)}" data-omnic-highlighted="true" data-omnic-fraction="${number(mark.fraction)}">${base.replace(`opacity="${number(node.opacity)}"`,'opacity="1"')}${overlay}</g>`;
 }
-/** Self-contained output adapter only. SVG markup never becomes recipe identity. */
+/** Self-contained output adapter shared by inline Composer and SVG image consumers.
+ * All attributes need XML values: HTML boolean shorthand breaks saved-node image decoding.
+ * SVG markup never becomes recipe identity. */
 export function renderSVG(evaluation:Evaluation, feedback?:{gridPitch?:number;ghost?:{x:number;y:number;radius:number;color:string};bounds?:{x:number;y:number;width:number;height:number}; selected?:readonly string[]; hovered?:readonly string[]; pivot?:{x:number;y:number}|null}):string {
   const bounds=feedback?.bounds??evaluationBounds(evaluation),selected=new Set(evaluation.selection);
   const hovered=new Set(feedback?.hovered);
@@ -98,5 +100,5 @@ export function renderSVG(evaluation:Evaluation, feedback?:{gridPitch?:number;gh
   }
   const ghost=feedback?.ghost?`<circle pointer-events="none" cx="${number(feedback.ghost.x)}" cy="${number(feedback.ghost.y)}" r="${number(feedback.ghost.radius)}" fill="${esc(feedback.ghost.color)}" opacity=".3"/>`:'';
   const pivot=feedback?.pivot?`<path pointer-events="none" stroke="#ffe45c" stroke-width="0.75" d="M ${number(feedback.pivot.x-3)} ${number(feedback.pivot.y)} h 6 M ${number(feedback.pivot.x)} ${number(feedback.pivot.y-3)} v 6"/>`:'';
-  return `<svg xmlns="http://www.w3.org/2000/svg" data-omnic-structure="true" data-selection-environment data-selection-boundary data-selection-id="@environment" style="color-scheme:only light" width="256" height="256" preserveAspectRatio="xMidYMid meet" viewBox="${[bounds.x,bounds.y,bounds.width,bounds.height].map(number).join(" ")}" role="img" aria-label="Omnic structural composition">${grid.join("")}${evaluation.nodes.map(n=>element(n,selected.has(n.id))).join("")}${ghost}${outlines}${pivot}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" data-omnic-structure="true" data-selection-environment="" data-selection-boundary="" data-selection-id="@environment" style="color-scheme:only light" width="256" height="256" preserveAspectRatio="xMidYMid meet" viewBox="${[bounds.x,bounds.y,bounds.width,bounds.height].map(number).join(" ")}" role="img" aria-label="Omnic structural composition">${grid.join("")}${evaluation.nodes.map(n=>element(n,selected.has(n.id))).join("")}${ghost}${outlines}${pivot}</svg>`;
 }

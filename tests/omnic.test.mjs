@@ -1450,7 +1450,7 @@ test('axis node targeting uses rendered geometry even when SVG press targets are
 });
 
 test('Ctrl membership toggles complete authored groups so multi-delete uses MS owners',async()=>{
- const {selectionGroupIncluded,nativeSelectionTogglePress}=await import('../src/appearance/selectionRequest.ts');
+ const {selectionGroupIncluded}=await import('../src/appearance/selectionRequest.ts');
  const {authoredNodeOwners}=await import('../src/omnic/contextGeometry.ts');
  const {selectedEditOwners}=await import('../src/omnic/msSelection.ts');
  const source=recipe([{id:'array',generator:'chain',params:{count:3}},{id:'ring',generator:'ring',params:{}},{id:'keep',generator:'dot',params:{x:100}}]);
@@ -1459,7 +1459,6 @@ test('Ctrl membership toggles complete authored groups so multi-delete uses MS o
  toggle('array');toggle('ring');assert.deepEqual(new Set(selectedEditOwners(evaluation.nodes,owners,selected)),new Set(['array','ring']));
  toggle('array');assert.deepEqual(selectedEditOwners(evaluation.nodes,owners,selected),['ring']);toggle('array');
  const deleted=deleteComponents(source,new Set(selectedEditOwners(evaluation.nodes,owners,selected)));assert.deepEqual(deleted.components.map(c=>c.id),['keep']);
- const click={button:0,ctrlKey:true,metaKey:false,shiftKey:false,altKey:false};assert.equal(nativeSelectionTogglePress(click),true);assert.equal(nativeSelectionTogglePress({...click,shiftKey:true}),false);assert.equal(nativeSelectionTogglePress({...click,ctrlKey:false,metaKey:true}),true);
  assert.equal(selectionGroupIncluded(['a','b'],new Set(['a'])),true,'a partial group becomes a complete editable owner');
 });
 

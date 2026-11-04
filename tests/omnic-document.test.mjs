@@ -59,3 +59,82 @@ test('missing canonical recipe references and circular compositions reject the w
   assert.throws(()=>saveOmnicDefinition(valid,'absent',recipe()),/Missing Omnium object/);
   assert.throws(()=>saveOmnicDefinition(valid,'part',recipe([reference('shared')])) ,/Circular Omnic reference/);
 });
+
+// User-authored lexical equivalence is independent of structural recipe identity.
+import { compileLexicon, normalizeText, validateNodeText, TEXT_LIMIT, GLYPH_LIMIT } from '../src/text/model.ts';
+import { createWorkspace, importWorkspaceAtlas, activeDocument, parseWorkspace } from '../src/omnic/workspace.ts';
+
+test('paste annotation preserves spelling, punctuation, whitespace and independent glyphs', () => {
+  const annotate=compileLexicon([{...entity('create',recipe()),lexiconWords:['create','make','produce']}]);
+  const mixed=annotate('Make, create!\n  produce\t maker CREATE.');
+  assert.deepEqual(mixed.content,[{glyph:'create'},'Make, ',{glyph:'create'},'create!\n  ',{glyph:'create'},'produce\t maker ',{glyph:'create'},'CREATE.']);
+  assert.equal(mixed.content.filter(p=>typeof p==='string').join(''),'Make, create!\n  produce\t maker CREATE.');
+  // Removing all English leaves real canonical references, not annotation markup.
+  const final=normalizeText(mixed.content.filter(p=>typeof p!=='string'));
+  validateNodeText(final,new Set(['create']));assert.equal(final.content.length,4);
+});
+
+test('lexicon uses longest explicit phrases, whole words, Unicode and skips conflicts', () => {
+  const annotate=compileLexicon([
+    {...entity('short',recipe()),lexiconWords:['make','can','café']},
+    {...entity('long',recipe()),lexiconWords:['make up']},
+    {...entity('conflict',recipe()),lexiconWords:['can']},
+  ]);
+  assert.deepEqual(annotate("MAKE up, maker can can't CAFÉ").content,[{glyph:'long'},"MAKE up, maker can can't ",{glyph:'short'},'CAFÉ']);
+  assert.deepEqual(annotate('make\nup').content,[{glyph:'short'},'make\nup']);
+  assert.deepEqual(compileLexicon([{...entity('same',recipe()),lexiconWords:['make','MAKE']}])('Make').content,[{glyph:'same'},'Make']);
+});
+
+test('mixed documents round trip with lexicon and share glyphs across atlas import', () => {
+  const source={...fixture(),entities:[{...entity('shared'),text:{version:1,content:['English ',{glyph:'glyph'},'\n']}},{...entity('glyph',recipe()),lexiconWords:['make','create']}]};
+  assert.deepEqual(parseDocument(JSON.stringify(source)),source);
+  const workspace=createWorkspace(source);
+  assert.deepEqual(parseWorkspace(JSON.stringify(workspace)).entities,workspace.entities);
+  let counter=0;const imported=importWorkspaceAtlas(workspace,source,'Imported',()=>`new-${++counter}`);
+  const doc=activeDocument(imported),body=doc.entities.find(e=>e.id==='new-1');
+  assert.deepEqual(body.text.content,['English ',{glyph:'new-2'},'\n']);
+  assert.deepEqual(doc.entities.find(e=>e.id==='new-2').lexiconWords,['make','create']);
+  assert.deepEqual(workspace.entities.find(e=>e.id==='shared').text,source.entities[0].text,'original document is untouched');
+  assert.throws(()=>validateDocument({...source,entities:[source.entities[0]]}),/missing Omnic object/);
+});
+
+test('untrusted documents reject missing objects, oversized text, glyph floods and invalid word mappings', () => {
+  assert.throws(()=>validateNodeText({version:1,content:[{glyph:'missing'}]},new Set()),/missing Omnic/);
+  assert.throws(()=>validateNodeText({version:1,content:[{glyph:'ok',html:'<script>'}]},new Set(['ok'])),/missing Omnic/);
+  assert.throws(()=>validateNodeText({version:1,content:['x'.repeat(TEXT_LIMIT+1)]},new Set()),/limit/);
+  assert.throws(()=>validateNodeText({version:1,content:Array.from({length:GLYPH_LIMIT+1},()=>({glyph:'ok'}))},new Set(['ok'])),/limit/);
+  assert.throws(()=>validateDocument({...fixture(),entities:[{...entity('shared'),lexiconWords:['create']}]}),/lexicon/);
+  assert.throws(()=>compileLexicon([])('x'.repeat(TEXT_LIMIT+1)),/Paste exceeds/);
+});
+
+import {annotatedText,annotationPrefix,lexiconWindow} from '../src/text/model.ts';
+test('the screenshot words match case-insensitively as soon as saved variants are available',()=>{
+ const lexicon=compileLexicon([{...entity('O',recipe()),lexiconWords:['Macro','Constraint','Freedom']}]);
+ const text='test, freedom is good, macro > micro';
+ assert.deepEqual(annotatedText(text,lexicon).content,['test, ',{glyph:'O',word:'freedom'},'freedom is good, ',{glyph:'O',word:'macro'},'macro > micro']);
+ assert.deepEqual(compileLexicon([]).matches(text),[]);
+ assert.equal(lexicon.matches('freedom')[0].glyph,'O','no trailing space/paste is required for detection');
+ assert.deepEqual(lexicon.matches('macroscopic'),[]);
+});
+test('automatic glyph links are idempotent and English deletion preserves the translation',()=>{
+ const lexicon=compileLexicon([{...entity('O',recipe()),lexiconWords:['freedom','macro']}]),linked={glyph:'O',word:'freedom'};
+ assert.deepEqual(annotationPrefix(linked,'freedom',lexicon.matches('freedom')[0],'insert'),{remove:false,skip:true});
+ assert.deepEqual(annotationPrefix(linked,'freedo',undefined,'delete'),{remove:false,skip:true});
+ assert.deepEqual(annotationPrefix(linked,' is good',undefined,'delete'),{remove:false,skip:false,word:null});
+ assert.deepEqual(annotationPrefix({glyph:'O',word:null},'macro',lexicon.matches('macro')[0],'refresh'),{remove:false,skip:false},'detached glyphs remain independent from new English');
+ assert.deepEqual(annotationPrefix(linked,'freedomful',undefined,'insert'),{remove:true,skip:false},'extending a matched prefix revises the automatic suggestion');
+ assert.deepEqual(annotationPrefix(linked,'freedom',{start:0,end:7,glyph:'revised'},'refresh'),{remove:true,skip:false},'a corrected lexicon refreshes linked suggestions');
+ assert.equal(annotationPrefix({glyph:'O'},'freedom',lexicon.matches('freedom')[0],'refresh').skip,true,'legacy pasted glyphs are adopted without duplication');
+});
+test('typing windows are bounded and never turn a cut token into a false word match',()=>{
+ const text='x'.repeat(10_000)+' freedom',window=lexiconWindow(text,text.length);
+ assert.ok(window.end-window.start<=512);assert.ok(text.slice(window.start,window.end).includes('freedom'));
+ const middle=lexiconWindow('x'.repeat(20_000),10_000);assert.equal(middle.start,middle.end);
+});
+test('linked and detached glyph metadata round trips and remaps with independent atlas imports',()=>{
+ const source={...fixture(),entities:[{...entity('shared'),text:{version:1,content:[{glyph:'glyph',word:'freedom'},'freedom ',{glyph:'glyph',word:null}]}},entity('glyph',recipe())]};
+ assert.deepEqual(parseDocument(JSON.stringify(source)),source);
+ let counter=0;const imported=importWorkspaceAtlas(createWorkspace(source),source,'Imported',()=>`live-${++counter}`);
+ assert.deepEqual(activeDocument(imported).entities.find(e=>e.id==='live-1').text.content,[{glyph:'live-2',word:'freedom'},'freedom ',{glyph:'live-2',word:null}]);
+ assert.throws(()=>validateNodeText({version:1,content:[{glyph:'glyph',word:42}]},new Set(['glyph'])),/missing Omnic/);
+});

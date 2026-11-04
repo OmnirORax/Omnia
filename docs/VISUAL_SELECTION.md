@@ -1,18 +1,77 @@
 # Visual selector and shared controller
 
+Modifier marquee feedback is live while held: Ctrl/Shift-drag previews the current intersected owners as the rectangle grows or shrinks, before release. Preview does not change accepted membership, anchors, geometry or selection history. Release commits once; Esc, blur or pointer cancellation removes the preview. Reuse the registered surface snapshot and area-hit adapter, prepare geometry once per gesture, and coalesce feedback to animation frames. Snapshot adapters may return a cached elements resolver for native-ink preview; otherwise projected unit boxes provide feedback. Do not call geometry discovery or layout measurement from each area query.
+
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Appearance has one property pool and one master editing system. Selection reuses
 registered visual parts, capabilities and renderer adapters. Geometry, inclusion baselines,
 toggling and property editing are separate; selection never creates
 appearance values. See `AGENTS.md` and `APPEARANCE_CONTROLLER.md`.
 
+## Targeted toggle and spatial range shortcuts
+
+While MS is active, **Ctrl+Q** toggles only the object at the pointer, retaining
+other selected objects. **Shift+Q** adds the anchor, pointed endpoint and visible
+objects intersecting their screen-space rectangle. The anchor is the previous
+pick/toggle in that surface, or the last selected object if no anchor exists.
+The rectangle is projected screen space, not document order or a 3D depth volume.
+
+Both commands derive from the live MS opening binding: if Q becomes K, defaults
+become Ctrl+K / Shift+K. They are listed/rebindable/clearable in Shortcuts → Visual
+selector. Explicit custom assignments and clears win; a derived default yields to
+an existing same-scope binding. Native text entry, capture, blocking and active
+scope rules remain shared. Q again still configures; Esc still backs out/cancels.
+
+`selectionSurfaces` registers actual rendered surfaces. Composer supplies authored
+edit owners, geometric hits and whole-owner elements from its existing MS native
+selection adapter. Atlas supplies placement IDs, raycasting and projected bounds
+from its existing rectangle-selection path. Bounds/snapshots are read on commands,
+not on hover or every frame. Composer membership remains ordinary MS part rules;
+canvas memberships store before/after snapshots in the same transient MS timeline.
+Undo/Redo/clear replay through registered native setters. Surface identity includes
+the atlas context, so old selection history cannot act on another atlas.
+
+**Ctrl-click** toggles exactly the pointed authored object without replacing the
+others. **Shift-click** adds the spatial range between the previous anchor and the
+pointed endpoint. Both work on registered Composer/atlas surfaces before opening
+MS, and while MS is active. Ctrl/Shift drag adds a marquee without removing existing
+members; a modified empty click leaves membership unchanged. Ordinary DOM/UI
+Shift ranges retain source-order fallback within one declared surface/frame.
+
+The shared MS capture owner claims modifier pointer-down, motion, release and the
+trailing native click. Membership changes on release. The native gesture then finishes without clearing
+selection. It does not open a dial, start reference picking or wait for another
+confirmation key. Keep selecting with Ctrl/Shift as needed; releasing modifiers
+also opens nothing. Keyboard select-all and ordinary target/edge clicks follow the
+same selection-only rule. Right-click an already selected target to open its
+compatible DOF dial for the full accepted set. Explicit DOF buttons and assigned
+shortcuts remain available.
+Normal Composer target /
+reference editing and atlas single-selection never also receive the gesture.
+Active MS honors its configured selection click, including clears/rebindings and
+exact-command priority. Outside active MS the registered surfaces provide the
+native Ctrl/Shift primary-click convention. Selection adapters may clean up active
+owner tools with `onStart`, and supply precise `snapshot.area` hits; Composer reuses
+its actual structural intersections rather than coarse bounding-box corners.
+Borrowed single-reference picking yields to explicit modifier multi-selection,
+restoring its checkpoint before the new membership is committed. Surface/context
+replacement and pointer cancellation abandon the gesture without selecting.
+Neither range traverses unrelated surfaces. On 2026-11-03 the user confirmed manual
+Ctrl selection and their Shift+A global selection in da3c28f; they reported dial /
+right-click access failed. The next preview opened dials too soon; the user clarified
+that selection must open no dial automatically. Right-click-only entry awaits retest.
+
 ## One circle, independent geometry
 
-Q (rebindable) starts the compact aiming cursor directly. The MS settings command
+Q (rebindable) starts the compact aiming cursor directly; pressing Q again while
+MS is active opens its selection settings. The MS settings command
 (`selector.configure`, unassigned by default) explicitly opens the stationary
-controller. In an active numeric context, Q directly starts reference targeting. The circle is centered on the pointer and clamped near viewport edges.
+controller. Q always starts ordinary MS. A numeric control must explicitly request reference targeting through its reference control; merely having a numeric editor open cannot repurpose Q. The circle is centered on the pointer and clamped near viewport edges.
 The aiming symbol and all its SVG descendants are pointer-transparent. Its saturated cyan
 precision dot is the exact hotspot; movement updates only a cached transform.
-Escape disables the tool and clears selection. Browser chrome clicks, window
+Esc from selection settings returns to aiming with membership intact; Esc from
+aiming cancels the tool and clears selection. Browser chrome clicks, window
 blur and tab hiding are not app commands: preserve tool phase, configuration,
 selection, editor and pointed preview. Only release unfinished input (never
 accept it), pending animation callbacks and press ownership. Resume aiming on
@@ -66,14 +125,26 @@ The shared command keeps ID `selector.include` for compatibility and is labeled
 Toggle pointed pattern / define geometry. The retired `selector.exclude` command
 is removed. LMB toggles selection; RMB removes the selected pattern at the
 pointer using the current selector constraint, and clears all selection when the
-pointed target is not selected (including empty space). Removal never includes
+pointed target is not selected (including empty space). Declared editor context-menu
+owners (Composer and atlas) instead receive the whole right-click press, release
+and native menu event after selection. MS closes its input phase while retaining
+accepted membership; a borrowed reference restores its checkpoint. Geometry still
+being drawn is protected. A fresh press also resets the previous press's native
+tail suppression, so immediately right-clicking after a modifier selection works
+without a timing delay. Removal elsewhere never includes
 an unselected peer, even in a mixed pattern. Unplaced closed geometry falls back
 to the pointed selected part. Both removals use the transient selection timeline.
-Shift + the selector binding (Shift+Q by default) opens the selected-property MC
-through the existing edit action, replacing generic selector Shift configuration.
-The controller's edit button, platform keyboard context gesture and explicit MC
-remain available. Legacy default RMB editing migrates once to deselection; newer
-custom bindings/clears remain intact. Shortcut metadata and handlers remain shared and rebindable. Optional Ctrl is transparent to the selection command's saved pointer binding; exact modified
+Repeat the assigned selector shortcut (Q by default) while MS is active to open
+selection configuration. Selected-property editing remains its explicit edit
+button/catalog action; Shift+Q no longer routes there. Shift plus the configured
+selection click adds the inclusive range between the previous ordinary pick and
+the new endpoint, in DOM/source order within the same declared selection surface
+or resident frame. Range discovery uses registered eligible parts and the active
+geometric scope; it never spans unrelated frames or invents a 3D spatial order.
+Missing/deleted/out-of-scope anchors start at the new endpoint. An ordinary pick
+updates the anchor; repeated Shift picks retain it. One range change is one
+transient MS history entry. Legacy RMB editing migrations remain unchanged.
+Optional Ctrl/Shift gesture modifiers are transparent to the selection command's saved pointer binding; exact modified
 commands keep priority. MS consumes owned press/release/click events even when
 no command matches, so underlying controls cannot activate.
 
@@ -493,12 +564,11 @@ that selection; another selection reveals it again. Clearing selection restores
 its ordinary saved expansion state. Hover-only preview does not reveal it.
 
 
-After an accepted selection, entering Master Controller (including its frame
-chrome/contextual projections) or a shared property editor ends MS aiming and
-restores the normal cursor. Accepted membership, feedback visibility and editing
-scope remain intact; resume MS explicitly through its existing shortcut. This
-handoff runs on pointer entry/press, not polling, and never interrupts unfinished
-geometry drawing. Explicit parked/locked MS behavior remains separate.
+Standalone MS now remains in aiming after ordinary target acceptance, allowing
+subsequent Shift-range picks. Controller/editor chrome remains excluded from picks;
+Esc explicitly leaves selection. Borrowed reference acceptance and native
+Ctrl-selection adapters retain their completion/restoration lifecycle. This
+supersedes the former automatic handoff to editing on pointer entry.
 
 
 ### E06: clickable DOF information and gesture activation
@@ -578,9 +648,9 @@ marks portal controllers automatically; it does not replace MS ownership/rules.
 A pending request bypasses the context opener so its own opening cannot recurse.
 Outside the active context, Q uses ordinary MS targeting with retained modes.
 
-Accepting a target closes MS’s cursor/configuration without clearing the selection
-or reference. Geometry-only construction remains in aiming until a target is
-selected. Explicit MS settings retains the existing controller and Enter-to-aim
+Accepting a borrowed single-reference target closes MS and restores its saved
+selection checkpoint. Ordinary standalone target picks retain aiming for further
+selection; Q again configures and Esc navigates back/cancels. Explicit MS settings retains the existing controller and Enter-to-aim
 behavior; configuration no longer appears automatically on entry.
 
 Temporary reference picking yields secondary presses on registered
@@ -613,3 +683,12 @@ ownership even if MS hover replaced the pressed SVG. Standalone/world behavior i
 unchanged. Focused local browser assertions passed MS-off, aiming and pending
 reference states: visible box, two owners, no grid, Delete keeps the third object.
 No browser suite ran; user acceptance remains pending.
+
+## Selection and editing ownership
+
+See [the interaction lifecycle and opt-in regression](OMNIC_INTERACTION_LIFECYCLE.md).
+Native surface gestures retain their stable root/context through capture-time SVG
+replacement. Active MS retains input priority; accepted membership yields Esc to
+editor fields/layers. Temporary numeric picking preserves the editor context,
+including when remote Master Controller contents refresh. Selection remains
+passive until an explicit right-click/editor/shortcut request.

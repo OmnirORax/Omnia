@@ -1,5 +1,27 @@
 # Omnic / Omnium workbench: shared design model
 
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
+<!-- Current shortcut clarification: 2026-11-03 -->
+Composer DOF shortcuts now follow **invoke → repeat to configure**, replacing
+Shift+DOF-key configuration. Ctrl/Alt/Shift combinations remain assignable for
+future user-decided controls. Shortcut rows derive from registered DOFs and reuse
+existing Rotation/Position identities. Other contexts retain their own rules.
+See [shortcut contract](SHORTCUTS.md#composer-dof-shortcuts).
+
+Selection handoff correction (2026-11-03): selection never automatically opens
+a dial. Ordinary target/edge clicks, Ctrl/Shift picks, select-all and releasing
+modifiers only select. Right-click an already selected target to open its compatible
+DOF radial for the full set. The shared MS owner releases native selection input
+without clearing membership. Explicit DOF controls/shortcuts remain available. Declared Composer/atlas right-click owners remain
+accessible, including immediately after a selection. Modifier continuation still
+works; no extra confirmation key. See VISUAL_SELECTION.md. Browser retest pending.
+
+Input ownership uses the physical press path and the stable registered surface.
+Accepted selection yields to editor/gesture Back; active picking preserves its
+source editor context, including through remote controller refresh. See
+[the lifecycle and focused regression](OMNIC_INTERACTION_LIFECYCLE.md).
+
 For global mathematical/reference/constraint work, read the
 [living experimental master plan](OMNIC_RELATIONAL_SYSTEM_PLAN.md). PR #40 is the
 accepted baseline; PR #41 is discarded. Iterate small shared-module experiments

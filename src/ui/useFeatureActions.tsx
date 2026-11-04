@@ -7,25 +7,26 @@ import { useToolCursor, type ToolCursorOptions } from "./toolCursor";
 import { ToolGlyph } from "./toolIcon";
 
 import { ContextDOFConfiguration } from './ContextTargetController';
+import { eventPathMatches } from './pointerOwnership';
 import { contextTargets } from './contextTargets';
 const noContextSubscription=()=>()=>{};
 const noContextSnapshot=()=>0;
 type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void; configuration?: ReactNode;cursor?:boolean|ToolCursorOptions }>;
 /** A feature cannot install a binding absent from the shared catalog. Its command
  * buttons, runtime input and shortcut rows all use these same registered IDs. */
-export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, handlers: Handlers<Owner>) {
-  const ui = useUITracked(ui=>[ui.registerFunction]), latest = useRef({ ui, handlers }); latest.current = { ui, handlers };
+export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, handlers: Handlers<Owner>, contextActive = true) {
+  const ui = useUITracked(ui=>[ui.registerFunction]), latest = useRef({ ui, handlers, active: contextActive }); latest.current = { ui, handlers, active: contextActive };
   const definitions = FEATURE_ACTIONS.filter(action => action.owner === owner).sort((a, b) => Number(a.scope === "global") - Number(b.scope === "global"));
   const contextual=definitions.some(action=>'contextual' in action&&action.contextual);
   useSyncExternalStore(contextual?contextTargets.subscribe:noContextSubscription,contextual?contextTargets.getSnapshot:noContextSnapshot);
   const effective=(id:FeatureActionFor<Owner>)=>{
-    const original=latest.current.handlers[id],definition=definitions.find(action=>action.id===id)!;
+    const handler=latest.current.handlers[id],original={...handler,enabled:latest.current.active&&handler.enabled},definition=definitions.find(action=>action.id===id)!;
     if(!('contextual' in definition)||!contextTargets.override(id))return original;
     const resolved=contextTargets.resolve(id);
-    return {...original,enabled:!!resolved,configuration:resolved?.command.configuration??(resolved?.command.degrees?.length?<ContextDOFConfiguration action={id}/>:undefined),run:()=>{contextTargets.invoke(id);}};
+    return {...original,enabled:latest.current.active&&!!resolved,configuration:resolved?.command.configuration??(resolved?.command.degrees?.length?<ContextDOFConfiguration action={id}/>:undefined),run:()=>{contextTargets.invoke(id);}};
   };
   const effectiveRef=useRef(effective);effectiveRef.current=effective;
-  const active=definitions.find(action=>!!handlers[action.id as FeatureActionFor<Owner>].cursor&&'toolIcon' in action);
+  const active=contextActive?definitions.find(action=>!!handlers[action.id as FeatureActionFor<Owner>].cursor&&'toolIcon' in action):undefined;
   const cursor=active?handlers[active.id as FeatureActionFor<Owner>].cursor:undefined,cursorKey=JSON.stringify(cursor);
   const cursorRequest=useMemo(()=>active&&'toolIcon' in active?{key:active.id,icon:<ToolGlyph icon={active.toolIcon}/>,...(typeof cursor==='object'?cursor:{})}:null,[active?.id,cursorKey]);
   useToolCursor(cursorRequest);
@@ -47,7 +48,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
     matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent, gestureModifiers = true) => {
       const current = latest.current;
       const definition = FEATURE_ACTIONS.find(action => action.id === id)!;
-      if ("gestureSurface" in definition && event instanceof MouseEvent && (!(event.target instanceof Element) || !event.target.closest(definition.gestureSurface))) return false;
+      if ("gestureSurface" in definition && event instanceof MouseEvent && !eventPathMatches(event,definition.gestureSurface)) return false;
       if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked && !("allowBlocked" in definition && definition.allowBlocked) || event.defaultPrevented || !effectiveRef.current(id).enabled) return false;
       if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
       if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;

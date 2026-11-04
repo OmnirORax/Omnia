@@ -1,5 +1,7 @@
 # User operating rules (required)
 
+Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
+
 Before implementing or modifying behavior:
 
 1. Classify its applicable behavioral categories and identify the state/behavior
@@ -102,7 +104,73 @@ For AI music/wallpaper generation, playback or media services, also read
 [docs/AI_MEDIA_HANDOFF.md](docs/AI_MEDIA_HANDOFF.md). It records current backend/asset
 limitations, state ownership and performance constraints; it is not a feature spec.
 
+# Live node-document lexicon (2026-11-03)
+
+Glyph matching is automatic during typing, paste, opening existing content and
+saved lexicon changes. Lexicon opens the existing library; it is not an activation
+switch. Keep one mixed document with inline canonical Composer references.
+Automatic occurrences may link to their English source (`word`); deleting English
+detaches and preserves the glyph (`word: null`). Do not introduce a second text /
+glyph node store. Preserve composition, caret, undo, independent deletion, shared
+workspace history/portability and bounded typing work. See [NODE_DOCUMENTS.md](docs/NODE_DOCUMENTS.md).
+
 # Universal Master Controller signature
+
+**MS correction (2026-11-03):** Q starts targeting; Q again while MS is active
+opens selection settings. Esc from settings returns to aiming with selection
+intact; Esc outside settings cancels MS. Ctrl + the assigned MS opening shortcut
+(Ctrl+Q by default) toggles the pointed object. Shift + that shortcut (Shift+Q)
+adds objects intersecting the projected rectangle between anchor and endpoint.
+Ctrl-click toggles and Shift-click extends the range on registered Composer/atlas
+surfaces, including before MS opens. The shared MS capture owner claims the entire
+modifier press/drag/release/click tail; normal tools must not replace membership.
+On release, finish the native selection gesture without clearing its membership.
+Selection itself never opens dials: ordinary target/edge clicks, Ctrl/Shift picks,
+select-all and releasing modifiers only select. Right-click the selected target to
+open its compatible DOF dial for the full set. Explicit DOF controls/shortcuts still
+open the requested editor. Do not add automatic Position-reference entry or
+rotation-wheel opening to selection callbacks or modifier release.
+Release native gestures without an extra completion key. Preserve an explicitly opened MS session; modifier selection begun while MS is off remains off.
+A fresh pointer press ends suppression of the preceding press's tail. Declared
+context-menu owners receive a whole secondary press after selection (including
+standalone MS); ordinary UI retains MS removal. Pending geometry stays protected.
+Owner onStart cleanup and precise area hits belong in the existing surface adapter;
+do not restore a private Composer Ctrl-selection path. Active MS still respects its
+configured selection click; blocked/capture/editor chrome remains protected.
+Renderer adapters supply actual owners, hit tests and bounds; do not confuse
+spatial range with document order. Shift-click uses the adapter where available,
+retaining source-order fallback in ordinary UI. Derived chords follow rebinding;
+explicit assignments/clears and existing same-scope bindings remain authoritative. Standalone keyboard/pattern picks keep MS
+aiming for continuation; borrowed single-reference acceptance still restores and
+closes its request. Shift+Q is no longer selected-property editing. Use shared
+selector commands, scoped range discovery and transient selection history.
+
+Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.
+
+Modifier marquee feedback is live while held: Ctrl/Shift-drag previews the current intersected owners as the rectangle grows or shrinks, before release. Preview does not change accepted membership, anchors, geometry or selection history. Release commits once; Esc, blur or pointer cancellation removes the preview. Reuse the registered surface snapshot and area-hit adapter, prepare geometry once per gesture, and coalesce feedback to animation frames. Snapshot adapters may return a cached elements resolver for native-ink preview; otherwise projected unit boxes provide feedback. Do not call geometry discovery or layout measurement from each area query.
+
+**Interaction ownership:** read [the current lifecycle and regression route](docs/OMNIC_INTERACTION_LIFECYCLE.md)
+for selection/editing work. Resolve ownership from the physical event path, not
+mutable SVG ancestry; keep the registered root/context for the whole gesture.
+Accepted membership alone must not capture an editor's or held gesture's Esc.
+Use the shared press-state subscription; actual gesture cancellation precedes rim
+navigation and cannot leave a preview to commit on mouse release. Active MS lends
+picking without activating its pointed frame; remote contextController windows
+must not steal context on inspection refresh. Only numeric properties enter the
+numeric reference workflow. Preserve the complete select → right-click → DOF →
+configure/reference → edit → Back/cancel → select sequence before delivery.
+The user explicitly authorized the focused browser investigation on 2026-11-03;
+its opt-in script is not standing permission for unrelated future browser suites.
+
+**Composer DOF correction (2026-11-03):** a selected target's assigned DOF
+shortcut opens its editor; pressing that same shortcut again while the same DOF
+and targets are active opens its configuration. Shift+R is no longer Rotation
+configuration. Ctrl/Alt/Shift combinations are assignable to Composer DOF commands;
+do not invent per-DOF modifier meanings before the user specifies them. Other
+functions retain their existing Shift configuration. Generate Composer DOF shortcut
+rows from registered input/vector metadata, reuse existing action IDs, and preserve
+active MS, native text entry, capture, blocked-dialog and contextual MC ownership.
+This explicit correction supersedes the universal Shift rule below for these DOFs.
 
 **Shift + any configured shortcut opens that function's adaptive Master Controller
 configuration. Repeated presses cycle choices; hovering/focusing an MC option
@@ -504,4 +572,4 @@ Unselected hover correction: interaction previews must not require prior selecti
 Scalar grab correction: geometry chooses the DOF/tool before a press; once grabbed, scalar value execution is a virtual slider in free space. Shared createValueScrub serves relative RangeControl/DOF-icon drags and Composer edge rotation. The first meaningful movement (three CSS pixels) locks its arbitrary axis for that gesture. Continuing along it increases, reversing decreases, perpendicular motion is ignored. Screen displacement traverses the prepared value sequence/bounds; it does not follow the shape or compute cursor angle about its center. Press/jitter leaves the value untouched; release commits once and cancellation restores via existing owners. Edge rotation uses the generic value gesture; obsolete shape-following center/field gesture state is removed. Explicit legacy Step/pivot rotation remains separate. Two-axis direct placement keeps its existing spatial translation behavior. No extra floating slider is introduced. Browser acceptance pending.
 
 
-Latest Rotation correction: hovering actual edges shows the cue; one primary click selects its owner and opens the axis wheel on release, without editing the angle. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
+Latest Rotation correction: hovering actual edges shows the cue; a primary edge click only selects its owner. Right-click the target to choose Rotation, or use its assigned DOF shortcut; selection does not open the wheel. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.

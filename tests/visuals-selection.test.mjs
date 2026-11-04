@@ -205,17 +205,6 @@ test('selector Enter resumes the same aiming flow as the checkmark and owns refe
  assert.equal(preferredFeatureKey({},'Enter',id=>['selector.confirm','context.confirm'].includes(id),true),null,'native text entry is preserved');
 });
 
-test('MS opening contexts borrow targeting only within their surface and bypass pending requests',async()=>{
- const {selectionOpenContexts}=await import('../src/appearance/selectionRequest.ts');
- const contexts=selectionOpenContexts();let active=false,starts=0;
- const stop=contexts.register({contains:target=>target==='canvas',open:()=>{if(!active)return false;starts++;return true;}});
- assert.equal(contexts.open('canvas'),false,'no active DOF keeps normal MS targeting');
- active=true;assert.equal(contexts.open('outside'),false,'an active Composer cannot hijack standalone MS');
- assert.equal(contexts.open('canvas'),true);assert.equal(starts,1,'the active numeric consumer starts reference selection directly');
- assert.equal(contexts.open('canvas',true),false,'opening the requested picker must not invoke its consumer recursively');assert.equal(starts,1);
- stop();assert.equal(contexts.open('canvas'),false,'closed contexts cannot retain Q ownership');
-});
-
 test('an old editor cannot cancel a newer MS request, and rejection text never accepts a pick',async()=>{
  const {cancelOwnedSelectionRequest,selectionRequest,selectionDecision}=await import('../src/appearance/selectionRequest.ts');
  const oldOwner=Symbol(),newOwner=Symbol(),events=[],pending={current:undefined};
@@ -233,3 +222,172 @@ test('an old editor cannot cancel a newer MS request, and rejection text never a
  assert.deepEqual(selectionDecision(true),{accepted:true,message:null});
  assert.deepEqual(selectionDecision(false),{accepted:false,message:'Unsupported target'});
 });
+
+test('MS repeated entry configures, Escape returns to aiming, then cancels',async()=>{
+ const {selectorOpenPhase,selectorEscapePhase}=await import('../src/appearance/selectionRange.ts');
+ let phase='off';phase=selectorOpenPhase(phase);assert.equal(phase,'aim');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'configure');
+ phase=selectorEscapePhase(phase);assert.equal(phase,'aim');
+ phase=selectorEscapePhase(phase);assert.equal(phase,'off');
+ assert.equal(selectorOpenPhase('locked'),'configure');
+});
+test('Shift range includes endpoints in either direction and handles missing anchors safely',async()=>{
+ const {orderedSelectionRange}=await import('../src/appearance/selectionRange.ts');
+ const items=['a','b','c','d','e'],key=item=>item;
+ assert.deepEqual(orderedSelectionRange(items,'b','e',key),['b','c','d','e']);
+ assert.deepEqual(orderedSelectionRange(items,'e','b',key),['b','c','d','e']);
+ assert.deepEqual(orderedSelectionRange(items,'c','c',key),['c']);
+ assert.deepEqual(orderedSelectionRange(items,'removed','d',key),['d']);
+ assert.deepEqual(orderedSelectionRange(items,'a','removed',key),[]);
+ assert.deepEqual(orderedSelectionRange(items.slice(2),'a','e',key),['e'],'another scope cannot drag an old anchor across unrelated content');
+});
+
+test('range can leave a pointed unit while retaining explicitly drawn working geometry',async()=>{
+ const {rangeWorkingScope,selectorOpenPhase}=await import('../src/appearance/selectionRange.ts');
+ const drawn={path:'authored geometry'},unit={ownerFrame:true,scope:drawn};
+ assert.equal(rangeWorkingScope(unit),drawn);
+ assert.equal(rangeWorkingScope({ownerFrame:true}),null,'a first unit does not constrain the next range to its own bounds');
+ assert.equal(rangeWorkingScope(drawn),drawn);
+ assert.equal(selectorOpenPhase('aim',true),'aim','a newly borrowed request starts picking, rather than interpreting its own opening as repeated Q');
+});
+
+test('spatial glyph range includes intervening objects by projected area rather than source order',async()=>{
+ const {spatialSelectionRange}=await import('../src/appearance/selectionSurfaces.ts');
+ const unit=(id,x,y)=>({id,box:{left:x-1,right:x+1,top:y-1,bottom:y+1}});
+ const units=[unit('outside',30,0),unit('end',10,10),unit('between',5,5),unit('anchor',0,0),unit('below',5,20)];
+ assert.deepEqual(spatialSelectionRange(units,'anchor','end'),['end','between','anchor']);
+ assert.deepEqual(spatialSelectionRange(units,'end','anchor'),['end','between','anchor']);
+ assert.deepEqual(spatialSelectionRange(units,'deleted','end'),['end']);
+ assert.deepEqual(spatialSelectionRange([...units,unit('overlap',10,10)],undefined,'end'),['end'],'without an anchor only the endpoint is selected');
+ assert.deepEqual(spatialSelectionRange(units,'anchor','missing'),[]);
+});
+test('MS surface adapters toggle exactly one target, retain anchors and isolate separate canvases',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),first={contains:()=>false},second={};
+ let selected=['a'],applied=[];
+ const units=['a','b','c'].map((id,i)=>({id,box:{left:i*10-1,right:i*10+1,top:-1,bottom:1}}));
+ const off=registry.register({element:()=>first,snapshot:()=>({units,selected,hit:p=>p.x===10?'b':'c'}),apply:ids=>{selected=[...ids];applied.push([...ids]);}});
+ const toggle=registry.prepare(first,{x:10,y:0},'toggle');
+ assert.deepEqual(toggle.before,['a']);assert.deepEqual(toggle.after,['a','b']);
+ registry.apply(toggle.id,toggle.after);assert.deepEqual(selected,['a','b']);
+ const range=registry.prepare(first,{x:20,y:0},'range');
+ assert.deepEqual(range.after,['a','b','c']);
+ registry.apply(range.id,range.after);registry.apply(range.id,toggle.before);assert.deepEqual(selected,['a'],'the existing MS timeline can apply before/after snapshots for undo');
+ assert.equal(registry.prepare(second,{x:10,y:0},'toggle'),undefined);
+ registry.apply(range.id,['a','removed']);assert.deepEqual(selected,['a'],'stale ids are filtered before native setters');
+ off();assert.equal(registry.prepare(first,{x:10,y:0},'toggle'),undefined);
+});
+
+test('surface selection replay cannot affect a different atlas context',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),element={contains:()=>false};let context='atlas-a',applies=0;
+ registry.register({element:()=>element,context:()=>context,snapshot:()=>({units:[{id:'same-id',box:{left:0,top:0,right:2,bottom:2}}],selected:[],hit:()=> 'same-id'}),apply:()=>applies++});
+ const transaction=registry.prepare(element,{x:1,y:1},'toggle');
+ context='atlas-b';registry.apply(transaction.id,transaction.after);assert.equal(applies,0);
+ context='atlas-a';registry.apply(transaction.id,transaction.after);assert.equal(applies,1);
+});
+
+test('native Ctrl/Shift selection claims registered surfaces before ordinary target editing',async()=>{
+ const {selectionPointerMode,createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const event={button:0,ctrlKey:false,shiftKey:false,metaKey:false,altKey:false};
+ assert.equal(selectionPointerMode(event),undefined);
+ assert.equal(selectionPointerMode({...event,ctrlKey:true}),'toggle');
+ assert.equal(selectionPointerMode({...event,metaKey:true}),'toggle');
+ assert.equal(selectionPointerMode({...event,shiftKey:true}),'range');
+ assert.equal(selectionPointerMode({...event,ctrlKey:true,shiftKey:true}),'range');
+ assert.equal(selectionPointerMode({...event,ctrlKey:true,altKey:true}),undefined);
+ assert.equal(selectionPointerMode({...event,ctrlKey:true,button:2}),undefined);
+ const registry=createSelectionSurfaces(),root={contains:node=>node===child},child={},unrelated={};
+ let selected=['a'];
+ const units=['a','b','c'].map((id,i)=>({id,box:{left:i*10-1,right:i*10+1,top:-1,bottom:1}}));
+ registry.register({element:()=>root,snapshot:()=>({units,selected,hit:p=>units.find(unit=>Math.abs((unit.box.left+1)-p.x)<2)?.id}),apply:ids=>{selected=[...ids];}});
+ const click=registry.beginPointer(child,{x:10,y:0},selectionPointerMode({...event,ctrlKey:true}));
+ assert.equal(typeof click,'function','descendant targets are claimed without opening MS first');
+ assert.deepEqual(selected,['a'],'pointer down only owns the gesture; no single-target replacement');
+ const added=click({x:10,y:0});assert.deepEqual(added.after,['a','b']);registry.apply(added.id,added.after);
+ const removed=registry.beginPointer(child,{x:10,y:0},'toggle')({x:10,y:0});
+ assert.deepEqual(removed.after,['a'],'Ctrl-click toggles only its target');registry.apply(removed.id,removed.after);
+ const range=registry.beginPointer(child,{x:20,y:0},'range')({x:20,y:0});
+ assert.deepEqual(range.after,['a','b','c'],'Shift-click adds the spatial objects between the anchor and endpoint');
+ const miss=registry.beginPointer(child,{x:100,y:0},'toggle');assert.equal(miss({x:100,y:0}),undefined,'blank modified clicks do not clear selection');
+ assert.equal(registry.beginPointer(unrelated,{x:10,y:0},'toggle'),undefined,'other controls retain native handling');
+});
+test('modified pointer drags add a bounded marquee and cancel on surface/context replacement',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={};let context='first',selected=['keep'];
+ const units=[{id:'keep',box:{left:50,right:51,top:50,bottom:51}},{id:'inside',box:{left:2,right:3,top:2,bottom:3}},{id:'outside',box:{left:20,right:21,top:20,bottom:21}}];
+ const off=registry.register({element:()=>root,context:()=>context,snapshot:()=>({units,selected,hit:()=>undefined}),apply:()=>{}});
+ const drag=registry.beginPointer(root,{x:0,y:0},'toggle');
+ assert.deepEqual(drag({x:10,y:10}).after,['keep','inside'],'Ctrl marquee adds instead of replacing prior selection');
+ const canceled=registry.beginPointer(root,{x:0,y:0},'range');context='second';assert.equal(canceled({x:10,y:10}),undefined);
+ const removed=registry.beginPointer(root,{x:0,y:0},'toggle');off();assert.equal(removed({x:10,y:10}),undefined);
+});
+test('registered selection gestures run owner cleanup once and use precise renderer marquee hits',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={};let starts=0;
+ registry.register({element:()=>root,onStart:()=>starts++,snapshot:()=>({selected:['keep'],units:[{id:'bounding-box-only',box:{left:0,right:10,top:0,bottom:10}}],hit:()=>undefined,area:()=>['actual-ink']}),apply:()=>assert.fail('preparing must not commit')});
+ const finish=registry.beginPointer(root,{x:0,y:0},'toggle');
+ assert.equal(starts,1);assert.deepEqual(finish({x:10,y:10}).after,['keep','actual-ink']);assert.equal(starts,1);
+});
+
+test('surface completion notifications are optional and separate from membership/history',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},events=[];let selected=['a'],context='atlas-a';
+ const units=['a','b','c'].map((id,i)=>({id,box:{left:i*10,right:i*10+2,top:0,bottom:2}}));
+ const off=registry.register({element:()=>root,context:()=>context,snapshot:()=>({units,selected,hit:p=>units.find(unit=>p.x>=unit.box.left&&p.x<=unit.box.right)?.id}),apply:ids=>{selected=[...ids];events.push(['selection',...ids]);},onComplete:(ids,point)=>events.push(['complete',...ids,point.x])});
+ const finish=registry.beginPointer(root,{x:11,y:1},'toggle');
+ assert.deepEqual(events,[],'press alone does not open an editor or select a single target');
+ const transaction=finish({x:11,y:1});registry.apply(transaction.id,transaction.after);registry.complete(transaction.id,transaction.after,{x:11,y:1});
+ assert.deepEqual(events,[['selection','a','b'],['complete','a','b',11]],'optional observers receive the accepted full set and release point');
+ registry.apply(transaction.id,transaction.before);
+ assert.deepEqual(events.at(-1),['selection','a'],'history replay restores membership without emitting completion');
+ const range=registry.beginPointer(root,{x:21,y:1},'range')({x:21,y:1});registry.apply(range.id,range.after);registry.complete(range.id,range.after,{x:21,y:1});
+ assert.deepEqual(events.at(-1),['complete','a','b','c',21],'observation does not prevent another modifier selection');
+ const count=events.length;context='atlas-b';registry.complete(range.id,range.after,{x:21,y:1});assert.equal(events.length,count,'old contexts cannot notify another atlas');
+ off();registry.complete(range.id,range.after,{x:21,y:1});assert.equal(events.length,count,'removed owners cannot receive stale completion');
+});
+
+test('native selection resolves the physical event path and survives replacement of SVG descendants',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),pressed={},replacement={},root={contains:node=>node===replacement};let currentRoot=root,selected=['first'];
+ const units=['first','second'].map((id,i)=>({id,box:{left:i*10,right:i*10+2,top:0,bottom:2}}));
+ registry.register({element:()=>currentRoot,snapshot:()=>({units,selected,hit:()=> 'second'}),apply:ids=>{selected=[...ids];}});
+ assert.equal(registry.beginPointer(pressed,{x:11,y:1},'toggle'),undefined,'detached target containment alone loses the gesture');
+ const finish=registry.beginPointer(pressed,{x:11,y:1},'toggle',[pressed,root]);assert.equal(typeof finish,'function','the original physical path retains its declared surface');
+ const transaction=finish({x:11,y:1});assert.deepEqual(transaction.after,['first','second']);registry.apply(transaction.id,transaction.after);assert.deepEqual(selected,['first','second']);
+ const canceled=registry.beginPointer(replacement,{x:11,y:1},'toggle',[replacement,root]);currentRoot={contains:()=>true};assert.equal(canceled({x:11,y:1}),undefined,'replacing the actual surface cancels instead of retargeting a new owner');
+});
+
+ test('marquee preview grows and shrinks from prepared geometry without selecting, changing anchors or committing',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},elements={a:{},b:{},keep:{}};
+ let snapshots=0,applies=0,completes=0,selected=['keep'],context='one';
+ const units=[{id:'keep',box:{left:50,right:52,top:0,bottom:2}},...['a','b'].map((id,i)=>({id,box:{left:10+i*10,right:12+i*10,top:0,bottom:2}}))];
+ registry.register({element:()=>root,context:()=>context,snapshot:()=>{snapshots++;return {units,selected,elements:ids=>ids.map(id=>elements[id]),hit:()=>undefined};},apply:ids=>{applies++;selected=[...ids];},onComplete:()=>completes++});
+ const gesture=registry.beginPointer(root,{x:0,y:0},'toggle');
+ assert.equal(gesture.preview({x:1,y:1}),undefined,'jitter does not start marquee feedback');assert.equal(snapshots,0);
+ assert.deepEqual(gesture.preview({x:13,y:3}).after,['keep','a']);
+ assert.deepEqual(gesture.preview({x:23,y:3}).after,['keep','a','b']);
+ const shrunk=gesture.preview({x:13,y:3});assert.deepEqual(shrunk.after,['keep','a']);assert.deepEqual(shrunk.elements,[elements.keep,elements.a]);
+ assert.equal(snapshots,1,'all preview queries reuse one prepared snapshot');assert.deepEqual(selected,['keep']);assert.equal(applies,0);assert.equal(completes,0);
+ const accepted=gesture({x:13,y:3});assert.deepEqual(accepted.after,shrunk.after);assert.equal(snapshots,2,'release revalidates current geometry once');
+ registry.apply(accepted.id,accepted.after);registry.complete(accepted.id,accepted.after,{x:13,y:3});assert.equal(applies,1);assert.equal(completes,1);
+ const pending=registry.beginPointer(root,{x:0,y:0},'toggle');pending.preview({x:23,y:3});context='two';assert.equal(pending.preview({x:13,y:3}),undefined);assert.equal(pending({x:23,y:3}),undefined);assert.deepEqual(selected,['keep','a'],'discarded preview cannot change membership');
+ });
+
+ test('a shrinking marquee remains a drag when returned to its press origin',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},selected=['keep'];
+ registry.register({element:()=>root,snapshot:()=>({units:[{id:'target',box:{left:10,right:12,top:0,bottom:2}}],selected,hit:()=>undefined}),apply:()=>assert.fail('preview must not commit')});
+ const gesture=registry.beginPointer(root,{x:0,y:0},'toggle');assert.deepEqual(gesture.preview({x:15,y:3}).after,['keep','target']);
+ assert.deepEqual(gesture.preview({x:0,y:0}).after,['keep']);assert.deepEqual(gesture({x:0,y:0}).after,['keep'],'release cannot turn the drag back into a click');
+ });
+
+ test('live marquee queries do not move the accepted spatial range anchor',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),root={},units=['a','b','c'].map((id,i)=>({id,box:{left:i*10,right:i*10+2,top:0,bottom:2}}));
+ registry.register({element:()=>root,snapshot:()=>({units,selected:[],hit:p=>units.find(unit=>p.x>=unit.box.left&&p.x<=unit.box.right)?.id}),apply:()=>assert.fail('preview must not commit')});
+ registry.anchor(root,{x:11,y:1});const gesture=registry.beginPointer(root,{x:1,y:1},'toggle');
+ assert.deepEqual(gesture.preview({x:24,y:3}).after,['a','b','c']);
+ assert.deepEqual(registry.prepare(root,{x:21,y:1},'range').after,['b','c'],'preview at a cannot replace the accepted anchor b');
+ });

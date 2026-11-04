@@ -56,5 +56,5 @@ const inputs = Object.fromEntries([...families].map(([property, group]) => {
     },
   }];
 }));
-export default defineFunction<OmnicParameterState>({id:OMNIC_CONSUMER,controls:["omnic.rotateStep",...FEATURE_ACTIONS.filter(action=>action.owner==="atomnicComposer").map(action=>action.id)],label:"Active Omnic component / operator",owner:"omnic",
+export default defineFunction<OmnicParameterState>({id:OMNIC_CONSUMER,controls:["omnic.rotateStep",...FEATURE_ACTIONS.filter(action=>action.owner==="atomnicComposer"||action.owner==="omnicDegrees").map(action=>action.id)],label:"Active Omnic component / operator",owner:"omnic",
   group:[{id:"omnic",label:"Omnic structure"}],inputs});

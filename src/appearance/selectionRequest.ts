@@ -16,16 +16,6 @@ export function selectionConfirmation(phase:string,requesting:boolean,polygon:bo
  if(requesting&&(phase==='aim'||phase==='locked'))return 'accept';
 }
 
-/** Context consumers can borrow the normal MS entry action. The pending request
- * bypass prevents its own selector opening from launching the consumer again. */
-export function selectionOpenContexts<T>(){
- const contexts=new Map<symbol,{contains:(target:T)=>boolean;open:()=>boolean}>();
- return {
-  register(context:{contains:(target:T)=>boolean;open:()=>boolean}){const key=Symbol();contexts.set(key,context);return()=>{contexts.delete(key);};},
-  open(target:T,requesting=false){if(requesting)return false;for(const context of [...contexts.values()].reverse())if(context.contains(target)&&context.open())return true;return false;},
- };
-}
-
 /** Cleanup may cancel only its own temporary request. A replaced editor must
  * never clear a newer editor's MS session. Owner omission is explicit user cancel. */
 export function cancelOwnedSelectionRequest<T extends {owner:symbol;cancelMS?:()=>void;finish:()=>void}>(pending:{current:T|undefined},owner?:symbol):boolean{
@@ -39,10 +29,6 @@ export function selectionDecision(result:SelectionDecision){
  return result===true?{accepted:true,message:null}:{accepted:false,message:typeof result==='string'&&result?result:'Unsupported target'};
 }
 
-/** Native selection adapters use MS membership, not the active editing tool. */
-export function nativeSelectionTogglePress(event:{button:number;ctrlKey:boolean;metaKey:boolean;altKey:boolean;shiftKey:boolean}){
- return event.button===0&&(event.ctrlKey||event.metaKey)&&!event.altKey&&!event.shiftKey;
-}
 export function selectionGroupIncluded<T>(wanted:readonly T[],selected:ReadonlySet<T>){
  return wanted.length>0&&!wanted.every(key=>selected.has(key));
 }

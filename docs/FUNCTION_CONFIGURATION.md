@@ -1,5 +1,14 @@
 # Universal function configuration
 
+**Composer DOF exception (2026-11-03):** actions declaring
+`configurationTrigger: repeat` open the existing target editor on the first
+invocation and configure that same active DOF/target on the next invocation.
+Their exact Ctrl/Alt/Shift combinations execute normally. The shared router
+checks the active exact chord and base action metadata before offering Shift
+configuration; unavailable Composer contexts cannot suppress another owner's
+configuration. Other functions continue with the Shift contract below. See
+[Composer DOF shortcuts](SHORTCUTS.md#composer-dof-shortcuts).
+
 Shift is the Master Controller configuration modifier. Hold Shift, press any
 configured shortcut (keyboard or mouse), adjust the function's compact adaptive
 controls. Repeated presses of the same shortcut cycle options; hovering or focusing
@@ -119,8 +128,8 @@ commands; do not patch individual keys to click a specific DOM button.
 An action may declare `configurationAction` to use an existing contextual editor
 instead of its generic configuration. The shared router consumes the modified
 press and invokes that catalog action immediately; Shift release does not execute
-the base action afterward. Selector opening uses this link to `selector.edit`
-(Shift+Q by default). Do not add literal Shift key combinations or competing
+the base action afterward. MS declares repeat configuration: its repeated opening command reveals
+`selector.configure`, with a derived “Q again” hint rather than Shift+Q. Do not add literal Shift key combinations or competing
 configuration handlers. Derived hints/search follow the source's live binding.
 
 
