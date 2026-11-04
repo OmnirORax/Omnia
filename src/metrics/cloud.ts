@@ -6,13 +6,9 @@ export type Attempt={id:string;user_id:string;benchmark_id:string;started_at:str
 export type QuestData={benchmarks:Benchmark[];quests:Quest[];claims:string[];best:Record<string,number>};
 export async function metricsRPC<T>(client:SupabaseClient,name:string,args:Record<string,unknown>):Promise<T>{
  const {data,error}=await client.rpc(name,args);
- if(error)throw Error(error.code==='PGRST202'?'Online benchmarks need the click-quests backend migration.':error.code==='42501'?'Sign in with the account that started this attempt.':error.code==='22023'?'The attempt timing/count limit or quest requirement was not met. Start a fresh attempt.':'Cloud metrics could not complete. Refresh or retry; rewards are granted once.');
+ if(error)throw Error(error.code==='PGRST202'?'Online quest setup is incomplete. The app owner needs to finish cloud setup.':error.code==='42501'?'Sign in with the account that started this attempt.':error.code==='22023'?'The requirements or limits were not met. Quests allow 1–3600 seconds, up to 100 clicks/second and 20 created quests per account.':'Cloud metrics could not complete. Refresh or retry; rewards are granted once.');
  return data as T;
 }
 export async function loadQuests(client:SupabaseClient):Promise<QuestData>{
- const [b,q,c]=await Promise.all([client.from('click_benchmarks').select('*').order('seconds'),client.from('click_quests').select('*').order('target'),client.from('click_claims').select('quest_id')]);
- if([b,q,c].some(r=>r.error))throw Error('Cloud quests are unavailable. Check sign-in and the click-quests migration.');
- const best:Record<string,number>={};
- await Promise.all((b.data??[]).map(async benchmark=>{const ranking=await metricsRPC<{mine:Standing|null}>(client,'click_standings',{p_benchmark:benchmark.id});best[benchmark.id]=ranking.mine?.clicks??0;}));
- return {benchmarks:b.data??[],quests:q.data??[],claims:(c.data??[]).map(row=>row.quest_id),best};
+ return metricsRPC<QuestData>(client,'click_quest_board',{});
 }

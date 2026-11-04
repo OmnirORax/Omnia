@@ -1,0 +1,40 @@
+name: Deploy Supabase quest migrations
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/migrations/20261104000*_*.sql'
+      - 'scripts/deploy-metrics.mjs'
+      - 'scripts/export-metrics-migrations.mjs'
+      - '.github/workflows/supabase-metrics.yml'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Plan checks pending migrations; apply installs them.'
+        type: choice
+        options: [plan, apply]
+        default: plan
+permissions:
+  contents: read
+concurrency:
+  group: supabase-metrics-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: cloudflare-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate migration SQL in isolated PostgreSQL
+        run: node scripts/test-metrics-db.mjs
+      - name: Plan or apply quest migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          DEPLOY_MODE: ${{ github.event_name == 'push' && 'apply' || inputs.mode }}
+        run: node scripts/deploy-metrics.mjs "$DEPLOY_MODE"

@@ -3121,11 +3121,23 @@
       "id": "infinity.quests",
       "title": "♾️ online click quests, stars and benchmark leaderboards",
       "where": "Top toolbar → ♾️, immediately after View → Questboard / Leaderboard. UI library → ♾️ also exposes all three subsystems. Sign in through Workspace settings → Cloud connection.",
-      "behavior": "Authenticated accounts share per-benchmark rankings; each account keeps its own completed attempts and quest claims. Seed quests require 20 primary clicks in 5 seconds, 50 in 10 seconds or 150 in 30 seconds. Attempt starts a server attempt and the existing dedicated-area countdown. Fully completed, unpaused attempts submit once; pausing, closing or finishing early makes an attempt ineligible. Quest hand-in grants one star, once per quest/account, enforced transactionally on the server. Rankings show each account’s best score for one exact duration/input-rule version; tied click counts share a rank. Top 50 and the current account’s rank are shown. Anonymous player labels reveal no email. Refresh and visible-board polling every 10 seconds reveal other accounts’ changes; no per-click network requests. Native keyboard activation remains available for free practice but does not count in online primary-click benchmarks.",
+      "behavior": "Authenticated accounts share per-benchmark rankings; each account keeps its own completed attempts and quest claims. Seed quests require 20 primary clicks in 5 seconds, 50 in 10 seconds or 150 in 30 seconds. Attempt starts a server attempt and the existing dedicated-area countdown. Fully completed, unpaused attempts submit once; pausing, closing or finishing early makes an attempt ineligible. Quest hand-in grants one star, once per quest/account, enforced transactionally on the server. Rankings show each account’s best score for one exact duration/input-rule version; tied click counts share a rank. Top 50 and the current account’s rank are shown. Anonymous player labels reveal no email. Refresh and visible-board polling every 10 seconds reveal other accounts’ changes; no per-click network requests. Native keyboard activation remains available for free practice but does not count in online primary-click benchmarks. New quest opens shared Click target and Time limit controls. Publish creates a shared immutable quest with a 1–3600-second primary-click benchmark (up to 100 clicks per second). Equal requirements return the original quest, preserving its one-time reward identity. Each account may author 20 quests; the board supports 500. An unconfigured visual build links to the protected cloud app; it does not request credentials. The board uses one aggregated profile/catalog read and one selected leaderboard read per refresh, with 12 quest cards per page. Publishing opens the new goal’s page. Creation defaults use existing settings history and UI/workspace backup formats; absent preferences use 20 clicks / 5 seconds. The generated SQL Editor installer supports a fresh install or exact recorded baseline and rejects changed/untracked migration history safely. With the repository deployment token configured, the master-only Supabase quest workflow applies the same guarded migrations automatically after merge or through manual plan/apply dispatch. It uses the existing production approval environment and verifies schema availability; no Auth or unrelated backend changes are made.",
       "steps": [
+        {
+          "do": "Configure SUPABASE_ACCESS_TOKEN as a repository secret, merge the deployment workflow, and inspect Actions → Deploy Supabase quest migrations.",
+          "expect": "The master workflow validates SQL, applies pending quest migrations and verifies schema availability. Successful deployment removes the need for manual SQL Editor installation; failures remain visible."
+        },
+        {
+          "do": "If the visual GitHack build says cloud is unavailable, follow Open cloud app. Apply the reviewed SQL bundle using docs/setup/README.md in the existing project, then sign in at omnium.nexus.",
+          "expect": "The protected build uses the existing Supabase project. No tokens are pasted into chat or preview settings; cloud quests load after migrations and sign-in."
+        },
         {
           "do": "Deploy migration 20261104000100_click_quests.sql to the configured Supabase project and create two confirmed test accounts through Auth admin (public signup remains disabled). Sign in as A on the configured frontend.",
           "expect": "♾️ is beside View. Questboard loads three quests and zero claimed stars for a fresh account."
+        },
+        {
+          "do": "Open Questboard → New quest. Choose 10 clicks in 7 seconds and Publish quest. Sign in as B and Refresh.",
+          "expect": "Both accounts see the same 10/7 quest; the 7-second benchmark is available on Leaderboard. Publishing equal requirements reuses that quest and never creates another claim opportunity."
         },
         {
           "do": "Attempt the 20-click/5-second quest; click at least 20 times without pausing and wait for zero. Open Questboard and Hand in.",
@@ -3149,18 +3161,26 @@
         "src/metrics/QuestSystem.tsx",
         "src/metrics/cloud.ts",
         "supabase/migrations/20261104000100_click_quests.sql",
-        "src/metrics/model.ts"
+        "src/metrics/model.ts",
+        "src/metrics/quest.function.ts",
+        "supabase/migrations/20261104000200_quest_authoring.sql",
+        "scripts/export-metrics-migrations.mjs",
+        "docs/setup/questboard-setup.sql",
+        ".github/workflows/supabase-metrics.yml",
+        "scripts/deploy-metrics.mjs"
       ],
       "actions": [
         "quests.open",
-        "leaderboard.open"
+        "leaderboard.open",
+        "quests.create",
+        "quests.publish"
       ],
       "gestures": [],
       "status": "Implemented for review; hosted migration and two-account browser acceptance pending",
-      "limits": "Requires configured Supabase frontend and additive database migration; visual GitHack builds may be unconfigured and cannot establish online functionality. Public signup remains disabled: create confirmed accounts administratively. Four benchmark durations (5/10/30/60 seconds), three seeded one-time quests, +1 star each; no custom quest creation yet. Client-reported clicks with server attempt ownership, timing bounds, quotas and atomic claims; this is not tamper-proof physical-click verification. Completion submission allows 30 seconds of network grace; failure can be retried with the same attempt and count. Max 10 starts/minute and 100/day/account. Rankings shared among authenticated app accounts, independent of private workspaces. No automatic production or backend deployment is claimed.",
+      "limits": "Requires configured Supabase frontend and additive database migration; visual GitHack builds may be unconfigured and cannot establish online functionality. Public signup remains disabled: create confirmed accounts administratively. Four initial benchmark durations (5/10/30/60 seconds), three seed quests, plus authored 1–3600-second quests; +1 star per account/quest. Up to 20 authored quests/account and 500 board quests. Quests cannot yet be edited or deleted. Client-reported clicks with server attempt ownership, timing bounds, quotas and atomic claims; this is not tamper-proof physical-click verification. Completion submission allows 30 seconds of network grace; failure can be retried with the same attempt and count. Max 10 starts/minute and 100/day/account. Rankings shared among authenticated app accounts, independent of private workspaces. No automatic production or backend deployment is claimed.",
       "verification": {
         "browser": "Not run; two-account user acceptance pending.",
-        "automated": "2026-11-04: disposable PostgreSQL migration and two-account SQL authorization/ranking/reward checks pass. All 24 model/architecture files, type checks, self-contained preview build and backend checks pass; hosted rollout and browser acceptance pending."
+        "automated": "2026-11-04: two-account PostgreSQL authoring, duplicate identity/reward, privacy, original-claim preservation, fresh/repeat installer and changed-history refusal checks pass. All 24 model/architecture test files, type checks, preview build and backend checks pass. Hosted migration and user browser acceptance remain pending."
       },
       "related": [
         "metrics.score",

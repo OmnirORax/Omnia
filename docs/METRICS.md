@@ -115,7 +115,8 @@ Server attempt limits are 10/minute and 100/day/account; submissions must arrive
 after the configured duration and within a further 30 seconds, with at most 100
 reported clicks/second. These bounds and authenticated ownership do not prove
 physical input: scores are client-reported and this prototype is not tamper-proof
-competitive anti-cheat. Quests cannot yet be authored/customized in the UI.
+competitive anti-cheat. New quest now publishes immutable shared goals with 1–3600-second benchmarks.
+Editing/deletion are deferred so existing claims keep their meaning.
 
 ### Persistence boundary
 
@@ -129,3 +130,39 @@ the former features. Roll back frontend code without dropping authored attempts
 or claims; do not amend or reverse the applied migration to revert the UI.
 Workspace/UI exports do not contain this account-level cloud ledger; server
 backups must include these tables. No full-environment restore is claimed.
+
+
+## Adding quests and connecting the preview
+
+Use **♾️ → Questboard → New quest**, choose Click target / Time limit and Publish.
+An unconfigured GitHack preview shows the form but publishing requires the existing
+configured cloud app and its Auth session. **Open cloud app** links to omnium.nexus;
+the signed-out configured view exposes the existing Workspace settings launcher.
+No private runtime/backend credentials are added to public preview artifacts.
+See [the SQL Editor walkthrough](setup/README.md) for the recommended token-free
+installation using the existing project and [the exact SQL bundle](setup/questboard-setup.sql).
+
+The second additive migration adds guarded authoring and a single board-read RPC.
+Equal target/duration goals share one identity, including the original three seed
+quests. Retrying creation preserves its request identity; changed reuse rejects.
+New integer durations have canonical `primary-{seconds}s-v1` benchmark identities.
+Targets are bounded to 100 reported clicks/second, with 20 authored quests/account
+and 500 shared quests. Authors' account IDs live in a private RLS-enabled ledger;
+public quest records expose no author IDs. No direct client table writes are added.
+Each account can claim a matching quest once, including after prior qualifying
+attempts; creating a duplicate does not provide another reward opportunity.
+
+Board requests remain two RPCs per refresh regardless of benchmark count: one
+bounded board/profile aggregation and one selected leaderboard. Only 12 quest
+cards and their shared controls mount per page, and publishing reveals the page
+containing the new goal. No pointer/timer hot-path scans or network calls are added.
+Creation preferences live in existing `functionValues['metrics.questAuthor']`
+through discovered shared properties, configuration, settings history and UI/backup
+exports. Absence uses 20 clicks / 5 seconds; original timer settings and saved
+workspace/UI formats keep their meaning. Authored shared quests, authorship and
+claims remain cloud data, outside workspace/UI exports and interface undo.
+The original migration is unchanged; the second adds constraints, private
+authorship and created-at metadata without changing original quest IDs or claims.
+SQL installation validates exact migration history and refuses unknown/untracked
+state rather than treating it as defaults. The installer is generated, not an
+independent format or migration implementation.
