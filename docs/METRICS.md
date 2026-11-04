@@ -166,3 +166,14 @@ authorship and created-at metadata without changing original quest IDs or claims
 SQL installation validates exact migration history and refuses unknown/untracked
 state rather than treating it as defaults. The installer is generated, not an
 independent format or migration implementation.
+
+## Quest filters
+
+Category, Status and Search reuse the [shared domain filter base](FILTERING.md).
+Speed clicking covers durations below 30 seconds; Endurance clicking covers
+30 seconds and above, including the existing 30-second seed quest. Categories
+are derived labels, not new saved quest kinds or benchmark/reward identities.
+Filtering occurs before shared 12-card pagination, with counts and Clear filters.
+Selection remains transient, resets on account change and adds no cloud requests
+or database migration. Publication reveals the new quest, clearing incompatible
+filters when needed. Existing paging action IDs retain their customization.

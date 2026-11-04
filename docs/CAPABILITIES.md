@@ -64,6 +64,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Saved Omnic glyphs render as valid SVG node images](#omnic-glyph-images) | Implemented for review; production deployment and browser acceptance pending | Save a Composer object and place its shared object in an atlas; reload an existing glyph placement. |
 | [Click score tracker and precision timer](#metrics-score) | Implemented for review; production deployment and browser acceptance pending | Top toolbar → ♾️ (next to View) → 📊 Score tracker; UI library → ♾️. |
 | [♾️ online click quests, stars and benchmark leaderboards](#infinity-quests) | Implemented for review; hosted migration and two-account browser acceptance pending | Top toolbar → ♾️, immediately after View → Questboard / Leaderboard. UI library → ♾️ also exposes all three subsystems. Sign in through Workspace settings → Cloud connection. |
+| [Shared domain filters and quest categories](#interface-filters) | Implemented for review; browser acceptance and production deployment pending | ♾️ → Questboard → Category / Status / Search. Existing shared quests load after cloud sign-in. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1493,7 +1494,32 @@ Authenticated accounts share per-benchmark rankings; each account keeps its own 
 
 **Command IDs:** `quests.open`, `leaderboard.open`, `quests.create`, `quests.publish`.
 
-**Related:** [Click score tracker and precision timer](#metrics-score), [Existing account, private workspace and image storage](#cloud-connection).
+**Related:** [Click score tracker and precision timer](#metrics-score), [Existing account, private workspace and image storage](#cloud-connection), [Shared domain filters and quest categories](#interface-filters).
+
+<a id="interface-filters"></a>
+## Shared domain filters and quest categories
+
+**ID:** `interface.filters` · **Status:** Implemented for review; browser acceptance and production deployment pending
+
+**Where:** ♾️ → Questboard → Category / Status / Search. Existing shared quests load after cloud sign-in.
+
+Shared filtering owns text normalization, AND matching across facets, available-option counts, reset, pagination and no-match handling. Systems declare domain accessors, option labels and context; the base contains no quest IDs or rules. Questboard declares Speed clicking for durations below 30 seconds and Endurance clicking for 30 seconds or more, plus Available/Ready to hand in/Claimed status from the active account. Search matches target, seconds and category words and combines with selected facets. Clear filters restores all quests. Counts apply the text and other facets while allowing alternatives within the current facet. Filtering precedes the shared 12-card pagination. New quest publication reveals its page, clearing incompatible filters if needed. Filters stay transient in this tab and reset on account change; they do not alter quests, rewards, timer settings or saved workspace data.
+
+**Minimal working test**
+
+1. Open Questboard and choose Speed clicking. **Expected:** Quests below 30 seconds appear, including the 5/10-second seed quests; 30-second Endurance quests are hidden.
+2. Choose Endurance clicking. **Expected:** Only quests of at least 30 seconds appear, including the existing 150-click/30-second seed quest. Every card labels its category.
+3. Combine a category with Claimed or Ready to hand in, and type a target or category word into Search. **Expected:** All selected filters apply together. No matching quests shows an explicit empty result; no unrelated cards remain.
+4. Clear filters. If multiple pages exist, go to a later page and change a filter. **Expected:** Clear restores all quests. A changed filter returns to its first page; page counts and visible cards use only matching quests.
+5. With a restrictive filter active, publish a quest that does not match it. Switch accounts afterward. **Expected:** Publication clears incompatible filters and reveals the new quest’s page. Account changes clear filter state and use the new account’s completion/claim facts.
+
+**Limits / unavailable behavior:** Initial shared controls support single-choice facets and text search. Categories describe duration-based click challenges; no separate activity engine is implied. Existing specialized Omnic structural filtering has not been migrated. Unknown facet options are ignored for transient state. No saved filter presets, server-side filtering or new cloud quest types are introduced.
+
+**Verification:** browser — Not run; user acceptance pending.. Automated — 2026-11-05: generic filter and independent-domain reuse tests pass; all 26 model/architecture files, preview build/type/property/capability checks and backend checks pass. Browser acceptance pending..
+
+**Details:** [subsystem guide](FILTERING.md). **Implementation:** [src/filtering/model.ts](../src/filtering/model.ts), [src/filtering/useFilters.ts](../src/filtering/useFilters.ts), [src/filtering/FilterControls.tsx](../src/filtering/FilterControls.tsx), [src/metrics/questFilters.ts](../src/metrics/questFilters.ts).
+
+**Related:** [♾️ online click quests, stars and benchmark leaderboards](#infinity-quests).
 
 ## Exact registered command inventory
 

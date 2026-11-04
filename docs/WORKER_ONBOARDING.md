@@ -757,3 +757,9 @@ World node/binder labels use mipmapped minification through textSprite. Do not d
 Composer toolbar exposes omnic.library through a shared FunctionControl mirror. MS source-session ownership lives in selectionSurfaces and is checked by VisualSelector, ActiveContext and its tool cursor; see OMNIC_INTERACTION_LIFECYCLE.md. Other content surfaces inherit this registration-based boundary. No stored data/format changes.
 
 MS opening shortcut correction (2026-11-04): The assigned MS opening shortcut (Q by default) cycles off → aiming → MS configuration → off, then repeats. Closing through Q retains accepted membership/history and releases targeting; it never clears the selection. Esc retains its separate behavior: from configuration return to aiming, then cancel/clear normal MS selection; canceling a borrowed reference restores its prior selection. Existing explicit clear/removal commands remain available. Automatic Master Controller selection inspection is unchanged.
+
+Shared domain filters now live in `src/filtering`: prepared facts, matching/counts,
+transient selection/reset/reveal, shared controls and pagination. Questboard is
+the first adapter, with Speed/Endurance categories and account status. Other
+systems declare their facets rather than copy the implementation; specialized
+Omnic saved structural queries are not migrated. See [FILTERING.md](FILTERING.md).
