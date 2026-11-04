@@ -1,0 +1,19 @@
+.metrics-tracker { display: grid; gap: 8px; padding: 4px; }
+.metrics-settings, .metrics-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.metrics-settings > * { flex: 1 1 130px; min-width: 0; }
+.metrics-settings label { display: flex; flex-direction: column; gap: 3px; }
+.metrics-readout { text-align: center; font-variant-numeric: tabular-nums; }
+.metrics-status { font-size: .8em; opacity: .8; }
+.metrics-clock { display: block; font-size: clamp(1.4rem, 3vw, 2rem); line-height: 1.5; white-space: nowrap; }
+.metrics-readout progress { width: 100%; height: 5px; }
+.metrics-stats { display: flex; flex-wrap: wrap; justify-content: space-around; gap: 8px; margin: 4px 0; }
+.metrics-stats dt { font-size: .75em; opacity: .8; }
+.metrics-stats dd { margin: 2px 0 0; font-size: 1.1em; }
+.metrics-click-area { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 100px; touch-action: manipulation; user-select: none; }
+.metrics-click-area > span:first-child { font-size: 1.5em; }
+.metrics-click-area:active:not(:disabled) { filter: brightness(1.2); }
+.metrics-table { max-height: 160px; overflow: auto; }
+.metrics-table table { width: 100%; font-size: .78em; font-variant-numeric: tabular-nums; border-collapse: collapse; }
+.metrics-table th, .metrics-table td { padding: 3px 4px; text-align: right; white-space: nowrap; }
+.metrics-table th:first-child, .metrics-table td:first-child { text-align: left; }
+.metrics-tracker .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

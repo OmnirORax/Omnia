@@ -2984,6 +2984,72 @@
         "omnic.saving",
         "library.objects"
       ]
+    },
+    {
+      "id": "metrics.score",
+      "title": "Click score tracker and precision timer",
+      "where": "UI library → 📊 Metrics → 📊 Score tracker. Search “Score tracker” with UI search; commands are in Shortcuts → Metrics and start unassigned.",
+      "behavior": "A dedicated test area counts genuine primary clicks (including touch-generated clicks and native keyboard activations) only while running. Clicks elsewhere, timer controls, paused input and synthetic events do not score; double-click produces two clicks. Stopwatch and 1–86,400-second countdown modes share start/resume, pause, finish, reset, active elapsed time, clicks and average clicks/second. Countdown finishes automatically at its deadline; delayed display callbacks cannot extend the score window. Time uses a monotonic clock, excludes pauses, displays centiseconds, and catches up after background throttling. Lap captures active-time/click deltas and split rate; completed results retain mode, configured duration, active time, clicks and rate. Finish saves a result; Reset discards the current run while retaining results. Closing pauses; reopening retains the session. Minimizing leaves the timer running. Preferences changed during a run apply to the next new run; Resume preserves the original settings. Mode/duration are declared function inputs using shared property controls, configuration, settings history and UI/workspace templates. Runs, clicks, laps and results are transient measurements, separate from undo and saved knowledge. The only new category is Metrics (displayed with 📊), with no Tracking/Performance category branches.",
+      "steps": [
+        {
+          "do": "Open UI library → 📊 Metrics → 📊 Score tracker. Choose Stopwatch and press Start / resume timer.",
+          "expect": "The timer runs from zero, the score is zero, and the dedicated click area becomes enabled."
+        },
+        {
+          "do": "Click the test area five times. Click elsewhere and press Record lap.",
+          "expect": "Clicks reads 5; outside and control clicks add nothing. Lap 1 records five clicks and its elapsed active time/CPS."
+        },
+        {
+          "do": "Pause timer, wait, try the area, then resume and click once.",
+          "expect": "Time and clicks freeze while paused; resuming keeps the earlier score/lap and excludes paused time. Score becomes 6."
+        },
+        {
+          "do": "Finish score run and expand Results. Reset score run.",
+          "expect": "Exactly one completed result shows six clicks and its time/CPS. Reset returns the current run to Ready without deleting completed results."
+        },
+        {
+          "do": "Choose Countdown, set Duration to 5 seconds (right-click the shared slider dot for exact entry), and start. Click until expiry; keep clicking afterward.",
+          "expect": "Remaining time reaches zero; the run finishes automatically with exactly five seconds of active time. Late clicks do not score and a single result is added."
+        },
+        {
+          "do": "Start another run, close the tracker and reopen it using the library launcher. Resume, minimize, wait, then expand it.",
+          "expect": "Close pauses without losing the current score; reopening permits resume. Minimization leaves the clock running and countdown expiry remains enforced."
+        },
+        {
+          "do": "Change timer preferences during a paused run, then Resume. Finish and Start again. Export/import a UI template or combined workspace backup.",
+          "expect": "Resume keeps the captured run settings; a new run uses changed preferences. Template/backup round trips carry timer preferences and window arrangement, but no live score/session data."
+        }
+      ],
+      "reference": "docs/METRICS.md",
+      "sources": [
+        "src/metrics/ScoreTracker.tsx",
+        "src/metrics/model.ts",
+        "src/metrics/timer.function.ts",
+        "src/ui/catalog.ts"
+      ],
+      "actions": [
+        "metrics.open",
+        "metrics.start",
+        "metrics.pause",
+        "metrics.finish",
+        "metrics.lap",
+        "metrics.reset"
+      ],
+      "gestures": [
+        "metrics.click"
+      ],
+      "status": "Implemented for review; production deployment and browser acceptance pending",
+      "limits": "Dedicated area only; no system-wide or app-wide monitoring. Native keyboard activation is included. At most 100 laps per run and 20 completed results per tab; reload clears measurements. Reset intentionally discards unfinished measurements. Timer preferences alone persist. Background callbacks may display completion late, but subsequent input checks the deadline. OS/device sleep timing follows the browser monotonic clock. Timing display precision is not an input latency benchmark.",
+      "verification": {
+        "browser": "Not run; user acceptance pending.",
+        "automated": "2026-11-04: seven deterministic timing/backup checks pass; all 24 model/architecture test files, typecheck, property/capability checks, self-contained preview build and backend type checks pass. Browser acceptance remains pending."
+      },
+      "related": [
+        "interface.arrange",
+        "interface.configure",
+        "history.global",
+        "library.persistence"
+      ]
     }
   ]
 }

@@ -118,7 +118,7 @@ import { DockLayout } from "./DockLayout";
 import { dockFrame, edgeDockRect, fitDockRect, workspaceDockRects, type DockRect, type FrameDock } from "./docking";
 import { DockWorkspace, dockWorkspaceArea, useDockResident, useDockWorkspace } from "./DockWorkspace";
 import type { DockSide } from "./dockTree";
-import { LIBRARY_CATEGORIES, libraryCategory } from "./catalog";
+import { LIBRARY_CATEGORIES, libraryCategory, libraryCategoryLabel } from "./catalog";
 import { useFrameBounds, residentBounds } from "./frameBounds";
 import { residentShortcutAction, pointerFeatureKey, buttonShortcutId, functionShortcutBinding, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
 import { claimUIPress } from "./pointerOwnership";
@@ -1909,7 +1909,7 @@ export function UIWorkspace({
                 .sort((a, b) => a.label.localeCompare(b.label));
               return (
                 entries.length > 0 && (
-                  <UISection key={category} id={`library-${category}`} title={category} defaultExpanded={false} expanded={query ? true : undefined}>
+                  <UISection key={category} id={`library-${category}`} title={libraryCategoryLabel(category)} defaultExpanded={false} expanded={query ? true : undefined}>
                     <small>{entries.length} controls</small>
                     {entries.map((fn) => (
                       <div className="library-entry" key={fn.id}>
