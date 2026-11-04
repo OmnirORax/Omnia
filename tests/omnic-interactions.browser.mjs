@@ -207,6 +207,64 @@ async function runComposerScope() {
   assert.deepEqual(report.errors, []);
   console.log("PASS source scope and toolbar checks");
 }
+async function runQCycle() {
+  for (const active of [true, false]) {
+    await fixture(active);
+    await pick("line");
+    const p = await point("line");
+    await page.mouse.move(p.x, p.y);
+    const settings = () =>
+      page.getByRole("dialog", { name: "Visual selection controller", exact: true });
+    const cursor = () => page.locator('[data-tool-cursor-owner="visual-selector"]');
+    await check(
+      `Composer ${active}: Q cycles aim/config/closed/aim without clearing selection`,
+      async () => {
+        await page.keyboard.press("q");
+        await cursor().waitFor();
+        await selected(["line"]);
+        await page.keyboard.press("q");
+        await settings().waitFor();
+        await selected(["line"]);
+        await page.keyboard.press("q");
+        await settings().waitFor({ state: "detached" });
+        await cursor().waitFor({ state: "detached" });
+        await selected(["line"]);
+        assert.equal(
+          await page.evaluate(async () =>
+            (await import("/src/featureActions.ts")).featureActionRuntime.available(
+              "selector.include",
+            ),
+          ),
+          false,
+        );
+        await page.keyboard.press("q");
+        await cursor().waitFor();
+        await selected(["line"]);
+        await page.keyboard.press("Escape");
+        await cursor().waitFor({ state: "detached" });
+        await selected([]);
+      },
+    );
+    await check(
+      `Composer ${active}: Escape from MS config returns to aim, then cancels selection`,
+      async () => {
+        await pick("line");
+        await page.keyboard.press("q");
+        await page.keyboard.press("q");
+        await settings().waitFor();
+        await page.keyboard.press("Escape");
+        await settings().waitFor({ state: "detached" });
+        await cursor().waitFor();
+        await selected(["line"]);
+        await page.keyboard.press("Escape");
+        await cursor().waitFor({ state: "detached" });
+        await selected([]);
+      },
+    );
+  }
+  assert.deepEqual(report.errors, []);
+  console.log("PASS Q cycle checks");
+}
 async function runDefault() {
   for (const active of [true, false]) {
     await fixture(active);
@@ -271,7 +329,6 @@ async function runDefault() {
           await page.keyboard.up("Shift");
         }
         await page.keyboard.press("q");
-        await page.keyboard.press("q");
         await page
           .getByRole("dialog", { name: "Visual selection controller", exact: true })
           .waitFor();
@@ -306,7 +363,6 @@ async function runDefault() {
           await page.keyboard.up("q");
           await page.keyboard.up("Control");
         }
-        await page.keyboard.press("q");
         await page.keyboard.press("q");
         await page
           .getByRole("dialog", { name: "Visual selection controller", exact: true })
@@ -526,7 +582,6 @@ async function runDefault() {
       async () => {
         const p = await point("dot-1");
         await page.mouse.move(p.x, p.y);
-        await page.keyboard.press("q");
         await page.keyboard.press("q");
         await page
           .getByRole("dialog", { name: "Visual selection controller", exact: true })
@@ -756,7 +811,8 @@ async function runDefault() {
   console.log(`PASS ${report.checks.length} interaction sequences`);
 }
 try {
-  if (process.env.OMNIA_INTERACTION_FOCUS === "composer-scope") await runComposerScope();
+  if (process.env.OMNIA_INTERACTION_FOCUS === "q-cycle") await runQCycle();
+  else if (process.env.OMNIA_INTERACTION_FOCUS === "composer-scope") await runComposerScope();
   else await runDefault();
 } catch (error) {
   report.failure = { check: current, message: error.stack };

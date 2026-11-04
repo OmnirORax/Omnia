@@ -1,5 +1,7 @@
 # Omnic selection and editing lifecycle
 
+The assigned MS opening shortcut (Q by default) cycles off → aiming → MS configuration → off, then repeats. Closing through Q retains accepted membership/history and releases targeting; it never clears the selection. Esc retains its separate behavior: from configuration return to aiming, then cancel/clear normal MS selection; canceling a borrowed reference restores its prior selection. Existing explicit clear/removal commands remain available. Automatic Master Controller selection inspection is unchanged.
+
 Normal MS sessions opened on a registered content surface are bounded to that source root/context. The selector cursor and hover/wheel targeting apply there; a primary/secondary press or focus change on other controls ends normal targeting without consuming the control input or clearing accepted membership. Selector-owned configuration remains usable. ActiveContext preserves the source only for pointer picks inside that boundary. Standalone UI MS remains global. Explicit borrowed reference requests retain their rejection/cancel contract and navigation context.
 
 Modifier marquee feedback is live while held: Ctrl/Shift-drag previews the current intersected owners as the rectangle grows or shrinks, before release. Preview does not change accepted membership, anchors, geometry or selection history. Release commits once; Esc, blur or pointer cancellation removes the preview. Reuse the registered surface snapshot and area-hit adapter, prepare geometry once per gesture, and coalesce feedback to animation frames. Snapshot adapters may return a cached elements resolver for native-ink preview; otherwise projected unit boxes provide feedback. Do not call geometry discovery or layout measurement from each area query.
@@ -130,3 +132,5 @@ with Atomnic on and off. All four passed without uncaught page errors. This is
 focused evidence, not a new run of the full earlier 48-sequence matrix or user
 hardware acceptance. Model scope checks cover root/context changes, source-chrome
 entry, physical paths, disposal and standalone global fallback.
+
+Q-cycle follow-up (2026-11-04): `OMNIA_INTERACTION_FOCUS=q-cycle node tests/omnic-interactions.browser.mjs` passed four physical-input checks in Atomnic on/off: exact Q aim/config/closed/aim with membership retained, and separate Escape config/back/cancel behavior. No uncaught page errors. Automatic MC inspection was left unchanged at the user’s clarification. The older full matrix was not rerun; setup steps were updated where the new third Q now intentionally closes.

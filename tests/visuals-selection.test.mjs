@@ -223,13 +223,16 @@ test('an old editor cannot cancel a newer MS request, and rejection text never a
  assert.deepEqual(selectionDecision(false),{accepted:false,message:'Unsupported target'});
 });
 
-test('MS repeated entry configures, Escape returns to aiming, then cancels',async()=>{
+test('MS entry cycles aim, configure, closed, aim; Escape separately backs out and cancels',async()=>{
  const {selectorOpenPhase,selectorEscapePhase}=await import('../src/appearance/selectionRange.ts');
  let phase='off';phase=selectorOpenPhase(phase);assert.equal(phase,'aim');
  phase=selectorOpenPhase(phase);assert.equal(phase,'configure');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'off','third opening shortcut closes without a selection-clear command');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'aim');
+ phase=selectorOpenPhase(phase);assert.equal(phase,'configure');
  phase=selectorEscapePhase(phase);assert.equal(phase,'aim');
  phase=selectorEscapePhase(phase);assert.equal(phase,'off');
- assert.equal(selectorOpenPhase('locked'),'configure');
+ assert.equal(selectorOpenPhase('locked'),'configure');assert.equal(selectorOpenPhase('configure',true),'aim','borrowed reference entry still starts fresh');
 });
 test('Shift range includes endpoints in either direction and handles missing anchors safely',async()=>{
  const {orderedSelectionRange}=await import('../src/appearance/selectionRange.ts');

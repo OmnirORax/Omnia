@@ -417,7 +417,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       const firstRequestOpen=requestedPick.current&&!requestedPick.current.opened;
       if(requestedPick.current)requestedPick.current.opened=true;
       const outsideSource=!requestedPick.current&&selectionSurfaces.sessionScoped()&&!selectionSurfaces.sessionOwns(element)&&!element.closest('[data-visual-selector]');
-      if(selectorOpenPhase(outsideSource?'off':latest.current.phase,!!firstRequestOpen)==='configure'){cancelDrawing();setCatalog(collectVisualParts());setPosition(p);setPhase('configure');return;}
+      const next=selectorOpenPhase(latest.current.phase==='configure'?'configure':outsideSource?'off':latest.current.phase,!!firstRequestOpen);
+      if(next==='off'){close();return;}
+      if(next==='configure'){cancelDrawing();setCatalog(collectVisualParts());setPosition(p);setPhase('configure');return;}
       selectionSurfaces.beginSession(requestedPick.current?undefined:element);
       retainedPreview.current=false;settledPoint.current=null;setCandidatePick(null);
       setCatalog(collectVisualParts());setPosition(p);point.current={...p,element};setInventoryOpen(false);setPhase('aim');

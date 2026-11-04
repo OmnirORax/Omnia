@@ -30,6 +30,8 @@ limits](docs/DIAGNOSTICS.md). Classify the behavior and remedies at the shared
 boundary; do not add warning-specific repair UIs. Current Composer operation
 repairs are shared within Composer, not a completed global warning system.
 
+The assigned MS opening shortcut (Q by default) cycles off → aiming → MS configuration → off, then repeats. Closing through Q retains accepted membership/history and releases targeting; it never clears the selection. Esc retains its separate behavior: from configuration return to aiming, then cancel/clear normal MS selection; canceling a borrowed reference restores its prior selection. Existing explicit clear/removal commands remain available. Automatic Master Controller selection inspection is unchanged.
+
 # Saved-data compatibility (required for all contributors)
 
 Read [the data evolution contract](docs/DATA_EVOLUTION.md) before changes that can
