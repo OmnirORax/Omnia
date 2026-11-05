@@ -696,3 +696,79 @@ replacement. Active MS retains input priority; accepted membership yields Esc to
 editor fields/layers. Temporary numeric picking preserves the editor context,
 including when remote Master Controller contents refresh. Selection remains
 passive until an explicit right-click/editor/shortcut request.
+
+### Exact, Inside and Continuity (2026-11-06)
+
+The selector defines the rule; the pointer identifies its target. Containment,
+physical continuity and authored parentage are independent relations. Selection
+must not create a group, merge components or infer knowledge relationships.
+
+Reuse the existing configuration: Q to aim, Q again to configure, open ⠒ →
+Targets, choose **· Exact** (the existing Individual mode) or **⛓︎ Continuity**,
+then ✓ to resume aiming. **Inside** remains the existing In-frame control with a
+pointed boundary; Contour independently includes/excludes that boundary. No
+candidate-object cycling or second configuration panel is introduced. Pattern
+and drawing modes retain their separate roles.
+
+- Exact remains a direct part pick, including the first pick on Composer. It no
+  longer silently turns into boundary discovery merely because no scope exists.
+- Inside requires all of a component's visible geometry to fit in the selected
+  enclosure. A crossing component is excluded. Pointed native boundaries use
+  their actual enclosure, not DOM descendants or bounding-box corners. A circle
+  uses the inner edge of its visible rim. Contour adds the pointed boundary itself;
+  it does not turn crossing peers into contained components. Drawn-path Contour
+  retains its existing intersection behavior; Inside alone now requires full
+  containment. Native supported shapes use actual geometry inside convex drawn
+  regions; other parts retain conservative full-box matching.
+- Continuity starts at the pointed registered component and selects the transitive
+  set of actual touching/intersecting ink. Stroke thickness and declared clipped
+  fill count; empty holes, visible gaps, glow, matching color, enclosure and shared
+  authored parents do not create contacts. An attached stem can extend outside
+  the ring. Disjoint concentric rings stay separate. Switching to Continuity
+  releases former pointed containment scopes; deliberately drawn work areas remain
+  applicable and bound preparation. Hover previews the complete set; a click
+  toggles it as one operation through existing selection history.
+
+`geometryRelations.ts` owns geometry/contact/containment and bounded topology
+preparation. `nativeGeometryRelations.ts` adapts renderer primitives; it does not
+implement selection policy. Future renderers supply their actual geometry instead
+of duplicating the selector. Current native adapters cover numeric SVG circles,
+round/butt/square-capped lines, unrounded rectangles and supported convex polygons
+under similarity transforms. The shared Fill renderer marks additive ink under
+the same stable boundary identity; its convex polygon clips constrain actual disc
+paint. Native compound paths, arbitrary curves/ellipses, nonuniform transforms,
+raster contours, rounded rectangles and canvas/3D contact adapters remain
+unsupported; they never silently become filled bounding boxes. Exact/ordinary
+selection remains available for such parts. Continuity operates at registered-part
+granularity, not arbitrary unregistered fragments of one part. Numeric/reference
+consumers retain their own supported target/measurement limits; detecting contact
+does not invent a composite numeric adapter.
+
+Snapshots cache native geometry and connections by the existing measurement
+revision. Swept bounds only prune candidates; ink tests establish contacts. A
+200,000 weighted geometry-work budget refuses an incomplete topology with feedback
+rather than returning a partial connected set. Narrow a deliberate working area
+or use Exact in that case. No layout/geometry discovery is added to ordinary
+pointer motion. Shape attributes and relevant inline style changes invalidate
+snapshots, while selector pulse custom properties do not. Adapters driven by
+indirect geometry variables can bump `data-selection-geometry-revision`.
+Accepted membership stores stable part addresses in transient MS history; it
+survives renderer replacement without becoming a persistent grouping. Subsequent
+picks use freshly prepared topology; existing accepted selection is not silently
+expanded after unrelated geometry changes. Existing reference request restoration,
+modifier picks, ordinary selection, source-surface ownership and Delete remain.
+
+Model evidence covers disjoint nesting, outside-extending connections, transitive
+contact, exact tangencies/gaps, clipped paint, containment versus crossing,
+independent Contour, sibling SVG ownership, pointer refinement, full-set toggle,
+source immutability, surface isolation and budget refusal. User/browser acceptance
+of these new interaction paths remains pending; no browser suite was run.
+
+Renderer extension uses existing owners: `HierarchyScenePulse.geometry` may lend
+prepared screen-space `RelationGeometry` for a logical target via the same scene
+registration already used by picking, appearance feedback and hierarchy pulse.
+`VisualMeasurements.partRelation` caches that target-specific result. No second
+scene/selection registry is introduced. Current canvas/3D producers do not yet
+supply this geometry. Catalog discovery also captures a part's declared boundary
+address, allowing additive paint to resolve its source without scanning DOM
+ownership on each pointer move.

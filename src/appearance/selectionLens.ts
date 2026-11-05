@@ -5,13 +5,13 @@ export function resizeSelectionLens(radius:number,delta:number){return Math.max(
 export type NativeSelectionShape={tag:string;attributes:Record<string,string>;transform:string;points:Point[];stroke:number;strokeWidth:number;vectorEffect:string;linecap:string;linejoin:string;fillRule:string;fill:boolean;closed:boolean};
 const attributes=['d','cx','cy','r','rx','ry','x','y','x1','y1','x2','y2','width','height','points'];
 /** Read native geometry once per visual snapshot, never on pointer motion. */
-export function nativeSelectionShape(element:Element):NativeSelectionShape|null{
+export function nativeSelectionShape(element:Element,sampleOutline=true):NativeSelectionShape|null{
  const geometry=element as SVGGeometryElement;
  if(!['path','circle','ellipse','line','polyline','polygon','rect'].includes(element.localName)||typeof geometry.getTotalLength!=='function')return null;
  const matrix=geometry.getScreenCTM();if(!matrix)return null;
  try{
-  const style=getComputedStyle(element),length=geometry.getTotalLength(),scale=Math.max(Math.hypot(matrix.a,matrix.b),Math.hypot(matrix.c,matrix.d));
-  const count=Math.max(2,Math.min(512,Math.ceil(length*scale/3))),points=Array.from({length:count+1},(_,i)=>{const p=geometry.getPointAtLength(length*i/count);return{x:matrix.a*p.x+matrix.c*p.y+matrix.e,y:matrix.b*p.x+matrix.d*p.y+matrix.f};});
+  const style=getComputedStyle(element),length=sampleOutline?geometry.getTotalLength():0,scale=Math.max(Math.hypot(matrix.a,matrix.b),Math.hypot(matrix.c,matrix.d));
+  const count=Math.max(2,Math.min(512,Math.ceil(length*scale/3))),points=sampleOutline?Array.from({length:count+1},(_,i)=>{const p=geometry.getPointAtLength(length*i/count);return{x:matrix.a*p.x+matrix.c*p.y+matrix.e,y:matrix.b*p.x+matrix.d*p.y+matrix.f};}):[];
   return {tag:element.localName,attributes:Object.fromEntries(attributes.flatMap(name=>element.hasAttribute(name)?[[name,element.getAttribute(name)!]]:[])),transform:`matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`,points,strokeWidth:parseFloat(style.strokeWidth||'0'),vectorEffect:style.vectorEffect,linecap:style.strokeLinecap,linejoin:style.strokeLinejoin,fillRule:style.fillRule,stroke:style.stroke==='none'?0:parseFloat(style.strokeWidth||'0')*(style.vectorEffect==='non-scaling-stroke'?1:scale),fill:style.fill!=='none',closed:!['line','polyline'].includes(element.localName)};
  }catch{return null;}
 }
@@ -29,7 +29,18 @@ export function nearestLensBoundary<T>(candidates:readonly T[],point:Point,radiu
 
 /** Surfaces opt into spatial lens picking; ordinary MS retains its existing modes. */
 export function selectionDetectionMode(config:{pattern:PatternMode;contour:boolean;region:SelectionRegion|null},hasScope:boolean,declared:boolean,lens:boolean):PatternMode{
- const scalar=config.pattern==='pattern'||config.pattern==='item';
+ if(config.pattern==='item'||config.pattern==='continuity')return config.pattern;
+ const scalar=config.pattern==='pattern';
  if(lens)return scalar&&!hasScope?'boundary':config.pattern;
  return scalar&&(declared||!hasScope&&!config.contour&&!config.region)?'boundary':config.pattern;
+}
+
+/** Geometry edits invalidate the shared snapshot; selection pulse variables do
+ * not. Renderer adapters using indirect custom-property geometry may explicitly
+ * bump data-selection-geometry-revision instead of measuring during motion. */
+export const SELECTION_GEOMETRY_ATTRIBUTES=['d','cx','cy','r','rx','ry','x','y','x1','y1','x2','y2','width','height','points','transform','viewBox','stroke','stroke-width','stroke-linecap','stroke-linejoin','vector-effect','fill','fill-rule','opacity','fill-opacity','stroke-opacity','clip-path','data-selection-geometry-revision'] as const;
+const geometryStyles=new Set(['transform','translate','scale','rotate','display','visibility','position','left','right','top','bottom','width','height','padding','margin','stroke','stroke-width','stroke-linecap','stroke-linejoin','vector-effect','fill','fill-rule','opacity','fill-opacity','stroke-opacity','clip-path']);
+export function selectionGeometryStyleChanged(before:string,after:string){
+ const signature=(style:string)=>[...style.matchAll(/(?:^|;)\s*([\w-]+)\s*:\s*([^;]*)/g)].filter(match=>geometryStyles.has(match[1])).map(match=>`${match[1]}:${match[2].trim()}`).sort().join(';');
+ return signature(before)!==signature(after);
 }

@@ -596,3 +596,14 @@ Scalar grab correction: geometry chooses the DOF/tool before a press; once grabb
 Latest Rotation correction: hovering actual edges shows the cue; a primary edge click only selects its owner. Right-click the target to choose Rotation, or use its assigned DOF shortcut; selection does not open the wheel. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
 
 Window onInteract callbacks commit on confirmed click, never mouse-down: raising/focusing is separate from pinning/toggling. Reuse the shared drag activation guard for physical tails across reparented surfaces; preserve keyboard/programmatic clicks and actual preview gestures. See UI_COMPONENT_CONTRACT.md.
+
+Selection relations (2026-11-06): containment, physical continuity and authored
+parentage are independent. Reuse MS configuration/matching/history; the configured
+rule defines selection and the pointer defines the target. Individual/Exact picks
+one registered part. Inside requires full containment, with the pointed boundary
+controlled separately by Contour. Continuity follows actual touching/intersecting
+ink including stroke thickness and supported clipping; nested-but-disjoint parts,
+matching paint and shared parentage are not connections. Do not create parent
+objects or candidate-object cycling to implement this. Renderer adapters expose
+geometry through the shared relation layer; unsupported geometry must not become
+filled bounds. See VISUAL_SELECTION.md for implemented adapters and limits.

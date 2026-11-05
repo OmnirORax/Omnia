@@ -1434,10 +1434,10 @@ test('ordinary MS retains direct pattern/individual detection; lens surfaces opt
   const config={pattern,contour:true,region:null};
   assert.equal(selectionDetectionMode(config,false,false,false),pattern,'ordinary first click must not become a scope-setting click');
   assert.equal(selectionDetectionMode(config,true,false,false),pattern);
-  assert.equal(selectionDetectionMode(config,false,false,true),'boundary','only an opted-in surface starts with lens boundary discovery');
+  assert.equal(selectionDetectionMode(config,false,false,true),pattern==='item'?'item':'boundary','only an opted-in surface starts with lens boundary discovery');
   assert.equal(selectionDetectionMode(config,true,true,true),pattern,'an existing lens scope permits part/pattern refinement');
-  assert.equal(selectionDetectionMode({...config,contour:false},false,false,false),'boundary','existing neutral geometry behavior remains');
-  assert.equal(selectionDetectionMode(config,false,true,false),'boundary','declared boundary behavior remains');
+  assert.equal(selectionDetectionMode({...config,contour:false},false,false,false),pattern==='item'?'item':'boundary','existing neutral geometry behavior remains');
+  assert.equal(selectionDetectionMode(config,false,true,false),pattern==='item'?'item':'boundary','declared boundary behavior remains');
  }
  for(const pattern of ['axis','boundary','polygon','freehand'])assert.equal(selectionDetectionMode({pattern,contour:true,region:null},false,false,false),pattern);
 });
@@ -1478,3 +1478,133 @@ test('ordinary MS retains direct pattern/individual detection; lens surfaces opt
   assert.ok(Math.abs(area-width)<.00001,'thin strokes retain integrated authored width');
  }
  });
+
+test('continuity follows visible contact transitively while containment and authored grouping stay independent',async()=>{
+ const {prepareConnectedInk,visibleInkTouches,inkFullyInside}=await import('../src/appearance/geometryRelations.ts');
+ const circle=(x,y,r)=>({kind:'circle',center:{x,y},radius:r});
+ const ring=(x,y,r,stroke=2)=>({ink:[{outer:circle(x,y,r+stroke/2),hole:{center:{x,y},radius:r-stroke/2}}],enclosure:circle(x,y,r-stroke/2)});
+ const line=(x,y,x2,y2,r=1)=>({ink:[{outer:{kind:'capsule',a:{x,y},b:{x:x2,y:y2},radius:r}}]});
+ const outer=ring(0,0,30),inner=ring(0,0,15),core=ring(0,0,5),stem=line(30,0,50,0),tip=line(50,0,60,0),crossing=line(0,-40,0,0);
+ const source=JSON.stringify([outer,inner,core,stem,tip]);
+ const scope={},entries=[['outer',outer],['inner',inner],['core',core],['stem',stem],['tip',tip]].map(([key,geometry])=>({key,geometry,scope,parent:'same-parent'}));
+ const prepared=prepareConnectedInk(entries);assert.equal(prepared.complete,true);
+ assert.deepEqual([...prepared.groups.get('outer')].sort(),['outer','stem','tip']);
+ assert.deepEqual(prepared.groups.get('inner'),['inner']);assert.deepEqual(prepared.groups.get('core'),['core']);
+ assert.equal(inkFullyInside(inner,outer.enclosure),true);assert.equal(visibleInkTouches(inner,outer),false,'an enclosed ring is not connected');
+ assert.equal(inkFullyInside(stem,outer.enclosure),false);assert.equal(visibleInkTouches(stem,outer),true,'a connection may extend outside');
+ assert.equal(inkFullyInside(crossing,outer.enclosure),false,'one endpoint inside does not make a crossing line contained');
+ assert.equal(visibleInkTouches(outer,{...outer,colour:'other'}),true,'paint colour does not establish or prevent geometric contact');
+ const anotherSurface=prepareConnectedInk([...entries,{key:'other-surface',geometry:outer,scope:{}}]);assert.deepEqual(anotherSurface.groups.get('other-surface'),['other-surface']);
+ assert.equal(JSON.stringify([outer,inner,core,stem,tip]),source,'building relations never groups or edits authored geometry');
+ const refused=prepareConnectedInk(entries,0);assert.equal(refused.complete,false);assert.equal(refused.groups.size,0,'an exhausted preparation budget must not offer a partial connected set');
+});
+
+test('native relation adapters preserve stroke contacts, gaps, hollow interiors and clipped paint',async()=>{
+ const {geometryFromNative}=await import('../src/appearance/nativeGeometryRelations.ts');
+ const {visibleInkTouches,inkFullyInside,convexInkTouches}=await import('../src/appearance/geometryRelations.ts');
+ const native=(tag,attributes,fill=false,stroke=2)=>({tag,attributes,transform:'matrix(1 0 0 1 0 0)',fill,stroke,strokeWidth:stroke,linecap:'round',linejoin:'round',points:[],closed:tag!=='line',vectorEffect:'none',fillRule:'nonzero'});
+ const ring=geometryFromNative(native('circle',{cx:'0',cy:'0',r:'20'}));
+ const disk=(x,y,r)=>geometryFromNative(native('circle',{cx:String(x),cy:String(y),r:String(r)},true,0));
+ assert.equal(visibleInkTouches(ring,disk(0,0,5)),false,'the hole is empty');
+ assert.equal(visibleInkTouches(ring,disk(18,0,1)),true,'exact contact with the inner stroke counts');
+ assert.equal(visibleInkTouches(ring,disk(17.99,0,1)),false,'a real gap must not become a lens tolerance connection');
+ const tangent=geometryFromNative(native('line',{x1:'-5',y1:'22',x2:'5',y2:'22'}));
+ assert.equal(visibleInkTouches(ring,tangent),true,'stroke thickness supplies exact outer tangency');
+ const gap=geometryFromNative(native('line',{x1:'-5',y1:'22.01',x2:'5',y2:'22.01'}));assert.equal(visibleInkTouches(ring,gap),false);
+ const clip=[{x:-20,y:-20},{x:20,y:-20},{x:20,y:-10},{x:-20,y:-10}],cap=geometryFromNative(native('circle',{r:'20'},true,0),clip);
+ assert.equal(visibleInkTouches(cap,disk(0,0,2)),false,'a clipped-away centre is not ink');
+ assert.equal(visibleInkTouches(cap,disk(0,-15,1)),true);assert.equal(visibleInkTouches(cap,ring),true);
+ assert.equal(inkFullyInside(disk(12,12,1),ring.enclosure),true,'a diagonal disk is tested as a disk, not its box corners');
+ const square={kind:'polygon',points:[{x:0,y:0},{x:10,y:0},{x:10,y:10},{x:0,y:10}]};
+ assert.equal(convexInkTouches(square,{kind:'circle',center:{x:11,y:5},radius:1}),true);
+ assert.equal(convexInkTouches(square,{kind:'circle',center:{x:11.01,y:5},radius:1}),false);
+ assert.equal(geometryFromNative({...native('circle',{r:'20'}),transform:'matrix(2 0 0 1 0 0)'}),undefined,'unsupported transforms do not masquerade as circular geometry');
+ const scaled=geometryFromNative({...native('circle',{r:'20'},false,4),transform:'matrix(2 0 0 2 10 20)'});
+ assert.deepEqual(scaled.enclosure,{kind:'circle',center:{x:10,y:20},radius:38});
+});
+
+test('Inside excludes boundary-crossing components and concave intrusions while Contour stays independent',()=>{
+ const box=(left,top,right,bottom)=>({left,top,right,bottom});
+ const owner=box(0,0,100,100),rectangle={kind:'rectangle',points:[{x:0,y:0},{x:1,y:1}],closed:true};
+ assert.equal(pathTouchesBox(rectangle,owner,box(40,-5,60,10),false,'inside'),false);
+ assert.equal(pathTouchesBox(rectangle,owner,box(40,-5,60,10),true,'inside'),true,'drawn Contour can separately include intersections');
+ assert.equal(pathTouchesBox(rectangle,owner,box(0,0,100,100),false,'inside'),true,'boundary equality is fully contained');
+ const notched={kind:'polygon',closed:true,points:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:.6,y:1},{x:.6,y:.4},{x:.4,y:.4},{x:.4,y:1},{x:0,y:1}]};
+ assert.equal(pathTouchesBox(notched,owner,box(30,30,70,60),false,'inside'),false,'all corners inside is insufficient when a concavity cuts through the component');
+});
+
+test('native Inside resolves sibling geometry and pointer refinement through the same source enclosure',async()=>{
+ const previous={document:globalThis.document,getComputedStyle:globalThis.getComputedStyle,innerWidth:globalThis.innerWidth,innerHeight:globalThis.innerHeight};
+ const {continuityWorkingScope}=await import('../src/appearance/selectionToggle.ts');
+ const {geometryFromNative}=await import('../src/appearance/nativeGeometryRelations.ts');
+ try{
+  const bounds={left:-31,right:31,top:-31,bottom:31,width:62,height:62},surface={contains:()=>true};
+  const element=()=>({isConnected:true,closest:selector=>selector==='[data-selection-scope]'?surface:null,getClientRects:()=>[bounds],getBoundingClientRect:()=>bounds,contains(other){return other===this;}});
+  const frame=element(),child=element(),stem=element(),app=element();app.contains=()=>true;
+  globalThis.document={body:app};globalThis.innerWidth=200;globalThis.innerHeight=200;globalThis.getComputedStyle=()=>({visibility:'visible'});
+  const shape=(tag,attributes,fill=false)=>({tag,attributes,transform:'matrix(1 0 0 1 0 0)',fill,stroke:2,strokeWidth:2,linecap:'round',linejoin:'round',points:[],closed:tag!=='line',vectorEffect:'none',fillRule:'nonzero'});
+  const ring=shape('circle',{r:'30'}),inner=shape('circle',{r:'10'}),line=shape('line',{x1:'0',y1:'0',x2:'50',y2:'0'});
+  const native=new Map([[frame,ring],[child,inner],[stem,line]]),geometry=new Map([...native].map(([e,s])=>[e,geometryFromNative(s)]));
+  const parts=[{key:'frame',element:frame,role:'icon'},{key:'inner',element:child,role:'icon'},{key:'stem',element:stem,role:'icon'}];
+  const measure={shape:e=>native.get(e),relation:e=>geometry.get(e),partRelation:part=>geometry.get(part.element),rects:()=>[bounds]};
+  const inside={boundary:{element:frame,key:'frame'},ownerFrame:true,framePart:'frame',contour:false,region:'inside',path:{kind:'rectangle',closed:true,points:[{x:0,y:0},{x:1,y:1}]}};
+  assert.deepEqual(matchingVisualParts(parts,{...inside,include:true},measure).map(p=>p.key),['inner'],'a sibling can be contained; a crossing stem is excluded');
+  assert.deepEqual(matchingVisualParts(parts,{...inside,contour:true,include:true},measure).map(p=>p.key),['frame','inner'],'Contour adds only the pointed frame, not crossing peers');
+  assert.equal(pointerInSelectionScope(inside,child,{x:0,y:0},measure),true);
+  assert.equal(pointerInSelectionScope(inside,child,{x:28,y:28},measure),false,'circle box corners do not define its interior');
+  const drawn={boundary:{element:app,key:'app'},path:{kind:'rectangle',closed:true,points:[{x:0,y:0},{x:1,y:1}]}};
+  assert.equal(continuityWorkingScope({...inside,scope:drawn}),drawn,'switching relations releases a pointed enclosure, retaining a deliberate drawn working area');
+  assert.equal(continuityWorkingScope(inside),null);
+  const connected={boundary:{element:app,key:'app'},parts:['frame','stem']};
+  assert.deepEqual(matchingVisualParts(parts,{...connected,include:true},measure).map(p=>p.key),['frame','stem']);
+  assert.equal(selectionToggleRule(parts,parts.filter(p=>p.key!=='inner'),connected,measure).include,false,'a connected set toggles off as one operation');
+  assert.equal(selectionToggleRule(parts,[parts[0]],connected,measure).include,true,'mixed membership includes the complete connected set');
+ }finally{Object.assign(globalThis,previous);}
+});
+
+test('geometry revisions follow source edits without rebuilding topology for selection pulse styling',async()=>{
+ const {selectionGeometryStyleChanged,SELECTION_GEOMETRY_ATTRIBUTES}=await import('../src/appearance/selectionLens.ts');
+ assert.equal(selectionGeometryStyleChanged('stroke-width:2; --omnium-selector-pulse:0.2','stroke-width:2; --omnium-selector-pulse:0.8'),false);
+ assert.equal(selectionGeometryStyleChanged('stroke-width:2','stroke-width:4'),true);
+ assert.equal(selectionGeometryStyleChanged('transform:translate(0px)','transform:translate(10px)'),true);
+ assert.equal(selectionGeometryStyleChanged('fill:none','fill:#60ddec'),true);
+ for(const attribute of ['d','r','transform','clip-path','opacity','data-selection-geometry-revision'])assert.ok(SELECTION_GEOMETRY_ATTRIBUTES.includes(attribute));
+});
+
+test('paint visibility never treats a zero RGB channel as zero alpha',async()=>{
+ const {selectionPaintVisible}=await import('../src/appearance/nativeGeometryRelations.ts');
+ for(const colour of ['rgb(255, 0, 0)','rgb(0, 255, 0)','rgb(0, 0, 0)','rgba(0, 0, 0, 1)','rgb(0 255 0 / .5)'])assert.equal(selectionPaintVisible(colour),true,colour);
+ for(const colour of ['none','transparent','rgba(255, 0, 0, 0)','rgb(0 255 0 / 0)','rgb(0 255 0 / 0%)'])assert.equal(selectionPaintVisible(colour),false,colour);
+});
+
+test('declared additive paint resolves the registered source part without a second selection owner',t=>{
+ const previous=globalThis.document;globalThis.document={body:{}};t.after(()=>{globalThis.document=previous;});
+ const surface={getAttribute:()=> 'surface'},owner={getAttribute:key=>key==='data-selection-id'?'ring':null,hasAttribute:key=>key==='data-selection-id',closest:selector=>selector==='[data-selection-scope]'?surface:null};
+ const original={hasAttribute:key=>key==='data-selection-id'||key==='data-selection-geometry',getAttribute:key=>key==='data-selection-id'?'ring':null,contains:()=>false,closest:selector=>selector==='[data-selection-scope]'?surface:null};
+ const paint={closest:selector=>selector==='[data-selection-boundary][data-selection-id]'?owner:null,contains:()=>false};
+ const part={key:'ring',address:'surface:data-selection-id:ring',element:original,role:'icon',target:{id:'geometry.rendered'}};
+ assert.equal(partAt([part],paint,0,0),part,'a clipped paint hit belongs to its declared boundary, even though it is a sibling of the original rim');
+});
+
+test('contact geometry rejects box-corner false positives and preserves crossing/filled-area connectivity',async()=>{
+ const {visibleInkTouches,prepareConnectedInk}=await import('../src/appearance/geometryRelations.ts');
+ const circle=(x,y,r)=>({kind:'circle',center:{x,y},radius:r}),ring=(x,y)=>({ink:[{outer:circle(x,y,11),hole:{center:{x,y},radius:9}}]});
+ const line=(a,b)=>({ink:[{outer:{kind:'capsule',a,b,radius:1}}]});
+ assert.equal(visibleInkTouches(ring(0,0),ring(20,20)),false,'overlapping bounds are only a broad-phase test');
+ assert.equal(visibleInkTouches(line({x:-10,y:0},{x:10,y:0}),line({x:0,y:-10},{x:0,y:10})),true);
+ assert.equal(visibleInkTouches(line({x:-10,y:0},{x:10,y:0}),line({x:-10,y:2.01},{x:10,y:2.01})),false);
+ assert.equal(visibleInkTouches(ring(0,0),{ink:[{outer:circle(0,0,20)}]}),true,'filled area connects enclosed ink even without perimeter contact');
+ assert.equal(visibleInkTouches(ring(0,0),line({x:-2,y:0},{x:2,y:0})),false,'empty enclosed space does not connect a short line');
+ assert.equal(prepareConnectedInk([{key:'no-ink',scope:0,geometry:{ink:[]}}]).groups.has('no-ink'),false);
+});
+
+test('future scene renderers lend geometry through the existing registration and inherit cached relation preparation',async()=>{
+ const {registerHierarchyScene}=await import('../src/appearance/sceneFeedback.ts');
+ const {createVisualMeasurements}=await import('../src/appearance/visualSelection.ts');const {prepareConnectedInk}=await import('../src/appearance/geometryRelations.ts');
+ let reads=0;const canvas={},a={key:'a',element:canvas,target:{id:'a',binding:{selection:{renderer:'scene'}}}},b={...a,key:'b',target:{...a.target,id:'b'}};
+ const stop=registerHierarchyScene({pulse:()=>{},clear:()=>{},geometry:(target,element)=>{reads++;assert.equal(element,canvas);return {ink:[{outer:{kind:'circle',center:{x:target==='a'?0:2,y:0},radius:1}}]};}});
+ try{const measured=createVisualMeasurements(),geometryA=measured.partRelation(a),geometryB=measured.partRelation(b);
+  assert.equal(measured.partRelation(a),geometryA);assert.equal(reads,2,'no renderer rediscovery on repeated queries');
+  const topology=prepareConnectedInk([{key:'a',scope:canvas,geometry:geometryA},{key:'b',scope:canvas,geometry:geometryB}]);assert.deepEqual(topology.groups.get('a'),['a','b']);
+ }finally{stop();}
+});

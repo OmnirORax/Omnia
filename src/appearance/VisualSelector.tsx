@@ -1,6 +1,7 @@
+import {prepareConnectedInk} from './geometryRelations';
 import { selectionSurfaces, spatialSelectionRange, selectionPointerMode, type SelectionUnit } from "./selectionSurfaces";
 import { orderedSelectionRange, rangeWorkingScope, selectorOpenPhase, selectorEscapePhase } from "./selectionRange";
-import {DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
+import {SELECTION_GEOMETRY_ATTRIBUTES,selectionGeometryStyleChanged,DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
 import {selectionRequest,selectionConfirmation,selectionDecision,type SelectionDecision} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
@@ -19,7 +20,7 @@ import { SelectionController } from "./SelectionController";
 import { describeSelectedParts } from "./selectedParts";
 import { PROPERTY_REGISTRY, TARGETS } from "./registry";
 import { resolvePropertyTarget, selfInventory, type SelfInventoryNode } from "../properties/registry";
-import { DEFAULT_SELECTION_MASK, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule, type SelectionMask, type MaskPart } from "./selectionToggle";
+import { DEFAULT_SELECTION_MASK, continuityWorkingScope, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule, type SelectionMask, type MaskPart } from "./selectionToggle";
 import { selectedPartTarget } from "./selectionCoupling";
 import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODE_GROUPS, PATTERN_SYMBOLS,
   type Point, type PathCondition, type PatternMode, type SelectionSide } from "./selectionGeometry";
@@ -39,7 +40,7 @@ const Context = createContext<VisualSelection | null>(null);
 export const useVisualSelection = () => useContext(Context);
 const emptySelection = (): SelectionState => ({ boundary: null, scope: null, mask: null, rules: [], objects: [] });
 const noParts: VisualPart[] = [];
-const constraintKey = (rule: SelectionConstraint): string => `${rule.boundary.key}:${rule.backgrounds ?? ""}:${rule.region ?? ""}:${rule.contour ?? ""}:${rule.role ?? ""}:${rule.target ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.line ?? rule.path ?? null)}:${rule.geometryId ?? ""}:${rule.scope ? constraintKey(rule.scope) : ""}`;
+const constraintKey = (rule: SelectionConstraint): string => `${rule.boundary.key}:${rule.backgrounds ?? ""}:${rule.region ?? ""}:${rule.contour ?? ""}:${rule.role ?? ""}:${rule.target ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.parts??null)}:${JSON.stringify(rule.line ?? rule.path ?? null)}:${rule.geometryId ?? ""}:${rule.scope ? constraintKey(rule.scope) : ""}`;
 const ruleKey = (rule: SelectionRule) => `${rule.include}:${constraintKey(rule)}`;
 const roleNames: Record<VisualRole, string> = { text: "Text", background: "Backgrounds", contour: "Contours", icon: "Icons", indicator: "Indicators" };
 const roleSymbols: Record<VisualRole, string> = { text: "T", background: "□", contour: "○", icon: "◆", indicator: "◉" };
@@ -85,7 +86,10 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const rangeAnchor=useRef<SelectionBoundary|null>(null);
   const selectedRef = useRef<VisualPart[]>([]), gesture = useRef<Gesture | null>(null);
   const polygon = useRef<Gesture | null>(null);
-  const measurements = useMemo(() => createVisualMeasurements(), [catalog, geometry]);
+  const measurements = useMemo(() => {const prepared=createVisualMeasurements();for(const part of catalog)prepared.partRelation(part);return prepared;}, [catalog, geometry]);
+  const continuity=useMemo(()=>configuration.pattern==='continuity'?prepareConnectedInk((selection.scope?matchingVisualParts(catalog,{...selection.scope,include:true},measurements):catalog).flatMap(part=>{
+    const geometry=measurements.partRelation(part);return geometry?[{key:part.key,scope:part.element.closest('[data-selection-scope]')??('ownerSVGElement' in part.element?part.element.ownerSVGElement:null)??part.element,geometry}]:[];
+  })):undefined,[catalog,measurements,configuration.pattern,selection.scope]);
   const toggleCandidate = useRef<{ catalog: VisualPart[]; selection: SelectionState; measurements: ReturnType<typeof createVisualMeasurements>; picks: Map<string, Pick> } | null>(null);
   const latest = useRef({ phase, configuration, catalog, selection, measurements });
   latest.current = { phase, configuration, catalog, selection, measurements };
@@ -194,12 +198,19 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         ...(config.region ? { region: config.region } : {}), ...(config.patternRole ? { role: config.patternRole } : {}) } });
       return;
     }
-    const scope = current.selection.scope ? detectionGeometry(current.selection.scope, config, element, { x, y }) : null;
-    if (scope && !pointerInSelectionScope(scope, element, { x, y })) { setCandidatePick(null); return; }
+    const scope = current.selection.scope ? detectionGeometry(current.selection.scope, config, element, { x, y },current.measurements) : null;
+    if (scope && !pointerInSelectionScope(scope, element, { x, y },current.measurements)) { setCandidatePick(null); return; }
     const available=(scope?matchingVisualParts(current.catalog,{...scope,include:true},current.measurements):current.catalog).filter(part=>config.backgrounds||part.role!=='background');
-    const hit=surface?lensPart(available.filter(part=>surface.contains(part.element)),x,y):partAt(current.catalog,element,x,y,current.measurements);
+    const pointed=partAt(current.catalog,element,x,y,current.measurements),permitted=new Set(available.map(part=>part.key));
+    const hit=pointed&&permitted.has(pointed.key)?pointed:surface?lensPart(available.filter(part=>surface.contains(part.element)),x,y):undefined;
     const part = hit && (config.backgrounds || hit.role !== "background") && (!scope || matchingVisualParts([hit], { ...scope, include: true }, current.measurements).length) ? hit : undefined;
     if(surface&&part)point.current={element:part.element,x,y};
+    if(mode==='continuity'){
+      if(!part){setCandidatePick(null);return;}
+      const members=continuity?.groups.get(part.key);
+      if(!members){setCandidatePick(null);setPickFeedback(continuity?.complete===false?'Narrow the working scope to resolve continuity':'No continuity geometry adapter for this part');return;}
+      prepareToggle({boundary:app,...(scope?{scope}:{}),parts:members.filter(key=>permitted.has(key))});return;
+    }
     if (part) prepareToggle({ boundary: app, ...(scope ? { scope } : {}),
       ...(mode === "pattern" ? { role: config.patternRole ?? part.role, target: patternTarget(part) } : { part: part.key }) });
     else setCandidatePick(null);
@@ -274,10 +285,16 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     updateScope(scope => ({ ...scope, line: scope.line ? { ...scope.line, rotation: (scope.line.rotation ?? 0) + degrees } : undefined,
       path: scope.path ? { ...scope.path, rotation: (scope.path.rotation ?? 0) + degrees } : undefined }));
   };
-  const chooseRegion = (side: SelectionSide) => applyMask({ contour: latest.current.configuration.contour,
-    region: toggleSelectionRegion(latest.current.configuration.region, side), backgrounds: latest.current.configuration.backgrounds }, side);
+  const chooseRegion = (side: SelectionSide) => {
+    const current=latest.current,region=toggleSelectionRegion(current.configuration.region,side);
+    applyMask({contour:current.configuration.contour,region,backgrounds:current.configuration.backgrounds},side);
+    if(region&&!current.selection.scope&&(current.configuration.pattern==='item'||current.configuration.pattern==='continuity'))chooseMode('boundary');
+  };
   const toggleContour = () => applyMask({ contour: !latest.current.configuration.contour, region: latest.current.configuration.region, backgrounds: latest.current.configuration.backgrounds }, "contour");
-  const chooseMode = (pattern: PatternMode) => { cancelDrawing(); depth.current=0;setConfiguration(config => ({ ...config, pattern, rotation: 0 })); };
+  const chooseMode = (pattern: PatternMode) => { cancelDrawing(); depth.current=0;settledPoint.current=null;
+    if(pattern==='continuity')record(current=>{const scope=continuityWorkingScope(current.scope);return scope===current.scope?current:{...current,scope,mask:null};});
+    const work=pattern==='continuity'?continuityWorkingScope(latest.current.selection.scope):latest.current.selection.scope;
+    setConfiguration(config => ({ ...config, pattern, rotation: 0,...(pattern==='continuity'&&!work?{contour:false,region:null}:{}) })); };
   const cyclePattern = () => chooseMode(nextPatternMode(latest.current.configuration.pattern));
   const finishPolygon = () => {
     const draft = polygon.current;
@@ -607,7 +624,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       point.current = { element: event.target, x: event.clientX, y: event.clientY };
       const current = latest.current;
       if (current.phase === "aim" && current.selection.scope && !current.configuration.contour && !current.configuration.region && current.selection.scope.path?.closed && outsideChrome(event)) {
-        const scope = detectionGeometry(current.selection.scope, current.configuration, event.target, point.current);
+        const scope = detectionGeometry(current.selection.scope, current.configuration, event.target, point.current,current.measurements);
         setAutomaticRegion(scope.region === "inside" ? "inside" : "outside");
       }
       if (latest.current.phase === "off" && latest.current.selection.boundary && event.buttons) {
@@ -771,10 +788,14 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       frame = requestAnimationFrame(() => { frame = 0; setCatalog(collectVisualParts()); setGeometry(value => value + 1); });
     };
     const observer = new MutationObserver(records => {
-      if (records.some(record => !(record.target instanceof Element ? record.target : record.target.parentElement)?.closest(`${selectorChrome},${APPEARANCE_EDITOR}`))) refresh();
+      if (records.some(record => {
+        const element=record.target instanceof Element?record.target:record.target.parentElement;
+        if(element?.closest(`${selectorChrome},${APPEARANCE_EDITOR}`))return false;
+        return record.attributeName!=='style'||selectionGeometryStyleChanged(record.oldValue??'',element?.getAttribute('style')??'');
+      })) refresh();
     });
     observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true,
-      attributeFilter: ["class", "hidden", "open", "data-ui-native-hidden", "data-ui-native-icon", "data-ui-resident-root"] });
+      attributeOldValue:true,attributeFilter: [...SELECTION_GEOMETRY_ATTRIBUTES,"style","class", "hidden", "open", "data-ui-native-hidden", "data-ui-native-icon", "data-ui-resident-root"] });
     window.addEventListener("resize", refresh);
     window.addEventListener("scroll", refresh, true);
     return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", refresh); window.removeEventListener("scroll", refresh, true); };
@@ -880,8 +901,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
         {PATTERN_MODE_GROUPS.map(group => <fieldset key={group.label} className="visual-selector-mode-group">
           <legend>{group.label}</legend>
           <div className="visual-selector-modes" aria-label={group.label}>
-            {group.modes.map(mode => <button type="button" key={mode} aria-label={`Selection mode: ${mode}`} aria-pressed={configuration.pattern === mode}
-              title={mode === "boundary" ? "Use a pointed contour; wheel changes owner depth, or search radius on a lens-enabled surface" : mode}
+            {group.modes.map(mode => <button type="button" key={mode} aria-label={`Selection mode: ${mode==='item'?'Exact':mode==='continuity'?'Continuity':mode}`} aria-pressed={configuration.pattern === mode}
+              title={mode === "item" ? "Exact: only the pointed registered part" : mode === "continuity" ? "Continuity: all actually touching or intersecting components; containment and authored grouping do not connect them" : mode === "boundary" ? "Use a pointed contour; wheel changes owner depth, or search radius on a lens-enabled surface" : mode}
               onClick={() => chooseMode(mode)}>{PATTERN_SYMBOLS[mode]}</button>)}
           </div>
         </fieldset>)}

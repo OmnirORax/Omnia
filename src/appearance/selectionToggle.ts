@@ -37,9 +37,9 @@ export function selectionToggleRule(parts: VisualPart[], included: readonly Visu
 }
 
 /** A neutral closed frame follows the pointer side without changing inclusion. */
-export function detectionGeometry(geometry: SelectionConstraint, mask: SelectionMask, element: Element, point: Point): SelectionConstraint {
+export function detectionGeometry(geometry: SelectionConstraint, mask: SelectionMask, element: Element, point: Point,measure?:VisualMeasurements): SelectionConstraint {
   if (mask.contour || mask.region || !geometry.path?.closed) return geometry;
-  const inside = pointerInSelectionScope({ ...geometry, contour: false, region: "inside" }, element, point);
+  const inside = pointerInSelectionScope({ ...geometry, contour: false, region: "inside" }, element, point,measure);
   return { ...geometry, contour: false, region: inside ? "inside" : "outside" };
 }
 
@@ -50,4 +50,13 @@ export function selectionRemovalRule(parts: VisualPart[], included: readonly Vis
   const peers = matchingVisualParts(parts, { ...constraint, include: false }, measure);
   if (peers.some(part => part.key === pointed.key)) return { ...constraint, include: false };
   return { boundary: constraint.boundary, part: pointed.key, include: false };
+}
+
+/** Switching to contact selection must not inherit a former pointed enclosure
+ * as if containment established continuity. Explicit drawn work areas remain. */
+export function continuityWorkingScope(scope:SelectionConstraint|null):SelectionConstraint|null{
+ if(!scope)return null;
+ const parent=continuityWorkingScope(scope.scope??null);
+ if(scope.ownerFrame)return parent;
+ return parent===(scope.scope??null)?scope:{...scope,scope:parent??undefined};
 }
