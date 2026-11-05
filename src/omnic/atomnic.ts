@@ -12,7 +12,7 @@ export const atomnicSettings=(recipe:Recipe)=>({...atomnicDefaults(),...recipe.a
  * evaluated-coordinate adapter before direct authored-dot gestures are safe. */
 export const atomnicEditable=(recipe:Recipe,evaluation?:Pick<Evaluation,'diagnostics'>)=>{
  const rejected=new Set(evaluation?.diagnostics.filter(d=>d.code==='unsupported-substrate-transform').map(d=>d.operation));
- return recipe.operations.every(op=>!op.enabled||op.operator==='highlight'||rejected.has(op.id));
+ return recipe.operations.every(op=>!op.enabled||op.operator==='highlight'||op.operator==='fill'||rejected.has(op.id));
 };
 export function atoms(recipe:Recipe):Atom[] {
   const result:Atom[]=[];

@@ -1,15 +1,16 @@
+import {regionContains} from '../properties/regionField.ts';
 import type {StructuralNode} from './evaluate.ts';
 export const ROTATION_EDGE_PIXELS=8;
 type Point={x:number;y:number};
 type Box={left:number;top:number;right:number;bottom:number};
-type Edge={id:string;owner:string;order:number;kind:'line'|'circle';x:number;y:number;x2:number;y2:number;radius:number;stroke:number;fill:boolean;box:Box};
+type Edge={id:string;owner:string;order:number;kind:'line'|'circle';x:number;y:number;x2:number;y2:number;radius:number;stroke:number;fill:boolean;regions?:StructuralNode['fillRegions'];box:Box};
 export type GeometryEdges={box:Box;edges?:readonly Edge[];children?:readonly GeometryEdges[]};
 /** Snapshot only the selected rendered primitives. Boxes accelerate queries;
  * exact segment/circle distances below determine interaction, never box edges. */
 export function prepareGeometryEdges(nodes:readonly StructuralNode[]):GeometryEdges|undefined{
- const edges:Edge[]=nodes.filter(n=>n.kind!=='group'&&n.opacity>0&&(n.thickness>0||n.kind!=='line'&&n.fill&&n.radius>0)).map((n,order)=>{
+ const edges:Edge[]=nodes.filter(n=>n.kind!=='group'&&n.opacity>0&&(n.thickness>0||n.kind!=='line'&&(n.fill||n.fillRegions?.length)&&n.radius>0)).map((n,order)=>{
   const stroke=n.thickness/2,r=n.kind==='line'?stroke:n.radius+stroke,x2=n.x2??n.x,y2=n.y2??n.y;
-  return {id:n.id,owner:n.componentId,order,kind:n.kind==='line'?'line':'circle',x:n.x,y:n.y,x2,y2,radius:n.radius,stroke,fill:n.fill,box:{left:Math.min(n.x,x2)-r,top:Math.min(n.y,y2)-r,right:Math.max(n.x,x2)+r,bottom:Math.max(n.y,y2)+r}};
+  return {id:n.id,owner:n.componentId,order,kind:n.kind==='line'?'line':'circle',x:n.x,y:n.y,x2,y2,radius:n.radius,stroke,fill:n.fill,regions:n.fillRegions,box:{left:Math.min(n.x,x2)-r,top:Math.min(n.y,y2)-r,right:Math.max(n.x,x2)+r,bottom:Math.max(n.y,y2)+r}};
  });
  const build=(items:Edge[]):GeometryEdges=>{
   const box={left:Math.min(...items.map(e=>e.box.left)),top:Math.min(...items.map(e=>e.box.top)),right:Math.max(...items.map(e=>e.box.right)),bottom:Math.max(...items.map(e=>e.box.bottom))};
@@ -23,7 +24,7 @@ export function prepareGeometryEdges(nodes:readonly StructuralNode[]):GeometryEd
 function distance(point:Point,edge:Edge){
  if(edge.kind==='circle'){
   const d=Math.hypot(point.x-edge.x,point.y-edge.y)-edge.radius;
-  return (edge.fill?d:Math.abs(d))-edge.stroke;
+  return (edge.fill||d<=0&&edge.regions?.some(region=>region.opacity>0&&regionContains(region.points,point))?d:Math.abs(d))-edge.stroke;
  }
  const dx=edge.x2-edge.x,dy=edge.y2-edge.y,length=dx*dx+dy*dy;
  const t=length?Math.max(0,Math.min(1,((point.x-edge.x)*dx+(point.y-edge.y)*dy)/length)):0;

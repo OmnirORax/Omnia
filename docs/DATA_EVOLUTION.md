@@ -123,3 +123,18 @@ adds no new runtime migration engine, full backup, cloud sync or automatic
 compatibility-impact detector. Close the gaps through bounded changes with
 historical fixtures and recovery evidence, starting before the next affected
 storage change.
+
+### Reference-threshold fill (2026-11-05)
+
+Owner remains the version-1/2 Omnic recipe and existing Fill application adapter.
+New optional `clipped`, `left`, `top`, `right`, `bottom` parameters describe an
+accepted coordinate-region snapshot; absence preserves whole-fill behavior.
+Explicit legacy `fill: false`, zero opacity, identities and targets are unchanged.
+Clip bounds must be finite, ordered and within existing numeric/extent budgets.
+Rendered clip polygons are transient evaluation data, never another saved owner.
+Undo, drafts, library, workspace exports and backend validation use existing recipe
+paths. No database migration or new storage slot is required. Older clients reject
+these unknown parameter keys; do not edit new clipped-fill work with an older
+client. Keep the original export when moving between versions; no downgrade
+conversion or universal stale-tab protection is claimed. Historical whole-fill
+fixtures and new region round trips are covered in `tests/omnic.test.mjs`.

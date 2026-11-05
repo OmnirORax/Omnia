@@ -671,7 +671,7 @@ test('Composer DOF shortcuts derive from writable metadata, reusing existing Rot
   assert.ok(generated.every(action=>action.category==='Omnic Composer'&&action.defaultKey===''));
   assert.ok(!generated.some(action=>action.degreeProperty==='omnic.angle'||action.degreeProperty==='omnic.position'),'existing complete adjusters have no duplicate rows');
   assert.equal(FEATURE_ACTIONS.find(action=>action.id==='atomnic.rotate').defaultKey,'R');
-  for(const parameter of [...GENERATORS,...OPERATORS].flatMap(definition=>definition.parameters))
+  for(const parameter of [...GENERATORS,...OPERATORS].flatMap(definition=>definition.parameters).filter(input=>!input.internal))
     assert.ok(generated.some(action=>action.degreeProperty===parameter.property)||FEATURE_ACTIONS.some(action=>'adjusts' in action&&action.adjusts.length===1&&action.adjusts.includes(parameter.property)),parameter.property);
   assert.ok(composerDegreeActions().some(action=>action.degreeProperty==='omnic.position'),'vector freedom is discovered from axis metadata');
 });

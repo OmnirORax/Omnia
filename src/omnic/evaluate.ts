@@ -2,7 +2,7 @@ import {pathTrace,readPathRule} from './pathRule.ts';
 import { snappedAngle } from "./rotation.ts";
 import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params, type RecipeResolver } from "./model.ts";
 import { defaultParams, definition } from "./registry.ts";
-export type StructuralNode = { referenceTransformed?:boolean; referenceScaled?:boolean; id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
+export type StructuralNode = { referenceTransformed?:boolean; referenceScaled?:boolean; id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; fillRegions?:{points:{x:number;y:number}[];color:string;opacity:number}[]; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
 export type Diagnostic = { code:string; message:string; target?:string; operation?:string };
 export type InterpretationResult = { operation:string; kind:"count"; value:number; scope:string[] };
 export type Evaluation = { substrates?:{x:number;y:number;width:number;height:number}[]; results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
@@ -15,11 +15,12 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
   const nodes:StructuralNode[]=[],diagnostics:Diagnostic[]=[],frames:Frame[]=[],results:InterpretationResult[]=[];
   const substrates:NonNullable<Evaluation["substrates"]>=[];
   const generations=new Map<string,Generation>(),byId=new Map<string,StructuralNode>();
-  let work=0,motion=false;
+  let work=0,regionCount=0,motion=false;
   const spend=(n=1)=>{work+=n;if(work>LIMITS.work)throw Error("Omnic evaluation work budget exceeded.");};
   const ensureExtent=()=>{
     for(const node of nodes){
       spend();
+      for(const region of node.fillRegions??[])for(const point of region.points){spend();if(![point.x,point.y].every(v=>Number.isFinite(v)&&Math.abs(v)<=LIMITS.extent))throw Error("Omnic geometric extent exceeded.");}
       if(![node.x,node.y,node.x2??0,node.y2??0,node.radius,node.thickness].every(v=>Number.isFinite(v)&&Math.abs(v)<=LIMITS.extent)||node.radius<0||node.thickness<0)throw Error("Omnic geometric extent exceeded.");
     }
   };
@@ -156,6 +157,14 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       for(const node of targets){
         spend();
         if(kind==="fill"){
+          if(p.clipped){
+            if(node.kind!=="dot"&&node.kind!=="ring")continue;
+            const left=num(p,"left")+offset.x,top=num(p,"top")+offset.y,right=num(p,"right")+offset.x,bottom=num(p,"bottom")+offset.y;
+            if(right<=left||bottom<=top)throw Error("Empty threshold region.");
+            if(++regionCount>LIMITS.nodes)throw Error("Fill region budget exceeded.");
+            node.fillRegions=[...(node.fillRegions??[]),{points:[{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}],color:op.params.color===undefined?node.color:String(p.color),opacity:op.params.opacity===undefined?1:num(p,"opacity",1)}];continue;
+          }
+          node.fillRegions=undefined;
           node.fill=Boolean(p.fill);node.color=String(p.color);node.opacity=num(p,"opacity",1);
           const generation=generations.get(node.id);if(generation)Object.assign(generation.params,{fill:node.fill,color:node.color,opacity:node.opacity});
         }
@@ -166,6 +175,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
           if(node.x2!==undefined)node.x2=offset.x+(node.x2-offset.x)*factor;
           if(node.y2!==undefined)node.y2=offset.y+(node.y2-offset.y)*factor;
           node.radius*=factor;node.thickness*=factor;
+          if(node.fillRegions)node.fillRegions=node.fillRegions.map(region=>({...region,points:region.points.map(point=>({x:offset.x+(point.x-offset.x)*factor,y:offset.y+(point.y-offset.y)*factor}))}));
           const generation=generations.get(node.id);if(generation)for(const key of ["radius","spacing","size","length","thickness"])if(typeof generation.params[key]==="number")generation.params[key]=num(generation.params,key)*factor;
         }
         if(kind==="rotate"){
@@ -176,6 +186,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
           const angle=rad(rotation),cx=pivot.x+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotX"):0),cy=pivot.y+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotY"):0),cos=Math.cos(angle),sin=Math.sin(angle);
           const rotate=(x:number,y:number)=>({x:cx+(x-cx)*cos-(y-cy)*sin,y:cy+(x-cx)*sin+(y-cy)*cos});
           const point=rotate(node.x,node.y);node.x=point.x;node.y=point.y;
+          if(node.fillRegions)node.fillRegions=node.fillRegions.map(region=>({...region,points:region.points.map(point=>rotate(point.x,point.y))}));
           if(node.x2!==undefined&&node.y2!==undefined){const end=rotate(node.x2,node.y2);node.x2=end.x;node.y2=end.y;}
           const generation=generations.get(node.id);if(generation)generation.params.angle=num(generation.params,"angle")+rotation;
           if(node.highlight)node.highlight={...node.highlight,start:node.highlight.start+rotation};
@@ -183,6 +194,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
         if(kind==="oscillate"){
           motion=true;
           const displacement=num(p,"amplitude",10)*Math.sin(time*Math.PI*2*num(p,"frequency",1)+rad(num(p,"phase")));
+          if(node.fillRegions)node.fillRegions=node.fillRegions.map(region=>({...region,points:region.points.map(point=>({...point,[p.axis==="x"?"x":"y"]:point[p.axis==="x"?"x":"y"]+displacement}))}));
           if(p.axis==="x"){node.x+=displacement;if(node.x2!==undefined)node.x2+=displacement;}else{node.y+=displacement;if(node.y2!==undefined)node.y2+=displacement;}
         }
       }

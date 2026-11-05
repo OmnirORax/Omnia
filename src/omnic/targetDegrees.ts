@@ -16,10 +16,10 @@ export function targetDegrees(recipe:Recipe,ids:readonly string[],adjusters:read
 /** Editor entry points expose vector DOFs without changing scalar measurement adapters. */
 export function targetEditorDegrees(...args:Parameters<typeof targetDegrees>){
  const [recipe,ids,adjusters=[],fixed=[],coverage='common']=args;
- const raw=targetDegrees(recipe,ids,[],fixed,coverage),vectorProperties=new Set(raw.filter(d=>d.targets[0]?.input.freedom?.vector).flatMap(d=>d.properties));
- // Vector editors own their tuple; legacy action adjusters remain available via
- // their action routing, rather than swallowing one of the optional axes.
- return vectorDegrees(targetDegrees(recipe,ids,adjusters.filter(a=>!a.adjusts.some(p=>vectorProperties.has(p))),fixed,coverage));
+ const raw=targetDegrees(recipe,ids,[],fixed,coverage),editorProperties=new Set(raw.filter(d=>d.targets[0]?.input.freedom?.vector||(d.targets[0]?.input as Parameter).editor).flatMap(d=>d.properties));
+ // Declared editors own their value/tuple; legacy action adjusters remain
+ // available through action routing without swallowing their editor inputs.
+ return vectorDegrees(targetDegrees(recipe,ids,adjusters.filter(a=>!a.adjusts.some(p=>editorProperties.has(p))),fixed,coverage));
 }
 /** The selected-owner editor scope is shared by radial and keyboard entry. */
 export function selectedEditorDegrees(recipe:Recipe,ids:readonly string[]):EditableDegree[] {

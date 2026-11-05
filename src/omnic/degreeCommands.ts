@@ -5,7 +5,7 @@ type ExistingCommand = { id: string; adjusts?: readonly string[] };
 /** Shortcut inventory derives from the same declared inputs as target editors.
  * Existing complete adjusters retain their IDs/bindings, rather than duplicate rows. */
 export function composerDegreeActions(existing: readonly ExistingCommand[] = []) {
-  const inputs = [...GENERATORS, ...OPERATORS].flatMap(definition => definition.parameters);
+  const inputs = [...GENERATORS, ...OPERATORS].flatMap(definition => definition.parameters.filter(input=>!input.internal));
   const properties = new Map<string, { label: string; properties: readonly string[] }>();
   for (const input of inputs) {
     const previous = properties.get(input.property), label = input.freedom?.label ?? input.label;

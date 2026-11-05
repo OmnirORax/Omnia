@@ -778,3 +778,42 @@ property metadata, preset/target editors, history and shared playback are reused
 Bounds are captured at construction, and cyclic trajectories are evaluated without
 unbounded trace logs. Model checks precede publication; all interactive acceptance
 remains pending. Earlier multi-selection discussion is unresolved and unchanged.
+
+## Reference-region Fill experiment (2026-11-05)
+
+User direction: right-click empty Composer space → Fill → select the referent →
+show its threshold/fraction preview → hover and accept the intended region.
+Object-context Fill retains the clicked target. Do not ask the user whether a
+quarter is a wedge or a horizontal cap, and do not put either answer in Fill.
+The selected referent's declared projection/thresholds determine its possibilities.
+This follows the universal reference → meaningful thresholds preserved under
+fractionalization → preview → commit pipeline, not a shape-preset menu.
+
+Implemented bounded extension: `regionReference` reads the reference's registered
+coordinate DOFs through `fieldReferenceFor`. Each axis retains its own bounds and
+threshold identities. DofStateField lends its prepared rule configuration to a
+projection callback; per-axis fields use the same generator and their own declared
+thresholds. `DofRegionField` previews an interval from the nearer reference edge
+to a generated threshold. A held drag fixes that starting edge and extends the
+interval through further thresholds, including the full reference interval.
+The Fill consumer applies that interval product to actual closed target geometry.
+Neither quarter values nor semantic shapes are specified by Fill. The current
+source adapter is coordinate-based; angular and arbitrary geometry projections
+remain adapter work, not inferred capabilities or Fill-specific alternatives.
+
+MS target requests use the same owned request/restore lifecycle as other DOFs.
+Hover samples derive from an immutable committed snapshot; leaving, dismissal,
+settings changes and cancellation restore without history. Acceptance appends one
+existing Fill application through Composer history. Repeated accepted regions
+accumulate; later evaluated scale/rotation/motion transforms their clip polygons.
+The original boundary paint and unrelated targets remain intact. Source edits
+while an editor is open require reopening rather than overwriting newer work.
+The shared SVG adapter supplies Composer, library and world-asset output.
+
+Limits: closed disk/ring rendered primitives and declared coordinate frames only;
+open line geometry has no filled-area adapter. Animated or otherwise unsupported source contexts retain the existing reference
+adapter restrictions. Regions are
+resolved snapshots, not persistent reference bindings. Browser/user acceptance is
+pending; no browser suite was run. Model checks cover inherited thresholds under
+several rules, translated references, scoped clipping, repeat/transform behavior,
+source immutability and unsupported open geometry.

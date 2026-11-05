@@ -1,3 +1,4 @@
+import {regionContains} from '../properties/regionField.ts';
 import type { Evaluation, StructuralNode } from "./evaluate.ts";
 const esc=(text:string)=>text.replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]!);
 const number=(value:number)=>String(Math.round(value*10000)/10000);
@@ -13,7 +14,7 @@ export function pickStructuralNode(nodes:readonly StructuralNode[],point:{x:numb
       const dx=(node.x2??node.x)-node.x,dy=(node.y2??node.y)-node.y,length=dx*dx+dy*dy;
       const t=length?Math.max(0,Math.min(1,((point.x-node.x)*dx+(point.y-node.y)*dy)/length)):0;
       distance=Math.hypot(point.x-node.x-t*dx,point.y-node.y-t*dy);
-    }else distance=node.fill?Math.max(0,distance-node.radius):Math.abs(distance-node.radius);
+    }else distance=(node.fill||distance<=node.radius&&node.fillRegions?.some(region=>region.opacity>0&&regionContains(region.points,point)))?Math.max(0,distance-node.radius):Math.abs(distance-node.radius);
     if(distance<=Math.max(2,node.thickness/2)&&distance<score){best=node;score=distance;}
   }
   return best;
@@ -67,7 +68,12 @@ function element(node:StructuralNode,selected:boolean) {
   if(node.kind==="group")return "";
   const attrs=`data-selection-geometry="" data-selection-boundary="" data-selection-id="${esc(node.id)}" data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}" aria-label="${esc(node.id)}" style="${node.glow?`color:${esc(node.color)};filter:drop-shadow(0 0 2px currentColor);`:""}fill:${node.fill?esc(node.color):"none"};stroke:${esc(node.color)}" stroke="${esc(node.color)}" stroke-width="${number(node.thickness)}" opacity="${number(node.opacity)}" fill="${node.fill?esc(node.color):"none"}"${selected?' data-omnic-selected="true"':''}`;
   const title=`<title>${esc(node.id)}</title>`;
-  const base = node.kind==="line"?`<line ${attrs} x1="${number(node.x)}" y1="${number(node.y)}" x2="${number(node.x2??node.x)}" y2="${number(node.y2??node.y)}" stroke-linecap="${node.cap??"round"}">${title}</line>`:`<circle ${attrs} cx="${number(node.x)}" cy="${number(node.y)}" r="${number(node.radius)}">${title}</circle>`;
+  let base = node.kind==="line"?`<line ${attrs} x1="${number(node.x)}" y1="${number(node.y)}" x2="${number(node.x2??node.x)}" y2="${number(node.y2??node.y)}" stroke-linecap="${node.cap??"round"}">${title}</line>`:`<circle ${attrs} cx="${number(node.x)}" cy="${number(node.y)}" r="${number(node.radius)}">${title}</circle>`;
+  if(node.fillRegions?.length){
+    const key=Array.from(node.id).map(c=>c.codePointAt(0)!.toString(16)).join('-');
+    const regions=node.fillRegions.map((region,index)=>{const clip=Array.from(JSON.stringify(region.points)).map(c=>c.codePointAt(0)!.toString(16)).join('-'),id=`region-${key}-${index}-${clip}`;return `<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><polygon points="${region.points.map(p=>`${number(p.x)},${number(p.y)}`).join(' ')}"/></clipPath><circle clip-path="url(#${id})" cx="${number(node.x)}" cy="${number(node.y)}" r="${number(node.radius)}" fill="${esc(region.color)}" opacity="${number(region.opacity)}"/>`;}).join('');
+    base=`<g opacity="${number(node.opacity)}" data-selection-boundary data-selection-id="${esc(node.id)}" data-omnic-role="${esc(node.id)}" data-omnic-component="${esc(node.componentId)}">${regions}${base.replace(`opacity="${number(node.opacity)}"`,'opacity="1"')}</g>`;
+  }
   const mark=node.highlight;
   if(!mark||mark.fraction<=0)return base;
   const paint=`stroke="${esc(mark.color)}" stroke-width="${number(node.thickness)}" opacity="${number(mark.opacity)}"`;

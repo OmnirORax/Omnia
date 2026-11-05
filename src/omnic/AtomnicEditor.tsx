@@ -204,7 +204,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     'atomnic.rotate':{enabled:bindParameters&&!!commandDegree(shortcutDegrees,rotationProperty),cursor:pointerTool==='rotate'&&(rotationHover||cursorOperation==='rotate')?{zone:cursorZone}:false,run:openRotation},
     'atomnic.step':{enabled:compatible&&selected.size>0,run:()=>beginRotation(true)},
     'atomnic.highlight':{enabled:compatible&&selected.size>0,run:mark},
-    'atomnic.fill':{enabled:compatible&&selected.size>0,run:()=>{const ids=scoped(selectedRef.current);commit(mapAtoms(recipeRef.current,c=>ids.has(c.id)?{...c,params:{...c.params,fill:Boolean(settings.fill),color:String(settings.color),opacity:Number(settings.opacity)}}:c));}},
+    'atomnic.fill':{enabled:!!commandDegree(shortcutDegrees,'omnic.fill'),run:()=>openShortcutDegree('omnic.fill')},
     'atomnic.remove':{enabled:compatible&&selected.size>0,run:()=>{if(contextTargets.owns())contextTargets.invoke('deleteSelected');else remove();}},'atomnic.group':{enabled:compatible&&selected.size>0,run:group},
     'atomnic.ungroup':{enabled:compatible&&list.some(a=>selected.has(a.id)&&a.group!=='@root'),run:()=>{try{commit(ungroupAtoms(recipeRef.current,selectedRef.current));}catch(failure){error(failure);}}},
     'atomnic.all':{enabled:compatible,run:()=>{if(contextTargets.owns()){contextTargets.invoke('selectAll');return;}setSelected(new Set(list.map(a=>a.id)));}},

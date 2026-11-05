@@ -5,7 +5,7 @@ import { rotationStops } from "./rotation.ts";
 /** Declarative structural inputs. Property IDs are shared-editor contracts, not
  * assumptions about the semantic meaning of a visible difference. */
 export type Value = string | number | boolean;
-export type Parameter = {maxLength?:number; editor?:"path-rule"; significantThresholds?:readonly {id:string;value:number}[]; selection?:CyclicSelection; unit?:string; measurement?:'center-x'|'center-y'|'radius'|'length'; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
+export type Parameter = {internal?:boolean;maxLength?:number; editor?:"path-rule"|"reference-region"; significantThresholds?:readonly {id:string;value:number}[]; selection?:CyclicSelection; unit?:string; measurement?:'center-x'|'center-y'|'radius'|'length'; integer?:boolean; freedom?:FreedomPresentation; key: string; property: string; label: string; kind: "number" | "toggle" | "select" | "color" | "text"; initial: Value; min?: number; max?: number; step?: number; options?: readonly {id:string;label:string}[]; thresholds?: readonly number[]; when?: (params:Record<string,Value>)=>boolean };
 export type OperatorContext = {
   params: Record<string, Value>;
   transform: (kind: "fill" | "size" | "rotate" | "oscillate", params?: Record<string, Value>) => void;
@@ -16,7 +16,7 @@ const number = (key: string, property: string, label: string, initial: number, m
 const count:Parameter = {...number("count","omnic.count","Count",6,1,64,1,[1,2,3,4,6,8,12,16,32,64]),integer:true,freedom:{label:"Count",symbol:"●●",group:[UNIT_FREEDOM_GROUP]}};
 const radius:Parameter = {...number("radius","omnic.radius","Radius",40,1,200,1,[10,20,40,80,160]),unit:'length',measurement:'radius',freedom:{label:"Radius",symbol:"⊖"}};
 const size:Parameter = {...number("size","omnic.extent","Unit size",6,.5,100,.5,[1,2,4,8,16,32,64]),unit:'length',measurement:'radius',freedom:{label:'Size',symbol:'●⬤',group:[UNIT_FREEDOM_GROUP]}};
-const fill: Parameter = {key:"fill",property:"omnic.fill",label:"Fill",kind:"toggle",initial:true,freedom:{label:"Fill",symbol:"◐",group:[UNIT_FREEDOM_GROUP]}};
+const fill: Parameter = {editor:"reference-region",key:"fill",property:"omnic.fill",label:"Fill",kind:"toggle",initial:true,freedom:{label:"Fill",symbol:"◐",group:[UNIT_FREEDOM_GROUP]}};
 const angle:Parameter = {selection:{period:360,north:-90},...number("angle","omnic.angle","Angle",0,-1080,1080,1,[-180,-90,0,90,180,360]),freedom:{label:"Rotation",symbol:"🗘"}};
 const thickness:Parameter = {...number("thickness","omnic.thickness","Stroke width",2,.25,12,.25),unit:'length',freedom:{label:"Stroke width",symbol:"━",group:[UNIT_FREEDOM_GROUP]}};
 const color: Parameter = {key:"color",property:"color",label:"Color",kind:"color",initial:"#60ddec",freedom:{label:"Color",symbol:"⬤",group:[VISUAL_FREEDOM_GROUP],symbolFill:"conic-gradient(#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)"}};
@@ -56,7 +56,9 @@ const operatorDefinitions: Definition[] = [
     {...color,initial:"#ffffff"},opacity],output:"structure",apply:ctx=>ctx.highlight()},
   {id:"count",label:"Set generated count",parameters:[count],preconditions:["Target a count-based generator"],apply:ctx=>ctx.setCount(Number(ctx.params.count))},
   {id:"size",label:"Scale structure",parameters:[number("factor","omnic.scale","Scale",1,.1,4,.1,[.25,.5,1,2,4])],apply:ctx=>ctx.transform("size")},
-  {id:"fill",label:"Set fill",parameters:[fill,color,opacity],apply:ctx=>ctx.transform("fill")},
+  {id:"fill",label:"Set fill",parameters:[{...fill,editor:undefined},color,opacity,
+    {internal:true,key:"clipped",property:"omnic.regionClipped",label:"Threshold region",kind:"toggle",initial:false,when:()=>false},
+    ...["left","top","right","bottom"].map(key=>({...number(key,`omnic.region.${key}`,`Region ${key}`,0,-1000000,1000000,.001),internal:true,when:()=>false}))],apply:ctx=>ctx.transform("fill")},
   {id:"rotate",label:"Rotate structure",parameters:[angle,{...number("pivotX","omnic.coordinate.x","Pivot X",0,-300,300,1),when:p=>p.scope==="group"&&p.pivot==="custom"},{...number("pivotY","omnic.coordinate.y","Pivot Y",0,-300,300,1),when:p=>p.scope==="group"&&p.pivot==="custom"},
     select("scope","omnic.rotationScope","Rotate","group",[{id:"region",label:"Highlighted region"},{id:"each",label:"Each unit"},{id:"group",label:"Together"}]),
     {...select("pivot","omnic.rotationPivot","Pivot","origin",[{id:"center",label:"Target center"},{id:"origin",label:"Composition origin"},{id:"custom",label:"Custom offset"}]),when:p=>p.scope==="group"},
@@ -96,11 +98,14 @@ export function checkedParams(input: unknown, spec: Definition): Record<string,V
     if (p.editor === "path-rule") readPathRule(String(value));
     params[key]=value as Value;
   }
+  if(spec.id==='fill'&&params.clipped){
+    if(!['left','top','right','bottom'].every(key=>typeof params[key]==='number')||Number(params.right)<=Number(params.left)||Number(params.bottom)<=Number(params.top))throw Error('Empty threshold region.');
+  }
   return params;
 }
 
 /** Active editors and MC lend the same metadata-defined relevant inputs. */
 export function applicableParameters(spec:Definition,params:Record<string,Value>):readonly Parameter[]{
   const values={...defaultParams(spec),...params};
-  return spec.parameters.filter(parameter=>!parameter.when||parameter.when(values));
+  return spec.parameters.filter(parameter=>!parameter.internal&&(!parameter.when||parameter.when(values)));
 }

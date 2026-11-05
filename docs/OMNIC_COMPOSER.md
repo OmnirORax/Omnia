@@ -1001,3 +1001,36 @@ set; explicit DOF controls/shortcuts remain available. This replaces automatic
 Position reference entry and edge-click rotation-wheel opening. See VISUAL_SELECTION.md.
 
 Eligible saved Composer circle/ring/line glyphs now use native batched analytic world rendering through transient presentation metadata; SVG/export identity stays unchanged. Existing world source budgets, complex/decorated/edit-overlay SVG fallbacks and texture-effect switching remain. See PERFORMANCE_RESULTS.md for eligibility and verification limits.
+
+### Fill from reference thresholds
+
+Right-click empty radar space → **Fill** → pick a closed reference with MS.
+The compact on-spot region preview inherits that reference's coordinate bounds,
+landmarks and generated fractions. Hover toward an edge to preview filling from
+that edge to the nearest permitted threshold; click or Enter commits. Holding a
+primary drag retains the starting side and extends through further thresholds.
+The active rule expression opens the existing mathematical dial to change the
+fractionalization. Declared reference thresholds survive rule changes.
+
+Right-click an object → Units / fill → Fill opens the same projection scoped to
+that object. The reference control can borrow another compatible reference without
+changing the target. Escape, leaving an unconfirmed region, or opening rule
+settings restores the hover sample. Reopening Fill and committing another region
+adds it to the existing paint. Undo/Redo uses the Composer journal.
+
+The shared coordinate-region adapter currently supports closed disk/ring geometry;
+its intersection with the actual target outline determines the painted shape.
+Fill has no wedge/cap presets. Other source projection types and persistent region
+bindings remain unavailable. Generated fractions describe the reference coordinate
+interval, not an inferred filled-area percentage. Existing full boolean Fill data
+and operator tools remain valid. User interaction acceptance is pending.
+
+Adapter extension: serialized implementation-only parameters declare `internal`.
+They remain validated/importable but do not become target DOFs or executable
+shortcut commands. Declared value editors own their inputs instead of being
+absorbed into legacy operation adjusters. Region projections receive the common
+DofStateField rule configuration and generate each source axis with its own
+threshold declaration; thresholds never leak from one axis to another. Geometry
+adapters must convert parent-local reference values into scene coordinates before
+rendering or applying a region. Decorated/clipped glyphs retain faithful SVG output
+instead of the native analytic shortcut, which currently has no clip adapter.
