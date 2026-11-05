@@ -1,3 +1,27 @@
+# Current offline Questboard behavior
+
+Questboard now runs without a connection/account, including GitHack: create local
+quests, attempt them with the existing timer, hand in for once-only local stars,
+and use the same category/status/search filters. The local owner is
+`metrics/localQuests.ts`, stored under `omnium.local-quests.v1`. It validates its
+version, references, bounds and size before activation/writes; unreadable/newer
+originals block edits and are never defaulted into an overwrite. Saves compare
+the original before writing; Refresh reloads another tab’s newer state. This is
+best-effort stale-write detection, not a cross-tab transaction lock.
+
+Local quests, best results and stars survive reload in this browser/origin, with
+up to 500 quests. They are not account-specific, synced or included in workspace
+exports. Browser site-data deletion removes them; no full-backup claim is made.
+A local run interrupted by pause/close does not qualify; repeat claims are no-ops.
+Only Leaderboard requires cloud sign-in and uses authenticated online attempts.
+Offline quest results are never automatically submitted as verified online scores.
+Existing cloud quest records/claims remain unchanged on the server; this update
+changes the default board source and does not migrate or delete that old ledger.
+Cloud accounts switching cannot erase a local run or its local result history.
+
+The historical cloud setup and implementation references below describe the
+retained online infrastructure; they are no longer prerequisites for Questboard.
+
 # Metrics
 
 Open **♾️ → 📊 Score tracker** next to View, or use UI library → ♾️.
@@ -166,3 +190,14 @@ authorship and created-at metadata without changing original quest IDs or claims
 SQL installation validates exact migration history and refuses unknown/untracked
 state rather than treating it as defaults. The installer is generated, not an
 independent format or migration implementation.
+
+## Quest filters
+
+Category, Status and Search reuse the [shared domain filter base](FILTERING.md).
+Speed clicking covers durations below 30 seconds; Endurance clicking covers
+30 seconds and above, including the existing 30-second seed quest. Categories
+are derived labels, not new saved quest kinds or benchmark/reward identities.
+Filtering occurs before shared 12-card pagination, with counts and Clear filters.
+Selection remains transient, resets on account change and adds no cloud requests
+or database migration. Publication reveals the new quest, clearing incompatible
+filters when needed. Existing paging action IDs retain their customization.

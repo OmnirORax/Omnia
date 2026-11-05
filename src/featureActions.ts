@@ -21,7 +21,7 @@ export const radialGroups = {
  * conflict policy and dispatch; components supply only availability and behavior. */
 const CORE_FEATURE_ACTIONS = [
   {id:'quests.create',owner:'questSystem',scope:'global',category:'♾️',label:'New quest',defaultKey:'',description:'Open the compact click target and time-limit authoring form in Questboard.'},
-  {id:'quests.publish',owner:'questSystem',scope:'global',category:'♾️',label:'Publish quest',defaultKey:'',description:'Publish a shared click quest with retained requirements; equal goals reuse the same quest and cannot duplicate rewards.'},
+  {id:'quests.publish',owner:'questSystem',scope:'global',category:'♾️',label:'Publish quest',defaultKey:'',description:'Save a local click quest without sign-in; equal goals reuse the same local quest and cannot duplicate local rewards.'},
   {id:'quests.open',owner:'questSystem',scope:'global',category:'♾️',label:'📜 Questboard',defaultKey:'',description:'Open account quests and hand in completed click benchmarks for one star each.'},
   {id:'leaderboard.open',owner:'questSystem',scope:'global',category:'♾️',label:'🏆 Leaderboard',defaultKey:'',description:'Compare the best score per account for a specific online click benchmark.'},
   { id: 'metrics.open', owner: 'scoreTracker', scope: 'global', category: '♾️', label: '📊 Score tracker', defaultKey: '', description: 'Open the dedicated click test area, timer, lap splits and recent session results under Metrics.' },

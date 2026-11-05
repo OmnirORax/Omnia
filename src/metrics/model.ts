@@ -62,8 +62,8 @@ export function createScoreTracker(now: () => number = () => performance.now()) 
       const value = sample(); if (value !== null) complete(value, 'finished');
     },
     clearOnline() {
-      const results = state.results.filter(result => !result.attemptId);
-      if (state.options.attemptId) { accumulated = 0; publish({ ...state, options: { mode: 'stopwatch', durationSeconds: 10 }, phase: 'idle', elapsedMs: 0, clicks: 0, laps: [], reason: undefined, interrupted: false, results }); }
+      const results = state.results.filter(result => !result.attemptId||result.actorId==='local');
+      if (state.options.attemptId&&state.options.actorId!=='local') { accumulated = 0; publish({ ...state, options: { mode: 'stopwatch', durationSeconds: 10 }, phase: 'idle', elapsedMs: 0, clicks: 0, laps: [], reason: undefined, interrupted: false, results }); }
       else if (results.length !== state.results.length) publish({ ...state, results });
     },
     reset() {
