@@ -1,3 +1,4 @@
+import { uiContextEnabled } from "./contextMenuOwnership";
 import { useCancelValueEdit } from "./ActiveContext";
 import { useEffect, useRef, useState } from "react";
 import { useUITracked } from "./context";
@@ -68,7 +69,7 @@ export function UINameInput({
 }
 
 export function EditableLabel({ id, fallback }: { id: string; fallback: string }) {
-  const ui = useUITracked(ui=>[ui.layout.labels?.[id],ui.layout.hideNames]);
+  const ui = useUITracked(ui=>[ui.layout.labels?.[id],ui.layout.hideNames,uiContextEnabled(ui.layout)]);
   const [name, rename] = useUILabel(id, fallback);
   const [editing, setEditing] = useState(false);
   return editing ? (
@@ -85,6 +86,7 @@ export function EditableLabel({ id, fallback }: { id: string; fallback: string }
         setEditing(true);
       }}
       onContextMenu={(event) => {
+        if (!uiContextEnabled(ui.layout)) return;
         event.preventDefault();
         event.stopPropagation();
         setEditing(true);

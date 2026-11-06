@@ -667,3 +667,8 @@ whole frame/window movement and resizing stay available by default. Preserve
 explicit saved rigidity and pins. Drag-tail suppression must require actual
 drag capability at the nearest owner; pointer drift on fixed controls is not a
 drag. Reuse the shared rigidity and activation guards.
+
+UI right-click correction (2026-11-06): UI-customization context menus and
+right-click UI label renaming require UI edit mode, regardless of saved movement
+exceptions. Domain-specific right-click remains available in either mode. Reuse
+contextMenuOwnership at shared entry points; do not block secondary input globally.

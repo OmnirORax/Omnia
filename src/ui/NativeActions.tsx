@@ -1,4 +1,4 @@
-import { ownsContextMenu } from './contextMenuOwnership';
+import { ownsContextMenu, uiContextEnabled } from './contextMenuOwnership';
 import {minimalMutationRoots} from './mutationRoots';
 import {nativePresentationSlice} from './renderSubscriptions';
 import {functionIndex} from './functionIndex';
@@ -222,7 +222,7 @@ export function NativeActions() {
       if (!entry) {
         const id = nativeActionId(button);
         const context = (event: MouseEvent) => {
-          if (ownsContextMenu(event.target)) return;
+          if (!uiContextEnabled(latest.current.layout) || ownsContextMenu(event.target)) return;
           event.preventDefault();
           event.stopPropagation();
           const active = latest.current;

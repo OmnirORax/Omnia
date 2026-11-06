@@ -32,3 +32,24 @@ test('fixed controls cannot arm drag suppression; the nearest owner determines a
  assert.equal(dragActivationSource(target(null,false,true)),true,'actual resize gestures retain trailing-click protection');
  assert.equal(dragActivationSource(target(null)),false,'blank UI space cannot invent a drag');
 });
+
+
+test('edit-off suppresses customization fallback while domain right-click remains available',async()=>{
+ const {uiContextEnabled,routeContextMenu}=await import('../src/ui/contextMenuOwnership.ts');
+ const layout=fixture();layout.uiRigidity={all:false};
+ assert.equal(uiContextEnabled(layout),false,'movement exceptions cannot enable customization menus');
+ const calls=[];
+ const event=()=>({stopped:false,preventDefault(){},stopPropagation(){this.stopped=true;},isPropagationStopped(){return this.stopped;}});
+ for(const enabled of [false,true]){
+  routeContextMenu(event(),e=>{calls.push('domain');e.stopPropagation();},()=>calls.push('customize'),false,enabled);
+  const owned=event();routeContextMenu(owned,undefined,()=>calls.push('customize'),true,enabled);
+  assert.equal(owned.stopped,true,'content-owned whitespace cannot fall through to layout editing');
+ }
+ assert.deepEqual(calls,['domain','domain']);
+ routeContextMenu(event(),undefined,()=>calls.push('customize'),false,uiContextEnabled(layout));
+ assert.deepEqual(calls,['domain','domain'],'ordinary UI right-click is inert with editing off');
+ layout.panels['@devMode']=true;
+ routeContextMenu(event(),undefined,()=>calls.push('customize'),false,uiContextEnabled(layout));
+ assert.deepEqual(calls,['domain','domain','customize']);
+ delete layout.panels['@devMode'];assert.equal(uiContextEnabled(layout),false,'older layouts without the flag default to normal mode');
+});

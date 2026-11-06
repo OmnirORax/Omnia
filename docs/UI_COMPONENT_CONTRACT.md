@@ -504,7 +504,11 @@ A surface with its own right-click workflow declares `data-context-menu-owner`;
 shared `ContextualMasterController` popups already inherit ownership through
 `data-context-controller`. `ui/contextMenuOwnership.ts` supplies the same predicate
 for background UI menus, selected-UI capture and native-action customization.
-Those fallbacks yield on owned content. Local handlers still stop propagation;
+Those fallbacks yield on owned content. UI-customization right-click entry requires
+`uiContextEnabled(layout)` (`@devMode` on), independently of movement exceptions
+or pins. This covers function/native actions, frame/tab/background menus, selected
+UI menus and right-click label renaming. Domain handlers run in both modes; turning
+edit mode off dismisses open UI-customization menus/editors. Local handlers still stop propagation;
 controllers consume unused context-menu bubbling on their own surface.
 
 `FunctionControl` preserves a registered function's original `onContextMenu`
