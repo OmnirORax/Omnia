@@ -72,7 +72,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const pointerTool=cursorOperation??(rotationHover?'rotate':moveHover?'move':tool);
   const [menu,setMenu]=useState<{x:number;y:number}|null>(null),[panel,setPanel]=useState<Panel>({kind:'functions'}),[message,setMessage]=useState('');
   const editorActivation=useRef(0);
-  const activateDegreePanel=(degree:EditableDegree,configure:boolean|DofSettingsKind,direct=false)=>{setActiveDof({ids:[...new Set(degree.targets.map(t=>t.id))],property:degree.id});referencePicker?.defaultEnvironment(degree);setPanel({kind:'degree',degree,configure,direct,activation:++editorActivation.current});};
+  const activateDegreePanel=(degree:EditableDegree,configure:boolean|DofSettingsKind,direct=false)=>{setActiveDof({ids:[...new Set(degree.targets.map(t=>t.id))],property:degree.id});referencePicker?.prepareReference(degree);setPanel({kind:'degree',degree,configure,direct,activation:++editorActivation.current});};
   const [degrees,setDegrees]=useState<EditableDegree[]>([]);
   const referencePicker=useOperationReferencePicker();
   const secondary=useRef(createSecondaryRelease<{point:Point;event:PointerEvent}>());
@@ -150,7 +150,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     if(intent==='edit'){onSelect?.(ids);showDegrees(ids,point);return;}
     const next=selectedEditorDegrees(recipeRef.current,ids),degree=activeDof?commandDegree(next,activeDof.property):targetPlacementDegree(recipeRef.current,ids);
     onSelect?.(ids);selectedRef.current=new Set(ids);if(!degree)return;
-    setTool('select');setActiveDof({ids,property:degree.id});referencePicker?.defaultEnvironment(degree);setMenu(point);activateDegreePanel(degree,false,true);setPhase('configure');
+    setTool('select');setActiveDof({ids,property:degree.id});referencePicker?.prepareReference(degree);setMenu(point);activateDegreePanel(degree,false,true);setPhase('configure');
   };
   useSelectionSurface(localSurface,{
     baseline:{enabled:()=>!extraPanel&&tool==='select'&&(phase==='idle'||phase==='configure'),pick:baselinePick,cancel:baselineCancel},

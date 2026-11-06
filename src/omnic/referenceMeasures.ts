@@ -43,3 +43,10 @@ export function compatibleDegreeReference(snapshot:OperationGeometry,degree:Edit
 export function defaultDegreeReference(degree:EditableDegree){
  return (degree.axes??[degree]).every(axis=>['center-x','center-y'].includes(targetParameter(axis).measurement??''))?'@environment':undefined;
 }
+
+/** Switching DOFs must not retain an incompatible reference from the previous
+ * freedom (for example Position's Environment when opening Rotation). */
+export function degreeReferenceSource(snapshot:OperationGeometry,degree:EditableDegree,retained:string|undefined,environment?:ResizeRect){
+ if(retained&&compatibleDegreeReference(snapshot,degree,retained,environment))return retained;
+ const fallback=defaultDegreeReference(degree);return fallback&&compatibleDegreeReference(snapshot,degree,fallback,environment)?fallback:undefined;
+}

@@ -4,7 +4,7 @@ import {regionReference} from './regionReference';
 import {cancelOwnedSelectionRequest} from '../appearance/selectionRequest';
 import {useVisualSelection,type ReferenceSelection} from '../appearance/VisualSelector';
 import type {ResizeRect} from '../ui/resizeGeometry';
-import {defaultDegreeReference,compatibleDegreeReference,measuredReferenceFor} from './referenceMeasures';
+import {degreeReferenceSource,compatibleDegreeReference,measuredReferenceFor} from './referenceMeasures';
 import {resolveReferenceUse,selfReference,DEFAULT_REFERENCE_SETTINGS,type ReferenceSettings,type UsedReference} from '../properties/referenceUse';
 import {createContext,useContext,useMemo,useRef,useState,useEffect,type ReactNode,type RefObject} from 'react';
 import {LIMITS,type Recipe,type RecipeResolver} from './model';
@@ -15,7 +15,7 @@ import {compatibleReferenceSource,targetParameter,targetDegreeValue,writeTargetD
 import {operationGeometry,type OperationGeometry} from './operationContext';
 
 export type PickedReferenceSource={id:string;label:string;point:{x:number;y:number}};
-type Scope={chooseReference:(degree:EditableDegree,id:string)=>boolean;defaultEnvironment:(degree:EditableDegree)=>void;pickAttachment:(ids:readonly string[],owner:symbol)=>Promise<PickedReferenceSource|undefined>;selectTargets:(ids:readonly string[])=>void;commit:(recipe:Recipe,preview?:boolean)=>boolean;pickRegion:(owner:symbol)=>Promise<{id:string;ids:readonly string[];point:{x:number;y:number}}|undefined>;snapshot:OperationGeometry|null;resolve?:RecipeResolver;references:ReadonlyMap<string,string>;configured:(degree:EditableDegree)=>boolean;settings:(degree:EditableDegree)=>ReferenceSettings;changeSettings:(degree:EditableDegree,patch:Partial<ReferenceSettings>)=>void;reference:(degree:EditableDegree,consumer?:EditableDegree)=>UsedReference|undefined;choose:(target:string,reference?:string)=>void;read:()=>Recipe;error:(error:unknown)=>void;pick:(degree:EditableDegree,owner?:symbol)=>Promise<SelectionReference|undefined>;pickSource:(degree:EditableDegree,owner?:symbol)=>Promise<PickedReferenceSource|undefined>;picking:boolean;environment?:ResizeRect;cancelPick:(owner?:symbol)=>void};
+type Scope={chooseReference:(degree:EditableDegree,id:string)=>boolean;prepareReference:(degree:EditableDegree)=>void;pickAttachment:(ids:readonly string[],owner:symbol)=>Promise<PickedReferenceSource|undefined>;selectTargets:(ids:readonly string[])=>void;commit:(recipe:Recipe,preview?:boolean)=>boolean;pickRegion:(owner:symbol)=>Promise<{id:string;ids:readonly string[];point:{x:number;y:number}}|undefined>;snapshot:OperationGeometry|null;resolve?:RecipeResolver;references:ReadonlyMap<string,string>;configured:(degree:EditableDegree)=>boolean;settings:(degree:EditableDegree)=>ReferenceSettings;changeSettings:(degree:EditableDegree,patch:Partial<ReferenceSettings>)=>void;reference:(degree:EditableDegree,consumer?:EditableDegree)=>UsedReference|undefined;choose:(target:string,reference?:string)=>void;read:()=>Recipe;error:(error:unknown)=>void;pick:(degree:EditableDegree,owner?:symbol)=>Promise<SelectionReference|undefined>;pickSource:(degree:EditableDegree,owner?:symbol)=>Promise<PickedReferenceSource|undefined>;picking:boolean;environment?:ResizeRect;cancelPick:(owner?:symbol)=>void};
 const Context=createContext<Scope|null>(null);
 /** Session reference choices are context, not durable property values or locks. */
 export function OperationReferenceScope({recipe,evaluation,resolve,read,error,commit,selectTargets,children,stateOwner,environment,surface}:{selectTargets?:(ids:readonly string[])=>void;commit?:(recipe:Recipe,preview?:boolean)=>boolean;surface:RefObject<HTMLElement|null>;environment?:ResizeRect;stateOwner:string;recipe:Recipe;evaluation:Evaluation|null;resolve?:RecipeResolver;read:()=>Recipe;error:(error:unknown)=>void;children:ReactNode}){
@@ -49,8 +49,10 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,co
   if(!compatibleDegreeReference(live,degree,id,environment))return false;
   setReferences(before=>{const next=new Map(before);for(const target of degree.targets)next.set(target.id,id);return next;});return true;
  };
- const value=useMemo<Scope>(()=>({chooseReference,defaultEnvironment:degree=>{
-  const source=defaultDegreeReference(degree);if(source&&!degree.targets.some(target=>references.has(target.id)))chooseReference(degree,source);
+ const value=useMemo<Scope>(()=>({chooseReference,prepareReference:degree=>{
+  const live=callbacks.current.snapshot;if(!live)return;
+  const retained=references.get(degree.targets[0]?.id),source=degreeReferenceSource(live,degree,retained,environment);
+  if(source!==retained)setReferences(before=>{const next=new Map(before);for(const target of degree.targets){if(source)next.set(target.id,source);else next.delete(target.id);}return next;});
  },selectTargets:ids=>callbacks.current.selectTargets?.(ids),commit:(recipe,preview)=>callbacks.current.commit?.(recipe,preview)??false,snapshot,resolve,references,picking,cancelPick,environment,settings,
  pickAttachment:(ids,owner)=>pickReference(undefined,(_live,id,point)=>ids.includes(id)?{id,label:id,point}:undefined,owner,'item','Pick a contributing component'),
  pickRegion:owner=>{
