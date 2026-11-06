@@ -442,3 +442,20 @@ test('registered content yields to any nested input owner and ending its session
  registry.endSession();assert.equal(registry.sessionOwns(outside),false,'a released canvas session never becomes global');
  registry.beginSession();assert.equal(registry.sessionOwns(outside),true,'explicit standalone UI selection remains available');
 });
+
+test('borrowed content requests yield to controls without accepting or canceling and never fall back to global input',async()=>{
+ const {selectionRequestOwnsInput,selectionRequest}=await import('../src/appearance/selectionRequest.ts');
+ const {CONTROL_INPUT_OWNER}=await import('../src/ui/inputOwnership.ts');
+ const ink={},outside={},icon={},control={matches:s=>s===CONTROL_INPUT_OWNER};
+ const root={contains:node=>[ink,icon,control].includes(node)};let live=root,accepted=0,canceled=0,restored=0;
+ const request=selectionRequest(()=>{accepted++;return true;},()=>canceled++,()=>restored++),scope=()=>live;
+ for(const [target,path] of [[outside,[outside]],[icon,[icon,control,root]]]){
+  if(selectionRequestOwnsInput(scope,target,path))request.accept(target);
+ }
+ assert.deepEqual([accepted,canceled,restored],[0,0,0],'yielding leaves the borrowed request and editor intact');
+ assert.equal(selectionRequestOwnsInput(scope,ink,[ink,root]),true);
+ live=null;assert.equal(selectionRequestOwnsInput(scope,ink,[ink,root]),false,'an unavailable renderer cannot become global MS');
+ assert.equal(selectionRequestOwnsInput(undefined,outside,[outside]),true,'explicit standalone UI requests retain global selection');
+ live=root;if(selectionRequestOwnsInput(scope,ink,[ink,root]))request.accept(ink);
+ request.cancel();assert.deepEqual([accepted,canceled,restored],[1,0,1]);
+});

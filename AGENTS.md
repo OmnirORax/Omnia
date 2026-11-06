@@ -641,3 +641,9 @@ catalog, measurements, lens geometry and continuity together via
 prepareSelectionSnapshot. Never update catalog wrappers while retaining a map
 keyed by the previous wrappers. The approved coordinate-click/library diagnostic
 found this exception before confirmation; do not patch affected widgets instead.
+
+Borrowed content requests (2026-11-06): pass the live content surface to requestPick;
+apply the nearest-input-owner rule during pending reference picking too. Yield
+outside input without canceling or reparenting the editor. A missing scoped root
+is inactive, never an implicit global MS session. Verify controls before accepting
+a referent as well as coordinate confirmation after acceptance.

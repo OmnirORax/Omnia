@@ -41,7 +41,7 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,co
     const live=callbacks.current.snapshot,role=selection.element.closest('[data-omnic-role]')?.getAttribute('data-omnic-role'),id=(role&&live?.owners.get(role))||(element?.getAttribute('data-omnic-component')??(selection.element.closest('[data-selection-environment]')?'@environment':undefined));
     if(!id||!live)return 'No target here';const source=resolveSource(live,id,selection.point,selection.parts);if(!source)return rejection??`No ${degree?.label??'region threshold'} reference`;
     pending.current=undefined;setPicking(false);if(degree){setRelations(before=>{if(before.has(relationKey(degree)))return before;const next=new Map(before);next.set(relationKey(degree),settings(degree));return next;});setReferences(before=>{const next=new Map(before);for(const t of degree.targets)next.set(t.id,id);return next;});}finish(source);return true;
-   },()=>{if(pending.current===request){pending.current=undefined;setPicking(false);finish(undefined);}},{mode});
+   },()=>{if(pending.current===request){pending.current=undefined;setPicking(false);finish(undefined);}},{mode,surface:()=>surface.current});
   });
  };
  const chooseReference=(degree:EditableDegree,id:string)=>{

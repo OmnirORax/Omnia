@@ -1047,3 +1047,9 @@ MS aiming must not independently hide the native pointer across the page.
 ### Registered content yields to controls
 
 inputOwnership supplies the shared control-owner declaration and physical-path surface check. Native semantics, accessible focusable controls and data-ui-control/data-ui-function/gesture-owner declarations inherit routing without per-feature allowlists. The nearest owner before a registered content root keeps the entire press and click tail. Selection surfaces, native Composer capture, shared cursor-zone lookup, popup dismissal and frame dragging apply this contract. Closed sessions are inactive, not global. ColorInput autoOpen is opt-in for an explicitly opened property editor: it uses the current owner color in a passive effect after popup layout and after native commit listeners attach; rerenders cannot reopen it.
+
+Borrowed content selectors must declare their live source surface in requestPick.
+They inherit inputOwnership for pointer, hover, wheel and context routing rather
+than bypassing normal routing while a request exists. Yielding to another control
+must not cancel/reparent the editor just to let its click through. Resolve a
+missing source as inactive, never global. Explicit standalone UI MS is separate.

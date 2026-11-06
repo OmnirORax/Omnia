@@ -154,3 +154,18 @@ on its first real click. No page errors occurred. This is evidence for those two
 paths only, not full browser-suite or native Color acceptance. The model regression
 reproduces the old cache mismatch and checks updated continuity in the same bundle.
 No stored data, identities or binding formats change.
+
+Borrowed content input (2026-11-06): OperationReferenceScope passes its live
+Composer surface to MS. Pending reference, region and attachment requests own
+only that surface's content, using the shared nearest-input-owner rule. Other
+controls keep their press/release/click, context menu and wheel input without
+canceling the request or replacing the editor context. A missing live root stays
+inactive; only an explicitly unscoped standalone request may select global UI.
+This is transient request state; saved documents and settings are unchanged.
+
+Focused diagnostic evidence for that correction: the built preview previously
+swallowed library pointerdown/up/click while reference picking was pending. The
+same first click now opens the library without selector interception. A separate
+completed-reference path confirms a real coordinate click commits X=65.5 and
+survives pointer leave, with no page errors. Earlier fresh/completed-path checks
+missed the pending state; these observations are not full browser acceptance.
