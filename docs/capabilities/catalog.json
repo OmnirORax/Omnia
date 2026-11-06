@@ -259,6 +259,49 @@
       ]
     },
     {
+      "id": "interface.reset-home",
+      "title": "Reset one UI item to its default home",
+      "where": "Enable UI edit mode → right-click the moved button/field → Placement → Reset to default home. For a section/window, right-click its frame title → Reset to default home.",
+      "behavior": "Returns one resident to its original shipped-template container/order or declared native slot/default window placement. Works after autosave and reload without Undo history. Keeps styling, names, settings, values, identity and descendant contents; unrelated residents retain their organization. Clears the chosen item’s moved position/size/anchor overrides and removes its stale native order entries. Relative original order is restored among original siblings still present. Existing tabs receive a returning window without replacing unrelated panes. A missing default window record can be recreated without pulling back its other moved items. Uses existing UI validation, autosave and shared history; the reset itself can be undone during the session. Reuses the existing return-function action identity, replacing a route that deleted styling and missed template-owned homes.",
+      "steps": [
+        {
+          "do": "Enable UI edit mode, move a button such as File → Export into another frame, then reload the page.",
+          "expect": "The button remains in its saved moved location; recovery does not depend on an Undo entry."
+        },
+        {
+          "do": "Right-click that moved button → Placement → Reset to default home.",
+          "expect": "It returns to its original container/slot and original relative order. Its style, name and settings remain; other residents stay in place."
+        },
+        {
+          "do": "Reload, find the button in its default home, then try the reset on a detached native section through its frame-title menu.",
+          "expect": "The recovered organization persists. The section returns home carrying its existing contents and styling."
+        },
+        {
+          "do": "Pin the moved item or its default destination and inspect Reset to default home; also inspect a user-created frame with no defined original home.",
+          "expect": "Recovery is disabled instead of overriding protection or inventing a default. Unpin to recover a supported item."
+        }
+      ],
+      "reference": "docs/UI_LAYOUT.md",
+      "sources": [
+        "src/ui/residentHome.ts",
+        "src/ui/UIWorkspace.tsx",
+        "src/ui/default-template.json",
+        "tests/ui-resident-home.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "interface.arrange",
+        "history.global"
+      ],
+      "limits": "Original means the current shipped template/native declaration, not a historical custom arrangement or imported template. Custom frames/fields without a defined default home, unknown/unavailable functions, protected/cyclic/incompatible destinations and context-bound extraction are not reset. Native source controls require their owning feature to be mounted. It resets one resident’s home, not a whole frame’s internal contents or the entire UI. Internal arrangement cleanup remains a separate existing frame action.",
+      "status": "Implemented for review; production deployment and browser acceptance pending",
+      "verification": {
+        "browser": "Not run; user should test a saved/reloaded accidental move and recovery in the preview.",
+        "automated": "2026-11-06: all 533 model/architecture tests (including nine default-home recovery cases), preview/type/property/capability build checks and backend type checks pass. Reload recovery uses serialized existing-format fixtures and the real shipped template; no browser acceptance is inferred."
+      }
+    },
+    {
       "id": "history.global",
       "title": "Chronological undo/redo and filtering",
       "where": "MC → History; Shift plus the configured Undo/Redo trigger. Check current bindings in Shortcuts.",

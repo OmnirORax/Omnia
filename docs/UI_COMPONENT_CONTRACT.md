@@ -1096,3 +1096,12 @@ authoritative. UI NamePresentation excludes editable content and removes stale
 caption symbols if ownership changes; strong/emphasis document tags are not UI
 labels. Native editable lists and formatting commands own Enter/list exit,
 indentation and Undo; source serialization preserves canonical glyph references.
+
+
+Default-home recovery: use `residentHome.ts` for functions and native frame/window
+residents. Resolve canonical shipped/native homes, never current saved placement
+or transient history. Preserve style/labels/values and unrelated membership;
+restore only the selected resident's ownership/order/placement. The UI owner
+commits through existing validation, autosave and UI history. Respect source and
+destination pins, scopes, docking validity and cycles. No invented default for
+user-created residents, no deletion of their authored contents.

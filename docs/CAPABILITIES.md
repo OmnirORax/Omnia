@@ -17,6 +17,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Universal Shift configuration](#interface-configure) | Implemented; browser verification pending | Hold Shift and press the configured shortcut of the function you want. |
 | [Search UI and reveal settings](#interface-search) | Implemented; browser verification pending | S in the active context; Shift+S chooses scope. Global UI search also exists in the catalog. |
 | [Move, dock, select and organize UI](#interface-arrange) | Implemented; browser verification pending | UI library; UI edit mode; shared frame/control context actions. |
+| [Reset one UI item to its default home](#interface-reset-home) | Implemented for review; production deployment and browser acceptance pending | Enable UI edit mode → right-click the moved button/field → Placement → Reset to default home. For a section/window, right-click its frame title → Reset to default home. |
 | [Chronological undo/redo and filtering](#history-global) | Implemented; browser verification pending | MC → History; Shift plus the configured Undo/Redo trigger. Check current bindings in Shortcuts. |
 | [Visual hierarchy, shared properties and Apply/Discard](#appearance-edit) | Implemented; browser verification pending | Master controller → Visuals → Visual hierarchy / Properties. |
 | [Choose, copy and paste applicable properties](#appearance-clipboard) | Implemented; browser verification pending | MC → Properties → Copy properties / Paste applicable properties. |
@@ -194,6 +195,30 @@ Drag actual frame handles or supported control edges. Docking offers destination
 **Command IDs:** `ui:devMode`, `ui:select`, `ui:compact`, `ui:align`.
 
 **Related:** [MC commands inherit the active geometry target](#interface-targets).
+
+<a id="interface-reset-home"></a>
+## Reset one UI item to its default home
+
+**ID:** `interface.reset-home` · **Status:** Implemented for review; production deployment and browser acceptance pending
+
+**Where:** Enable UI edit mode → right-click the moved button/field → Placement → Reset to default home. For a section/window, right-click its frame title → Reset to default home.
+
+Returns one resident to its original shipped-template container/order or declared native slot/default window placement. Works after autosave and reload without Undo history. Keeps styling, names, settings, values, identity and descendant contents; unrelated residents retain their organization. Clears the chosen item’s moved position/size/anchor overrides and removes its stale native order entries. Relative original order is restored among original siblings still present. Existing tabs receive a returning window without replacing unrelated panes. A missing default window record can be recreated without pulling back its other moved items. Uses existing UI validation, autosave and shared history; the reset itself can be undone during the session. Reuses the existing return-function action identity, replacing a route that deleted styling and missed template-owned homes.
+
+**Minimal working test**
+
+1. Enable UI edit mode, move a button such as File → Export into another frame, then reload the page. **Expected:** The button remains in its saved moved location; recovery does not depend on an Undo entry.
+2. Right-click that moved button → Placement → Reset to default home. **Expected:** It returns to its original container/slot and original relative order. Its style, name and settings remain; other residents stay in place.
+3. Reload, find the button in its default home, then try the reset on a detached native section through its frame-title menu. **Expected:** The recovered organization persists. The section returns home carrying its existing contents and styling.
+4. Pin the moved item or its default destination and inspect Reset to default home; also inspect a user-created frame with no defined original home. **Expected:** Recovery is disabled instead of overriding protection or inventing a default. Unpin to recover a supported item.
+
+**Limits / unavailable behavior:** Original means the current shipped template/native declaration, not a historical custom arrangement or imported template. Custom frames/fields without a defined default home, unknown/unavailable functions, protected/cyclic/incompatible destinations and context-bound extraction are not reset. Native source controls require their owning feature to be mounted. It resets one resident’s home, not a whole frame’s internal contents or the entire UI. Internal arrangement cleanup remains a separate existing frame action.
+
+**Verification:** browser — Not run; user should test a saved/reloaded accidental move and recovery in the preview.. Automated — 2026-11-06: all 533 model/architecture tests (including nine default-home recovery cases), preview/type/property/capability build checks and backend type checks pass. Reload recovery uses serialized existing-format fixtures and the real shipped template; no browser acceptance is inferred..
+
+**Details:** [subsystem guide](UI_LAYOUT.md). **Implementation:** [src/ui/residentHome.ts](../src/ui/residentHome.ts), [src/ui/UIWorkspace.tsx](../src/ui/UIWorkspace.tsx), [src/ui/default-template.json](../src/ui/default-template.json), [tests/ui-resident-home.test.mjs](../tests/ui-resident-home.test.mjs).
+
+**Related:** [Move, dock, select and organize UI](#interface-arrange), [Chronological undo/redo and filtering](#history-global).
 
 <a id="history-global"></a>
 ## Chronological undo/redo and filtering
