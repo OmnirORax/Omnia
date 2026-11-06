@@ -680,7 +680,7 @@ export function UIWorkspace({
     };
     return ensured.value;
   };
-  const canMove = (key: string) => !layout.panels["@devMode"] && !layout.uiRigidity ? false : residentMovable(ensure(layout), key, functions);
+  const canMove = (key: string) => key.startsWith("function:") && !layout.panels["@devMode"] && !layout.uiRigidity ? false : residentMovable(ensure(layout), key, functions);
   const buttonSelection = useButtonSelection({
     layout: ensure(layout),
     update,

@@ -82,3 +82,16 @@ is retained; an explicitly saved placement for the new panel is authoritative.
 This lets the new ♾️ menu appear after View in an existing layout without
 resetting the toolbar or writing a migration over authored positions. The
 library retains its former Metrics resident ID with the default label ♾️.
+
+## Normal mode versus internal arrangement
+
+Edit mode off fixes individual action/field arrangement by default. Complete
+frames/windows remain movable/resizable; explicit rigidity overrides and pins
+still apply. Normal actions, editors, minimize/restore and close are independent
+of arrangement permission. The activation guard follows the nearest actual drag
+source, so fixed controls remain clickable after pointer drift.
+
+Saved-data impact: no layout/schema/identity changes or migration. This deliberately
+changes only the implicit default for whole-frame mobility. Existing geometry,
+labels, pins and explicit category/individual rigidity choices retain their
+meaning and remain authoritative. No stored policy is erased or rewritten.

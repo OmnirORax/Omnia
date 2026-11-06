@@ -660,3 +660,10 @@ not guess provenance from role-prefix strings. Detach snapshots exact current in
 through the existing region generator, retains authored/primitive IDs, validates
 the whole pipeline before commit and uses shared draft/history. Unsupported
 lossy conversions preserve the original. Do not silently detach when moving.
+
+UI edit-mode correction (2026-11-06): normal controls, field editing, minimize,
+restore and close never require edit mode. Off fixes individual control layout;
+whole frame/window movement and resizing stay available by default. Preserve
+explicit saved rigidity and pins. Drag-tail suppression must require actual
+drag capability at the nearest owner; pointer drift on fixed controls is not a
+drag. Reuse the shared rigidity and activation guards.

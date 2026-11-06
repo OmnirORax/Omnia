@@ -1,3 +1,4 @@
+import {dragActivationSource} from './activationSource.ts';
 import { useEffect, useRef } from "react";
 const UI = "[data-ui-function],[data-ui-drag],[data-ui-resident-root],.toolbar,.ui-bubble-drag";
 /** Block the trailing click from a completed/cancelled drag, but clear the guard on
@@ -14,7 +15,7 @@ export function useDragActivationGuard() {
       if (e.button !== 0) return;
       blocked.current = 0;
       press.current =
-        e.target instanceof Element && e.target.closest(UI)
+        e.target instanceof Element && dragActivationSource(e.target)
           ? { x: e.clientX, y: e.clientY, moved: false }
           : null;
     };
