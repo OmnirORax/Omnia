@@ -4,7 +4,7 @@ export function orderedSelectionRange<T>(items:readonly T[],anchor:string|undefi
   const first=anchor===undefined?-1:items.findIndex(item=>key(item)===anchor);
   return first<0?[items[last]]:items.slice(Math.min(first,last),Math.max(first,last)+1);
 }
-export function selectorOpenPhase(phase:string,firstRequest=false){return firstRequest||phase==='off'?'aim':phase==='configure'?'off':'configure';}
+export function selectorOpenPhase(phase:string,firstRequest=false,baseline=false){if(baseline&&!firstRequest)return phase==='configure'?'aim':'configure';return firstRequest||phase==='off'?'aim':phase==='configure'?'off':'configure';}
 export function selectorEscapePhase(phase:string){return phase==='configure'?'aim':'off';}
 /** An implicit pointed unit is an anchor, not a cage for a sibling range.
  * Explicit drawn working geometry remains a constraint. */

@@ -1732,3 +1732,17 @@ test('fill attachment candidates follow actual contact, independently of contain
  assert.deepEqual(candidates(box(-25,-10,-15,10)),[],'an interior area separated from every rim is not connected by containment');
  const line={...evaluated.nodes.find(n=>n.kind==='line'),cap:'butt'};assert.equal(structuralRegionInk(line).ink[0].outer.kind,'polygon','flat caps must not add fictitious endpoint contact');
 });
+
+test('baseline Position uses declared placement metadata and Composer bounds without editing the source',async()=>{
+ const {targetPlacementDegree}=await import('../src/omnic/targetDegrees.ts');
+ const {defaultDegreeReference,compatibleDegreeReference,measuredReferenceFor}=await import('../src/omnic/referenceMeasures.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');const {resolveReferenceUse,DEFAULT_REFERENCE_SETTINGS}=await import('../src/properties/referenceUse.ts');
+ const source=validateRecipe({...recipe([dot('a',10,20),dot('b',50,60)]),atomnic:{mode:'free'}}),before=JSON.stringify(source),degree=targetPlacementDegree(source,['a','b']),snapshot=operationGeometry(source,evaluateRecipe(source)),environment={x:-100,y:-80,width:200,height:160};
+ assert.equal(defaultDegreeReference(degree),'@environment');assert.ok(compatibleDegreeReference(snapshot,degree,'@environment',environment));
+ const x=degree.axes.find(axis=>targetParameter(axis).measurement==='center-x'),reference=resolveReferenceUse(measuredReferenceFor(snapshot,x,'@environment',environment),DEFAULT_REFERENCE_SETTINGS);
+ assert.equal(reference.min,-100);assert.equal(reference.max,100);assert.equal(JSON.stringify(source),before);
+ assert.equal(compatibleDegreeReference(snapshot,degree,'missing',environment),false);
+ const moved=writeTargetDegree(source,degree,{[x.properties[0]]:30,[degree.axes.find(axis=>axis!==x).properties[0]]:40});
+ assert.deepEqual(moved.components.map(c=>[c.params.x,c.params.y]),[[30,40],[70,80]],'positioning a selected continuity preserves member offsets');
+ const rotation=targetDegrees(source,['a']).find(d=>d.id==='omnic.angle');assert.equal(defaultDegreeReference(rotation),undefined,'other DOFs retain their own reference rules');
+});

@@ -169,3 +169,19 @@ edit these new recipes. Rollback needs the retained pre-conversion recipe/export
 do not assume downgraded software reads new snapshots. Hosted production is
 unchanged until separately merged/deployed; portable backend validation is checked
 alongside frontend changes.
+
+
+## Composer baseline interaction (2026-11-06)
+
+Baseline MS, active DOF, initial Environment reference and retained/canceled preview
+are transient interaction state. No recipe/storage version, saved shortcut ID,
+selection store or rule format changes. Existing explicit bindings/clears remain
+in the shared action router; Q's Composer behavior now toggles settings rather than
+turning selection on/off. Saved Composer geometry is not migrated. Explicit Draw
+and Erase remain commands; Draw is no longer the local initial tool. Escape keeps
+previous committed recipe edits while canceling pending previews/target membership.
+Multi-owner vector Position now translates the authored set with preserved offsets
+instead of assigning every owner the same coordinate. Existing scalar equal-value
+setters and stored coordinates retain their meanings. Older clients still read the
+same recipes, but retain their old interaction behavior. No hosted schema change;
+portable validation/backend checks remain required for changed shared modules.

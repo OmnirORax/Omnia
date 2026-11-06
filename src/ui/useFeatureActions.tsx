@@ -11,7 +11,7 @@ import { eventPathMatches } from './pointerOwnership';
 import { contextTargets } from './contextTargets';
 const noContextSubscription=()=>()=>{};
 const noContextSnapshot=()=>0;
-type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean; run: (input: ActionInput) => void; configuration?: ReactNode;cursor?:boolean|ToolCursorOptions }>;
+type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean|(()=>boolean); run: (input: ActionInput) => void; configuration?: ReactNode;cursor?:boolean|ToolCursorOptions }>;
 /** A feature cannot install a binding absent from the shared catalog. Its command
  * buttons, runtime input and shortcut rows all use these same registered IDs. */
 export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, handlers: Handlers<Owner>, contextActive = true) {
@@ -20,7 +20,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
   const contextual=definitions.some(action=>'contextual' in action&&action.contextual);
   useSyncExternalStore(contextual?contextTargets.subscribe:noContextSubscription,contextual?contextTargets.getSnapshot:noContextSnapshot);
   const effective=(id:FeatureActionFor<Owner>)=>{
-    const handler=latest.current.handlers[id],original={...handler,enabled:latest.current.active&&handler.enabled},definition=definitions.find(action=>action.id===id)!;
+    const handler=latest.current.handlers[id],original={...handler,enabled:latest.current.active&&(typeof handler.enabled==='function'?handler.enabled():handler.enabled)},definition=definitions.find(action=>action.id===id)!;
     if(!('contextual' in definition)||!contextTargets.override(id))return original;
     const resolved=contextTargets.resolve(id);
     return {...original,enabled:latest.current.active&&!!resolved,configuration:resolved?.command.configuration??(resolved?.command.degrees?.length?<ContextDOFConfiguration action={id}/>:undefined),run:()=>{contextTargets.invoke(id);}};

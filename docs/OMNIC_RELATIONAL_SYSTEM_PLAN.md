@@ -834,3 +834,10 @@ The region still comes from declared reference thresholds and shared fractions;
 no quarter/wedge/cap recipes are added. Local model checks cover geometry and
 compatibility; user interaction acceptance remains pending. This snapshot model
 does not yet continuously solve constraints against other contributors after edits.
+
+
+### Composer baseline selection and direct DOF continuation
+
+Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Clicks inside the active value projection confirm and retain editing; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
+
+The registered surface declares a baseline policy; shared MS still owns geometry matching, input capture and modifiers. Position uses existing reference-frame adapters and the current Composer bounds, not a new placement grid. Multi-owner vector placement translates through the existing authored-target movement owner so selecting a continuous structure cannot collapse its members into one coordinate. Scalar equal-value/match setters remain separate.

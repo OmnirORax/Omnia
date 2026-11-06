@@ -408,3 +408,23 @@ test('native selection resolves the physical event path and survives replacement
  registry.endSession();assert.equal(registry.sessionScoped(),false);assert.equal(registry.sessionOwns(controller),true,'unscoped standalone MS retains its existing global behavior');
  liveRoot=root;registry.beginSession(ink);stop();assert.equal(registry.sessionOwns(ink),false,'disposed surfaces cannot retain input');
  });
+
+test('baseline selector configuration toggles without an off phase and borrowed requests still aim',async()=>{
+ const {selectorOpenPhase}=await import('../src/appearance/selectionRange.ts');
+ assert.equal(selectorOpenPhase('off',false,true),'configure');
+ assert.equal(selectorOpenPhase('aim',false,true),'configure');
+ assert.equal(selectorOpenPhase('configure',false,true),'aim');
+ assert.equal(selectorOpenPhase('configure',true,true),'aim');
+ assert.equal(selectorOpenPhase('configure'),'off','unregistered app surfaces retain their established lifecycle');
+});
+
+test('baseline surface policies are scoped, dynamically suspended and disposed with their renderer',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),child={},outside={},root={contains:e=>e===child};let enabled=true;const events=[];
+ const policy={enabled:()=>enabled,pick:(elements,point,intent)=>events.push([elements,point,intent]),cancel:()=>events.push('cancel')};
+ const dispose=registry.register({element:()=>root,baseline:policy,snapshot:()=>({units:[],selected:[],hit:()=>undefined}),apply:()=>{}});
+ assert.equal(registry.baseline(child),policy);assert.equal(registry.baseline(outside),undefined);
+ registry.baseline(child).pick([child],{x:4,y:5},'edit');assert.deepEqual(events,[[[child],{x:4,y:5},'edit']]);
+ enabled=false;assert.equal(registry.baseline(child),undefined,'explicit tools suspend normal selection without removing the surface');
+ enabled=true;registry.baseline(child).cancel();assert.equal(events.at(-1),'cancel');dispose();assert.equal(registry.baseline(child),undefined);
+});

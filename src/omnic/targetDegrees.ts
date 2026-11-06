@@ -2,7 +2,7 @@ import type { Component, Recipe } from './model.ts';
 import { validateRecipe } from './model.ts';
 import { applicableParameters, definition,parameterValue, type Parameter, type Value } from './registry.ts';
 import { legalAtoms, atomnicSettings } from './atomnic.ts';
-import { componentIndex, memberTargets } from './componentTargets.ts';
+import { componentIndex, rootTargets, memberTargets } from './componentTargets.ts';
 import { editableDegrees, vectorDegrees, type EditableDegree, type FreedomAdjuster } from '../properties/editableDegrees.ts';
 
 const components=(items:readonly Component[]):Component[]=>items.flatMap(item=>[item,...components(item.children??[])]);
@@ -50,6 +50,12 @@ export function writeTargetDegree(recipe:Recipe,degree:EditableDegree,value:Degr
  const vector=typeof value==='object';
  if(degree.properties.length!==1&&(!degree.axes||!vector))throw Error('This freedom requires a vector value.');
  if(vector&&(!degree.axes||!Object.keys(value).length||Object.keys(value).some(key=>!degree.properties.includes(key)||!Number.isFinite(value[key]))))throw Error('Invalid vector components.');
+ // A shared placement field translates the selected structure; it must not
+ // collapse each member onto the same absolute coordinates. Scalar match stays separate.
+ if(vector&&new Set(degree.targets.map(target=>target.id)).size>1){
+  const axes=degree.axes??[],x=axes.find(axis=>targetParameter(axis).measurement==='center-x'),y=axes.find(axis=>targetParameter(axis).measurement==='center-y');
+  if(x&&y){const delta={x:value[x.properties[0]]===undefined?0:value[x.properties[0]]-Number(targetDegreeValue(recipe,x)),y:value[y.properties[0]]===undefined?0:value[y.properties[0]]-Number(targetDegreeValue(recipe,y))};return translateTargets(recipe,new Set(rootTargets(recipe,degree.targets.map(target=>target.id))),delta);}
+ }
  const targets=new Map<string,Record<string,Value>>();
  for(const target of degree.targets){const next=vector?value[target.input.property]:value;if(next===undefined)continue;targets.set(target.id,{...targets.get(target.id),[target.input.key]:next});}
  const current=new Set([...components(recipe.components),...recipe.operations].map(item=>item.id));
