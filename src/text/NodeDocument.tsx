@@ -1,5 +1,9 @@
+import {FloatingWindow} from '../ui/FloatingWindow';
+import {documentCommand} from './editing';
+import {useFeatureActions} from '../ui/useFeatureActions';
+import {FEATURE_ACTIONS} from '../featureActions';
 import { annotateTextNode, editableTextNodes, textPoint,formatMarkdownAtCaret } from "./live";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent,type MutableRefObject } from 'react';
 import type { Entity } from '../graph/structural';
 import { RENDER_BUDGET } from '../renderBudget';
 import { omnicBudgetAsset } from '../omnic/presentation';
@@ -21,11 +25,24 @@ type Props = {
 const empty: NodeText = { version: 1, content: [] };
 /** Browser owns the live editing DOM/caret/native undo. Committed workspace changes
  * are batched, never a React/Three.js update for each typed character. */
-export function NodeDocument(props: Props) {
+export function NodeDocument(props:Props){
+  const guard=useRef<()=>boolean>(()=>true);
+  return <FloatingWindow id="node-document" openingKey={props.entity.id} title={`Document: ${props.entity.label||'Untitled'}`} width={560} height={440} className="node-document-window" onClose={()=>guard.current()?props.onClose():false} onMinimize={()=>guard.current()}>
+    <NodeDocumentContent {...props} guard={guard}/>
+  </FloatingWindow>;
+}
+/** Own the live DOM inside the shared portal payload, so dock-host replacement
+ * flushes the old editor and initializes the new host through the same lifecycle. */
+function NodeDocumentContent(props:Props&{guard:MutableRefObject<()=>boolean>}) {
   const editor = useRef<HTMLDivElement>(null), latest = useRef(props); latest.current = props;
   const pending = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const annotating=useRef(false),composing=useRef(false);
   const beforeInput=useRef<{node:Text;offset:number;prefix:Element|null}|undefined>(undefined);
+  // Registry availability changes only when focus/list ownership changes, not
+  // for every caret move or typed character. Runtime commands still read live DOM.
+  const [,setEditingScope]=useState({focused:false,list:false});
+  useEffect(()=>{const root=editor.current;if(!root)return;const refresh=()=>{const focused=document.activeElement===root,list=focused&&!!window.getSelection()?.anchorNode?.parentElement?.closest('li');setEditingScope(old=>old.focused===focused&&old.list===list?old:{focused,list});};document.addEventListener('selectionchange',refresh);root.addEventListener('focus',refresh);root.addEventListener('blur',refresh);return()=>{document.removeEventListener('selectionchange',refresh);root.removeEventListener('focus',refresh);root.removeEventListener('blur',refresh);};},[]);
+
 
   const committed = useRef(JSON.stringify(props.entity.text ?? empty));
   const [status, setStatus] = useState('Saved'), [error, setError] = useState(''),[detectionError,setDetectionError]=useState('');
@@ -68,16 +85,28 @@ export function NodeDocument(props: Props) {
       const value = readTextDOM(root);
       validateNodeText(value, new Set(objects.keys()));
       const json = JSON.stringify(value);
-      if (json === committed.current) return true;
+      if (json === committed.current) {setStatus('Saved');setError('');return true;}
       if (!latest.current.onSave(latest.current.entity.id, value)) throw Error('Document could not be saved. Keep this document open. Copy the unsaved contents elsewhere or reduce them.');
       committed.current = json; setStatus('Saved'); setError(''); return true;
     } catch (e) { setStatus('Unsaved'); setError(e instanceof Error ? e.message : String(e)); return false; }
   };
   const saveRef = useRef(save); saveRef.current = save;
+  props.guard.current=()=>saveRef.current();
   const changed = () => {
     setStatus('Editing…'); clearTimeout(pending.current);
     pending.current = setTimeout(() => saveRef.current(), 700);
   };
+  const edit=(command:string)=>{if(editor.current&&documentCommand(editor.current,command))changed();};
+  const ownsEditing=()=>!!editor.current&&document.activeElement===editor.current&&!composing.current;
+  const ownsList=()=>ownsEditing()&&!!window.getSelection()?.anchorNode?.parentElement?.closest('li');
+  const commands=useFeatureActions('nodeDocument',{
+    'document.bold':{enabled:ownsEditing,run:()=>edit('bold')},
+    'document.italic':{enabled:ownsEditing,run:()=>edit('italic')},
+    'document.orderedList':{enabled:ownsEditing,run:()=>edit('insertOrderedList')},
+    'document.bulletList':{enabled:ownsEditing,run:()=>edit('insertUnorderedList')},
+    'document.indent':{enabled:ownsList,run:()=>edit('indent')},
+    'document.outdent':{enabled:ownsList,run:()=>edit('outdent')},
+  });
   const detect=(kind:'insert'|'delete',full=false)=>{
     const root=editor.current;if(!root||annotating.current||composing.current)return;
     annotating.current=true;setDetectionError('');
@@ -137,12 +166,13 @@ export function NodeDocument(props: Props) {
   }, []);
   return <section className="node-document" aria-label={`Document: ${props.entity.label || 'Untitled'}`} data-ui-gesture-owner="content"
     onPointerDown={event => event.stopPropagation()} onWheel={event => event.stopPropagation()} onContextMenu={event => event.stopPropagation()}>
-    <header><strong>{props.entity.label || 'Untitled'}</strong><small role="status">{status === "Saved" ? props.saveStatus : status}</small>
+    <header><small role="status">{status === "Saved" ? props.saveStatus : status}</small>
       <button data-ui-id="node-document-lexicon" title="Live matching is always on. Open the library to save a glyph’s English variants." onClick={props.onLibrary}>Lexicon</button>
-      <button data-ui-id="node-document-close" aria-label="Close node document" onClick={() => { if (save()) props.onClose(); }}>×</button></header>
+      {([['document.bold','B'],['document.italic','I'],['document.orderedList','1.'],['document.bulletList','•'],['document.indent','⇥'],['document.outdent','⇤']] as const).map(([id,symbol])=>{const action=FEATURE_ACTIONS.find(action=>action.id===id)!;return <button key={id} type="button" data-ui-control data-ui-function={id} aria-label={action.label} title={action.description} onMouseDown={event=>event.preventDefault()} onClick={()=>{editor.current?.focus();commands.invoke(id);}}>{symbol}</button>;})}</header>
     {(error||detectionError) && <div role="alert">{error||detectionError}</div>}
     <div ref={editor} className="node-document-content" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label="Node document"
       spellCheck data-placeholder="Type or paste text…"
+      onKeyDown={event=>{if(!composing.current&&commands.handle(event.nativeEvent)){event.preventDefault();event.stopPropagation();}}}
       onBeforeInput={()=>{const selection=window.getSelection(),point=selection?textPoint(selection.anchorNode,selection.anchorOffset):undefined;beforeInput.current=point?{...point,prefix:point.node.previousSibling instanceof Element?point.node.previousSibling:null}:undefined;}}
       onCompositionStart={()=>{composing.current=true;}}
       onCompositionEnd={()=>{composing.current=false;detect('insert');changed();}}

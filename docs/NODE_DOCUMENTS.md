@@ -72,8 +72,11 @@ and workspace history outside editing retain their existing scopes.
 
 ## Bounds and verification
 
-One node-anchored DOM document is open at a time. It follows the existing camera
-projection scheduler without per-pointer React updates. Text input does not
+One document is open at a time in the shared FloatingWindow. Its frame inherits
+normal movement, resizing, docking, pinning, minimization, UI rigidity and saved
+layout/customization. It opens from the node options; camera movement does not
+force its position. Dock-host replacement flushes and initializes the live editor
+through the existing save lifecycle. Text input does not
 update the 3D name texture per keystroke. Prepared matching and canonical glyph
 images cache across text saves; static object images use shared Blob URLs and
 lazy loading. `RENDER_BUDGET.omnicTextPrimitives` caps distinct prepared geometry
@@ -117,3 +120,35 @@ input do not trigger reformatting. Renderer nesting/work is bounded, with
 pathological syntax falling back to visible source. Models cover rendering,
 escaping, marker/glyph round trips and malformed inputs. Browser caret/Undo/IME
 acceptance remains user-pending.
+
+## Essential editing and window behavior
+
+The document uses the same frame/chrome and layout owner as other UI windows.
+Move its handle, resize its corner, dock/pin/minimize it and configure rigidity
+through the normal UI controls. Shared rigidity/pinning rules still apply; the
+document does not bypass a locked window category. Size and frame customization
+are stored with UI layout, not the document body. Closing/minimizing first flushes
+the text and keeps the window open if saving fails.
+
+Numbered and bullet lists are native editable `ol`/`ul`/`li` structures, rather
+than painted prefix spans. Enter continues the list; Enter on an empty item exits.
+Indent/Outdent controls (Ctrl+] / Ctrl+[ by default) change list depth. Tab keeps native focus navigation; Shift retains the app’s shared configuration policy. The document toolbar provides Bold,
+Italic, Numbered list and Bullet list; Ctrl/Cmd+B and Ctrl/Cmd+I use the same native
+formatting transactions. Existing native Undo/Redo, caret, selection, clipboard
+and composition remain browser-owned. Markdown serialization derives counters
+for new/moved list items, preserves untouched source prefixes and records native
+formatting changes without resurrecting removed styles. Soft line breaks inside
+a list serialize as indented continuation lines. No new rich-text save schema.
+
+UI caption decoration excludes editable content as a general ownership rule, so
+semantic bold text is never converted into a named UI icon. A user-approved
+bounded built-preview Chromium check verifies bold content has no injected symbol,
+list Enter/empty-item exit and resizing under an unlocked shared window category.
+Broader interactive acceptance remains user-owned.
+
+The same focused check also confirms Bold-off saves plain text, Bold-on saves
+one marker pair and the committed list source contains `1. first`, `2. second`
+and a following unlisted paragraph. No page errors were reported. The initial
+locked-layout resize attempt correctly did nothing; the unlocked category uses
+normal shared resize behavior. This is bounded evidence, not full editor or
+docking/IME/Undo acceptance.

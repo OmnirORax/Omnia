@@ -230,3 +230,21 @@ validate the candidate before shared history/persistence; no automatic migration
 new schema/version or backend deployment. Old clients read the ordinary root
 placement/remaining composition records. Models cover historical fallback
 coordinates, views, identity/round trips and variant visibility ownership.
+
+Document essentials (2026-11-06): semantic lists and native bold/italic operations
+still serialize into existing version-1 Markdown string/glyph content. Untouched
+list prefixes remain source-preserving; native inserted/moved/indented items derive
+their marker from actual list position. Turning formatting off removes the saved
+markers even when the browser retains projection attributes on a plain span.
+No stored HTML/schema/version change or load migration. The shared node-document
+window uses ordinary UI layout/window records (separate from atlas document data)
+and inherits existing export/restore and history. Older clients display Markdown
+syntax and may ignore this new window's UI record. Models cover native list
+counters, type/depth changes and removed-style round trips; browser evidence is
+bounded and recorded separately.
+
+Document formatting/list commands are declared in the shared action registry,
+including their existing-dictionary shortcut bindings. Default scope/conflict and
+explicit-clear handling come from workspaceActions, with no private aliases.
+Indent/Outdent default to Ctrl+] / Ctrl+[ so the app's Shift configuration rule
+remains intact; Tab retains native focus traversal.

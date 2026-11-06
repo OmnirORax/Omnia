@@ -674,3 +674,15 @@ Containment, typed relationships, variant definitions and visual placement remai
 independent. Reuse shared document history/persistence and keep descendant IDs
 and local offsets. The node menu uses connection detachment; Inspector None/root
 uses placement-only detachment. Do not silently repack a detached branch.
+
+Document essentials (2026-11-06): editable authored content is not UI-caption
+content; NamePresentation must not inject icons into semantic document tags.
+NodeDocument inherits FloatingWindow/FrameChrome rather than a private anchored
+shell. Its live DOM owner lives inside the portal payload for safe host changes.
+Use native editable list/formatting transactions and preserve their semantics
+in readTextDOM; stale source attributes on an unformatted span must not resurrect
+styles. Shared UI rigidity/pinning and document-save guards stay authoritative.
+Document formatting/list commands must register with featureActions and use
+useFeatureActions. Keep Shift configuration policy intact; native editing is not
+a reason to add private executable hotkeys. Registry availability follows actual
+editor/list ownership, with updates only when that classification changes.
