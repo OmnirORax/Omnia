@@ -1638,3 +1638,14 @@ test('direct filled-ink hits remain selectable beyond the lens reach without fil
  assert.equal(selectionLensTarget([],{x:0,y:0},18,geometry,fill),undefined,'the pointer cannot bypass the eligible surface/scope');
  assert.equal(selectionLensTarget([fill],{x:3,y:0},18,geometry),fill,'nearby boundaries retain lens targeting');
 });
+
+test('a synchronous selection entry advances catalog, lens geometry and continuity as one snapshot',async()=>{
+ const {prepareSelectionSnapshot}=await import('../src/appearance/selectionSnapshot.ts');const {nearestLensBoundary}=await import('../src/appearance/selectionLens.ts');
+ const scope={},element={closest:()=>scope},makeParts=()=>['a','b'].map(key=>({key,element}));
+ const measure=positions=>({rects:part=>[{left:positions[part.key]-1,right:positions[part.key]+1,top:-1,bottom:1}],bounds:()=>({left:-1,right:1,top:-1,bottom:1}),shape:()=>null,partRelation:part=>({ink:[{outer:{kind:'circle',center:{x:positions[part.key],y:0},radius:1}}]})});
+ const first=prepareSelectionSnapshot(makeParts(),measure({a:0,b:2}),'continuity',null),freshParts=makeParts();
+ assert.throws(()=>nearestLensBoundary(freshParts,{x:0,y:0},18,part=>first.lensGeometry.get(part)),TypeError,'reproduce the old crash when a new catalog reused the previous wrapper-keyed geometry map');
+ const next=prepareSelectionSnapshot(freshParts,measure({a:0,b:20}),'continuity',null);
+ assert.equal(next.catalog,freshParts);assert.equal(nearestLensBoundary(next.catalog,{x:0,y:0},18,part=>next.lensGeometry.get(part)),freshParts[0]);
+ assert.deepEqual(first.continuity.groups.get('a'),['a','b']);assert.deepEqual(next.continuity.groups.get('a'),['a'],'continuity is refreshed with that same geometry revision');
+});

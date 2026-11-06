@@ -1,4 +1,4 @@
-import {prepareConnectedInk} from './geometryRelations';
+import {prepareSelectionSnapshot} from './selectionSnapshot';
 import { selectionSurfaces, spatialSelectionRange, selectionPointerMode, type SelectionUnit } from "./selectionSurfaces";
 import { orderedSelectionRange, rangeWorkingScope, selectorOpenPhase, selectorEscapePhase } from "./selectionRange";
 import {SELECTION_GEOMETRY_ATTRIBUTES,selectionGeometryStyleChanged,DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionLensTarget,selectionDetectionMode} from './selectionLens';
@@ -89,16 +89,13 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const selectedRef = useRef<VisualPart[]>([]), gesture = useRef<Gesture | null>(null);
   const polygon = useRef<Gesture | null>(null);
   const measurements = useMemo(() => {const prepared=createVisualMeasurements();for(const part of catalog)prepared.partRelation(part);return prepared;}, [catalog, geometry]);
-  const continuity=useMemo(()=>configuration.pattern==='continuity'?prepareConnectedInk((selection.scope?matchingVisualParts(catalog,{...selection.scope,include:true},measurements):catalog).flatMap(part=>{
-    const geometry=measurements.partRelation(part);return geometry?[{key:part.key,scope:part.element.closest('[data-selection-scope]')??('ownerSVGElement' in part.element?part.element.ownerSVGElement:null)??part.element,geometry}]:[];
-  })):undefined,[catalog,measurements,configuration.pattern,selection.scope]);
+  const detection=useMemo(()=>prepareSelectionSnapshot(catalog,measurements,configuration.pattern,selection.scope),[catalog,measurements,configuration.pattern,selection.scope]);
   const toggleCandidate = useRef<{ catalog: VisualPart[]; selection: SelectionState; measurements: ReturnType<typeof createVisualMeasurements>; picks: Map<string, Pick> } | null>(null);
-  const latest = useRef({ phase, configuration, catalog, selection, measurements });
-  latest.current = { phase, configuration, catalog, selection, measurements };
+  const latest = useRef({ phase, configuration, catalog, selection, measurements,detection });
+  latest.current = { phase, configuration, catalog, selection, measurements,detection };
   const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0 || Object.values(latest.current.selection.surfaces??{}).some(ids=>ids.length>0);
-  const lensGeometry=useMemo(()=>new Map(catalog.filter(part=>part.element.closest('[data-selection-lens]')).map(part=>{const rects=measurements.rects(part);const box=rects.length?{left:Math.min(...rects.map(r=>r.left)),right:Math.max(...rects.map(r=>r.right)),top:Math.min(...rects.map(r=>r.top)),bottom:Math.max(...rects.map(r=>r.bottom))}:measurements.bounds(part.element);return[part,{box,shape:measurements.shape(part.element)}] as const;})),[catalog,measurements]);
-  const lens=useRef({radius:lensRadius,geometry:lensGeometry});lens.current={radius:lensRadius,geometry:lensGeometry};
-  const lensPart=(parts:VisualPart[],x:number,y:number)=>nearestLensBoundary(parts,{x,y},lens.current.radius,part=>lens.current.geometry.get(part)!);
+  const lens=useRef({radius:lensRadius});lens.current.radius=lensRadius;
+  const lensPart=(parts:VisualPart[],x:number,y:number)=>nearestLensBoundary(parts,{x,y},lens.current.radius,part=>latest.current.detection.lensGeometry.get(part)!);
   const feedbackVisible = selectionFeedbackVisible(view);
   const setCandidatePick = useCallback((next: Pick | null) => {
     if (next && next.rule.backgrounds === undefined) next = { ...next,
@@ -191,7 +188,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     }
     if (mode === "boundary") {
       const pointed=partAt(current.catalog,element,x,y,current.measurements);
-      const sampled=surface?selectionLensTarget(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),{x,y},lens.current.radius,part=>lens.current.geometry.get(part)!,pointed?.element.hasAttribute('data-selection-geometry')?pointed:undefined):pointed;
+      const sampled=surface?selectionLensTarget(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),{x,y},lens.current.radius,part=>current.detection.lensGeometry.get(part)!,pointed?.element.hasAttribute('data-selection-geometry')?pointed:undefined):pointed;
       const options=surface?[]:boundaryCandidates(element);
       const boundary=surface?sampled&&boundaryFor(sampled.element):depth.current===0&&declared?boundaryFor(declared):depth.current===0&&sampled?boundaryFor(sampled.element):options[Math.min(depth.current,options.length-1)];
       if(surface&&sampled)point.current={element:sampled.element,x,y};
@@ -210,7 +207,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if(surface&&part)point.current={element:part.element,x,y};
     if(mode==='continuity'){
       if(!part){setCandidatePick(null);return;}
-      const members=continuity?.groups.get(part.key);
+      const continuity=current.detection.continuity,members=continuity?.groups.get(part.key);
       if(!members){setCandidatePick(null);setPickFeedback(continuity?.complete===false?'Narrow the working scope to resolve continuity':'No continuity geometry adapter for this part');return;}
       prepareToggle({boundary:app,...(scope?{scope}:{}),parts:members.filter(key=>permitted.has(key))});return;
     }
@@ -224,7 +221,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     if(latest.current.phase==='configure'||latest.current.phase==='locked')return true;
     if(latest.current.phase!=='aim'||!selectionSurfaces.sessionOwns(element)){
       selectionSurfaces.beginSession(element);const catalog=collectVisualParts(),measurements=createVisualMeasurements();
-      latest.current={...latest.current,phase:'aim',catalog,measurements};setCatalog(catalog);setInventoryOpen(false);setPhase('aim');
+      const detection=prepareSelectionSnapshot(catalog,measurements,latest.current.configuration.pattern,latest.current.selection.scope);
+      latest.current={...latest.current,phase:'aim',catalog,measurements,detection};setCatalog(catalog);setInventoryOpen(false);setPhase('aim');
     }
     point.current={...p,element};return true;
   };

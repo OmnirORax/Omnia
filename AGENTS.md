@@ -634,3 +634,10 @@ shared UI control declarations own their entire input tail. Releasing a canvas
 session means inactive, never implicit global UI selection. Standalone global MS
 requires explicit entry. Explicit Color DOF entry uses the shared picker seeded
 with the current value, after popup layout and native listener registration.
+
+
+Selection snapshot ownership (2026-11-06): synchronous baseline entry must advance
+catalog, measurements, lens geometry and continuity together via
+prepareSelectionSnapshot. Never update catalog wrappers while retaining a map
+keyed by the previous wrappers. The approved coordinate-click/library diagnostic
+found this exception before confirmation; do not patch affected widgets instead.

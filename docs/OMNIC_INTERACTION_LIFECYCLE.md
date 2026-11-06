@@ -136,3 +136,21 @@ hardware acceptance. Model scope checks cover root/context changes, source-chrom
 entry, physical paths, disposal and standalone global fallback.
 
 Q-cycle follow-up (2026-11-04): `OMNIA_INTERACTION_FOCUS=q-cycle node tests/omnic-interactions.browser.mjs` passed four physical-input checks in Atomnic on/off: exact Q aim/config/closed/aim with membership retained, and separate Escape config/back/cancel behavior. No uncaught page errors. Automatic MC inspection was left unchanged at the user’s clarification. The older full matrix was not rerun; setup steps were updated where the new third Q now intentionally closes.
+
+
+### Atomic selection detection snapshots — 2026-11-06
+
+The approved focused click trace reproduced `nearestLensBoundary` throwing when
+synchronous baseline entry replaced the catalog but kept the previous map keyed
+by VisualPart wrapper identities. That prevented target entry before downstream
+confirmation. Catalog, measurements, lens geometry and continuity now advance as
+one prepared bundle, both on render and synchronous pointer entry. Picks use that
+bundle rather than a separately updated geometry ref. No per-widget input bypass
+or coordinate-confirmation exception is added.
+
+The corrected local Chromium trace used a disposable ring fixture. A real Position
+click committed X=40 and persisted after pointer leave; the toolbar Library opened
+on its first real click. No page errors occurred. This is evidence for those two
+paths only, not full browser-suite or native Color acceptance. The model regression
+reproduces the old cache mismatch and checks updated continuity in the same bundle.
+No stored data, identities or binding formats change.
