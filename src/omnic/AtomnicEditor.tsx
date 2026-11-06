@@ -214,7 +214,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const commands=useFeatureActions('atomnicComposer',{
     'atomnic.erase':{enabled:compatible,cursor:compatible&&pointerTool==='erase'?{zone:cursorZone}:false,run:()=>{cancel();setTool('erase');}},
     'atomnic.constraints':{enabled:true,run:()=>input('mode',settings.mode==='free'?'constrained':'free')},
-    'atomnic.draw':{enabled:compatible,cursor:compatible&&pointerTool==='draw'?{zone:cursorZone}:false,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:compatible,run:()=>{settleGesture();featureActionRuntime.invoke('selector.open');}},
+    'atomnic.draw':{enabled:compatible,cursor:compatible&&pointerTool==='draw'?{zone:cursorZone}:false,run:()=>{cancel();setTool('draw');}},'atomnic.select':{enabled:true,run:()=>{settleGesture();cancelPreview?.();setTool('select');setPhase('idle');featureActionRuntime.invoke('selector.configure');}},
     'atomnic.move':{enabled:bindParameters&&shortcutDegrees.some(degree=>!!degree.axes),cursor:(compatible||moveHover)&&pointerTool==='move'?{zone:cursorZone}:false,run:()=>{const degree=shortcutDegrees.find(degree=>!!degree.axes);if(degree)openShortcutDegree(degree.id);}},
     'atomnic.rotate':{enabled:bindParameters&&!!commandDegree(shortcutDegrees,rotationProperty),cursor:pointerTool==='rotate'&&(rotationHover||cursorOperation==='rotate')?{zone:cursorZone}:false,run:openRotation},
     'atomnic.step':{enabled:compatible&&selected.size>0,run:()=>beginRotation(true)},
@@ -229,7 +229,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     'atomnic.configure':{enabled:true,run:()=>{if(radar)configureOperation('atomnic.configure');else{setPanel({kind:'functions'});setMenu({...pointer.current});}}},
     'atomnic.patterns':{enabled:compatible,run:()=>featureActionRuntime.invoke('selector.open')},
     'atomnic.confirm':{enabled:!!extraPanel&&!!confirmPanel||!!menu&&(panel.kind==='operation'||panel.kind==='reference'),run:()=>{featureActionRuntime.invoke('context.confirm');}},
-    'atomnic.cancel':{enabled:!!referencePicker?.picking||!!gesture.current||phase!=='idle'&&!menu&&!extraPanel,run:()=>{if(gesture.current){cancel();return;}if(extraPanel){closePanel?.();return;}if((radar&&radialContext&&!menu||menu&&panel.kind==='functions')&&radialNavigation.current?.back())return;if(menu&&panel.kind!=='functions')backConfiguration();else if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
+    'atomnic.cancel':{enabled:!!referencePicker?.picking||!!gesture.current||(phase!=='idle'||tool!=='select')&&!menu&&!extraPanel,run:()=>{if(!gesture.current&&!referencePicker?.picking&&!menu&&!extraPanel&&tool!=='select'){baselineCancel();return;}if(gesture.current){cancel();return;}if(extraPanel){closePanel?.();return;}if((radar&&radialContext&&!menu||menu&&panel.kind==='functions')&&radialNavigation.current?.back())return;if(menu&&panel.kind!=='functions')backConfiguration();else if(phase==='idle'&&!menu)setSelected(new Set());else cancel();}},
   });
   useEffect(()=>{const key=(event:KeyboardEvent)=>{if(commands.handle(event)){event.preventDefault();event.stopImmediatePropagation();}};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[]);
   const optionGate=useRef(pointerCommandGate());
