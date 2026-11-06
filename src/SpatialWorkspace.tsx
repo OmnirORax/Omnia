@@ -40,7 +40,7 @@ import { buildTextScene, type LabelMesh, type ColorPreview, type TextScene } fro
 import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
 import { createSceneAppearance } from "./sceneAppearance";
 import { labelSize } from "./graph/labels";
-import { visualFootprint } from "./graph/assets";
+import { DEFAULT_NODE_CELL_SIZE, visualFootprint } from "./graph/assets";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
@@ -90,7 +90,7 @@ type Props = {
   onNodeDoubleClick: (id: string) => void;
   onSubtreeClick: (id: string) => void;
   onBinderSelect: (id: string, kind: "composition" | "relationship" | "variant" | "visual", point: { x: number; y: number }) => void;
-  onMove: (id: string, local: XYZ) => void;
+  onMove: (id: string, local: XYZ, exact?: boolean) => void;
   resolveMove: (id: string, local: XYZ) => XYZ;
   canNest: (id: string, targetId: string) => string | null;
   onNest: (id: string, targetId: string) => void;
@@ -337,10 +337,10 @@ export default function SpatialWorkspace(props: Props) {
         stopAnimation();
         const horizontal = kind === "nudgeLeft" || kind === "nudgeRight";
         const sign = kind === "nudgeLeft" || kind === "nudgeDown" ? -1 : 1;
-        const delta = new THREE.Vector3(horizontal ? sign : 0, horizontal ? 0 : sign, 0).applyQuaternion(camera.quaternion).multiplyScalar(callbacks.current.settings.spatial.spacing || 0.2);
+        const delta = new THREE.Vector3(horizontal ? sign : 0, horizontal ? 0 : sign, 0).applyQuaternion(camera.quaternion).multiplyScalar(callbacks.current.settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE);
         const parent = graphRef.current.nodes.find(parent => parent.id === node.parentId);
         const local = asVector(node.world).add(delta).sub(parent ? asVector(parent.world) : new THREE.Vector3());
-        callbacks.current.onMove(node.id, asXYZ(local));
+        callbacks.current.onMove(node.id, asXYZ(local), true);
         return;
       }
       if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
@@ -518,10 +518,10 @@ export default function SpatialWorkspace(props: Props) {
       });
       if (originals.length > 256) { setFeedback("Move up to 256 visible nodes at once."); return null; }
       stopAnimation(); controls.enabled = false;
-      return { step: callbacks.current.settings.spatial.spacing || .2, frame: camera.quaternion.clone(),
+      return { step: callbacks.current.settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE, frame: camera.quaternion.clone(),
         preview: delta => { for (const original of originals) { original.host.anchor.copy(original.position).add(delta); original.host.group.position.copy(original.host.anchor); } requestRender(); },
         restore: () => { for (const original of originals) { original.host.anchor.copy(original.position); original.host.group.position.copy(original.position); } controls.enabled = !uiPointerActive && !drag && !selecting && !navigation.active; requestRender(); },
-        commit: delta => callbacks.current.onMove(id, asXYZ(local.clone().add(delta))),
+        commit: delta => callbacks.current.onMove(id, asXYZ(local.clone().add(delta)), true),
       };
     } });
     nudgeEngine.current = nudging;

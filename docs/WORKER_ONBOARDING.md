@@ -814,3 +814,9 @@ N remains exact cursor projection onto the camera-facing navigation plane, with
 selected/focused parent semantics and contextual fallback over UI. Broader
 search/filter/contextual representation is future direction, not implemented.
 See [walkthrough](CAPABILITIES.md#graph-cells). Browser acceptance pending.
+
+Atlas scale baseline (2026-11-07): one logical cell is 1 world unit by default,
+independent of the small visible atom diameter. Arrow/nudge actions read the
+shared cell size, advance in whole camera-relative cells and bypass drag snap/
+nearest-free displacement on commit. Holds preview discrete repeats and commit
+once on release; cancellation restores. Explicit steps may overlap other atoms.

@@ -904,14 +904,14 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0);
     } catch (e) { setError(message(e)); }
   }
-  function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false) {
+  function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false, exact = false) {
     // Hidden variant branches must not block the active workspace's drag targets.
     const visibleIds = new Set(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id));
     const collisionDoc = { ...document, placements: document.placements.map((p) => ({ ...p, hidden: p.hidden || !visibleIds.has(p.id) })) };
     const placement = document.placements.find(p => p.id === id)!;
     const parent = placement.parentId && !structuralGraph.nodes.find(n => n.id === id)?.parentId ? worldPositions(document).get(placement.parentId) : undefined;
     const desired = parent ? { x: position.x - parent.x, y: position.y - parent.y, z: position.z - parent.z } : position;
-    const local = nearestFree(collisionDoc, id, desired, settings.spatial);
+    const local = exact ? desired : nearestFree(collisionDoc, id, desired, settings.spatial);
     if (!preview) commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
     return parent ? { x: local.x + parent.x, y: local.y + parent.y, z: local.z + parent.z } : local;
   }
@@ -2305,7 +2305,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
                 setBinderPopup({ x: Math.min(point.x + 12, window.innerWidth - 370), y: Math.min(point.y + 12, window.innerHeight - 460) });
               }}
               resolveMove={(id, local) => moveDisplayedNode(id, local, true)}
-              onMove={(id, local) => { try { moveDisplayedNode(id, local); } catch (e) { setError(message(e)); } }}
+              onMove={(id, local, exact) => { try { moveDisplayedNode(id, local, false, exact); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}
               onNest={nest}
               onContextAction={contextAction}

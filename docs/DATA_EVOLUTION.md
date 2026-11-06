@@ -296,3 +296,9 @@ native home in the upper-right atlas controls, directly below Focus context only
 The proposed View-menu home was superseded before preview delivery. Existing
 customized layouts remain intact; no placement/settings migration or reset occurs.
 Names remains available through Spatial settings and shared UI discovery.
+
+Discrete atlas nudge correction (2026-11-07): existing nodeCellSize (default 1)
+now owns arrow step size, independently of drag snap and visible sphere diameter.
+Held gestures emit only integer cell steps and commit exact requested coordinates
+through existing document history/validation. No load-time rescaling, saved-value
+conversion or coordinate rewrite occurs; camera-relative step directions remain.

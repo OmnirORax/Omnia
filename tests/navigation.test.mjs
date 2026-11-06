@@ -344,7 +344,9 @@ test('held nudge previews without commits and discards missed frame time instead
   gesture.update(['nudgeLeft']);near(preview.x,-.25);assert.equal(commits.length,0);
   frame(16);near(preview.x,-.25);
   frame(200);const beforeStall=preview.x;
-  frame(5200);near(preview.x,beforeStall-.25*32*.012);
+  frame(5200);near(preview.x,beforeStall);
+  frame(5232);near(preview.x,beforeStall-.25);
+  near(preview.x/.25,Math.round(preview.x/.25));
   assert.equal(snapshots,1);assert.equal(commits.length,0);assert.equal(frames.size,1);
   const stale=[...frames.values()][0];gesture.update([]);
   assert.equal(commits.length,1);assert.equal(restores,1);assert.equal(frames.size,0);
@@ -371,4 +373,12 @@ test('held nudge scheduler never invokes host callbacks with the environment as 
     snapshot:()=>({step:1,frame:new THREE.Quaternion(),preview(){},restore(){},commit(){commits++;}})});
   gesture.update(['nudgeLeft']);gesture.update([]);
   assert.equal(scheduled,1);assert.equal(cancelled,1);assert.equal(commits,1);
+});
+
+test('simultaneous atlas arrows advance a whole cell on each active camera axis',async()=>{
+ const {createNudgeGesture}=await import('../src/navigation/nudgeGesture.ts');
+ let value=new THREE.Vector3(),committed;
+ const gesture=createNudgeGesture({now:()=>0,schedule:()=>1,cancel:()=>{},snapshot:()=>({step:1,frame:new THREE.Quaternion(),preview:d=>value.copy(d),restore:()=>{},commit:d=>committed=d.clone()})});
+ gesture.update(['nudgeRight','nudgeUp']);vectorNear(value,new THREE.Vector3(1,1,0));
+ gesture.update([]);vectorNear(committed,new THREE.Vector3(1,1,0));
 });
