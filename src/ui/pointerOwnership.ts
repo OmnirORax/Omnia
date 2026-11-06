@@ -1,3 +1,4 @@
+import {controlInputOwner} from './inputOwnership.ts';
 import {nativeContextMenuKey} from '../featureActions.ts';
 import {contextPressOwnsControl} from './contextMenuOwnership.ts';
 /** UI ownership lasts for the physical press, independently of capture and
@@ -105,6 +106,6 @@ export function ownsPointerSurface(surface:unknown,target:{closest:(selector:str
  * Explicit handles retain priority (including a wheel's centre drag handle). */
 export function popupDragHandle<T>(target:{closest:(selector:string)=>T|null},surface:T,allowFrame:boolean):T|null{
  const explicit=target.closest('[data-dial-drag]');if(explicit)return explicit;
- if(!allowFrame||target.closest('button,input,select,textarea,a,[role=button],[data-ui-popup-interior],[data-ui-control]'))return null;
+ const control=controlInputOwner(target);if(!allowFrame||control&&control!==surface)return null;
  return target.closest('[data-popup-drag-frame]')??(target===surface?surface:null);
 }

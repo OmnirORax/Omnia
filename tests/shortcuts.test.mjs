@@ -763,3 +763,14 @@ test('rejected region owner writes veto popup completion without losing the cand
  assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>candidate,onCommit:()=>{writes++;return false;}}),()=>{finishes++;}),false);assert.equal(writes,1);assert.equal(finishes,0);
  assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>candidate,onCommit:()=>true}),()=>{finishes++;}),true);assert.equal(finishes,1);
 });
+
+test('new control owners retain their first click through popup dismissal and frame dragging',async()=>{
+ const {CONTROL_INPUT_OWNER,controlInputOwner}=await import('../src/ui/inputOwnership.ts');
+ const {dismissContextPointer}=await import('../src/ui/activeContextModel.ts');const {popupDragHandle}=await import('../src/ui/pointerOwnership.ts');
+ const control={matches:selector=>selector===CONTROL_INPUT_OWNER},icon={closest:()=>null},popup={contains:()=>false};let dismissed=0;
+ const layers=new Map([[popup,{dismiss:()=>{dismissed++;}}]]);
+ const owner=controlInputOwner(icon,[icon,control]);assert.equal(owner,control,'physical control ownership survives detached/reparented icon ancestry');
+ assert.equal(dismissContextPointer(layers,icon,false,!!owner),false);assert.equal(dismissed,0,'dismissal must not consume the first click of a newly declared control');
+ const frame={},target={closest:selector=>selector===CONTROL_INPUT_OWNER?control:selector==='[data-popup-drag-frame]'?frame:null};
+ assert.equal(popupDragHandle(target,frame,true),null,'the same declaration also prevents parent-frame dragging');
+});
