@@ -64,6 +64,10 @@
 .dof-region-field > svg { fill:none; stroke:currentColor; stroke-width:1; opacity:.55; }
 
 /* Execution previews remain legible over opaque, same-color scene geometry. */
-[data-ui-value-projection]{background:#07131e;isolation:isolate;box-shadow:0 0 0 1px #07131e}
+[data-ui-value-projection]{background:rgb(7 19 30 / 18%);isolation:isolate;box-shadow:0 0 0 1px rgb(7 19 30 / 55%)}
 .dof-axis-wheel[data-ui-value-projection]{border-radius:50%}
 .dof-region-outline{opacity:.22}
+
+/* Contrast belongs to the marks, leaving the underlying construction visible. */
+[data-ui-value-projection]>svg{filter:drop-shadow(0 0 1px #03151e)}
+[data-ui-value-projection]>output{text-shadow:1px 0 #03151e,-1px 0 #03151e,0 1px #03151e,0 -1px #03151e}

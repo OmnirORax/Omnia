@@ -1096,8 +1096,15 @@ acceptance remains pending. No stored geometry/settings or identity format chang
 
 Interaction visual priority: active contextual previews/settings stay above
 content popovers and the shared selector stays above those previews, independently
-of native mount/opening order. Coordinate and region grids have a solid dark
+of native mount/opening order. Coordinate and region grids have a light translucent
 backing so same-color filled geometry cannot visually erase their axes. The
 selector's contrast edge keeps its accent glyph readable over matching paint.
 This changes transient presentation only; geometry, input ownership and saved
 appearance/settings formats do not change. Visual user retest remains pending.
+
+
+Preview transparency correction: projection surfaces use an 18% dark tint rather
+than an opaque panel. Dark edges on axes and readouts preserve contrast over the
+visible underlying construction; top-layer ordering and selector contrast remain.
+This is a transient CSS default only, with no saved-data change. User visual retest
+is pending.

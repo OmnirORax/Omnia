@@ -944,7 +944,7 @@ paint, including when content opens later or child effects mount first. Already
 correct ordering does not hide/show popovers; focus is retained during necessary
 promotion. No layout measurement or layer sorting is added to pointer motion.
 The existing cursor owner/zone system remains authoritative for applicability.
-Value projection primitives declare data-ui-value-projection for opaque contrast backing; the selector has a dark
+Value projection primitives declare data-ui-value-projection for translucent contrast backing; the selector has a dark
 edge against matching scene ink. Visual user confirmation is pending.
 
 Shared math-dial chrome: reading is clockwise, with no direction toggle. The
