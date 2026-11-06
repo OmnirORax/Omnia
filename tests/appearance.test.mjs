@@ -1627,3 +1627,14 @@ test('coordinate-preview selector registers after its host attaches and preserve
  const output=execFileSync(process.execPath,[fileURLToPath(new URL('./helpers/selector-cursor-lifecycle.cjs',import.meta.url))],{encoding:'utf8'});
  assert.match(output,/actual popup cursor activation.*passed/);
 });
+
+test('direct filled-ink hits remain selectable beyond the lens reach without filling empty outline interiors',async()=>{
+ const {selectionLensTarget,nearestLensBoundary}=await import('../src/appearance/selectionLens.ts');
+ const fill={id:'attached-fill',box:{left:-100,top:-100,right:0,bottom:100},shape:{points:[{x:0,y:-100},{x:-100,y:0},{x:0,y:100},{x:0,y:-100}],stroke:0}};
+ const geometry=part=>part,point={x:-40,y:0};
+ assert.equal(nearestLensBoundary([fill],point,18,geometry),undefined,'reproduce the rejected painted interior with the previous boundary-only lookup');
+ assert.equal(selectionLensTarget([fill],point,18,geometry,fill),fill,'actual renderer ink under the pointer is picked at any interior depth');
+ assert.equal(selectionLensTarget([fill],point,18,geometry),undefined,'empty space is never filled merely by belonging to a shape’s bounds');
+ assert.equal(selectionLensTarget([],{x:0,y:0},18,geometry,fill),undefined,'the pointer cannot bypass the eligible surface/scope');
+ assert.equal(selectionLensTarget([fill],{x:3,y:0},18,geometry),fill,'nearby boundaries retain lens targeting');
+});

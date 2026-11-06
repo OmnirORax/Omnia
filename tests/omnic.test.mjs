@@ -1746,3 +1746,13 @@ test('baseline Position uses declared placement metadata and Composer bounds wit
  assert.deepEqual(moved.components.map(c=>[c.params.x,c.params.y]),[[30,40],[70,80]],'positioning a selected continuity preserves member offsets');
  const rotation=targetDegrees(source,['a']).find(d=>d.id==='omnic.angle');assert.equal(defaultDegreeReference(rotation),undefined,'other DOFs retain their own reference rules');assert.equal(degreeReferenceSource(snapshot,rotation,'@environment',environment),undefined,'Position reference must not disable a subsequently chosen Rotation DOF');assert.equal(degreeReferenceSource(snapshot,degree,'@environment',environment),'@environment');
 });
+
+test('visible attached paint maps to its existing selectable edit owner',async()=>{
+ const {prepareRegionFill}=await import('../src/omnic/fillRegion.ts');const {authoredNodeOwners,targetNodes}=await import('../src/omnic/contextGeometry.ts');const {selectedEditOwners}=await import('../src/omnic/msSelection.ts');
+ const source=validateRecipe(recipe([{id:'rim',generator:'ring',params:{radius:80,fill:false}}]));
+ const evaluation=evaluateRecipe(source),prepared=prepareRegionFill(evaluation,evaluation.nodes,[{x:-81,y:-81},{x:0,y:-81},{x:0,y:81},{x:-81,y:81}],'rim');
+ const filled=validateRecipe({...source,operations:[op('paint','fill',['rim'],{attachment:true,fill:true,shape:JSON.stringify(prepared.shape)})]}),snapshot=evaluateRecipe(filled),owners=authoredNodeOwners(filled,snapshot),hit=pickStructuralNode(snapshot.nodes,{x:-40,y:0});
+ assert.ok(hit.regionAttachment);assert.equal(owners.get(hit.id),'rim');assert.match(renderSVG(snapshot),/data-selection-disc=/);
+ assert.deepEqual(selectedEditOwners(snapshot.nodes,owners,new Set(targetNodes(snapshot,['rim']).map(node=>node.id))),['rim'],'paint and rim become one existing edit target');
+ assert.equal(pickStructuralNode(snapshot.nodes,{x:40,y:0}),undefined,'the unfilled half remains empty');
+});

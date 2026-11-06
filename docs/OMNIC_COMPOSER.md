@@ -1081,3 +1081,14 @@ adjacent-control fallback and lifecycle cleanup. The obsolete page-wide native
 cursor hide for MS aiming is removed; shared transport hides the native pointer
 only when a custom cursor is applicable. This is model/lifecycle evidence;
 visual user acceptance remains pending.
+
+
+Selection-point value previews: baseline target selection and compatible outside
+reference picks center the active value preview at that pick point. This reuses
+ContextualMasterController's anchored mode; settings keep their existing placement.
+Direct registered ink hits take priority over the nearby-boundary lens, allowing a
+large continuous fill to select its existing owner from its painted interior.
+Empty or clipped-away regions still require an actual nearby boundary. Esc returns
+from value/reference editing to ordinary target selection. Focused models reproduce
+the former deep-interior miss and check attachment-to-owner membership; user visual
+acceptance remains pending. No stored geometry/settings or identity format changes.

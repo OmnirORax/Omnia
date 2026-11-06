@@ -27,6 +27,12 @@ export function nearestLensBoundary<T>(candidates:readonly T[],point:Point,radiu
  return nearest;
 }
 
+/** A renderer's direct ink hit remains selectable even deep inside a filled
+ * shape. The lens reaches nearby boundaries only when no eligible ink was hit. */
+export function selectionLensTarget<T>(candidates:readonly T[],point:Point,radius:number,geometry:(candidate:T)=>{box:Box;shape:NativeSelectionShape|null},pointed?:T):T|undefined{
+ return pointed!==undefined&&candidates.includes(pointed)?pointed:nearestLensBoundary(candidates,point,radius,geometry);
+}
+
 /** Surfaces opt into spatial lens picking; ordinary MS retains its existing modes. */
 export function selectionDetectionMode(config:{pattern:PatternMode;contour:boolean;region:SelectionRegion|null},hasScope:boolean,declared:boolean,lens:boolean):PatternMode{
  if(config.pattern==='item'||config.pattern==='continuity')return config.pattern;

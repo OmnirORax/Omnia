@@ -784,3 +784,10 @@ paths never become bounding rectangles or full circles. This adapter does not
 claim support for arbitrary unregistered SVG paths. Continuous Fill attachment
 uses actual touched contributing owners but remains a separate authored relation;
 containment, visual continuity and attachment ownership are independent.
+
+
+Direct ink versus lens reach: a native renderer hit on eligible registered geometry
+wins before nearest-boundary lookup. The lens is the fallback for nearby edges,
+not a requirement that clicks inside visible filled geometry stay near its outline.
+Surface/scope eligibility still filters both; bounds never substitute for ink.
+This applies to attached and independent clipped fills through the same matcher.

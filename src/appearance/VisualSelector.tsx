@@ -1,7 +1,7 @@
 import {prepareConnectedInk} from './geometryRelations';
 import { selectionSurfaces, spatialSelectionRange, selectionPointerMode, type SelectionUnit } from "./selectionSurfaces";
 import { orderedSelectionRange, rangeWorkingScope, selectorOpenPhase, selectorEscapePhase } from "./selectionRange";
-import {SELECTION_GEOMETRY_ATTRIBUTES,selectionGeometryStyleChanged,DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionDetectionMode} from './selectionLens';
+import {SELECTION_GEOMETRY_ATTRIBUTES,selectionGeometryStyleChanged,DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionLensTarget,selectionDetectionMode} from './selectionLens';
 import {selectionRequest,selectionConfirmation,selectionDecision,type SelectionDecision} from './selectionRequest';
 import { appendTransient, stepTransient } from '../ui/transientTimeline';
 import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
@@ -190,7 +190,8 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       return;
     }
     if (mode === "boundary") {
-      const sampled=surface?lensPart(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),x,y):partAt(current.catalog,element,x,y,current.measurements);
+      const pointed=partAt(current.catalog,element,x,y,current.measurements);
+      const sampled=surface?selectionLensTarget(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),{x,y},lens.current.radius,part=>lens.current.geometry.get(part)!,pointed?.element.hasAttribute('data-selection-geometry')?pointed:undefined):pointed;
       const options=surface?[]:boundaryCandidates(element);
       const boundary=surface?sampled&&boundaryFor(sampled.element):depth.current===0&&declared?boundaryFor(declared):depth.current===0&&sampled?boundaryFor(sampled.element):options[Math.min(depth.current,options.length-1)];
       if(surface&&sampled)point.current={element:sampled.element,x,y};

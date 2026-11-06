@@ -2614,7 +2614,7 @@
       "id": "omnic.ms-selection",
       "title": "Shared MS selection inside Omnic Composer",
       "where": "Composer canvas (Atomnic on or off): hover for baseline MS; Q toggles settings; left-click a target or right-click for its DOF choices.",
-      "behavior": "Composer now has baseline MS without Q. Q toggles selector settings and returns to aiming. A plain target pick opens the retained compatible DOF, defaulting to Position against Composer bounds. Inside the active value preview clicks confirm and keep editing; outside canvas clicks choose a compatible reference without replacing the target. Esc cancels uncommitted DOF input and clears the target; committed edits remain. Right-click selects the pointed mode-defined set and opens DOF choices. Ctrl/Shift membership gestures remain selection-only. Explicit Draw/Erase and borrowed pickers own their gestures. Other app surfaces retain their previous selector lifecycle.",
+      "behavior": "Composer now has baseline MS without Q. Q toggles selector settings and returns to aiming. A plain target pick opens the retained compatible DOF, defaulting to Position against Composer bounds. Inside the active value preview clicks confirm and keep editing; outside canvas clicks choose a compatible reference without replacing the target. Esc cancels uncommitted DOF input and clears the target; committed edits remain. Right-click selects the pointed mode-defined set and opens DOF choices. Ctrl/Shift membership gestures remain selection-only. Explicit Draw/Erase and borrowed pickers own their gestures. Other app surfaces retain their previous selector lifecycle. Value previews open centered on the selection point, and choosing a new reference moves the preview to that pick point. A direct hit on registered filled ink takes priority over boundary-lens reach, so large attached fills can be picked through their painted interiors.",
       "steps": [
         {
           "do": "Enter Composer and hover its geometry without pressing Q. Left-click a target.",
@@ -2643,6 +2643,14 @@
         {
           "do": "Use Ctrl/Shift-click or marquee to modify membership; choose Draw or Erase explicitly.",
           "expect": "Modifier gestures keep the existing MS ownership/history. Explicit tools receive their own canvas gestures; they are no longer the default click behavior."
+        },
+        {
+          "do": "Press Esc to return to baseline, then click well inside an attached partial fill, away from its rim and straight edge.",
+          "expect": "The owning object is selected through its visible paint and its value preview opens under the pointer. Empty/clipped-away regions remain unselected."
+        },
+        {
+          "do": "With the value preview open, select a compatible reference elsewhere on the canvas.",
+          "expect": "The target remains the edited object and its preview reopens centered at the reference-selection point."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -2664,7 +2672,7 @@
       "status": "Implemented for review; user interaction acceptance pending; production unchanged",
       "verification": {
         "automated": "2026-11-06: all 27 model/architecture test files pass; preview/type/property/capability build and portable backend checks pass. Models cover scoped baseline policy, Q toggling versus ordinary/borrowed lifecycles, declared Position references and Composer bounds, preserved multi-target offsets, and existing selection/history contracts. A focused Node React DOM lifecycle fixture reproduces the original child/ancestor-ref failure and exercises the actual corrected hook/resolver through popup activation, adjacent-control fallback, disabled scope, host replacement and teardown. Required local checks rerun before delivery.",
-        "browser": "The first cursor-zone patch was user-rejected: selector still absent in the coordinate preview. Corrected host-ref registration and removed legacy page-wide native cursor hiding. Visual user retest pending; no browser suite run."
+        "browser": "User reported displaced previews and attached-fill selection failure. Pointer-anchored value previews and direct-ink-before-lens picking implemented; visual user retest pending. No browser suite run."
       },
       "related": [
         "omnic.atomnic",
@@ -3285,6 +3293,10 @@
         {
           "do": "Move a previously saved clipped fill with its owner.",
           "expect": "The legacy clipping mask is rebound before editing; the saved half-disc retains its curved contour. Undo restores the prior recipe."
+        },
+        {
+          "do": "Return to baseline with Esc, then click inside a large continuous fill, farther from its edges than the selector lens radius.",
+          "expect": "Its existing owner is selected through the painted area; Continuous does not create a separately selectable authored object. The clipped-away half stays empty."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -3306,7 +3318,7 @@
       "status": "Implemented for review; production unchanged; user acceptance pending",
       "verification": {
         "automated": "2026-11-06: all 27 model/architecture test files pass, including 115 Omnic cases; preview/type/property/capability build and portable backend check pass. Regressions cover legacy movement and originals, multi-owner conversion, exact arc transforms/round trips, bounds/hits/SVG fallback, physical-contact candidates, explicit ownership and rejected confirmation.",
-        "browser": "User acceptance pending for mode entry, exact shape movement, multi-contributor selection and on-canvas attachment choice/cancel, disconnected rejection and undo. No browser suite run."
+        "browser": "User retest pending, including selecting attached paint through a deep interior hit. No browser suite run."
       },
       "related": [
         "omnic.dof-state-wheel",
