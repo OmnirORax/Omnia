@@ -11,7 +11,7 @@ export function DofLinearField({field,value,label,onPreview,onCommit,onCancel}:{
  const pick=(x:number)=>{const box=bounds.current;if(!box)return;return linearFieldCandidate(field,(x-box.left)/box.width)?.value;};
  const cancel=()=>{hover.current=undefined;activation.current.cancel();onCancel();};
  const confirm=useValueConfirmation({owner:root,selection:'single',candidate:()=>hover.current,onCommit});
- return <div ref={root} className="dof-linear-field" role="group" aria-label={`${label} possibility space`} data-ui-popup-interior
+ return <div ref={root} className="dof-linear-field" role="group" aria-label={`${label} possibility space`} data-ui-value-projection data-ui-popup-interior
   onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
   onPointerMove={event=>{const next=pick(event.clientX);if(next!==undefined&&next!==hover.current){hover.current=next;onPreview(next);}}}
   onPointerLeave={cancel} onPointerCancel={cancel}

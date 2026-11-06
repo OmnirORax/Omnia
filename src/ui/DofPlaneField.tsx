@@ -16,7 +16,7 @@ export function DofPlaneField({axes,value,label,allowed,onPreview,onCommit,onCan
  const pick=(x:number,y:number)=>{const box=bounds.current;return box?planeFieldCandidate(axes,{x:(x-box.left)/box.width,y:(y-box.top)/box.height},value=>{const key=JSON.stringify(value);if(!legality.has(key))legality.set(key,allowed(value));return legality.get(key)!;}):undefined;};
  const cancel=()=>{hover.current=undefined;activation.current.cancel();onCancel();};
  const confirm=useValueConfirmation({owner:root,selection:'single',candidate:()=>hover.current,onCommit});
- return <div ref={root} className="dof-plane-field" role="group" aria-label={`${label} possibility space`} data-ui-popup-interior
+ return <div ref={root} className="dof-plane-field" role="group" aria-label={`${label} possibility space`} data-ui-value-projection data-ui-popup-interior
  onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
  onPointerMove={event=>{const next=pick(event.clientX,event.clientY);if(next&&(!hover.current||!sameVector(next,hover.current))){hover.current=next;onPreview(next);}else if(!next&&hover.current)cancel();}}
  onPointerLeave={cancel} onPointerCancel={cancel}

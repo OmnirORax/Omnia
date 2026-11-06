@@ -618,3 +618,11 @@ after choosing the region; this is not a chat question. One touching owner resol
 automatically. No contact cannot invent continuity. Ownership, physical contact,
 containment and authored grouping remain independent. See OMNIC_COMPOSER.md and
 DATA_EVOLUTION.md for snapshot and legacy compatibility limits.
+
+
+Interaction visual priority (2026-11-06): native top-layer order is opening order,
+not CSS z-index. Reuse topLayerOrder for contextual previews/settings and the
+shared tool cursor; later content must not cover them. Keep layer ordering off
+the pointer-motion path. Priority alone cannot make same-color transparent
+controls legible: coordinate previews need contrast backing and the selector a
+contrast edge. Preserve cursor applicability, focus and existing gesture owners.

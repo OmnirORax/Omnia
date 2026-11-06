@@ -15,7 +15,7 @@ export function DofRegionField({axes,outline,label='Region',onPreview,onCommit,o
  useLayoutEffect(()=>()=>cleanup.current(),[]);
  const confirm=useValueConfirmation({owner:root,selection:'single',candidate:()=>hover.current,onCommit});
  const x=axes[0],y=axes[1];
- return <div ref={root} className="dof-region-field" role="group" aria-label={`${label} reference thresholds`} data-ui-popup-interior title="Hover near a reference boundary to preview a region ending at a generated threshold; click or Enter to apply; drag from that side across thresholds to extend the region"
+ return <div ref={root} className="dof-region-field" role="group" aria-label={`${label} reference thresholds`} data-ui-value-projection data-ui-popup-interior title="Hover near a reference boundary to preview a region ending at a generated threshold; click or Enter to apply; drag from that side across thresholds to extend the region"
  onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
  onPointerMove={event=>{const next=pick(event.clientX,event.clientY);if(next){if(JSON.stringify(next)!==JSON.stringify(hover.current)){hover.current=next;setSample(next);onPreview(next);}}else if(hover.current){hover.current=undefined;setSample(undefined);onCancel();}}}
  onPointerLeave={()=>{if(!pressed.current)cancel();}} onPointerCancel={cancel} onLostPointerCapture={()=>{if(pressed.current)cancel();}}

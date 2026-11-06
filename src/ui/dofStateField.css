@@ -62,3 +62,8 @@
 .dof-region-field { position:relative; width:160px; height:160px; color:var(--omnium-accent,#60ddec); touch-action:none; }
 .dof-region-field > svg,.dof-region-outline,.dof-region-outline > svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .dof-region-field > svg { fill:none; stroke:currentColor; stroke-width:1; opacity:.55; }
+
+/* Execution previews remain legible over opaque, same-color scene geometry. */
+[data-ui-value-projection]{background:#07131e;isolation:isolate;box-shadow:0 0 0 1px #07131e}
+.dof-axis-wheel[data-ui-value-projection]{border-radius:50%}
+.dof-region-outline{opacity:.22}

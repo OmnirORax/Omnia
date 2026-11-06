@@ -1092,3 +1092,12 @@ Empty or clipped-away regions still require an actual nearby boundary. Esc retur
 from value/reference editing to ordinary target selection. Focused models reproduce
 the former deep-interior miss and check attachment-to-owner membership; user visual
 acceptance remains pending. No stored geometry/settings or identity format changes.
+
+
+Interaction visual priority: active contextual previews/settings stay above
+content popovers and the shared selector stays above those previews, independently
+of native mount/opening order. Coordinate and region grids have a solid dark
+backing so same-color filled geometry cannot visually erase their axes. The
+selector's contrast edge keeps its accent glyph readable over matching paint.
+This changes transient presentation only; geometry, input ownership and saved
+appearance/settings formats do not change. Visual user retest remains pending.
