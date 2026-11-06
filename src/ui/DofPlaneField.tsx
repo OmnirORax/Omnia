@@ -1,3 +1,4 @@
+import {SelectionPreviewCursor} from '../appearance/SelectionPreviewCursor';
 import {useValueConfirmation} from './useValueConfirmation';
 import {useRef,useLayoutEffect,useMemo} from 'react';
 import type {StateField} from '../properties/stateField';
@@ -20,6 +21,7 @@ export function DofPlaneField({axes,value,label,allowed,onPreview,onCommit,onCan
  onPointerLeave={cancel} onPointerCancel={cancel}
  onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);activation.current.press(pick(event.clientX,event.clientY));}}
  onPointerUp={event=>{if(event.button!==0)return;event.preventDefault();event.stopPropagation();const next=activation.current.take(pick(event.clientX,event.clientY));if(next)confirm(next);}}>
+ <SelectionPreviewCursor surface={root}/>
  <svg viewBox="0 0 160 160" aria-hidden="true"><path d="M1 1H159V159H1Z"/>{axes.flatMap((axis,index)=>axis.field.candidates.map(candidate=>{const f=axis.field.max===axis.field.min ? .5 :(candidate.value-axis.field.min)/(axis.field.max-axis.field.min),p=1+158*f;return <path key={`${index}:${candidate.id}`} d={index?`M1 ${p}H159`:`M${p} 1V159`} className={candidate.thresholds?.length?'dof-axis-threshold':undefined}/>;}))}</svg>
  <output>{axes.map(axis=>rangeLabel(value[axis.property])).join(' · ')}</output>
  </div>;

@@ -2206,7 +2206,7 @@
         },
         {
           "do": "Hover a legal point in Position’s coordinate preview and click it.",
-          "expect": "The placement commits once; the preview stays open. A multi-target position edit preserves member offsets."
+          "expect": "The placement commits once; the preview stays open. A multi-target position edit preserves member offsets. The configured selector cursor remains visible inside the coordinate preview; adjacent popup controls keep their normal cursor."
         },
         {
           "do": "Click a compatible other component on the canvas outside the preview.",
@@ -2228,7 +2228,7 @@
       "limits": "Composer only. Other app surfaces retain opt-in selection. Numeric references retain their declared adapter restrictions (including transformed/moving sources); categorical controls retain identity-only references. Multiple selected placement owners translate together. The default reference and active DOF are transient; rules and committed recipe values retain their existing persistence owners.",
       "verification": {
         "automated": "2026-11-06: all 27 model/architecture test files pass; preview/type/property/capability build and portable backend checks pass. Models cover scoped baseline policy, Q toggling versus ordinary/borrowed lifecycles, declared Position references and Composer bounds, preserved multi-target offsets, and existing selection/history contracts.",
-        "browser": "No new browser suite run. User acceptance pending for baseline entry, Q, inside confirmation, outside references, one-Esc reset, right-click, modifiers and explicit tool transitions."
+        "browser": "User reported the selector disappearing inside the coordinate preview. Popup cursor-zone correction implemented; user retest pending. No new browser suite run."
       },
       "status": "Implemented for review; user interaction acceptance pending; production unchanged",
       "reference": "docs/OMNIC_RELATIONAL_SYSTEM_PLAN.md",
@@ -2247,10 +2247,11 @@
         "src/appearance/visualSelection.ts",
         "src/omnic/Composer.tsx",
         "src/omnic/svg.ts",
-        "src/ui/NumericEditorScope.tsx",
         "src/ui/DofInformation.tsx",
         "docs/OMNIC_INTERACTION_LIFECYCLE.md",
-        "tests/omnic-interactions.browser.mjs"
+        "tests/omnic-interactions.browser.mjs",
+        "src/appearance/SelectionPreviewCursor.tsx",
+        "src/appearance/SelectorCursor.tsx"
       ],
       "actions": [],
       "gestures": [],
@@ -2625,7 +2626,7 @@
         },
         {
           "do": "Hover a legal point in Position’s coordinate preview and click it.",
-          "expect": "The placement commits once; the preview stays open. A multi-target position edit preserves member offsets."
+          "expect": "The placement commits once; the preview stays open. A multi-target position edit preserves member offsets. The configured selector cursor remains visible inside the coordinate preview; adjacent popup controls keep their normal cursor."
         },
         {
           "do": "Click a compatible other component on the canvas outside the preview.",
@@ -2653,7 +2654,9 @@
         "src/omnic/AtomnicEditor.tsx",
         "src/omnic/msSelection.ts",
         "src/omnic/svg.ts",
-        "src/appearance/selectedParts.ts"
+        "src/appearance/selectedParts.ts",
+        "src/appearance/SelectionPreviewCursor.tsx",
+        "src/appearance/SelectorCursor.tsx"
       ],
       "actions": [],
       "gestures": [],
@@ -2661,7 +2664,7 @@
       "status": "Implemented for review; user interaction acceptance pending; production unchanged",
       "verification": {
         "automated": "2026-11-06: all 27 model/architecture test files pass; preview/type/property/capability build and portable backend checks pass. Models cover scoped baseline policy, Q toggling versus ordinary/borrowed lifecycles, declared Position references and Composer bounds, preserved multi-target offsets, and existing selection/history contracts.",
-        "browser": "No new browser suite run. User acceptance pending for baseline entry, Q, inside confirmation, outside references, one-Esc reset, right-click, modifiers and explicit tool transitions."
+        "browser": "User reported the selector disappearing inside the coordinate preview. Popup cursor-zone correction implemented; user retest pending. No new browser suite run."
       },
       "related": [
         "omnic.atomnic",

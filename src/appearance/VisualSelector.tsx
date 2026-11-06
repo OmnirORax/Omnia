@@ -32,7 +32,7 @@ import {
 
 type SelectionState = { surfaces?:Record<string,readonly string[]>; boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
 export type ReferenceSelection={element:Element;boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
-type VisualSelection = SelectionState & { requesting:boolean;setElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void,options?:{mode?:PatternMode})=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
+type VisualSelection = SelectionState & { cursorConfiguration:SelectorConfiguration; requesting:boolean;setElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void,options?:{mode?:PatternMode})=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
 type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
 type Phase = "off" | "configure" | "aim" | "edit" | "locked";
 type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
@@ -799,9 +799,9 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
   const feedbackAvailable = phase !== "off" || hasSelection();
   const feedbackBinding = shortcuts.binding("selector.feedbackView");
   const requesting=!!requestedPick.current;
-  const contextValue = useMemo(() => ({ ...selection,requesting,setElements,undoSelection:undo,redoSelection:redo,canUndo:timeline.index>0,canRedo:timeline.index<timeline.states.length-1, parts: matches.included, properties, clear, selectObject, inspectionKey,
+  const contextValue = useMemo(() => ({ ...selection,cursorConfiguration:configuration,requesting,setElements,undoSelection:undo,redoSelection:redo,canUndo:timeline.index>0,canRedo:timeline.index<timeline.states.length-1, parts: matches.included, properties, clear, selectObject, inspectionKey,
     feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick }),
-    [selection,requesting,setElements,timeline.index,timeline.states.length, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
+    [selection,configuration,requesting,setElements,timeline.index,timeline.states.length, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
   const active = phase !== "off" || !!selection.boundary || !!nativeMarquee;
   const wasMasterOpen = useRef(masterOpen);
   useEffect(() => {
