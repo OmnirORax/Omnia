@@ -666,3 +666,11 @@ hidden, while the existing mixed document stores the original source and canonic
 glyph references. Use textHTML/readTextDOM rather than saving HTML or adding a
 second document store. Preserve bounded live edits, caret/IME/native history and
 shared clipboard/portability. Do not claim full CommonMark or browser acceptance.
+
+Atlas child detachment (2026-11-06): detachPlacement preserves world XYZ and saved
+layout coordinates while clearing visual/variant visibility parentage. The
+separate detachNodeConnection also removes the current canonical containment edge.
+Containment, typed relationships, variant definitions and visual placement remain
+independent. Reuse shared document history/persistence and keep descendant IDs
+and local offsets. The node menu uses connection detachment; Inspector None/root
+uses placement-only detachment. Do not silently repack a detached branch.

@@ -216,3 +216,17 @@ and linked English. Clipboard, workspace/atlas imports and exports keep the same
 owners and shape. Older clients display the retained Markdown as plain syntax.
 Current model fixtures cover source-marker and glyph-reference round trips and
 untrusted/malformed input; browser editing/native undo acceptance remains pending.
+
+Child detachment (2026-11-06): an explicit graph edit within existing atlas v2 and
+workspace formats. `detachPlacement` clears the chosen occurrence's visual parent
+and variant visibility owner, freezes its current world XYZ as root coordinates,
+and rebases that occurrence in every stored layout view. IDs, descendants,
+presentation and node documents stay intact. `detachNodeConnection` additionally
+removes only the current parent-entity → child-entity canonical composition edge;
+other relation types remain separate. Existing canonical workspace synchronization
+therefore shares that relation removal across its uses. The Inspector's existing
+None/root choice uses placement-only detachment without a spatial jump. Both
+validate the candidate before shared history/persistence; no automatic migration,
+new schema/version or backend deployment. Old clients read the ordinary root
+placement/remaining composition records. Models cover historical fallback
+coordinates, views, identity/round trips and variant visibility ownership.

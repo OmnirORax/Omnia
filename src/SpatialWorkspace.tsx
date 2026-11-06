@@ -51,7 +51,7 @@ import { createGraphHierarchyPulse } from "./appearance/graphHighlight";
 import { createWallpaper } from "./scene/wallpaper";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
-export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
+export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "detach" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
   omnicPreview: OmnicPreviewStore;
@@ -872,6 +872,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
     ["createChild", "Create child"], ["insertExisting", "Insert existing entity"], ["connect", "Connect to another node"],
+    ...(menu?.target.kind==="node"&&doc.placements.some(p=>p.id===(menu.target.kind==='node'?menu.target.id:null)&&(p.parentId||p.variantOwner))?([["detach","Detach from parent"]] as [ContextAction,string][]):[]),
     ["toggle", "Expand / collapse"], ["focus", "Focus"], ["edit", "Rename / edit in inspector"],
     ["removePlacement", "Remove placement"], ["deleteIdentity", "Delete identity…"],
   ];

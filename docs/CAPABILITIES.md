@@ -67,6 +67,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Shared domain filters and quest categories](#interface-filters) | Implemented for review; browser acceptance and production deployment pending | ♾️ → Questboard → Category / Status / Search; works offline in GitHack without sign-in. |
 | [Fill through reference thresholds](#omnic-reference-region-fill) | Implemented for review; production unchanged; user acceptance pending | Composer radar: right-click empty space → Fill → pick a closed reference with MS. Object context: right-click object → Units / fill → Fill. |
 | [Detach continuous fill into an independent object](#omnic-detach-attachment) | Implemented for review; user interaction acceptance pending; production unchanged | Composer: right-click an attached fill or its receiver → Detach this fill / Detach fill in the target dial. Several attachments have separate choices. |
+| [Detach a child node from its parent](#graph-detach-child) | Implemented for review; production unchanged; user interaction acceptance pending | 3D atlas: right-click a child node → Detach from parent, next to Connect to another node. The Inspector’s Visual parent → None (root) remains the placement-only route. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1590,6 +1591,31 @@ Detach snapshots the chosen attachment’s currently evaluated circle-and-clip i
 **Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/componentAttachments.ts](../src/omnic/componentAttachments.ts), [src/omnic/AtomnicEditor.tsx](../src/omnic/AtomnicEditor.tsx), [src/omnic/evaluate.ts](../src/omnic/evaluate.ts), [tests/omnic.test.mjs](../tests/omnic.test.mjs).
 
 **Related:** [Fill through reference thresholds](#omnic-reference-region-fill), [Shared MS selection inside Omnic Composer](#omnic-ms-selection).
+
+<a id="graph-detach-child"></a>
+## Detach a child node from its parent
+
+**ID:** `graph.detach-child` · **Status:** Implemented for review; production unchanged; user interaction acceptance pending
+
+**Where:** 3D atlas: right-click a child node → Detach from parent, next to Connect to another node. The Inspector’s Visual parent → None (root) remains the placement-only route.
+
+Detach from parent makes the chosen placement a root and removes the authored containment relation from its current parent entity to its own entity, if present. The node keeps its identity, document, glyph definition, presentation and world position; its descendants stay attached to it and do not move. Unrelated typed relationships and other parent relations stay separate. Saved layout positions are rebased so changing views does not reinterpret old local coordinates as root coordinates. Variant visibility ownership is removed from the detached occurrence while the canonical variant definition stays recorded. The existing document/workspace history, persistence and export owners record the edit; Undo restores the connection. The Inspector placement-only route preserves authored containment and now also avoids relocating the node.
+
+**Minimal working test**
+
+1. Create a child with its own descendant, then right-click the child → Detach from parent. **Expected:** The child becomes a root at the same world position, its current parent connection disappears, and its descendant remains with it at the same world position.
+2. Move the former parent, then move the detached node. **Expected:** The detached branch is independent of the former parent; its own descendants still follow it.
+3. Switch an existing saved layout view, then Undo detachment. **Expected:** Detachment preserves that view’s world coordinates; Undo restores the authored connection and placement parent through shared history.
+4. Instead use Inspector → Visual parent → None (root). **Expected:** Only this placement is detached, with no spatial jump. Authored containment remains recorded, including its independent binder.
+5. Save/export and reopen; inspect another occurrence of the same entity. **Expected:** The detached root and IDs survive. Authored containment is canonical knowledge, so removing that relation applies to all uses of that relation; other placements keep their own visual parentage.
+
+**Limits / unavailable behavior:** Applies to the chosen occurrence’s current parent, not arbitrary typed relationships or every incoming canonical relation. A root with no variant visibility owner has no Detach from parent action. Existing document-coordinate validation still applies; validation failure preserves the original. Browser interaction acceptance is pending.
+
+**Verification:** browser — No new browser checks run for this feature; menu interaction/Undo/visual acceptance remain user-pending.. Automated — Layout model tests cover root detachment without subtree movement, authored containment removal scoped to the current parent, independent canonical knowledge for placement-only detachment, saved-layout rebasing, legacy coordinate fallback, stable IDs/save round trips, root no-op/missing IDs and independent variant visibility. Required complete local tests, preview build and backend checks run before delivery..
+
+**Details:** [subsystem guide](WORKER_ONBOARDING.md). **Implementation:** [src/graph/layout3d.ts](../src/graph/layout3d.ts), [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [src/App.tsx](../src/App.tsx), [tests/layout3d.test.mjs](../tests/layout3d.test.mjs).
+
+**Related:** [Create nodes, children, reuse identities and connect](#graph-create), [Expansion, movement, axis constraints and compaction](#graph-layout), [Chronological undo/redo and filtering](#history-global).
 
 ## Exact registered command inventory
 

@@ -3415,6 +3415,54 @@
         "omnic.reference-region-fill",
         "omnic.ms-selection"
       ]
+    },
+    {
+      "id": "graph.detach-child",
+      "title": "Detach a child node from its parent",
+      "where": "3D atlas: right-click a child node → Detach from parent, next to Connect to another node. The Inspector’s Visual parent → None (root) remains the placement-only route.",
+      "behavior": "Detach from parent makes the chosen placement a root and removes the authored containment relation from its current parent entity to its own entity, if present. The node keeps its identity, document, glyph definition, presentation and world position; its descendants stay attached to it and do not move. Unrelated typed relationships and other parent relations stay separate. Saved layout positions are rebased so changing views does not reinterpret old local coordinates as root coordinates. Variant visibility ownership is removed from the detached occurrence while the canonical variant definition stays recorded. The existing document/workspace history, persistence and export owners record the edit; Undo restores the connection. The Inspector placement-only route preserves authored containment and now also avoids relocating the node.",
+      "steps": [
+        {
+          "do": "Create a child with its own descendant, then right-click the child → Detach from parent.",
+          "expect": "The child becomes a root at the same world position, its current parent connection disappears, and its descendant remains with it at the same world position."
+        },
+        {
+          "do": "Move the former parent, then move the detached node.",
+          "expect": "The detached branch is independent of the former parent; its own descendants still follow it."
+        },
+        {
+          "do": "Switch an existing saved layout view, then Undo detachment.",
+          "expect": "Detachment preserves that view’s world coordinates; Undo restores the authored connection and placement parent through shared history."
+        },
+        {
+          "do": "Instead use Inspector → Visual parent → None (root).",
+          "expect": "Only this placement is detached, with no spatial jump. Authored containment remains recorded, including its independent binder."
+        },
+        {
+          "do": "Save/export and reopen; inspect another occurrence of the same entity.",
+          "expect": "The detached root and IDs survive. Authored containment is canonical knowledge, so removing that relation applies to all uses of that relation; other placements keep their own visual parentage."
+        }
+      ],
+      "reference": "docs/WORKER_ONBOARDING.md",
+      "sources": [
+        "src/graph/layout3d.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/App.tsx",
+        "tests/layout3d.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "limits": "Applies to the chosen occurrence’s current parent, not arbitrary typed relationships or every incoming canonical relation. A root with no variant visibility owner has no Detach from parent action. Existing document-coordinate validation still applies; validation failure preserves the original. Browser interaction acceptance is pending.",
+      "status": "Implemented for review; production unchanged; user interaction acceptance pending",
+      "verification": {
+        "automated": "Layout model tests cover root detachment without subtree movement, authored containment removal scoped to the current parent, independent canonical knowledge for placement-only detachment, saved-layout rebasing, legacy coordinate fallback, stable IDs/save round trips, root no-op/missing IDs and independent variant visibility. Required complete local tests, preview build and backend checks run before delivery.",
+        "browser": "No new browser checks run for this feature; menu interaction/Undo/visual acceptance remain user-pending."
+      },
+      "related": [
+        "graph.create",
+        "graph.layout",
+        "history.global"
+      ]
     }
   ]
 }

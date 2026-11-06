@@ -187,6 +187,25 @@ export function reparentVisual(doc: Document, id: string, parentId: string | nul
   target.spatialPosition = nearestFree(next, id, target.spatialPosition, settings);
   return validateDocument(next);
 }
+/** Detach one occurrence without rebasing its descendants or deleting knowledge.
+ * World XYZ is frozen before removing its spatial/variant visibility parent. */
+export function detachPlacement(doc:Document,id:string):Document {
+ const moving=doc.placements.find(p=>p.id===id);if(!moving)throw Error('Missing placement for detachment.');
+ if(!moving.parentId&&!moving.variantOwner)return doc;
+ const spatialPosition=worldPositions(doc).get(id)!,position={...moving.position};
+ let parent=moving.parentId;while(parent){const item=doc.placements.find(p=>p.id===parent)!;position.x+=item.position.x;position.y+=item.position.y;parent=item.parentId;}
+ const byId=new Map(doc.placements.map(p=>[p.id,p]));
+ const layoutViews=doc.layoutViews?.map(view=>{const saved=new Map(view.positions.map(p=>[p.placementId,p.position]));let world=saved.get(id)??localPosition(moving),parent=moving.parentId;while(parent){const item=byId.get(parent)!;world=add(saved.get(parent)??localPosition(item),world);parent=item.parentId;}return {...view,positions:[...view.positions.filter(p=>p.placementId!==id),{placementId:id,position:world}]};});
+ return validateDocument({...doc,...(layoutViews?{layoutViews}:{}),placements:doc.placements.map(p=>{if(p.id!==id)return p;const {variantOwner,...rest}=p;return {...rest,parentId:null,spatialPosition,position};})});
+}
+/** Remove the current authored containment edge and detach this occurrence.
+ * Other placements, typed relationships and the child's own subtree are retained. */
+export function detachNodeConnection(doc:Document,id:string):Document {
+ const moving=doc.placements.find(p=>p.id===id);if(!moving)throw Error('Missing placement for detachment.');
+ const parent=doc.placements.find(p=>p.id===moving.parentId),detached=detachPlacement(doc,id);
+ if(!parent)return detached;
+ return validateDocument({...detached,compositions:detached.compositions.filter(c=>c.parentId!==parent.entityId||c.childId!==moving.entityId)});
+}
 export type ReflowScope = { kind: "all" } | { kind: "subsystem"; placementId: string } | { kind: "frame"; frameId: string } | { kind: "selection"; placementIds: string[] };
 export function compactLayout(doc: Document, scope: ReflowScope, settings: SpatialSettings): Document {
   const next = structuredClone(doc);
