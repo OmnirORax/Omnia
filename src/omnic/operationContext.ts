@@ -27,7 +27,7 @@ export function operationGeometry(recipe:Recipe,evaluation:Evaluation,stateOwner
   }
   views.set(id,{bounds,measurements,transformed:display.some(node=>node.referenceTransformed),scaled:display.some(node=>node.referenceScaled)});
  }
- return {recipe,evaluation,components,views,stateOwner};
+ return {recipe,evaluation,components,views,owners,stateOwner};
 }
 export type OperationGeometry=ReturnType<typeof operationGeometry>;
 export function referenceForOperation(snapshot:OperationGeometry,target:string,quantity:Quantity,retained?:string){

@@ -3,7 +3,7 @@ import { FEATURE_ACTIONS } from '../featureActions.ts';
 import { defineFunction } from "../properties/function.ts";
 import { PROPERTY_REGISTRY } from "../properties/catalog.ts";
 import type { PropertyDefinition, PropertyValue } from "../properties/registry.ts";
-import { GENERATORS, OPERATORS, type Parameter } from "./registry.ts";
+import { GENERATORS, OPERATORS,parameterValue, type Parameter } from "./registry.ts";
 import { ATOMNIC_PARAMETERS } from './atomnicSettings.ts';
 
 export const OMNIC_CONSUMER = "omnic.composer";
@@ -34,6 +34,7 @@ export function checkedParameter(parameter: Parameter, input: PropertyValue): Pr
   if (parameter.kind === "select" && !parameter.options?.some(option => option.id === input)) throw Error(`Unsupported ${parameter.label}.`);
   if (parameter.kind === "text" && (typeof input !== "string" || input.length > (parameter.maxLength??200))) throw Error(`Invalid ${parameter.label}.`);
   if(parameter.editor==='path-rule')readPathRule(String(input));
+  parameter.validate?.(input);
   return input;
 }
 const inputs = Object.fromEntries([...families].map(([property, group]) => {
@@ -46,7 +47,7 @@ const inputs = Object.fromEntries([...families].map(([property, group]) => {
     ...(first.kind === "text" ? {maxLength:Math.max(...group.map(p=>p.maxLength??200))} : {}),
   };
   return [property, { ...(definition ? {definition} : {}), initial:first.initial,
-    read:(state:OmnicParameterState) => { const parameter=activeParameter(state,property)!; return state.params[parameter.key] ?? parameter.initial; },
+    read:(state:OmnicParameterState) => { const parameter=activeParameter(state,property)!; return parameterValue(parameter,state.params); },
     write:(state:OmnicParameterState,value:PropertyValue) => {
       const parameter=activeParameter(state,property)!;
       // A contextual consumer exposes only its active generator/operator inputs.

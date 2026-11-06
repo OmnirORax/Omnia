@@ -1,3 +1,5 @@
+Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Confirming a single value by click or Enter commits it and closes its preview, returning to baseline selection; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
+
 # Omnic selection and editing lifecycle
 
 The assigned MS opening shortcut (Q by default) cycles off → aiming → MS configuration → off, then repeats. Closing through Q retains accepted membership/history and releases targeting; it never clears the selection. Esc retains its separate behavior: from configuration return to aiming, then cancel/clear normal MS selection; canceling a borrowed reference restores its prior selection. Existing explicit clear/removal commands remain available. Automatic Master Controller selection inspection is unchanged.
@@ -134,3 +136,51 @@ hardware acceptance. Model scope checks cover root/context changes, source-chrom
 entry, physical paths, disposal and standalone global fallback.
 
 Q-cycle follow-up (2026-11-04): `OMNIA_INTERACTION_FOCUS=q-cycle node tests/omnic-interactions.browser.mjs` passed four physical-input checks in Atomnic on/off: exact Q aim/config/closed/aim with membership retained, and separate Escape config/back/cancel behavior. No uncaught page errors. Automatic MC inspection was left unchanged at the user’s clarification. The older full matrix was not rerun; setup steps were updated where the new third Q now intentionally closes.
+
+
+### Atomic selection detection snapshots — 2026-11-06
+
+The approved focused click trace reproduced `nearestLensBoundary` throwing when
+synchronous baseline entry replaced the catalog but kept the previous map keyed
+by VisualPart wrapper identities. That prevented target entry before downstream
+confirmation. Catalog, measurements, lens geometry and continuity now advance as
+one prepared bundle, both on render and synchronous pointer entry. Picks use that
+bundle rather than a separately updated geometry ref. No per-widget input bypass
+or coordinate-confirmation exception is added.
+
+The corrected local Chromium trace used a disposable ring fixture. A real Position
+click committed X=40 and persisted after pointer leave; the toolbar Library opened
+on its first real click. No page errors occurred. This is evidence for those two
+paths only, not full browser-suite or native Color acceptance. The model regression
+reproduces the old cache mismatch and checks updated continuity in the same bundle.
+No stored data, identities or binding formats change.
+
+Borrowed content input (2026-11-06): OperationReferenceScope passes its live
+Composer surface to MS. Pending reference, region and attachment requests own
+only that surface's content, using the shared nearest-input-owner rule. Other
+controls keep their press/release/click, context menu and wheel input without
+canceling the request or replacing the editor context. A missing live root stays
+inactive; only an explicitly unscoped standalone request may select global UI.
+This is transient request state; saved documents and settings are unchanged.
+
+Focused diagnostic evidence for that correction: the built preview previously
+swallowed library pointerdown/up/click while reference picking was pending. The
+same first click now opens the library without selector interception. A separate
+completed-reference path confirms a real coordinate click commits X=65.5 and
+survives pointer leave, with no page errors. Earlier fresh/completed-path checks
+missed the pending state; these observations are not full browser acceptance.
+
+Confirmation completion correction (2026-11-06): the user clarified that click
+followed by Esc retained a value while Esc alone canceled it. The write was
+succeeding, but a no-op degree onConfirm left the hover preview active, making
+confirmation appear ineffective. Single-value confirmation now commits and closes
+the degree preview immediately. Nested reference-choice completion forwards to
+the degree owner. Accepted membership/compatible DOF remain; Esc alone cancels.
+Earlier focused checks observed commit survival but missed this finish condition.
+
+The approved bounded built-preview trace reproduced that distinction for both
+click and Enter: committed X=40, grid still open, next hover X=-40, Esc restored
+X=40. After correction, each confirmation closes the grid and later motion stays
+at X=40. A nested reference-choice click likewise closes the full value preview
+and retains X=18. Esc alone restores an uncommitted X=40 preview to X=0. All four
+after-paths reported no page errors; broader user acceptance remains pending.

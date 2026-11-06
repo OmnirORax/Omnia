@@ -937,10 +937,15 @@ baseline. Do not add private sample wrappers for commit-only numeric parameters.
 Path rule counts use the same shared component directly.
 
 The shared tool cursor is a manual top-layer popover, with transparent, noninput
-styling. Popup-target transitions raise it above contextual popovers; no layout
-measurement is added to motion. This preserves the existing cursor owner/zone
-system rather than adding a cursor renderer for each editor. Interactive
-confirmation is pending.
+styling. Native opening order is coordinated by topLayerOrder: content stays below
+contextual previews/settings (ordered by logical parent depth), with the cursor
+above them. Captured native beforetoggle transitions schedule one microtask before
+paint, including when content opens later or child effects mount first. Already
+correct ordering does not hide/show popovers; focus is retained during necessary
+promotion. No layout measurement or layer sorting is added to pointer motion.
+The existing cursor owner/zone system remains authoritative for applicability.
+Value projection primitives declare data-ui-value-projection for translucent contrast backing; the selector has a dark
+edge against matching scene ink. Visual user confirmation is pending.
 
 Shared math-dial chrome: reading is clockwise, with no direction toggle. The
 centre's base dots form the base-switch button (1/2); separate base buttons are
@@ -1028,3 +1033,32 @@ preview/scrub gestures keep their own press/move/release lifecycle. Reuse these
 boundaries instead of adding shortcut/window-specific drag exceptions.
 
 Focused regression: `node tests/drag-activation.browser.mjs` uses a disposable local browser context and synthetic layout. On 2026-11-04 all five press/drag/click/command/keyboard checks passed without uncaught page errors. It is opt-in, not added to default delivery suites and not a rendering performance benchmark.
+
+
+Cursor registration lifecycle (2026-11-06): call useSelectionPreviewCursor from
+its host-ref owner, not a child layout effect reading an ancestor ref. React runs
+that child before the ancestor host ref attaches; a stable-ref effect then never
+registers. The focused tests/helpers/selector-cursor-lifecycle.cjs fixture uses
+React DOM and the actual hook/zone/resolver to cover this order and teardown.
+Native cursor hiding belongs solely to applicable shared ToolCursorLayer state;
+MS aiming must not independently hide the native pointer across the page.
+
+
+### Registered content yields to controls
+
+inputOwnership supplies the shared control-owner declaration and physical-path surface check. Native semantics, accessible focusable controls and data-ui-control/data-ui-function/gesture-owner declarations inherit routing without per-feature allowlists. The nearest owner before a registered content root keeps the entire press and click tail. Selection surfaces, native Composer capture, shared cursor-zone lookup, popup dismissal and frame dragging apply this contract. Closed sessions are inactive, not global. ColorInput autoOpen is opt-in for an explicitly opened property editor: it uses the current owner color in a passive effect after popup layout and after native commit listeners attach; rerenders cannot reopen it.
+
+Borrowed content selectors must declare their live source surface in requestPick.
+They inherit inputOwnership for pointer, hover, wheel and context routing rather
+than bypassing normal routing while a request exists. Yielding to another control
+must not cancel/reparent the editor just to let its click through. Resolve a
+missing source as inactive, never global. Explicit standalone UI MS is separate.
+
+Single-value completion (2026-11-06): a successful coordinate click or Enter must
+finish the Composer degree editor, not just write a commit while leaving its hover
+projection live. The owner closes its popup via ContextValueCompletion after the
+value accepts; it retains accepted membership and the compatible DOF. Nested
+reference value-choice popups forward completion to that owner. Reference step
+configuration remains a separate stage. Accumulating controls keep their declared
+selection policy. Esc without confirmation still cancels the provisional value.
+This is transient lifecycle state and does not change saved formats/settings.

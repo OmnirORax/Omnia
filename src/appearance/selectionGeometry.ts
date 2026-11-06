@@ -9,7 +9,7 @@ export function toggleSelectionRegion(region: SelectionRegion | null, side: Sele
 }
 export const regionAllows = (region: SelectionRegion, inside: boolean) => region === "both" || (region === "inside" ? inside : !inside);
 export type Box = { left: number; top: number; right: number; bottom: number };
-export type PatternMode = "item" | "pattern" | "axis" | "direction" | "position" | "boundary" | "rectangle" | "ellipse" | "polygon" | "freehand";
+export type PatternMode = "item" | "continuity" | "pattern" | "axis" | "direction" | "position" | "boundary" | "rectangle" | "ellipse" | "polygon" | "freehand";
 export type LineCondition = {
   mode: "axis" | "direction" | "position";
   /** Relative to the boundary rectangle, so moving/resizing its owner follows it. */
@@ -20,11 +20,11 @@ export type LineCondition = {
   stopAtPaint?: string;
 };
 export const PATTERN_MODE_GROUPS: { label: string; modes: PatternMode[] }[] = [
-  { label: "Targets", modes: ["item", "boundary", "pattern"] },
+  { label: "Targets", modes: ["item", "boundary", "continuity", "pattern"] },
   { label: "Geometry", modes: ["axis", "direction", "position", "rectangle", "ellipse", "polygon", "freehand"] },
 ];
 export const PATTERN_MODES: PatternMode[] = PATTERN_MODE_GROUPS.flatMap(group => group.modes);
-export const PATTERN_SYMBOLS: Record<PatternMode, string> = { item: "·", boundary: "○", pattern: "⠒", axis: "↕", direction: "↑", position: "|", rectangle: "▭", ellipse: "◯", polygon: "⬡", freehand: "〰" };
+export const PATTERN_SYMBOLS: Record<PatternMode, string> = { item: "·", continuity: "⛓︎", boundary: "○", pattern: "⠒", axis: "↕", direction: "↑", position: "|", rectangle: "▭", ellipse: "◯", polygon: "⬡", freehand: "〰" };
 export const nextPatternMode = (mode: PatternMode) => PATTERN_MODES[(PATTERN_MODES.indexOf(mode) + 1) % PATTERN_MODES.length];
 export const boxFromPoints = (a: Point, b: Point): Box => ({ left: Math.min(a.x, b.x), right: Math.max(a.x, b.x), top: Math.min(a.y, b.y), bottom: Math.max(a.y, b.y) });
 export const boxesTouch = (a: Box, b: Box) => a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
@@ -103,6 +103,8 @@ export function polygonContains(points: Point[], point: Point): boolean {
   let inside = false;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
     const a = points[i], b = points[j];
+    const cross=(b.x-a.x)*(point.y-a.y)-(b.y-a.y)*(point.x-a.x);
+    if(Math.abs(cross)<1e-7&&point.x>=Math.min(a.x,b.x)-1e-7&&point.x<=Math.max(a.x,b.x)+1e-7&&point.y>=Math.min(a.y,b.y)-1e-7&&point.y<=Math.max(a.y,b.y)+1e-7)return true;
     if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
   }
   return inside;
@@ -118,8 +120,14 @@ export function pathTouchesBox(path: PathCondition, owner: Box, box: Box, contou
   const corners = [{ x: box.left, y: box.top }, { x: box.right, y: box.top }, { x: box.right, y: box.bottom }, { x: box.left, y: box.bottom }];
   const contained = corners.map(point => polygonContains(points, point));
   const crossing = crossed.some(Boolean);
-  const enclosesShape = points.some(point => point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom);
-  return region === "inside" ? crossing || contained.some(Boolean) || enclosesShape : crossing || !contained.every(Boolean);
+  // Inside means full containment. A crossing belongs only to Contour (or
+  // Outside), never to Inside merely because one corner overlaps the region.
+  if(region==='inside'){
+    if(!contained.every(Boolean))return false;
+    // Reject a concave boundary entering a box even when all corners are inside.
+    return !points.some((a,i)=>{const b=points[(i+1)%points.length],interval=lineBoxInterval(a,b,box,[0,1],0);if(!interval)return false;const t=(interval[0]+interval[1])/2,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;return x>box.left+1e-7&&x<box.right-1e-7&&y>box.top+1e-7&&y<box.bottom-1e-7;});
+  }
+  return crossing || !contained.every(Boolean);
 }
 
 /** Rotation is in screen space, so non-square owners do not distort angles. */

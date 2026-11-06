@@ -123,3 +123,70 @@ adds no new runtime migration engine, full backup, cloud sync or automatic
 compatibility-impact detector. Close the gaps through bounded changes with
 historical fixtures and recovery evidence, starting before the next affected
 storage change.
+
+### Reference-threshold fill (2026-11-05)
+
+Owner remains the version-1/2 Omnic recipe and existing Fill application adapter.
+New optional `clipped`, `left`, `top`, `right`, `bottom` parameters describe an
+accepted coordinate-region snapshot; absence preserves whole-fill behavior.
+Explicit legacy `fill: false`, zero opacity, identities and targets are unchanged.
+Clip bounds must be finite, ordered and within existing numeric/extent budgets.
+Rendered clip polygons are transient evaluation data, never another saved owner.
+Undo, drafts, library, workspace exports and backend validation use existing recipe
+paths. No database migration or new storage slot is required. Older clients reject
+these unknown parameter keys; do not edit new clipped-fill work with an older
+client. Keep the original export when moving between versions; no downgrade
+conversion or universal stale-tab protection is claimed. Historical whole-fill
+fixtures and new region round trips are covered in `tests/omnic.test.mjs`.
+
+## Exact fill snapshots and attachment ownership (2026-11-06)
+
+Composer recipe versions 1/2 retain their existing parser and journal owner. New
+internal `region` generator data stores bounded circle/convex-clip snapshots;
+Fill operations may store `attachment:true` and normalized `shape` against one
+explicit owner. Missing fillMode means Continuous; the preference is saved in the
+existing atomnic bag only on acceptance and does not create viewport defaults.
+No new storage key, backend schema or selection store is introduced.
+
+Unchanged legacy `clipped:true` fills render using the historical world mask.
+Before ordinary Composer edits, the evaluator's per-owner snapshots convert
+untouched old paint operations into owner-frame attachments. Multi-target paints
+split by their existing provenance, preserving the first operation ID and issuing
+collision-safe IDs for additional owners. Old clipped fills historically painted
+even when `fill:false`; conversion therefore sets true to preserve visible ink.
+Whole-fill false/zero values retain their original meaning. Empty legacy paints
+remain unchanged. Explicitly modified paint parameters/targets bypass conversion;
+full file import bypasses comparison with the former document.
+
+Conversion creates and validates a candidate before replacing the committed
+recipe. Budget/validation failures leave the original intact; history retains the
+before recipe and supports Undo. Loading alone never rewrites the original.
+Fixtures cover legacy movement, multi-owner conversion, retry idempotence, empty/
+false/zero handling, invalid shape data, round trips and budget failure. This is
+not a complete backup or stale-tab conflict solution: existing save/recovery
+limits remain. Older clients reject the new generator/parameter keys and cannot
+edit these new recipes. Rollback needs the retained pre-conversion recipe/export;
+do not assume downgraded software reads new snapshots. Hosted production is
+unchanged until separately merged/deployed; portable backend validation is checked
+alongside frontend changes.
+
+
+## Composer baseline interaction (2026-11-06)
+
+Baseline MS, active DOF, initial Environment reference and retained/canceled preview
+are transient interaction state. No recipe/storage version, saved shortcut ID,
+selection store or rule format changes. Existing explicit bindings/clears remain
+in the shared action router; Q's Composer behavior now toggles settings rather than
+turning selection on/off. Saved Composer geometry is not migrated. Explicit Draw
+and Erase remain commands; Draw is no longer the local initial tool. Escape keeps
+previous committed recipe edits while canceling pending previews/target membership.
+Multi-owner vector Position now translates the authored set with preserved offsets
+instead of assigning every owner the same coordinate. Existing scalar equal-value
+setters and stored coordinates retain their meanings. Older clients still read the
+same recipes, but retain their old interaction behavior. No hosted schema change;
+portable validation/backend checks remain required for changed shared modules.
+
+
+### Input ownership and immediate Color entry (2026-11-06)
+
+Selection session scope and auto-open Color requests are transient. No stored recipe, UI setting, identity, binding ID or color value format changes. Ending a registered session now means inactive rather than implicit global targeting; explicit standalone entry retains global UI selection. Existing ColorInput preview/commit/cancel behavior remains the persistence boundary, and opening the picker alone commits no color. No migration or backend schema change is required; existing browser activation restrictions and saved-value validation remain.

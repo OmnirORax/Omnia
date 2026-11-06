@@ -1,3 +1,4 @@
+import type {RelationGeometry} from './geometryRelations.ts';
 /** Renderer adapters share one registration for hierarchy and selector feedback.
  * These transient paints never become appearance values or history entries. */
 export type SceneSelectionPaint = { color: string; opacity: number; fill?: number };
@@ -5,6 +6,8 @@ export type HierarchyScenePulse = {
   pulse: (targets: ReadonlyMap<string, boolean>, strength: number) => void;
   clear: () => void;
   pick?: (target: string, element: Element, x: number, y: number) => boolean;
+  /** Prepared screen-space ink; callers cache it by the shared geometry revision. */
+  geometry?: (target:string,element:Element)=>RelationGeometry|undefined;
   paint?: (target: string, element: Element) => string | undefined;
   selection?: (targets: ReadonlyMap<string, SceneSelectionPaint>, strength: number) => void;
 };
@@ -19,6 +22,7 @@ export const scenePartAt = (target: string, element: Element, x: number, y: numb
   [...sceneSources].some(source => source.pick?.(target, element, x, y));
 export const scenePartPaint = (target: string, element: Element) =>
   [...sceneSources].map(source => source.paint?.(target, element)).find(paint => paint !== undefined);
+export const scenePartGeometry=(target:string,element:Element)=>[...sceneSources].map(source=>source.geometry?.(target,element)).find(geometry=>geometry!==undefined);
 export function paintSceneSelection(targets: ReadonlyMap<string, SceneSelectionPaint>, value: number) {
   selection = targets; strength = value;
   for (const source of sceneSources) source.selection?.(targets, value);

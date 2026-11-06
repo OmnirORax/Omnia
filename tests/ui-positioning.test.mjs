@@ -211,3 +211,19 @@ test('button editors always open below their invoking button, including ancestor
  assert.equal(placed.x,162,'parent overlap cannot send the editor sideways');assert.equal(placed.y-child.height/2,194);
  assert.deepEqual(popupBelowButton(button,child,[{x:400,y:130,width:80,height:80}]),{x:162,y:168},'unrelated columns do not displace the child');
 });
+
+test('interaction popovers retain content < preview < cursor order across later openings and child-first mounts',async()=>{
+ const {createTopLayerOrder,TOP_LAYER_PRIORITY}=await import('../src/ui/topLayerOrder.ts');
+ const jobs=[],stack=[],raised=[];const order=createTopLayerOrder(run=>jobs.push(run));
+ const flush=()=>{while(jobs.length)jobs.shift()();};
+ const node=name=>({name,isConnected:true,open:false,matches(){return this.open;},hidePopover(){this.open=false;stack.splice(stack.indexOf(this),1);order.transition(this,false);},showPopover(){if(this.open)return;this.open=true;stack.push(this);order.transition(this,true);raised.push(name);}});
+ const preview=node('preview'),child=node('child'),cursor=node('cursor'),content=node('content');
+ const offChild=order.register(child,TOP_LAYER_PRIORITY.preview+1);child.showPopover();
+ const offCursor=order.register(cursor,TOP_LAYER_PRIORITY.cursor);cursor.showPopover();
+ const offPreview=order.register(preview,TOP_LAYER_PRIORITY.preview);preview.showPopover();flush();
+ assert.deepEqual(stack.map(n=>n.name),['preview','child','cursor'],'native mount order cannot place a parent over its child or the cursor');
+ content.showPopover();flush();assert.deepEqual(stack.map(n=>n.name),['content','preview','child','cursor'],'later content cannot cover active interaction layers');
+ const count=raised.length;order.transition(cursor,true);flush();assert.equal(raised.length,count,'an already correct stack needs no repeated hide/show');
+ offChild();child.hidePopover();flush();assert.deepEqual(stack.map(n=>n.name),['content','preview','cursor']);
+ offPreview();preview.hidePopover();offCursor();cursor.hidePopover();flush();assert.deepEqual(stack.map(n=>n.name),['content'],'closing interaction layers leaves ordinary content untouched');
+});

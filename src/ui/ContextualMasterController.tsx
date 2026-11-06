@@ -1,3 +1,4 @@
+import {registerTopLayerPriority,TOP_LAYER_PRIORITY} from './topLayerOrder';
 import {contextNavigationAction,confirmContextStage} from './contextNavigation';
 import {cursorSample,popupInvocation} from './cursorPosition';
 import {placePopup,popupBelowButton,type PopupRect} from './popupPlacement';
@@ -35,9 +36,10 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
   useActiveLayer(!!position, root, closeLayer,undefined,onDismiss??(radial?onClose:undefined),{ancestors:parents,dismissOutside,cancel:navigate('cancel'),advance:navigate('advance')??onAdvance,confirm:()=>completeValue(navigate('confirm'))});
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
+    const release=registerTopLayerPriority(node,TOP_LAYER_PRIORITY.preview+parents.length);
     node.setAttribute("popover", "manual"); node.showPopover();
-    return () => { node.hidePopover(); node.removeAttribute("popover"); };
-  }, [!!position]);
+    return () => { release();node.hidePopover(); node.removeAttribute("popover"); };
+  }, [!!position,parents.length]);
   useLayoutEffect(() => {
     const node = root.current; if (!node || !position) return;
     const fit = () => {

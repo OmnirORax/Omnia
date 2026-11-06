@@ -1,3 +1,4 @@
+import {nodeRegionBounds} from './fillRegion.ts';
 import { RENDER_BUDGET } from '../renderBudget.ts';
 import type { Recipe, RecipeResolver } from './model.ts';
 import { evaluateRecipe, type Evaluation, type StructuralNode } from './evaluate.ts';
@@ -27,9 +28,8 @@ export function targetBounds(evaluation:Evaluation,ids:readonly string[]):Resize
   return primitiveBounds(targetNodes(evaluation,ids));
 }
 export function primitiveBounds(nodes:readonly StructuralNode[]):ResizeRect|undefined{
-  if(!nodes.length)return;
-  const minX=Math.min(...nodes.map(node=>Math.min(node.x-node.radius-node.thickness/2,(node.x2??node.x)-node.thickness/2))),maxX=Math.max(...nodes.map(node=>Math.max(node.x+node.radius+node.thickness/2,(node.x2??node.x)+node.thickness/2)));
-  const minY=Math.min(...nodes.map(node=>Math.min(node.y-node.radius-node.thickness/2,(node.y2??node.y)-node.thickness/2))),maxY=Math.max(...nodes.map(node=>Math.max(node.y+node.radius+node.thickness/2,(node.y2??node.y)+node.thickness/2)));
+  const boxes=nodes.flatMap(node=>{const box=nodeRegionBounds(node);return box?[box]:[];});if(!boxes.length)return;
+  const minX=Math.min(...boxes.map(b=>b.left)),maxX=Math.max(...boxes.map(b=>b.right)),minY=Math.min(...boxes.map(b=>b.top)),maxY=Math.max(...boxes.map(b=>b.bottom));
   return {x:minX,y:minY,width:Math.max(.001,maxX-minX),height:Math.max(.001,maxY-minY)};
 }
 export function targetLevels(recipe:Recipe,ids:readonly string[]):string[][]{

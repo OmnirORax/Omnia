@@ -671,7 +671,7 @@ test('Composer DOF shortcuts derive from writable metadata, reusing existing Rot
   assert.ok(generated.every(action=>action.category==='Omnic Composer'&&action.defaultKey===''));
   assert.ok(!generated.some(action=>action.degreeProperty==='omnic.angle'||action.degreeProperty==='omnic.position'),'existing complete adjusters have no duplicate rows');
   assert.equal(FEATURE_ACTIONS.find(action=>action.id==='atomnic.rotate').defaultKey,'R');
-  for(const parameter of [...GENERATORS,...OPERATORS].flatMap(definition=>definition.parameters))
+  for(const parameter of [...GENERATORS,...OPERATORS].flatMap(definition=>definition.parameters).filter(input=>!input.internal))
     assert.ok(generated.some(action=>action.degreeProperty===parameter.property)||FEATURE_ACTIONS.some(action=>'adjusts' in action&&action.adjusts.length===1&&action.adjusts.includes(parameter.property)),parameter.property);
   assert.ok(composerDegreeActions().some(action=>action.degreeProperty==='omnic.position'),'vector freedom is discovered from axis metadata');
 });
@@ -756,3 +756,21 @@ test('surface command ownership follows the physical path when capture renders r
  assert.equal(preferredFeatureKey(saved,'Q',available,true),null,'native text entry retains Q');
  assert.equal(preferredFeatureKey({...saved,'selector.open':''},'Q',available),'atomnic.rotate','explicit clears remain authoritative');
  });
+
+test('rejected region owner writes veto popup completion without losing the candidate',async()=>{
+ const {confirmValue}=await import('../src/ui/valueConfirmation.ts');const {confirmContextStage}=await import('../src/ui/contextNavigation.ts');
+ let finishes=0,writes=0;const candidate={x:0,y:0,width:10,height:10};
+ assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>candidate,onCommit:()=>{writes++;return false;}}),()=>{finishes++;}),false);assert.equal(writes,1);assert.equal(finishes,0);
+ assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>candidate,onCommit:()=>true}),()=>{finishes++;}),true);assert.equal(finishes,1);
+});
+
+test('new control owners retain their first click through popup dismissal and frame dragging',async()=>{
+ const {CONTROL_INPUT_OWNER,controlInputOwner}=await import('../src/ui/inputOwnership.ts');
+ const {dismissContextPointer}=await import('../src/ui/activeContextModel.ts');const {popupDragHandle}=await import('../src/ui/pointerOwnership.ts');
+ const control={matches:selector=>selector===CONTROL_INPUT_OWNER},icon={closest:()=>null},popup={contains:()=>false};let dismissed=0;
+ const layers=new Map([[popup,{dismiss:()=>{dismissed++;}}]]);
+ const owner=controlInputOwner(icon,[icon,control]);assert.equal(owner,control,'physical control ownership survives detached/reparented icon ancestry');
+ assert.equal(dismissContextPointer(layers,icon,false,!!owner),false);assert.equal(dismissed,0,'dismissal must not consume the first click of a newly declared control');
+ const frame={},target={closest:selector=>selector===CONTROL_INPUT_OWNER?control:selector==='[data-popup-drag-frame]'?frame:null};
+ assert.equal(popupDragHandle(target,frame,true),null,'the same declaration also prevents parent-frame dragging');
+});

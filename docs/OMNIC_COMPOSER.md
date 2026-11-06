@@ -1001,3 +1001,115 @@ set; explicit DOF controls/shortcuts remain available. This replaces automatic
 Position reference entry and edge-click rotation-wheel opening. See VISUAL_SELECTION.md.
 
 Eligible saved Composer circle/ring/line glyphs now use native batched analytic world rendering through transient presentation metadata; SVG/export identity stays unchanged. Existing world source budgets, complex/decorated/edit-overlay SVG fallbacks and texture-effect switching remain. See PERFORMANCE_RESULTS.md for eligibility and verification limits.
+
+### Fill from reference thresholds
+
+Right-click empty radar space → **Fill** → pick a closed reference with MS.
+The compact on-spot region preview inherits that reference's coordinate bounds,
+landmarks and generated fractions. Hover toward an edge to preview filling from
+that edge to the nearest permitted threshold; click or Enter commits. Holding a
+primary drag retains the starting side and extends through further thresholds.
+The active rule expression opens the existing mathematical dial to change the
+fractionalization. Declared reference thresholds survive rule changes.
+
+Right-click an object → Units / fill → Fill opens the same projection scoped to
+that object. The reference control can borrow another compatible reference. A retained multi-selection can supply multiple contributors, composing their declared thresholds without inventing a parent. Escape, leaving an unconfirmed region, or opening rule
+settings restores the hover sample. Reopening Fill and committing another region
+adds it to the existing paint. Undo/Redo uses the Composer journal.
+
+The shared coordinate-region adapter currently supports closed disk/ring geometry;
+its intersection with the actual target outline determines the painted shape.
+Fill has no wedge/cap presets. Other source projection types and persistent region
+bindings remain unavailable. Generated fractions describe the reference coordinate
+interval, not an inferred filled-area percentage. Existing full boolean Fill data
+and operator tools remain valid. User interaction acceptance is pending.
+
+Adapter extension: serialized implementation-only parameters declare `internal`.
+They remain validated/importable but do not become target DOFs or executable
+shortcut commands. Declared value editors own their inputs instead of being
+absorbed into legacy operation adjusters. Region projections receive the common
+DofStateField rule configuration and generate each source axis with its own
+threshold declaration; thresholds never leak from one axis to another. Geometry
+adapters must convert parent-local reference values into scene coordinates before
+rendering or applying a region. Decorated/clipped glyphs retain faithful SVG output
+instead of the native analytic shortcut, which currently has no clip adapter.
+
+
+### Continuous and separate-object Fill
+
+The Fill mode control chooses **Continuous** or **Object**. Both retain the exact
+intersection (circle arcs plus convex clipping boundary), never a rectangle made
+from the intersection bounds. Object creates a separately movable shape with
+Position, Rotation, Scale, Color and Opacity; its source is untouched.
+Continuous extends one existing component and follows its position, orientation
+and characteristic scale. After confirming a region, actual ink contact determines
+eligible contributing receivers. One receiver resolves automatically; several
+start the existing MS picker restricted to those owners. Pick the receiver on
+canvas. Cancellation returns to region editing; no history entry is added. A
+region touching no contributor cannot commit in Continuous mode; choose another
+region or Object. Other contributors retain their identities. Attachment ownership,
+physical continuity and containment remain independent.
+
+The accepted geometry is a snapshot in the chosen owner frame, not a topology
+constraint re-solved against all other contributors after edits. Exact clipped
+paths inherit shared selection geometry and faithful SVG rendering. Legacy clipped
+fills are converted before edits so moving them cannot slide their source circle
+under a stationary mask; see DATA_EVOLUTION.md. Browser acceptance is pending.
+
+
+### Composer baseline selection and direct DOF continuation
+
+Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Confirming a single value by click or Enter commits it and closes its preview, returning to baseline selection; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
+
+The registered surface declares a baseline policy; shared MS still owns geometry matching, input capture and modifiers. Position uses existing reference-frame adapters and the current Composer bounds, not a new placement grid. Multi-owner vector placement translates through the existing authored-target movement owner so selecting a continuous structure cannot collapse its members into one coordinate. Scalar equal-value/match setters remain separate.
+
+
+Coordinate-preview cursor correction: Composer's Position plane keeps the current
+MS symbol visible inside its value projection through a declared popup cursor zone.
+This is cursor applicability only: the plane retains hover/confirm input, while
+popup controls remain ordinary UI and canvas outside-reference picking is unchanged.
+The shared useSelectionPreviewCursor adapter is available to other value projections;
+only Composer-owned numeric scopes opt in. No persisted values or settings change.
+User retest is pending; no browser acceptance is inferred.
+
+
+Follow-up diagnosis: the first cursor patch was user-rejected. Its child layout
+effect ran before the ancestor field's host ref attached, so no zone registered.
+The adapter is now a hook in the component owning that ref. A Node React DOM
+fixture reproduces the old ordering and checks actual zone/request activation,
+adjacent-control fallback and lifecycle cleanup. The obsolete page-wide native
+cursor hide for MS aiming is removed; shared transport hides the native pointer
+only when a custom cursor is applicable. This is model/lifecycle evidence;
+visual user acceptance remains pending.
+
+
+Selection-point value previews: baseline target selection and compatible outside
+reference picks center the active value preview at that pick point. This reuses
+ContextualMasterController's anchored mode; settings keep their existing placement.
+Direct registered ink hits take priority over the nearby-boundary lens, allowing a
+large continuous fill to select its existing owner from its painted interior.
+Empty or clipped-away regions still require an actual nearby boundary. Esc returns
+from value/reference editing to ordinary target selection. Focused models reproduce
+the former deep-interior miss and check attachment-to-owner membership; user visual
+acceptance remains pending. No stored geometry/settings or identity format changes.
+
+
+Interaction visual priority: active contextual previews/settings stay above
+content popovers and the shared selector stays above those previews, independently
+of native mount/opening order. Coordinate and region grids have a light translucent
+backing so same-color filled geometry cannot visually erase their axes. The
+selector's contrast edge keeps its accent glyph readable over matching paint.
+This changes transient presentation only; geometry, input ownership and saved
+appearance/settings formats do not change. Visual user retest remains pending.
+
+
+Preview transparency correction: projection surfaces use an 18% dark tint rather
+than an opaque panel. Dark edges on axes and readouts preserve contrast over the
+visible underlying construction; top-layer ordering and selector contrast remain.
+This is a transient CSS default only, with no saved-data change. User visual retest
+is pending.
+
+
+### Control ownership and direct Color entry
+
+Baseline selection owns registered editable content. The nearest nested control owns its own input, using native/accessibility semantics or shared UI metadata rather than per-widget exceptions. The renderer and cursor resolver reuse the same inputOwnership contract. A released session cannot silently become global; standalone UI selection requires explicit entry. Choosing Color opens the shared native picker with the current target color after ancestor popovers and native event listeners are ready. Ordinary preview/change/blur/cancel owners remain unchanged. Restricted programmatic picker entry retains the current-color swatch. Native visual acceptance remains pending.

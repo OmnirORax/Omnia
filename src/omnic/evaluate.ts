@@ -1,11 +1,13 @@
+import {readRegionShape} from '../properties/regionShape.ts';
+import {filledRegionShape,regionFrame,regionShapeInFrame,type LegacyRegionAttachment} from './fillRegion.ts';
 import {pathTrace,readPathRule} from './pathRule.ts';
 import { snappedAngle } from "./rotation.ts";
 import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params, type RecipeResolver } from "./model.ts";
 import { defaultParams, definition } from "./registry.ts";
-export type StructuralNode = { referenceTransformed?:boolean; referenceScaled?:boolean; id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
+export type StructuralNode = { clip?:{x:number;y:number}[];orientation?:number;regionAttachment?:boolean; referenceTransformed?:boolean; referenceScaled?:boolean; id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; fillRegions?:{points:{x:number;y:number}[];color:string;opacity:number}[]; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
 export type Diagnostic = { code:string; message:string; target?:string; operation?:string };
 export type InterpretationResult = { operation:string; kind:"count"; value:number; scope:string[] };
-export type Evaluation = { substrates?:{x:number;y:number;width:number;height:number}[]; results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
+export type Evaluation = { legacyRegionAttachments?:Record<string,LegacyRegionAttachment[]>; substrates?:{x:number;y:number;width:number;height:number}[]; results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
 type Generation={component:Component;root:StructuralNode;params:Params;origin:{x:number;y:number}};
 const num=(p:Params,key:string,base=0)=>typeof p[key]==="number"?p[key] as number:base;
 const rad=(degrees:number)=>degrees*Math.PI/180;
@@ -13,21 +15,28 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
   const recipe=validateRecipe(input);
   if(!Number.isFinite(time))throw Error("Invalid evaluation time.");
   const nodes:StructuralNode[]=[],diagnostics:Diagnostic[]=[],frames:Frame[]=[],results:InterpretationResult[]=[];
+  const legacyRegionAttachments:Record<string,LegacyRegionAttachment[]>={};
   const substrates:NonNullable<Evaluation["substrates"]>=[];
   const generations=new Map<string,Generation>(),byId=new Map<string,StructuralNode>();
-  let work=0,motion=false;
+  let work=0,regionCount=0,motion=false;
   const spend=(n=1)=>{work+=n;if(work>LIMITS.work)throw Error("Omnic evaluation work budget exceeded.");};
   const ensureExtent=()=>{
     for(const node of nodes){
       spend();
+      for(const point of node.clip??[]){spend();if(![point.x,point.y].every(v=>Number.isFinite(v)&&Math.abs(v)<=LIMITS.extent))throw Error("Omnic geometric extent exceeded.");}
+      for(const region of node.fillRegions??[])for(const point of region.points){spend();if(![point.x,point.y].every(v=>Number.isFinite(v)&&Math.abs(v)<=LIMITS.extent))throw Error("Omnic geometric extent exceeded.");}
       if(![node.x,node.y,node.x2??0,node.y2??0,node.radius,node.thickness].every(v=>Number.isFinite(v)&&Math.abs(v)<=LIMITS.extent)||node.radius<0||node.thickness<0)throw Error("Omnic geometric extent exceeded.");
     }
   };
   const push=(node:StructuralNode)=>{if(nodes.length>=LIMITS.nodes)throw Error(`Omnic output exceeds ${LIMITS.nodes} structural nodes.`);if(byId.has(node.id))throw Error(`Generated role collision: ${node.id}`);nodes.push(node);byId.set(node.id,node);spend();return node;};
-  const base=(id:string,componentId:string,parent:string|undefined,p:Params,x:number,y:number):StructuralNode=>({id,componentId,parent,kind:"group",x,y,radius:0,fill:p.fill!==false,thickness:num(p,"thickness",2),color:String(p.color??"#60ddec"),opacity:num(p,"opacity",1)});
+  const base=(id:string,componentId:string,parent:string|undefined,p:Params,x:number,y:number):StructuralNode=>({id,componentId,parent,kind:"group",x,y,orientation:num(p,"angle"),radius:0,fill:p.fill!==false,thickness:num(p,"thickness",2),color:String(p.color??"#60ddec"),opacity:num(p,"opacity",1)});
   const generate=(generation:Generation)=>{
     const {root,component,params:p}=generation;
     const point=(suffix:string,x:number,y:number,kind:StructuralNode["kind"],radius=0)=>push({...base(root.id+suffix,root.componentId,root.id,p,x,y),kind,radius});
+    if(component.generator==='region'){
+      const units=regionShapeInFrame(readRegionShape(String(p.shape)),{x:root.x,y:root.y,angle:num(p,'angle'),scale:num(p,'scale',1)});
+      units.forEach((unit,i)=>{const node=point(`:region:${i}`,unit.x,unit.y,'dot',unit.radius);node.clip=unit.clip;node.fill=true;node.thickness=0;node.color=component.params.color===undefined?unit.color:root.color;node.opacity=root.opacity*unit.opacity;});
+    }
     if(component.generator==="dot"||component.generator==="ring")point(":shape",root.x,root.y,component.generator,num(p,component.generator==="ring"?"radius":"size",6));
     if(component.generator==="path-rule"){
       if(!Number.isInteger(root.x)||!Number.isInteger(root.y))throw Error("Substrate-bound positions require whole units, including inherited offsets.");
@@ -147,6 +156,26 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
         diagnostics.push({code:"unsupported-substrate-transform",message:"Transform not applied: substrate-bound paths must change their movement rule.",operation:prefix+op.id});
         return;
       }
+      if(kind==='fill'&&p.attachment){
+        if(p.fill===false)return;
+        if(targets.length===0)return;
+        const root=op.targets.length===1?byId.get(prefix+op.targets[0]):undefined;
+        if(!root||root.kind!=='group'||!generations.has(root.id))throw Error('Attached fill requires one explicit owner.');
+        const frame=regionFrame(root,primitives);if(!frame)throw Error('No attachment frame.');
+        const units=regionShapeInFrame(readRegionShape(String(p.shape)),frame);
+        units.forEach((unit,i)=>{if(++regionCount>LIMITS.nodes)throw Error('Fill region budget exceeded.');push({...root,id:`${prefix}${op.id}:region:${i}`,parent:root.id,kind:'dot',x:unit.x,y:unit.y,radius:unit.radius,clip:unit.clip,fill:true,fillRegions:undefined,thickness:0,regionAttachment:true,color:op.params.color===undefined?(generations.get(root.id)?.component.params.color===undefined?unit.color:root.color):String(p.color),opacity:root.opacity*unit.opacity*(op.params.opacity===undefined?1:num(p,'opacity',1))});});
+        return;
+      }
+      if(kind==='fill'&&p.clipped){
+        const points=[{x:num(p,'left')+offset.x,y:num(p,'top')+offset.y},{x:num(p,'right')+offset.x,y:num(p,'top')+offset.y},{x:num(p,'right')+offset.x,y:num(p,'bottom')+offset.y},{x:num(p,'left')+offset.x,y:num(p,'bottom')+offset.y}];
+        const grouped=new Map<string,StructuralNode[]>();
+        for(const node of primitives){const list=grouped.get(node.componentId)??[];list.push(node);grouped.set(node.componentId,list);}
+        const attachments:LegacyRegionAttachment[]=[];
+        for(const [owner,units] of grouped){const root=byId.get(owner);if(!root)continue;const frame=regionFrame(root,nodes.filter(node=>node.kind!=='group'&&belongs(node,root.id)));if(!frame)continue;
+          const shape=regionShapeInFrame(filledRegionShape(units,points).map(unit=>({...unit,opacity:Math.min(1,unit.opacity/(root.opacity||1))})),frame,true);if(shape.length)attachments.push({owner,shape});
+        }
+        legacyRegionAttachments[prefix+op.id]=attachments;
+      }
       const center=kind==="rotate"&&p.pivot==="center"&&primitives.length?{
         x:(Math.min(...primitives.map(n=>Math.min(n.x-n.radius,n.x2??n.x)))+Math.max(...primitives.map(n=>Math.max(n.x+n.radius,n.x2??n.x))))/2,
         y:(Math.min(...primitives.map(n=>Math.min(n.y-n.radius,n.y2??n.y)))+Math.max(...primitives.map(n=>Math.max(n.y+n.radius,n.y2??n.y))))/2
@@ -156,6 +185,14 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       for(const node of targets){
         spend();
         if(kind==="fill"){
+          if(p.clipped){
+            if(node.kind!=="dot"&&node.kind!=="ring")continue;
+            const left=num(p,"left")+offset.x,top=num(p,"top")+offset.y,right=num(p,"right")+offset.x,bottom=num(p,"bottom")+offset.y;
+            if(right<=left||bottom<=top)throw Error("Empty threshold region.");
+            if(++regionCount>LIMITS.nodes)throw Error("Fill region budget exceeded.");
+            node.fillRegions=[...(node.fillRegions??[]),{points:[{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}],color:op.params.color===undefined?node.color:String(p.color),opacity:op.params.opacity===undefined?1:num(p,"opacity",1)}];continue;
+          }
+          node.fillRegions=undefined;
           node.fill=Boolean(p.fill);node.color=String(p.color);node.opacity=num(p,"opacity",1);
           const generation=generations.get(node.id);if(generation)Object.assign(generation.params,{fill:node.fill,color:node.color,opacity:node.opacity});
         }
@@ -166,6 +203,8 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
           if(node.x2!==undefined)node.x2=offset.x+(node.x2-offset.x)*factor;
           if(node.y2!==undefined)node.y2=offset.y+(node.y2-offset.y)*factor;
           node.radius*=factor;node.thickness*=factor;
+          if(node.clip)node.clip=node.clip.map(point=>({x:offset.x+(point.x-offset.x)*factor,y:offset.y+(point.y-offset.y)*factor}));
+          if(node.fillRegions)node.fillRegions=node.fillRegions.map(region=>({...region,points:region.points.map(point=>({x:offset.x+(point.x-offset.x)*factor,y:offset.y+(point.y-offset.y)*factor}))}));
           const generation=generations.get(node.id);if(generation)for(const key of ["radius","spacing","size","length","thickness"])if(typeof generation.params[key]==="number")generation.params[key]=num(generation.params,key)*factor;
         }
         if(kind==="rotate"){
@@ -175,7 +214,9 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
           const pivot=p.scope==="each"?{x:(node.x+(node.x2??node.x))/2,y:(node.y+(node.y2??node.y))/2}:p.pivot==="center"?center:offset;
           const angle=rad(rotation),cx=pivot.x+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotX"):0),cy=pivot.y+((p.pivot==="custom"||(p.pivot==="origin"&&op.params.pivot===undefined))?num(p,"pivotY"):0),cos=Math.cos(angle),sin=Math.sin(angle);
           const rotate=(x:number,y:number)=>({x:cx+(x-cx)*cos-(y-cy)*sin,y:cy+(x-cx)*sin+(y-cy)*cos});
-          const point=rotate(node.x,node.y);node.x=point.x;node.y=point.y;
+          const point=rotate(node.x,node.y);node.x=point.x;node.y=point.y;node.orientation=(node.orientation??0)+rotation;
+          if(node.clip)node.clip=node.clip.map(point=>rotate(point.x,point.y));
+          if(node.fillRegions)node.fillRegions=node.fillRegions.map(region=>({...region,points:region.points.map(point=>rotate(point.x,point.y))}));
           if(node.x2!==undefined&&node.y2!==undefined){const end=rotate(node.x2,node.y2);node.x2=end.x;node.y2=end.y;}
           const generation=generations.get(node.id);if(generation)generation.params.angle=num(generation.params,"angle")+rotation;
           if(node.highlight)node.highlight={...node.highlight,start:node.highlight.start+rotation};
@@ -183,6 +224,8 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
         if(kind==="oscillate"){
           motion=true;
           const displacement=num(p,"amplitude",10)*Math.sin(time*Math.PI*2*num(p,"frequency",1)+rad(num(p,"phase")));
+          if(node.clip)node.clip=node.clip.map(point=>({...point,[p.axis==='x'?'x':'y']:point[p.axis==='x'?'x':'y']+displacement}));
+          if(node.fillRegions)node.fillRegions=node.fillRegions.map(region=>({...region,points:region.points.map(point=>({...point,[p.axis==="x"?"x":"y"]:point[p.axis==="x"?"x":"y"]+displacement}))}));
           if(p.axis==="x"){node.x+=displacement;if(node.x2!==undefined)node.x2+=displacement;}else{node.y+=displacement;if(node.y2!==undefined)node.y2+=displacement;}
         }
       }
@@ -199,6 +242,6 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
   const selection=run(recipe,"",undefined,{x:0,y:0},new Set(),1);
   for(const frame of frames)for(const target of frame.scope)if(!byId.has(target)&&!diagnostics.some(d=>d.code==="unresolved-frame-scope"&&d.target===target))diagnostics.push({code:"unresolved-frame-scope",message:`Frame scope ${target} is unresolved.`,target});
   ensureExtent();
-  const primitives=nodes.filter(n=>n.kind!=="group"&&generations.has(n.componentId));
-  return {...(substrates.length?{substrates}:{}),results,nodes,selection,diagnostics,properties:{count:primitives.length,selectedCount:primitives.filter(n=>selection.includes(n.id)).length,componentCount:generations.size},frames,motion};
+  const primitives=nodes.filter(n=>n.kind!=="group"&&!n.regionAttachment&&generations.has(n.componentId));
+  return {...(Object.keys(legacyRegionAttachments).length?{legacyRegionAttachments}:{}),...(substrates.length?{substrates}:{}),results,nodes,selection,diagnostics,properties:{count:primitives.length,selectedCount:primitives.filter(n=>selection.includes(n.id)).length,componentCount:generations.size},frames,motion};
 }

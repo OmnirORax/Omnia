@@ -9,6 +9,6 @@ export function rememberVectorAsset(asset:VisualAsset,plan:GlyphVectorPlan|undef
 export const vectorAsset=(asset:VisualAsset)=>plans.get(asset);
 export function glyphVectorPlan(evaluation:Evaluation,bounds?:GlyphVectorPlan['bounds']):GlyphVectorPlan|undefined{
  const nodes=evaluation.nodes.filter(node=>node.kind!=='group');
- if(!nodes.length||nodes.length>RENDER_BUDGET.omnicVectorPrimitives||evaluation.motion||nodes.some(node=>node.highlight||node.glow||node.kind!=='line'&&node.radius<=0))return;
+ if(!nodes.length||nodes.length>RENDER_BUDGET.omnicVectorPrimitives||evaluation.motion||nodes.some(node=>node.highlight||node.clip||node.fillRegions?.length||node.glow||node.kind!=='line'&&node.radius<=0))return;
  return {nodes,bounds:bounds??evaluationBounds(evaluation)};
 }

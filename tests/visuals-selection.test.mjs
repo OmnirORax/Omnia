@@ -405,6 +405,57 @@ test('native selection resolves the physical event path and survives replacement
  registry.beginSession(toolbar);assert.equal(registry.sessionScoped(),true,'entry over source chrome still finds its registered content owner');assert.equal(registry.sessionOwns(toolbar),false,'toolbar controls remain controls');
  context='second';assert.equal(registry.sessionOwns(ink),false,'atlas/source identity changes cannot retain selection capture');
  registry.beginSession(ink);liveRoot={contains:()=>true};assert.equal(registry.sessionOwns(ink),false,'new content root cannot inherit input');
- registry.endSession();assert.equal(registry.sessionScoped(),false);assert.equal(registry.sessionOwns(controller),true,'unscoped standalone MS retains its existing global behavior');
+ registry.endSession();assert.equal(registry.sessionScoped(),false);assert.equal(registry.sessionOwns(controller),false,'ending a content session must not silently activate global UI targeting');registry.beginSession();assert.equal(registry.sessionOwns(controller),true,'explicit standalone MS retains its global behavior');
  liveRoot=root;registry.beginSession(ink);stop();assert.equal(registry.sessionOwns(ink),false,'disposed surfaces cannot retain input');
  });
+
+test('baseline selector configuration toggles without an off phase and borrowed requests still aim',async()=>{
+ const {selectorOpenPhase}=await import('../src/appearance/selectionRange.ts');
+ assert.equal(selectorOpenPhase('off',false,true),'configure');
+ assert.equal(selectorOpenPhase('aim',false,true),'configure');
+ assert.equal(selectorOpenPhase('configure',false,true),'aim');
+ assert.equal(selectorOpenPhase('configure',true,true),'aim');
+ assert.equal(selectorOpenPhase('configure'),'off','unregistered app surfaces retain their established lifecycle');
+});
+
+test('baseline surface policies are scoped, dynamically suspended and disposed with their renderer',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),child={},outside={},root={contains:e=>e===child};let enabled=true;const events=[];
+ const policy={enabled:()=>enabled,pick:(elements,point,intent)=>events.push([elements,point,intent]),cancel:()=>events.push('cancel')};
+ const dispose=registry.register({element:()=>root,baseline:policy,snapshot:()=>({units:[],selected:[],hit:()=>undefined}),apply:()=>{}});
+ assert.equal(registry.baseline(child),policy);assert.equal(registry.baseline(outside),undefined);
+ registry.baseline(child).pick([child],{x:4,y:5},'edit');assert.deepEqual(events,[[[child],{x:4,y:5},'edit']]);
+ enabled=false;assert.equal(registry.baseline(child),undefined,'explicit tools suspend normal selection without removing the surface');
+ enabled=true;registry.baseline(child).cancel();assert.equal(events.at(-1),'cancel');dispose();assert.equal(registry.baseline(child),undefined);
+});
+
+test('registered content yields to any nested input owner and ending its session cannot capture UI',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const {CONTROL_INPUT_OWNER}=await import('../src/ui/inputOwnership.ts');
+ const registry=createSelectionSurfaces(),ink={},control={matches:selector=>selector===CONTROL_INPUT_OWNER},controlIcon={},outside={};
+ const root={contains:node=>[ink,control,controlIcon].includes(node)},snapshot=()=>({units:[],selected:[],hit:()=>undefined});
+ registry.register({element:()=>root,baseline:{enabled:()=>true,pick:()=>{},cancel:()=>{}},snapshot,apply:()=>{}});
+ registry.beginSession(ink);assert.equal(registry.sessionOwns(ink,[ink,root]),true);
+ assert.equal(registry.sessionOwns(controlIcon,[controlIcon,control,root]),false,'a custom control declaration owns its full physical path');
+ assert.equal(registry.beginPointer(controlIcon,{x:0,y:0},'toggle',[controlIcon,control,root]),undefined,'modifiers cannot turn a control press into a geometry selection');
+ assert.equal(registry.sessionOwns(outside,[outside]),false);
+ registry.endSession();assert.equal(registry.sessionOwns(outside),false,'a released canvas session never becomes global');
+ registry.beginSession();assert.equal(registry.sessionOwns(outside),true,'explicit standalone UI selection remains available');
+});
+
+test('borrowed content requests yield to controls without accepting or canceling and never fall back to global input',async()=>{
+ const {selectionRequestOwnsInput,selectionRequest}=await import('../src/appearance/selectionRequest.ts');
+ const {CONTROL_INPUT_OWNER}=await import('../src/ui/inputOwnership.ts');
+ const ink={},outside={},icon={},control={matches:s=>s===CONTROL_INPUT_OWNER};
+ const root={contains:node=>[ink,icon,control].includes(node)};let live=root,accepted=0,canceled=0,restored=0;
+ const request=selectionRequest(()=>{accepted++;return true;},()=>canceled++,()=>restored++),scope=()=>live;
+ for(const [target,path] of [[outside,[outside]],[icon,[icon,control,root]]]){
+  if(selectionRequestOwnsInput(scope,target,path))request.accept(target);
+ }
+ assert.deepEqual([accepted,canceled,restored],[0,0,0],'yielding leaves the borrowed request and editor intact');
+ assert.equal(selectionRequestOwnsInput(scope,ink,[ink,root]),true);
+ live=null;assert.equal(selectionRequestOwnsInput(scope,ink,[ink,root]),false,'an unavailable renderer cannot become global MS');
+ assert.equal(selectionRequestOwnsInput(undefined,outside,[outside]),true,'explicit standalone UI requests retain global selection');
+ live=root;if(selectionRequestOwnsInput(scope,ink,[ink,root]))request.accept(ink);
+ request.cancel();assert.deepEqual([accepted,canceled,restored],[1,0,1]);
+});

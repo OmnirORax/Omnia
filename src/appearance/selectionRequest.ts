@@ -1,3 +1,13 @@
+import {surfaceOwnsInput} from '../ui/inputOwnership.ts';
+
+export type SelectionRequestSurface=()=>Element|null;
+/** A borrowed content picker yields to other input owners without canceling its
+ * request. Omitted scope is explicit standalone UI selection; missing scope is inactive. */
+export function selectionRequestOwnsInput(surface:SelectionRequestSurface|undefined,element:unknown,path:readonly unknown[]=[]){
+ if(!surface)return true;
+ const root=surface();return !!root&&surfaceOwnsInput(root,element,path);
+}
+
 /** A temporary selection consumer does not take ownership of the user's saved
  * selection. Unsupported picks remain active; acceptance/cancel restores once. */
 export function selectionRequest<T>(accept:(selection:T)=>boolean,cancel:()=>void,restore:()=>void){

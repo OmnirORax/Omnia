@@ -8,11 +8,12 @@ import {selectionReference} from './selectionReference.ts';
 export type GeometryReference=import('../properties/stateField.ts').FieldReference;
 export function fieldReferenceFor(snapshot:OperationGeometry,degree:EditableDegree,reference:string|undefined,environment?:ResizeRect):GeometryReference|undefined{
  if(snapshot.evaluation.motion)return;
- const ids=[...new Set(degree.targets.map(t=>t.id))];if(ids.length!==1)return;
+ const ids=[...new Set(degree.targets.map(t=>t.id))];if(!ids.length)return;
  reference??=ids[0];
  const self=reference===ids[0];
  const target=ids[0],parameter=targetParameter(degree),quantity=parameter.measurement;
  const axis=quantity==='center-x'?'x':quantity==='center-y'?'y':undefined;
+ if(ids.length>1&&!axis)return;
  const own=snapshot.views.get(target),bounds=reference==='@environment'?environment:snapshot.views.get(reference)?.bounds;
  if(axis&&own?.transformed)return;
  if(axis&&bounds&&own){

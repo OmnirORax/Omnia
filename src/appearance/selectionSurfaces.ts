@@ -1,8 +1,10 @@
+import {surfaceOwnsInput} from '../ui/inputOwnership.ts';
 import { nativeSelectionDragged } from './selectionRequest.ts';
 export type SelectionPoint={x:number;y:number};
 export type SelectionBox={left:number;top:number;right:number;bottom:number};
 export type SelectionUnit={id:string;box:SelectionBox};
-export type SelectionSurface={element:()=>Element|null;context?:()=>string;nativePicking?:boolean;onStart?:()=>void;onComplete?:(ids:readonly string[],point:SelectionPoint)=>void;snapshot:()=>{units:readonly SelectionUnit[];valid?:readonly string[];selected:readonly string[];elements?:(ids:readonly string[])=>readonly Element[];area?:(start:SelectionPoint,end:SelectionPoint)=>readonly string[];hit:(point:SelectionPoint)=>string|undefined};elements?:(ids:readonly string[])=>readonly Element[];apply:(ids:readonly string[])=>void};
+export type BaselineSelection={enabled:()=>boolean;pick:(elements:readonly Element[],point:SelectionPoint,intent:'select'|'edit')=>void;cancel:()=>void};
+export type SelectionSurface={baseline?:BaselineSelection;element:()=>Element|null;context?:()=>string;nativePicking?:boolean;onStart?:()=>void;onComplete?:(ids:readonly string[],point:SelectionPoint)=>void;snapshot:()=>{units:readonly SelectionUnit[];valid?:readonly string[];selected:readonly string[];elements?:(ids:readonly string[])=>readonly Element[];area?:(start:SelectionPoint,end:SelectionPoint)=>readonly string[];hit:(point:SelectionPoint)=>string|undefined};elements?:(ids:readonly string[])=>readonly Element[];apply:(ids:readonly string[])=>void};
 /** Native modifiers belong to selection before an editing tool can replace it. */
 export function selectionPointerMode(event:{button:number;ctrlKey:boolean;metaKey:boolean;shiftKey:boolean;altKey:boolean}):'toggle'|'range'|undefined {
   if(event.button!==0||event.altKey)return;
@@ -20,7 +22,7 @@ export function spatialSelectionRange(units:readonly SelectionUnit[],anchor:stri
  * commands/history; the adapter never implements keyboard or selection policy. */
 export function createSelectionSurfaces(){
   let sequence=0;const surfaces=new Map<string,SelectionSurface>(),anchors=new Map<string,string>();
-  const find=(element:Element,path:readonly EventTarget[]=[])=>{const found=[...surfaces].reverse().find(([,surface])=>{const root=surface.element();return !!root&&(path.length?path.includes(root):root===element||root.contains(element));});return found?[`${found[0]}/${encodeURIComponent(found[1].context?.()??'')}`,found[1]] as const:undefined;};
+  const find=(element:Element,path:readonly EventTarget[]=[])=>{const found=[...surfaces].reverse().find(([,surface])=>{const root=surface.element();return !!root&&surfaceOwnsInput(root,element,path);});return found?[`${found[0]}/${encodeURIComponent(found[1].context?.()??'')}`,found[1]] as const:undefined;};
   const current=(id:string)=>{const surface=surfaces.get(id.split('/')[0]);return surface&&id===`${id.split('/')[0]}/${encodeURIComponent(surface.context?.()??'')}`?surface:undefined;};
   const prepare=(element:Element,point:SelectionPoint,mode:'toggle'|'range'|'area',nativeOnly=false,end=point)=>{
     const found=find(element);if(!found||nativeOnly&&!found[1].nativePicking)return;
@@ -36,14 +38,16 @@ export function createSelectionSurfaces(){
     else {const box={left:Math.min(point.x,end.x),right:Math.max(point.x,end.x),top:Math.min(point.y,end.y),bottom:Math.max(point.y,end.y)};for(const unit of snapshot.units)if(unit.box.left<=box.right&&unit.box.right>=box.left&&unit.box.top<=box.bottom&&unit.box.bottom>=box.top)selected.add(unit.id);if(hit)anchor(hit);}
     const after=[...selected];return {id,before,after,elements:(snapshot.elements??(commitAnchor?surface.elements:undefined))?.(after),units:snapshot.units.filter(unit=>selected.has(unit.id))};
   };
+  let globalSession=false;
   let session:{id:string;surface:SelectionSurface;root:Element}|undefined;
-  const sessionOwns=(element:Element,path:readonly EventTarget[]=[])=>!session||current(session.id)===session.surface&&session.surface.element()===session.root&&(path.length?path.includes(session.root):session.root===element||session.root.contains(element));
+  const sessionOwns=(element:Element,path:readonly EventTarget[]=[])=>session?current(session.id)===session.surface&&session.surface.element()===session.root&&surfaceOwnsInput(session.root,element,path):globalSession;
   return {
+    baseline(element:Element){const found=find(element);return found?.[1].baseline?.enabled()?found[1].baseline:undefined;},
     beginSession(element?:Element){
       const found=element&&(find(element)??[...surfaces].reverse().flatMap(([key,surface])=>{const root=surface.element();return root?.closest?.('[data-selection-context]')?.contains(element)?[[`${key}/${encodeURIComponent(surface.context?.()??'')}`,surface] as const]:[];})[0]);
-      const root=found?.[1].element();session=found&&root?{id:found[0],surface:found[1],root}:undefined;
+      const root=found?.[1].element();session=found&&root?{id:found[0],surface:found[1],root}:undefined;globalSession=!session;
     },
-    endSession(){session=undefined;},sessionOwns,
+    endSession(){session=undefined;globalSession=false;},sessionOwns,
     sessionScoped:()=>!!session,
     register(surface:SelectionSurface){const id=`surface-${++sequence}`;surfaces.set(id,surface);return()=>{surfaces.delete(id);for(const key of anchors.keys())if(key.startsWith(`${id}/`))anchors.delete(key);};},
     anchor(element:Element,point:SelectionPoint){const found=find(element);if(!found)return;const hit=found[1].snapshot().hit(point);if(hit)anchors.set(found[0],hit);},

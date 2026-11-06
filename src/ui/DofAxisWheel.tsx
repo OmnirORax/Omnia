@@ -34,7 +34,7 @@ export function DofAxisWheel({field,value,label,symbol,disabled,onPreview,onComm
  };
  const preview=(next:number|undefined)=>{if(disabled||hover.current===next)return;hover.current=next;setPreviewValue(next);if(next===undefined)onCancel();else onPreview(next);};
  const confirm=useValueConfirmation({owner:root,selection,candidate:()=>held.current?undefined:hover.current,onCommit,disabled});
- return <div ref={root} className="radial-menu dof-axis-wheel" role="group" aria-label={`${label} axis wheel`} data-ui-popup-interior style={{width:size*scale,height:size*scale,touchAction:'none'}}
+ return <div ref={root} className="radial-menu dof-axis-wheel" role="group" aria-label={`${label} axis wheel`} data-ui-value-projection data-ui-popup-interior style={{width:size*scale,height:size*scale,touchAction:'none'}}
   onPointerEnter={()=>{if(root.current)bounds.current=root.current.getBoundingClientRect();}}
   onPointerMove={event=>{const active=held.current;if(active){if(active.id!==event.pointerId)return;const point={x:event.clientX,y:event.clientY};const polar=active.polar?.sample(point);if(polar){active.angle=polar.angle;active.count=polar.count;setPreviewValue(polar.angle);active.config.onPreview(polar.angle,polar.count);return;}if(active.polar)return;const n=active.scrub.sample(point);if(n!==undefined){active.count=n;active.config.onPreview(active.angle,active.count);}return;}const node=nodeAt(event.clientX,event.clientY,event.target);setHoverNode(node?.order);preview(node?.angle??pick(event.clientX,event.clientY));}}
   onPointerLeave={()=>{if(held.current)return;setHoverNode(undefined);activation.current.cancel();cancel();}}

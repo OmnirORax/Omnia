@@ -35,7 +35,7 @@ export function SelectorSymbol({ configuration, actions, precision = false, patt
       <circle className="selector-outside-edge" cx="140" cy="136" r="133" fill="none" strokeWidth="1.5" />
     </g>
     <g className="selector-inside" {...button("◉ In-frame", region === "inside" || region === "both", () => actions?.region("inside"))}>
-      {actions && <title>In-frame: include everything inside the boundary, excluding the frame itself.</title>}
+      {actions && <title>In-frame: include fully contained components; crossing components are excluded. Frame inclusion is controlled separately.</title>}
       {actions && <circle className="selector-hit" cx="140" cy="136" r="68" />}
       <circle className="selector-region-mark" cx="140" cy="136" r="65" />
     </g>

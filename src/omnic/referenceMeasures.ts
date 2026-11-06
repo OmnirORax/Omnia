@@ -2,18 +2,19 @@ import type {EditableDegree} from '../properties/editableDegrees.ts';
 import type {MeasuredReference,ReferenceMeasure} from '../properties/referenceUse.ts';
 import type {OperationGeometry} from './operationContext.ts';
 import type {ResizeRect} from '../ui/resizeGeometry.ts';
-import {targetDegrees,targetParameter,targetDegreeValue} from './targetDegrees.ts';
+import {compatibleReferenceSource,targetDegrees,targetParameter,targetDegreeValue} from './targetDegrees.ts';
 import {stateFieldDomain} from './stateFieldAdapter.ts';
 import {fieldReferenceFor} from './referenceGeometry.ts';
 /** One evaluated source inventory, independent of the receiving preset. */
 export function measuredReferenceFor(snapshot:OperationGeometry,degree:EditableDegree,id:string|undefined,environment?:ResizeRect):MeasuredReference|undefined{
- const ids=[...new Set(degree.targets.map(t=>t.id))];if(ids.length!==1||snapshot.evaluation.motion)return;
+ const ids=[...new Set(degree.targets.map(t=>t.id))];if(!ids.length||snapshot.evaluation.motion)return;
  const target=ids[0],source=id??target,parameter=targetParameter(degree),domain=stateFieldDomain(parameter);if(!domain)return;
  const view=snapshot.views.get(source),bounds=source==='@environment'?environment:view?.bounds;
  if(!bounds)return;
  const context=fieldReferenceFor(snapshot,degree,source,environment),unit=domain.unit??domain.quantity??parameter.property;
  const own=snapshot.views.get(target),axis=parameter.measurement==='center-x'?'x':parameter.measurement==='center-y'?'y':undefined;
- if(axis&&own?.transformed||unit==='length'&&own?.scaled)return;
+ if(ids.length>1&&!axis)return;
+ if(axis&&ids.some(id=>snapshot.views.get(id)?.transformed)||axis&&own?.transformed||unit==='length'&&own?.scaled)return;
  if(parameter.selection&&(own?.transformed||view?.transformed))return;
  const matchOffset=axis&&own?Number(targetDegreeValue(snapshot.recipe,degree))-(own.bounds[axis]+own.bounds[axis==='x'?'width':'height']/2):0;
  const sourceDegrees=source==='@environment'?[]:targetDegrees(snapshot.recipe,[source]);
@@ -31,4 +32,21 @@ export function measuredReferenceFor(snapshot:OperationGeometry,degree:EditableD
  }
  if(!measures.length)return;
  return {...(context??{id:source,label:source===target?'Self':source==='@environment'?'Environment':source.slice(0,6),value:Number(targetDegreeValue(snapshot.recipe,degree))}),unit,measures:measures.map(m=>({...m,matchOffset}))};
+}
+
+
+/** Reference eligibility is shared by explicit borrowed picks and baseline
+ * outside-preview selection; categorical inputs retain identity-only checks. */
+export function compatibleDegreeReference(snapshot:OperationGeometry,degree:EditableDegree,id:string,environment?:ResizeRect){
+ return (degree.axes??[degree]).every(axis=>targetParameter(axis).kind==='number'?!!measuredReferenceFor(snapshot,axis,id,environment):compatibleReferenceSource(snapshot.recipe,axis,id));
+}
+export function defaultDegreeReference(degree:EditableDegree){
+ return (degree.axes??[degree]).every(axis=>['center-x','center-y'].includes(targetParameter(axis).measurement??''))?'@environment':undefined;
+}
+
+/** Switching DOFs must not retain an incompatible reference from the previous
+ * freedom (for example Position's Environment when opening Rotation). */
+export function degreeReferenceSource(snapshot:OperationGeometry,degree:EditableDegree,retained:string|undefined,environment?:ResizeRect){
+ if(retained&&compatibleDegreeReference(snapshot,degree,retained,environment))return retained;
+ const fallback=defaultDegreeReference(degree);return fallback&&compatibleDegreeReference(snapshot,degree,fallback,environment)?fallback:undefined;
 }

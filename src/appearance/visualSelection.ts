@@ -1,15 +1,19 @@
+import {nativeRelationGeometry} from './nativeGeometryRelations.ts';
+import {convexPolygon,inkFullyInside,type RelationGeometry} from './geometryRelations.ts';
 import {nativeSelectionShape,type NativeSelectionShape} from './selectionLens.ts';
 import { roleFor, type VisualRole } from "./visualRole.ts";
 export { roleFor, type VisualRole } from "./visualRole.ts";
 import { createTargetIndex } from "./model.ts";
 import { TARGETS, type RegisteredTarget } from "./registry.ts";
-import { scenePartAt, scenePartPaint } from "./sceneFeedback.ts";
+import { scenePartAt, scenePartPaint,scenePartGeometry } from "./sceneFeedback.ts";
 import { effectScope } from "./uiEffects.ts";
 import { absolutePoint, boxFromPoints, boxesTouch, conditionPoints, intersectBoxes, lineBoxInterval, lineDomain, paintStopDomain,
   regionAllows, pathTouchesBox, pathVertices, type PathCondition, type Box, type LineCondition, type Point, type SelectionRegion } from "./selectionGeometry.ts";
 
 export type VisualPart = {
   key: string;
+  /** Stable declared boundary address, captured during catalog discovery. */
+  address?:string;
   element: HTMLElement | SVGElement;
   target: RegisteredTarget;
   role: VisualRole;
@@ -33,6 +37,8 @@ export type SelectionConstraint = {
   /** Registered subtype/branch identity, independent of visual role or instance. */
   target?: string;
   part?: string;
+  /** Accepted relation membership is transient, stable-addressed selection, not a parent. */
+  parts?:readonly string[];
   line?: LineCondition;
   path?: PathCondition;
   contour?: boolean;
@@ -77,12 +83,13 @@ export function collectVisualParts(): VisualPart[] {
     for (const element of elements) {
       if (!(element instanceof HTMLElement || element instanceof SVGElement)) continue;
       const add = (node: Node, range?: Range) => {
-        const key = `${target.id}:${!range&&element.hasAttribute('data-selection-id')?boundaryFor(element).key:keyFor(node)}`;
+        const address=!range&&element.hasAttribute('data-selection-id')?boundaryFor(element).key:undefined;
+        const key = `${target.id}:${address??keyFor(node)}`;
         if (seen.has(key)) return;
         seen.add(key);
         const parent = range?.startContainer.parentElement ?? element;
         if (!(parent instanceof HTMLElement || parent instanceof SVGElement)) return;
-        parts.push({ key, element: parent, target, role, range });
+        parts.push({ key,address, element: parent, target, role, range });
       };
       if (role === "text" && element instanceof HTMLElement) {
         const scope = effectScope(target, element);
@@ -194,7 +201,8 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
   if (!index) { index = new WeakMap(); hitIndexes.set(parts, index); }
   let hit = index.get(element);
   if (!hit) {
-    hit = { ancestors: parts.filter(part => part.element === element || part.element.contains(element)),
+    const declared=element.closest?.('[data-selection-boundary][data-selection-id]'),identity=declared&&boundaryFor(declared).key;
+    hit = { ancestors: parts.filter(part => part.element === element || part.element.contains(element)||identity&&part.address===identity),
       text: parts.filter(part => part.role === "text" && part.range &&
         (part.element === element || part.element.contains(element) || element.contains(part.element))) };
     index.set(element, hit);
@@ -226,9 +234,14 @@ export function partAt(parts: VisualPart[], element: Element, x: number, y: numb
  * pointer motion alone does not invalidate an unchanged layout. */
 export function createVisualMeasurements() {
   const rects = new Map<VisualPart, Box[]>(), paint = new Map<VisualPart, string>();
+  const relations=new Map<Element,RelationGeometry|undefined>(),partRelations=new Map<VisualPart,RelationGeometry|undefined>();
   const bounds = new Map<Element, DOMRect>(),shapes=new Map<Element,NativeSelectionShape|null>();
+  const relation=(element:Element)=>{if(!relations.has(element))relations.set(element,nativeRelationGeometry(element,shape));return relations.get(element);};
+  const shape=(element:Element)=>{if(!shapes.has(element))shapes.set(element,nativeSelectionShape(element));return shapes.get(element)!;};
   return {
-    shape:(element:Element)=>{if(!shapes.has(element))shapes.set(element,nativeSelectionShape(element));return shapes.get(element)!;},
+    relation,
+    partRelation:(part:VisualPart)=>{if(!partRelations.has(part))partRelations.set(part,part.target.binding?.selection?.renderer==='scene'?scenePartGeometry(part.target.id,part.element):relation(part.element));return partRelations.get(part);},
+    shape,
     bounds: (element: Element) => {
       let box = bounds.get(element); if (!box) { box = element.getBoundingClientRect(); bounds.set(element, box); } return box;
     },
@@ -252,6 +265,8 @@ export function partPaint(part: VisualPart): string {
   return part.role === "background" ? style.backgroundColor : part.role === "contour" ? style.borderTopColor :
     part.target.binding?.css === "accent-color" ? style.accentColor : source || style.color;
 }
+const memberSets=new WeakMap<readonly string[],ReadonlySet<string>>();
+const membership=(keys:readonly string[])=>{let set=memberSets.get(keys);if(!set){set=new Set(keys);memberSets.set(keys,set);}return set;};
 function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, measure: VisualMeasurements):
   { peers: VisualPart[]; start?: Point; end?: Point; domain?: [number, number]; box?: Box } {
   const source = rule.scope ? constraintGeometry(parts, rule.scope, measure).peers : parts;
@@ -259,10 +274,25 @@ function constraintGeometry(parts: VisualPart[], rule: SelectionConstraint, meas
   const vertices = rule.path && box ? pathVertices(rule.path, box) : undefined;
   const peers = root && box ? source.filter(part => {
     if (rule.backgrounds === false && part.role === "background" || rule.role && rule.role !== part.role ||
-        rule.target && !patternTargetPath(part).includes(rule.target) || rule.part && rule.part !== part.key) return false;
+        rule.target && !patternTargetPath(part).includes(rule.target) || rule.part && rule.part !== part.key || rule.parts&&!membership(rule.parts).has(part.key)) return false;
     const inside = root.contains(part.element) && (!rule.boundary.area || measure.rects(part).some(rect => boxesTouch(rect, box)));
     // Paths define their own inside/outside. The owner merely anchors coordinates.
     const frameItself = part.key === rule.framePart || rule.ownerFrame && part.element === root && !part.range && (part.role === "background" || part.role === "contour");
+    // A native pointed boundary defines a geometric enclosure, independent of
+    // DOM ancestry. Its Contour toggle affects only that boundary itself.
+    if(rule.ownerFrame&&measure.shape(root)){
+      if(frameItself||part.element===root)return rule.contour!==false;
+      const scope=root.closest('[data-selection-scope]')??(root as SVGElement).ownerSVGElement;
+      if(scope&&!(scope===part.element||scope.contains(part.element)))return false;
+      const enclosure=measure.relation(root)?.enclosure,geometry=measure.partRelation(part);
+      if(!enclosure||!geometry)return false;
+      const contained=inkFullyInside(geometry,enclosure);
+      return rule.region==='both'||rule.region==='inside'&&contained||rule.region==='outside'&&!contained;
+    }
+    if(rule.path?.closed&&rule.region==='inside'&&rule.contour===false&&vertices&&convexPolygon(vertices)){
+      const geometry=measure.partRelation(part);
+      if(geometry)return inkFullyInside(geometry,{kind:'polygon',points:vertices});
+    }
     const inRegion = frameItself ? rule.contour !== false : rule.path ?
       (rule.region === "outside" || rule.region === "both" || root.contains(part.element)) && measure.rects(part).some(rect => pathTouchesBox(rule.path!, box, rect, rule.contour !== false, rule.region, vertices)) :
       regionAllows(rule.region ?? "inside", inside);
@@ -313,11 +343,19 @@ export function resolveVisualSelection(parts: VisualPart[], boundary: SelectionB
 
 /** Prevent a large background/ancestor part from previewing a local selection
  * when the pointer itself is outside the enabled closed-shape regions. */
-export function pointerInSelectionScope(scope: SelectionConstraint, element: Element, point: Point): boolean {
-  if (scope.scope && !pointerInSelectionScope(scope.scope, element, point)) return false;
+export function pointerInSelectionScope(scope: SelectionConstraint, element: Element, point: Point,measure=createVisualMeasurements()): boolean {
+  if (scope.scope && !pointerInSelectionScope(scope.scope, element, point,measure)) return false;
   if (!scope.path) return true; // Open line scope is tested against the hit part.
   const owner = boundaryRect(scope.boundary), root = boundaryElement(scope.boundary);
   if (!owner || !root) return false;
+  if(scope.ownerFrame&&measure.shape(root)){
+    const surface=root.closest('[data-selection-scope]')??(root as SVGElement).ownerSVGElement;
+    if(surface&&!surface.contains(element))return false;
+    if(scope.region==='both')return true;
+    const enclosure=measure.relation(root)?.enclosure;if(!enclosure)return scope.contour!==false&&root===element;
+    const inside=inkFullyInside({ink:[{outer:{kind:'circle',center:point,radius:0}}]},enclosure);
+    return scope.region==='inside'?inside:scope.region==='outside'?!inside:root===element&&scope.contour!==false;
+  }
   if (scope.region !== "outside" && scope.region !== "both" && !root.contains(element)) return false;
   return pathTouchesBox(scope.path, owner, { left: point.x, right: point.x, top: point.y, bottom: point.y }, scope.contour !== false, scope.region);
 }

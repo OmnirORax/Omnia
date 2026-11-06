@@ -1,3 +1,4 @@
+import {controlInputOwner} from './inputOwnership';
 import {selectionSurfaces} from '../appearance/selectionSurfaces';
 import {featureActionRuntime} from '../featureActions';
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
@@ -173,7 +174,7 @@ export function ActiveContextSystem() {
       let element = event.target instanceof Element ? event.target : null;
       if(event instanceof PointerEvent&&event.button===0&&element){
         const inputOwned=featureActionRuntime.available('selector.include')&&selectionSurfaces.sessionOwns(element,event.composedPath());
-        const preserveContent=event.ctrlKey||event.metaKey||!!element.closest('button,a,input,textarea,select,label,summary,[role="button"],[role="textbox"],[contenteditable="true"],[data-ui-function],[data-range-control],[data-ui-popup-interior],[data-omnic-role]');
+        const preserveContent=event.ctrlKey||event.metaKey||!!controlInputOwner(element,event.composedPath())||!!element.closest('[data-selection-geometry]');
         if(dismissContextPointer(latest.current.contextLayers,element,inputOwned,preserveContent)){
           claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;
         }

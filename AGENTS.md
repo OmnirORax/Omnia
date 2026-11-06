@@ -1,3 +1,5 @@
+Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Confirming a single value by click or Enter commits it and closes its preview, returning to baseline selection; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
+
 # User operating rules (required)
 
 Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
@@ -596,3 +598,58 @@ Scalar grab correction: geometry chooses the DOF/tool before a press; once grabb
 Latest Rotation correction: hovering actual edges shows the cue; a primary edge click only selects its owner. Right-click the target to choose Rotation, or use its assigned DOF shortcut; selection does not open the wheel. Rotation is no longer a scene drag/scrub/orbit gesture. Shared DofStateField projects all declared cyclic domains through DofAxisWheel: hover previews generated states, click commits and stays open, leaving cancels preview, and the centre is neutral/drag-only. R and preset/target Rotation inherit the same metadata-driven projection. Reuse existing state-field generation, preview sessions, captured-click activation, setters/history, rule/⠒❉ configuration, Q references, shared dial scale/appearance and outside dismissal. No private rotation math or extra scalar bar. Scene scrub state and its virtual default span are removed; createValueScrub remains only for existing relative DOF-button sliders. Ordinary noncyclic numeric DOFs retain RangeControl. Explicit legacy Step/pivot remains separate. This supersedes earlier rotation-edge scrubbing descriptions. Browser confirmation pending.
 
 Window onInteract callbacks commit on confirmed click, never mouse-down: raising/focusing is separate from pinning/toggling. Reuse the shared drag activation guard for physical tails across reparented surfaces; preserve keyboard/programmatic clicks and actual preview gestures. See UI_COMPONENT_CONTRACT.md.
+
+Selection relations (2026-11-06): containment, physical continuity and authored
+parentage are independent. Reuse MS configuration/matching/history; the configured
+rule defines selection and the pointer defines the target. Individual/Exact picks
+one registered part. Inside requires full containment, with the pointed boundary
+controlled separately by Contour. Continuity follows actual touching/intersecting
+ink including stroke thickness and supported clipping; nested-but-disjoint parts,
+matching paint and shared parentage are not connections. Do not create parent
+objects or candidate-object cycling to implement this. Renderer adapters expose
+geometry through the shared relation layer; unsupported geometry must not become
+filled bounds. See VISUAL_SELECTION.md for implemented adapters and limits.
+
+Fill ownership correction (2026-11-06): Continuous extends one existing component;
+Object retains an independent exact filled intersection. Transform the source
+circle and clip together; bounds are never replacement geometry. With several
+actually touching contributors, borrow MS to choose the attachment owner on canvas
+after choosing the region; this is not a chat question. One touching owner resolves
+automatically. No contact cannot invent continuity. Ownership, physical contact,
+containment and authored grouping remain independent. See OMNIC_COMPOSER.md and
+DATA_EVOLUTION.md for snapshot and legacy compatibility limits.
+
+
+Interaction visual priority (2026-11-06): native top-layer order is opening order,
+not CSS z-index. Reuse topLayerOrder for contextual previews/settings and the
+shared tool cursor; later content must not cover them. Keep layer ordering off
+the pointer-motion path. Priority alone cannot make same-color transparent
+controls legible: coordinate previews need contrast backing and the selector a
+contrast edge. Preserve cursor applicability, focus and existing gesture owners.
+
+
+Baseline input ownership (2026-11-06): use inputOwnership's nearest-owner rule,
+not per-widget exceptions. MS owns registered content; native/accessibility and
+shared UI control declarations own their entire input tail. Releasing a canvas
+session means inactive, never implicit global UI selection. Standalone global MS
+requires explicit entry. Explicit Color DOF entry uses the shared picker seeded
+with the current value, after popup layout and native listener registration.
+
+
+Selection snapshot ownership (2026-11-06): synchronous baseline entry must advance
+catalog, measurements, lens geometry and continuity together via
+prepareSelectionSnapshot. Never update catalog wrappers while retaining a map
+keyed by the previous wrappers. The approved coordinate-click/library diagnostic
+found this exception before confirmation; do not patch affected widgets instead.
+
+Borrowed content requests (2026-11-06): pass the live content surface to requestPick;
+apply the nearest-input-owner rule during pending reference picking too. Yield
+outside input without canceling or reparenting the editor. A missing scoped root
+is inactive, never an implicit global MS session. Verify controls before accepting
+a referent as well as coordinate confirmation after acceptance.
+
+Confirmation acceptance (2026-11-06): for single-value Composer projections,
+verify both the write and completion. Click/Enter must close the preview so later
+pointer motion cannot keep sampling. "Click then Esc retains, Esc alone cancels"
+can mean the write succeeded but the editor failed to finish; inspect completion
+before patching input capture. Preserve explicitly accumulating controls.
