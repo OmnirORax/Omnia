@@ -838,10 +838,6 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
     const element = document.elementFromPoint(p.x, p.y);
     if (element) actions.current.pickAt(element, p.x, p.y);
   }, [phase, configuration, catalog, geometry]);
-  useEffect(() => {
-    document.documentElement.toggleAttribute("data-visual-selecting", phase === "aim");
-    return () => document.documentElement.removeAttribute("data-visual-selecting");
-  }, [phase]);
   const left = Math.max(8, Math.min(position.x - 88, innerWidth - 184));
   const top = Math.max(8, Math.min(position.y - 84, innerHeight - 242));
   const scopeChain = (scope: SelectionConstraint | null): SelectionConstraint[] => scope ? [...scopeChain(scope.scope ?? null), scope] : [];

@@ -1621,3 +1621,9 @@ test('frozen curved fill paths expose their actual clip geometry to the existing
   const disk=x=>({ink:[{outer:{kind:'circle',center:{x,y:0},radius:1}}]});assert.equal(inkFullyInside(disk(-10),geometry.enclosure),true);assert.equal(inkFullyInside(disk(10),geometry.enclosure),false);
  }finally{globalThis.getComputedStyle=previous;}
 });
+
+test('coordinate-preview selector registers after its host attaches and preserves scoped cursor fallback',async()=>{
+ const {execFileSync}=await import('node:child_process');const {fileURLToPath}=await import('node:url');
+ const output=execFileSync(process.execPath,[fileURLToPath(new URL('./helpers/selector-cursor-lifecycle.cjs',import.meta.url))],{encoding:'utf8'});
+ assert.match(output,/actual popup cursor activation.*passed/);
+});

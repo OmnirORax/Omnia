@@ -963,7 +963,6 @@ html[data-ui-hide-names] [data-ui-name-symbol] .function-icon > span { font-size
 @keyframes visual-selection-seam-travel { to { stroke-dashoffset: -18; } }
 .visual-selection-overlay[data-pulse="false"] > svg:not(.visual-selection-seams),.selector-feedback-sample[data-pulse="false"] > svg { animation: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .visual-selection-overlay > svg,.visual-selection-overlay > .visual-selection-seams,.selector-feedback-sample > svg,.selector-feedback-sample .visual-selection-seam { animation: none; will-change: auto; } }
-html[data-visual-selecting],html[data-visual-selecting] * { cursor: none !important; }
 .appearance-target:not(.is-disconnected):not(:disabled) { opacity: 1; filter: drop-shadow(0 0 3px currentColor); }
 .appearance-row.is-excluded > .appearance-row-name { opacity: .4; }
 .appearance-row.not-applicable > .appearance-row-name { opacity: .25; }

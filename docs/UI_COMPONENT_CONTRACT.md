@@ -1028,3 +1028,12 @@ preview/scrub gestures keep their own press/move/release lifecycle. Reuse these
 boundaries instead of adding shortcut/window-specific drag exceptions.
 
 Focused regression: `node tests/drag-activation.browser.mjs` uses a disposable local browser context and synthetic layout. On 2026-11-04 all five press/drag/click/command/keyboard checks passed without uncaught page errors. It is opt-in, not added to default delivery suites and not a rendering performance benchmark.
+
+
+Cursor registration lifecycle (2026-11-06): call useSelectionPreviewCursor from
+its host-ref owner, not a child layout effect reading an ancestor ref. React runs
+that child before the ancestor host ref attaches; a stable-ref effect then never
+registers. The focused tests/helpers/selector-cursor-lifecycle.cjs fixture uses
+React DOM and the actual hook/zone/resolver to cover this order and teardown.
+Native cursor hiding belongs solely to applicable shared ToolCursorLayer state;
+MS aiming must not independently hide the native pointer across the page.

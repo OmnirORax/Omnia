@@ -1068,6 +1068,16 @@ Coordinate-preview cursor correction: Composer's Position plane keeps the curren
 MS symbol visible inside its value projection through a declared popup cursor zone.
 This is cursor applicability only: the plane retains hover/confirm input, while
 popup controls remain ordinary UI and canvas outside-reference picking is unchanged.
-The shared SelectionPreviewCursor adapter is available to other value projections;
+The shared useSelectionPreviewCursor adapter is available to other value projections;
 only Composer-owned numeric scopes opt in. No persisted values or settings change.
 User retest is pending; no browser acceptance is inferred.
+
+
+Follow-up diagnosis: the first cursor patch was user-rejected. Its child layout
+effect ran before the ancestor field's host ref attached, so no zone registered.
+The adapter is now a hook in the component owning that ref. A Node React DOM
+fixture reproduces the old ordering and checks actual zone/request activation,
+adjacent-control fallback and lifecycle cleanup. The obsolete page-wide native
+cursor hide for MS aiming is removed; shared transport hides the native pointer
+only when a custom cursor is applicable. This is model/lifecycle evidence;
+visual user acceptance remains pending.
