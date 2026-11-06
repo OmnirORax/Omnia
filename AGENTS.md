@@ -698,3 +698,9 @@ Document formatting/list commands must register with featureActions and use
 useFeatureActions. Keep Shift configuration policy intact; native editing is not
 a reason to add private executable hotkeys. Registry availability follows actual
 editor/list ownership, with updates only when that classification changes.
+
+Default-home recovery (2026-11-06): accidental UI moves must be recoverable after
+saving/reload without Undo. Use residentHome's shipped/native-home resolution and
+the existing UI transaction; preserve styling, settings, identities and unrelated
+organization. Unknown custom homes cannot be guessed. Local frame arrangement
+cleanup and whole-layout reset remain separate actions.

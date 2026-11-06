@@ -1,3 +1,5 @@
+import websiteTemplate from "./default-template.json";
+import { canResetResidentHome, resetResidentHome } from "./residentHome";
 import {featureActionRuntime} from '../featureActions';
 import { ContextTargetController } from './ContextTargetController';
 import { ToolCursorLayer, rememberToolIcon } from "./toolCursor";
@@ -71,7 +73,6 @@ import { FloatingWindow } from "./FloatingWindow";
 import { useWindowLayer } from "./useWindowLayer";
 import { EmbeddedGroup } from "./EmbeddedGroup";
 import {
-  detachFunction,
   functionPinned,
   type UILayout,
   type UIFrame,
@@ -122,6 +123,7 @@ import { LIBRARY_CATEGORIES, libraryCategory, libraryCategoryLabel } from "./cat
 import { useFrameBounds, residentBounds } from "./frameBounds";
 import { residentShortcutAction, pointerFeatureKey, buttonShortcutId, functionShortcutBinding, isTypingTarget, normalizeKey, normalizePointer, type ButtonShortcuts } from "../workspaceActions";
 import { claimUIPress } from "./pointerOwnership";
+const originalUILayout = validateUILayout(structuredClone(websiteTemplate.layout));
 const MIME = "application/x-omnium-function";
 const defaultStyle: FunctionStyle = { mode: "text", geometry: "circle" };
 const dropGeometrySelector = "[data-ui-drop-zone],[data-ui-resident-root],[data-ui-inline-group],[data-ui-frame-slot],[data-ui-slot-key],[data-ui-dock-pane],.ui-structured-body,.ui-embedded-dock-layout,.ui-frame-handle,[data-ui-inline-handle],[data-ui-chrome],[data-ui-native-anchor]";
@@ -1666,6 +1668,8 @@ export function UIWorkspace({
       <span>Unavailable function: {member.id}</span>
     );
   };
+  const homes = { original: originalUILayout, windows: defaults, functions };
+  const resetHome = (key: string) => update(s => resetResidentHome(ensure(s), key, homes));
   const menuContainer = menu?.owner ? getContainer(ensure(layout), menu.owner) : undefined;
   return (
     <UIProvider
@@ -1835,6 +1839,11 @@ export function UIWorkspace({
                 }}
               >
                 Reset this frame’s arrangement
+              </button>
+              <button disabled={!canMove(menu.owner) || !canResetResidentHome(ensure(layout), menu.owner, homes)}
+                title="Return this item to its defined default container and placement; keep its contents and styling."
+                onClick={() => { resetHome(menu.owner!); setMenu(null); }}>
+                Reset to default home
               </button>
               {ownerOf(layout, menu.owner) && (
                 <button disabled={!canMove(menu.owner)}
@@ -2058,9 +2067,9 @@ export function UIWorkspace({
                   }))
                 }
               />
-              <UIAction id="ui:editor:returnFunction" label="Return to default location"
-                disabled={!canMove(`function:${selected.id}`)}
-                onClick={() => update((s) => detachFunction(s, selected.id, 0, 0, true))}
+              <UIAction id="ui:editor:returnFunction" label="Reset to default home"
+                disabled={!canMove(`function:${selected.id}`) || !canResetResidentHome(ensure(layout), `function:${selected.id}`, homes)}
+                onClick={() => resetHome(`function:${selected.id}`)}
               />
             </EmbeddedGroup>
           )}

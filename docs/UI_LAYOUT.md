@@ -97,3 +97,29 @@ labels, pins and explicit category/individual rigidity choices retain their
 meaning and remain authoritative. No stored policy is erased or rewritten.
 
 UI-customization right-click menus (controls, frame/tab chrome, background and selected UI) and right-click UI label renaming require UI edit mode. Content-specific menus remain available in normal mode. Disabling edit mode dismisses open UI customization; normal actions and frame movement retain their independent permission rules. This changes only transient menu entry, with no saved schema, identity, layout or policy changes.
+
+## Reset one item to its default home
+
+Enable UI edit mode and right-click a moved button/field → Placement → **Reset to
+default home**. For a native section/window, right-click its frame title and use
+**Reset to default home** directly. The existing return-function action ID is
+retained; this replaces its old delete-item implementation, which discarded
+styling and did not restore explicit template membership.
+
+`residentHome.ts` resolves the shipped template (`default-template.json`) and
+registered native window homes. Recovery restores the selected resident's original
+container and order relative to remaining original siblings, or its declared
+native slot/default floating geometry. It clears that resident's moved sizing and
+anchor overrides, while retaining its name, styling, stored values and descendants.
+Native order cleanup removes only that resident, leaving moved-in peers untouched.
+Missing default window records are recreated without pulling back other controls.
+An existing dock tree gets the returning window as a tab; unrelated panes remain.
+
+This is an explicit existing-format UI transaction, persisted through
+`useInterfaceState` and shared history. It works after saving/reloading without an
+undo log. Original means the current shipped template/native declaration, not a
+snapshot of a custom arrangement or imported template. User-created frames/fields
+without a defined default home remain in place and disable recovery. Pins,
+context-menu scopes, cycles and incompatible destinations remain protected.
+**Reset this frame’s arrangement** remains the separate local cleanup action;
+**Reset to default** in the library resets the whole layout.
