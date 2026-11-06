@@ -1756,3 +1756,35 @@ test('visible attached paint maps to its existing selectable edit owner',async()
  assert.deepEqual(selectedEditOwners(snapshot.nodes,owners,new Set(targetNodes(snapshot,['rim']).map(node=>node.id))),['rim'],'paint and rim become one existing edit target');
  assert.equal(pickStructuralNode(snapshot.nodes,{x:40,y:0}),undefined,'the unfilled half remains empty');
 });
+
+test('detaching an attached fill preserves exact evaluated ink, roles and independent edits through save/restore',async()=>{
+ const {prepareRegionFill}=await import('../src/omnic/fillRegion.ts');
+ const {componentAttachments,detachComponentAttachment}=await import('../src/omnic/componentAttachments.ts');
+ const source=validateRecipe(recipe([{id:'rim',generator:'ring',params:{radius:40,x:12,y:-7,fill:false,color:'#dba582',opacity:.7}}]));
+ const evaluation=evaluateRecipe(source),shape=prepareRegionFill(evaluation,evaluation.nodes,[{x:-30,y:-50},{x:12,y:-50},{x:12,y:40},{x:-30,y:40}],'rim').shape;
+ const filled=validateRecipe({...source,operations:[op('paint','fill',['rim'],{attachment:true,fill:true,shape:JSON.stringify(shape),color:'#83ddbe',opacity:.6})],frames:[{id:'f',property:'omnic.opacity',state:'inactive',scope:['paint:region:0']}]});
+ const before=evaluateRecipe(filled),original=JSON.stringify(filled);
+ assert.deepEqual(componentAttachments(filled,before,['rim']),[{id:'paint',owner:'rim',label:'fill'}]);
+ const detached=detachComponentAttachment(filled,'paint');assert.equal(detached.id,'paint');assert.equal(JSON.stringify(filled),original,'original remains available to Undo and failure recovery');
+ assert.equal(detached.recipe.operations.length,0);assert.equal(detached.recipe.components[1].generator,'region');assert.deepEqual(detached.recipe.frames,filled.frames,'existing role references retain identity');
+ const restored=validateRecipe(JSON.parse(JSON.stringify(detached.recipe))),after=evaluateRecipe(restored);
+ const ink=nodes=>nodes.filter(n=>n.kind!=='group').map(n=>[n.id,n.x,n.y,n.radius,n.clip,n.color,n.opacity]);
+ assert.deepEqual(ink(after.nodes),ink(before.nodes));assert.deepEqual(componentAttachments(restored,after,['rim']),[]);
+ const moved=translateTargets(restored,new Set(['paint']),{x:25,y:-10}),movedNodes=evaluateRecipe(moved).nodes;
+ assert.deepEqual(movedNodes.find(n=>n.id==='rim:shape'),after.nodes.find(n=>n.id==='rim:shape'),'moving detached paint does not move its former receiver');
+ const painted=movedNodes.find(n=>n.id==='paint:region:0'),prior=after.nodes.find(n=>n.id==='paint:region:0');
+ assert.equal(painted.x,prior.x+25);assert.equal(painted.y,prior.y-10);assert.equal(painted.radius,prior.radius);assert.deepEqual(painted.clip,prior.clip.map(p=>({x:p.x+25,y:p.y-10})));
+ const ownerMoved=evaluateRecipe(translateTargets(restored,new Set(['rim']),{x:-15,y:20}));assert.deepEqual(ownerMoved.nodes.find(n=>n.id==='paint:region:0'),after.nodes.find(n=>n.id==='paint:region:0'),'moving the former receiver no longer moves the detached fill');
+ assert.throws(()=>detachComponentAttachment(restored,'paint'),/no longer available/);
+});
+
+test('detachment freezes effective old operation scopes, isolates one fill and refuses lossy snapshots atomically',async()=>{
+ const {prepareRegionFill}=await import('../src/omnic/fillRegion.ts');const {detachComponentAttachment}=await import('../src/omnic/componentAttachments.ts');
+ const source=recipe([{id:'rim',generator:'ring',params:{radius:30,fill:false}}]),snapshot=evaluateRecipe(source),shape=JSON.stringify(prepareRegionFill(snapshot,snapshot.nodes,[{x:-31,y:-31},{x:0,y:-31},{x:0,y:31},{x:-31,y:31}],'rim').shape);
+ const filled=recipe(source.components,[op('a','fill',['rim'],{attachment:true,shape}),op('b','fill',['rim'],{attachment:true,shape}),op('s','select',['rim:shape']),op('c','fill',[],{color:'#aabbcc'})]);
+ const next=detachComponentAttachment(filled,'a').recipe;assert.ok(next.operations.some(o=>o.id==='b'));assert.deepEqual(next.operations.find(o=>o.id==='c').targets,['rim:shape'],'implicit selected scope cannot broaden to all objects');
+ const global=recipe(source.components,[op('a','fill',['rim'],{attachment:true,shape}),op('rotate','rotate',[],{angle:90,scope:'each'})]);
+ const detached=detachComponentAttachment(global,'a').recipe;assert.deepEqual(detached.operations[0].targets,['rim'],'the baked region cannot be rotated twice');
+ const incompatible=recipe(source.components,[op('a','fill',['rim'],{attachment:true,shape}),op('h','highlight',['a:region:0'],{fraction:.5})]),original=JSON.stringify(incompatible);
+ assert.throws(()=>detachComponentAttachment(incompatible,'a'),/effects/);assert.equal(JSON.stringify(incompatible),original);
+});

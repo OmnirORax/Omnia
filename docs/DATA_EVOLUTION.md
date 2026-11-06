@@ -190,3 +190,19 @@ portable validation/backend checks remain required for changed shared modules.
 ### Input ownership and immediate Color entry (2026-11-06)
 
 Selection session scope and auto-open Color requests are transient. No stored recipe, UI setting, identity, binding ID or color value format changes. Ending a registered session now means inactive rather than implicit global targeting; explicit standalone entry retains global UI selection. Existing ColorInput preview/commit/cancel behavior remains the persistence boundary, and opening the picker alone commits no color. No migration or backend schema change is required; existing browser activation restrictions and saved-value validation remain.
+
+Detachment (2026-11-06): explicit Continuous-fill detachment converts one local
+attached `fill` application into an existing `region` component in recipe v1/v2.
+It reuses the application ID and `:region:<index>` primitive roles and keeps frame
+references. Exact current circles/clips and per-piece paint are snapshotted;
+existing operations keep their effective pre-detachment scopes and exclude baked
+paint. New evaluation attachment provenance/effective scopes are transient, not
+saved fields. The entire candidate validates and reevaluates before the existing
+draft/history owner commits once. Unsupported effects, motion or changed primitive
+geometry reject without altering the source; Undo retains the original authored
+attachment. Save/restore and primitive-reference identity have model coverage.
+Older clients already supporting `region` read the result; pre-region clients
+retain the previously documented rejection boundary. No new recipe version,
+backend schema or silent load migration. Group splitting has ordinary independent
+object compositing; it is not a destructive union or a promise of pixel-identical
+overlap blending. See Composer's Detach continuous fill walkthrough.

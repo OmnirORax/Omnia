@@ -66,6 +66,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [♾️ online click quests, stars and benchmark leaderboards](#infinity-quests) | Implemented for review; hosted migration and two-account browser acceptance pending | ♾️ → Questboard works offline, including GitHack, without sign-in. Only Leaderboard uses Cloud connection. |
 | [Shared domain filters and quest categories](#interface-filters) | Implemented for review; browser acceptance and production deployment pending | ♾️ → Questboard → Category / Status / Search; works offline in GitHack without sign-in. |
 | [Fill through reference thresholds](#omnic-reference-region-fill) | Implemented for review; production unchanged; user acceptance pending | Composer radar: right-click empty space → Fill → pick a closed reference with MS. Object context: right-click object → Units / fill → Fill. |
+| [Detach continuous fill into an independent object](#omnic-detach-attachment) | Implemented for review; user interaction acceptance pending; production unchanged | Composer: right-click an attached fill or its receiver → Detach this fill / Detach fill in the target dial. Several attachments have separate choices. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1563,6 +1564,31 @@ The shared region projection reads the reference coordinate bounds and meaningfu
 **Command IDs:** `atomnic.fill`.
 
 **Related:** [Rule-configured values and rotation axis wheel](#omnic-dof-state-wheel), [Reference selection with the Q selector](#omnic-operation-context).
+
+<a id="omnic-detach-attachment"></a>
+## Detach continuous fill into an independent object
+
+**ID:** `omnic.detach-attachment` · **Status:** Implemented for review; user interaction acceptance pending; production unchanged
+
+**Where:** Composer: right-click an attached fill or its receiver → Detach this fill / Detach fill in the target dial. Several attachments have separate choices.
+
+Detach snapshots the chosen attachment’s currently evaluated circle-and-clip ink into the existing independent region generator. The former receiver stays unchanged. The detached region is selected, and inherits ordinary Position, Rotation, Scale, Color and Opacity editing. Moving either it or its former receiver no longer moves the other. The existing draft owner records one reversible change; Undo restores the original attachment. The authored attachment ID and generated region-role IDs are retained. Existing operations retain their resolved scopes and do not reapply to already baked paint. Containment and geometric contact remain separate from attachment ownership.
+
+**Minimal working test**
+
+1. Create a Continuous fill, then right-click its painted interior. **Expected:** The existing target dial offers Detach this fill. Right-clicking its receiver offers Detach fill; several attachments each have a choice.
+2. Choose Detach this fill. **Expected:** The fill keeps its curved shape, position, per-piece color and opacity, becomes an independent region and is selected.
+3. Left-click the detached fill, hover a different Position coordinate and confirm with click or Enter. **Expected:** Only the detached fill moves; its clip and circle move together. The former receiver stays put.
+4. Select and reposition the former receiver. **Expected:** The detached fill stays put. Exact mode selects either object independently; Continuity can still include both while their ink touches.
+5. Undo detachment, or save/export and reopen the detached recipe. **Expected:** Undo restores attachment through existing history; a saved detached region remains independent with the same primitive identities.
+
+**Limits / unavailable behavior:** Applies to visible, locally authored Continuous fill snapshot attachments. Reused-definition internals are edited in their source definition; legacy clipped paint must first undergo the existing ordinary-edit conversion. Static geometry only. Effects or operation pipelines that cannot preserve all evaluated primitive geometry/paint reject detachment without changing the original. Detached paint is an independent compositing object after its receiver’s top-level component; overlap blending/drawing order can differ when splitting one opacity group. No destructive geometric union or automatic detach-on-move.
+
+**Verification:** browser — Not run for this new feature; user interaction acceptance pending.. Automated — 119 Omnic model tests pass, including detachment geometry/clip/color/opacity identity, independent movement in both directions, save/restore, preserved role references, one-of-several detachment, resolved implicit operation scopes, avoidance of double transforms and atomic rejection. Required full local checks run before delivery..
+
+**Details:** [subsystem guide](OMNIC_COMPOSER.md). **Implementation:** [src/omnic/componentAttachments.ts](../src/omnic/componentAttachments.ts), [src/omnic/AtomnicEditor.tsx](../src/omnic/AtomnicEditor.tsx), [src/omnic/evaluate.ts](../src/omnic/evaluate.ts), [tests/omnic.test.mjs](../tests/omnic.test.mjs).
+
+**Related:** [Fill through reference thresholds](#omnic-reference-region-fill), [Shared MS selection inside Omnic Composer](#omnic-ms-selection).
 
 ## Exact registered command inventory
 

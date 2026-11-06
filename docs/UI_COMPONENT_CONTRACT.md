@@ -1062,3 +1062,10 @@ reference value-choice popups forward completion to that owner. Reference step
 configuration remains a separate stage. Accumulating controls keep their declared
 selection policy. Esc without confirmation still cancels the provisional value.
 This is transient lifecycle state and does not change saved formats/settings.
+
+Attachment actions (2026-11-06): Composer's target dial consumes the shared
+componentAttachments capabilities, with evaluated provenance identifying the
+pointed attachment. Detachment uses the existing UIAction/input-owner path and
+existing region editors/history; it does not invent a fill-specific move tool.
+Newly independent content obeys the active selection mode. Do not confuse Exact
+selection independence with physical Continuity while objects still touch.
