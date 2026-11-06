@@ -672,3 +672,29 @@ UI right-click correction (2026-11-06): UI-customization context menus and
 right-click UI label renaming require UI edit mode, regardless of saved movement
 exceptions. Domain-specific right-click remains available in either mode. Reuse
 contextMenuOwnership at shared entry points; do not block secondary input globally.
+
+Node document formatting (2026-11-06): basic Markdown renders directly with markers
+hidden, while the existing mixed document stores the original source and canonical
+glyph references. Use textHTML/readTextDOM rather than saving HTML or adding a
+second document store. Preserve bounded live edits, caret/IME/native history and
+shared clipboard/portability. Do not claim full CommonMark or browser acceptance.
+
+Atlas child detachment (2026-11-06): detachPlacement preserves world XYZ and saved
+layout coordinates while clearing visual/variant visibility parentage. The
+separate detachNodeConnection also removes the current canonical containment edge.
+Containment, typed relationships, variant definitions and visual placement remain
+independent. Reuse shared document history/persistence and keep descendant IDs
+and local offsets. The node menu uses connection detachment; Inspector None/root
+uses placement-only detachment. Do not silently repack a detached branch.
+
+Document essentials (2026-11-06): editable authored content is not UI-caption
+content; NamePresentation must not inject icons into semantic document tags.
+NodeDocument inherits FloatingWindow/FrameChrome rather than a private anchored
+shell. Its live DOM owner lives inside the portal payload for safe host changes.
+Use native editable list/formatting transactions and preserve their semantics
+in readTextDOM; stale source attributes on an unformatted span must not resurrect
+styles. Shared UI rigidity/pinning and document-save guards stay authoritative.
+Document formatting/list commands must register with featureActions and use
+useFeatureActions. Keep Shift configuration policy intact; native editing is not
+a reason to add private executable hotkeys. Registry availability follows actual
+editor/list ownership, with updates only when that classification changes.

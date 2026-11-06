@@ -771,3 +771,20 @@ Questboard is now local-first and works offline in GitHack. Its versioned browse
 owner preserves quests/bests/claims across reloads; only Leaderboard needs Auth.
 Old cloud quest records remain on the server and are not silently migrated.
 See the current behavior at the top of METRICS.md.
+
+### Detach a child node from its parent
+
+Right-click a child in the atlas → **Detach from parent**. It becomes a root at its
+current world position, carrying its own descendants without moving them. The
+current parent's canonical containment edge is removed; other typed relationships
+and other authored parents are separate. Canonical containment is shared knowledge,
+so removing that edge applies to all uses of it; other occurrences keep their
+independent visual nesting. Undo restores the edit through shared document history.
+
+For a placement-only change, Inspector → **Visual parent → None (root)** preserves
+canonical containment. It now also preserves world position. Both paths keep IDs,
+content, presentation and saved-view world coordinates. Detaching a variant
+occurrence releases its visibility gate without deleting the canonical variant.
+`detachPlacement` and `detachNodeConnection` in graph/layout3d.ts own these distinct
+operations. Neither deletes the entity or recreates its subtree. Menu/native
+interaction acceptance remains pending; model/build checks are separate evidence.

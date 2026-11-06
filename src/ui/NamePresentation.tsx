@@ -9,7 +9,7 @@ const captions =
 const selector = `${captions},[title],input,select,textarea`;
 const scope =
   ".workbench,.floating-window,.ui-workspace-overlay,[data-ui-resident-root],.ui-background-menu,.ui-selection-tools,[data-ui-search]";
-const ignored = "[data-shortcut-runner],omnium-appearance-recovery,[data-ui-name-ignore]";
+const ignored = "[data-shortcut-runner],omnium-appearance-recovery,[data-ui-name-ignore],[contenteditable]:not([contenteditable=\"false\"])";
 
 /** Read a caption without including selected option values, typed content or shortcut hints. */
 function caption(element: Element): string {
@@ -73,7 +73,8 @@ export function NamePresentation() {
         initialSizes.set(element,getComputedStyle(element).fontSize);
       }
       for (const element of candidates) {
-        if (!element.closest(scope) || element.closest(ignored)) continue;
+        if(element.closest(ignored)){if(element.hasAttribute("data-ui-name-symbol")){delete element.dataset.uiNameSymbol;element.style.removeProperty("--ui-name-size");}continue;}
+        if (!element.closest(scope)) continue;
         if (
           element.matches("strong") &&
           element.parentElement?.closest("button,label,legend,summary,h1,h2,h3,h4,h5,h6")
@@ -145,6 +146,7 @@ export function NamePresentation() {
         if (!element || element.closest("style,script,canvas")) continue;
         if (record.type === "attributes") {
           const attribute = record.attributeName!;
+          if(attribute==="contenteditable"||attribute==="data-ui-name-ignore")added.add(element);
           const expected = written.get(element)?.get(attribute);
           if (expected !== undefined && element.getAttribute(attribute) === expected) continue;
           dirty.add(element);
@@ -170,7 +172,7 @@ export function NamePresentation() {
         "data-ui-name",
         "data-ui-tooltip",
         "data-ui-symbol",
-        "data-ui-native-icon",
+        "data-ui-native-icon","contenteditable","data-ui-name-ignore",
       ],
     });
     scan();

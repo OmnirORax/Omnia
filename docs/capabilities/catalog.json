@@ -248,7 +248,7 @@
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "2026-11-06: user-authorized focused local Chromium check passes fixed-control pointer-drift activation, edit-off minimize/restore, whole-window movement with suppressed drag tail, ordinary-window Close and edit-on internal-control dragging availability. Baseline reproduced a swallowed fixed-control click after 8px drift. Fresh local data; user saved-layout acceptance pending. Existing appearance draft vetoes and remote-controller context behavior remain unchanged. Follow-up right-click gating awaits user browser verification; no additional browser run performed.",
-        "automated": "2026-11-06: all 515 model/architecture tests, preview/type/property/capability build checks and backend type checks pass. Includes edit-off/on context routing, preserved domain handlers/content ownership, missing legacy flag and movement-exception independence."
+        "automated": "2026-11-06: all 524 model/architecture tests, preview/type/property/capability build checks and backend type checks pass. Includes edit-off/on context routing, preserved domain handlers/content ownership, missing legacy flag and movement-exception independence. Rechecked after merging master including PR #52; both documentation conflicts retain both owners’ guidance."
       },
       "related": [
         "interface.targets"
@@ -2850,8 +2850,8 @@
     {
       "id": "atlas.documents",
       "title": "Editable node documents and live English–Omnic glyph detection",
-      "where": "Click a 3D node name → Document. Its Lexicon button opens the existing Omnic library; select a saved Composer object → English variants → Save name / tags / words.",
-      "behavior": "Node-linked documents render directly at the atlas node outside the inspector. Type, select, delete, cut, copy and paste normally. Saved English variants on existing canonical Composer objects drive always-on detection during typing, paste, opening existing content and saved lexicon changes. Lexicon opens the library rather than activating matching. Matches receive independent inline glyph references before the retained English; glyphs are embedded objects, not Unicode stand-ins. Automatic occurrences retain a small English link so typing can revise a still-automatic suggestion and lexicon corrections can update it. Deleting English detaches the glyph and preserves it, allowing the document to become only Omnic. Legacy adjacent matches are adopted without duplicate glyphs. Match exact whole words/phrases case-insensitively, preserving punctuation and whitespace; conflicts stay English. Ordinary typing checks a bounded local window and reuses glyph images, while existing-content/lexicon refresh runs separately. Caret markers preserve the insertion point and never enter saved text; composition pauses detection. Native history input is not immediately reannotated. Workspace persistence/history, cross-atlas identity, library organization and import remapping remain shared.",
+      "where": "Click a 3D node name → Document. It opens in the shared movable/resizable/dockable window. Lexicon opens the existing Omnic library.",
+      "behavior": "Node-linked documents open in the shared FloatingWindow outside the inspector, inheriting movement, resizing, docking, pinning, minimization, saved geometry/customization and normal UI rigidity. Type, select, delete, cut, copy and paste normally. Saved English variants on existing canonical Composer objects drive always-on detection during typing, paste, opening existing content and saved lexicon changes. Lexicon opens the library rather than activating matching. Matches receive independent inline glyph references before the retained English; glyphs are embedded objects, not Unicode stand-ins. Automatic occurrences retain a small English link so typing can revise a still-automatic suggestion and lexicon corrections can update it. Deleting English detaches the glyph and preserves it, allowing the document to become only Omnic. Legacy adjacent matches are adopted without duplicate glyphs. Match exact whole words/phrases case-insensitively, preserving punctuation and whitespace; conflicts stay English. Ordinary typing checks a bounded local window and reuses glyph images, while existing-content/lexicon refresh runs separately. Caret markers preserve the insertion point and never enter saved text; composition pauses detection. Native history input is not immediately reannotated. Workspace persistence/history, cross-atlas identity, library organization and import remapping remain shared. Basic Markdown renders directly in the editable document without displaying its markers: bold, italic, strike, inline code, headings, simple lists, quotes and fenced code on paste/reopen. Closing inline markers formats a bounded typed paragraph; heading/list prefixes can format on space. Markdown remains plain source in the existing mixed document, including formatted spans containing glyphs. No separate preview mode or saved HTML. Editable content is excluded from UI caption/icon decoration, including bold text. Lists use native editable list structures: Enter continues, Enter on an empty item exits, and shared Indent/Outdent commands change list depth. Toolbar Bold/Italic/Numbered list/Bullet list and Ctrl/Cmd+B/I use browser-native editing transactions. Source serialization preserves markers only for active formatting, including after native formatting is turned off.",
       "steps": [
         {
           "do": "Save a Composer glyph. In Omnic library, select it, enter Macro, Constraint, Freedom in English variants and click Save name / tags / words.",
@@ -2872,6 +2872,22 @@
         {
           "do": "Extend a still-automatic matched word into an unmapped longer word, undo, and try a conflicting synonym mapping.",
           "expect": "The automatic suggestion can revise with inserted English; native Undo/Redo is not immediately fought by reannotation. Conflicting mappings remain English."
+        },
+        {
+          "do": "Paste **bold**, *italic*, ~~strike~~, a heading and a simple list into a node Document. Type **word** in a small paragraph, then close/reopen after saving. Copy formatted text to another node Document.",
+          "expect": "Formatting appears directly without visible markers; closing typed inline markers renders the word. Saved/reopened and internally copied contents preserve Markdown source and inline glyph references."
+        },
+        {
+          "do": "Paste **bold text**, then toggle Bold with the toolbar or Ctrl/Cmd+B. Save and reopen.",
+          "expect": "The text has no diamond/UI caption symbol. Turning Bold off persists as plain text; turning it on persists once without duplicated Markdown markers."
+        },
+        {
+          "do": "Type 1. first, press Enter, type second, then press Enter twice.",
+          "expect": "The second item is numbered 2. The empty item exits the list. Indent/Outdent within a list use native list transactions; saved source retains list structure."
+        },
+        {
+          "do": "With the shared window category unlocked, resize the document corner and move/dock/pin/minimize through its standard frame controls.",
+          "expect": "The document uses the same permissions and UI state owner as other windows; the editor fills the resized space and pending edits flush before close/minimize or host replacement."
         }
       ],
       "reference": "docs/NODE_DOCUMENTS.md",
@@ -2883,15 +2899,26 @@
         "src/omnic/Library.tsx",
         "src/omnic/workspace.ts",
         "src/SpatialWorkspace.tsx",
-        "src/text/live.ts"
+        "src/text/live.ts",
+        "src/text/markdown.ts",
+        "src/text/editing.ts",
+        "src/ui/FloatingWindow.tsx",
+        "src/ui/NamePresentation.tsx"
       ],
-      "actions": [],
+      "actions": [
+        "document.bold",
+        "document.italic",
+        "document.orderedList",
+        "document.bulletList",
+        "document.indent",
+        "document.outdent"
+      ],
       "gestures": [],
       "status": "Implemented for review; production deployment and browser acceptance pending",
-      "limits": "No semantic disambiguation, stemming, bulk Obsidian importer, rich formatting or separate glyph-only node store. One open document at a time. Typing uses a bounded local window; initial/full lexicon refresh can process an entire existing document. Existing 200,000 text-character, 4,000 occurrence, 8 MB workspace and 5 MB atlas-import limits remain. Glyph preparation keeps its shared 32,000-primitive budget with explicit fallback images for excessive structures. A native automatic insertion may be a separate undo step; browser caret, IME, clipboard, undo and responsiveness remain user-verified. Saved mappings require Save name / tags / words; unsaved library draft fields do not drive detection. Outside apps receive bracketed names, while internal clipboard/JSON preserve structural references and occurrence links.",
+      "limits": "No semantic disambiguation, stemming, bulk Obsidian importer, full CommonMark/rich-document suite or separate glyph-only node store. One open document at a time. Its frame follows existing shared rigidity/pinning permissions, including locked defaults. Typing uses a bounded local window; initial/full lexicon refresh can process an entire existing document. Existing 200,000 text-character, 4,000 occurrence, 8 MB workspace and 5 MB atlas-import limits remain. Glyph preparation keeps its shared 32,000-primitive budget with explicit fallback images for excessive structures. A native automatic insertion may be a separate undo step; browser caret, IME, clipboard, undo and responsiveness remain user-verified. Saved mappings require Save name / tags / words; unsaved library draft fields do not drive detection. Outside apps receive bracketed names, while internal clipboard/JSON preserve structural references and occurrence links. Tables, links/images, task widgets and cross-paragraph live fenced-code typing remain unsupported. Typed paragraph formatting is bounded to 4,096 visible characters; larger content renders on paste/reopen. Markdown nesting/work is bounded; pathological syntax stays literal.",
       "verification": {
-        "browser": "Pending user verification of live typing, existing-text refresh, caret/undo and English deletion; no browser suites run",
-        "automated": "Passed node --run test, node --run build:preview (including TypeScript/property contracts), and node --run backend:check. Regressions cover screenshot-word matching, immediate exact detection, prefix/deletion/link policies, bounded windows, metadata validation and import round-trip. Browser acceptance remains pending."
+        "browser": "2026-11-06: the user-authorized bounded local Chromium check against the completed self-contained build confirms bold has no caption icon/pseudo-content, native Bold off saves plain text and on saves one pair of markers, Enter creates the second numbered item, empty-item Enter exits, and the committed source contains 1. first / 2. second / outside. With the shared window category unlocked, real corner resizing changes 560×440 to 656×504. No page errors. Locked default rigidity correctly blocked the first resize attempt. Docking, IME and broader Undo/Redo acceptance remain user-pending.",
+        "automated": "Document models cover native list structure/counters, nested depth/type changes, source-marker/glyph round trips, native formatting on/off, escaping and malformed inputs. Existing UI window/rigidity and document portability suites remain shared; all required tests, preview/type/property/capability build and portable backend checks run before delivery."
       },
       "related": [
         "library.objects"
@@ -3423,6 +3450,54 @@
       "related": [
         "omnic.reference-region-fill",
         "omnic.ms-selection"
+      ]
+    },
+    {
+      "id": "graph.detach-child",
+      "title": "Detach a child node from its parent",
+      "where": "3D atlas: right-click a child node → Detach from parent, next to Connect to another node. The Inspector’s Visual parent → None (root) remains the placement-only route.",
+      "behavior": "Detach from parent makes the chosen placement a root and removes the authored containment relation from its current parent entity to its own entity, if present. The node keeps its identity, document, glyph definition, presentation and world position; its descendants stay attached to it and do not move. Unrelated typed relationships and other parent relations stay separate. Saved layout positions are rebased so changing views does not reinterpret old local coordinates as root coordinates. Variant visibility ownership is removed from the detached occurrence while the canonical variant definition stays recorded. The existing document/workspace history, persistence and export owners record the edit; Undo restores the connection. The Inspector placement-only route preserves authored containment and now also avoids relocating the node.",
+      "steps": [
+        {
+          "do": "Create a child with its own descendant, then right-click the child → Detach from parent.",
+          "expect": "The child becomes a root at the same world position, its current parent connection disappears, and its descendant remains with it at the same world position."
+        },
+        {
+          "do": "Move the former parent, then move the detached node.",
+          "expect": "The detached branch is independent of the former parent; its own descendants still follow it."
+        },
+        {
+          "do": "Switch an existing saved layout view, then Undo detachment.",
+          "expect": "Detachment preserves that view’s world coordinates; Undo restores the authored connection and placement parent through shared history."
+        },
+        {
+          "do": "Instead use Inspector → Visual parent → None (root).",
+          "expect": "Only this placement is detached, with no spatial jump. Authored containment remains recorded, including its independent binder."
+        },
+        {
+          "do": "Save/export and reopen; inspect another occurrence of the same entity.",
+          "expect": "The detached root and IDs survive. Authored containment is canonical knowledge, so removing that relation applies to all uses of that relation; other placements keep their own visual parentage."
+        }
+      ],
+      "reference": "docs/WORKER_ONBOARDING.md",
+      "sources": [
+        "src/graph/layout3d.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/App.tsx",
+        "tests/layout3d.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "limits": "Applies to the chosen occurrence’s current parent, not arbitrary typed relationships or every incoming canonical relation. A root with no variant visibility owner has no Detach from parent action. Existing document-coordinate validation still applies; validation failure preserves the original. Browser interaction acceptance is pending.",
+      "status": "Implemented for review; production unchanged; user interaction acceptance pending",
+      "verification": {
+        "automated": "Layout model tests cover root detachment without subtree movement, authored containment removal scoped to the current parent, independent canonical knowledge for placement-only detachment, saved-layout rebasing, legacy coordinate fallback, stable IDs/save round trips, root no-op/missing IDs and independent variant visibility. Required complete local tests, preview build and backend checks run before delivery.",
+        "browser": "No new browser checks run for this feature; menu interaction/Undo/visual acceptance remain user-pending."
+      },
+      "related": [
+        "graph.create",
+        "graph.layout",
+        "history.global"
       ]
     }
   ]

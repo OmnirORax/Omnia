@@ -20,6 +20,12 @@ export const radialGroups = {
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 const CORE_FEATURE_ACTIONS = [
+  {id:'document.bold',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Bold',defaultKey:'Ctrl+B',description:'Toggle bold in the active node document using its native editing transaction.'},
+  {id:'document.italic',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Italic',defaultKey:'Ctrl+I',description:'Toggle italic in the active node document using its native editing transaction.'},
+  {id:'document.orderedList',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Numbered list',defaultKey:'',description:'Toggle a native numbered list in the active node document.'},
+  {id:'document.bulletList',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Bullet list',defaultKey:'',description:'Toggle a native bullet list in the active node document.'},
+  {id:'document.indent',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Indent list item',defaultKey:'Ctrl+]',description:'Indent the current list item in the active node document.'},
+  {id:'document.outdent',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Outdent list item',defaultKey:'Ctrl+[',description:'Outdent the current list item in the active node document.'},
   {id:'quests.create',owner:'questSystem',scope:'global',category:'♾️',label:'New quest',defaultKey:'',description:'Open the compact click target and time-limit authoring form in Questboard.'},
   {id:'quests.publish',owner:'questSystem',scope:'global',category:'♾️',label:'Publish quest',defaultKey:'',description:'Save a local click quest without sign-in; equal goals reuse the same local quest and cannot duplicate local rewards.'},
   {id:'quests.open',owner:'questSystem',scope:'global',category:'♾️',label:'📜 Questboard',defaultKey:'',description:'Open account quests and hand in completed click benchmarks for one star each.'},

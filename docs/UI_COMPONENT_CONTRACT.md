@@ -1080,3 +1080,19 @@ parent frame’s drag permission for click suppression. Pointer drift during a
 normal click must not fabricate a drag. Existing real native/pointer drags,
 explicit selection gestures and keyboard activation retain their shared owners.
 See the focused, opt-in `tests/ui-edit-mode.browser.mjs` regression.
+
+Node-document Markdown is an editable source projection, not stored rich HTML.
+Use textHTML/readTextDOM for both rendering and serialization, including clipboard
+and glyph annotations. Live formatting uses bounded paragraphs and existing native
+editing transactions. Keep caret tokens transient, pause during composition and
+skip automatic formatting on native history input. External HTML remains ignored.
+
+Document window/editor inheritance (2026-11-06): NodeDocument uses FloatingWindow
+and FrameChrome rather than a private anchored/rigid shell. Its live editor owns
+its DOM inside the portal payload, flushing before host replacement and
+initializing the new host. Close/minimize use the existing save guard. Shared
+rigidity, pinning, resize, docking, layout/history and UI customization remain
+authoritative. UI NamePresentation excludes editable content and removes stale
+caption symbols if ownership changes; strong/emphasis document tags are not UI
+labels. Native editable lists and formatting commands own Enter/list exit,
+indentation and Undo; source serialization preserves canonical glyph references.

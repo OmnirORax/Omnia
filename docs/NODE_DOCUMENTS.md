@@ -5,7 +5,7 @@ temporary scaffold: type or paste English, automatically insert the user's mappe
 before matching words, then edit/delete English word by word until Omnic remains.
 This explicitly authorizes lexical mappings; it does not infer equivalence from
 renderings or finalize Omnic grammar. Ordinary type/delete/select/cut/copy/paste
-is the intended scope. No rich document suite or automatic translation engine.
+is the intended scope. Basic Markdown is rendered directly in the editable document; no rich document suite or automatic translation engine.
 
 ## Use
 
@@ -72,8 +72,11 @@ and workspace history outside editing retain their existing scopes.
 
 ## Bounds and verification
 
-One node-anchored DOM document is open at a time. It follows the existing camera
-projection scheduler without per-pointer React updates. Text input does not
+One document is open at a time in the shared FloatingWindow. Its frame inherits
+normal movement, resizing, docking, pinning, minimization, UI rigidity and saved
+layout/customization. It opens from the node options; camera movement does not
+force its position. Dock-host replacement flushes and initializes the live editor
+through the existing save lifecycle. Text input does not
 update the 3D name texture per keystroke. Prepared matching and canonical glyph
 images cache across text saves; static object images use shared Blob URLs and
 lazy loading. `RENDER_BUDGET.omnicTextPrimitives` caps distinct prepared geometry
@@ -84,7 +87,7 @@ Each document permits 200,000 English/text characters and 4,000 glyph occurrence
 each object permits 256 explicit variants of 200 characters each. Existing atlas
 and workspace byte budgets still apply. Budget failures leave committed state
 unchanged and report unsaved contents; reduce/copy them out before leaving.
-Drag/drop and rich formatting are outside this slice.
+Drag/drop, Markdown tables, links/images, task-list widgets and full CommonMark parsing remain outside this slice.
 
 Local model suite, self-contained preview build (including TypeScript/property
 contracts) and backend type checks passed. Portable regression tests cover
@@ -92,3 +95,60 @@ matching, conflicts, punctuation/whitespace,
 independent English deletion, linked/detached occurrence policies, bounded typing
 windows, validation, round-trip and imported reference remapping. Browser editing/caret/clipboard, newline presentation and smoothness
 await user testing; a build does not establish acceptance.
+
+## Markdown in the editable document
+
+Paste Markdown normally: `**bold**`, `*italic*`, `~~strike~~` and inline backtick
+code render as formatted text without visible delimiters. Headings, simple
+ordered/unordered lists, quotes and fenced code blocks render on paste/reopen.
+Closing inline markers during typing formats a small paragraph (at most 4,096
+visible characters); heading/list prefixes can format after a typed space. The
+editor stays directly editable, with no separate preview pane. Fenced-code typing
+across browser-created paragraph boundaries and full CommonMark syntax are not
+implemented; unsupported syntax remains literal. Formatting larger typed
+paragraphs is deferred until paste/reopen.
+
+Markdown source remains ordinary text in the existing version-1 mixed document.
+Semantic editing wrappers serialize their original markers back to that text;
+no HTML or new rich-text schema is saved. Glyph tokens can occur inside formatted
+spans without losing their canonical IDs or English links. Literal raw HTML is
+escaped, and external clipboard HTML is still ignored. Internal copy preserves
+Markdown source and references; plain clipboard output retains Markdown syntax.
+Live formatting uses the existing native insertion transaction path and a
+temporary caret token, removed before saving. Composition and native history
+input do not trigger reformatting. Renderer nesting/work is bounded, with
+pathological syntax falling back to visible source. Models cover rendering,
+escaping, marker/glyph round trips and malformed inputs. Browser caret/Undo/IME
+acceptance remains user-pending.
+
+## Essential editing and window behavior
+
+The document uses the same frame/chrome and layout owner as other UI windows.
+Move its handle, resize its corner, dock/pin/minimize it and configure rigidity
+through the normal UI controls. Shared rigidity/pinning rules still apply; the
+document does not bypass a locked window category. Size and frame customization
+are stored with UI layout, not the document body. Closing/minimizing first flushes
+the text and keeps the window open if saving fails.
+
+Numbered and bullet lists are native editable `ol`/`ul`/`li` structures, rather
+than painted prefix spans. Enter continues the list; Enter on an empty item exits.
+Indent/Outdent controls (Ctrl+] / Ctrl+[ by default) change list depth. Tab keeps native focus navigation; Shift retains the app’s shared configuration policy. The document toolbar provides Bold,
+Italic, Numbered list and Bullet list; Ctrl/Cmd+B and Ctrl/Cmd+I use the same native
+formatting transactions. Existing native Undo/Redo, caret, selection, clipboard
+and composition remain browser-owned. Markdown serialization derives counters
+for new/moved list items, preserves untouched source prefixes and records native
+formatting changes without resurrecting removed styles. Soft line breaks inside
+a list serialize as indented continuation lines. No new rich-text save schema.
+
+UI caption decoration excludes editable content as a general ownership rule, so
+semantic bold text is never converted into a named UI icon. A user-approved
+bounded built-preview Chromium check verifies bold content has no injected symbol,
+list Enter/empty-item exit and resizing under an unlocked shared window category.
+Broader interactive acceptance remains user-owned.
+
+The same focused check also confirms Bold-off saves plain text, Bold-on saves
+one marker pair and the committed list source contains `1. first`, `2. second`
+and a following unlisted paragraph. No page errors were reported. The initial
+locked-layout resize attempt correctly did nothing; the unlocked category uses
+normal shared resize behavior. This is bounded evidence, not full editor or
+docking/IME/Undo acceptance.
