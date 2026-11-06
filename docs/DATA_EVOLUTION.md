@@ -272,3 +272,21 @@ content-derived frames; saving settings in an older client can lose the new cell
 preference, but not authored node coordinates or content. Rollback requires no
 content conversion. Existing storage/recovery/concurrency limitations still apply;
 no cloud atlas synchronization or stronger settings recovery is added here.
+
+
+### Atomic presentation correction (2026-11-07)
+
+The fixed-square-frame presentation above was rejected. Cells remain logical
+organization footprints, but visible nodes are uniform atoms; content is a
+separate camera-facing expansion. Existing XYZ, IDs, authored child visibility,
+content sizes, assets and document formats are unchanged. Existing showText values
+remain stored; expanded presentations and explicit Names views now reveal node
+names regardless of that visual-only legacy flag. No load-time reflow occurs.
+`spatial.nodeNames` is additive (expanded/all/selection), defaults to expanded for
+historical settings and uses shared settings history/normalization/persistence.
+Older clients ignore it and can omit this preference on resave. Click-retained
+expansion/close overrides are transient per atlas session and never saved into
+canonical knowledge, placement coordinates or authored parentage. Rollback needs
+no authored-data conversion. Historical fixtures stay frozen and explicitly
+verify the new default alongside unchanged existing settings. Dense presentation
+layout can overlap when independent content cannot fit; it never shrinks content.

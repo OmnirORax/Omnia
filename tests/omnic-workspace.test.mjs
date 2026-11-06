@@ -212,5 +212,6 @@ test('all workspace commit paths reject oversized UTF-8 data while preserving th
  }
  // Historical settings acquire only the new global organizational cell default.
  assert.equal(restoredUI.settings.spatial.nodeCellSize,1);delete restoredUI.settings.spatial.nodeCellSize;
+ assert.equal(restoredUI.settings.spatial.nodeNames,"expanded");delete restoredUI.settings.spatial.nodeNames;
  assert.deepEqual(restored.workspace,source.workspace);assert.deepEqual(restoredUI,source.ui);assert.equal(restored.ui.settings.bindings['selector.open'],'');assert.equal(restored.ui.layout.assets[0].id,'fixture-icon');
  });

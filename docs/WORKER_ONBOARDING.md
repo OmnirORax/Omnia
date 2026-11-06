@@ -789,24 +789,28 @@ operations. Neither deletes the entity or recreates its subtree. Menu/native
 interaction acceptance remains pending; model/build checks are separate evidence.
 
 
-## Atlas cell/content separation (2026-11-06)
+## Atomic carriers and content presentations (2026-11-07)
 
-Every atlas placement owns one uniform cell, default 1 world unit. Shared
-`nodeFootprint` is organizational geometry; `visualFootprint` measures content
-only (rendering and explicit view framing). Text, sphere diameter and visual size
-remain independent and may overflow the cell. Never fit, shrink or crop content
-to make it occupy a cell. Cell bounds own layout/packing, selection rectangles,
-connection endpoints, menu anchoring and selection rings. Background/contour
-appearance and effects render on the fixed cell; content keeps its existing
-text/symbol/body appearance. Direct content picking remains an alias of its node.
-Changing content or global cell size does not reflow authored coordinates.
-Explicit arrangement/movement retains its existing shared graph history.
+The earlier fixed square-frame interpretation was rejected. An atlas placement
+is a small uniform glowing atom. Empty space remains empty; no white lattice
+is drawn. Hover previews content, click retains it, and click again closes its
+retained expansion. Multiple expansions coexist. Structurally expanded nodes
+show content by default, with view-local close overrides. These overrides live
+in `nodePresentation`, scoped per atlas session, independently of graph selection,
+parentage and authored collapse state. Existing double-click structural expansion
+and document commands remain separate.
 
-`spatial.nodeCellSize` uses existing settings normalization/history and the
-`spatial.placement` function input adapter. Absence defaults to 1; cell size is
-not per-node and is independent of snap spacing and content `Visual.size`.
-N uses shared cursor tracking, projected lazily through the live atlas camera
-onto its view plane. Selected/focused context still determines the parent; exact
-creation bypasses packing. Over UI, the existing contextual default applies.
-See [cell walkthrough](CAPABILITIES.md#graph-cells) and
-[creation walkthrough](CAPABILITIES.md#graph-create). Browser acceptance pending.
+Names → Expanded / All / Selection uses the existing toolbar/settings owner.
+Bulk names reveal labels without opening full visuals. Open presentations face
+the camera and arrange in screen space; the atomic anchors never move. Shared
+`arrangeExpansions` uses bounded candidates and spatial bins. Oversized or dense
+content may overlap rather than shrink or relocate atoms. Camera/view changes
+update geometry; ordinary selection animation does not rebuild arrangement.
+`nodeFootprint` remains the content-independent logical organizational cell;
+`visualFootprint` measures independently sized presentation content. Atom size
+uses the existing sphere-diameter setting. No square node frame is rendered.
+
+N remains exact cursor projection onto the camera-facing navigation plane, with
+selected/focused parent semantics and contextual fallback over UI. Broader
+search/filter/contextual representation is future direction, not implemented.
+See [walkthrough](CAPABILITIES.md#graph-cells). Browser acceptance pending.

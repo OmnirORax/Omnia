@@ -471,3 +471,11 @@ test('node cell settings default for historical saves and remain independent of 
  assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(custom))).spatial,custom.spatial);
  for(const value of [0,-1,Infinity,'2',6])assert.equal(normalizeSettings({spatial:{nodeCellSize:value}}).spatial.nodeCellSize,1);
 });
+
+
+test('names view defaults to expanded for old settings and persists explicit selection/all',async()=>{
+ const {normalizeSettings}=await import('../src/workspaceActions.ts');
+ assert.equal(normalizeSettings({spatial:{}}).spatial.nodeNames,'expanded');
+ for(const nodeNames of ['expanded','all','selection'])assert.equal(normalizeSettings({spatial:{nodeNames}}).spatial.nodeNames,nodeNames);
+ assert.equal(normalizeSettings({spatial:{nodeNames:'unknown'}}).spatial.nodeNames,'expanded');
+});

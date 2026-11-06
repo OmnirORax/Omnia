@@ -1309,8 +1309,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:viewRule", "New view rule", <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(e) => setLayoutRule(e.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>, true);
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
+  replaceFunction("ui:nodeNames", "Node names", <label>Names<select aria-label="Node names" value={settings.spatial.nodeNames ?? "expanded"} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeNames: event.target.value as "expanded" | "all" | "selection" } }))}><option value="expanded">Expanded</option><option value="all">All</option><option value="selection">Selection</option></select></label>, true);
   replaceFunction("ui:nodeCellSize", "Node cell size", <label>Node cell size<input aria-label="Node cell size" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeCellSize: Math.max(0.1, Math.min(5, Number(event.target.value) || DEFAULT_NODE_CELL_SIZE)) } }))} /><small>World units · one uniform cell per node; content keeps its own size.</small></label>, true);
-  replaceFunction("ui:sphereDiameter", "Node sphere diameter", <label>Node sphere diameter<input aria-label="Node sphere diameter" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.sphereDiameter} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, sphereDiameter: Math.max(0.1, Math.min(5, Number(event.target.value) || 0.2)) } }))} /><small>World units · unnamed spheres; individually sized visuals keep their size.</small></label>, true);
+  replaceFunction("ui:sphereDiameter", "Node sphere diameter", <label>Node sphere diameter<input aria-label="Node sphere diameter" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.sphereDiameter} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, sphereDiameter: Math.max(0.1, Math.min(5, Number(event.target.value) || 0.2)) } }))} /><small>World units · uniform atomic carriers; expanded content keeps its own size.</small></label>, true);
   replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
@@ -1374,7 +1375,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           </> : <>
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <><FunctionControl id="ui:flowType" /><FunctionControl id="ui:flowFrom" /><FunctionControl id="ui:flowTo" /></>}
-            {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "ui:nodeNames", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
             <UIArrangeButtons /><FunctionControl id="ui:reset" />
           </>}
           <input
@@ -2354,7 +2355,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <CloudPanel />
         <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
-          {["ui:nodeCellSize", "ui:sphereDiameter", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:nodeNames", "ui:nodeCellSize", "ui:sphereDiameter", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>
         <UISection id="mouse-settings" title="Mouse & gestures">
           <FunctionControl id="ui:subtreeModifier" />

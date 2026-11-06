@@ -1,3 +1,4 @@
+import { expansionState } from "./graph/nodePresentation";
 import {cursorSample} from './ui/cursorPosition';
 import { selectionSurfaces } from "./appearance/selectionSurfaces";
 import { NodeDocument } from "./text/NodeDocument";
@@ -128,6 +129,8 @@ function disposeContent(group: THREE.Group) {
 
 export default function SpatialWorkspace(props: Props) {
   const { atlas, selectedId, settings, command, document: doc } = props;
+  const retainedExpansions = useRef({atlasId:props.omnicPreviewContext,state:expansionState()});
+  if(retainedExpansions.current.atlasId!==props.omnicPreviewContext)retainedExpansions.current={atlasId:props.omnicPreviewContext,state:expansionState()};
   const hostRef = useRef<HTMLDivElement>(null);
   const optionBarRef = useRef<HTMLDivElement>(null);
   const [documentNodeId, setDocumentNodeId] = useState<string | null>(null);
@@ -433,7 +436,7 @@ export default function SpatialWorkspace(props: Props) {
     };
     const hits = (event: Pick<PointerEvent, "clientX" | "clientY">, except?: string) => {
       aim(event);
-      return raycaster.intersectObjects(meshes.current.filter((mesh) => mesh.visible), false).filter((hit) => hit.object.userData.nodeId !== except);
+      return raycaster.intersectObjects(meshes.current.filter((mesh) => mesh.visible && mesh.parent?.visible !== false), false).filter((hit) => hit.object.userData.nodeId !== except);
     };
     const stopSelectionSurface=selectionSurfaces.register({
       element:()=>renderer.domElement,context:()=>callbacks.current.omnicPreviewContext,nativePicking:true,
@@ -479,6 +482,7 @@ export default function SpatialWorkspace(props: Props) {
         if (outline) outline.visible = outline.userData.selected;
       }
       hovered = mesh;
+      textScene.current?.setHovered(mesh?.userData.nodeId ?? null);
       if (hovered) {
         if (!hovered.userData.visualProxy) hovered.material.color.lerp(new THREE.Color("white"), 0.2);
         const outline = hovered.userData.hoverOutline as THREE.Object3D | undefined;
@@ -487,6 +491,8 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.style.cursor = hovered ? "grab" : "default";
       requestRender();
     };
+    const leaveCanvas = () => paintHover(null);
+    renderer.domElement.addEventListener("pointerleave",leaveCanvas);
     const navigation = createNavigationGesture({ camera, scene, canvas: renderer.domElement,
       target: () => controls.target, nodes: () => textScene.current?.nodes,
       branch: () => callbacks.current.selectedId && callbacks.current.selectedIds.has(callbacks.current.selectedId) ? callbacks.current.selectedId : callbacks.current.focusContextIds?.[0] ?? null,
@@ -622,7 +628,7 @@ export default function SpatialWorkspace(props: Props) {
       if (!cancelled) {
         if (Math.hypot(event.clientX - current.startX, event.clientY - current.startY) < CLICK_THRESHOLD) {
           if (subtreeGesture(event, callbacks.current.settings.mouse.subtreeModifier)) { clicks.cancel(); callbacks.current.onSubtreeClick(current.id); }
-          else clicks.click(current.id);
+          else { textScene.current?.toggleExpansion(current.id); clicks.click(current.id); }
         }
         else if (subtreeGesture(event, callbacks.current.settings.mouse.nestModifier) && current.nestTarget) callbacks.current.onNest(current.id, current.nestTarget);
         else if (!subtreeGesture(event, callbacks.current.settings.mouse.nestModifier) && current.local) callbacks.current.onMove(current.id, current.local);
@@ -710,6 +716,7 @@ export default function SpatialWorkspace(props: Props) {
       navigation.dispose(); navigationEngine.current = null;
       if(creationPointRef?.current===creationPoint)creationPointRef.current=null;
       stopSelectionSurface();stopHierarchyHighlight(); hierarchyPulse.dispose();
+      renderer.domElement.removeEventListener("pointerleave",leaveCanvas);
       pointerOwner.dispose();
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
       renderer.domElement.removeEventListener("pointerdown", down, true);
@@ -739,7 +746,7 @@ export default function SpatialWorkspace(props: Props) {
     state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
-  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.nodeCellSize,
+  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.nodeCellSize, settings.spatial.nodeNames,
     settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay,
     settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
@@ -756,7 +763,7 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter, settings.spatial.nodeCellSize);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter, retainedExpansions.current.state, settings.spatial.nodeNames);
     state.camera.updateMatrixWorld();
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);

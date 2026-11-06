@@ -149,3 +149,24 @@ test('hierarchy and directed-flow arrangement use cells independently of node co
  assert.deepEqual(coords(flowLayout(doc,order,settings)),coords(flowLayout(changed,order,settings)));
  assert.deepEqual(coords(doc),coords(changed));
 });
+
+test('atomic content toggles retain independent expansions without changing structure',async()=>{
+ const {expansionState,contentExpanded,toggleContent}=await import('../src/graph/nodePresentation.ts');
+ const state=expansionState();
+ assert.equal(contentExpanded(state,'a',false),false);
+ toggleContent(state,'a',false);toggleContent(state,'b',false);
+ assert.equal(contentExpanded(state,'a',false),true);assert.equal(contentExpanded(state,'b',false),true);
+ toggleContent(state,'a',false);assert.equal(contentExpanded(state,'a',false),false);assert.equal(contentExpanded(state,'b',false),true);
+ assert.equal(contentExpanded(state,'parent',true),true);toggleContent(state,'parent',true);assert.equal(contentExpanded(state,'parent',true),false);
+ toggleContent(state,'parent',true);assert.equal(contentExpanded(state,'parent',true),true);
+});
+
+test('visible expansion layout fits ordinary names without moving source anchors or resizing content',async()=>{
+ const {arrangeExpansions}=await import('../src/graph/labels.ts');
+ const items=Array.from({length:8},(_,i)=>({id:String(i),x:220,y:160,width:90,height:24})),before=structuredClone(items);
+ const placed=arrangeExpansions(items,640,400);
+ assert.deepEqual(items,before);
+ for(const a of items){const p=placed.get(a.id);assert.ok(p.x>=a.width/2&&p.x<=640-a.width/2);assert.ok(p.y>=a.height/2&&p.y<=400-a.height/2);
+ for(const b of items)if(a.id!==b.id){const q=placed.get(b.id);assert.ok(Math.abs(p.x-q.x)>=(a.width+b.width)/2+8||Math.abs(p.y-q.y)>=(a.height+b.height)/2+8);}}
+ assert.deepEqual(arrangeExpansions(items,640,400),placed);
+});

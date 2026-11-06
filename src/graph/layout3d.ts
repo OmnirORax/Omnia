@@ -8,8 +8,8 @@ export { localPosition, worldPositions } from "./coordinates.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
-export type SpatialSettings = { spacing: GridSpacing; radius: number; sphereDiameter?: number; nodeCellSize?: number; clearance: number };
-export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, nodeCellSize: DEFAULT_NODE_CELL_SIZE, radius: DEFAULT_SPHERE_DIAMETER / 2, sphereDiameter: DEFAULT_SPHERE_DIAMETER, clearance: 0.35 };
+export type SpatialSettings = { spacing: GridSpacing; radius: number; sphereDiameter?: number; nodeCellSize?: number; nodeNames?: "expanded" | "all" | "selection"; clearance: number };
+export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, nodeNames: "expanded", nodeCellSize: DEFAULT_NODE_CELL_SIZE, radius: DEFAULT_SPHERE_DIAMETER / 2, sphereDiameter: DEFAULT_SPHERE_DIAMETER, clearance: 0.35 };
 const origin = (): XYZ => ({ x: 0, y: 0, z: 0 });
 const add = (a: XYZ, b: XYZ): XYZ => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
 const distance = (a: XYZ, b: XYZ) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
