@@ -1360,7 +1360,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             <FunctionControl id="ui:flowFrom" />
             <FunctionControl id="ui:flowTo" />
             </>}
-            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:nodeNames", "ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:infinity" title="♾️" menu>
             {["metrics.open", "quests.open", "leaderboard.open"].map(id => <FunctionControl id={id} key={id} />)}

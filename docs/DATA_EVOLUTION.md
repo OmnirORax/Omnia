@@ -290,3 +290,9 @@ canonical knowledge, placement coordinates or authored parentage. Rollback needs
 no authored-data conversion. Historical fixtures stay frozen and explicitly
 verify the new default alongside unchanged existing settings. Dense presentation
 layout can overlap when independent content cannot fit; it never shrinks content.
+
+View-menu Names discoverability correction (2026-11-07): the existing registered
+control now has a native View-menu home and a default-template member. Existing
+customized layouts are retained; no placement/setting migration or reset occurs.
+Its native fallback covers older layouts without membership, while explicitly
+relocated controls retain their existing owner. UI search identifies View as home.
