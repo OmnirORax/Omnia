@@ -1113,3 +1113,25 @@ is pending.
 ### Control ownership and direct Color entry
 
 Baseline selection owns registered editable content. The nearest nested control owns its own input, using native/accessibility semantics or shared UI metadata rather than per-widget exceptions. The renderer and cursor resolver reuse the same inputOwnership contract. A released session cannot silently become global; standalone UI selection requires explicit entry. Choosing Color opens the shared native picker with the current target color after ancestor popovers and native event listeners are ready. Ordinary preview/change/blur/cancel owners remain unchanged. Restricted programmatic picker entry retains the current-color swatch. Native visual acceptance remains pending.
+
+### Detach continuous fill
+
+Right-click an attached fill → **Detach this fill**, or its receiver → **Detach
+fill** in the existing target dial. Multiple attachments have separate choices;
+the pointed paint is identified as **this fill**. Detachment selects the resulting
+independent region. Its ordinary Position, Rotation, Scale, Color and Opacity
+editors work without moving its former receiver. Moving the receiver likewise
+leaves the detached region alone. Exact selection distinguishes the objects;
+Continuity may still include both while they touch.
+
+The existing draft/history owner records one change. Undo restores attachment.
+The independent region uses the existing saved generator, retaining the former
+fill ID and primitive role IDs, its current circles, clips and per-piece paint.
+Prior operation scopes are resolved so baked paint is not transformed twice.
+Static, locally authored snapshot attachments are supported. Referenced internal
+attachments must be edited in their source; legacy clipped paint uses its existing
+ordinary-edit conversion first. Incompatible effects/pipelines refuse detachment
+without changing the original. The detached object draws independently after the
+receiver's top-level component; overlap compositing can change when splitting one
+opacity group. This does not change containment or geometric contact relations.
+Browser acceptance for this feature remains pending.

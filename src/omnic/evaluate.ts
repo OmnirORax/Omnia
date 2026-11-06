@@ -4,10 +4,10 @@ import {pathTrace,readPathRule} from './pathRule.ts';
 import { snappedAngle } from "./rotation.ts";
 import { LIMITS, validateRecipe, type Recipe, type Component, type Frame, type Params, type RecipeResolver } from "./model.ts";
 import { defaultParams, definition } from "./registry.ts";
-export type StructuralNode = { clip?:{x:number;y:number}[];orientation?:number;regionAttachment?:boolean; referenceTransformed?:boolean; referenceScaled?:boolean; id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; fillRegions?:{points:{x:number;y:number}[];color:string;opacity:number}[]; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
+export type StructuralNode = { clip?:{x:number;y:number}[];orientation?:number;regionAttachment?:boolean;attachmentSource?:string; referenceTransformed?:boolean; referenceScaled?:boolean; id:string; componentId:string; parent?:string; kind:"group"|"dot"|"ring"|"line"; x:number;y:number;x2?:number;y2?:number;radius:number;fill:boolean;thickness:number;color:string;opacity:number; fillRegions?:{points:{x:number;y:number}[];color:string;opacity:number}[]; cap?:"butt";glow?:boolean; highlight?:{fraction:number;start:number;color:string;opacity:number} };
 export type Diagnostic = { code:string; message:string; target?:string; operation?:string };
 export type InterpretationResult = { operation:string; kind:"count"; value:number; scope:string[] };
-export type Evaluation = { legacyRegionAttachments?:Record<string,LegacyRegionAttachment[]>; substrates?:{x:number;y:number;width:number;height:number}[]; results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
+export type Evaluation = { operationTargets?:Record<string,string[]>; legacyRegionAttachments?:Record<string,LegacyRegionAttachment[]>; substrates?:{x:number;y:number;width:number;height:number}[]; results:InterpretationResult[]; nodes:StructuralNode[]; selection:string[]; diagnostics:Diagnostic[]; properties:{count:number;selectedCount:number;componentCount:number}; frames:Frame[]; motion:boolean };
 type Generation={component:Component;root:StructuralNode;params:Params;origin:{x:number;y:number}};
 const num=(p:Params,key:string,base=0)=>typeof p[key]==="number"?p[key] as number:base;
 const rad=(degrees:number)=>degrees*Math.PI/180;
@@ -15,6 +15,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
   const recipe=validateRecipe(input);
   if(!Number.isFinite(time))throw Error("Invalid evaluation time.");
   const nodes:StructuralNode[]=[],diagnostics:Diagnostic[]=[],frames:Frame[]=[],results:InterpretationResult[]=[];
+  const operationTargets:Record<string,string[]>={};
   const legacyRegionAttachments:Record<string,LegacyRegionAttachment[]>={};
   const substrates:NonNullable<Evaluation["substrates"]>=[];
   const generations=new Map<string,Generation>(),byId=new Map<string,StructuralNode>();
@@ -113,6 +114,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
     for(const op of r.operations){
       spend();if(!op.enabled)continue;
       const targets=op.targets.length?op.targets.map(id=>prefix+id):selected.length?selected:roots;
+      operationTargets[prefix+op.id]=[...targets];
       const spec=definition(op.operator)!,p={...defaultParams(spec),...op.params};
       const affected=()=>targetNodes(targets,roots,prefix+op.id);
       const setCount=(count:number)=>{
@@ -163,7 +165,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
         if(!root||root.kind!=='group'||!generations.has(root.id))throw Error('Attached fill requires one explicit owner.');
         const frame=regionFrame(root,primitives);if(!frame)throw Error('No attachment frame.');
         const units=regionShapeInFrame(readRegionShape(String(p.shape)),frame);
-        units.forEach((unit,i)=>{if(++regionCount>LIMITS.nodes)throw Error('Fill region budget exceeded.');push({...root,id:`${prefix}${op.id}:region:${i}`,parent:root.id,kind:'dot',x:unit.x,y:unit.y,radius:unit.radius,clip:unit.clip,fill:true,fillRegions:undefined,thickness:0,regionAttachment:true,color:op.params.color===undefined?(generations.get(root.id)?.component.params.color===undefined?unit.color:root.color):String(p.color),opacity:root.opacity*unit.opacity*(op.params.opacity===undefined?1:num(p,'opacity',1))});});
+        units.forEach((unit,i)=>{if(++regionCount>LIMITS.nodes)throw Error('Fill region budget exceeded.');push({...root,id:`${prefix}${op.id}:region:${i}`,parent:root.id,kind:'dot',x:unit.x,y:unit.y,radius:unit.radius,clip:unit.clip,fill:true,fillRegions:undefined,thickness:0,regionAttachment:true,attachmentSource:prefix+op.id,color:op.params.color===undefined?(generations.get(root.id)?.component.params.color===undefined?unit.color:root.color):String(p.color),opacity:root.opacity*unit.opacity*(op.params.opacity===undefined?1:num(p,'opacity',1))});});
         return;
       }
       if(kind==='fill'&&p.clipped){
@@ -243,5 +245,5 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
   for(const frame of frames)for(const target of frame.scope)if(!byId.has(target)&&!diagnostics.some(d=>d.code==="unresolved-frame-scope"&&d.target===target))diagnostics.push({code:"unresolved-frame-scope",message:`Frame scope ${target} is unresolved.`,target});
   ensureExtent();
   const primitives=nodes.filter(n=>n.kind!=="group"&&!n.regionAttachment&&generations.has(n.componentId));
-  return {...(Object.keys(legacyRegionAttachments).length?{legacyRegionAttachments}:{}),...(substrates.length?{substrates}:{}),results,nodes,selection,diagnostics,properties:{count:primitives.length,selectedCount:primitives.filter(n=>selection.includes(n.id)).length,componentCount:generations.size},frames,motion};
+  return {operationTargets,...(Object.keys(legacyRegionAttachments).length?{legacyRegionAttachments}:{}),...(substrates.length?{substrates}:{}),results,nodes,selection,diagnostics,properties:{count:primitives.length,selectedCount:primitives.filter(n=>selection.includes(n.id)).length,componentCount:generations.size},frames,motion};
 }

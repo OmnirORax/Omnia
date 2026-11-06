@@ -653,3 +653,10 @@ verify both the write and completion. Click/Enter must close the preview so late
 pointer motion cannot keep sampling. "Click then Esc retains, Esc alone cancels"
 can mean the write succeeded but the editor failed to finish; inspect completion
 before patching input capture. Preserve explicitly accumulating controls.
+
+Detachment (2026-11-06): attachment ownership, containment and contact remain
+independent. Use componentAttachments for explicit detach capabilities; UI must
+not guess provenance from role-prefix strings. Detach snapshots exact current ink
+through the existing region generator, retains authored/primitive IDs, validates
+the whole pipeline before commit and uses shared draft/history. Unsupported
+lossy conversions preserve the original. Do not silently detach when moving.
