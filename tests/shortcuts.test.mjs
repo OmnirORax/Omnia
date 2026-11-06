@@ -756,3 +756,10 @@ test('surface command ownership follows the physical path when capture renders r
  assert.equal(preferredFeatureKey(saved,'Q',available,true),null,'native text entry retains Q');
  assert.equal(preferredFeatureKey({...saved,'selector.open':''},'Q',available),'atomnic.rotate','explicit clears remain authoritative');
  });
+
+test('rejected region owner writes veto popup completion without losing the candidate',async()=>{
+ const {confirmValue}=await import('../src/ui/valueConfirmation.ts');const {confirmContextStage}=await import('../src/ui/contextNavigation.ts');
+ let finishes=0,writes=0;const candidate={x:0,y:0,width:10,height:10};
+ assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>candidate,onCommit:()=>{writes++;return false;}}),()=>{finishes++;}),false);assert.equal(writes,1);assert.equal(finishes,0);
+ assert.equal(confirmContextStage(()=>confirmValue({candidate:()=>candidate,onCommit:()=>true}),()=>{finishes++;}),true);assert.equal(finishes,1);
+});

@@ -1,3 +1,4 @@
+import {readRegionShape} from '../properties/regionShape.ts';
 import {nativeSelectionShape,type NativeSelectionShape} from './selectionLens.ts';
 import {convexPolygon,inkSupport,type RelationGeometry,type ConvexInk,type InkPiece} from './geometryRelations.ts';
 import type {Point} from './selectionGeometry.ts';
@@ -16,7 +17,7 @@ export function geometryFromNative(shape:NativeSelectionShape,clip?:readonly Poi
   if(radius<=0||!shape.fill&&!half)return;
   const outer:ConvexInk={kind:'circle',center,radius:radius+half,...(clip?{clip:clip.map(point)}:{})};
   if(!inkSupport(outer,{x:1,y:0}))return;
-  return {ink:[{outer,...(!shape.fill&&radius>half?{hole:{center,radius:radius-half}}:{})}],enclosure:!clip&&radius>half?{kind:'circle',center,radius:radius-half}:undefined};
+  return {ink:[{outer,...(!shape.fill&&radius>half?{hole:{center,radius:radius-half}}:{})}],enclosure:clip&&shape.fill&&!half?outer:!clip&&radius>half?{kind:'circle',center,radius:radius-half}:undefined};
  }
  if(clip)return;
  if(shape.tag==='line'){
@@ -57,6 +58,8 @@ export function nativeRelationGeometry(element:Element,shape:(element:Element)=>
    if(!host||host.localName!=='clipPath'||host.getAttribute('clipPathUnits')!=='userSpaceOnUse'||host.children.length!==1||host.children[0].localName!=='polygon'||host.hasAttribute('transform')||host.children[0].hasAttribute('transform'))return;
    clip=coordinates(host.children[0].getAttribute('points')??'');if(!convexPolygon(clip))return;
   }
+  const encoded=node.getAttribute('data-selection-disc');
+  if(encoded){try{const units=readRegionShape(encoded);if(units.length!==1)return;const disc=units[0];return geometryFromNative({...copy,tag:'circle',attributes:{cx:String(disc.x),cy:String(disc.y),r:String(disc.radius)}},disc.clip);}catch{return;}}
   return geometryFromNative(copy,clip);
  };
  const base=read(element);if(!base)return;

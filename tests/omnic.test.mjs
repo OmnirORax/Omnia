@@ -186,7 +186,7 @@ test('ungroup dissolves multiple nearest levels only when selected and retains l
 });
 
 test('all starter generators and presets reconstruct deterministically without drawing or renderer objects',()=>{
-  assert.deepEqual(GENERATORS.map(g=>g.id),['path-rule','count-grid','dot','ring','rings','line','chain','radial','group','reference']);
+  assert.deepEqual(GENERATORS.filter(g=>!g.derived).map(g=>g.id),['path-rule','count-grid','dot','ring','rings','line','chain','radial','group','reference']);
   for(const preset of PRESETS){
     const source=createRecipe(preset.id), before=JSON.stringify(source), a=evaluateRecipe(source),b=evaluateRecipe(validateRecipe(JSON.parse(before)));
     assert.deepEqual(a,b);assert.equal(JSON.stringify(source),before);assert.equal(renderSVG(a),renderSVG(b));
@@ -1631,4 +1631,104 @@ test('reference-region coordinates project nested authored frames back into the 
  const reference=regionReference(operationGeometry(source,evaluateRecipe(source)),'child');
  assert.deepEqual(reference.axes.map(a=>[a.min,a.max]),[[59,101],[4,46]]);
  assert.deepEqual(reference.axes[1].thresholds.map(t=>t.value),[0,.5,1]);
+});
+
+test('legacy fill movement is rebound before owner editing, preserving the half-disc contour',async()=>{
+ const {preserveLegacyRegionFills}=await import('../src/omnic/fillRegion.ts');
+ const {regionContains}=await import('../src/properties/regionField.ts');
+ const source=validateRecipe(recipe([{id:'rim',generator:'ring',params:{radius:40,fill:false,color:'#ff8844',opacity:.5}}],[op('paint','fill',['rim'],{fill:true,clipped:true,left:-41,top:-41,right:0,bottom:41})]));
+ const before=evaluateRecipe(source),raw=translateTargets(source,new Set(['rim']),{x:35,y:20}),broken=evaluateRecipe(raw).nodes.find(n=>n.id==='rim:shape');
+ assert.equal(broken.fillRegions[0].points[1].x,0,'reproduces the bug: the old clipping edge stays in world space while its circle moves');
+ const fixed=validateRecipe(preserveLegacyRegionFills(source,raw,before)),paint=evaluateRecipe(fixed).nodes.find(n=>n.regionAttachment);
+ assert.equal(paint.componentId,'rim');assert.equal(paint.x,35);assert.equal(paint.y,20);almost(paint.radius,40);
+ assert.ok(regionContains(paint.clip,{x:15,y:20}));assert.ok(!regionContains(paint.clip,{x:55,y:20}));
+ assert.match(renderSVG(evaluateRecipe(fixed)),/ A 40 40 /,'the accepted fill remains an arc-bearing shape, not a rectangle');
+ assert.equal(evaluateRecipe(fixed).properties.count,1,'continuous paint is not a new generated unit');
+ assert.match(renderSVG(evaluateRecipe(fixed)),/<g opacity="0.5">/,'owner opacity is composited once for merged paint');
+ assert.deepEqual(source.operations[0].params,{fill:true,clipped:true,left:-41,top:-41,right:0,bottom:41},'the before/history recipe remains unchanged');
+ assert.equal(preserveLegacyRegionFills(fixed,fixed,evaluateRecipe(fixed)),fixed,'compatibility is idempotent');
+});
+
+test('separate filled geometry keeps its exact intersection through position, rotation, scale and serialization',async()=>{
+ const {prepareRegionFill}=await import('../src/omnic/fillRegion.ts');const {readRegionShape,regionDiscPath}=await import('../src/properties/regionShape.ts');
+ const {targetEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const original=validateRecipe(recipe([{id:'rim',generator:'ring',params:{radius:40,fill:false,color:'#ff8844'}}]));
+ const prepared=prepareRegionFill(evaluateRecipe(original),evaluateRecipe(original).nodes.filter(n=>n.kind==='ring'),[{x:-41,y:-41},{x:0,y:-41},{x:0,y:41},{x:-41,y:41}]);
+ const source=validateRecipe({...original,components:[...original.components,{id:'area',generator:'region',params:{shape:JSON.stringify(prepared.shape),x:prepared.x,y:prepared.y}}]});
+ const before=evaluateRecipe(source).nodes.find(n=>n.componentId==='area'&&n.kind==='dot'),translated=translateTargets(source,new Set(['area']),{x:70,y:30}),moved=evaluateRecipe(translated).nodes.find(n=>n.componentId==='area'&&n.kind==='dot');
+ almost(moved.x-before.x,70);almost(moved.y-before.y,30);almost(moved.radius,before.radius);before.clip.forEach((point,i)=>{almost(moved.clip[i].x-point.x,70);almost(moved.clip[i].y-point.y,30);});
+ assert.deepEqual(translated.components[0],original.components[0],'the source boundary does not move with the object');
+ assert.match(regionDiscPath({x:moved.x,y:moved.y,radius:moved.radius,clip:moved.clip}),/ A 40 40 /);
+ const degrees=targetEditorDegrees(translated,['area']),rotation=degrees.find(d=>d.id==='omnic.angle'),scale=degrees.find(d=>d.id==='omnic.scale');assert.ok(rotation&&scale);
+ const rotated=writeTargetDegree(translated,rotation,90),grown=writeTargetDegree(rotated,scale,2),node=evaluateRecipe(grown).nodes.find(n=>n.componentId==='area'&&n.kind==='dot');almost(node.radius,80);
+ assert.match(renderSVG(evaluateRecipe(grown)),/ A 80 80 /);assert.deepEqual(validateRecipe(JSON.parse(JSON.stringify(grown))),grown);
+ assert.equal(readRegionShape(grown.components[1].params.shape).length,1);
+ const {structuralIdsInRect,pickStructuralNode}=await import('../src/omnic/svg.ts');
+ assert.equal(pickStructuralNode(evaluateRecipe(translated).nodes,{x:50,y:30})?.componentId,'area');
+ assert.ok(!structuralIdsInRect(evaluateRecipe(translated).nodes,{x:80,y:25},{x:85,y:35}).has('area'),'clipped-away original circle is not an object hit');
+});
+
+test('continuous fill belongs only to its chosen contributor and follows its geometry frame',async()=>{
+ const {prepareRegionFill,resolveFillAttachment}=await import('../src/omnic/fillRegion.ts');
+ const source=validateRecipe(recipe([{id:'rim',generator:'ring',params:{radius:40,fill:false}},{id:'stem',generator:'line',params:{x:0,y:40,length:80,angle:90}}]));
+ const evaluated=evaluateRecipe(source),region=[{x:-41,y:-41},{x:0,y:-41},{x:0,y:41},{x:-41,y:41}];
+ assert.equal(resolveFillAttachment(['rim','stem']),undefined);assert.equal(resolveFillAttachment(['rim','stem'],'other'),undefined);assert.equal(resolveFillAttachment(['rim','stem'],'stem'),'stem');assert.equal(resolveFillAttachment(['rim']),'rim');
+ const prepared=prepareRegionFill(evaluated,evaluated.nodes.filter(n=>n.kind!=='group'),region,'stem');
+ const filled=validateRecipe({...source,operations:[op('paint','fill',['stem'],{attachment:true,fill:true,shape:JSON.stringify(prepared.shape)})]});
+ const before=evaluateRecipe(filled).nodes.find(n=>n.regionAttachment),moved=translateTargets(filled,new Set(['stem']),{x:25,y:10}),after=evaluateRecipe(moved).nodes.find(n=>n.regionAttachment);
+ assert.equal(after.componentId,'stem');almost(after.x-before.x,25);almost(after.y-before.y,10);before.clip.forEach((p,i)=>{almost(after.clip[i].x-p.x,25);almost(after.clip[i].y-p.y,10);});
+ assert.deepEqual(moved.components[0],filled.components[0]);
+ const rimPrepared=prepareRegionFill(evaluated,evaluated.nodes.filter(n=>n.kind==='ring'),region,'rim'),rimFill=validateRecipe({...source,operations:[op('rim-paint','fill',['rim'],{attachment:true,fill:true,shape:JSON.stringify(rimPrepared.shape)})]});
+ const radius=targetDegrees(rimFill,['rim']).find(d=>d.id==='omnic.radius'),larger=writeTargetDegree(rimFill,radius,80),largerPaint=evaluateRecipe(larger).nodes.find(n=>n.regionAttachment);almost(largerPaint.radius,80,'radius follows the boundary without a stroke-width-dependent gap');
+});
+
+test('multiple-contributor fields compose declared thresholds and do not choose a merge owner',async()=>{
+ const {regionReference}=await import('../src/omnic/regionReference.ts');const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const source=validateRecipe(recipe([{id:'rim',generator:'ring',params:{radius:40}},{id:'stem',generator:'line',params:{x:0,y:45,length:30,angle:90}}]));
+ const reference=regionReference(operationGeometry(source,evaluateRecipe(source)),['rim','stem']);assert.ok(reference);assert.deepEqual(reference.ids,['rim','stem']);
+ assert.ok(reference.axes[1].thresholds.some(t=>t.id.startsWith('rim/')));assert.ok(reference.axes[1].thresholds.some(t=>t.id.startsWith('stem/')));
+ assert.equal('owner' in reference,false,'reference scope does not imply attachment ownership');
+});
+
+test('legacy multi-target fill compatibility preserves per-owner provenance and undo originals',async()=>{
+ const {preserveLegacyRegionFills}=await import('../src/omnic/fillRegion.ts');
+ const source=validateRecipe(recipe([{id:'a',generator:'ring',params:{radius:20,fill:false}},{id:'b',generator:'ring',params:{radius:20,fill:false,x:60}}],[op('paint','fill',['a','b'],{clipped:true,fill:true,left:-21,top:-21,right:81,bottom:0})]));
+ const old=JSON.stringify(source),evaluation=evaluateRecipe(source),moved=translateTargets(source,new Set(['a']),{x:10,y:5}),next=validateRecipe(preserveLegacyRegionFills(source,moved,evaluation));
+ assert.equal(next.operations.length,2);assert.equal(new Set(next.operations.map(op=>op.id)).size,2);assert.deepEqual(next.operations.map(op=>op.targets),[['a'],['b']]);
+ const paints=evaluateRecipe(next).nodes.filter(n=>n.regionAttachment);almost(paints.find(n=>n.componentId==='a').x,10);almost(paints.find(n=>n.componentId==='b').x,60);assert.equal(JSON.stringify(source),old);
+});
+
+test('region geometry rejects invalid snapshots, preserves true curved bounds and inherits existing portability paths',async()=>{
+ const {readRegionShape,regionDiscPath}=await import('../src/properties/regionShape.ts');const {prepareRegionFill}=await import('../src/omnic/fillRegion.ts');const {atomnicViewBounds}=await import('../src/omnic/atomnicSettings.ts');
+ assert.equal(atomnicViewBounds({fillMode:'object'}),undefined,'a tool preference alone must not change the viewport');assert.equal(atomnicViewBounds({active:false}).width,200,'existing explicit activation/viewport context retains its scale');
+ const unit={x:0,y:0,radius:40,clip:[{x:-41,y:-41},{x:0,y:-41},{x:0,y:41},{x:-41,y:41}],color:'#ff8844',opacity:1};
+ assert.throws(()=>readRegionShape(JSON.stringify([{...unit,clip:[{x:0,y:0},{x:1,y:1}]}])),/Invalid region/);assert.throws(()=>readRegionShape(JSON.stringify([{...unit,script:'bad'}])),/Invalid region/);
+ const shape=JSON.stringify([unit]),source=validateRecipe(recipe([{id:'area',generator:'region',params:{shape,x:0,y:0}}])),bounds=targetBounds(evaluateRecipe(source),['area']);almost(bounds.x,-40);almost(bounds.width,40);almost(bounds.height,80);
+ const colour=targetDegrees(source,['area']).find(d=>d.id==='color');assert.equal(targetDegreeValue(source,colour),'#ff8844');
+ const inserted=insertConstruction(recipe([]),source,{x:50,y:30},()=> 'copy').recipe;assert.equal(evaluateRecipe(inserted).nodes.find(n=>n.kind==='dot').x,50);
+ const {deleteComponents}=await import('../src/omnic/componentTargets.ts');assert.equal(deleteComponents(source,new Set(['area'])).components.length,0);
+ const {glyphVectorPlan}=await import('../src/omnic/vectorPlan.ts');assert.equal(glyphVectorPlan(evaluateRecipe(source)),undefined,'curved clipped shapes use faithful SVG instead of a full-disc native fallback');
+ const d=regionDiscPath(unit);assert.match(d,/ A 40 40 /);assert.ok(!/NaN|Infinity/.test(d));
+ const snapshot=evaluateRecipe(createRecipe('boundary'));assert.throws(()=>prepareRegionFill(snapshot,snapshot.nodes.filter(n=>n.kind!=='group'),[{x:500,y:500},{x:510,y:500},{x:510,y:510},{x:500,y:510}]),/does not intersect/);
+});
+
+test('normalized region snapshots retain small valid geometry and budget failures preserve originals',async()=>{
+ const {readRegionShape}=await import('../src/properties/regionShape.ts');const {preserveLegacyRegionFills}=await import('../src/omnic/fillRegion.ts');
+ const unit={x:0,y:0,radius:1e-8,clip:[{x:-1e-8,y:-1e-8},{x:0,y:-1e-8},{x:0,y:1e-8},{x:-1e-8,y:1e-8}],color:'#123456',opacity:0};assert.equal(readRegionShape(JSON.stringify([unit]))[0].opacity,0);
+ const base=validateRecipe(recipe([{id:'a',generator:'ring',params:{radius:20}},{id:'b',generator:'ring',params:{radius:20,x:50}}],[op('paint','fill',['a','b'],{clipped:true,left:-21,right:71,top:-21,bottom:0}),...Array.from({length:127},(_,i)=>({...op(`off-${i}`,'inspect'),enabled:false}))]));
+ const original=JSON.stringify(base),candidate=preserveLegacyRegionFills(base,translateTargets(base,new Set(['a']),{x:1,y:0}),evaluateRecipe(base));
+ assert.throws(()=>validateRecipe(candidate),/budget/);assert.equal(JSON.stringify(base),original,'failed conversion never replaces the source/history recipe');
+});
+
+test('fill attachment candidates follow actual contact, independently of containment and source membership',async()=>{
+ const {regionAttachmentCandidates,filledRegionShape,structuralRegionInk}=await import('../src/omnic/fillRegion.ts');
+ const {operationGeometry}=await import('../src/omnic/operationContext.ts');
+ const source=validateRecipe(recipe([{id:'rim',generator:'ring',params:{radius:40,fill:false}},{id:'stem',generator:'line',params:{x:0,y:0,length:60,angle:90}},{id:'inner',generator:'ring',params:{radius:5,fill:false}}]));
+ const evaluated=evaluateRecipe(source),context=operationGeometry(source,evaluated),nodes=evaluated.nodes.filter(n=>n.componentId==='rim'&&n.kind==='ring');
+ const box=(left,top,right,bottom)=>[{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}];
+ const candidates=points=>regionAttachmentCandidates(evaluated,context.owners,['rim','stem','inner'],filledRegionShape(nodes,points));
+ assert.deepEqual(candidates(box(-41,-41,0,41)),['rim','stem','inner'],'all actual contacts remain explicit choices');
+ assert.deepEqual(candidates(box(-41,-41,41,-35)),['rim'],'the same reference set can have one touching receiver');
+ assert.deepEqual(candidates(box(-25,-10,-15,10)),[],'an interior area separated from every rim is not connected by containment');
+ const line={...evaluated.nodes.find(n=>n.kind==='line'),cap:'butt'};assert.equal(structuralRegionInk(line).ink[0].outer.kind,'polygon','flat caps must not add fictitious endpoint contact');
 });

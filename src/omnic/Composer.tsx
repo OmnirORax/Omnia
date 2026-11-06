@@ -1,3 +1,4 @@
+import {preserveLegacyRegionFills} from './fillRegion';
 import {DiagnosticFeedback} from './DiagnosticFeedback';
 import {diagnosticOperation,repairDiagnosticOperation} from './diagnosticOperation';
 import {createPlaybackClock} from './playbackClock';
@@ -188,11 +189,13 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const activeOperation = focus?.kind === "operation" ? recipe.operations.find(operation => operation.id === focus.id) : undefined;
   const active = activeComponent ?? activeOperation;
   const spec = activeComponent ? GENERATORS.find(generator => generator.id === activeComponent.generator) : activeOperation ? OPERATORS.find(operator => operator.id === activeOperation.operator) : undefined;
-  const commit = (next: Recipe, temporary = false) => {
+  const commit = (next: Recipe, temporary = false,retainRegionOwnership=true) => {
     try {
-      const checked = validateRecipe(next);
+      const before=draftRef.current;
+      const snapshot=before===draft?committedEvaluation.result:null;
+      const legacy=before.operations.some(op=>op.operator==='fill'&&op.params.clipped&&!op.params.attachment);
+      const checked = validateRecipe(legacy&&retainRegionOwnership?preserveLegacyRegionFills(before,next,snapshot??evaluateRecipe(before,resolve)):next);
       if (temporary) { setSample(checked); return true; }
-      const before = draftRef.current;
       draftRef.current = checked; setDraft(checked); setSample(null); setError(""); setNotice("");
       history.record(owner, normalizedHistory(before), normalizedHistory(checked), ["omnium"], ["omnium", "window:omnic-composer"]);
       return true;
@@ -325,7 +328,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
     if (file.size > 1_000_000) { setError("Recipe import is limited to 1 MB."); return; }
-    try { const text = await file.text(); if (!mounted.current) return; const next = validateRecipe(JSON.parse(text)); setBaseRevision(entity.omnic?.revision ?? null); commit(next); setPlaying(false); setPicked([]); setFocus(next.components[0] ? { kind: "component", id: next.components[0].id } : null); }
+    try { const text = await file.text(); if (!mounted.current) return; const next = validateRecipe(JSON.parse(text)); setBaseRevision(entity.omnic?.revision ?? null); commit(next,false,false); setPlaying(false); setPicked([]); setFocus(next.components[0] ? { kind: "component", id: next.components[0].id } : null); }
     catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
   };
   const baseCount = useMemo(() => { try { return evaluateRecipe(entity.omnic ?? createRecipe(), resolve).properties.count; } catch { return null; } }, [entity.omnic, resolve]);
@@ -362,7 +365,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     const entries:RadialEntry<ReactNode>[]=[
       ...FEATURE_ACTIONS.filter(action=>action.owner==='omnicComposer'&&'radial' in action).map(action=>({id:action.id,label:action.label,symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:<FunctionControl id={action.id} mirror symbol={'radial' in action?action.radial.symbol:'◇'} tooltip={action.description}/>})),
       {id:'omnic:copy-name',label:isNew?'Glyph name':'Copy name',symbol:'✎',group:[radialGroups.object,radialGroups.save],content:<FunctionControl id="omnic:copy-name" mirror symbol="✎" tooltip={`${isNew?'Glyph name':'Copy name'} · ${copyLabel}`}/>},
-      ...(!atomnicActive?GENERATORS.map(g=>actionEntry(`omnic:add-generator:${g.id}`,g.label,g.symbol??'◇',[radialGroups.construct],()=>{setGenerator(g.id);addGenerator(g.id);})):[]),
+      ...(!atomnicActive?GENERATORS.filter(g=>!g.derived).map(g=>actionEntry(`omnic:add-generator:${g.id}`,g.label,g.symbol??'◇',[radialGroups.construct],()=>{setGenerator(g.id);addGenerator(g.id);})):[]),
       ...components.map(c=>actionEntry(`omnic:component:${c.id}`,`${GENERATORS.find(g=>g.id===c.generator)?.label} · ${c.id.slice(0,6)}`,GENERATORS.find(g=>g.id===c.generator)?.symbol??'◇',[radialGroups.object,radialGroups.structure],()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);},()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);setRadarPanel({kind:'parameters',index:0});})),
       ...(activeComponent?[actionEntry(`omnic:remove-component:${activeComponent.id}`,'Remove selected component','×',[radialGroups.object,radialGroups.structure],()=>{commit({...recipe,components:removeComponent(recipe.components,activeComponent.id)});setFocus(null);})]:[]),
       ...(activeComponent?.reference?[actionEntry('omnic:radar-dependency','Dependency version','#',[radialGroups.object,radialGroups.structure],()=>setRadarPanel({kind:'dependency'}))]:[]),
@@ -390,7 +393,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     const panel=radarPanel?.kind==='region'?<ReferenceRegionEditor onDismiss={()=>{setSample(null);setRadarPanel(null);}}/>:presetOpen?<form style={{display:'contents'}} onSubmit={event=>{event.preventDefault();confirmPreset();}} onKeyDown={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&event.target.type==='range'){event.preventDefault();event.stopPropagation();confirmPreset();}}}>{presetPanel}<button type="submit" hidden disabled={!presetSession}/></form>:legacyPanel;
     const feedback=error||evaluated.error||notice||evaluated.result?.diagnostics[0]?.message;
     const feedbackDiagnostic=!error&&!evaluated.error?evaluated.result?.diagnostics.find(d=>d.message===feedback):undefined;
-    return <OperationReferenceScope commit={commit} surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer-radar" data-selection-context><div className="omnic-toolbar omnic-composer-tools"><FunctionControl id="omnic.library" mirror symbol="☷" tooltip="Omnic library"/><DofInformationHeader/></div>
+    return <OperationReferenceScope selectTargets={ids=>{pendingPick.current=[...ids];setFocus(ids[0]?{kind:'component',id:ids[0]}:null);}} commit={commit} surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer-radar" data-selection-context><div className="omnic-toolbar omnic-composer-tools"><FunctionControl id="omnic.library" mirror symbol="☷" tooltip="Omnic library"/><DofInformationHeader/></div>
       <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importFile}/>
       <UIField id="omnic:copy-name" label={isNew?'Glyph name':'Copy name'} category="Omnic" registerOnly><label>{isNew?'Glyph name':'Copy name'} <input aria-label={isNew?'Glyph name':'Copy name'} value={copyLabel} maxLength={200} onChange={event=>setCopyLabel(event.target.value)}/></label></UIField>
       <UIAction id="omnic:atomnic-mode" label={atomnicActive?'Atomnic on · turn off':'Atomnic off · turn on'} category="Omnic" registerOnly onClick={()=>{setRadarPanel(null);commit({...recipe,atomnic:{...recipe.atomnic,active:!atomnicActive}});}}/>
@@ -399,7 +402,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       {feedback&&<small className="omnic-radar-feedback" role={error||evaluated.error?'alert':'status'}>{feedbackDiagnostic?diagnosticFeedback(feedbackDiagnostic):feedback}</small>}
     </div></RangeSettingsScope></NumericEditorScope></OperationReferenceScope>;
   }
-  return <OperationReferenceScope commit={commit} surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer" data-selection-context><div className="omnic-toolbar omnic-composer-tools"><FunctionControl id="omnic.library" mirror symbol="☷" tooltip="Omnic library"/><DofInformationHeader/></div>
+  return <OperationReferenceScope selectTargets={ids=>{pendingPick.current=[...ids];setFocus(ids[0]?{kind:'component',id:ids[0]}:null);}} commit={commit} surface={preview} environment={presentationBounds} stateOwner={owner} recipe={draft} evaluation={committedEvaluation.result} resolve={resolve} read={()=>draftRef.current} error={failure=>setError(failure instanceof Error?failure.message:String(failure))}><NumericEditorScope cancelPreview={()=>setSample(null)}><RangeSettingsScope><div className="omnic-composer" data-selection-context><div className="omnic-toolbar omnic-composer-tools"><FunctionControl id="omnic.library" mirror symbol="☷" tooltip="Omnic library"/><DofInformationHeader/></div>
     <div className="omnic-toolbar">
       <strong>{entity.label || "Omnic object"}</strong><small title={isNew ? "Save shared creates this object at the preview position. Closing removes the world preview and keeps the recoverable draft. World previews use the shared 32-source budget." : "The world previews this draft and its live uses within the shared 32-source budget; other occurrences retain saved rendering. Closing restores saved rendering; Reset draft reverts unsaved work."}>{isNew ? "New · world draft" : dirty ? "World draft · not saved" : `Shared revision ${entity.omnic?.revision ?? 0}`}</small>
       {!atomnicActive&&["omnic.save", "omnic.copy", "omnic.play", "omnic.export", "omnic.import", "omnic.reset"].map(action => <FunctionControl key={action} id={action} />)}
@@ -435,7 +438,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       </div>
       <div className="omnic-edit-column">
         <UISection id="omnic-structure" title="Structure">
-          <div className="omnic-row"><select aria-label="Generator" value={generator} onChange={event => setGenerator(event.target.value)}>{GENERATORS.map(generator => <option value={generator.id} key={generator.id}>{generator.label}</option>)}</select><UIAction id="omnic:add-generator" label={activeComponent?.generator === "group" ? "Add inside group" : "Add component"} category="Omnic" onClick={addGenerator} /></div>
+          <div className="omnic-row"><select aria-label="Generator" value={generator} onChange={event => setGenerator(event.target.value)}>{GENERATORS.filter(g=>!g.derived).map(generator => <option value={generator.id} key={generator.id}>{generator.label}</option>)}</select><UIAction id="omnic:add-generator" label={activeComponent?.generator === "group" ? "Add inside group" : "Add component"} category="Omnic" onClick={addGenerator} /></div>
           {generator === "reference" && <select aria-label="Existing Omnic object" value={reference} onChange={event => setReference(event.target.value)}><option value="">Choose object…</option>{objects.filter(object => object.id !== entity.id && object.omnic).map(object => <option value={object.id} key={object.id}>{object.label || object.id}</option>)}</select>}
           <div className="omnic-list">{components.map(component => <div className="omnic-row" key={component.id} style={{marginInlineStart:(componentDepths.get(component.id) ?? 0)*9}}>
             <button type="button" aria-pressed={focus?.kind === "component" && focus.id === component.id} title={component.id} onClick={() => { setSample(null); setFocus({kind:"component",id:component.id}); setPicked([component.id]); }}>{GENERATORS.find(generator => generator.id === component.generator)?.label ?? component.generator} · {component.id.slice(0,6)}</button>

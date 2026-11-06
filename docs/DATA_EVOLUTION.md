@@ -138,3 +138,34 @@ these unknown parameter keys; do not edit new clipped-fill work with an older
 client. Keep the original export when moving between versions; no downgrade
 conversion or universal stale-tab protection is claimed. Historical whole-fill
 fixtures and new region round trips are covered in `tests/omnic.test.mjs`.
+
+## Exact fill snapshots and attachment ownership (2026-11-06)
+
+Composer recipe versions 1/2 retain their existing parser and journal owner. New
+internal `region` generator data stores bounded circle/convex-clip snapshots;
+Fill operations may store `attachment:true` and normalized `shape` against one
+explicit owner. Missing fillMode means Continuous; the preference is saved in the
+existing atomnic bag only on acceptance and does not create viewport defaults.
+No new storage key, backend schema or selection store is introduced.
+
+Unchanged legacy `clipped:true` fills render using the historical world mask.
+Before ordinary Composer edits, the evaluator's per-owner snapshots convert
+untouched old paint operations into owner-frame attachments. Multi-target paints
+split by their existing provenance, preserving the first operation ID and issuing
+collision-safe IDs for additional owners. Old clipped fills historically painted
+even when `fill:false`; conversion therefore sets true to preserve visible ink.
+Whole-fill false/zero values retain their original meaning. Empty legacy paints
+remain unchanged. Explicitly modified paint parameters/targets bypass conversion;
+full file import bypasses comparison with the former document.
+
+Conversion creates and validates a candidate before replacing the committed
+recipe. Budget/validation failures leave the original intact; history retains the
+before recipe and supports Undo. Loading alone never rewrites the original.
+Fixtures cover legacy movement, multi-owner conversion, retry idempotence, empty/
+false/zero handling, invalid shape data, round trips and budget failure. This is
+not a complete backup or stale-tab conflict solution: existing save/recovery
+limits remain. Older clients reject the new generator/parameter keys and cannot
+edit these new recipes. Rollback needs the retained pre-conversion recipe/export;
+do not assume downgraded software reads new snapshots. Hosted production is
+unchanged until separately merged/deployed; portable backend validation is checked
+alongside frontend changes.

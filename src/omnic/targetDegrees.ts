@@ -1,6 +1,6 @@
 import type { Component, Recipe } from './model.ts';
 import { validateRecipe } from './model.ts';
-import { applicableParameters, definition, type Parameter, type Value } from './registry.ts';
+import { applicableParameters, definition,parameterValue, type Parameter, type Value } from './registry.ts';
 import { legalAtoms, atomnicSettings } from './atomnic.ts';
 import { componentIndex, memberTargets } from './componentTargets.ts';
 import { editableDegrees, vectorDegrees, type EditableDegree, type FreedomAdjuster } from '../properties/editableDegrees.ts';
@@ -44,7 +44,7 @@ export function targetParameter(degree:EditableDegree):Parameter {
 }
 export function targetDegreeValue(recipe:Recipe,degree:EditableDegree):Value {
   const target=degree.targets[0],component=[...components(recipe.components),...recipe.operations].find(item=>item.id===target.id)!;
-  return component?.params[target.input.key]??(target.input as Parameter).initial;
+  return parameterValue(target.input as Parameter,component?.params??{});
 }
 export function writeTargetDegree(recipe:Recipe,degree:EditableDegree,value:DegreeEditValue):Recipe {
  const vector=typeof value==='object';

@@ -1013,8 +1013,7 @@ The active rule expression opens the existing mathematical dial to change the
 fractionalization. Declared reference thresholds survive rule changes.
 
 Right-click an object → Units / fill → Fill opens the same projection scoped to
-that object. The reference control can borrow another compatible reference without
-changing the target. Escape, leaving an unconfirmed region, or opening rule
+that object. The reference control can borrow another compatible reference. A retained multi-selection can supply multiple contributors, composing their declared thresholds without inventing a parent. Escape, leaving an unconfirmed region, or opening rule
 settings restores the hover sample. Reopening Fill and committing another region
 adds it to the existing paint. Undo/Redo uses the Composer journal.
 
@@ -1034,3 +1033,25 @@ threshold declaration; thresholds never leak from one axis to another. Geometry
 adapters must convert parent-local reference values into scene coordinates before
 rendering or applying a region. Decorated/clipped glyphs retain faithful SVG output
 instead of the native analytic shortcut, which currently has no clip adapter.
+
+
+### Continuous and separate-object Fill
+
+The Fill mode control chooses **Continuous** or **Object**. Both retain the exact
+intersection (circle arcs plus convex clipping boundary), never a rectangle made
+from the intersection bounds. Object creates a separately movable shape with
+Position, Rotation, Scale, Color and Opacity; its source is untouched.
+Continuous extends one existing component and follows its position, orientation
+and characteristic scale. After confirming a region, actual ink contact determines
+eligible contributing receivers. One receiver resolves automatically; several
+start the existing MS picker restricted to those owners. Pick the receiver on
+canvas. Cancellation returns to region editing; no history entry is added. A
+region touching no contributor cannot commit in Continuous mode; choose another
+region or Object. Other contributors retain their identities. Attachment ownership,
+physical continuity and containment remain independent.
+
+The accepted geometry is a snapshot in the chosen owner frame, not a topology
+constraint re-solved against all other contributors after edits. Exact clipped
+paths inherit shared selection geometry and faithful SVG rendering. Legacy clipped
+fills are converted before edits so moving them cannot slide their source circle
+under a stationary mask; see DATA_EVOLUTION.md. Browser acceptance is pending.

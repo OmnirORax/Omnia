@@ -38,7 +38,7 @@ export function selectionDetectionMode(config:{pattern:PatternMode;contour:boole
 /** Geometry edits invalidate the shared snapshot; selection pulse variables do
  * not. Renderer adapters using indirect custom-property geometry may explicitly
  * bump data-selection-geometry-revision instead of measuring during motion. */
-export const SELECTION_GEOMETRY_ATTRIBUTES=['d','cx','cy','r','rx','ry','x','y','x1','y1','x2','y2','width','height','points','transform','viewBox','stroke','stroke-width','stroke-linecap','stroke-linejoin','vector-effect','fill','fill-rule','opacity','fill-opacity','stroke-opacity','clip-path','data-selection-geometry-revision'] as const;
+export const SELECTION_GEOMETRY_ATTRIBUTES=['d','cx','cy','r','rx','ry','x','y','x1','y1','x2','y2','width','height','points','transform','viewBox','stroke','stroke-width','stroke-linecap','stroke-linejoin','vector-effect','fill','fill-rule','opacity','fill-opacity','stroke-opacity','clip-path','data-selection-geometry-revision','data-selection-disc'] as const;
 const geometryStyles=new Set(['transform','translate','scale','rotate','display','visibility','position','left','right','top','bottom','width','height','padding','margin','stroke','stroke-width','stroke-linecap','stroke-linejoin','vector-effect','fill','fill-rule','opacity','fill-opacity','stroke-opacity','clip-path']);
 export function selectionGeometryStyleChanged(before:string,after:string){
  const signature=(style:string)=>[...style.matchAll(/(?:^|;)\s*([\w-]+)\s*:\s*([^;]*)/g)].filter(match=>geometryStyles.has(match[1])).map(match=>`${match[1]}:${match[2].trim()}`).sort().join(';');

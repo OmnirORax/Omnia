@@ -1608,3 +1608,16 @@ test('future scene renderers lend geometry through the existing registration and
   const topology=prepareConnectedInk([{key:'a',scope:canvas,geometry:geometryA},{key:'b',scope:canvas,geometry:geometryB}]);assert.deepEqual(topology.groups.get('a'),['a','b']);
  }finally{stop();}
 });
+
+test('frozen curved fill paths expose their actual clip geometry to the existing selector',async()=>{
+ const {nativeRelationGeometry}=await import('../src/appearance/nativeGeometryRelations.ts'),{inkBounds,inkFullyInside}=await import('../src/appearance/geometryRelations.ts');
+ const previous=globalThis.getComputedStyle;
+ try{
+  const unit={x:0,y:0,radius:40,clip:[{x:-41,y:-41},{x:0,y:-41},{x:0,y:41},{x:-41,y:41}],color:'#60ddec',opacity:1},scope={hasAttribute:()=>false};
+  const element={parentElement:scope,closest:()=>scope,getAttribute:key=>key==='data-selection-disc'?JSON.stringify([unit]):null};
+  globalThis.getComputedStyle=()=>({opacity:'1',fill:'#60ddec',stroke:'none',strokeOpacity:'1',fillOpacity:'1',clipPath:'none'});
+  const shape={tag:'path',attributes:{d:'M 0 -40 A 40 40 0 0 0 0 40 Z'},transform:'matrix(1 0 0 1 0 0)',points:[],stroke:0,strokeWidth:0,fill:true,closed:true,linecap:'butt',linejoin:'miter',vectorEffect:'none',fillRule:'nonzero'};
+  const geometry=nativeRelationGeometry(element,()=>shape),box=inkBounds(geometry);assert.equal(box.left,-40);assert.equal(box.right,0);
+  const disk=x=>({ink:[{outer:{kind:'circle',center:{x,y:0},radius:1}}]});assert.equal(inkFullyInside(disk(-10),geometry.enclosure),true);assert.equal(inkFullyInside(disk(10),geometry.enclosure),false);
+ }finally{globalThis.getComputedStyle=previous;}
+});

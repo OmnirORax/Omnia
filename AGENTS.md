@@ -607,3 +607,12 @@ matching paint and shared parentage are not connections. Do not create parent
 objects or candidate-object cycling to implement this. Renderer adapters expose
 geometry through the shared relation layer; unsupported geometry must not become
 filled bounds. See VISUAL_SELECTION.md for implemented adapters and limits.
+
+Fill ownership correction (2026-11-06): Continuous extends one existing component;
+Object retains an independent exact filled intersection. Transform the source
+circle and clip together; bounds are never replacement geometry. With several
+actually touching contributors, borrow MS to choose the attachment owner on canvas
+after choosing the region; this is not a chat question. One touching owner resolves
+automatically. No contact cannot invent continuity. Ownership, physical contact,
+containment and authored grouping remain independent. See OMNIC_COMPOSER.md and
+DATA_EVOLUTION.md for snapshot and legacy compatibility limits.

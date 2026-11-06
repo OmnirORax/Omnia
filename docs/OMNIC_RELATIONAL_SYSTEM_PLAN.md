@@ -817,3 +817,20 @@ resolved snapshots, not persistent reference bindings. Browser/user acceptance i
 pending; no browser suite was run. Model checks cover inherited thresholds under
 several rules, translated references, scoped clipping, repeat/transform behavior,
 source immutability and unsupported open geometry.
+
+### Fill continuity and exact object snapshots — 2026-11-06
+
+User correction: Continuous means extending one existing component. Object mode
+makes the actual intersection independently movable, preserving its curved edge.
+An absolute threshold rectangle must not remain stationary when the source moves.
+Both now use shared portable circle/convex-clip snapshots, transformed as a whole.
+Continuous normalizes the accepted snapshot into an explicit owner's frame.
+Multiple contributing components do not imply ownership: after region acceptance,
+actual contact determines candidates, and ambiguous ownership borrows the existing
+on-canvas MS pick. This is a graphical continuation, never a question in chat.
+One contact resolves automatically; disconnected paint requires Object or another
+region. Choosing the owner neither groups contributors nor infers containment.
+The region still comes from declared reference thresholds and shared fractions;
+no quarter/wedge/cap recipes are added. Local model checks cover geometry and
+compatibility; user interaction acceptance remains pending. This snapshot model
+does not yet continuously solve constraints against other contributors after edits.

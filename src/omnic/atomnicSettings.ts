@@ -18,6 +18,7 @@ export const ATOMNIC_PARAMETERS: readonly Parameter[] = [
   numeric('viewSize','atomnic.viewSize','Construction view extent',200,40,1000),
   numeric('fraction','omnic.regionFraction','Highlighted fraction',.5,0,1,.0001),
   numeric('markTurn','angle.turn','Mark orientation · turns',0,-3,3,.0001),
+  {key:'fillMode',property:'omnic.fillMode',label:'Fill mode',kind:'select',initial:'continuous',options:[{id:'continuous',label:'Continuous'},{id:'object',label:'Separate object'}]},
   {key:'fill',property:'omnic.fill',label:'Filled',kind:'toggle',initial:true},
   {key:'color',property:'color',label:'Color',kind:'color',initial:'#ffffff'},
   numeric('opacity','opacity','Opacity',1,0,1,.01),
@@ -26,7 +27,7 @@ export const atomnicDefaults = ():Record<string,Value> => Object.fromEntries(ATO
 
 /** Retained construction viewport also defines saved Atomnic presentation scale. */
 export function atomnicViewBounds(params?:Record<string,Value>) {
-  if(!params)return undefined;
+  if(!params||!['active','viewX','viewY','viewSize'].some(key=>params[key]!==undefined))return undefined;
   const size=Number(params.viewSize??200);
   return {x:Number(params.viewX??0)-size/2,y:Number(params.viewY??0)-size/2,width:size,height:size};
 }
@@ -40,7 +41,7 @@ export const ATOMNIC_OPERATION_INPUTS = {
   'atomnic.rotate':['scope','order','steps'],
   'atomnic.step':['scope','order','steps'],
   'atomnic.highlight':['scope','fraction','markTurn','color','opacity'],
-  'atomnic.fill':['scope','fill','color','opacity'],
+  'atomnic.fill':['scope','fillMode','fill','color','opacity'],
   'atomnic.group':['scope'],
   'atomnic.remove':['scope'],
   'atomnic.configure':['viewSize'],

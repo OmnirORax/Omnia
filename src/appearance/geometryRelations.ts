@@ -20,7 +20,7 @@ export function inConvexPolygon(points:readonly Point[],point:Point){
 const clipVertices=new WeakMap<object,readonly Point[]>();
 /** Finite endpoints of a circle/convex-clip intersection. Arc extrema are added
  * by support() in the queried direction, retaining exact circle tangencies. */
-function circleClipVertices(shape:Extract<ConvexInk,{kind:'circle'}>){
+export function circleClipVertices(shape:Extract<ConvexInk,{kind:'circle'}>){
  let saved=clipVertices.get(shape);if(saved)return saved;
  const result:Point[]=[],points=shape.clip!;
  for(let i=0;i<points.length;i++){
@@ -82,9 +82,9 @@ export function inkBounds(geometry:RelationGeometry):Box|undefined{
  return points.length&&points.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))?{left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),top:Math.min(...points.map(p=>p.y)),bottom:Math.max(...points.map(p=>p.y))}:undefined;
 }
 /** All visible ink must fit. Parent/child ownership is never a containment test. */
-export function inkFullyInside(geometry:RelationGeometry,enclosure:ConvexInk){
+export function inkFullyInside(geometry:RelationGeometry,enclosure:ConvexInk):boolean{
  return geometry.ink.length>0&&geometry.ink.every(({outer})=>{
-  if(enclosure.kind==='circle'&&!enclosure.clip)return inkMaxDistance(outer,enclosure.center)<=enclosure.radius+EPS;
+  if(enclosure.kind==='circle')return inkMaxDistance(outer,enclosure.center)<=enclosure.radius+EPS&&(!enclosure.clip||inkFullyInside({ink:[{outer}]},{kind:'polygon',points:enclosure.clip}));
   if(enclosure.kind!=='polygon'||!convexPolygon(enclosure.points))return false;
   const vertices=enclosure.points,sign=Math.sign(vertices.reduce((sum,p,i)=>sum+cross(p,vertices[(i+1)%vertices.length]),0));
   return vertices.every((p,i)=>{const d=sub(vertices[(i+1)%vertices.length],p),normal={x:sign*d.y,y:-sign*d.x},support=inkSupport(outer,normal);return !!support&&dot(sub(support,p),normal)<=EPS*norm(normal);});

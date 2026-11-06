@@ -4,7 +4,7 @@ import {claimUIPress} from './pointerOwnership';
 import {useValueConfirmation} from './useValueConfirmation';
 /** Shared coordinate-region projection. Outline is supplied by the reference
  * renderer; threshold values come exclusively from prepared fields. */
-export function DofRegionField({axes,outline,label='Region',onPreview,onCommit,onCancel}:{label?:string;axes:readonly RegionAxis[];outline:string;onPreview:(region:RegionBounds)=>void;onCommit:(region:RegionBounds)=>void;onCancel:()=>void}){
+export function DofRegionField({axes,outline,label='Region',onPreview,onCommit,onCancel}:{label?:string;axes:readonly RegionAxis[];outline:string;onPreview:(region:RegionBounds)=>void;onCommit:(region:RegionBounds)=>void|boolean;onCancel:()=>void}){
  const [sample,setSample]=useState<RegionBounds>();
  const root=useRef<HTMLDivElement>(null),bounds=useRef<DOMRect|null>(null),hover=useRef<RegionBounds|undefined>(undefined),pressed=useRef(false),anchor=useRef<RegionAnchor|undefined>(undefined);
  useLayoutEffect(()=>{const node=root.current;if(!node)return;const measure=()=>{bounds.current=node.getBoundingClientRect();};const observer=new ResizeObserver(measure);observer.observe(node);measure();return()=>observer.disconnect();},[]);

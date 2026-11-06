@@ -772,3 +772,13 @@ scene/selection registry is introduced. Current canvas/3D producers do not yet
 supply this geometry. Catalog discovery also captures a part's declared boundary
 address, allowing additive paint to resolve its source without scanning DOM
 ownership on each pointer move.
+
+### Exact filled-region paths
+
+Composer's bounded circle/convex-clip snapshots render as actual SVG arc/line
+paths. Their validated `data-selection-disc` declaration adapts them into the same
+contact/containment kernel; lens feedback follows the actual path. These declared
+paths never become bounding rectangles or full circles. This adapter does not
+claim support for arbitrary unregistered SVG paths. Continuous Fill attachment
+uses actual touched contributing owners but remains a separate authored relation;
+containment, visual continuity and attachment ownership are independent.
