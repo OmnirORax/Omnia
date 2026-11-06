@@ -206,3 +206,45 @@ retain the previously documented rejection boundary. No new recipe version,
 backend schema or silent load migration. Group splitting has ordinary independent
 object compositing; it is not a destructive union or a promise of pixel-identical
 overlap blending. See Composer's Detach continuous fill walkthrough.
+
+Node-document Markdown (2026-11-06): Markdown styling is a source-preserving
+projection of existing version-1 string/glyph content. No stored tags, new fields,
+format version or silent document rewrite. Existing Markdown strings now render
+semantically; literal HTML still escapes. Editing wrappers restore their original
+Markdown markers during serialization, including around canonical glyph references
+and linked English. Clipboard, workspace/atlas imports and exports keep the same
+owners and shape. Older clients display the retained Markdown as plain syntax.
+Current model fixtures cover source-marker and glyph-reference round trips and
+untrusted/malformed input; browser editing/native undo acceptance remains pending.
+
+Child detachment (2026-11-06): an explicit graph edit within existing atlas v2 and
+workspace formats. `detachPlacement` clears the chosen occurrence's visual parent
+and variant visibility owner, freezes its current world XYZ as root coordinates,
+and rebases that occurrence in every stored layout view. IDs, descendants,
+presentation and node documents stay intact. `detachNodeConnection` additionally
+removes only the current parent-entity → child-entity canonical composition edge;
+other relation types remain separate. Existing canonical workspace synchronization
+therefore shares that relation removal across its uses. The Inspector's existing
+None/root choice uses placement-only detachment without a spatial jump. Both
+validate the candidate before shared history/persistence; no automatic migration,
+new schema/version or backend deployment. Old clients read the ordinary root
+placement/remaining composition records. Models cover historical fallback
+coordinates, views, identity/round trips and variant visibility ownership.
+
+Document essentials (2026-11-06): semantic lists and native bold/italic operations
+still serialize into existing version-1 Markdown string/glyph content. Untouched
+list prefixes remain source-preserving; native inserted/moved/indented items derive
+their marker from actual list position. Turning formatting off removes the saved
+markers even when the browser retains projection attributes on a plain span.
+No stored HTML/schema/version change or load migration. The shared node-document
+window uses ordinary UI layout/window records (separate from atlas document data)
+and inherits existing export/restore and history. Older clients display Markdown
+syntax and may ignore this new window's UI record. Models cover native list
+counters, type/depth changes and removed-style round trips; browser evidence is
+bounded and recorded separately.
+
+Document formatting/list commands are declared in the shared action registry,
+including their existing-dictionary shortcut bindings. Default scope/conflict and
+explicit-clear handling come from workspaceActions, with no private aliases.
+Indent/Outdent default to Ctrl+] / Ctrl+[ so the app's Shift configuration rule
+remains intact; Tab retains native focus traversal.

@@ -55,7 +55,7 @@ import {
   type FrameScope,
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
-import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
+import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, allowsShiftShortcut, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
@@ -1040,7 +1040,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   }
   function invokeContextShortcut(id: string): boolean {
     if (invokeCatalogAction(id, action => runAction(action))) return true;
-    const nodeAction = ["createChild", "insertExisting", "connect", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
+    const nodeAction = ["createChild", "insertExisting", "connect", "detach", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
     if (nodeAction && selectedNode) {
       contextAction(nodeAction as ContextAction, { kind: "node", id: selectedNode.id });
       return true;
@@ -1073,6 +1073,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
       case "insertExisting": setInsertQuery(""); setInsertContext({ parentId: id, world: target.kind === "space" ? target.world : undefined }); break;
       case "connect": if (id) { setConnectionSource(id); setSelection({ kind: "node", id }); } break;
+      case "detach": if (id) {try {const next=detachNodeConnection(document,id);if(next!==document&&commitDocument(next)){setConnectionSource(null);setSelection({kind:"node",id});}}catch(error){setError(message(error));}} break;
       case "toggle": if (id) toggleNode(id); break;
       case "focus": if (id) { setSelection({ kind: "node", id }); navigate("focus", id); } break;
       case "edit": if (id) {
@@ -1805,7 +1806,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
                     aria-label="Node parent"
                     value={selectedNode.parentId ?? ""}
                     onChange={(e) => {
-                      try { commitDocument(reparentVisual(document, selectedNode.id, e.target.value || null, settings.spatial)); }
+                      try { commitDocument(e.target.value?reparentVisual(document, selectedNode.id, e.target.value, settings.spatial):detachPlacement(document,selectedNode.id)); }
                       catch (error) { setError(message(error)); }
                     }}
                   >

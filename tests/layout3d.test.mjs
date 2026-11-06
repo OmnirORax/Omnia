@@ -139,3 +139,37 @@ test("explicit compact layout makes a scattered software-like atlas local and co
   assert.equal(JSON.stringify({ entities: compact.entities, compositions: compact.compositions, relationships: compact.relationships }), originalKnowledge);
   assert.equal(doc.placements[1].spatialPosition.x, 0);
 });
+
+test('detaching a placement preserves the whole subtree world position, identity and canonical knowledge',async()=>{
+ const {detachPlacement}=await import('../src/graph/layout3d.ts');const {validateDocument}=await import('../src/graph/structural.ts');
+ const {doc,root,child,other}=fixture();
+ const nested=reparentStructure(doc,other,child,settings),before=worldPositions(nested),original=JSON.stringify(nested);
+ const detached=detachPlacement(nested,child),after=worldPositions(detached);
+ assert.equal(detached.placements.find(p=>p.id===child).parentId,null);assert.equal(detached.placements.find(p=>p.id===other).parentId,child);
+ for(const [id,point] of before)assert.deepEqual(after.get(id),point,'no occurrence moves during detachment');
+ assert.deepEqual(detached.entities,nested.entities);assert.deepEqual(detached.compositions,nested.compositions);assert.deepEqual(detached.relationships,nested.relationships);
+ assert.equal(JSON.stringify(nested),original);assert.deepEqual(worldPositions(validateDocument(JSON.parse(JSON.stringify(detached)))),after);
+ assert.equal(detachPlacement(detached,child),detached,'detaching a root is a no-op');assert.throws(()=>detachPlacement(detached,'missing'),/Missing placement/);
+ const legacy=validateDocument({...doc,placements:doc.placements.map(({spatialPosition,...p})=>p)}),legacyAfter=detachPlacement(legacy,child);
+ assert.deepEqual(worldPositions(legacyAfter),worldPositions(legacy),'legacy coordinate fallback is made explicit without a visual jump');
+});
+
+test('detach connection removes only current containment and preserves saved-view coordinates and descendants',async()=>{
+ const {detachNodeConnection}=await import('../src/graph/layout3d.ts');const {validateDocument}=await import('../src/graph/structural.ts');
+ const {doc,root,child,other}=fixture();const nested=reparentStructure(doc,other,child,settings);
+ const augmented=validateDocument({...nested,compositions:[...nested.compositions,{id:'unrelated',parentId:'system',childId:'other'}],layoutViews:[{id:'saved',name:'Saved',rule:'manual',positions:nested.placements.map((p,i)=>({placementId:p.id,position:{x:i+10,y:i*2,z:i*3}}))}]});
+ const savedDoc={...augmented,placements:augmented.placements.map(p=>({...p,spatialPosition:augmented.layoutViews[0].positions.find(entry=>entry.placementId===p.id).position}))},savedWorlds=worldPositions(savedDoc),worlds=worldPositions(augmented);
+ const next=detachNodeConnection(augmented,child);assert.deepEqual(worldPositions(next),worlds);
+ assert.ok(!next.compositions.some(c=>c.parentId==='system'&&c.childId==='part'));assert.ok(next.compositions.some(c=>c.id==='unrelated'));assert.ok(next.compositions.some(c=>c.parentId==='part'&&c.childId==='other'));
+ const nextSaved={...next,placements:next.placements.map(p=>({...p,spatialPosition:next.layoutViews[0].positions.find(entry=>entry.placementId===p.id).position}))};assert.deepEqual(worldPositions(nextSaved),savedWorlds,'switching saved layout does not reinterpret former local coordinates as root coordinates');
+ assert.deepEqual(next.entities,augmented.entities);assert.deepEqual(next.relationships,augmented.relationships);assert.deepEqual(next.placements.find(p=>p.id===other),augmented.placements.find(p=>p.id===other));
+ assert.deepEqual(validateDocument(JSON.parse(JSON.stringify(next))),next);
+});
+
+test('a detached variant occurrence becomes independently visible without deleting its canonical variant',async()=>{
+ const {detachPlacement}=await import('../src/graph/layout3d.ts');const {ensureVariantPlacements}=await import('../src/graph/structural.ts');
+ const doc=emptyDocument();doc.entities=[entity('owner'),entity('variant')];doc.variants=[{id:'v',ownerId:'owner',entityId:'variant',position:{x:8,y:2,z:4}}];
+ const placed=createPlacement(doc,'owner',null,settings),withVariant=ensureVariantPlacements(placed.next),occurrence=withVariant.placements.find(p=>p.variantOwner);
+ const next=detachPlacement(withVariant,occurrence.id),detached=next.placements.find(p=>p.id===occurrence.id);
+ assert.equal(detached.parentId,null);assert.equal(detached.variantOwner,undefined);assert.deepEqual(next.variants,withVariant.variants);assert.deepEqual(worldPositions(next),worldPositions(withVariant));
+});

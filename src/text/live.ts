@@ -1,5 +1,6 @@
 import { GLYPH_LIMIT, annotationPrefix, applyLexiconMatches, type AnnotationKind, type compileLexicon } from './model';
-import { escapeHTML, textHTML } from './dom';
+import { escapeHTML, textHTML,readTextDOM } from './dom';
+import {hasInlineMarkdown} from './markdown';
 type Lexicon=ReturnType<typeof compileLexicon>;
 type Point={node:Text;offset:number};
 export function textPoint(node:Node|null,offset:number):Point|undefined {
@@ -57,4 +58,25 @@ export function annotateTextNode(root:HTMLElement,node:Text,start:number,end:num
   if(anchor&&selection){const next=document.createRange();next.setStartBefore(anchor);next.collapse(true);selection.removeAllRanges();selection.addRange(next);anchor.remove();}
   else if(retained&&selection){selection.removeAllRanges();selection.addRange(retained);}
   return true;
+}
+
+/** Reformat a small edited paragraph, not the document on every keystroke. The
+ * temporary object token transports the caret through source-preserving markup;
+ * it is removed before storage and never becomes an authored glyph reference. */
+export function formatMarkdownAtCaret(root:HTMLElement,glyphHTML:(id:string)=>string){
+ const selection=window.getSelection();if(document.activeElement!==root||!selection?.isCollapsed||!selection.rangeCount||!selection.anchorNode||!root.contains(selection.anchorNode))return false;
+ if(selection.anchorNode.parentElement?.closest('code,.node-md-codeblock'))return false;
+ let block=selection.anchorNode===root?root:selection.anchorNode.parentElement;
+ while(block&&block!==root&&!/^(DIV|P|LI|PRE|H[1-6])$/.test(block.tagName))block=block.parentElement;
+ if(!block||!root.contains(block)||block.closest('[data-node-glyph]')||(block.textContent?.length??0)>4096||!hasInlineMarkdown(block.textContent??''))return false;
+ const marker=`markdown-caret-${crypto.randomUUID()}`,token=document.createElement('span');token.setAttribute('data-node-glyph',marker);
+ const caret=selection.getRangeAt(0).cloneRange();caret.insertNode(token);
+ const value=readTextDOM(block);token.remove();
+ const html=textHTML(value,id=>id===marker?`<span data-node-caret="${marker}">\u200b</span>`:glyphHTML(id));
+ const range=document.createRange();range.selectNodeContents(block);selection.removeAllRanges();selection.addRange(range);
+ let inserted=document.execCommand('insertHTML',false,html);
+ if(!inserted){const template=document.createElement('template');template.innerHTML=html;range.deleteContents();range.insertNode(template.content);}
+ const anchor=block.querySelector(`[data-node-caret="${marker}"]`);
+ if(anchor){const next=document.createRange();next.setStartBefore(anchor);next.collapse(true);selection.removeAllRanges();selection.addRange(next);anchor.remove();}
+ return true;
 }

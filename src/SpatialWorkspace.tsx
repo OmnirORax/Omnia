@@ -51,7 +51,7 @@ import { createGraphHierarchyPulse } from "./appearance/graphHighlight";
 import { createWallpaper } from "./scene/wallpaper";
 
 export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
-export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
+export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "detach" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
   omnicPreview: OmnicPreviewStore;
@@ -128,9 +128,7 @@ export default function SpatialWorkspace(props: Props) {
   const { atlas, selectedId, settings, command, document: doc } = props;
   const hostRef = useRef<HTMLDivElement>(null);
   const optionBarRef = useRef<HTMLDivElement>(null);
-  const documentAnchor = useRef<HTMLDivElement>(null);
   const [documentNodeId, setDocumentNodeId] = useState<string | null>(null);
-  const documentNodeRef = useRef(documentNodeId); documentNodeRef.current = documentNodeId;
   const documentEntity = doc.entities.find(e => e.id === doc.placements.find(p => p.id === documentNodeId)?.entityId);
   useEffect(() => { stateRef.current?.requestRender(); }, [documentNodeId]);
   const stateRef = useRef<SceneState | null>(null);
@@ -238,7 +236,6 @@ export default function SpatialWorkspace(props: Props) {
           if (element.style.top !== top) element.style.top = top;
         };
         anchorElement(optionBarRef.current, callbacks.current.optionNodeId ?? "", true);
-        anchorElement(documentAnchor.current, documentNodeRef.current ?? "", true);
         const selected = textScene.current?.nodes.get(callbacks.current.selectedId ?? "")?.anchor ?? worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
         if (selectedBackground || hierarchyBackground !== null) applyBackgroundFeedback();
@@ -872,6 +869,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
     ["createChild", "Create child"], ["insertExisting", "Insert existing entity"], ["connect", "Connect to another node"],
+    ...(menu?.target.kind==="node"&&doc.placements.some(p=>p.id===(menu.target.kind==='node'?menu.target.id:null)&&(p.parentId||p.variantOwner))?([["detach","Detach from parent"]] as [ContextAction,string][]):[]),
     ["toggle", "Expand / collapse"], ["focus", "Focus"], ["edit", "Rename / edit in inspector"],
     ["removePlacement", "Remove placement"], ["deleteIdentity", "Delete identity…"],
   ];
@@ -891,9 +889,9 @@ export default function SpatialWorkspace(props: Props) {
         {option.id === "variants" && <button className="variant-add" aria-label={`Add variant for ${graph.nodes.find((n) => n.id === props.optionNodeId)?.label || "node"}`} title="Add variant" onContextMenu={(event) => event.preventDefault()} onClick={() => props.onAddVariant(props.optionNodeId!)}>+</button>}
       </div>)}
     </div>}
-    {documentEntity && documentNodeId && <div className="node-document-anchor" ref={documentAnchor}>
+    {documentEntity && documentNodeId && <>
       <NodeDocument key={documentEntity.id} entity={documentEntity} entities={doc.entities} saveStatus={props.saveStatus} onSave={props.onSaveText} onLibrary={props.onOpenLibrary} onClose={() => setDocumentNodeId(null)} />
-    </div>}
+    </>}
     <div className="spatial-controls">
       <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
     </div>

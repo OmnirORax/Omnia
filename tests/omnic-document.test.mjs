@@ -138,3 +138,64 @@ test('linked and detached glyph metadata round trips and remaps with independent
  assert.deepEqual(activeDocument(imported).entities.find(e=>e.id==='live-1').text.content,[{glyph:'live-2',word:'freedom'},'freedom ',{glyph:'live-2',word:null}]);
  assert.throws(()=>validateNodeText({version:1,content:[{glyph:'glyph',word:42}]},new Set(['glyph'])),/missing Omnic/);
 });
+
+test('node Markdown renders semantic formatting without exposing markers or interpreting raw HTML',async()=>{
+ const {textHTML}=await import('../src/text/dom.ts');
+ const render=text=>textHTML({version:1,content:[text]},id=>`<span data-node-glyph="${id}"></span>`);
+ assert.match(render('**bold** and *italic* and ~~gone~~ and `**code**`'),/<strong[^>]*>bold<\/strong> and <em[^>]*>italic<\/em> and <del[^>]*>gone<\/del> and <code[^>]*>\*\*code\*\*<\/code>/);
+ assert.match(render('***both***'),/<strong[^>]*><em[^>]*>both<\/em><\/strong>/);
+ assert.match(render('# Heading\n- item\n> quoted'),/node-md-heading/);assert.match(render('# Heading\n- item\n> quoted'),/node-md-list/);
+ assert.match(render('```js\n**literal**\n```'),/node-md-codeblock[^>]*>\*\*literal\*\*<\/span>/);
+ assert.ok(!render('<script>alert(1)</script>').includes('<script>'));assert.match(render('<script>x</script>'),/&lt;script&gt;/);
+ assert.match(render('not **finished'),/not \*\*finished/);
+ assert.match(render('under_score_word'),/under_score_word/);
+ const mixed=textHTML({version:1,content:['**',{glyph:'g',word:'word'},'word**']},()=>'<span data-node-glyph="g"></span>');assert.match(mixed,/<strong[^>]*><span data-node-word="word" data-node-glyph="g"><\/span>word<\/strong>/);
+});
+
+test('formatted document DOM serializes back to Markdown text and original linked glyph references',async()=>{
+ const {readTextDOM}=await import('../src/text/dom.ts');
+ const priorNode=globalThis.Node,priorElement=globalThis.Element;
+ class El{constructor(tag,attrs={},children=[]){this.tagName=tag;this.attrs=attrs;this.childNodes=children;this.nodeType=1;children.forEach((c,i)=>c.nextSibling=children[i+1]);}hasAttribute(key){return key in this.attrs;}getAttribute(key){return this.attrs[key]??null;}}
+ const text=s=>({nodeType:3,textContent:s});
+ try{
+  globalThis.Node={TEXT_NODE:3};globalThis.Element=El;
+  const root=new El('DIV',{},[new El('STRONG',{'data-node-md-open':'**','data-node-md-close':'**'},[new El('SPAN',{'data-node-glyph':'g','data-node-word':'word'}),text('word')]),text('\n'),new El('SPAN',{'data-node-md-open':'# ','data-node-md-close':''},[text('Heading')]),text('\n'),new El('SPAN',{'data-node-md-open':'```js\n','data-node-md-close':'\n```'},[text('**literal**')])]);
+  assert.deepEqual(readTextDOM(root),{version:1,content:['**',{glyph:'g',word:'word'},'word**\n# Heading\n```js\n**literal**\n```']});
+ }finally{globalThis.Node=priorNode;globalThis.Element=priorElement;}
+});
+
+test('Markdown keeps literal placeholder characters and bounds malformed delimiter work',async()=>{
+ const {markdownHTML}=await import('../src/text/markdown.ts');
+ assert.match(markdownHTML({version:1,content:['**x\ufffc',{glyph:'real'},'y**']},part=>`<span data-node-glyph="${part.glyph}"></span>`),/x\ufffc<span data-node-glyph="real"><\/span>y/);
+ const hostile='*a\\*'.repeat(12000);const html=markdownHTML({version:1,content:[hostile]},()=>{throw Error('unexpected object');});assert.ok(html.length>=hostile.length,'malformed source stays visible rather than disappearing');
+});
+
+test('native list structure preserves pasted prefixes and derives counters for new, moved and indented items',async()=>{
+ const {markdownHTML,listSourcePrefix}=await import('../src/text/markdown.ts');
+ const html=markdownHTML({version:1,content:['3. **first**\n4. next\n    - nested\n5. last']},()=>{throw Error('unexpected glyph');});
+ assert.match(html,/<ol class="node-md-list" start="3">/);assert.equal((html.match(/<li /g)||[]).length,4);assert.match(html,/<ul class="node-md-list">/);
+ assert.equal(listSourcePrefix({source:'3. ',index:0,originalIndex:0,depth:0,originalDepth:0,start:3,ordered:true}),'3. ');
+ assert.equal(listSourcePrefix({source:'3. ',index:1,originalIndex:0,depth:0,originalDepth:0,start:3,ordered:true}),'4. ','a native cloned item increments rather than reusing its source marker');
+ assert.equal(listSourcePrefix({source:'4. ',index:2,originalIndex:1,depth:0,originalDepth:0,start:3,ordered:true}),'5. ','following items renumber after insertion');
+ assert.equal(listSourcePrefix({source:'3. ',index:0,originalIndex:0,depth:1,originalDepth:0,start:1,ordered:false}),'    - ','indent/type changes follow the actual native list');
+});
+
+test('document serialization retains browser-native formatting and continued-list item values',async()=>{
+ const {readTextDOM}=await import('../src/text/dom.ts');const savedNode=globalThis.Node,savedElement=globalThis.Element;
+ class El{constructor(tag,attrs={},children=[]){this.tagName=tag;this.attrs=attrs;this.childNodes=children;this.nodeType=1;children.forEach((c,i)=>{c.parentElement=this;c.nextSibling=children[i+1];});}get children(){return this.childNodes.filter(n=>n.nodeType===1);}hasAttribute(k){return k in this.attrs;}getAttribute(k){return this.attrs[k]??null;}}
+ const text=value=>({nodeType:3,textContent:value});
+ try{globalThis.Node={TEXT_NODE:3};globalThis.Element=El;
+  const attrs={'data-node-md-open':'1. ','data-node-md-index':'0','data-node-md-depth':'0'},root=new El('DIV',{},[new El('OL',{start:'1'},[new El('LI',attrs,[new El('B',{},[text('first')])]),new El('LI',attrs,[text('next')])])]);
+  assert.deepEqual(readTextDOM(root),{version:1,content:['1. **first**\n2. next']});
+ }finally{globalThis.Node=savedNode;globalThis.Element=savedElement;}
+});
+
+test('turning native bold or italic off cannot resurrect stale Markdown markers on a plain span',async()=>{
+ const {readTextDOM}=await import('../src/text/dom.ts');const savedNode=globalThis.Node,savedElement=globalThis.Element;
+ class El{constructor(tag,attrs={},children=[]){this.tagName=tag;this.attrs=attrs;this.childNodes=children;this.nodeType=1;children.forEach((c,i)=>{c.parentElement=this;c.nextSibling=children[i+1];});}hasAttribute(k){return k in this.attrs;}getAttribute(k){return this.attrs[k]??null;}}
+ const text=value=>({nodeType:3,textContent:value});
+ try{globalThis.Node={TEXT_NODE:3};globalThis.Element=El;
+  const off=new El('DIV',{},[new El('SPAN',{'data-node-md-open':'**','data-node-md-close':'**'},[text('plain')]),text(' '),new El('SPAN',{'data-node-md-open':'*','data-node-md-close':'*'},[text('also plain')])]);assert.deepEqual(readTextDOM(off),{version:1,content:['plain also plain']});
+  const on=new El('DIV',{},[new El('SPAN',{'data-node-md-open':'**','data-node-md-close':'**'},[new El('B',{},[text('bold')])])]);assert.deepEqual(readTextDOM(on),{version:1,content:['**bold**']},'native reactivation must not duplicate the original markers');
+ }finally{globalThis.Node=savedNode;globalThis.Element=savedElement;}
+});
