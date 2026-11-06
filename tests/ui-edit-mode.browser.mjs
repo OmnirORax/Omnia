@@ -1,0 +1,47 @@
+/** User-authorized focused check only: normal controls vs layout editing. */
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright-core';
+import {defaultSettings,SETTINGS_KEY} from '../src/workspaceActions.ts';
+const origin=process.env.OMNIA_URL??'http://127.0.0.1:5178';
+if(!['localhost','127.0.0.1'].includes(new URL(origin).hostname))throw Error('Use disposable local data.');
+const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader']});
+const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];
+page.on('pageerror',error=>errors.push(error.message));
+const settings=defaultSettings();settings.appearance.theme='classic';
+await page.addInitScript(({settings,key})=>localStorage.setItem(key,JSON.stringify(settings)),{settings,key:SETTINGS_KEY});
+await page.route('**/*',route=>new URL(route.request().url()).origin===new URL(origin).origin?route.continue():route.abort());
+const tick=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+const menu=name=>page.locator(`[data-ui-drag="window:panel:menu:${name}"] button`).first();
+try{
+ await page.goto(origin);await page.locator('[data-ui-function="newNode"]').first().waitFor();
+ assert.equal(await page.evaluate(()=>document.documentElement.hasAttribute('data-ui-edit-mode')),false);
+ await menu('workspace').click();const toggle=page.locator('[data-ui-function="ui:devMode"]:visible').first();
+ const box=await toggle.boundingBox();assert.equal(await toggle.getAttribute('draggable'),'false');
+ await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+8,box.y+box.height/2,{steps:3});await page.mouse.up();await tick();
+ assert.equal(await page.evaluate(()=>document.documentElement.hasAttribute('data-ui-edit-mode')),true,'pointer drift on a fixed action must still activate');
+ console.log('PASS edit-off fixed button activates after pointer drift');
+ if(await menu('workspace').getAttribute('aria-expanded')!=='true')await menu('workspace').click();
+ await page.locator('[data-ui-function="ui:devMode"]:visible').first().click();await tick();
+ assert.equal(await page.evaluate(()=>document.documentElement.hasAttribute('data-ui-edit-mode')),false);
+ if(await menu('workspace').getAttribute('aria-expanded')==='true')await menu('workspace').click();
+ const title=page.locator('[data-ui-drag="window:theme"] button').first();
+ await title.click();assert.equal(await title.getAttribute('aria-expanded'),'false');
+ await title.click();assert.equal(await title.getAttribute('aria-expanded'),'true');
+ console.log('PASS edit-off minimize and restore');
+ const handle=page.locator('[data-ui-drag="window:theme"]').first(),start=await handle.boundingBox();
+ assert.equal(await handle.getAttribute('draggable'),'true');
+ await page.mouse.move(start.x+start.width/2,start.y+start.height/2);await page.mouse.down();await page.mouse.move(start.x+start.width/2-60,start.y+start.height/2+60,{steps:6});await page.mouse.up();await tick();
+ const end=await handle.boundingBox();assert.ok(Math.hypot(end.x-start.x,end.y-start.y)>5,'frame can move outside edit mode');
+ assert.equal(await title.getAttribute('aria-expanded'),'true','drag tail does not minimize');
+ console.log('PASS edit-off frame move; drag tail suppressed');
+ await page.keyboard.press('Control+Alt+U');
+ const libraryTitle=page.locator('[data-ui-drag="window:function-library"] button').first();await libraryTitle.waitFor();await libraryTitle.click();
+ await page.keyboard.press('X');await tick();
+ assert.equal(await libraryTitle.isVisible(),false,'active Close hides an ordinary window outside edit mode');
+ console.log('PASS edit-off close');
+ await menu('workspace').click();await page.locator('[data-ui-function="ui:devMode"]:visible').first().click();await tick();
+ assert.equal(await page.evaluate(()=>document.documentElement.hasAttribute('data-ui-edit-mode')),true);
+ assert.equal(await page.locator('[data-ui-function="newNode"]').first().getAttribute('draggable'),'true');
+ console.log('PASS edit-on unlocks internal controls');
+ assert.deepEqual(errors,[]);
+}finally{await browser.close();}

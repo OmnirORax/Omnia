@@ -290,8 +290,9 @@ placement. They are independent. Sidebar section wrappers are not ordinary full
 frame docking targets; actual frames, handles, tabs and outer edges have their
 own established target rules. Use shared geometry for feedback and commit.
 
-Placement is fixed by default outside UI edit mode, with explicit movement-policy
-exceptions through UI rigidity. Ordinary action clicks, editing, collapse and tab
+Individual control placement is fixed by default outside UI edit mode. Complete
+frames/windows remain movable/resizable unless explicit UI rigidity or pins fix
+them. Normal control activation never depends on edit mode. Ordinary action clicks, editing, collapse and tab
 activation remain available. UI rigidity is a UI policy, not an appearance value.
 
 A UI press belongs to UI for the physical gesture. It must not transfer to camera

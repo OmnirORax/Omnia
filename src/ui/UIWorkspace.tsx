@@ -2,7 +2,7 @@ import {featureActionRuntime} from '../featureActions';
 import { ContextTargetController } from './ContextTargetController';
 import { ToolCursorLayer, rememberToolIcon } from "./toolCursor";
 import { ToolGlyph, toolIconFor } from "./toolIcon";
-import { ownsContextMenu, routeContextMenu } from './contextMenuOwnership';
+import { ownsContextMenu, routeContextMenu, uiContextEnabled } from './contextMenuOwnership';
 import { ContextualMasterController } from './ContextualMasterController';
 import {createDragQueries} from './dragQueries';
 import {createRegistrationBatch} from './registrationBatch';
@@ -171,7 +171,7 @@ const FunctionElement=memo(function FunctionElement({
 }) {
   const ui = useUITracked(ui=>{
     const item=ui.layout.items[fn.id],index=functionIndex(ui.functions,ui.layout);
-    return [functionIndex(ui.functions,ui.layout).byId.get(fn.id),item,index.permissions,ui.layout.hideNames,ui.layout.assets.find(a=>a.id===item?.style?.assetId),ui.shortcutBindings?.[buttonShortcutId(fn.id)],ui.selectedFunctions.has(fn.id),ui.selectingUI];
+    return [functionIndex(ui.functions,ui.layout).byId.get(fn.id),item,index.permissions,ui.layout.hideNames,ui.layout.assets.find(a=>a.id===item?.style?.assetId),ui.shortcutBindings?.[buttonShortcutId(fn.id)],ui.selectedFunctions.has(fn.id),ui.selectingUI,uiContextEnabled(ui.layout)];
   }),
     item = ui.layout.items[fn.id],
     style = item?.style ?? defaultStyle;
@@ -228,7 +228,7 @@ const FunctionElement=memo(function FunctionElement({
           return;
         }
         ui.configure(fn.id);
-      }, !palette && ownsContextMenu(e.target));
+      }, !palette && ownsContextMenu(e.target), uiContextEnabled(ui.layout));
     },
   };
   const modeClass =
@@ -594,6 +594,9 @@ export function UIWorkspace({
     document.documentElement.toggleAttribute("data-ui-edit-mode", editingUI);
     return () => document.documentElement.removeAttribute("data-ui-edit-mode");
   }, [editingUI]);
+  useEffect(() => {
+    if (!editingUI) { setMenu(null); configure(null); configureFrame(null); configureControl(null); }
+  }, [editingUI]);
   const drag = useRef<DragState | null>(null);
   const [shortcutField, setShortcutField] = useState<string | null>(null);
   const [shortcutNotice, setShortcutNotice] = useState("");
@@ -664,7 +667,9 @@ export function UIWorkspace({
       window.removeEventListener("omnium:invoke-button", run); };
   }, [shortcuts, frameActions]);
 
-  const frameMenu = (owner: string, x: number, y: number) => setMenu({ owner, x, y });
+  const frameMenu = (owner: string, x: number, y: number) => {
+    if (uiContextEnabled(current.current.layout)) setMenu({ owner, x, y });
+  };
   const createFrame = (x: number, y: number, mode?: FrameLayoutMode) => {
     if (!mode) { setCreatingFrame({ x, y }); return; }
     update(layout => createUIFrame(layout, x, y, mode));
@@ -680,7 +685,7 @@ export function UIWorkspace({
     };
     return ensured.value;
   };
-  const canMove = (key: string) => !layout.panels["@devMode"] && !layout.uiRigidity ? false : residentMovable(ensure(layout), key, functions);
+  const canMove = (key: string) => key.startsWith("function:") && !layout.panels["@devMode"] && !layout.uiRigidity ? false : residentMovable(ensure(layout), key, functions);
   const buttonSelection = useButtonSelection({
     layout: ensure(layout),
     update,
@@ -702,7 +707,7 @@ export function UIWorkspace({
     // Prevent the browser menu everywhere in the app; custom menus still receive this event.
     const prevent = (e: Event) => e.preventDefault();
     const fallback = (e: MouseEvent) => {
-      if (ownsContextMenu(e.target)) return;
+      if (!uiContextEnabled(current.current.layout) || ownsContextMenu(e.target)) return;
       const target = e.target as Element;
       if (
         !target.closest(
@@ -1729,7 +1734,7 @@ export function UIWorkspace({
         className="ui-workspace-overlay"
         onContextMenu={(e) => {
           e.preventDefault();
-          setMenu({ x: e.clientX, y: e.clientY });
+          if (editingUI) setMenu({ x: e.clientX, y: e.clientY });
         }}
       >
         {Object.entries(layout.items)

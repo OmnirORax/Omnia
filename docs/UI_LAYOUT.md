@@ -18,7 +18,7 @@ Optional `arrangement` metadata exists on the workspace and each frame/window. F
 
 `FloatingWindow` portals to the document body or the host slot of its owning frame. It persists position, size, collapse and pin state; viewport fitting keeps imported geometry reachable. `UIPanel` reuses existing inspector/editing content, including when nested, rather than cloning editors. Fields use invisible edge drag surfaces with a grab cursor, keeping label and input together and leaving ordinary input interaction alone. Icon-only setting controls open a window containing the original field. Context-dependent inspector fields become unavailable when their original editing context is absent; selecting a compatible entity restores them.
 
-`FrameChrome` keeps the text/icon handle outside the resident contents and mini controls owned by that container. Bare mini controls can be dragged to relative positions and right-clicked for the shared icon/asset editor, but cannot be extracted into another frame. Frame-local reset restores positions and compact wrapping while retaining residents and handle appearance. App-wide context-menu prevention suppresses browser menus without stopping Omnium's handlers or right-drag camera controls. Existing node context menus keep fixed membership and their current target; they do not acquire unrestricted docking.
+`FrameChrome` keeps the text/icon handle outside the resident contents and mini controls owned by that container. In UI edit mode, bare mini controls can be dragged to relative positions and right-clicked for the shared icon/asset editor, but cannot be extracted into another frame. Frame-local reset restores positions and compact wrapping while retaining residents and handle appearance. App-wide context-menu prevention suppresses browser menus without stopping Omnium's handlers or right-drag camera controls. Existing node context menus keep fixed membership and their current target; they do not acquire unrestricted docking.
 
 `EntityMenu` saves action slots by menu kind. Membership and the target remain supplied by the workspace on each right-click. Its drag payload is separate from global function dragging. The menu cannot be detached from the target or have its actions moved elsewhere. Resizing and internal arrangement do not create semantic graph edits.
 
@@ -82,3 +82,18 @@ is retained; an explicitly saved placement for the new panel is authoritative.
 This lets the new ♾️ menu appear after View in an existing layout without
 resetting the toolbar or writing a migration over authored positions. The
 library retains its former Metrics resident ID with the default label ♾️.
+
+## Normal mode versus internal arrangement
+
+Edit mode off fixes individual action/field arrangement by default. Complete
+frames/windows remain movable/resizable; explicit rigidity overrides and pins
+still apply. Normal actions, editors, minimize/restore and close are independent
+of arrangement permission. The activation guard follows the nearest actual drag
+source, so fixed controls remain clickable after pointer drift.
+
+Saved-data impact: no layout/schema/identity changes or migration. This deliberately
+changes only the implicit default for whole-frame mobility. Existing geometry,
+labels, pins and explicit category/individual rigidity choices retain their
+meaning and remain authoritative. No stored policy is erased or rewritten.
+
+UI-customization right-click menus (controls, frame/tab chrome, background and selected UI) and right-click UI label renaming require UI edit mode. Content-specific menus remain available in normal mode. Disabling edit mode dismisses open UI customization; normal actions and frame movement retain their independent permission rules. This changes only transient menu entry, with no saved schema, identity, layout or policy changes.

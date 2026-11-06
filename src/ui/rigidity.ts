@@ -1,8 +1,8 @@
 import { Children, isValidElement, type ReactNode } from "react";
-import { ancestry, type Target } from "../appearance/model";
-import { TARGETS, type RegisteredTarget } from "../appearance/registry";
+import { ancestry, type Target } from "../appearance/model.ts";
+import { TARGETS, type RegisteredTarget } from "../appearance/registry.ts";
 import type { UIFunction } from "./context";
-import { getContainer, ownerOf, residentPinned, type UILayout } from "./layout";
+import { getContainer, ownerOf, residentPinned, type UILayout } from "./layout.ts";
 
 export const UI_RIGIDITY_PROPERTY = "uiRigidity";
 const prefix = "ui-rigidity:";
@@ -50,10 +50,11 @@ const residentPath = (layout: UILayout, key: string, functions: Functions) => {
   }
   return path;
 };
-/** Missing policy means fixed, including layouts saved before edit-mode rigidity existed. */
+/** Normal use fixes individual controls; complete frames remain movable unless
+ * explicitly fixed/pinned. Existing saved policies remain authoritative. */
 export function residentRigid(layout: UILayout, key: string, functions: Functions): boolean {
   const rules = layout.uiRigidity ?? {};
-  let rigid = true;
+  let rigid = rigidityCategory(key, functions) !== "ui.windows";
   for (const id of ancestry(targetHierarchy, rigidityCategory(key, functions)))
     if (rules[id] !== undefined) rigid = rules[id];
   for (const owner of residentPath(layout, key, functions))
@@ -63,7 +64,7 @@ export function residentRigid(layout: UILayout, key: string, functions: Function
 /** One layout permission shared by pointer/native dragging, resizing and arrangement commands. */
 export function residentMovable(layout: UILayout, key: string, functions: Functions): boolean {
   if (getContainer(layout, key)?.viewport) return false;
-  if (!layout.panels["@devMode"] && !layout.uiRigidity) return false;
+  if (key.startsWith("function:") && !layout.panels["@devMode"] && !layout.uiRigidity) return false;
   return !!key && !residentPath(layout, key, functions).some(owner => residentPinned(layout, owner)) &&
     (!!layout.panels["@devMode"] || !residentRigid(layout, key, functions));
 }
@@ -92,7 +93,7 @@ export function rigidityTargets(
 }
 export function rigidityIncluded(layout: UILayout, targets: Target[], id: string, functions: Functions): boolean {
   if (id.startsWith(prefix)) return residentRigid(layout, id.slice(prefix.length), functions);
-  let rigid = true;
+  let rigid = !ancestry(targets, id).includes("ui.windows");
   for (const ancestor of ancestry(targets, id))
     if (layout.uiRigidity?.[ancestor] !== undefined) rigid = layout.uiRigidity[ancestor];
   return rigid;
