@@ -27,7 +27,7 @@ function nativeHome(fn: UIFunction): string {
   if (/^ui:(master:|appearance:|animation:|themePreset:|glow$|resetAppearance$|atmosphere$)/.test(id)) return "window:theme";
   if (/^(shortcut:|ui:(sphereDiameter|radius|clearance|settingsSnap|subtreeModifier|gesture:|mouse:|camera:))/.test(id)) return "window:settings";
   if (/^ui:(import|export|saveTemplate|loadTemplate)$/.test(id)) return "window:panel:menu:file";
-  if (/^ui:(view|newView|flow|nodeNames$)/.test(id)) return "window:panel:menu:view";
+  if (/^ui:(view|newView|flow)/.test(id)) return "window:panel:menu:view";
   if (/^field:(frame|reopen-frame|lock-frame|find-frame|exploration-depth)/.test(id)) return "window:panel:frames";
   if (id === "field:find-existing-identity") return "window:panel:reuse";
   if (/^field:new-relationship/.test(id)) return "window:panel:connections";

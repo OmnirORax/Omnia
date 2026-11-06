@@ -912,7 +912,7 @@ export default function SpatialWorkspace(props: Props) {
       <NodeDocument key={documentEntity.id} entity={documentEntity} entities={doc.entities} saveStatus={props.saveStatus} onSave={props.onSaveText} onLibrary={props.onOpenLibrary} onClose={() => setDocumentNodeId(null)} />
     </>}
     <div className="spatial-controls">
-      <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
+      <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="ui:nodeNames" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
     </div>
     <div className="camera-guide-home"><CameraGuide attach={attachGuide} /></div>
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}

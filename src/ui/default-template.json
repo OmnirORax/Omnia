@@ -31,7 +31,6 @@
           { "kind": "function", "id": "theme" },
           { "kind": "function", "id": "ui:view" },
           { "kind": "function", "id": "ui:viewRule" },
-          { "kind": "function", "id": "ui:nodeNames" },
           { "kind": "function", "id": "ui:newView" },
           { "kind": "function", "id": "fitAll" },
           { "kind": "function", "id": "panel:hierarchy" },

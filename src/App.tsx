@@ -1360,7 +1360,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             <FunctionControl id="ui:flowFrom" />
             <FunctionControl id="ui:flowTo" />
             </>}
-            {["ui:nodeNames", "ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:infinity" title="♾️" menu>
             {["metrics.open", "quests.open", "leaderboard.open"].map(id => <FunctionControl id={id} key={id} />)}
@@ -1375,7 +1375,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           </> : <>
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <><FunctionControl id="ui:flowType" /><FunctionControl id="ui:flowFrom" /><FunctionControl id="ui:flowTo" /></>}
-            {["ui:newView", "ui:nodeNames", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
             <UIArrangeButtons /><FunctionControl id="ui:reset" />
           </>}
           <input
