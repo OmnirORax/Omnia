@@ -2837,7 +2837,7 @@
       "id": "atlas.documents",
       "title": "Editable node documents and live English–Omnic glyph detection",
       "where": "Click a 3D node name → Document. Its Lexicon button opens the existing Omnic library; select a saved Composer object → English variants → Save name / tags / words.",
-      "behavior": "Node-linked documents render directly at the atlas node outside the inspector. Type, select, delete, cut, copy and paste normally. Saved English variants on existing canonical Composer objects drive always-on detection during typing, paste, opening existing content and saved lexicon changes. Lexicon opens the library rather than activating matching. Matches receive independent inline glyph references before the retained English; glyphs are embedded objects, not Unicode stand-ins. Automatic occurrences retain a small English link so typing can revise a still-automatic suggestion and lexicon corrections can update it. Deleting English detaches the glyph and preserves it, allowing the document to become only Omnic. Legacy adjacent matches are adopted without duplicate glyphs. Match exact whole words/phrases case-insensitively, preserving punctuation and whitespace; conflicts stay English. Ordinary typing checks a bounded local window and reuses glyph images, while existing-content/lexicon refresh runs separately. Caret markers preserve the insertion point and never enter saved text; composition pauses detection. Native history input is not immediately reannotated. Workspace persistence/history, cross-atlas identity, library organization and import remapping remain shared.",
+      "behavior": "Node-linked documents render directly at the atlas node outside the inspector. Type, select, delete, cut, copy and paste normally. Saved English variants on existing canonical Composer objects drive always-on detection during typing, paste, opening existing content and saved lexicon changes. Lexicon opens the library rather than activating matching. Matches receive independent inline glyph references before the retained English; glyphs are embedded objects, not Unicode stand-ins. Automatic occurrences retain a small English link so typing can revise a still-automatic suggestion and lexicon corrections can update it. Deleting English detaches the glyph and preserves it, allowing the document to become only Omnic. Legacy adjacent matches are adopted without duplicate glyphs. Match exact whole words/phrases case-insensitively, preserving punctuation and whitespace; conflicts stay English. Ordinary typing checks a bounded local window and reuses glyph images, while existing-content/lexicon refresh runs separately. Caret markers preserve the insertion point and never enter saved text; composition pauses detection. Native history input is not immediately reannotated. Workspace persistence/history, cross-atlas identity, library organization and import remapping remain shared. Basic Markdown renders directly in the editable document without displaying its markers: bold, italic, strike, inline code, headings, simple lists, quotes and fenced code on paste/reopen. Closing inline markers formats a bounded typed paragraph; heading/list prefixes can format on space. Markdown remains plain source in the existing mixed document, including formatted spans containing glyphs. No separate preview mode or saved HTML.",
       "steps": [
         {
           "do": "Save a Composer glyph. In Omnic library, select it, enter Macro, Constraint, Freedom in English variants and click Save name / tags / words.",
@@ -2858,6 +2858,10 @@
         {
           "do": "Extend a still-automatic matched word into an unmapped longer word, undo, and try a conflicting synonym mapping.",
           "expect": "The automatic suggestion can revise with inserted English; native Undo/Redo is not immediately fought by reannotation. Conflicting mappings remain English."
+        },
+        {
+          "do": "Paste **bold**, *italic*, ~~strike~~, a heading and a simple list into a node Document. Type **word** in a small paragraph, then close/reopen after saving. Copy formatted text to another node Document.",
+          "expect": "Formatting appears directly without visible markers; closing typed inline markers renders the word. Saved/reopened and internally copied contents preserve Markdown source and inline glyph references."
         }
       ],
       "reference": "docs/NODE_DOCUMENTS.md",
@@ -2869,15 +2873,16 @@
         "src/omnic/Library.tsx",
         "src/omnic/workspace.ts",
         "src/SpatialWorkspace.tsx",
-        "src/text/live.ts"
+        "src/text/live.ts",
+        "src/text/markdown.ts"
       ],
       "actions": [],
       "gestures": [],
       "status": "Implemented for review; production deployment and browser acceptance pending",
-      "limits": "No semantic disambiguation, stemming, bulk Obsidian importer, rich formatting or separate glyph-only node store. One open document at a time. Typing uses a bounded local window; initial/full lexicon refresh can process an entire existing document. Existing 200,000 text-character, 4,000 occurrence, 8 MB workspace and 5 MB atlas-import limits remain. Glyph preparation keeps its shared 32,000-primitive budget with explicit fallback images for excessive structures. A native automatic insertion may be a separate undo step; browser caret, IME, clipboard, undo and responsiveness remain user-verified. Saved mappings require Save name / tags / words; unsaved library draft fields do not drive detection. Outside apps receive bracketed names, while internal clipboard/JSON preserve structural references and occurrence links.",
+      "limits": "No semantic disambiguation, stemming, bulk Obsidian importer, full CommonMark/rich-document suite or separate glyph-only node store. One open document at a time. Typing uses a bounded local window; initial/full lexicon refresh can process an entire existing document. Existing 200,000 text-character, 4,000 occurrence, 8 MB workspace and 5 MB atlas-import limits remain. Glyph preparation keeps its shared 32,000-primitive budget with explicit fallback images for excessive structures. A native automatic insertion may be a separate undo step; browser caret, IME, clipboard, undo and responsiveness remain user-verified. Saved mappings require Save name / tags / words; unsaved library draft fields do not drive detection. Outside apps receive bracketed names, while internal clipboard/JSON preserve structural references and occurrence links. Tables, links/images, task widgets and cross-paragraph live fenced-code typing remain unsupported. Typed paragraph formatting is bounded to 4,096 visible characters; larger content renders on paste/reopen. Markdown nesting/work is bounded; pathological syntax stays literal.",
       "verification": {
-        "browser": "Pending user verification of live typing, existing-text refresh, caret/undo and English deletion; no browser suites run",
-        "automated": "Passed node --run test, node --run build:preview (including TypeScript/property contracts), and node --run backend:check. Regressions cover screenshot-word matching, immediate exact detection, prefix/deletion/link policies, bounded windows, metadata validation and import round-trip. Browser acceptance remains pending."
+        "browser": "Markdown editing, caret, native Undo/Redo, IME and formatting appearance remain user-pending; no new browser checks run for this feature.",
+        "automated": "Node-document model tests cover Markdown semantic rendering, literal HTML escaping, formatted mixed glyph spans, source-marker/occurrence-link DOM round trips, literal placeholder characters and bounded malformed inputs. Existing portability/lexicon models and required full test/build/backend checks run before delivery."
       },
       "related": [
         "library.objects"

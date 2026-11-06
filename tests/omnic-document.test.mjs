@@ -138,3 +138,34 @@ test('linked and detached glyph metadata round trips and remaps with independent
  assert.deepEqual(activeDocument(imported).entities.find(e=>e.id==='live-1').text.content,[{glyph:'live-2',word:'freedom'},'freedom ',{glyph:'live-2',word:null}]);
  assert.throws(()=>validateNodeText({version:1,content:[{glyph:'glyph',word:42}]},new Set(['glyph'])),/missing Omnic/);
 });
+
+test('node Markdown renders semantic formatting without exposing markers or interpreting raw HTML',async()=>{
+ const {textHTML}=await import('../src/text/dom.ts');
+ const render=text=>textHTML({version:1,content:[text]},id=>`<span data-node-glyph="${id}"></span>`);
+ assert.match(render('**bold** and *italic* and ~~gone~~ and `**code**`'),/<strong[^>]*>bold<\/strong> and <em[^>]*>italic<\/em> and <del[^>]*>gone<\/del> and <code[^>]*>\*\*code\*\*<\/code>/);
+ assert.match(render('***both***'),/<strong[^>]*><em>both<\/em><\/strong>/);
+ assert.match(render('# Heading\n- item\n> quoted'),/node-md-heading/);assert.match(render('# Heading\n- item\n> quoted'),/node-md-list/);
+ assert.match(render('```js\n**literal**\n```'),/node-md-codeblock[^>]*>\*\*literal\*\*<\/span>/);
+ assert.ok(!render('<script>alert(1)</script>').includes('<script>'));assert.match(render('<script>x</script>'),/&lt;script&gt;/);
+ assert.match(render('not **finished'),/not \*\*finished/);
+ assert.match(render('under_score_word'),/under_score_word/);
+ const mixed=textHTML({version:1,content:['**',{glyph:'g',word:'word'},'word**']},()=>'<span data-node-glyph="g"></span>');assert.match(mixed,/<strong[^>]*><span data-node-word="word" data-node-glyph="g"><\/span>word<\/strong>/);
+});
+
+test('formatted document DOM serializes back to Markdown text and original linked glyph references',async()=>{
+ const {readTextDOM}=await import('../src/text/dom.ts');
+ const priorNode=globalThis.Node,priorElement=globalThis.Element;
+ class El{constructor(tag,attrs={},children=[]){this.tagName=tag;this.attrs=attrs;this.childNodes=children;this.nodeType=1;children.forEach((c,i)=>c.nextSibling=children[i+1]);}hasAttribute(key){return key in this.attrs;}getAttribute(key){return this.attrs[key]??null;}}
+ const text=s=>({nodeType:3,textContent:s});
+ try{
+  globalThis.Node={TEXT_NODE:3};globalThis.Element=El;
+  const root=new El('DIV',{},[new El('STRONG',{'data-node-md-open':'**','data-node-md-close':'**'},[new El('SPAN',{'data-node-glyph':'g','data-node-word':'word'}),text('word')]),text('\n'),new El('SPAN',{'data-node-md-open':'# ','data-node-md-close':''},[text('Heading')]),text('\n'),new El('SPAN',{'data-node-md-open':'```js\n','data-node-md-close':'\n```'},[text('**literal**')])]);
+  assert.deepEqual(readTextDOM(root),{version:1,content:['**',{glyph:'g',word:'word'},'word**\n# Heading\n```js\n**literal**\n```']});
+ }finally{globalThis.Node=priorNode;globalThis.Element=priorElement;}
+});
+
+test('Markdown keeps literal placeholder characters and bounds malformed delimiter work',async()=>{
+ const {markdownHTML}=await import('../src/text/markdown.ts');
+ assert.match(markdownHTML({version:1,content:['**x\ufffc',{glyph:'real'},'y**']},part=>`<span data-node-glyph="${part.glyph}"></span>`),/x\ufffc<span data-node-glyph="real"><\/span>y/);
+ const hostile='*a\\*'.repeat(12000);const html=markdownHTML({version:1,content:[hostile]},()=>{throw Error('unexpected object');});assert.ok(html.length>=hostile.length,'malformed source stays visible rather than disappearing');
+});

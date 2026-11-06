@@ -5,7 +5,7 @@ temporary scaffold: type or paste English, automatically insert the user's mappe
 before matching words, then edit/delete English word by word until Omnic remains.
 This explicitly authorizes lexical mappings; it does not infer equivalence from
 renderings or finalize Omnic grammar. Ordinary type/delete/select/cut/copy/paste
-is the intended scope. No rich document suite or automatic translation engine.
+is the intended scope. Basic Markdown is rendered directly in the editable document; no rich document suite or automatic translation engine.
 
 ## Use
 
@@ -84,7 +84,7 @@ Each document permits 200,000 English/text characters and 4,000 glyph occurrence
 each object permits 256 explicit variants of 200 characters each. Existing atlas
 and workspace byte budgets still apply. Budget failures leave committed state
 unchanged and report unsaved contents; reduce/copy them out before leaving.
-Drag/drop and rich formatting are outside this slice.
+Drag/drop, Markdown tables, links/images, task-list widgets and full CommonMark parsing remain outside this slice.
 
 Local model suite, self-contained preview build (including TypeScript/property
 contracts) and backend type checks passed. Portable regression tests cover
@@ -92,3 +92,28 @@ matching, conflicts, punctuation/whitespace,
 independent English deletion, linked/detached occurrence policies, bounded typing
 windows, validation, round-trip and imported reference remapping. Browser editing/caret/clipboard, newline presentation and smoothness
 await user testing; a build does not establish acceptance.
+
+## Markdown in the editable document
+
+Paste Markdown normally: `**bold**`, `*italic*`, `~~strike~~` and inline backtick
+code render as formatted text without visible delimiters. Headings, simple
+ordered/unordered lists, quotes and fenced code blocks render on paste/reopen.
+Closing inline markers during typing formats a small paragraph (at most 4,096
+visible characters); heading/list prefixes can format after a typed space. The
+editor stays directly editable, with no separate preview pane. Fenced-code typing
+across browser-created paragraph boundaries and full CommonMark syntax are not
+implemented; unsupported syntax remains literal. Formatting larger typed
+paragraphs is deferred until paste/reopen.
+
+Markdown source remains ordinary text in the existing version-1 mixed document.
+Semantic editing wrappers serialize their original markers back to that text;
+no HTML or new rich-text schema is saved. Glyph tokens can occur inside formatted
+spans without losing their canonical IDs or English links. Literal raw HTML is
+escaped, and external clipboard HTML is still ignored. Internal copy preserves
+Markdown source and references; plain clipboard output retains Markdown syntax.
+Live formatting uses the existing native insertion transaction path and a
+temporary caret token, removed before saving. Composition and native history
+input do not trigger reformatting. Renderer nesting/work is bounded, with
+pathological syntax falling back to visible source. Models cover rendering,
+escaping, marker/glyph round trips and malformed inputs. Browser caret/Undo/IME
+acceptance remains user-pending.

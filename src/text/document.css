@@ -8,3 +8,12 @@
 .node-document-content [data-node-glyph] { display:inline-block; vertical-align:middle; user-select:all; line-height:1; }
 .node-document-content img { width:1.6em; height:1.6em; vertical-align:middle; object-fit:contain; }
 .node-document [role=alert] { padding:4px 6px; font-size:12px; color:#ffad93; }
+.node-document-content strong { font-weight:700; }
+.node-document-content em { font-style:italic; }
+.node-document-content del { text-decoration:line-through; }
+.node-document-content code { font-family:ui-monospace,monospace; background:#0003; padding:0 .15em; border-radius:3px; }
+.node-md-heading { font-weight:700; }
+.node-md-h1 { font-size:1.6em; }.node-md-h2 { font-size:1.4em; }.node-md-h3 { font-size:1.2em; }
+.node-md-quote { border-left:2px solid currentColor; padding-left:.6em; opacity:.85; }
+.node-md-list::before { content:attr(data-node-md-bullet) ' '; opacity:.7; }
+.node-md-codeblock { display:block; font-family:ui-monospace,monospace; background:#0003; padding:.4em .6em; white-space:pre-wrap; }

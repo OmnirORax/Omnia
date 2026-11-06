@@ -1,4 +1,4 @@
-import { annotateTextNode, editableTextNodes, textPoint } from "./live";
+import { annotateTextNode, editableTextNodes, textPoint,formatMarkdownAtCaret } from "./live";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
 import type { Entity } from '../graph/structural';
 import { RENDER_BUDGET } from '../renderBudget';
@@ -146,7 +146,7 @@ export function NodeDocument(props: Props) {
       onBeforeInput={()=>{const selection=window.getSelection(),point=selection?textPoint(selection.anchorNode,selection.anchorOffset):undefined;beforeInput.current=point?{...point,prefix:point.node.previousSibling instanceof Element?point.node.previousSibling:null}:undefined;}}
       onCompositionStart={()=>{composing.current=true;}}
       onCompositionEnd={()=>{composing.current=false;detect('insert');changed();}}
-      onInput={event=>{if(annotating.current)return;const type=(event.nativeEvent as InputEvent).inputType??'';if(!type.startsWith('history'))detect(type.startsWith('delete')?'delete':'insert');else for(const marker of editor.current?.querySelectorAll('[data-node-caret]')??[])marker.remove();changed();}}
+      onInput={event=>{if(annotating.current)return;const type=(event.nativeEvent as InputEvent).inputType??'';if(!type.startsWith('history')){detect(type.startsWith('delete')?'delete':'insert');const data=(event.nativeEvent as InputEvent).data;if(!composing.current&&data&&/[*_~` #>]/.test(data)){annotating.current=true;try{if(editor.current)formatMarkdownAtCaret(editor.current,glyphHTML);}finally{annotating.current=false;}}}else for(const marker of editor.current?.querySelectorAll('[data-node-caret]')??[])marker.remove();changed();}}
       onBlur={()=>save()}
       onPaste={event => {
         event.preventDefault();

@@ -1069,3 +1069,9 @@ pointed attachment. Detachment uses the existing UIAction/input-owner path and
 existing region editors/history; it does not invent a fill-specific move tool.
 Newly independent content obeys the active selection mode. Do not confuse Exact
 selection independence with physical Continuity while objects still touch.
+
+Node-document Markdown is an editable source projection, not stored rich HTML.
+Use textHTML/readTextDOM for both rendering and serialization, including clipboard
+and glyph annotations. Live formatting uses bounded paragraphs and existing native
+editing transactions. Keep caret tokens transient, pause during composition and
+skip automatic formatting on native history input. External HTML remains ignored.

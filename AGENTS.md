@@ -660,3 +660,9 @@ not guess provenance from role-prefix strings. Detach snapshots exact current in
 through the existing region generator, retains authored/primitive IDs, validates
 the whole pipeline before commit and uses shared draft/history. Unsupported
 lossy conversions preserve the original. Do not silently detach when moving.
+
+Node document formatting (2026-11-06): basic Markdown renders directly with markers
+hidden, while the existing mixed document stores the original source and canonical
+glyph references. Use textHTML/readTextDOM rather than saving HTML or adding a
+second document store. Preserve bounded live edits, caret/IME/native history and
+shared clipboard/portability. Do not claim full CommonMark or browser acceptance.

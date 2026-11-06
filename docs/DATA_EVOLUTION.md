@@ -206,3 +206,13 @@ retain the previously documented rejection boundary. No new recipe version,
 backend schema or silent load migration. Group splitting has ordinary independent
 object compositing; it is not a destructive union or a promise of pixel-identical
 overlap blending. See Composer's Detach continuous fill walkthrough.
+
+Node-document Markdown (2026-11-06): Markdown styling is a source-preserving
+projection of existing version-1 string/glyph content. No stored tags, new fields,
+format version or silent document rewrite. Existing Markdown strings now render
+semantically; literal HTML still escapes. Editing wrappers restore their original
+Markdown markers during serialization, including around canonical glyph references
+and linked English. Clipboard, workspace/atlas imports and exports keep the same
+owners and shape. Older clients display the retained Markdown as plain syntax.
+Current model fixtures cover source-marker and glyph-reference round trips and
+untrusted/malformed input; browser editing/native undo acceptance remains pending.
