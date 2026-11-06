@@ -1,3 +1,4 @@
+import {cursorSample} from './ui/cursorPosition';
 import { selectionSurfaces } from "./appearance/selectionSurfaces";
 import { NodeDocument } from "./text/NodeDocument";
 import type { NodeText } from "./text/model";
@@ -67,6 +68,7 @@ type Props = {
   saveStatus: string;
   onSaveText: (entityId: string, text: NodeText) => boolean;
   onOpenLibrary: () => void;
+  creationPointRef?: { current: (() => XYZ | undefined) | null };
   variantDisplay: ReturnType<typeof projectVariants>;
   expandedVariants: ReadonlySet<string>;
   optionNodeId: string | null;
@@ -225,13 +227,13 @@ export default function SpatialWorkspace(props: Props) {
         const anchorElement = (element: HTMLElement | undefined | null, id: string, below = false) => {
           if (!element) return;
           const item = textScene.current?.nodes.get(id);
-          if (!item || !item.sprite.visible) { if (element.style.visibility !== "hidden") element.style.visibility = "hidden"; return; }
+          if (!item || !item.slot.visible) { if (element.style.visibility !== "hidden") element.style.visibility = "hidden"; return; }
           const p = item.group.position.clone().project(camera);
           const visibility = p.z > -1 && p.z < 1 ? "visible" : "hidden";
           const left = `${(p.x + 1) * host.clientWidth / 2}px`;
           if (element.style.visibility !== visibility) element.style.visibility = visibility;
           if (element.style.left !== left) element.style.left = left;
-          const labelHeight = screenBounds(item.sprite, camera, host.clientWidth, host.clientHeight).height;
+          const labelHeight = screenBounds(item.slot, camera, host.clientWidth, host.clientHeight).height;
           const top = `${(1 - p.y) * host.clientHeight / 2 + (below ? labelHeight / 2 + 10 : 0)}px`;
           if (element.style.top !== top) element.style.top = top;
         };
@@ -438,19 +440,28 @@ export default function SpatialWorkspace(props: Props) {
       snapshot:()=>{
         const rect=host.getBoundingClientRect();
         const units=[...(textScene.current?.nodes??[])].flatMap(([id,item])=>{
-          const center=item.group.position.clone().project(camera);if(!item.sprite.visible||center.z < -1||center.z > 1)return [];
-          const box=screenBounds(item.sprite,camera,rect.width,rect.height);
+          const center=item.group.position.clone().project(camera);if(!item.slot.visible||center.z < -1||center.z > 1)return [];
+          const box=screenBounds(item.slot,camera,rect.width,rect.height);
           return [{id,box:{left:rect.left+box.x,top:rect.top+box.y,right:rect.left+box.x+box.width,bottom:rect.top+box.y+box.height}}];
         });
         return {units,valid:callbacks.current.document.placements.map(placement=>placement.id),selected:callbacks.current.selectedIds.size?[...callbacks.current.selectedIds]:callbacks.current.selectedId?[callbacks.current.selectedId]:[],hit:p=>hits({clientX:p.x,clientY:p.y})[0]?.object.userData.nodeId as string|undefined};
       },
       apply:ids=>callbacks.current.onSelection([...ids]),
     });
-    const cursorWorld = (event: PointerEvent) => {
+    const cursorWorld = (event: Pick<PointerEvent,"clientX"|"clientY">) => {
       aim(event);
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), controls.target);
       return asXYZ(raycaster.ray.intersectPlane(plane, new THREE.Vector3()) ?? controls.target);
     };
+    // Project only on invocation, using the current camera and the same view
+    // plane as Create node here. Never cache world points during pointer motion.
+    const creationPointRef = props.creationPointRef;
+    const creationPoint = () => {
+      const point = cursorSample();
+      if (!point.target || document.elementFromPoint(point.x, point.y) !== renderer.domElement) return;
+      return cursorWorld({ clientX: point.x, clientY: point.y });
+    };
+    if (creationPointRef) creationPointRef.current = creationPoint;
     let drag: { id: string; group: THREE.Group; plane: THREE.Plane; offset: THREE.Vector3;
       startX: number; startY: number; startWorld: THREE.Vector3; local: XYZ | null; nestTarget: string | null;
       marker: THREE.Mesh; } | null = null;
@@ -550,7 +561,7 @@ export default function SpatialWorkspace(props: Props) {
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), group.position);
       const intersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3()); if (!intersection) return;
-      const label = textScene.current?.nodes.get(id)?.sprite;
+      const label = textScene.current?.nodes.get(id)?.slot;
       const marker = new THREE.Mesh(new THREE.PlaneGeometry(label?.scale.x ?? 2, label?.scale.y ?? 0.5), new THREE.MeshBasicMaterial({ color: 0x6cdbdf, wireframe: true, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }));
       marker.quaternion.copy(camera.quaternion);
       marker.position.copy(group.position); marker.visible = false; scene.add(marker);
@@ -639,8 +650,8 @@ export default function SpatialWorkspace(props: Props) {
         const ids = new Set(start.additive ? callbacks.current.selectedIds : []);
         for (const [id, item] of textScene.current?.nodes ?? []) {
           const center = item.group.position.clone().project(camera);
-          if (!item.sprite.visible || center.z < -1 || center.z > 1) continue;
-          const box = screenBounds(item.sprite, camera, rect.width, rect.height);
+          if (!item.slot.visible || center.z < -1 || center.z > 1) continue;
+          const box = screenBounds(item.slot, camera, rect.width, rect.height);
           if (box.x + box.width >= x1 && box.x <= x2 && box.y + box.height >= y1 && box.y <= y2) ids.add(id);
         }
         callbacks.current.onSelection([...ids]); return;
@@ -697,6 +708,7 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.removeEventListener("wheel", noteWheel, true);
       stopHeldNudges(); nudging.finish(true); nudgeEngine.current = null; props.heldNudges.stop();
       navigation.dispose(); navigationEngine.current = null;
+      if(creationPointRef?.current===creationPoint)creationPointRef.current=null;
       stopSelectionSurface();stopHierarchyHighlight(); hierarchyPulse.dispose();
       pointerOwner.dispose();
       clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
@@ -727,7 +739,7 @@ export default function SpatialWorkspace(props: Props) {
     state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
-  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter,
+  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.nodeCellSize,
     settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay,
     settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
@@ -744,7 +756,7 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter, settings.spatial.nodeCellSize);
     state.camera.updateMatrixWorld();
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);

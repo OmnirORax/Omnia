@@ -137,3 +137,15 @@ test("directed flow uses chosen roles, and cyclic relationships share a level", 
   assert.equal(cyclic.get("part").y, cyclic.get("reference").y);
   assert.throws(() => flowLayout(doc, { ...ordering, fromRoleId: "unknown" }), /roles/);
 });
+
+
+test('hierarchy and directed-flow arrangement use cells independently of node content',()=>{
+ const doc=fixture(),changed=structuredClone(doc);
+ for(const e of changed.entities)e.label='Independent label '.repeat(20);
+ for(const p of changed.placements)p.visual={character:'☼',size:5,showText:true};
+ const coords=d=>d.placements.map(p=>p.spatialPosition),settings={...DEFAULT_SPATIAL_SETTINGS,nodeCellSize:1.5};
+ assert.deepEqual(coords(hierarchyLayout(doc,settings)),coords(hierarchyLayout(changed,settings)));
+ const order={typeId:'legacy-untyped',fromRoleId:'source',toRoleId:'target'};
+ assert.deepEqual(coords(flowLayout(doc,order,settings)),coords(flowLayout(changed,order,settings)));
+ assert.deepEqual(coords(doc),coords(changed));
+});

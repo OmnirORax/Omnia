@@ -248,3 +248,27 @@ including their existing-dictionary shortcut bindings. Default scope/conflict an
 explicit-clear handling come from workspaceActions, with no private aliases.
 Indent/Outdent default to Ctrl+] / Ctrl+[ so the app's Shift configuration rule
 remains intact; Tab retains native focus traversal.
+
+
+### Uniform atlas cells and cursor creation (2026-11-06)
+
+Settings owner: `workspaceActions.normalizeSettings` and existing interface
+state/history/persistence. Additive optional `spatial.nodeCellSize` defaults to 1
+world unit when absent; finite explicit values from 0.1 through 5 survive saves.
+Existing `sphereDiameter`, per-placement `Visual.size`, labels, XYZ coordinates,
+legacy 2D positions, IDs and saved layout-view snapshots retain their meaning.
+The render/layout interpretation now uses a uniform organizational cell instead
+of deriving a node frame/collision envelope from content. Content rendering stays
+independently sized. No load-time movement/repacking or atlas schema conversion
+occurs; only explicit arrange/move actions write changed positions. N/Create node
+here now honor exact explicit view-plane points, including overlaps, via the
+existing validated placement/history owner. No new saved geometry store exists.
+
+Historical settings fixtures verify absence/default, explicit snap/content
+values, custom cell-size roundtrip and invalid-cell-size rejection. Geometry and
+arrangement regressions compare identical coordinates with different labels and
+visual sizes. Old clients ignore the added setting and render with their former
+content-derived frames; saving settings in an older client can lose the new cell
+preference, but not authored node coordinates or content. Rollback requires no
+content conversion. Existing storage/recovery/concurrency limitations still apply;
+no cloud atlas synchronization or stronger settings recovery is added here.

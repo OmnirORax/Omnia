@@ -656,11 +656,15 @@
       "id": "graph.create",
       "title": "Create nodes, children, reuse identities and connect",
       "where": "Create menu, node Inspector and context actions; N / New child / Connect from selected.",
-      "behavior": "N resolves creation from the current focus/selection. Placements can share a canonical identity. Typed relationships, structural composition and visual nesting are distinct.",
+      "behavior": "N creates a node centered at the cursor over the atlas canvas, projected onto the camera-facing plane through the navigation target. Current focus/selection still chooses its parent; child coordinates are converted to parent-local XYZ. Explicit cursor and Create node here positions bypass packing and grid displacement. Invoking creation over UI retains contextual default placement. Shared document history, identity reuse and typed relationships remain unchanged.",
       "steps": [
         {
-          "do": "Select a node and press N, then select its child and press N again.",
-          "expect": "Creation follows the current context rather than a hardcoded parent."
+          "do": "Move the pointer over empty atlas canvas and press N. Select that node, move to another canvas point and press N again, including with a coarse Snap setting.",
+          "expect": "Each node appears centered under the pointer. The second remains a child of the selected node; grid/packing does not move the creation point."
+        },
+        {
+          "do": "Undo creation, redo it, then create through the toolbar while the pointer is over UI.",
+          "expect": "Undo/redo restores the node and exact position; toolbar creation uses its contextual default rather than a stale canvas location."
         },
         {
           "do": "Reuse an identity as another placement; rename the identity.",
@@ -674,7 +678,9 @@
       "reference": "docs/WORKER_ONBOARDING.md",
       "sources": [
         "src/App.tsx",
-        "src/graph/structural.ts"
+        "src/graph/structural.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/graph/layout3d.ts"
       ],
       "actions": [
         "selectAll",
@@ -683,16 +689,67 @@
         "newChild",
         "connect"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Projection uses the current view plane, not an arbitrary depth inferred from an object under the pointer. Exact creation can intentionally overlap existing cells. Native text entry still owns N. Cursor routing and visual placement await user browser acceptance.",
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "automated": "Exact root/child placement tests cover fractional XYZ, coarse snap, intentional overlap and retained parent/world coordinates. Full delivery checks recorded in PR."
       },
       "related": [
         "interface.targets"
       ],
       "gestures": []
+    },
+    {
+      "id": "graph.cells",
+      "title": "Uniform node cells with independent content",
+      "where": "Atlas nodes; Workspace settings → Spatial settings → Node cell size. MC → Spatial → Placement clearance exposes the same setting.",
+      "behavior": "Every atlas placement has one uniform cubic cell, default 1 world unit, with a fixed square frame. Node text, blank spheres, images, glyphs and Omnic visuals keep their independent display sizes and may extend beyond that cell. Cell bounds drive marquee selection, drag markers, node menu anchoring, connection endpoints, collision/packing, expansion defaults and explicit hierarchy/flow/compact arrangements. Content remains directly pickable. Node background/contour appearance and effects belong to the cell; text/symbol appearance remains on content. Changing content or cell size never automatically repositions existing nodes. The shared global cell-size control (0.1–5 world units) persists and participates in interface history; graph movements/arrangements use graph history.",
+      "steps": [
+        {
+          "do": "Place a short-label node, a long-label node and a glyph or Omnic node beside each other. Select each.",
+          "expect": "All have the same cell/frame and selection-ring size, while content retains its original display size. Long content may extend beyond the cell."
+        },
+        {
+          "do": "Change a node label or its visual size in Inspector. Compare its frame, connection endpoints and XYZ before/after.",
+          "expect": "Only the content changes size; the cell, connection endpoints and saved coordinates stay fixed."
+        },
+        {
+          "do": "Open Workspace settings → Spatial settings and change Node cell size, then Undo the setting change and reload after setting it again.",
+          "expect": "All cells change uniformly, content keeps its own dimensions and coordinates stay fixed; Undo and reload use the shared settings owner."
+        },
+        {
+          "do": "Marquee across a cell edge away from its visible content; then click the overflowing content directly.",
+          "expect": "The marquee uses the cell bounds; direct content clicks still select the owning node."
+        },
+        {
+          "do": "Explicitly Compact or arrange Hierarchy/Directed flow, then Undo.",
+          "expect": "Arrangement uses uniform cells and existing binder/operator clearance, independently of node labels or visual sizes. Undo restores original coordinates."
+        }
+      ],
+      "reference": "docs/WORKER_ONBOARDING.md",
+      "sources": [
+        "src/graph/assets.ts",
+        "src/graph/layout3d.ts",
+        "src/graph/presentation.ts",
+        "src/graph/binderGeometry.ts",
+        "src/graph/placement.function.ts",
+        "src/textScene.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/appearance/graphEffects.ts"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Implemented; browser verification pending",
+      "limits": "One cell per node; no per-node spans, automatic fitting/shrinking/cropping, forced grid snapping or automatic reflow. Content overflow can visually overlap other content. Explicit Fit view may consider content. Binder labels/operators and configured minimum radius/clearance may require space beyond a cell. Existing authored positions remain unchanged until explicit movement/arrangement. Browser layout and usability acceptance pending.",
+      "verification": {
+        "browser": "Not run; user acceptance pending",
+        "automated": "Model regressions cover content-independent geometry, packing, collision/binder distances, expansion offsets and hierarchy/flow arrangements; historical settings default, custom size persistence and unchanged content sizing. Type/build/backend checks recorded in delivery."
+      },
+      "related": [
+        "graph.create",
+        "graph.layout"
+      ]
     },
     {
       "id": "graph.layout",

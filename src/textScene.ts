@@ -16,7 +16,7 @@ import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
 import { visualObject, disposeVisual } from "./visualScene";
 import type { Document } from "./graph/structural";
-import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./graph/assets";
+import { DEFAULT_NODE_CELL_SIZE, DEFAULT_SPHERE_DIAMETER, nodeFootprint, visualFootprint } from "./graph/assets";
 import { resolveAppearance } from "./graph/appearance";
 import { defaultSettings, type WorkspaceSettings } from "./workspaceActions";
 
@@ -43,7 +43,7 @@ const symbolStyle=(theme:WorkspaceSettings['appearance'],id:string,authored:stri
 };
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
-export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}) {
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}, contentOnly = false) {
   const lines = labelLines(value),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d")!;
@@ -55,7 +55,7 @@ export function textSprite(value: string, color: string, selected = false, node 
   const ctx = canvas.getContext("2d")!;
   const paint = (border: string, ink: string, glow: number) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
-    if (node) {
+    if (!contentOnly && node) {
       ctx.fillStyle = surface.background ?? (neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb");
       ctx.beginPath();
       ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, 12);
@@ -68,7 +68,7 @@ export function textSprite(value: string, color: string, selected = false, node 
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-    } else {
+    } else if (!contentOnly) {
       ctx.fillStyle = surface.background ?? (neon ? "#04121bd9" : "#101927ee");
       ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=(surface.backgroundGlow??0)*10;
       ctx.globalAlpha = surface.opacity ?? 1;
@@ -137,6 +137,8 @@ type NodeItem = {
   omnicSlot: boolean;
   group: THREE.Group;
   sprite: LabelMesh;
+  cell: LabelMesh;
+  slot: LabelMesh;
   anchor: THREE.Vector3;
   size: { width: number; height: number };
   text: LabelMesh;
@@ -174,6 +176,7 @@ export function buildTextScene(
   selectedIds: ReadonlySet<string> = new Set(),
   theme: WorkspaceSettings["appearance"] = defaultSettings().appearance,
   sphereDiameter = DEFAULT_SPHERE_DIAMETER,
+  cellSize = DEFAULT_NODE_CELL_SIZE,
 ) {
   const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();
@@ -207,8 +210,18 @@ export function buildTextScene(
       glyphFont(theme, 'text.nodes'),
       glyphGlow(theme, 'text.nodes'),
       appearance?.color ?? glyphColor(theme, 'text.nodes', color),
+      {}, true,
     );
     text.material.opacity = style.opacity;
+    const footprintCell = nodeFootprint(cellSize);
+    const cell = textSprite("", color, selected, true, neon);
+    cell.scale.set(footprintCell.width, footprintCell.height, 1);
+    cell.position.z = -0.001;
+    const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+    slot.scale.set(footprintCell.width, footprintCell.height, footprintCell.depth);
+    slot.userData.nodeId = node.id; slot.userData.visualProxy = true;
+    group.add(cell, slot);
     const hasVisual = !!(displayedVisual?.assetId || displayedVisual?.character);
     const footprint = visualFootprint(labelSize(node.label), displayedVisual, sphereDiameter);
     const visual = hasVisual ? visualObject(displayedVisual!, derivedAsset ? [derivedAsset] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity,textureOnly:effectsFor(theme,'symbols.nodes').effect==='electric-text' }, derivedAsset ? RENDER_BUDGET.omnicTextureEdge : 512) : undefined;
@@ -224,6 +237,7 @@ export function buildTextScene(
     outline.visible = selected; outline.userData.selected = selected;
     outline.renderOrder = 20;
     sprite.userData.hoverOutline = outline;
+    slot.userData.hoverOutline = outline;
     group.add(outline);
     sprite.userData.nodeId = node.id;
     sprite.userData.visualProxy = hasVisual;
@@ -242,10 +256,12 @@ export function buildTextScene(
       text.userData.hoverOutline = outline;
       hitIndices.push(nodeHits.length); nodeHits.push(text);
     }
+    // Stable cell picking survives draft content swaps; content remains independently pickable.
+    nodeHits.push(slot);
     nodes.set(node.id, {
       hitIndices, omnicSlot: !!derivedAsset && omnicPreviews <= OMNIC_SCENE_BUDGET,
       group,
-      sprite,
+      sprite, cell, slot,
       anchor: group.position.clone(),
       size: labelSize(node.label),
       text, visual, visualSize: displayedVisual?.size ?? (hasVisual ? 1.4 : sphereDiameter), showText: !!node.label.trim() && displayedVisual?.showText !== false,
@@ -404,7 +420,9 @@ export function buildTextScene(
       item.color = style.color; item.opacity = style.opacity * next.opacity;
       item.group.userData.glowIntensity = style.glow;
       item.text.userData.setTextStyle(style.color, override?.color ?? glyphColor(next, 'text.nodes', style.color), override?.glow ?? glyphGlow(next, 'text.nodes'));
-      item.text.userData.setSurfaceStyle(surfaceStyle(next, 'omnium.nodes.background', override?.color));
+      item.cell.userData.setTextStyle(style.color, style.color, 0);
+      item.cell.userData.setSurfaceStyle(surfaceStyle(next, 'omnium.nodes.background', override?.color));
+      item.cell.material.opacity = item.opacity;
       item.text.material.opacity = item.opacity * Number(next.renderDefaults?.['text.nodes']?.opacity ?? 1);
       const ring=symbolStyle(next,'omnium.selection',override?.color,style.color);
       item.outline.material.color.set(ring.color);item.outline.userData.opacity=ring.opacity;item.outline.userData.glowIntensity=ring.glow;
@@ -453,6 +471,7 @@ export function buildTextScene(
       if (item.selected === next) continue;
       item.selected = next; item.outline.userData.selected = next; item.outline.visible = next;
       item.text.userData.setSelected(next);
+      item.cell.userData.setSelected(next);
     }
     for (const item of connectors) {
       const related = !primary || item.data.source === primary || item.data.target === primary;
@@ -473,6 +492,7 @@ export function buildTextScene(
       item.text.scale.set(item.size.width, item.size.height, 1);
       item.text.position.set(0, 0, 0);
       const front = depth(item.anchor) > camera.near;
+      item.cell.visible = front; item.slot.visible = front;
       item.text.visible = item.showText && front;
       if (item.visual) {
         const textHeight = item.showText ? item.size.height : 0, gap = item.showText ? 0.3 : 0;
@@ -489,8 +509,7 @@ export function buildTextScene(
     }
     const edge = (item: NodeItem, other: THREE.Vector3) => {
       const direction = other.clone().sub(item.group.position);
-      if (item.sphere) return item.group.position.clone().addScaledVector(direction.clone().normalize(), item.visualSize / 2);
-      const half = { x: item.sprite.scale.x / 2, y: item.sprite.scale.y / 2, z: item.depth / 2 };
+      const half = { x: item.slot.scale.x / 2, y: item.slot.scale.y / 2, z: item.slot.scale.z / 2 };
       let fraction = Infinity;
       for (const axis of ["x", "y", "z"] as const)
         if (Math.abs(direction[axis]) > 1e-8) fraction = Math.min(fraction, half[axis] / Math.abs(direction[axis]));
@@ -506,7 +525,7 @@ export function buildTextScene(
       const mid = start.clone().lerp(end, 0.5).addScaledVector(perpendicular, b.spread * 0.65);
       let path: THREE.Curve<THREE.Vector3>;
       if (from === to) {
-        const r = Math.max(from.sprite.scale.x, from.sprite.scale.y, binderGap(b.data));
+        const r = Math.max(from.slot.scale.x, from.slot.scale.y, binderGap(b.data));
         path = new THREE.CatmullRomCurve3([
           start.clone().addScaledVector(right, r / 2),
           start.clone().addScaledVector(right, r).addScaledVector(up, r),
@@ -553,8 +572,7 @@ export function buildTextScene(
     for (const item of nodes.values()) {
       const ring = item.outline;
       if (!ring.visible) continue;
-      const footprint = item.sprite.scale;
-      const radius = Math.max(0.65, Math.hypot(footprint.x, footprint.y) / 2 + 0.12);
+      const radius = cellSize * Math.SQRT2 / 2 / 1.125;
       // Screen-facing interaction overlay; the represented structure keeps its world orientation.
       ring.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
       ring.scale.setScalar(radius * (item.selected ? 1 + pulse * 0.1 : 1));

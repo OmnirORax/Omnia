@@ -787,3 +787,26 @@ occurrence releases its visibility gate without deleting the canonical variant.
 `detachPlacement` and `detachNodeConnection` in graph/layout3d.ts own these distinct
 operations. Neither deletes the entity or recreates its subtree. Menu/native
 interaction acceptance remains pending; model/build checks are separate evidence.
+
+
+## Atlas cell/content separation (2026-11-06)
+
+Every atlas placement owns one uniform cell, default 1 world unit. Shared
+`nodeFootprint` is organizational geometry; `visualFootprint` measures content
+only (rendering and explicit view framing). Text, sphere diameter and visual size
+remain independent and may overflow the cell. Never fit, shrink or crop content
+to make it occupy a cell. Cell bounds own layout/packing, selection rectangles,
+connection endpoints, menu anchoring and selection rings. Background/contour
+appearance and effects render on the fixed cell; content keeps its existing
+text/symbol/body appearance. Direct content picking remains an alias of its node.
+Changing content or global cell size does not reflow authored coordinates.
+Explicit arrangement/movement retains its existing shared graph history.
+
+`spatial.nodeCellSize` uses existing settings normalization/history and the
+`spatial.placement` function input adapter. Absence defaults to 1; cell size is
+not per-node and is independent of snap spacing and content `Visual.size`.
+N uses shared cursor tracking, projected lazily through the live atlas camera
+onto its view plane. Selected/focused context still determines the parent; exact
+creation bypasses packing. Over UI, the existing contextual default applies.
+See [cell walkthrough](CAPABILITIES.md#graph-cells) and
+[creation walkthrough](CAPABILITIES.md#graph-create). Browser acceptance pending.

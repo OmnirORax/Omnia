@@ -210,5 +210,7 @@ test('all workspace commit paths reject oversized UTF-8 data while preserving th
  for(const [id,binding] of Object.entries(restoredUI.settings.bindings))if(!Object.hasOwn(source.ui.settings.bindings,id)){
   assert.ok(Object.hasOwn(defaults,id),`unknown synthesized binding: ${id}`);assert.equal(binding,defaults[id]);delete restoredUI.settings.bindings[id];
  }
+ // Historical settings acquire only the new global organizational cell default.
+ assert.equal(restoredUI.settings.spatial.nodeCellSize,1);delete restoredUI.settings.spatial.nodeCellSize;
  assert.deepEqual(restored.workspace,source.workspace);assert.deepEqual(restoredUI,source.ui);assert.equal(restored.ui.settings.bindings['selector.open'],'');assert.equal(restored.ui.layout.assets[0].id,'fixture-icon');
  });

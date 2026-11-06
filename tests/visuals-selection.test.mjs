@@ -459,3 +459,15 @@ test('borrowed content requests yield to controls without accepting or canceling
  live=root;if(selectionRequestOwnsInput(scope,ink,[ink,root]))request.accept(ink);
  request.cancel();assert.deepEqual([accepted,canceled,restored],[1,0,1]);
 });
+
+
+test('node cell settings default for historical saves and remain independent of content diameter',async()=>{
+ const {normalizeSettings}=await import('../src/workspaceActions.ts');
+ const old={spatial:{spacing:0,sphereDiameter:.45,clearance:.2,radius:.1}};
+ const loaded=normalizeSettings(old);
+ assert.equal(loaded.spatial.nodeCellSize,1);assert.equal(loaded.spatial.sphereDiameter,.45);assert.equal(loaded.spatial.spacing,0);
+ const custom=normalizeSettings({...old,spatial:{...old.spatial,nodeCellSize:2.5}});
+ assert.equal(custom.spatial.nodeCellSize,2.5);assert.equal(custom.spatial.sphereDiameter,.45);
+ assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(custom))).spatial,custom.spatial);
+ for(const value of [0,-1,Infinity,'2',6])assert.equal(normalizeSettings({spatial:{nodeCellSize:value}}).spatial.nodeCellSize,1);
+});

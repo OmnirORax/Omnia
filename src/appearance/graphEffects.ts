@@ -34,8 +34,11 @@ export function* graphEffectItems(source: TextScene): Generator<GraphEffectItem>
     if (node.text.visible) {
       const text = { ...base, object: node.text, opacity: node.text.material.opacity };
       yield { ...text, target: "text.nodes", kind: "glyph" };
-      yield { ...text, target: "omnium.nodes.background", kind: "surface" };
-      yield { ...text, target: "omnium.nodes.contour", kind: "contour" };
+    }
+    if (node.cell.visible) {
+      const cell = { ...base, object: node.cell, opacity: node.cell.material.opacity };
+      yield { ...cell, target: "omnium.nodes.background", kind: "surface" };
+      yield { ...cell, target: "omnium.nodes.contour", kind: "contour" };
     }
     if (node.outline.visible)
       yield {
