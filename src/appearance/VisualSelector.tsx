@@ -568,7 +568,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
       if(!eventPathMatches(event,`${selectorChrome},${APPEARANCE_EDITOR}`))resumeBaseline(event.target,{x:event.clientX,y:event.clientY});
       // A normal registered-surface session never owns another window's press.
       // Reference requests retain their existing scoped rejection workflow.
-      if(latest.current.phase!=='off'&&!requestedPick.current&&selectionSurfaces.sessionScoped()&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())&&!eventPathMatches(event,'[data-visual-selector]')&&!nativeGesture.current&&!gesture.current&&!polygon.current){
+      if(latest.current.phase!=='off'&&!requestedPick.current&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())&&!eventPathMatches(event,'[data-visual-selector]')&&!nativeGesture.current&&!gesture.current&&!polygon.current){
         consumedPointer=null;actions.current.close();return;
       }
       // The registered surface owns modifier selection even before MS opens.

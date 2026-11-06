@@ -1,3 +1,4 @@
+import {CONTROL_INPUT_OWNER} from './inputOwnership.ts';
 import { useLayoutEffect, type RefObject } from 'react';
 import { inCursorArea, type CursorArea } from './toolCursorModel';
 export type CursorPoint={x:number;y:number;target:EventTarget|null};
@@ -15,6 +16,7 @@ export function pointerToolZone(point:CursorPoint){
   const blocked=!target||!!target.closest('[data-context-controller],[data-visual-selector]');
   for(let node:Element|null=target;node;node=node.parentElement){
     const zone=zones.get(node);if(zone&&(!blocked||zone.allowPopup)&&!target?.closest('[data-visual-selector]')&&(!zone.contains||zone.contains(point)))return {blocked:false,zone:zone.key};
+    if(node.matches(CONTROL_INPUT_OWNER))return {blocked:true,zone:undefined};
   }
   return {blocked,zone:undefined};
 }

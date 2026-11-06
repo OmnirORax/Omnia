@@ -1108,3 +1108,8 @@ than an opaque panel. Dark edges on axes and readouts preserve contrast over the
 visible underlying construction; top-layer ordering and selector contrast remain.
 This is a transient CSS default only, with no saved-data change. User visual retest
 is pending.
+
+
+### Control ownership and direct Color entry
+
+Baseline selection owns registered editable content. The nearest nested control owns its own input, using native/accessibility semantics or shared UI metadata rather than per-widget exceptions. The renderer and cursor resolver reuse the same inputOwnership contract. A released session cannot silently become global; standalone UI selection requires explicit entry. Choosing Color opens the shared native picker with the current target color after ancestor popovers and native event listeners are ready. Ordinary preview/change/blur/cancel owners remain unchanged. Restricted programmatic picker entry retains the current-color swatch. Native visual acceptance remains pending.

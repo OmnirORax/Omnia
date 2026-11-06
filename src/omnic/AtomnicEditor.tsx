@@ -1,3 +1,4 @@
+import {surfaceOwnsInput} from '../ui/inputOwnership';
 import { useSelectionSurface } from "../appearance/useSelectionSurface";
 import { selectedEditorDegrees } from "./targetDegrees";
 import { commandDegree, repeatedDegree } from "./degreeCommands";
@@ -375,7 +376,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   // root capture phase. Receive pickup on the stable native surface: the original
   // event path still reaches it even when its pressed primitive was replaced.
   const surfaceDown=useRef<(event:PointerEvent,node:HTMLDivElement)=>void>(()=>{});
-  surfaceDown.current=(event,node)=>{event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);node.setPointerCapture(event.pointerId);api.down(local({currentTarget:node,clientX:event.clientX,clientY:event.clientY}),event);};
+  surfaceDown.current=(event,node)=>{if(!surfaceOwnsInput(node,event.target,event.composedPath()))return;event.preventDefault();event.stopPropagation();claimUIPress(event.pointerId,event.pointerType,event.buttons);node.setPointerCapture(event.pointerId);api.down(local({currentTarget:node,clientX:event.clientX,clientY:event.clientY}),event);};
   useEffect(()=>{const node=localSurface.current;if(!node)return;const down=(event:PointerEvent)=>surfaceDown.current(event,node);node.addEventListener('pointerdown',down);return()=>node.removeEventListener('pointerdown',down);},[]);
   const radialActions=FEATURE_ACTIONS.filter(action=>action.owner==='atomnicComposer'&&'radial' in action&&!('adjusts' in action)&&(isAtomnic||['atomnic.configure','atomnic.constraints'].includes(action.id)));
   const radialControl=(action:typeof radialActions[number])=>{
@@ -388,7 +389,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       <FunctionControl id={`atomnic:context:${id.slice(8)}`} mirror symbol={symbol} tooltip={`${operationLabel(id)}${hasInputs?' · Left-click uses retained settings; right-click configures':''}`} /></>;
   };
   const radialEntries:RadialEntry<ReactNode>[]=radialActions.filter(action=>action.id!=='atomnic.draw'&&!('radial' in action&&'inset' in action.radial)).map(action=>({id:action.id,label:operationLabel(action.id),symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:radialControl(action)}));
-  const surface=<div ref={attachSurface} tabIndex={-1} className="omnic-preview atomnic-surface" data-atomnic-surface data-selection-lens data-selection-scope={cursorZone} data-ui-gesture-owner="content" data-context-menu-owner onContextMenu={e=>{e.preventDefault();e.stopPropagation();api.context(e.nativeEvent);}} dangerouslySetInnerHTML={surfaceMarkup}
+  const surface=<div ref={attachSurface} tabIndex={-1} className="omnic-preview atomnic-surface" data-atomnic-surface data-selection-lens data-selection-scope={cursorZone} data-ui-gesture-owner="content" data-context-menu-owner onContextMenu={e=>{if(!surfaceOwnsInput(e.currentTarget,e.target,e.nativeEvent.composedPath()))return;e.preventDefault();e.stopPropagation();api.context(e.nativeEvent);}} dangerouslySetInnerHTML={surfaceMarkup}
       onPointerMove={event=>api.move(local(event),event.nativeEvent)} onPointerLeave={()=>{updateRotationHover(false);updateMoveHover(false);}} onPointerUp={event=>{api.up(local(event),event.nativeEvent);if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);}} onPointerCancel={()=>api.cancel()} onLostPointerCapture={()=>{if(gesture.current)api.cancel();}} />;
   const quickActions=radialActions.filter(action=>'radial' in action&&'inset' in action.radial);
   const rim=<RadialMenu heldOpen={!!extraPanel} quickItems={radar?[...quickActions.filter(action=>action.id!=='atomnic.erase').map(action=>radialControl(action)),...(modeControl?[modeControl]:[])]:undefined} quickEnd={radar?quickActions.filter(action=>action.id==='atomnic.erase').map(action=>radialControl(action)):undefined} items={radialTree([...radialEntries,...documentEntries])} navigationRef={radialNavigation} onNavigationChange={setRadialContext} onClose={()=>setMenu(null)}

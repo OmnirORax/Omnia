@@ -185,3 +185,8 @@ instead of assigning every owner the same coordinate. Existing scalar equal-valu
 setters and stored coordinates retain their meanings. Older clients still read the
 same recipes, but retain their old interaction behavior. No hosted schema change;
 portable validation/backend checks remain required for changed shared modules.
+
+
+### Input ownership and immediate Color entry (2026-11-06)
+
+Selection session scope and auto-open Color requests are transient. No stored recipe, UI setting, identity, binding ID or color value format changes. Ending a registered session now means inactive rather than implicit global targeting; explicit standalone entry retains global UI selection. Existing ColorInput preview/commit/cancel behavior remains the persistence boundary, and opening the picker alone commits no color. No migration or backend schema change is required; existing browser activation restrictions and saved-value validation remain.

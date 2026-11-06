@@ -626,3 +626,11 @@ shared tool cursor; later content must not cover them. Keep layer ordering off
 the pointer-motion path. Priority alone cannot make same-color transparent
 controls legible: coordinate previews need contrast backing and the selector a
 contrast edge. Preserve cursor applicability, focus and existing gesture owners.
+
+
+Baseline input ownership (2026-11-06): use inputOwnership's nearest-owner rule,
+not per-widget exceptions. MS owns registered content; native/accessibility and
+shared UI control declarations own their entire input tail. Releasing a canvas
+session means inactive, never implicit global UI selection. Standalone global MS
+requires explicit entry. Explicit Color DOF entry uses the shared picker seeded
+with the current value, after popup layout and native listener registration.

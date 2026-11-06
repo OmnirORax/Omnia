@@ -61,8 +61,10 @@ function PropertyInput({
   limits,
   configuration,
   numericPresentation,
+  autoOpen=false,
 }: {
   property: string;
+  autoOpen?:boolean;
   configuration?:'step';
   numericPresentation?:'inline';
   value: Value;
@@ -116,6 +118,7 @@ function PropertyInput({
   if (p.kind === "color")
     return (
       <ColorInput
+        autoOpen={autoOpen}
         aria-label={label ?? p.label}
         value={String(value)}
         disabled={disabled}

@@ -2625,7 +2625,7 @@
       "id": "omnic.ms-selection",
       "title": "Shared MS selection inside Omnic Composer",
       "where": "Composer canvas (Atomnic on or off): hover for baseline MS; Q toggles settings; left-click a target or right-click for its DOF choices.",
-      "behavior": "Composer now has baseline MS without Q. Q toggles selector settings and returns to aiming. A plain target pick opens the retained compatible DOF, defaulting to Position against Composer bounds. Inside the active value preview clicks confirm and keep editing; outside canvas clicks choose a compatible reference without replacing the target. Esc cancels uncommitted DOF input and clears the target; committed edits remain. Right-click selects the pointed mode-defined set and opens DOF choices. Ctrl/Shift membership gestures remain selection-only. Explicit Draw/Erase and borrowed pickers own their gestures. Other app surfaces retain their previous selector lifecycle. Value previews open centered on the selection point, and choosing a new reference moves the preview to that pick point. A direct hit on registered filled ink takes priority over boundary-lens reach, so large attached fills can be picked through their painted interiors. Shared native top-layer ordering keeps active contextual previews above content and the tool cursor above previews, including after later content popovers open. Coordinate previews have a light translucent backing and the selector has a contrasting edge, preserving readability over matching cyan ink.",
+      "behavior": "Composer now has baseline MS without Q. Q toggles selector settings and returns to aiming. A plain target pick opens the retained compatible DOF, defaulting to Position against Composer bounds. Inside the active value preview clicks confirm and keep editing; outside canvas clicks choose a compatible reference without replacing the target. Esc cancels uncommitted DOF input and clears the target; committed edits remain. Right-click selects the pointed mode-defined set and opens DOF choices. Ctrl/Shift membership gestures remain selection-only. Explicit Draw/Erase and borrowed pickers own their gestures. Other app surfaces retain their previous selector lifecycle. Value previews open centered on the selection point, and choosing a new reference moves the preview to that pick point. A direct hit on registered filled ink takes priority over boundary-lens reach, so large attached fills can be picked through their painted interiors. Shared native top-layer ordering keeps active contextual previews above content and the tool cursor above previews, including after later content popovers open. Coordinate previews have a light translucent backing and the selector has a contrasting edge, preserving readability over matching cyan ink. Input follows the nearest declared owner: native/accessibility controls and shared UI controls keep their whole press/click tail, while MS owns registered content. Ending a content session releases input; it never becomes implicit global UI selection. Explicit standalone UI selection remains available. Opening Color immediately requests the shared native picker with the current color, retaining normal preview/change/cancel handling.",
       "steps": [
         {
           "do": "Enter Composer and hover its geometry without pressing Q. Left-click a target.",
@@ -2666,6 +2666,14 @@
         {
           "do": "Open a coordinate preview over a large opaque fill of the same accent color; move the selector over both. Open or raise another content popover while the preview remains active.",
           "expect": "The grid stays legible on its translucent backing, contextual previews stay above content, and the outlined selector stays above previews. Adjacent ordinary controls keep their existing pointer behavior."
+        },
+        {
+          "do": "Keep baseline MS active, then click toolbar controls, fields, or a nested custom control declared through the shared UI metadata. Repeat after leaving a canvas session.",
+          "expect": "The first press reaches that control; MS does not capture it or replace geometry membership. New controls inherit the same ownership policy."
+        },
+        {
+          "do": "Right-click a target and choose its Color DOF.",
+          "expect": "The shared color picker opens immediately with that target’s current color. Choose a new color; it previews/commits through the existing owner. Cancel preserves the existing color."
         }
       ],
       "reference": "docs/OMNIC_COMPOSER.md",
@@ -2682,15 +2690,17 @@
         "src/appearance/SelectorCursor.tsx",
         "src/ui/topLayerOrder.ts",
         "src/ui/toolCursor.tsx",
-        "src/ui/ContextualMasterController.tsx"
+        "src/ui/ContextualMasterController.tsx",
+        "src/ui/inputOwnership.ts",
+        "src/ui/ColorInput.tsx"
       ],
       "actions": [],
       "gestures": [],
       "limits": "Composer only. Other app surfaces retain opt-in selection. Numeric references retain their declared adapter restrictions (including transformed/moving sources); categorical controls retain identity-only references. Multiple selected placement owners translate together. The default reference and active DOF are transient; rules and committed recipe values retain their existing persistence owners.",
       "status": "Implemented for review; user interaction acceptance pending; production unchanged",
       "verification": {
-        "automated": "2026-11-06: all 27 model/architecture test files pass; preview/type/property/capability build and portable backend checks pass. Models cover scoped baseline policy, Q toggling versus ordinary/borrowed lifecycles, declared Position references and Composer bounds, preserved multi-target offsets, and existing selection/history contracts. A focused Node React DOM lifecycle fixture reproduces the original child/ancestor-ref failure and exercises the actual corrected hook/resolver through popup activation, adjacent-control fallback, disabled scope, host replacement and teardown. Required local checks rerun before delivery. Priority-order models cover child-before-parent mounting, later content promotion, already-correct order, close and teardown; required local checks rerun before delivery.",
-        "browser": "User reported grid/selector obscuration over matching fill. Shared popover ordering and contrast correction implemented; visual user retest pending. No browser suite run."
+        "automated": "2026-11-06: all 27 model/architecture test files pass; preview/type/property/capability build and portable backend checks pass. Models cover scoped baseline policy, Q toggling versus ordinary/borrowed lifecycles, declared Position references and Composer bounds, preserved multi-target offsets, and existing selection/history contracts. A focused Node React DOM lifecycle fixture reproduces the original child/ancestor-ref failure and exercises the actual corrected hook/resolver through popup activation, adjacent-control fallback, disabled scope, host replacement and teardown. Required local checks rerun before delivery. Priority-order models cover child-before-parent mounting, later content promotion, already-correct order, close and teardown; required local checks rerun before delivery. Models cover nested control ownership, released-session versus explicit-global targeting, and existing native modifier paths. The real React color input fixture checks current-value auto-open after ancestor popup layout, single native change/blur commit and no reopening on rerender.",
+        "browser": "User reported baseline MS blocking controls and requested immediate Color entry. Ownership and native-picker lifecycle corrections implemented; visual/native-picker user retest pending. No browser suite run. Browser activation restrictions can leave the current-color swatch available on non-user/programmatic entry."
       },
       "related": [
         "omnic.atomnic",

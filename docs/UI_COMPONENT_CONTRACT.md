@@ -1042,3 +1042,8 @@ registers. The focused tests/helpers/selector-cursor-lifecycle.cjs fixture uses
 React DOM and the actual hook/zone/resolver to cover this order and teardown.
 Native cursor hiding belongs solely to applicable shared ToolCursorLayer state;
 MS aiming must not independently hide the native pointer across the page.
+
+
+### Registered content yields to controls
+
+inputOwnership supplies the shared control-owner declaration and physical-path surface check. Native semantics, accessible focusable controls and data-ui-control/data-ui-function/gesture-owner declarations inherit routing without per-feature allowlists. The nearest owner before a registered content root keeps the entire press and click tail. Selection surfaces, native Composer capture and shared cursor-zone lookup apply this contract. Closed sessions are inactive, not global. ColorInput autoOpen is opt-in for an explicitly opened property editor: it uses the current owner color in a passive effect after popup layout and after native commit listeners attach; rerenders cannot reopen it.
