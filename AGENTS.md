@@ -1,4 +1,4 @@
-Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Clicks inside the active value projection confirm and retain editing; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
+Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Confirming a single value by click or Enter commits it and closes its preview, returning to baseline selection; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
 
 # User operating rules (required)
 
@@ -647,3 +647,9 @@ apply the nearest-input-owner rule during pending reference picking too. Yield
 outside input without canceling or reparenting the editor. A missing scoped root
 is inactive, never an implicit global MS session. Verify controls before accepting
 a referent as well as coordinate confirmation after acceptance.
+
+Confirmation acceptance (2026-11-06): for single-value Composer projections,
+verify both the write and completion. Click/Enter must close the preview so later
+pointer motion cannot keep sampling. "Click then Esc retains, Esc alone cancels"
+can mean the write succeeded but the editor failed to finish; inspect completion
+before patching input capture. Preserve explicitly accumulating controls.

@@ -1,4 +1,4 @@
-Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Clicks inside the active value projection confirm and retain editing; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
+Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Confirming a single value by click or Enter commits it and closes its preview, returning to baseline selection; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
 
 # Omnic selection and editing lifecycle
 
@@ -169,3 +169,18 @@ same first click now opens the library without selector interception. A separate
 completed-reference path confirms a real coordinate click commits X=65.5 and
 survives pointer leave, with no page errors. Earlier fresh/completed-path checks
 missed the pending state; these observations are not full browser acceptance.
+
+Confirmation completion correction (2026-11-06): the user clarified that click
+followed by Esc retained a value while Esc alone canceled it. The write was
+succeeding, but a no-op degree onConfirm left the hover preview active, making
+confirmation appear ineffective. Single-value confirmation now commits and closes
+the degree preview immediately. Nested reference-choice completion forwards to
+the degree owner. Accepted membership/compatible DOF remain; Esc alone cancels.
+Earlier focused checks observed commit survival but missed this finish condition.
+
+The approved bounded built-preview trace reproduced that distinction for both
+click and Enter: committed X=40, grid still open, next hover X=-40, Esc restored
+X=40. After correction, each confirmation closes the grid and later motion stays
+at X=40. A nested reference-choice click likewise closes the full value preview
+and retains X=18. Esc alone restores an uncommitted X=40 preview to X=0. All four
+after-paths reported no page errors; broader user acceptance remains pending.

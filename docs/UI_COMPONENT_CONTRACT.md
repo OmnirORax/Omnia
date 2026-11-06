@@ -1053,3 +1053,12 @@ They inherit inputOwnership for pointer, hover, wheel and context routing rather
 than bypassing normal routing while a request exists. Yielding to another control
 must not cancel/reparent the editor just to let its click through. Resolve a
 missing source as inactive, never global. Explicit standalone UI MS is separate.
+
+Single-value completion (2026-11-06): a successful coordinate click or Enter must
+finish the Composer degree editor, not just write a commit while leaving its hover
+projection live. The owner closes its popup via ContextValueCompletion after the
+value accepts; it retains accepted membership and the compatible DOF. Nested
+reference value-choice popups forward completion to that owner. Reference step
+configuration remains a separate stage. Accumulating controls keep their declared
+selection policy. Esc without confirmation still cancels the provisional value.
+This is transient lifecycle state and does not change saved formats/settings.

@@ -5,7 +5,7 @@ import {DofAxisWheel} from './DofAxisWheel';
 import {DofRuleExpression,dofModePresentation,dofModes as modes,type DofSettingsKind,type DofInformationState} from './DofInformation';
 import type {ReactNode} from 'react';
 import type {RadialNode} from './radialMenuModel';
-import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
+import {useContext,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {maximumSelectionStates,type StateSelectionMode} from '../properties/stateSelection';
 import {createStateField,fieldLimits,type StateFieldDomain} from '../properties/stateField';
 import {mathematicalValueSession} from '../properties/mathematicalDial';
@@ -15,14 +15,14 @@ import {cursorPosition} from './cursorPosition';
 import {ContextualMasterController} from './ContextualMasterController';
 import {MathematicalDial} from './MathematicalDial';
 import {RadialMenu} from './RadialMenu';
-import {useContextNavigation} from './ContextStage';
+import {useContextNavigation,ContextValueCompletion} from './ContextStage';
 import './dofStateField.css';
 
 type Settings={kind:Exclude<DofSettingsKind,'reference'|'rule'>;point:{x:number;y:number}};
 /** Projection-independent interaction. Domains/rules/constraints prepare a field;
  * pointer picking never discovers scene objects or implements property arithmetic. */
 export function DofStateField({property,label,symbol='⠒❉',domain,value,disabled=false,configure=false,workingKeys,components,execution='value',executionField,onPreview,onCommit,onDismiss}:{property:string;label:string;symbol?:string;domain:StateFieldDomain;value:number;disabled?:boolean;configure?:boolean|DofSettingsKind;workingKeys?:readonly string[];components?:RadialNode<ReactNode>[];execution?:'value'|'scene';executionField?:ReactNode|((field:import('../properties/stateField').StateField,configuration:import('../properties/stateField').StateFieldConfiguration)=>ReactNode);onDismiss?:()=>void;onPreview:(value:number)=>void;onCommit:(value:number)=>void}){
- const root=useRef<HTMLDivElement>(null),scope=useNumericEditor(),operation=useNumericOperation();
+ const root=useRef<HTMLDivElement>(null),scope=useNumericEditor(),operation=useNumericOperation(),completeValue=useContext(ContextValueCompletion);
  const targetsKey=operation?.targets?.join('|')??'';
  useLayoutEffect(()=>scope.activateDegree?.(operation?.targets??[],property),[scope.activateDegree,targetsKey,property]);
  const span=domain.max-domain.min;
@@ -79,7 +79,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const projectedExecution=typeof executionField==='function'?executionField(field,{mode:working.mode,count,step,reference:referenceValue,min:low,max:high}):executionField;
  const valueField=choice?<div className="dof-choice-field"><button type="button" title="Configure fractions with the math dial" aria-label="Configure fractions" onClick={()=>show('count')} onContextMenu={event=>{event.preventDefault();event.stopPropagation();show('rule');}}>{countLabel}</button>{choiceIntent==='value'&&projectedExecution?projectedExecution:choiceField.domain.cyclic?<DofAxisWheel field={choiceField} value={choiceSample??value} label={label} symbol={symbol} disabled={disabled} onPreview={choosePreview} onCommit={chooseApply} onCancel={choiceRestore} onConfigure={()=>show('options')}/>:<DofLinearField field={choiceField} value={choiceSample??(choiceIntent==='step'?reference?.step??step:value)} label={label} onPreview={choosePreview} onCommit={chooseApply} onCancel={choiceRestore}/>}</div>:null;
  return <div ref={root} className="dof-state-editor" aria-disabled={disabled} data-ui-popup-interior>
-  {!settings&&!picking&&choice&&<ContextualMasterController radial anchored dismissOutside title={label} position={choice.point} onClose={()=>{choiceRestore();setChoice(null);}} onDismiss={()=>{choiceRestore();setChoice(null);onDismiss?.();}}>{valueField}</ContextualMasterController>}
+  {!settings&&!picking&&choice&&<ContextualMasterController radial anchored dismissOutside title={label} position={choice.point} onConfirm={choiceIntent==='value'&&completeValue?()=>{completeValue();}:undefined} onClose={()=>{choiceRestore();setChoice(null);}} onDismiss={()=>{choiceRestore();setChoice(null);onDismiss?.();}}>{valueField}</ContextualMasterController>}
   {!choice&&!settings&&!picking&&projectedExecution&&referenceUse!=='match'&&projectedExecution}
   {!choice&&!settings&&!picking&&(execution==='value'||referenceUse==='match')&&(domain.cyclic?<DofAxisWheel field={field} value={sample??value} label={label} symbol={symbol} disabled={disabled||!!operation?.selection?.unavailable} onPreview={preview} onCommit={apply} onCancel={restore} onConfigure={()=>show('options')}/>:<div className="dof-value-slider">
    <span className="dof-state-grip" data-dial-drag role="button" tabIndex={0} title="Move controls">{symbol}</span>
