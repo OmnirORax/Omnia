@@ -3807,7 +3807,7 @@
       "id": "world.navigator",
       "title": "World navigator, compass, positioning and click-to-drive nodes",
       "where": "Omnium world canvas → move mouse → left-click a node to drive it → mouse and Up/Down → click an empty slot to park; Esc cancels. Ctrl/Meta-click a node to position the navigator without mounting.",
-      "behavior": "A transient cyan navigator ring with centre/diameter and single end-to-end cyan orientation line resolves mouse XY on its own oriented local plane. Its movement frame matches camera orientation, initializing at the camera target. Mouse controls camera-facing local XY; positive Z is toward the camera and negative Z away. The outer ring faces the camera; a single cyan diameter projects world X through the inverse camera rotation. It remains full-length, retaining the last direction when exactly end-on; no XYZ triad is shown. Independent orientation controls are deferred. Up moves forward/away (negative Z); Down moves backward/toward (positive Z). Both step local Z by one lattice pitch using the existing bounded held scheduler. Left-click selects and mounts a node, keeping the camera fixed and rebasing the grab offset. Mouse/depth preview the branch; click empty space parks/unmounts through one normal document transaction. Clicking another node parks the old one at its last valid preview and switches control. The driven root does not mask parking targets; descendants and other nodes retain normal detection. Ordinary projected node detection remains; no depth-only selection rule is added. Invalid destinations keep last valid geometry and mark the navigator red; invalid empty parking rejects. Esc/capture/document-context replacement cancels. Creation uses navigator position with existing nearest-free placement. The line, ring and centre inherit the existing Omnium selection/focus appearance. Its camera-local grab offset is retained during positioning and rotates with the camera; selected-node appearance/orientation is not rewritten. Creation controls can use its last world position while the pointer is over UI; plain creation, existing-object insertion, Omnic drafts/copies and library placement share parent-local lattice conversion. Before first world interaction they retain contextual defaults. Ctrl/Meta-click positions the navigator at a node without mounting or moving it, selecting the node as context. Any unparked drive is canceled without saving. Its pointer offset is rebased without moving the camera. Ctrl-drag retains marquee; Shift-click retains range; other surfaces keep their membership behavior. This uses the shared surface modifier-click owner and captured press target. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera.",
+      "behavior": "A transient cyan navigator ring with centre/diameter and single end-to-end cyan orientation line resolves mouse XY on its own oriented local plane. Its movement frame matches camera orientation, initializing at the camera target. Mouse controls camera-facing local XY; positive Z is toward the camera and negative Z away. The outer ring faces the camera; a single cyan diameter projects world X through the inverse camera rotation. It remains full-length, retaining the last direction when exactly end-on; no XYZ triad is shown. Independent orientation controls are deferred. Up moves forward/away (negative Z); Down moves backward/toward (positive Z). Both step local Z by one lattice pitch using the existing bounded held scheduler. Left-click selects and mounts a node, keeping the camera fixed and rebasing the grab offset. Mouse/depth preview the branch; click empty space parks/unmounts through one normal document transaction. Clicking another node parks the old one at its last valid preview and switches control. The driven root does not mask parking targets; descendants and other nodes retain normal detection. Ordinary projected node detection remains; no depth-only selection rule is added. Invalid destinations keep last valid geometry and mark the navigator red; invalid empty parking rejects. Esc/capture/document-context replacement cancels. Creation uses navigator position with existing nearest-free placement. The line, ring and centre inherit the existing Omnium selection/focus appearance. Its camera-local grab offset is retained during positioning and rotates with the camera; selected-node appearance/orientation is not rewritten. Creation controls can use its last world position while the pointer is over UI; plain creation, existing-object insertion, Omnic drafts/copies and library placement share parent-local lattice conversion. Before first world interaction they retain contextual defaults. Ctrl/Meta-click positions the navigator at a node without mounting or moving it, selecting the node as context. Any unparked drive is canceled without saving. Its pointer offset is rebased without moving the camera. Ctrl-drag retains marquee; Shift-click retains range; other surfaces keep their membership behavior. This uses the shared surface modifier-click owner and captured press target. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. Alt-left-drag paints fresh nodes when started in empty space, or independent copies of the starting node content/visuals when started on a node. Its parent scope is reused; descendants and relations are not duplicated. Shared Composer stroke sampling interpolates bounded packets. Occupied/hidden cells and repeated cells are skipped. Up to 256 new nodes preview as outlines; release saves one normal undoable batch, Esc/capture/document replacement cancels without saving. Camera stays fixed.",
       "steps": [
         {
           "do": "Move the pointer over the world and press Up/Down, then hold briefly. Rotate the camera and move the pointer again.",
@@ -3836,6 +3836,10 @@
         {
           "do": "Click a node, park it, click empty space and Ctrl-click another node. Then use Frame selected front-on.",
           "expect": "Clicks leave camera position and target unchanged. Only the explicit framing action moves the camera."
+        },
+        {
+          "do": "Alt-left-drag from empty space, release and Undo. Repeat starting on a named node, crossing occupied cells. Press Esc during another stroke.",
+          "expect": "Empty-start creates blanks; node-start copies its content and presentation independently. Occupied/repeated cells are skipped, camera stays fixed, release saves once and Undo removes the whole stroke. Esc discards preview."
         }
       ],
       "reference": "docs/WORLD_NAVIGATION.md",
@@ -3852,7 +3856,9 @@
         "tests/navigation.test.mjs",
         "tests/world-navigator.browser.mjs",
         "src/appearance/selectionSurfaces.ts",
-        "tests/visuals-selection.test.mjs"
+        "tests/visuals-selection.test.mjs",
+        "src/omnic/paintStroke.ts",
+        "src/graph/paintNodes.ts"
       ],
       "actions": [
         "world.navigatorDepthUp",
@@ -3860,7 +3866,8 @@
         "world.navigatorCancel"
       ],
       "gestures": [
-        "world.navigatorLocate"
+        "world.navigatorLocate",
+        "world.paintNodes"
       ],
       "related": [
         "camera.navigation",
@@ -3871,8 +3878,8 @@
       "limits": "Camera-aligned navigator orientation; independent navigator rotation controls are deferred. No depth-filtered picking, arbitrary floating-origin precision, persistent navigator identity, camera follow on every preview frame or full 3D lattice-volume renderer. Plain left-click is now drive/park; inspect/expand via domain actions. At most 256 visible driven hosts. Existing lattice occupancy, legacy recovery and document validation limits apply. Camera movement and document placement have separate existing history owners. Other high-priority selection/editing gestures retain input ownership.",
       "status": "Implemented for review; production and user browser acceptance pending",
       "verification": {
-        "automated": "Model regressions cover single-line compass changes during orbit/roll and full-diameter geometry, unchanged compass during pointer/scale changes, forward negative-Z semantics and preserved saved key assignments; shared modifier-click captures the press target, dispatches once, rejects replaced contexts and preserves marquee. Existing tests cover driving, immutable preview/cancel, parking and camera follow. All 596 model/architecture tests, preview/type/property/capability build and backend type checks pass.",
-        "browser": "2026-11-07 earlier user-authorized local Chromium check passed mount/camera follow, mouse preview, depth, parking and Esc cancellation before the compass/arrow/Ctrl-click corrections. No page errors then. User chose preview testing for the current corrections; they have not received a new browser check. Opt-in script updated for forward Up semantics but not rerun."
+        "automated": "Model tests cover shared 2D/3D stroke sampling, bounded packets, copied content, occupancy including hidden cells, duplicate visits, source immutability and document validation. All 598 model/architecture tests, preview/type/property/capability build and backend checks pass.",
+        "browser": "2026-11-07 earlier user-authorized local Chromium check passed mount/camera follow, mouse preview, depth, parking and Esc cancellation before the compass/arrow/Ctrl-click corrections. No page errors then. User chose preview testing for the current corrections; they have not received a new browser check. Opt-in script updated for forward Up semantics but not rerun. Alt-drag painting has not been browser-tested; user acceptance pending."
       }
     }
   ]

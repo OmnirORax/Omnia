@@ -391,3 +391,5 @@ positioning are transient; locate cancels unparked placement previews and uses
 existing camera history. No graph/schema migration. Depth action IDs and saved
 key assignments are unchanged; their forward/backward semantics are corrected.
 CI retry logs are private ephemeral files, not application data or credentials.
+
+Atlas paint strokes use existing entity/placement/composition formats and document validation/history/autosave; no new saved schema. Copies get new entity/placement identities; existing text and Omnic references retain their original canonical targets. No descendants or relations are copied. Stroke preview is transient and discarded on cancellation/stale document.

@@ -1,3 +1,4 @@
+import {paintNodes} from './graph/paintNodes.ts';
 import { UIAction } from "./ui/UIAction";
 import { editBinderConnection } from "./graph/binderActions";
 import { uiContextEnabled } from "./ui/contextMenuOwnership";
@@ -2313,6 +2314,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               heldNudges={heldNudges}
               command={navCommand}
               constraintAxis={constraintAxis}
+              onPaintNodes={(base,points,source)=>{if(documentRef.current!==base)return false;try{const parent=source?base.placements.find(p=>p.id===source)?.parentId??null:creationParentId();const next=paintNodes(base,points,source,parent,settings.spatial);return next===base||commitDocument(next);}catch(e){setError(message(e));return false;}}}
               onNodeSelect={selectNodeImmediately}
               onNodeClick={nodeClicked}
               onNodeDoubleClick={nodeDoubleClicked}
