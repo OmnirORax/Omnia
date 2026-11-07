@@ -47,9 +47,14 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
         // Boost source radiance, never add a colour-normalized floor to shadows.
         // This keeps dark fabric/space dark while bright coloured details flash.
         float highlights=smoothstep(.025,.55,value);
-        vec3 emission=color*match*light*highlights*3.0;
-        vec3 outputColor=sceneGlowPass==0.0?mix(color+emission,feedbackColor,feedbackStrength):
-          (sceneGlowPass>0.0?emission*sceneGlowPass:vec3(0.0));
+        float response=match*light*highlights;
+        // Spend only the remaining SDR headroom, scaling RGB together to retain colour.
+        float peak=value+(1.0-value)*(1.0-exp(-2.5*response));
+        vec3 boosted=color*(1.0+(peak-value)/max(value,.00001));
+        // Halo energy is separate and bounded; bright source pixels never emit 3x HDR.
+        vec3 halo=color*response*.12;
+        vec3 outputColor=sceneGlowPass==0.0?mix(boosted,feedbackColor,feedbackStrength):
+          (sceneGlowPass>0.0?halo*sceneGlowPass:vec3(0.0));
         gl_FragColor = vec4(outputColor, 1.0);
         #include <colorspace_fragment>
       }`,

@@ -434,3 +434,8 @@ source radiance/highlights and removes the chroma-normalized shadow floor. No
 saved values, defaults, ranges, image bytes or scene assignments change. Six-field
 serialization, selected hue ranges and Max FPS remain intact. Older clients render
 the former shadow-lifting response from the same preferences; no data conversion.
+
+Prepared bright-colour headroom correction (2026-11-07): runtime flash brightness
+is bounded to remaining source headroom and halo energy is separate. No six-field
+sceneVfx settings, defaults, image bytes, assignments or exported formats change.
+Older clients render the former unbounded gain from the same stored preferences.

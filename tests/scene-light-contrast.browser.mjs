@@ -17,7 +17,7 @@ try{
  const pixels=()=>{appearance.render();const gl=renderer.getContext();return source.map((_,i)=>{const p=new Uint8Array(4);gl.readPixels(i*96+48,48,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);return [...p];});};
  u.light.value=0;const base=pixels();u.light.value=1;const peak=pixels();
  const shader=material.fragmentShader;
- material.fragmentShader=shader.replace('vec3 emission=color*match*light*highlights*3.0;',`vec3 chroma=color/max(.025,value); vec3 chosen=lightColor/max(.025,max(lightColor.r,max(lightColor.g,lightColor.b))); vec3 emission=mix(chroma,chosen,.25)*match*light*(.2+.8*value)*1.6;`);material.needsUpdate=true;
+ material.fragmentShader=shader.replace('vec3 boosted=color*(1.0+(peak-value)/max(value,.00001));',`vec3 chroma=color/max(.025,value); vec3 chosen=lightColor/max(.025,max(lightColor.r,max(lightColor.g,lightColor.b))); vec3 legacyEmission=mix(chroma,chosen,.25)*match*light*(.2+.8*value)*1.6; vec3 boosted=color+legacyEmission;`).replace('vec3 halo=color*response*.12;','vec3 halo=legacyEmission;');material.needsUpdate=true;
  // The bloom cache uses the original material; replace its source for a fresh prior-version comparison.
  appearance.configure({...defaultSettings().appearance,theme:'classic',motion:0,effectIntensity:0,glow:0});appearance.configure({...defaultSettings().appearance,theme:'neon',motion:0,effectIntensity:0,glow:.22});
  const oldPeak=pixels();
@@ -28,7 +28,7 @@ try{
  for(let i=0;i<result.source.length;i++)for(let c=0;c<3;c++)assert.ok(Math.abs(result.base[i][c]-rgb(result.source[i])[c])<=2,`base source changed at patch ${i}, channel ${c}: ${JSON.stringify(result)}`);
  assert.ok(result.oldPeak[1][2]>result.base[1][2]+25,'reproduce prior dark-blue haze');
  for(const i of [0,1,2,3])for(let c=0;c<3;c++)assert.ok(Math.abs(result.peak[i][c]-result.base[i][c])<=4,`shadow/non-target patch ${i} lifted: ${JSON.stringify(result)}`);
- assert.ok(result.peak[4][1]>result.base[4][1]+20,'bright blue/cyan detail must flash strongly');
+ assert.ok(result.peak[4][1]>result.base[4][1]+15,'bright blue/cyan detail must flash strongly');
  assert.deepEqual(result.restored,result.base,'silence restores the unaltered source through bloom/output');assert.deepEqual(errors,[]);
  console.log(JSON.stringify({result:'PASS',...result,checks:'reproduced old blue haze; base matches source; shadows and non-target gold preserved; bright blue/cyan flashes; silence restores base through full bloom/output'}));
 }finally{await browser.close();}

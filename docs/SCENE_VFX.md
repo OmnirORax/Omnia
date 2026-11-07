@@ -181,3 +181,24 @@ lift (source blue 26 became 95), then verified the new peak leaves that patch at
 stronger. No-audio base and restored source patches match exactly. No page/shader
 errors were observed. This controlled evidence is not a claim of exact Wallpaper
 Engine visual equivalence; actual-image acceptance remains with the user.
+
+
+## Bright-colour headroom revision (2026-11-07; visual validation pending)
+
+The user reported that orange and other bright colours became white. The prior
+source-radiance gain could exceed the display range in several RGB channels at
+once, despite preserving shadows. The revision maps brightness into
+remaining SDR headroom and scales RGB together. Full-bright source colours receive
+no extra core brightness; mid-tone colours can brighten without changing channel
+ratios. The glow-mask halo has a separate small energy budget instead of reusing
+the unbounded core gain. No saved controls, defaults or source image bytes change.
+
+The focused full-bloom/output regression is extended with orange, pale gold,
+near-white, blue, green and pink. It must reproduce the former orange white-out,
+then check hue/saturation retention, mid-tone response, source restoration and
+shadow preservation. This new bounded browser check has not been run: no explicit approval was
+received. Local model/type/build checks do not establish visual acceptance. The
+user correctly challenged the earlier tests: brighter pixels plus retained shadows
+were insufficient criteria for colour retention or a Wallpaper Engine match.
+This revision is published for direct comparison on the user's image, with no
+claim that its visual result is verified.

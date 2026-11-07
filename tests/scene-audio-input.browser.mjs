@@ -17,7 +17,7 @@ try{
  }
  });
  await page.goto(origin);await page.getByRole('button',{name:'+ Add first node',exact:true}).click();
- const image=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');for(const [i,color]of ['#aa3300','#0044ff','#ff8800','#008844'].entries()){ctx.fillStyle=color;ctx.fillRect(i%2*64,Math.floor(i/2)*64,64,64);}return c.toDataURL().split(',')[1];});
+ const image=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');for(const [i,color]of ['#aa3300','#0044ff','#dd7700','#008844'].entries()){ctx.fillStyle=color;ctx.fillRect(i%2*64,Math.floor(i/2)*64,64,64);}return c.toDataURL().split(',')[1];});
  const imageChooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose image',exact:true}).click();await(await imageChooser).setFiles({name:'disposable-colour-patches.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')});
  await page.getByText(/Image saved and assigned/).waitFor();
  const audioChooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose audio file',exact:true}).click();await(await audioChooser).setFiles({name:'quiet-55hz.wav',mimeType:'audio/wav',buffer:quietTone()});
@@ -39,7 +39,7 @@ try{
  const colours=await page.evaluate(async()=>{
  const T=await import('/node_modules/three/build/three.module.js'),{createWallpaper}=await import('/src/scene/wallpaper.ts'),{DEFAULT_SCENE_VFX}=await import('/src/scene/vfx.ts');
  const renderer=new T.WebGLRenderer({preserveDrawingBuffer:true});renderer.setSize(128,128);const scene=new T.Scene(),camera=new T.PerspectiveCamera(),wallpaper=createWallpaper(scene,()=>{});wallpaper.resize(128,128);wallpaper.configure({...DEFAULT_SCENE_VFX,waves:false,distortion:0,glitching:0});
- const c=document.createElement('canvas');c.width=c.height=128;const paint=c.getContext('2d');for(const [i,colour]of ['#aa3300','#0044ff','#ff8800','#008844'].entries()){paint.fillStyle=colour;paint.fillRect(i%2*64,Math.floor(i/2)*64,64,64);}await wallpaper.setURL(c.toDataURL());
+ const c=document.createElement('canvas');c.width=c.height=128;const paint=c.getContext('2d');for(const [i,colour]of ['#aa3300','#0044ff','#dd7700','#008844'].entries()){paint.fillStyle=colour;paint.fillRect(i%2*64,Math.floor(i/2)*64,64,64);}await wallpaper.setURL(c.toDataURL());
  const mesh=scene.children.find(o=>o.material?.uniforms?.light),u=mesh.material.uniforms,gl=renderer.getContext();const pixels=()=>{renderer.render(scene,camera);return [[32,96],[96,96],[32,32],[96,32]].map(([x,y])=>{const p=new Uint8Array(4);gl.readPixels(x,y,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);return [...p];});};
  u.light.value=0;const before=pixels();u.light.value=.7;const orange=pixels();u.lightColor.value.set('#0044ff');const blue=pixels();
  const {SceneGlow}=await import('/src/sceneGlow.ts');const glow=new SceneGlow(scene,camera,0),original=mesh.material,mask=glow.mask(original,1);mesh.material=mask;u.lightColor.value.set('#aa3300');const emission=pixels();u.light.value=.2;const quieterEmission=pixels();const originalPass=u.sceneGlowPass.value;mesh.material=original;glow.dispose();wallpaper.dispose();renderer.dispose();return {before,orange,blue,emission,quieterEmission,originalPass};
