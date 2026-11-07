@@ -159,6 +159,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     setTool('select');setActiveDof({ids,property:degree.id});referencePicker?.prepareReference(degree);setMenu(point);activateDegreePanel(degree,false,true);setPhase('configure');
   };
   useSelectionSurface(localSurface,{
+    nativeWheel:true,
     baseline:{enabled:()=>!extraPanel&&tool==='select'&&(phase==='idle'||phase==='configure'),pick:baselinePick,cancel:baselineCancel},
     onStart:()=>{prepareSelection();localSurface.current?.focus({preventScroll:true});activateTarget?.();},
     snapshot:()=>{

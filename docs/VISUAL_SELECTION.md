@@ -603,8 +603,12 @@ resize-dial leakage remains pending.
 
 Composer declares `data-selection-lens` on its editing surface. Only within such
 an opted-in surface is the aiming circle a spatial search lens, initially 18 CSS
-pixels in radius. Ordinary wheel changes radius within 4–160 pixels in Pattern, Individual and
-Boundary modes. It does not zoom the scene or change structural hierarchy.
+pixels in radius. Registered surfaces can declare native wheel navigation through
+selectionSurfaces. Composer does so: ordinary wheel zooms its view, including
+while MS is aiming or borrowing a reference, without changing lens radius. Other
+lens surfaces retain wheel radius adjustment within 4–160 pixels in Pattern,
+Individual and Boundary modes. The native-wheel declaration is independent of
+selection geometry and does not change membership or structural hierarchy.
 Shift-wheel retains geometry rotation; Ctrl-wheel retains native browser zoom.
 Before a working scope, Pattern/Individual discovers the nearest boundary; click
 places it and continues pattern/part selection. Temporary numeric reference requests

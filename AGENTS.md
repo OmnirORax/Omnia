@@ -767,3 +767,10 @@ An unselected component becomes the new context target. Reuse componentTargets
 context scope, selectedEditorDegrees, existing selection and property writers;
 no color-specific menu, duplicated setter or new global input owner. Active DOF
 settings/reference gestures retain priority. See docs/OMNIC_COMPOSER.md.
+
+Composer wheel correction: an opted-in selection surface may declare nativeWheel
+in the shared selection registry. Plain wheel over Composer retains existing
+view zoom even during MS/reference aiming, before selector lens resizing. Shift
+retains explicit selector geometry rotation; Ctrl retains native browser zoom.
+Do not use a Composer CSS exception or another global listener. Lens geometry
+opt-in and wheel ownership are independent. Update docs/VISUAL_SELECTION.md.

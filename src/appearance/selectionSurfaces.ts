@@ -4,7 +4,7 @@ export type SelectionPoint={x:number;y:number};
 export type SelectionBox={left:number;top:number;right:number;bottom:number};
 export type SelectionUnit={id:string;box:SelectionBox};
 export type BaselineSelection={enabled:()=>boolean;pick:(elements:readonly Element[],point:SelectionPoint,intent:'select'|'edit')=>void;cancel:()=>void};
-export type SelectionSurface={baseline?:BaselineSelection;element:()=>Element|null;context?:()=>string;nativePicking?:boolean;onStart?:()=>void;onComplete?:(ids:readonly string[],point:SelectionPoint)=>void;snapshot:()=>{units:readonly SelectionUnit[];valid?:readonly string[];selected:readonly string[];elements?:(ids:readonly string[])=>readonly Element[];area?:(start:SelectionPoint,end:SelectionPoint)=>readonly string[];hit:(point:SelectionPoint)=>string|undefined};elements?:(ids:readonly string[])=>readonly Element[];apply:(ids:readonly string[])=>void};
+export type SelectionSurface={baseline?:BaselineSelection;element:()=>Element|null;context?:()=>string;nativePicking?:boolean;nativeWheel?:boolean;onStart?:()=>void;onComplete?:(ids:readonly string[],point:SelectionPoint)=>void;snapshot:()=>{units:readonly SelectionUnit[];valid?:readonly string[];selected:readonly string[];elements?:(ids:readonly string[])=>readonly Element[];area?:(start:SelectionPoint,end:SelectionPoint)=>readonly string[];hit:(point:SelectionPoint)=>string|undefined};elements?:(ids:readonly string[])=>readonly Element[];apply:(ids:readonly string[])=>void};
 /** Native modifiers belong to selection before an editing tool can replace it. */
 export function selectionPointerMode(event:{button:number;ctrlKey:boolean;metaKey:boolean;shiftKey:boolean;altKey:boolean}):'toggle'|'range'|undefined {
   if(event.button!==0||event.altKey)return;
@@ -42,6 +42,8 @@ export function createSelectionSurfaces(){
   let session:{id:string;surface:SelectionSurface;root:Element}|undefined;
   const sessionOwns=(element:Element,path:readonly EventTarget[]=[])=>session?current(session.id)===session.surface&&session.surface.element()===session.root&&surfaceOwnsInput(session.root,element,path):globalSession;
   return {
+    /** Explicit surface navigation owns plain wheel; Shift retains selector geometry. */
+    wheelOwner(element:Element,event:{shiftKey:boolean},path:readonly EventTarget[]=[]):'surface'|'selector'{return !event.shiftKey&&find(element,path)?.[1].nativeWheel?'surface':'selector';},
     baseline(element:Element){const found=find(element);return found?.[1].baseline?.enabled()?found[1].baseline:undefined;},
     beginSession(element?:Element){
       const found=element&&(find(element)??[...surfaces].reverse().flatMap(([key,surface])=>{const root=surface.element();return root?.closest?.('[data-selection-context]')?.contains(element)?[[`${key}/${encodeURIComponent(surface.context?.()??'')}`,surface] as const]:[];})[0]);

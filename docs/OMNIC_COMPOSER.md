@@ -1,5 +1,13 @@
 # Omnic composer: Stage 1 contract
 
+Composer wheel ownership: ordinary wheel over the editing surface zooms Composer
+even while MS is active; it does not resize the MS lens. The surface declares
+native wheel navigation through the shared selection registry. Shift-wheel retains
+explicit MS geometry rotation and Ctrl-wheel retains browser zoom. View zoom uses
+the existing coalesced view-size writer and limits; membership, geometry and lens
+radius are not changed by the ownership handoff. No new saved format or migration.
+Physical input/browser acceptance remains user-owned.
+
 Selection context correction: right-clicking a selected component (or a descendant
 of a selected authored group) retains the accepted selection and opens its shared
 DOF editor. Right-clicking empty editing space also opens that selection's DOFs;

@@ -479,3 +479,13 @@ test('names view defaults to expanded for old settings and persists explicit sel
  for(const nodeNames of ['expanded','all','selection'])assert.equal(normalizeSettings({spatial:{nodeNames}}).spatial.nodeNames,nodeNames);
  assert.equal(normalizeSettings({spatial:{nodeNames:'unknown'}}).spatial.nodeNames,'expanded');
 });
+
+test('registered content can retain plain wheel navigation without resizing MS or touching membership',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),child={},root={contains:element=>element===child},other={};let reads=0,applies=0;
+ const off=registry.register({element:()=>root,nativeWheel:true,snapshot:()=>{reads++;return {units:[],selected:['keep'],hit:()=>undefined};},apply:()=>{applies++;}});
+ for(const event of [{shiftKey:false,ctrlKey:false},{shiftKey:false,ctrlKey:true}])assert.equal(registry.wheelOwner(child,event),'surface');
+ assert.equal(registry.wheelOwner(child,{shiftKey:true}),'selector');
+ assert.equal(registry.wheelOwner(other,{shiftKey:false}),'selector');
+ assert.equal(reads,0);assert.equal(applies,0);off();assert.equal(registry.wheelOwner(child,{shiftKey:false}),'selector');
+});
