@@ -759,3 +759,11 @@ budget from a far-plane world bounding box, which starves tilted nearby views.
 Do not impose a fixed world patch or a view-distance horizon. Keep screen work
 bounded, cell diameter/occupancy/creation unchanged, and reuse camera/viewport
 invalidation in the render owner. Supersedes world-anchored power-of-two sampling.
+
+Composer context selection: right-click a selected component/selected-group
+member without replacing accepted membership; empty editing space opens the
+selection's compatible DOFs while a selection exists, otherwise creation presets.
+An unselected component becomes the new context target. Reuse componentTargets
+context scope, selectedEditorDegrees, existing selection and property writers;
+no color-specific menu, duplicated setter or new global input owner. Active DOF
+settings/reference gestures retain priority. See docs/OMNIC_COMPOSER.md.

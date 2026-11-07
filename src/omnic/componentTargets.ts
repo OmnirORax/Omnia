@@ -27,3 +27,14 @@ export function memberTargets(recipe:Recipe,ids:readonly string[]):string[]{
   const members=(id:string):string[]=>{const item=index.get(id)?.component;return item?.generator==='group'?(item.children??[]).flatMap(child=>members(child.id)):item?[id]:[];};
   return rootTargets(recipe,ids).flatMap(members);
 }
+
+/** Context edits retain the accepted set on its members (including descendants
+ * of selected groups), and on empty space. A different target replaces the set. */
+export function contextEditTargets(recipe:Recipe,selection:readonly string[],pointed:readonly string[]):string[]{
+ const index=componentIndex(recipe),chosen=selection.filter(id=>index.has(id));
+ const hits=pointed.filter(id=>index.has(id));
+ if(!hits.length)return [...chosen];
+ const selected=new Set(chosen);
+ const included=(id:string)=>{let current:string|undefined=id;while(current){if(selected.has(current))return true;current=index.get(current)?.parent;}return false;};
+ return hits.every(included)?[...chosen]:[...new Set(hits)];
+}

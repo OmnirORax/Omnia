@@ -1788,3 +1788,39 @@ test('detachment freezes effective old operation scopes, isolates one fill and r
  const incompatible=recipe(source.components,[op('a','fill',['rim'],{attachment:true,shape}),op('h','highlight',['a:region:0'],{fraction:.5})]),original=JSON.stringify(incompatible);
  assert.throws(()=>detachComponentAttachment(incompatible,'a'),/effects/);assert.equal(JSON.stringify(incompatible),original);
 });
+
+test('context recolor retains selected members and empty-space scope while replacing unrelated targets',async()=>{
+ const {contextEditTargets}=await import('../src/omnic/componentTargets.ts');
+ const {selectedEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe({...recipe([dot('a'),dot('b',20),dot('c',40)]),atomnic:{mode:'free'}}),before=JSON.stringify(source);
+ for(const hit of [['a'],['b'],[]]){
+  const ids=contextEditTargets(source,['a','b'],hit);assert.deepEqual(ids,['a','b']);
+  const degree=selectedEditorDegrees(source,ids).find(d=>targetParameter(d).key==='color');assert.ok(degree);
+  const next=writeTargetDegree(source,degree,'#abcdef');assert.equal(next.components[0].params.color,'#abcdef');assert.equal(next.components[1].params.color,'#abcdef');assert.equal(next.components[2].params.color,source.components[2].params.color);
+  assert.deepEqual(validateRecipe(JSON.parse(JSON.stringify(next))),next);
+ }
+ assert.deepEqual(contextEditTargets(source,['a','b'],['c']),['c']);assert.deepEqual(contextEditTargets(source,[],[]),[]);
+ assert.deepEqual(contextEditTargets(source,['stale','a'],[]),['a']);assert.equal(JSON.stringify(source),before);
+});
+test('right-clicking a selected group member keeps group recolor scope',async()=>{
+ const {contextEditTargets}=await import('../src/omnic/componentTargets.ts');const {selectedEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe({...recipe([{id:'g',generator:'group',params:{},children:[dot('a'),dot('b',20)]},dot('c',40)]),atomnic:{mode:'free'}});
+ const ids=contextEditTargets(source,['g'],['a']);assert.deepEqual(ids,['g']);
+ const degree=selectedEditorDegrees(source,ids).find(d=>targetParameter(d).key==='color'),next=writeTargetDegree(source,degree,'#123456');
+ assert.deepEqual(next.components[0].children.map(c=>c.params.color),['#123456','#123456']);assert.equal(next.components[1].params.color,source.components[1].params.color);
+});
+
+test('selection context exposes shared DOFs for mass edits, including structure-preserving Position',async()=>{
+ const {contextEditTargets}=await import('../src/omnic/componentTargets.ts');const {selectedEditorDegrees}=await import('../src/omnic/targetDegrees.ts');
+ const source=validateRecipe({...recipe([dot('a'),dot('b',20),dot('c',40)]),atomnic:{mode:'free'}});
+ for(const hit of [['a'],[]]){
+  const ids=contextEditTargets(source,['a','b'],hit),degrees=selectedEditorDegrees(source,ids);
+  for(const [id,key,value] of [['omnic.extent','size',7],['omnic.angle','angle',45],['opacity','opacity',.5]]){
+   const degree=degrees.find(d=>d.id===id);assert.ok(degree);assert.deepEqual([...new Set(degree.targets.map(t=>t.id))],['a','b']);
+   const next=writeTargetDegree(source,degree,value);assert.equal(next.components[0].params[key],value);assert.equal(next.components[1].params[key],value);assert.deepEqual(next.components[2],source.components[2]);
+  }
+  const position=degrees.find(d=>d.id==='omnic.position'),x=position.axes.find(a=>targetParameter(a).measurement==='center-x'),y=position.axes.find(a=>targetParameter(a).measurement==='center-y');
+  const moved=writeTargetDegree(source,position,{[x.properties[0]]:10,[y.properties[0]]:10});
+  assert.deepEqual(moved.components.slice(0,2).map(c=>[c.params.x,c.params.y]),[[10,10],[30,10]]);assert.deepEqual(moved.components[2],source.components[2]);
+ }
+});
