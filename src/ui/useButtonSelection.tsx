@@ -1,5 +1,5 @@
 import { contentOwnsPointer } from './pointerOwnership';
-import { ownsContextMenu } from './contextMenuOwnership';
+import { ownsContextMenu, uiContextEnabled } from './contextMenuOwnership';
 import { frameInteriorDrop, pointedDropSurface } from "./dropSurface";
 import { PAGE_INPUT_SUSPEND } from "./pageInputBoundary";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -129,6 +129,8 @@ export function useButtonSelection({
   };
   const current = useRef({ layout, update, functions, ids, locked, mode, alignOpen });
   current.current = { layout, update, functions, ids, locked, mode, alignOpen };
+  const editingUI = uiContextEnabled(layout);
+  useEffect(() => { if (!editingUI) setMenu(null); }, [editingUI]);
   const gesture = useRef<Gesture | null>(null);
   const rangeAnchor = useRef<string | null>(null);
   const select = (next: Set<string>) => {
@@ -691,7 +693,7 @@ export function useButtonSelection({
     };
     const preventContext = (event: MouseEvent) => {
       if (gesture.current) { event.preventDefault(); event.stopImmediatePropagation(); return; }
-      if (ownsContextMenu(event.target)) return;
+      if (!uiContextEnabled(current.current.layout) || ownsContextMenu(event.target)) return;
       const target = event.target as Element, selected = current.current.ids;
       if (!selected.size || target.closest('[role="menu"],.ui-selection-tools,.ui-background-menu,input,textarea,select')) return;
       const item = target.closest<HTMLElement>(selectable);
@@ -746,7 +748,7 @@ export function useButtonSelection({
     align,
     clear,
     closeMenu: () => setMenu(null),
-    openMenu: (x: number, y: number) => setMenu({ x, y }),
+    openMenu: (x: number, y: number) => { if (uiContextEnabled(current.current.layout)) setMenu({ x, y }); },
   };
 }
 export function ButtonSelectionOverlay({

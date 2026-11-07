@@ -190,8 +190,16 @@
       "id": "interface.arrange",
       "title": "Move, dock, select and organize UI",
       "where": "UI library; UI edit mode; shared frame/control context actions.",
-      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure. Window/frame drag previews reuse gesture-local target discovery and read-only docking policy results. Visual movement uses the latest pointer position once per animation frame, with geometry reads before transform writes. Release refreshes destination geometry and commits through the existing shared history; cancellation restores the live payload. Active-context shortcuts defer to a held UI gesture, so Esc cancels the drag before a parent minimize action. Pickup snapshots exclude descendants of the held frame/window and read visibility before lifting, reducing the expand-then-drag setup burst. Shared window interaction callbacks now commit on accepted click rather than mouse-down. Dragging a shortcuts window/title or other shared window cannot pin/activate it through onInteract. The existing global drag guard suppresses physical click tails even after source reparenting onto another surface, while keyboard/programmatic clicks remain usable.",
+      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure. Window/frame drag previews reuse gesture-local target discovery and read-only docking policy results. Visual movement uses the latest pointer position once per animation frame, with geometry reads before transform writes. Release refreshes destination geometry and commits through the existing shared history; cancellation restores the live payload. Active-context shortcuts defer to a held UI gesture, so Esc cancels the drag before a parent minimize action. Pickup snapshots exclude descendants of the held frame/window and read visibility before lifting, reducing the expand-then-drag setup burst. Shared window interaction callbacks now commit on accepted click rather than mouse-down. Dragging a shortcuts window/title or other shared window cannot pin/activate it through onInteract. The existing global drag guard suppresses physical click tails even after source reparenting onto another surface, while keyboard/programmatic clicks remain usable. Normal mode now fixes individual action/field arrangement while complete frames/windows are movable/resizable by default. Explicit saved rigidity policies and pins remain authoritative. Ordinary pointer use, editing, minimize/restore and close never require UI edit mode. The drag activation guard arms only from the nearest genuinely draggable handle or an active resize surface, so pointer drift on a fixed control cannot suppress its click as a nonexistent drag. Real drag tails and keyboard activation retain their existing rules. UI-customization right-click menus and right-click UI label renaming require UI edit mode. This includes controls, frame/tab chrome, backgrounds and selected UI; disabling edit mode dismisses open customization menus/editors. Content-specific right-click commands remain available in either mode, including on moved controls. Movement exceptions do not enable customization menus.",
       "steps": [
+        {
+          "do": "Turn UI edit mode off. Activate a fixed action while moving the held pointer a few pixels inside its button; minimize/restore a window and use its active Close command. Move a whole window, then turn edit mode on.",
+          "expect": "Normal controls, minimize/restore and Close work without edit mode. Whole unpinned frames can move/resize; internal controls remain fixed until edit mode is enabled. Explicit rigidity/pins are still respected, and an actual drag release does not activate its control."
+        },
+        {
+          "do": "With UI edit mode off, right-click a control, frame title, docked tab, background and selected UI. Try a content-specific context action. Enable UI edit mode and right-click a control or frame title again.",
+          "expect": "Normal mode opens no UI-customization menu or right-click UI-name editor; the content-specific action still works. Edit mode exposes the existing UI customization. Switching edit mode off dismisses open customization menus/editors."
+        },
         {
           "do": "Create a UI frame, then drag a complete section into it by its handle.",
           "expect": "Its live controls move with it."
@@ -222,7 +230,13 @@
         "scripts/profile-ui-drag.mjs",
         "src/ui/FloatingWindow.tsx",
         "src/ui/activationGuard.ts",
-        "tests/drag-activation.browser.mjs"
+        "tests/drag-activation.browser.mjs",
+        "src/ui/activationSource.ts",
+        "src/ui/rigidity.ts",
+        "src/ui/contextMenuOwnership.ts",
+        "src/ui/NativeActions.tsx",
+        "src/ui/useButtonSelection.tsx",
+        "src/ui/EditableLabel.tsx"
       ],
       "actions": [
         "ui:devMode",
@@ -230,11 +244,11 @@
         "ui:compact",
         "ui:align"
       ],
-      "limits": "Drag targets use a gesture-local discovery snapshot, refreshed at release. Browser traces are local diagnostics; user hardware smoothness acceptance remains pending.",
+      "limits": "Drag targets use a gesture-local discovery snapshot, refreshed at release. Browser traces are local diagnostics; user hardware smoothness acceptance remains pending. Explicit saved rigidity/pins can still fix a frame; unsaved appearance Apply/Discard/Cancel vetoes still apply. The focused check uses disposable local state and does not establish acceptance of every saved layout.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "2026-11-04 focused local Chromium drag regression passed five physical-input checks: hovered shortcuts window mouse-down does not pin; window drag does not invoke onInteract; a deliberate click afterward still works; dragging another command does not run it; keyboard activation after the moved command remains usable. No uncaught page errors. Run node tests/drag-activation.browser.mjs. This is representative shared-boundary evidence, not every control/browser or performance acceptance.",
-        "automated": "279 model checks, including cached docking/ownership/pinning/context policy equivalence and invalidation on changed snapshots; build/type checks"
+        "browser": "2026-11-06: user-authorized focused local Chromium check passes fixed-control pointer-drift activation, edit-off minimize/restore, whole-window movement with suppressed drag tail, ordinary-window Close and edit-on internal-control dragging availability. Baseline reproduced a swallowed fixed-control click after 8px drift. Fresh local data; user saved-layout acceptance pending. Existing appearance draft vetoes and remote-controller context behavior remain unchanged. Follow-up right-click gating awaits user browser verification; no additional browser run performed.",
+        "automated": "2026-11-06: all 524 model/architecture tests, preview/type/property/capability build checks and backend type checks pass. Includes edit-off/on context routing, preserved domain handlers/content ownership, missing legacy flag and movement-exception independence. Rechecked after merging master including PR #52; both documentation conflicts retain both owners’ guidance."
       },
       "related": [
         "interface.targets"
@@ -243,6 +257,49 @@
         "ui.context",
         "ui.rename"
       ]
+    },
+    {
+      "id": "interface.reset-home",
+      "title": "Reset one UI item to its default home",
+      "where": "Enable UI edit mode → right-click the moved button/field → Placement → Reset to default home. For a section/window, right-click its frame title → Reset to default home.",
+      "behavior": "Returns one resident to its original shipped-template container/order or declared native slot/default window placement. Works after autosave and reload without Undo history. Keeps styling, names, settings, values, identity and descendant contents; unrelated residents retain their organization. Clears the chosen item’s moved position/size/anchor overrides and removes its stale native order entries. Relative original order is restored among original siblings still present. Existing tabs receive a returning window without replacing unrelated panes. A missing default window record can be recreated without pulling back its other moved items. Uses existing UI validation, autosave and shared history; the reset itself can be undone during the session. Reuses the existing return-function action identity, replacing a route that deleted styling and missed template-owned homes.",
+      "steps": [
+        {
+          "do": "Enable UI edit mode, move a button such as File → Export into another frame, then reload the page.",
+          "expect": "The button remains in its saved moved location; recovery does not depend on an Undo entry."
+        },
+        {
+          "do": "Right-click that moved button → Placement → Reset to default home.",
+          "expect": "It returns to its original container/slot and original relative order. Its style, name and settings remain; other residents stay in place."
+        },
+        {
+          "do": "Reload, find the button in its default home, then try the reset on a detached native section through its frame-title menu.",
+          "expect": "The recovered organization persists. The section returns home carrying its existing contents and styling."
+        },
+        {
+          "do": "Pin the moved item or its default destination and inspect Reset to default home; also inspect a user-created frame with no defined original home.",
+          "expect": "Recovery is disabled instead of overriding protection or inventing a default. Unpin to recover a supported item."
+        }
+      ],
+      "reference": "docs/UI_LAYOUT.md",
+      "sources": [
+        "src/ui/residentHome.ts",
+        "src/ui/UIWorkspace.tsx",
+        "src/ui/default-template.json",
+        "tests/ui-resident-home.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "interface.arrange",
+        "history.global"
+      ],
+      "limits": "Original means the current shipped template/native declaration, not a historical custom arrangement or imported template. Custom frames/fields without a defined default home, unknown/unavailable functions, protected/cyclic/incompatible destinations and context-bound extraction are not reset. Native source controls require their owning feature to be mounted. It resets one resident’s home, not a whole frame’s internal contents or the entire UI. Internal arrangement cleanup remains a separate existing frame action.",
+      "status": "Implemented for review; production deployment and browser acceptance pending",
+      "verification": {
+        "browser": "Not run; user should test a saved/reloaded accidental move and recovery in the preview.",
+        "automated": "2026-11-06: all 533 model/architecture tests (including nine default-home recovery cases), preview/type/property/capability build checks and backend type checks pass. Reload recovery uses serialized existing-format fixtures and the real shipped template; no browser acceptance is inferred."
+      }
     },
     {
       "id": "history.global",

@@ -661,6 +661,18 @@ through the existing region generator, retains authored/primitive IDs, validates
 the whole pipeline before commit and uses shared draft/history. Unsupported
 lossy conversions preserve the original. Do not silently detach when moving.
 
+UI edit-mode correction (2026-11-06): normal controls, field editing, minimize,
+restore and close never require edit mode. Off fixes individual control layout;
+whole frame/window movement and resizing stay available by default. Preserve
+explicit saved rigidity and pins. Drag-tail suppression must require actual
+drag capability at the nearest owner; pointer drift on fixed controls is not a
+drag. Reuse the shared rigidity and activation guards.
+
+UI right-click correction (2026-11-06): UI-customization context menus and
+right-click UI label renaming require UI edit mode, regardless of saved movement
+exceptions. Domain-specific right-click remains available in either mode. Reuse
+contextMenuOwnership at shared entry points; do not block secondary input globally.
+
 Node document formatting (2026-11-06): basic Markdown renders directly with markers
 hidden, while the existing mixed document stores the original source and canonical
 glyph references. Use textHTML/readTextDOM rather than saving HTML or adding a
@@ -686,3 +698,9 @@ Document formatting/list commands must register with featureActions and use
 useFeatureActions. Keep Shift configuration policy intact; native editing is not
 a reason to add private executable hotkeys. Registry availability follows actual
 editor/list ownership, with updates only when that classification changes.
+
+Default-home recovery (2026-11-06): accidental UI moves must be recoverable after
+saving/reload without Undo. Use residentHome's shipped/native-home resolution and
+the existing UI transaction; preserve styling, settings, identities and unrelated
+organization. Unknown custom homes cannot be guessed. Local frame arrangement
+cleanup and whole-layout reset remain separate actions.
