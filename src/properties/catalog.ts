@@ -5,6 +5,8 @@ export type Property = PropertyDefinition;
 /** Existing shared definitions. New feature inputs define unique properties at
  * their source; discovery adds them to this same pool automatically. */
 const builtins: Property[] = [
+  {id:"adaptiveBlend",label:"Adaptive blending",kind:"toggle",initial:false,neutral:false},
+  {id:"adaptiveBlendStrength",label:"Blend strength",kind:"number",min:0,max:1,step:.01,initial:.65,neutral:0},
   {id:"translucency",label:"Translucency",kind:"number",min:0,max:1,step:.01,initial:0,neutral:0},
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },
   {

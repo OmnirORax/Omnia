@@ -1,3 +1,4 @@
+import type {SphereBackground} from './scene/sphereBlend.ts';
 import {atomicCarrierGeometry,atomicCarrierMaterial,updateAtomicCarrier} from './atomicCarrier.ts';
 import { placeBinderText } from "./graph/binderLabels";
 import { incomingBinderVisible, contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
@@ -184,6 +185,7 @@ export function buildTextScene(
   names: "expanded" | "all" | "selection" = "expanded",
   carrierDiameter = DEFAULT_SPHERE_DIAMETER,
   selectedBinderKey: string | null = null,
+  background?:SphereBackground,
 ) {
   const sphereDiameter = carrierDiameter;
   const placementExpanded = (id:string) => contentExpanded(expansion,id,placements.get(id)?.collapsed === false);
@@ -223,7 +225,7 @@ export function buildTextScene(
       {}, true,
     );
     text.material.opacity = style.opacity;
-    const cell: LabelMesh = new THREE.Mesh(atomicCarrierGeometry(), atomicCarrierMaterial(color,style.opacity,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucency??.82),style.glow));
+    const cell: LabelMesh = new THREE.Mesh(atomicCarrierGeometry(), atomicCarrierMaterial(color,style.opacity,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucency??.82),style.glow,background));
     cell.scale.setScalar(sphereDiameter);
     const presentation = new THREE.Group(); group.add(presentation);
     const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),

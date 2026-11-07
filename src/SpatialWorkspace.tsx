@@ -1,3 +1,4 @@
+import {createSphereBackground,configureSphereBlend} from './scene/sphereBlend.ts';
 import {atomicCarrierGeometry,atomicCarrierMaterial} from './atomicCarrier.ts';
 import {resolveAppearance} from './graph/appearance.ts';
 import {paintSamples} from './omnic/paintStroke.ts';
@@ -116,6 +117,7 @@ type Props = {
 };
 type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; up: THREE.Vector3; contextIds: readonly string[] | null };
 type SceneState = {
+  sphereBackground:ReturnType<typeof createSphereBackground>;
   navigator?:ReturnType<typeof createWorldNavigator>;
   navigatorCanStep?:()=>boolean;
   navigatorDepth?:(action:NudgeActionId,input?:KeyboardEvent|MouseEvent)=>void;
@@ -244,6 +246,7 @@ export default function SpatialWorkspace(props: Props) {
     let controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false; controls.enablePan = true;
     controls.minDistance = 1.2; controls.maxDistance = 100000;
+    const sphereBackground=createSphereBackground();
     const content = new THREE.Group(); scene.add(content);
     const navigator=createWorldNavigator(),navigatorMarker=createWorldNavigatorMarker();scene.add(navigatorMarker.object);
     let navigatorDriveValid=true,navigatorVisible=false,navigatorDepthHeld=false,navigatorContext=callbacks.current.omnicPreviewContext;
@@ -291,11 +294,12 @@ export default function SpatialWorkspace(props: Props) {
         const navigatorAppearance=callbacks.current.settings.appearance,navigatorStyle=navigatorAppearance.renderDefaults?.['omnium.selection'];
         navigatorMarker.update(navigator.position,navigator.orientation,pitch(),navigatorVisible,drive.valid,{color:brightHex(String(navigatorStyle?.color??navigatorAppearance.accent),Number(navigatorStyle?.brightness??1)),opacity:Number(navigatorStyle?.opacity??.85)*navigatorAppearance.opacity,glow:Number(navigatorStyle?.glow??navigatorAppearance.nodes.glow)});
         latticeFieldRef.current?.update(navigator.initialized?navigator.position:controls.target,camera,host.clientWidth,host.clientHeight,navigator.orientation);
+        if(scene.background instanceof THREE.Color)sphereBackground.plain.value.copy(scene.background);
         appearance.render();
       });
     };
     const requestRender = () => scheduleRender(true);
-    const wallpaper = createWallpaper(scene, () => scheduleRender(false));
+    const wallpaper = createWallpaper(scene, () => scheduleRender(false),sphereBackground);
     const hierarchyPulse = createGraphHierarchyPulse();
     let hierarchyBackground: number | null = null;
     let selectedBackground: { paint: SceneSelectionPaint; strength: number } | undefined;
@@ -464,10 +468,11 @@ export default function SpatialWorkspace(props: Props) {
         rebindOrbit(); recordView(before); requestRender(); setFeedback("");
       } catch (error) { setFeedback(error instanceof Error ? error.message : String(error)); }
     };
-    stateRef.current = { navigator, scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
+    stateRef.current = { sphereBackground,navigator, scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
+      renderer.getDrawingBufferSize(sphereBackground.resolution.value);
       appearance.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
       wallpaper.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
     };
@@ -650,7 +655,7 @@ export default function SpatialWorkspace(props: Props) {
       if(event.button===0&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){
         event.preventDefault();event.stopImmediatePropagation();cancelDrive();props.heldNudges.stop();leftDown=null;clicks.cancel();const source=hits(event)[0]?.object.userData.nodeId as string|undefined;
         navigatorOffset.set(0,0,0);if(source)positionNavigator(new THREE.Vector3(...Object.values(latticeWorld(callbacks.current.document,source,callbacks.current.settings.spatial.nodeCellSize)) as [number,number,number]).multiplyScalar(latticeScale(callbacks.current.settings.spatial.latticeScale)));if(!updateNavigator(event))return;
-        const index=prepareLattice(callbacks.current.document,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),theme=callbacks.current.settings.appearance,template=source?callbacks.current.document.placements.find(p=>p.id===source):undefined,style=resolveAppearance(theme.nodes,theme.theme==='neon'?theme.accent:'#dce9fa',template?.appearance),marker=new THREE.InstancedMesh(atomicCarrierGeometry(index.unit*scale),atomicCarrierMaterial(style.color,style.opacity*theme.opacity,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucency??.82),style.glow),256);marker.userData.glowIntensity=style.glow;marker.count=0;marker.frustumCulled=false;scene.add(marker);
+        const index=prepareLattice(callbacks.current.document,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),theme=callbacks.current.settings.appearance,template=source?callbacks.current.document.placements.find(p=>p.id===source):undefined,style=resolveAppearance(theme.nodes,theme.theme==='neon'?theme.accent:'#dce9fa',template?.appearance),marker=new THREE.InstancedMesh(atomicCarrierGeometry(index.unit*scale),atomicCarrierMaterial(style.color,style.opacity*theme.opacity,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucency??.82),style.glow,sphereBackground),256);marker.userData.glowIntensity=style.glow;marker.count=0;marker.frustumCulled=false;scene.add(marker);
         paintStroke={pointerId:event.pointerId,base:callbacks.current.document,source,last:asXYZ(navigator.position.clone().multiplyScalar(1/scale)),points:[],occupied:new Set(index.occupied.keys()),unit:index.unit,marker};navigatorDriving.current=true;controls.enabled=false;renderer.domElement.setPointerCapture(event.pointerId);paintAt(event);return;
       }
       if(event.button===0&&!event.ctrlKey&&!event.shiftKey&&!event.altKey&&!event.metaKey){updateNavigator(event);const node=hits(event).find(hit=>hit.object.userData.nodeId!==drive.id);leftDown={pointerId:event.pointerId,x:event.clientX,y:event.clientY,id:node?.object.userData.nodeId,point:navigator.position.clone()};if(drive.active){controls.enabled=false;renderer.domElement.setPointerCapture(event.pointerId);return;}}
@@ -913,6 +918,8 @@ export default function SpatialWorkspace(props: Props) {
   }, [ready, settings.mouse.leftEmpty, settings.mouse.rightEmpty]);
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
+    const values=settings.appearance.renderDefaults?.["omnium.nodes.body"];
+    configureSphereBlend(state.sphereBackground,values);
     state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
@@ -951,7 +958,7 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames, latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale),props.selectedBinderKey??null);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames, latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale),props.selectedBinderKey??null,state.sphereBackground);
     state.camera.updateMatrixWorld();
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);

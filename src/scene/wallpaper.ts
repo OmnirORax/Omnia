@@ -19,7 +19,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, ba
   return {
     async setURL(url: string | null) {
       const mine = ++epoch;
-      mesh.visible = background.pattern.value>0; texture?.dispose(); texture = null; background.image.value = null; background.hasImage.value=0; requestPaint();
+      mesh.visible = false; texture?.dispose(); texture = null; background.image.value = null; background.hasImage.value=0; requestPaint();
       if (!url) return;
       try {
         const loaded = await new THREE.TextureLoader().loadAsync(url);
@@ -30,7 +30,6 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, ba
         mesh.visible = true; requestPaint();
       } catch { /* Keep the theme background if decoding fails; no scene/camera reset. */ }
     },
-    refresh(){mesh.visible=background.pattern.value>0||texture!==null;requestPaint();},
     resize(width: number, height: number) { background.viewportAspect.value = width / height; },
     feedback(color: THREE.Color, strength: number) {
       material.uniforms.feedbackColor.value.copy(color); material.uniforms.feedbackStrength.value = strength;

@@ -1685,12 +1685,12 @@ test('adaptive sphere trial preserves off/zero states and bounds alpha with hue-
  const {adaptiveSample,createSphereBackground}=await import('../src/scene/sphereBlend.ts');
  const rgb=[.02,.08,.5],original={rgb,alpha:.02};assert.deepEqual(adaptiveSample(rgb,[1,1,1],.02,.8,.82,0),original);
  for(const background of [[0,0,0],[1,1,1],rgb,[.8,.01,.4]])for(const strength of [0,.2,.65,1]){
-  const adapted=adaptiveSample(rgb,background,.02,.8,.82,strength);assert.ok(adapted.alpha>=.02&&adapted.alpha<=.8);assert.ok(adapted.rgb.every(Number.isFinite));assert.ok(Math.abs(adapted.rgb[0]/adapted.rgb[2]-rgb[0]/rgb[2])<1e-9,'no hue rotation');
+  const adapted=adaptiveSample(rgb,background,.02,.8,.82,strength);assert.equal(adapted.alpha,.02);assert.ok(adapted.rgb.every(Number.isFinite));assert.ok(Math.abs(adapted.rgb[0]/adapted.rgb[2]-rgb[0]/rgb[2])<1e-9,'no hue rotation');
  }
  assert.deepEqual(adaptiveSample(rgb,[1,1,1],0,0,.82,1),{rgb,alpha:0});assert.deepEqual(adaptiveSample(rgb,[1,1,1],0,1,1,1),{rgb,alpha:0});
  const a=createSphereBackground(),b=createSphereBackground();a.enabled.value=1;assert.equal(b.enabled.value,0,'separate views never share trial state');
 });
-test('adaptive whole-surface comparison improves representative composited luminance contrast',async()=>{
+test('adaptive brightness preserves opacity while improving representative luminance contrast',async()=>{
  const {adaptiveSample}=await import('../src/scene/sphereBlend.ts');const luma=rgb=>rgb.reduce((s,v,i)=>s+Math.max(0,Math.min(1,v))*[.2126,.7152,.0722][i],0);
  for(const [rgb,bg] of [[[.01,.03,.3],[0,0,0]],[[.01,.03,.3],[.9,.9,.9]],[[0,0,1],[0,0,1]]]){
   const before=Math.abs(luma(rgb)*.0045+luma(bg)*.9955-luma(bg)),adapted=adaptiveSample(rgb,bg,.0045,1,.82,1),after=Math.abs(luma(adapted.rgb)*adapted.alpha+luma(bg)*(1-adapted.alpha)-luma(bg));assert.ok(after>before,JSON.stringify({rgb,bg,before,after}));
@@ -1704,7 +1704,13 @@ test('adaptive shader attachment preserves actual Phong preprocessor boundaries 
 });
 
 
-test('sphere timing refuses a lost rendering context instead of publishing empty-frame timings',async()=>{
- const {timedSphereFrame}=await import('../src/scene/sphereBlendTiming.ts');
- await assert.rejects(timedSphereFrame({getContext:()=>({isContextLost:()=>true})},()=>assert.fail('lost context must not render'),()=>true),/WebGL context lost/);
+
+
+test('live adaptive fields persist in the controller and resolve only for sphere body targets',async()=>{
+ const {loadController,controllerTargets}=await import('../src/appearance/registry.ts');const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');
+ const state=loadController(JSON.parse(JSON.stringify({...emptyController(),values:{'omnium.nodes.body':{adaptiveBlend:true,adaptiveBlendStrength:.37}}}))),targets=controllerTargets(state),body=targets.find(t=>t.id==='omnium.nodes.body');
+ assert.ok(body.properties.includes('adaptiveBlend'));assert.ok(body.properties.includes('adaptiveBlendStrength'));assert.ok(!targets.find(t=>t.id==='ui.buttons.background').properties.includes('adaptiveBlend'));
+ const base=defaultSettings().appearance,resolved=resolveControllerAppearance({...base,controller:state});assert.equal(resolved.renderDefaults['omnium.nodes.body'].adaptiveBlend,true);assert.equal(resolved.renderDefaults['omnium.nodes.body'].adaptiveBlendStrength,.37);
+ const {createSphereBackground,configureSphereBlend}=await import('../src/scene/sphereBlend.ts');const live=createSphereBackground(),uniform=live.strength;configureSphereBlend(live,resolved.renderDefaults['omnium.nodes.body']);assert.equal(live.enabled.value,1);assert.equal(uniform.value,.37);configureSphereBlend(live,{adaptiveBlend:true,adaptiveBlendStrength:0});assert.equal(live.strength,uniform);assert.equal(uniform.value,0);configureSphereBlend(live);assert.equal(live.enabled.value,0);assert.equal(uniform.value,.65);
+ const defaults=resolveControllerAppearance(base).renderDefaults['omnium.nodes.body'];assert.equal(defaults.adaptiveBlend,false);assert.equal(defaults.adaptiveBlendStrength,.65);
 });

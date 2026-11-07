@@ -378,7 +378,7 @@ branch("omnium.nodes", "omnium", "Nodes");
 part("omnium.nodes.body", "omnium.nodes", "Sphere / geometric body", {
   legacy: "nodes.color",
   animation: { kind: "surface", source: "nodes" },
-}, surface);
+}, [...surface,"adaptiveBlend","adaptiveBlendStrength"]);
 part("omnium.nodes.background", "omnium.nodes", "Label background", {
   role: "background",
   legacy: "background",

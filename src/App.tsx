@@ -94,7 +94,6 @@ import { useInterfaceState } from "./ui/useInterfaceState";
 import type { ColorPreview } from "./textScene";
 import { revealSearchPath, type SearchReveal } from "./ui/search";
 import { useControlGlow } from "./ui/useControlGlow";
-const SphereBlendComparison = lazy(() => import("./scene/AdaptiveSphereComparison").then(module => ({default:module.AdaptiveSphereComparison})));
 const OmnicLibrary = lazy(() => import("./omnic/Library").then(module => ({default:module.OmnicLibrary})));
 const OmnicComposer = lazy(() => import("./omnic/Composer").then(module => ({default:module.OmnicComposer})));
 const SpatialWorkspace = lazy(() => import("./SpatialWorkspace"));
@@ -144,7 +143,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text), actionHistory);
   const { layout: savedUILayout, update: updateUI, savedSettings, setSettings } = ui;
   const [searchOpen, setSearchOpen] = useState(false);
-  const [blendComparisonOpen,setBlendComparisonOpen]=useState(false);
   const [searchReveal, setSearchReveal] = useState<SearchReveal | null>(null);
   const [masterInspection, setMasterInspection] = useState("");
   const [dismissedInspection, setDismissedInspection] = useState("");
@@ -598,7 +596,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     ? document.placements.find((p) => p.id === selectedNode.id)
     : undefined;
   const selectedEntity = document.entities.find((e) => e.id === selectedPlacement?.entityId);
-  const comparisonAppearance=useMemo(()=>selectedPlacement?.appearance?{...renderedAppearance,nodes:{...renderedAppearance.nodes,...selectedPlacement.appearance}}:renderedAppearance,[renderedAppearance,selectedPlacement?.appearance]);
   const sceneBackground = useSceneBackground(actionHistory, selectedNode?.id ?? null);
   const sceneNodeIds = useMemo(() => new Set(document.placements.map(item => item.id)), [document.placements]);
   const sceneNodeIdsRef = useRef(sceneNodeIds); sceneNodeIdsRef.current = sceneNodeIds;
@@ -1332,7 +1329,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:nodeNames", "Node names", <label>Names<select aria-label="Node names" value={settings.spatial.nodeNames ?? "expanded"} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeNames: event.target.value as "expanded" | "all" | "selection" } }))}><option value="expanded">Expanded</option><option value="all">All</option><option value="selection">Selection</option></select></label>, true);
   replaceFunction("ui:nodeCellSize", "Lattice scale", <label>Lattice scale<input key={settings.spatial.latticeScale??1} aria-label="Lattice scale" type="number" step="any" defaultValue={settings.spatial.latticeScale ?? 1} onBlur={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>0)setSettings(old=>({...old,spatial:{...old.spatial,latticeScale:value}}));else event.target.value=String(settings.spatial.latticeScale??1);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}if(event.key==='Escape'){event.preventDefault();event.stopPropagation();event.currentTarget.value=String(settings.spatial.latticeScale??1);event.currentTarget.blur();}}} title="Positive scale, including scientific notation. Enter applies. Scales cells and O carriers together; content keeps its size." /></label>, true);
-  uiFunctions.push({id:'ui:blendComparison',label:'Sphere blending comparison',category:'View',element:<button onClick={()=>setBlendComparisonOpen(true)}>Sphere blending comparison</button>});
   replaceFunction("ui:vacantCells", "Show empty lattice cells", <label><input type="checkbox" checked={!!settings.spatial.showVacantCells} onChange={event=>setSettings(old=>({...old,spatial:{...old.spatial,showVacantCells:event.target.checked}}))}/>Empty lattice cells</label>, true);
   replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
@@ -1382,7 +1378,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             <FunctionControl id="ui:flowFrom" />
             <FunctionControl id="ui:flowTo" />
             </>}
-            {["ui:blendComparison", "ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:infinity" title="♾️" menu>
             {["metrics.open", "quests.open", "leaderboard.open"].map(id => <FunctionControl id={id} key={id} />)}
@@ -2349,7 +2345,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         </div>
       </main>
       {connectionSource && <div className="operation-banner" role="status">Select another name to connect from {atlas.nodes.find((n) => n.id === connectionSource)?.label || "selected node"}. <button onClick={() => setConnectionSource(null)}>Cancel</button></div>}
-      {blendComparisonOpen&&<FloatingWindow id="sphere-blend-comparison" title="Sphere blending comparison" width={980} height={700} onClose={()=>setBlendComparisonOpen(false)}><Suspense fallback={<p>Opening comparison…</p>}><SphereBlendComparison theme={comparisonAppearance} wallpaperURL={safeView?null:sceneBackground.url}/></Suspense></FloatingWindow>}
       {insertContext && <FloatingWindow id="insert-existing" title="Insert existing entity" width={440} height={430} modal onClose={() => setInsertContext(null)}>
         {field("field:insert-existing-search", "Search existing entities", <label>Search existing entities<input autoFocus aria-label="Search existing entities" value={insertQuery} onChange={(event) => setInsertQuery(event.target.value)} placeholder="Search label, alias, or ID" /></label>)}
         <div className="entity-results">{document.entities.filter((entity) => `${entity.id} ${entity.label} ${entity.aliases.join(" ")}`.toLowerCase().includes(insertQuery.toLowerCase())).slice(0, 30).map((entity) => <button key={entity.id} onClick={() => insertExisting(entity.id, insertContext.parentId, insertContext.world)}>{entity.label || entity.id}<small>{entity.id}</small></button>)}</div>

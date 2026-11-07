@@ -1,19 +1,19 @@
 import * as THREE from 'three';
 export type SphereBackground=ReturnType<typeof createSphereBackground>;
-/** Per-view uniforms; never global and never saved as authored node appearance. */
+/** Per-world render uniforms, driven by the existing serialized appearance properties. */
 export function createSphereBackground(){return {
- image:{value:null as THREE.Texture|null}, imageAspect:{value:1},viewportAspect:{value:1},hasImage:{value:0},pattern:{value:0},
- plain:{value:new THREE.Color('#030c15')},hue:{value:new THREE.Color('#0044ff')},resolution:{value:new THREE.Vector2(1,1)},
+ image:{value:null as THREE.Texture|null}, imageAspect:{value:1},viewportAspect:{value:1},hasImage:{value:0},
+ plain:{value:new THREE.Color('#030c15')},resolution:{value:new THREE.Vector2(1,1)},
  enabled:{value:0},strength:{value:.65},
 };}
+export function configureSphereBlend(background:SphereBackground,values?:Record<string,unknown>){
+ background.enabled.value=values?.adaptiveBlend===true?1:0;
+ background.strength.value=Number(values?.adaptiveBlendStrength??.65);
+}
 export const sphereBackgroundGLSL=`
 uniform sampler2D sphereBgImage; uniform float sphereBgImageAspect; uniform float sphereBgViewportAspect;
-uniform float sphereBgHasImage; uniform float sphereBgPattern; uniform vec3 sphereBgPlain; uniform vec3 sphereBgHue;
+uniform float sphereBgHasImage; uniform vec3 sphereBgPlain;
 vec3 sphereBackground(vec2 uv,float bias){
- if(sphereBgPattern>3.5){float stripe=0.5+0.5*sin(uv.x*31.0+sin(uv.y*19.0)*2.0);return mix(vec3(0.005),mix(vec3(0.9,0.3,0.02),vec3(0.2,0.04,0.8),uv.y),stripe);}
- if(sphereBgPattern>2.5)return sphereBgHue;
- if(sphereBgPattern>1.5)return vec3(0.85);
- if(sphereBgPattern>0.5)return vec3(0.002);
  if(sphereBgHasImage<0.5)return sphereBgPlain;
  vec2 coverUV=uv-0.5;
  if(sphereBgViewportAspect>sphereBgImageAspect)coverUV.y*=sphereBgImageAspect/sphereBgViewportAspect;
@@ -22,7 +22,7 @@ vec3 sphereBackground(vec2 uv,float bias){
 }`;
 export function sphereBackgroundUniforms(state:SphereBackground){return {
  sphereBgImage:state.image,sphereBgImageAspect:state.imageAspect,sphereBgViewportAspect:state.viewportAspect,
- sphereBgHasImage:state.hasImage,sphereBgPattern:state.pattern,sphereBgPlain:state.plain,sphereBgHue:state.hue,
+ sphereBgHasImage:state.hasImage,sphereBgPlain:state.plain,
  sphereBlendResolution:state.resolution,sphereBlendEnabled:state.enabled,sphereBlendStrength:state.strength,
 };}
 /** Contrast candidates scale the chosen RGB uniformly: hue is not replaced.
@@ -35,11 +35,11 @@ export function adaptiveSample(rgb:readonly number[],background:readonly number[
  const bright=luminance(rgb.map(v=>v*brightGain)),dark=luminance(rgb.map(v=>v*.15));
  const light=smooth(-.05,.05,Math.abs(bright-bg)-Math.abs(dark-bg)),gain=.15+(brightGain-.15)*light;
  const target=rgb.map(v=>v*gain),composite=bg+(src-bg)*clamp(alpha),lack=1-smooth(.08,.35,Math.abs(composite-bg)),amount=strength*lack;
- return {rgb:rgb.map((v,i)=>v+(target[i]-v)*amount),alpha:alpha+(Math.max(alpha,opacity*Math.min(.6,(1-translucency)*3)*strength)-alpha)*lack};
+ return {rgb:rgb.map((v,i)=>v+(target[i]-v)*amount),alpha};
 }
 export const adaptiveBlendGLSL=`
 uniform vec2 sphereBlendResolution; uniform float sphereBlendEnabled; uniform float sphereBlendStrength;
-void adaptiveSphere(inout vec3 color,inout float alpha,float authoredOpacity,float translucency){
+void adaptiveSphere(inout vec3 color,in float alpha,float authoredOpacity,float translucency){
  if(sphereBlendEnabled<0.5||sphereBlendStrength<=0.0||alpha<=0.0||authoredOpacity<=0.0||translucency>=1.0)return;
  vec3 bg=sphereBackground(gl_FragCoord.xy/sphereBlendResolution,2.0);
  vec3 weights=vec3(0.2126,0.7152,0.0722);
@@ -52,6 +52,5 @@ void adaptiveSphere(inout vec3 color,inout float alpha,float authoredOpacity,flo
  float lack=1.0-smoothstep(0.08,0.35,abs(compositeLuma-backgroundLuma));
  float strength=clamp(sphereBlendStrength,0.0,1.0);
  color=mix(color,color*gain,strength*lack);
- float ceiling=max(alpha,authoredOpacity*min(0.6,(1.0-translucency)*3.0)*strength);
- alpha=mix(alpha,ceiling,lack);
+ // Adaptive brightness never changes authored surface coverage/opacity.
 }`;
