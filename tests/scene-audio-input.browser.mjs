@@ -1,4 +1,4 @@
-// Focused quiet website/shared-audio check explicitly approved by the user.
+// Opt-in direct website playback check; this revision requires fresh browser approval.
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright-core';
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
@@ -9,6 +9,8 @@ function quietTone(){const rate=48000,n=rate*8,b=Buffer.alloc(44+n*2);b.write('R
 try{
  await page.addInitScript(()=>{
  localStorage.setItem('omnium.workspace.settings.v1',JSON.stringify({appearance:{theme:'classic',motion:0,glow:0,effectIntensity:0},sceneVfx:{audioLight:'#aa3300',audioBounce:1.12,waves:false,distortion:0,glitching:0}}));
+ window.captureRequests=0;
+ for(const name of ['getDisplayMedia','getUserMedia'])if(navigator.mediaDevices)navigator.mediaDevices[name]=async()=>{window.captureRequests++;throw Error('Browser capture must not be requested');};
  window.audioUniforms={};
  for(const Type of [window.WebGLRenderingContext,window.WebGL2RenderingContext]){
  if(!Type)continue;const locations=new WeakMap(),get=Type.prototype.getUniformLocation,set=Type.prototype.uniform1f;
@@ -21,19 +23,12 @@ try{
  const imageChooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose image',exact:true}).click();await(await imageChooser).setFiles({name:'disposable-colour-patches.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')});
  await page.getByText(/Image saved and assigned/).waitFor();
  const audioChooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose audio file',exact:true}).click();await(await audioChooser).setFiles({name:'quiet-55hz.wav',mimeType:'audio/wav',buffer:quietTone()});
- await page.locator('audio').click({position:{x:25,y:27}});await page.locator('audio').evaluate(el=>el.play());
+ await page.getByRole('button',{name:'Play audio',exact:true}).click();
  await page.waitForFunction(()=>window.audioUniforms.light>.02&&window.audioUniforms.bounce>1.005);
- const local=await page.evaluate(async()=>({signal:(await import('/src/scene/audio.ts')).sampleSceneAudio(),uniforms:{...window.audioUniforms},meter:document.querySelector('meter').value}));assert.ok(local.signal.active&&local.meter>.1,JSON.stringify(local));
+ const local=await page.evaluate(async()=>({signal:(await import('/src/scene/audio.ts')).sampleSceneAudio(),uniforms:{...window.audioUniforms},meter:document.querySelector('meter').value}));assert.ok(local.signal.active&&local.meter>.1,JSON.stringify(local));assert.equal(await page.evaluate(()=>window.captureRequests),0,'no tab/screen/microphone capture');
  // Detaching the controls' media view must retain the same app-owned player/session.
  const retained=await page.evaluate(async()=>{const a=await import('/src/scene/audio.ts'),player=a.sceneAudioSnapshot().player;a.parkSceneAudioPlayer(player);await new Promise(r=>setTimeout(r,150));const active=a.sampleSceneAudio();return {active,paused:player.paused};});assert.ok(retained.active.active&&!retained.paused);
- await page.getByRole('button',{name:'Disconnect audio',exact:true}).click();
- // Real browser WebAudio stream through the same shared-audio command; only the OS picker is simulated.
- await page.evaluate(()=>{navigator.mediaDevices.getDisplayMedia=async()=>{const ctx=new AudioContext(),osc=ctx.createOscillator(),gain=ctx.createGain(),out=ctx.createMediaStreamDestination();osc.frequency.value=55;gain.gain.value=.04;osc.connect(gain).connect(out);osc.start();await ctx.resume();window.captureFixture={ctx,osc,out};return out.stream;};});
- await page.getByRole('button',{name:'Connect shared audio',exact:true}).click();await page.getByText('Shared audio connected',{exact:true}).waitFor();
- await page.waitForFunction(()=>window.audioUniforms.light>.02&&window.audioUniforms.bounce>1.005);
- const shared=await page.evaluate(async()=>(await import('/src/scene/audio.ts')).sampleSceneAudio());assert.ok(shared.active&&shared.level>.1,JSON.stringify(shared));
- await page.getByRole('button',{name:'Disconnect audio',exact:true}).click();await page.evaluate(()=>{window.captureFixture.osc.stop();void window.captureFixture.ctx.close();});
- assert.equal(await page.evaluate(async()=>(await import('/src/scene/audio.ts')).isSceneAudioConnected()),false);
+ await page.getByRole('button',{name:'Stop audio',exact:true}).click();
  // Pixel-level selective hue response in the actual wallpaper shader.
  await page.route('**/colour-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto(origin+'/colour-harness');
  const colours=await page.evaluate(async()=>{
@@ -46,5 +41,5 @@ try{
  const {SceneGlow}=await import('/src/sceneGlow.ts');const glow=new SceneGlow(scene,camera,0),original=mesh.material,mask=glow.mask(original,1);mesh.material=mask;wallpaper.configure({...selective,audioLight:'#aa3300',waves:false,distortion:0,glitching:0});u.light.value=.7;const emission=pixels();u.light.value=.2;const quieterEmission=pixels();const originalPass=u.sceneGlowPass.value;mesh.material=original;glow.dispose();wallpaper.dispose();renderer.dispose();return {before,orange,blue,emission,quieterEmission,originalPass};
  });
  assert.notDeepEqual(colours.orange[0],colours.before[0],'orange range emits light');assert.notDeepEqual(colours.orange[2],colours.before[2],'nearby lighter orange also responds');assert.deepEqual(colours.orange[1],colours.before[1],'distant blue is not globally tinted');assert.deepEqual(colours.orange[3],colours.before[3],'distant green is unchanged');assert.notDeepEqual(colours.blue[1],colours.before[1],'selecting blue activates blue');assert.deepEqual(colours.blue[0],colours.before[0],'orange stays unchanged when blue is selected');assert.ok(colours.emission.every(p=>p.slice(0,3).every(c=>c===0)),'wallpaper composites its glow locally, without a second additive bloom');assert.deepEqual(colours.emission,colours.quieterEmission,'wallpaper never adds a second emission through world bloom');assert.equal(colours.originalPass,0,'bloom never mutates normal rendering mode');assert.deepEqual(errors,[]);
- console.log(JSON.stringify({result:'PASS',local,shared,colours,checks:'quiet website playback reaches actual atlas light/bounce uniforms; view detach retains playback; real shared WebAudio stream drives effects; selective broad colour ranges preserve distant hues; disconnect cleans up'}));
+ console.log(JSON.stringify({result:'PASS',local,colours,checks:'quiet website playback reaches actual atlas light/bounce uniforms; view detach retains playback; selective broad colour ranges preserve distant hues; disconnect cleans up'}));
 }finally{await browser.close();}

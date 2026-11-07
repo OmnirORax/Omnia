@@ -26,25 +26,23 @@ test('audio response preserves baseline, bounded bounce and stable smoothing aft
  assert.equal(smoothAudio(0,1,0),0);assert.equal(smoothAudio(0,1,1/100),.25);
  assert.equal(smoothAudio(0,1,100),1);assert.equal(smoothAudio(.8,0,-1),.8);
 });
-test('shared audio releases rejected and late streams and does not echo captured sound',async()=>{
+test('website playback supplies analysis without requesting browser capture and resumes without a second source',async()=>{
  const audio=await import('../src/scene/audio.ts');
+ const {readFileSync}=await import('node:fs');assert.doesNotMatch(readFileSync(new URL('../src/scene/audio.ts',import.meta.url),'utf8'),/getDisplayMedia|getUserMedia|createMediaStreamSource/,'scene audio must have no capture implementation');
  const previousContext=globalThis.AudioContext,previousNavigator=Object.getOwnPropertyDescriptor(globalThis,'navigator');
- const contexts=[];let nextStream;
+ const contexts=[];let captures=0;
  class Node{links=[];disconnect(){}connect(value){this.links.push(value);return value;}}
- class Context{closed=false;state='running';sampleRate=48000;destination={};constructor(){contexts.push(this);}resume(){this.state='running';return Promise.resolve();}close(){this.closed=true;return Promise.resolve();}createAnalyser(){this.analyser=Object.assign(new Node(),{fftSize:2048,frequencyBinCount:1024,getByteFrequencyData:array=>array.fill(255),getByteTimeDomainData:array=>array.fill(255)});return this.analyser;}createMediaStreamSource(){this.source=new Node();return this.source;}}
- globalThis.AudioContext=Context;globalThis.MediaStream=class{constructor(tracks){this.tracks=tracks;}};
- Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{getDisplayMedia:()=>nextStream}}});
- const track=()=>({stopped:false,stop(){this.stopped=true;},addEventListener(){}}),stream=hasAudio=>{const tracks=[track(),...(hasAudio?[track()]:[])];return {tracks,getTracks:()=>tracks,getAudioTracks:()=>hasAudio?[tracks[1]]:[]};};
+ class Context{closed=false;state='running';sampleRate=48000;destination={};constructor(){contexts.push(this);}resume(){this.state='running';return Promise.resolve();}close(){this.closed=true;return Promise.resolve();}createAnalyser(){this.analyser=Object.assign(new Node(),{fftSize:2048,frequencyBinCount:1024,getByteFrequencyData:array=>array.fill(255),getByteTimeDomainData:array=>array.fill(255)});return this.analyser;}createMediaElementSource(){this.source=new Node();return this.source;}}
+ globalThis.AudioContext=Context;
+ Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{getDisplayMedia:()=>{captures++;throw Error('capture must never be requested');},getUserMedia:()=>{captures++;throw Error('microphone must never be requested');}}}});
+ const media={paused:false,pause(){this.paused=true;},addEventListener(){},removeEventListener(){}};
  try{
- const noAudio=stream(false);nextStream=Promise.resolve(noAudio);await assert.rejects(audio.connectSharedSceneAudio(),/No audio/);assert.ok(noAudio.tracks.every(t=>t.stopped));assert.ok(contexts.at(-1).closed);
- let resolve;nextStream=new Promise(r=>resolve=r);const pending=audio.connectSharedSceneAudio();audio.disconnectSceneAudio();const late=stream(true);resolve(late);await pending;assert.ok(late.tracks.every(t=>t.stopped));assert.equal(audio.isSceneAudioConnected(),false);
- const valid=stream(true);nextStream=Promise.resolve(valid);await audio.connectSharedSceneAudio();assert.equal(audio.isSceneAudioConnected(),true);assert.deepEqual(contexts.at(-1).source.links,[contexts.at(-1).analyser]);assert.deepEqual(contexts.at(-1).analyser.links,[],"captured audio is never connected to speakers");assert.deepEqual(audio.sampleSceneAudio(),{active:true,bass:1,level:1});
- contexts.at(-1).analyser.getByteTimeDomainData=array=>array.fill(132);const quiet=audio.sampleSceneAudio();assert.ok(Math.pow(quiet.level,4)*1.2>.05);
- contexts.at(-1).state='suspended';nextStream=Promise.reject(Error('must not request a second stream'));nextStream.catch(()=>{});await audio.connectSharedSceneAudio();assert.equal(audio.isSceneAudioConnected(),true);assert.equal(contexts.at(-1).state,'running');
- audio.disconnectSceneAudio();assert.ok(valid.tracks.every(t=>t.stopped));
- }finally{audio.disconnectSceneAudio();globalThis.AudioContext=previousContext;delete globalThis.MediaStream;if(previousNavigator)Object.defineProperty(globalThis,'navigator',previousNavigator);else delete globalThis.navigator;}
+ await audio.connectSceneAudioElement(media);assert.equal(audio.isSceneAudioConnected(),true);assert.deepEqual(contexts.at(-1).source.links,[contexts.at(-1).analyser]);assert.deepEqual(contexts.at(-1).analyser.links,[contexts.at(-1).destination],'the analysed signal is also the audible website playback');assert.deepEqual(audio.sampleSceneAudio(),{active:true,bass:1,level:1});
+ contexts.at(-1).analyser.getByteTimeDomainData=array=>array.fill(132);assert.ok(Math.pow(audio.sampleSceneAudio().level,4)*1.2>.05);
+ contexts.at(-1).state='suspended';await audio.connectSceneAudioElement(media);assert.equal(contexts.length,1,'resume reuses the media source/context');assert.equal(contexts[0].state,'running');assert.equal(captures,0);
+ audio.disconnectSceneAudio();assert.equal(media.paused,true);assert.equal(audio.isSceneAudioConnected(),false);assert.ok(contexts[0].closed);
+ }finally{audio.disconnectSceneAudio();globalThis.AudioContext=previousContext;if(previousNavigator)Object.defineProperty(globalThis,'navigator',previousNavigator);else delete globalThis.navigator;}
 });
-
 
 test('quiet audible input survives light shaping while digital silence stays still',()=>{
  assert.equal(normalizeAudioLevel(0),0);assert.equal(normalizeAudioLevel(.001),0);
@@ -57,17 +55,17 @@ test('quiet audible input survives light shaping while digital silence stays sti
 test('file playback session survives control subscriptions and reconnects with a fresh media element',async()=>{
  const audio=await import('../src/scene/audio.ts'),previousAudio=globalThis.Audio,previousContext=globalThis.AudioContext;
  const contexts=[];
- class Media{paused=true;controls=false;listeners=new Map();constructor(src){this.src=src;}pause(){this.paused=true;}remove(){}addEventListener(name,fn){this.listeners.set(name,fn);}removeEventListener(name){this.listeners.delete(name);}}
+ class Media{paused=true;controls=false;listeners=new Map();constructor(src){this.src=src;}play(){this.paused=false;return Promise.resolve();}pause(){this.paused=true;}remove(){}addEventListener(name,fn){this.listeners.set(name,fn);}removeEventListener(name){this.listeners.delete(name);}}
  class Node{connect(){}disconnect(){}}
  class Context{state='running';closed=false;constructor(){contexts.push(this);}resume(){return Promise.resolve();}close(){this.closed=true;return Promise.resolve();}createMediaElementSource(){return new Node();}createAnalyser(){return Object.assign(new Node(),{frequencyBinCount:1024});}}
  globalThis.Audio=Media;globalThis.AudioContext=Context;
  try{
  audio.loadSceneAudioFile(new File(['disposable'],'tone.wav',{type:'audio/wav'}));const first=audio.sceneAudioSnapshot().player;
- await audio.connectSceneAudioElement(first);const releaseView=audio.subscribeSceneAudio(()=>{});releaseView();
+ await audio.playSceneAudio();assert.equal(first.paused,false);const releaseView=audio.subscribeSceneAudio(()=>{});releaseView();
  assert.equal(audio.isSceneAudioConnected(),true,'settings visibility must not own the audio session');assert.equal(audio.sceneAudioSnapshot().player,first);
  audio.stopSceneAudio();assert.equal(audio.isSceneAudioConnected(),false);assert.ok(contexts[0].closed);
  const second=audio.sceneAudioSnapshot().player;assert.notEqual(second,first);assert.equal(second.src,first.src);
- await audio.connectSceneAudioElement(second);assert.equal(audio.isSceneAudioConnected(),true);
+ await audio.playSceneAudio();assert.equal(second.paused,false);assert.equal(audio.isSceneAudioConnected(),true);
  audio.disposeSceneAudio();assert.equal(audio.sceneAudioSnapshot().player,null);assert.ok(contexts.at(-1).closed);
  }finally{audio.disposeSceneAudio();globalThis.Audio=previousAudio;globalThis.AudioContext=previousContext;}
 });

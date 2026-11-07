@@ -127,25 +127,35 @@ other unpictured controls are excluded.
 
 ## Audio sources and lifetime
 
-**Choose audio file** creates temporary native website playback. Press Play to
-allow browser audio. **Connect shared audio** opens the browser tab/screen picker;
-select the music source and enable **Share tab audio**. Other websites cannot be
-automatically listened to. System/desktop capture support depends on browser/OS;
-there is no microphone fallback or captured-audio speaker echo.
+Use **Scene → Scene effects → Choose audio file → Play audio**. The website plays
+that file and analyses the same media element directly through WebAudio. The
+native player's Play/Pause/seek/volume controls remain available. There is no tab,
+screen, system-audio or microphone capture implementation and no sharing picker
+or Chrome sharing indicator started by this version. Music in other apps/tabs
+is not an input. A native audio bridge would be a separate, unimplemented feature.
+Files are temporary local playback, not uploaded or persisted.
+
+The former **Connect shared audio** action is now **Play audio**, retaining action
+ID `scene.audioConnect` so saved bindings/residents remain usable. The former
+**Disconnect audio** is now **Stop audio**, retaining `scene.audioDisconnect`.
+Play without a file asks for a file in the existing status text. Playback still
+requires a user gesture under native autoplay policy; no sharing permission.
 
 The readonly **Audio input** meter shows what reaches the analyser. “No audio
-connected” means there is no source. A connected stream with a zero meter can be
-silent or missing music; this is distinct from an effect's visual response. Quiet
-RMS is noise-gated/mapped into the response range before existing audio shaping.
-Bass approximates the 31–65 Hz band for zoom; broadband RMS drives the coloured flash.
+connected” means no active source; a zero meter can mean paused/silent playback.
+Quiet RMS is noise-gated/mapped into the existing response curve. Bass approximates
+31–65 Hz for zoom; broadband RMS drives the coloured flash.
 
-The app owns audio, media URLs and a hidden media parking host. Closing/reparenting
-controls preserves playback/analysis; reopening reuses the player. **Disconnect
-audio**, ending a share or scene-renderer teardown releases the connection.
-Explicit stop/reconnect uses a fresh media element because WebAudio cannot attach
-a second source node to a previously connected element. Late/cancelled capture or
-old media events cannot replace the current source. Files are neither saved nor
-uploaded; native browser permissions and autoplay policy remain authoritative.
+The app owns the player, object URL, analysis graph and hidden media parking host.
+Closing/reparenting controls preserves playback/analysis; reopening reuses the
+player. **Stop audio** or scene-renderer teardown pauses and releases analysis.
+Stop keeps the selected file ready; Play reconnects via a fresh media element,
+since WebAudio cannot attach a new source to a previously connected element.
+Repeated Play/resume reuses an active source instead of duplicating it.
+
+Captures already started by older preview tabs are owned by those older pages.
+Close those preview tabs or stop their existing shares in Chrome. This version
+cannot cancel another page's capture, and never starts a new one.
 
 ## Rendering and limits
 
@@ -165,7 +175,7 @@ orange were unavailable. This is not a pixel-identical Wallpaper Engine port.
 ## Verification status
 
 Model checks cover settings defaults/serialization, historical saves, shared
-setters, audio lifecycle, quiet signal/silence, no echo, resume/reconnect and FPS
+setters, direct playback lifecycle, quiet signal/silence, resume/reconnect and FPS
 pacing. Local model/type/build/backend success does not establish appearance.
 
 Earlier user-approved browser checks established audio pickup and some limited
@@ -186,3 +196,10 @@ check the screenshot defaults, preservation of earlier 19-field explicit tuning,
 mode toggling/round trips, retained selective colour and cache invalidation/reuse.
 The prepared emission browser check includes multi-hue All colours coverage; it
 remains opt-in and unrun for this revision.
+
+
+The capture-free revision has no fresh browser run. Model checks verify direct
+media → analyser → speaker routing, zero capture API requests, idempotent resume,
+Play/Stop/replay, view subscription retention and disposal. A source-boundary check
+rejects capture APIs in the scene-audio module. The prepared browser audio script
+uses Play audio and fails if any tab/screen/microphone capture is requested.

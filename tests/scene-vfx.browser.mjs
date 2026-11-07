@@ -13,10 +13,10 @@ try{
  assert.deepEqual(Object.fromEntries(Object.entries(defaults).filter(([k])=>['audioLight','audioBounce','waves','distortion','glitching','maxFps'].includes(k))),{audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.ok((await page.locator('body').innerText()).includes('Audio Light'));
  const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose audio file',exact:true}).click();await(await chooser).setFiles({name:'disposable-55hz.wav',mimeType:'audio/wav',buffer:tone()});
- await page.locator('audio').click({position:{x:25,y:27}});await page.locator('audio').evaluate(element=>element.play());await page.getByText('Audio file connected',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Play audio',exact:true}).click();await page.getByText('Audio file connected',{exact:true}).waitFor();
  await page.waitForTimeout(350);
  const signal=await page.evaluate(async()=>{const audio=await import('/src/scene/audio.ts');return audio.sampleSceneAudio();});assert.ok(signal.active&&signal.bass>.1&&signal.level>.1,JSON.stringify(signal));
- await page.getByRole('button',{name:'Disconnect audio',exact:true}).click();
+ await page.getByRole('button',{name:'Stop audio',exact:true}).click();
  assert.equal(await page.evaluate(async()=>(await import('/src/scene/audio.ts')).isSceneAudioConnected()),false);
  // Exercise the actual wallpaper renderer in a disposable harness without the atlas effects stack.
  await page.route('**/vfx-harness',route=>route.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto(origin+'/vfx-harness');

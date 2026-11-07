@@ -20,8 +20,8 @@ export const radialGroups = {
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 const CORE_FEATURE_ACTIONS = [
-  {id:'scene.audioConnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Connect shared audio',defaultKey:'',description:'Choose browser tab/screen audio to drive scene effects. Audio sharing needs explicit browser permission.'},
-  {id:'scene.audioDisconnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Disconnect audio',defaultKey:'',description:'Stop scene audio capture/analysis and release its tracks and audio context.'},
+  {id:'scene.audioConnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Play audio',defaultKey:'',description:'Play the website audio player and use its signal for scene effects. Choose an audio file first; no tab or screen sharing.'},
+  {id:'scene.audioDisconnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Stop audio',defaultKey:'',description:'Stop website audio playback and release its analysis context; keep the chosen file ready to play again.'},
   {id:'scene.audioFile',owner:'sceneAudio',scope:'global',category:'Scene',label:'Choose audio file',defaultKey:'',description:'Play a local audio file to drive scene effects. File and playback position are not saved or uploaded.'},
   {id:'world.navigatorCancel',owner:'worldNavigator',scope:'world',category:'World navigator',label:'Cancel node drive',defaultKey:'Esc',description:'Restore the driven node and its branch to their starting placements without saving the preview.'},
 

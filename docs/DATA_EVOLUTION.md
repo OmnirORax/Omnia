@@ -502,3 +502,19 @@ preferences; 19-field clients can drop only All colours on resave. Preserve a cu
 export before using older clients. Older runtime rendering remains its previous
 selective model. No asset, assignment, atlas, permission or backend schema changes;
 RGB masks remain transient and reuse the existing bounded GPU allocation.
+
+
+### Capture-free website audio (2026-11-07)
+
+The user rejected all browser sharing indicators and explicitly replaced shared
+capture with direct website playback. Tab/screen/system capture implementation is
+removed. `scene.audioConnect` now means Play audio for the app-owned file player;
+`scene.audioDisconnect` means Stop audio. These retained action IDs preserve saved
+shortcut/resident references while retiring their old capture semantics. Play
+cannot open a sharing dialog; Stop keeps the chosen local file ready for replay.
+All 20 sceneVfx fields/defaults, image bytes, assignments, atlas/settings formats
+and history owners remain unchanged. Media URLs/files/analysis were already
+transient, so no saved audio conversion is needed. Older clients still offer their
+former sharing actions; rollback does not transfer a live session. Captures in
+older open preview tabs must be ended there/by closing those tabs. No native
+system-audio bridge, remote audio import or new backend service is introduced.
