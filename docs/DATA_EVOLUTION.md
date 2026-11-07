@@ -403,3 +403,5 @@ Full-viewport world composition changes CSS layout only. No saved graph coordina
 Carrier wallpaper isolation is transient render composition only: no graph, camera, settings or saved schema changes. The existing sphere material/translucency values remain authoritative; backing geometry is derived from current visible carrier transforms and never participates in picking or exports.
 
 Opaque carrier wallpaper isolation was removed after user rejection. Configured soft edge glow is derived rendering using existing colour/glow/opacity/translucency values, without saved-schema changes. Existing settings and placement data remain unchanged.
+
+Adaptive sphere comparison introduces no authored graph/settings schema. Enable, strength, sample background, count and timing rows are transient component state and never update the live atlas. Window placement alone uses existing UI layout persistence/unknown-ID retention. Optional shader sampling uniforms are per comparison view; absent experimental input preserves the existing sphere shader path. Existing wallpapers share a cover-UV sampling helper without changing stored image references or assets.

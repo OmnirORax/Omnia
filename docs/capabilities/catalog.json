@@ -3914,8 +3914,58 @@
       "limits": "Camera-aligned navigator orientation; independent navigator rotation controls are deferred. No depth-filtered picking, arbitrary floating-origin precision, persistent navigator identity, camera follow on every preview frame or full 3D lattice-volume renderer. Plain left-click is now drive/park; inspect/expand via domain actions. At most 256 visible driven hosts. Existing lattice occupancy, legacy recovery and document validation limits apply. Camera movement and document placement have separate existing history owners. Other high-priority selection/editing gestures retain input ownership.",
       "status": "Implemented for review; production and user browser acceptance pending",
       "verification": {
-        "automated": "Model tests cover shared 2D/3D stroke sampling, bounded packets, copied content, occupancy including hidden cells, duplicate visits, source immutability and document validation. All 603 model/architecture tests, preview/type/property/capability build and backend checks pass. Regression reproduces off-grid-parent confirmation shift and verifies exact world positions after reconciliation.",
+        "automated": "Model tests cover shared 2D/3D stroke sampling, bounded packets, copied content, occupancy including hidden cells, duplicate visits, source immutability and document validation. All 607 model/architecture tests, preview/type/property/capability build and backend checks pass. Regression reproduces off-grid-parent confirmation shift and verifies exact world positions after reconciliation.",
         "browser": "Shared bubble material and paint confirmation correction await user preview acceptance; no browser check run for this change."
+      }
+    },
+    {
+      "id": "render.adaptiveComparison",
+      "title": "Whole-sphere adaptive blending comparison",
+      "where": "View → Sphere blending comparison. No cloud sign-in required; the live atlas remains unchanged.",
+      "behavior": "A temporary two-pane comparison uses the same sphere arrangement, camera, selected node appearance (or node defaults when none is selected) and normal scene render/glow pipeline. Current view stays unchanged; adaptation on the right starts off. Strength 0–1 adjusts whole-surface wallpaper-aware brightness and opacity, without rotating hue. Current wallpaper and controlled Dark/Bright/Same hue/Busy backgrounds are available. Drag either pane to orbit both; choose 100/1,000/5,000 instanced spheres. Adaptation uses one wallpaper texture lookup per covered base fragment when enabled; shared cover-UV sampling and a modest mip bias reduce sensitivity to fine image noise. Bloom keeps the authored edge glow. Opacity increase is bounded by authored opacity and translucency, with zero/full-clear endpoints preserved. Measurement pairs current/adaptive samples after warm-up and reports medians for CPU/driver call times and valid GPU timer queries. Software renderers are identified and never presented as hardware GPU evidence. Trial controls/results are component state, discarded on close.",
+      "steps": [
+        {
+          "do": "Open View → Sphere blending comparison. Leave Adapt right view off and orbit either pane.",
+          "expect": "Both panes show the same scene and camera. Your live atlas, saved appearance and graph remain unchanged."
+        },
+        {
+          "do": "Enable Adapt right view and vary Strength from 0 to 1. Compare Dark, Bright, Same hue and Busy backgrounds, then Current wallpaper.",
+          "expect": "Only the right pane adapts across entire sphere surfaces. Strength 0 matches the current rendering. The chosen hue is retained, with controlled brightness and opacity changes; stronger adaptation can reduce transparency."
+        },
+        {
+          "do": "Choose 1,000 or 5,000 spheres and press Measure 100 / 1,000 / 5,000 spheres.",
+          "expect": "A bounded paired measurement reports medians. GPU columns appear only with valid non-disjoint timer queries on a renderer not identified as software; otherwise they say Unavailable. Call time includes CPU/driver work and gl.finish; it is not GPU timer evidence."
+        },
+        {
+          "do": "Close and reopen the window.",
+          "expect": "Trial enable/strength/background/count settings reset and your live atlas remains unchanged. Window placement follows the existing UI layout system."
+        }
+      ],
+      "reference": "docs/ATLAS_LATTICE.md",
+      "sources": [
+        "src/scene/AdaptiveSphereComparison.tsx",
+        "src/scene/sphereBlend.ts",
+        "src/scene/sphereBlendTiming.ts",
+        "src/scene/wallpaper.ts",
+        "src/atomicCarrier.ts",
+        "src/App.tsx",
+        "tests/appearance.test.mjs",
+        "tests/adaptive-spheres.browser.mjs",
+        "tests/adaptive-texture.browser.mjs",
+        "tests/adaptive-spheres.harness.html",
+        "docs/performance/adaptive-spheres-2026-11-07.json"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "graph.lattice",
+        "camera.navigation"
+      ],
+      "limits": "Experimental, opt-in comparison only; not applied to the live atlas. Wallpaper-only adaptation does not sample other nodes or the completed scene. Exact hue limits possible luminance (especially black on black); smooth polarity transitions can have weak contrast near crossover. This is a bounded contrast heuristic, not a universal contrast guarantee or physically accurate transmission. The instanced material comparison does not establish full-atlas scalability or interactive acceptance. GPU queries may be unavailable/disjoint; software completion times do not establish hardware performance. Benchmarking is explicit and can temporarily occupy the UI; closing cancels further samples. Transparent instances use one batch and are not individually sorted like atlas placements.",
+      "status": "Experimental comparison for review; disabled by default; no live-atlas rollout",
+      "verification": {
+        "automated": "All 607 model/architecture tests, preview/type/property/capability build and backend checks pass. Regressions cover disabled/zero/clear endpoints, bounded alpha, hue ratios, independent per-view state, representative composited luminance contrast, Phong preprocessor boundaries and refusing lost-context timing.",
+        "browser": "2026-11-07 user-authorized focused local Chromium check passed real shader compilation, linked physical orbit, all four controlled backgrounds, off/zero-strength parity, one paired 100/1000/5000 run and unchanged authored graph/appearance. Pixel analysis: off/orbit/zero panes differ by mean 0.004 of 255 per channel (screenshot edge rounding); adaptive cases change over 22,000 pixels. Untimed GPU texture check: exact cover-UV/off/zero parity on 192×128 and 128×192 render targets; adaptive changes 10,561/23,738 channels. Default and forced browser renderer are SwiftShader, GPU timers unavailable; hardware GPU cost remains unverified. Raw evidence: docs/performance/adaptive-spheres-2026-11-07.json. User aesthetic/full-atlas acceptance remains pending."
       }
     }
   ]

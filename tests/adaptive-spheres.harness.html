@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>Synthetic adaptive sphere texture check</title>
+<script type="module">
+import * as THREE from 'three';
+import {createSphereBackground,sphereBackgroundGLSL,sphereBackgroundUniforms} from '../src/scene/sphereBlend.ts';
+import {createWallpaper} from '../src/scene/wallpaper.ts';
+import {atomicCarrierMaterial,atomicCarrierGeometry} from '../src/atomicCarrier.ts';
+window.probeAdaptiveTexture=async()=>{
+ const renderer=new THREE.WebGLRenderer({antialias:false});document.body.appendChild(renderer.domElement);const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(55,1,.05,100),background=createSphereBackground();camera.position.z=3;
+ const wallpaper=createWallpaper(scene,()=>{},background),fixture=document.createElement('canvas');fixture.width=256;fixture.height=64;const ctx=fixture.getContext('2d');
+ for(let x=0;x<256;x++){ctx.fillStyle=`rgb(${x},${255-x},${(x*7)%256})`;ctx.fillRect(x,0,1,32);ctx.fillStyle=`rgb(${255-x},${x},${(x*11)%256})`;ctx.fillRect(x,32,1,32);}
+ await wallpaper.setURL(fixture.toDataURL());
+ scene.add(new THREE.AmbientLight('white',2.1));const light=new THREE.DirectionalLight('white',2.2);light.position.set(5,12,9);scene.add(light);
+ const original=atomicCarrierMaterial('#0044ff',1,.82,1),adaptive=atomicCarrierMaterial('#0044ff',1,.82,1,background),sphere=new THREE.Mesh(atomicCarrierGeometry(1.6),original);scene.add(sphere);
+ const quadScene=new THREE.Scene(),quadMaterial=new THREE.ShaderMaterial({uniforms:sphereBackgroundUniforms(background),depthTest:false,depthWrite:false,vertexShader:'void main(){gl_Position=vec4(position.xy,1.0,1.0);}',fragmentShader:sphereBackgroundGLSL+'\nuniform vec2 sphereBlendResolution;\nvoid main(){gl_FragColor=vec4(sphereBackground(gl_FragCoord.xy/sphereBlendResolution,0.0),1.0);\n#include <colorspace_fragment>\n}'}),quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),quadMaterial);quad.frustumCulled=false;quadScene.add(quad);
+ const results=[];let target;
+ const compare=(a,b)=>{let max=0,changed=0;for(let i=0;i<a.length;i++){const d=Math.abs(a[i]-b[i]);max=Math.max(max,d);if(d>2)changed++;}return {max,changed};};
+ try{for(const [w,h] of [[192,128],[128,192]]){
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();background.resolution.value.set(w,h);wallpaper.resize(w,h);target=new THREE.WebGLRenderTarget(w,h);
+  const read=which=>{renderer.setRenderTarget(target);renderer.render(which,camera);const pixels=new Uint8Array(w*h*4);renderer.readRenderTargetPixels(target,0,0,w,h,pixels);return pixels;};
+  sphere.visible=false;const actual=read(scene),sample=read(quadScene),uv=compare(actual,sample);sphere.visible=true;
+  sphere.material=original;const baseline=read(scene);sphere.material=adaptive;background.enabled.value=0;const off=compare(baseline,read(scene));background.enabled.value=1;background.strength.value=0;const zero=compare(baseline,read(scene));background.strength.value=1;const on=compare(baseline,read(scene));results.push({width:w,height:h,hasImage:background.hasImage.value,uv,off,zero,on});target.dispose();target=null;
+ }}finally{target?.dispose();wallpaper.dispose();sphere.geometry.dispose();original.dispose();adaptive.dispose();quad.geometry.dispose();quadMaterial.dispose();renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();}return results;
+};
+</script>

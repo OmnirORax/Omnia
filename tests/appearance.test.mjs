@@ -1680,3 +1680,31 @@ test('sphere glow masks inherit soft edge coverage and live authored glow/transl
  updateAtomicCarrier(source,.7,.5,1.2);assert.equal(glow.uniforms.carrierGlow.value,1.2);assert.equal(glow.uniforms.carrierTranslucency.value,.5);assert.equal(source.opacity,.35);assert.equal(source.color.getHexString(),'0044ff');
  updateAtomicCarrier(source,0,.5,2);assert.equal(source.opacity,0);updateAtomicCarrier(source,.7,1,2);assert.equal(source.opacity,0);source.dispose();mask.dispose();
 });
+
+test('adaptive sphere trial preserves off/zero states and bounds alpha with hue-preserving gain',async()=>{
+ const {adaptiveSample,createSphereBackground}=await import('../src/scene/sphereBlend.ts');
+ const rgb=[.02,.08,.5],original={rgb,alpha:.02};assert.deepEqual(adaptiveSample(rgb,[1,1,1],.02,.8,.82,0),original);
+ for(const background of [[0,0,0],[1,1,1],rgb,[.8,.01,.4]])for(const strength of [0,.2,.65,1]){
+  const adapted=adaptiveSample(rgb,background,.02,.8,.82,strength);assert.ok(adapted.alpha>=.02&&adapted.alpha<=.8);assert.ok(adapted.rgb.every(Number.isFinite));assert.ok(Math.abs(adapted.rgb[0]/adapted.rgb[2]-rgb[0]/rgb[2])<1e-9,'no hue rotation');
+ }
+ assert.deepEqual(adaptiveSample(rgb,[1,1,1],0,0,.82,1),{rgb,alpha:0});assert.deepEqual(adaptiveSample(rgb,[1,1,1],0,1,1,1),{rgb,alpha:0});
+ const a=createSphereBackground(),b=createSphereBackground();a.enabled.value=1;assert.equal(b.enabled.value,0,'separate views never share trial state');
+});
+test('adaptive whole-surface comparison improves representative composited luminance contrast',async()=>{
+ const {adaptiveSample}=await import('../src/scene/sphereBlend.ts');const luma=rgb=>rgb.reduce((s,v,i)=>s+Math.max(0,Math.min(1,v))*[.2126,.7152,.0722][i],0);
+ for(const [rgb,bg] of [[[.01,.03,.3],[0,0,0]],[[.01,.03,.3],[.9,.9,.9]],[[0,0,1],[0,0,1]]]){
+  const before=Math.abs(luma(rgb)*.0045+luma(bg)*.9955-luma(bg)),adapted=adaptiveSample(rgb,bg,.0045,1,.82,1),after=Math.abs(luma(adapted.rgb)*adapted.alpha+luma(bg)*(1-adapted.alpha)-luma(bg));assert.ok(after>before,JSON.stringify({rgb,bg,before,after}));
+ }
+});
+
+test('adaptive shader attachment preserves actual Phong preprocessor boundaries and shares view uniforms',async()=>{
+ const THREE=await import('three');const {atomicCarrierMaterial}=await import('../src/atomicCarrier.ts');const {createSphereBackground}=await import('../src/scene/sphereBlend.ts');
+ const background=createSphereBackground(),material=atomicCarrierMaterial('#0044ff',1,.82,1,background),shader={uniforms:{},vertexShader:THREE.ShaderLib.phong.vertexShader,fragmentShader:THREE.ShaderLib.phong.fragmentShader};material.onBeforeCompile(shader,{});
+ assert.ok(!shader.fragmentShader.includes('}#define'));assert.match(shader.fragmentShader,/(^|\n)#define PHONG/);assert.equal(shader.uniforms.sphereBlendStrength,background.strength);background.strength.value=.2;assert.equal(shader.uniforms.sphereBlendStrength.value,.2);material.dispose();
+});
+
+
+test('sphere timing refuses a lost rendering context instead of publishing empty-frame timings',async()=>{
+ const {timedSphereFrame}=await import('../src/scene/sphereBlendTiming.ts');
+ await assert.rejects(timedSphereFrame({getContext:()=>({isContextLost:()=>true})},()=>assert.fail('lost context must not render'),()=>true),/WebGL context lost/);
+});
