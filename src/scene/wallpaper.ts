@@ -20,7 +20,6 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
   });
   const geometry = new THREE.PlaneGeometry(2, 2), mesh = new THREE.Mesh(geometry, material);
   mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
-  mesh.userData.sceneWallpaper=true;
   scene.add(mesh);
   let texture: THREE.Texture | null = null, epoch = 0, alive = true;
   return {

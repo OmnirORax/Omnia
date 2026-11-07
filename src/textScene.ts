@@ -223,7 +223,7 @@ export function buildTextScene(
       {}, true,
     );
     text.material.opacity = style.opacity;
-    const cell: LabelMesh = new THREE.Mesh(atomicCarrierGeometry(), atomicCarrierMaterial(color,style.opacity,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucency??.82)));
+    const cell: LabelMesh = new THREE.Mesh(atomicCarrierGeometry(), atomicCarrierMaterial(color,style.opacity,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucency??.82),style.glow));
     cell.scale.setScalar(sphereDiameter);
     const presentation = new THREE.Group(); group.add(presentation);
     const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
@@ -432,7 +432,7 @@ export function buildTextScene(
       item.group.userData.glowIntensity = style.glow;
       item.text.userData.setTextStyle(style.color, override?.color ?? glyphColor(next, 'text.nodes', style.color), override?.glow ?? glyphGlow(next, 'text.nodes'));
       item.cell.material.color.set(style.color);
-      updateAtomicCarrier(item.cell.material,item.opacity,Number(next.renderDefaults?.["omnium.nodes.body"]?.translucency??.82));
+      updateAtomicCarrier(item.cell.material,item.opacity,Number(next.renderDefaults?.["omnium.nodes.body"]?.translucency??.82),style.glow);
       item.text.material.opacity = item.opacity * Number(next.renderDefaults?.['text.nodes']?.opacity ?? 1);
       const ring=symbolStyle(next,'omnium.selection',override?.color,style.color);
       item.outline.material.color.set(ring.color);item.outline.userData.opacity=ring.opacity;item.outline.userData.glowIntensity=ring.glow;

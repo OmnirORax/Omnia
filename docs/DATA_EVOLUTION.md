@@ -401,3 +401,5 @@ UI translucency applicability follow-up: existing controller translucency values
 Full-viewport world composition changes CSS layout only. No saved graph coordinates, camera values, UI arrangement, settings or schemas are rewritten. The visible camera aspect changes with its full viewport host; existing resize/render-budget owners apply.
 
 Carrier wallpaper isolation is transient render composition only: no graph, camera, settings or saved schema changes. The existing sphere material/translucency values remain authoritative; backing geometry is derived from current visible carrier transforms and never participates in picking or exports.
+
+Opaque carrier wallpaper isolation was removed after user rejection. Configured soft edge glow is derived rendering using existing colour/glow/opacity/translucency values, without saved-schema changes. Existing settings and placement data remain unchanged.

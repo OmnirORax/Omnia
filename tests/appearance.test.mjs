@@ -1671,3 +1671,12 @@ test('UI surfaces and scoped glyphs expose applicable translucency without chang
  assert.equal(read(targets.find(t=>t.id==='ui.windows.background'),'translucency'),0);assert.equal(read(targets.find(t=>t.id==='omnium.nodes.body'),'translucency'),.82);
  assert.equal(translucentOpacity(.5,.6),.2);assert.equal(translucentOpacity(.5,0),.5);assert.equal(translucentOpacity(.5,1),0);
 });
+
+test('sphere glow masks inherit soft edge coverage and live authored glow/translucency',async()=>{
+ const THREE=await import('three');const {atomicCarrierMaterial,updateAtomicCarrier}=await import('../src/atomicCarrier.ts');const {inheritMaterialCoverage}=await import('../src/materialCoverage.ts');
+ const source=atomicCarrierMaterial('#0044ff',.7,.82,.35),mask=new THREE.MeshBasicMaterial();inheritMaterialCoverage(source,mask);
+ const compile=material=>{const shader={uniforms:{},vertexShader:'#include <begin_vertex>\n#include <project_vertex>',fragmentShader:'#include <opaque_fragment>'};material.onBeforeCompile(shader,{});return shader;};
+ const base=compile(source),glow=compile(mask);assert.equal(base.uniforms.carrierGlow,glow.uniforms.carrierGlow);assert.equal(base.uniforms.carrierTranslucency,glow.uniforms.carrierTranslucency);assert.ok(glow.fragmentShader.includes('carrierProfile * carrierGain'));assert.ok(glow.vertexShader.includes('USE_INSTANCING'));
+ updateAtomicCarrier(source,.7,.5,1.2);assert.equal(glow.uniforms.carrierGlow.value,1.2);assert.equal(glow.uniforms.carrierTranslucency.value,.5);assert.equal(source.opacity,.35);assert.equal(source.color.getHexString(),'0044ff');
+ updateAtomicCarrier(source,0,.5,2);assert.equal(source.opacity,0);updateAtomicCarrier(source,.7,1,2);assert.equal(source.opacity,0);source.dispose();mask.dispose();
+});

@@ -170,14 +170,3 @@ test('visible expansion layout fits ordinary names without moving source anchors
  for(const b of items)if(a.id!==b.id){const q=placed.get(b.id);assert.ok(Math.abs(p.x-q.x)>=(a.width+b.width)/2+8||Math.abs(p.y-q.y)>=(a.height+b.height)/2+8);}}
  assert.deepEqual(arrangeExpansions(items,640,400),placed);
 });
-
-test('carrier backdrop isolates wallpaper footprints without changing node materials or masking graph ink',async()=>{
- const THREE=await import('three');const {createCarrierBackdrop}=await import('../src/scene/carrierBackdrop.ts');const scene=new THREE.Scene();scene.background=new THREE.Color('#030c15');
- const wallpaper=new THREE.Object3D();wallpaper.userData.sceneWallpaper=true;scene.add(wallpaper);
- const material=new THREE.MeshBasicMaterial({transparent:true,opacity:.18,color:'blue'}),node=new THREE.Mesh(new THREE.SphereGeometry(.5,24,16),material);node.userData.carrier=true;node.position.set(2,3,4);node.scale.setScalar(2);scene.add(node);
- const backdrop=createCarrierBackdrop(scene);backdrop.update();assert.equal(backdrop.object.count,1);assert.equal(backdrop.object.visible,true);assert.equal(backdrop.object.material.depthWrite,false);assert.ok(backdrop.object.renderOrder>-100000&&backdrop.object.renderOrder<node.renderOrder);assert.equal(material.opacity,.18);
- const matrix=new THREE.Matrix4();backdrop.object.getMatrixAt(0,matrix);assert.deepEqual(new THREE.Vector3().setFromMatrixPosition(matrix).toArray(),[2,3,4]);assert.deepEqual(new THREE.Vector3().setFromMatrixScale(matrix).toArray(),[2,2,2]);
- const preview=new THREE.InstancedMesh(new THREE.SphereGeometry(2,24,16),material,2);preview.userData.carrier=true;preview.setMatrixAt(0,new THREE.Matrix4().makeTranslation(8,0,0));preview.setMatrixAt(1,new THREE.Matrix4().makeTranslation(12,0,0));scene.add(preview);backdrop.update();assert.equal(backdrop.object.count,3);backdrop.object.getMatrixAt(1,matrix);assert.deepEqual(new THREE.Vector3().setFromMatrixScale(matrix).toArray(),[4,4,4]);
- node.visible=false;backdrop.update();assert.equal(backdrop.object.count,2);material.opacity=0;backdrop.update();assert.equal(backdrop.object.visible,false);material.opacity=.18;wallpaper.visible=false;backdrop.update();assert.equal(backdrop.object.visible,false);
- backdrop.dispose();assert.ok(!scene.children.includes(backdrop.object));node.geometry.dispose();preview.geometry.dispose();preview.dispose();material.dispose();
-});
