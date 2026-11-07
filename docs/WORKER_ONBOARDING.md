@@ -820,3 +820,9 @@ independent of the small visible atom diameter. Arrow/nudge actions read the
 shared cell size, advance in whole camera-relative cells and bypass drag snap/
 nearest-free displacement on commit. Holds preview discrete repeats and commit
 once on release; cancellation restores. Explicit steps may overlap other atoms.
+
+Atomic radius correction (2026-11-07): visible atoms are fixed at radius 0.5,
+diameter 1. Remove the earlier small/editable-dot interpretation. The renderer
+uses DEFAULT_SPHERE_DIAMETER, never saved sphereDiameter or per-node Visual.size.
+Blank carriers have no size editor; actual expanded visual content retains one.
+Logical cell size remains separately configurable and owns arrow-step size.

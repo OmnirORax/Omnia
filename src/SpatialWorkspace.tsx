@@ -40,7 +40,7 @@ import { buildTextScene, type LabelMesh, type ColorPreview, type TextScene } fro
 import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
 import { createSceneAppearance } from "./sceneAppearance";
 import { labelSize } from "./graph/labels";
-import { DEFAULT_NODE_CELL_SIZE, visualFootprint } from "./graph/assets";
+import { DEFAULT_NODE_CELL_SIZE, DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./graph/assets";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
@@ -384,7 +384,7 @@ export default function SpatialWorkspace(props: Props) {
         if (!framing.length) return;
         for (const node of framing) {
           const placement = callbacks.current.document.placements.find(p => p.id === node.id);
-          const footprint = visualFootprint(labelSize(node.label), placement?.visual, callbacks.current.settings.spatial.sphereDiameter);
+          const footprint = visualFootprint(labelSize(node.label), placement?.visual, DEFAULT_SPHERE_DIAMETER);
           const center = asVector(node.world), half = new THREE.Vector3(footprint.width / 2, footprint.height / 2, footprint.depth / 2);
           bounds.expandByPoint(center.clone().add(half)); bounds.expandByPoint(center.clone().sub(half));
         }
@@ -746,7 +746,7 @@ export default function SpatialWorkspace(props: Props) {
     state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
-  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.sphereDiameter, settings.spatial.nodeCellSize, settings.spatial.nodeNames,
+  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.nodeCellSize, settings.spatial.nodeNames,
     settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay,
     settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
@@ -763,7 +763,7 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, settings.spatial.sphereDiameter, retainedExpansions.current.state, settings.spatial.nodeNames);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames);
     state.camera.updateMatrixWorld();
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);
@@ -878,7 +878,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     textScene.current?.applyTheme(settings.appearance, props.colorPreview);
     stateRef.current?.requestPaint();
-  }, [ready, atlas, doc, settings.appearance, settings.spatial.sphereDiameter, props.colorPreview]);
+  }, [ready, atlas, doc, settings.appearance, props.colorPreview]);
 
   useEffect(() => {
     textScene.current?.updateSelection(selectedId, props.selectedIds);

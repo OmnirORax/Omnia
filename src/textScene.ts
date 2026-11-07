@@ -177,10 +177,10 @@ export function buildTextScene(
   requestRender: () => void = () => {},
   selectedIds: ReadonlySet<string> = new Set(),
   theme: WorkspaceSettings["appearance"] = defaultSettings().appearance,
-  sphereDiameter = DEFAULT_SPHERE_DIAMETER,
   expansion: ExpansionState = expansionState(),
   names: "expanded" | "all" | "selection" = "expanded",
 ) {
+  const sphereDiameter = DEFAULT_SPHERE_DIAMETER;
   const placementExpanded = (id:string) => contentExpanded(expansion,id,placements.get(id)?.collapsed === false);
   const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();

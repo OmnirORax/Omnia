@@ -270,7 +270,7 @@ export function VisualControls({
           Show text alongside visual
         </label>
       </UIField>
-      <UIField
+      {(label !== "Node" || !!value.assetId || !!value.character) && <UIField
         id={`visual:${label}:size`}
         label={`${label} visual size`}
         category={label === "Node" ? "Nodes" : "Relationships"}
@@ -286,7 +286,7 @@ export function VisualControls({
             onValueChange={size => onChange({ ...value, size })}
           />
         </label>
-      </UIField>
+      </UIField>}
       <button onClick={() => onChange({ showText: true })}>
         Reset {label.toLowerCase()} visual
       </button>

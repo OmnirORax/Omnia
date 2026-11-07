@@ -302,3 +302,11 @@ now owns arrow step size, independently of drag snap and visible sphere diameter
 Held gestures emit only integer cell steps and commit exact requested coordinates
 through existing document history/validation. No load-time rescaling, saved-value
 conversion or coordinate rewrite occurs; camera-relative step directions remain.
+
+Fixed atomic carrier radius (2026-11-07): visible atom radius is now 0.5
+(diameter 1), enforced by the renderer constant. The diameter control and blank
+carrier visual-size control are retired. Legacy spatial.sphereDiameter and
+blank Visual.size remain stored for compatibility but cannot alter carriers.
+Actual content visuals retain authored sizes/editors; logical cell size remains
+separate. Defaults now use diameter 1; historical explicit preferences still
+roundtrip, but only older clients apply them. No coordinates or IDs are rewritten.

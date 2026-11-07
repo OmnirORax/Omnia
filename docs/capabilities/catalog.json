@@ -704,7 +704,7 @@
       "id": "graph.cells",
       "title": "Atomic carriers and adaptive content expansions",
       "where": "Atlas upper-right control stack → Names, directly beneath Focus context only → Expanded / All / Selection. Also Workspace → Settings → Spatial settings → Names, unless relocated through UI customization.",
-      "behavior": "Created nodes appear as uniform glowing atoms without square frames or permanent content. Unoccupied space stays empty. Hover reveals a node’s content; click retains it, and clicking again closes its retained expansion after hover leaves. Several expansions remain independent. Structurally expanded nodes reveal content by default; an explicit close overrides that default for this view session. Names → All reveals names across the visible atlas, and Selection reveals names for selected nodes, without opening every full visual. Expanded is the default. Open presentations face the camera and arrange together within the viewport while keeping original content sizes. Saved atom coordinates, IDs and parentage never change through hover, expansion or name alignment. Names view persists through existing settings/history; retained expansion overrides are transient per atlas session. Uniform logical cells remain the content-independent packing footprint; Node cell size controls organization, and Node sphere diameter controls visible atom size. Content/body appearance and existing selection, graph movement, document opening and double-click structural expansion retain their owners.",
+      "behavior": "Created nodes appear as uniform glowing atoms without square frames or permanent content. Unoccupied space stays empty. Hover reveals a node’s content; click retains it, and clicking again closes its retained expansion after hover leaves. Several expansions remain independent. Structurally expanded nodes reveal content by default; an explicit close overrides that default for this view session. Names → All reveals names across the visible atlas, and Selection reveals names for selected nodes, without opening every full visual. Expanded is the default. Open presentations face the camera and arrange together within the viewport while keeping original content sizes. Saved atom coordinates, IDs and parentage never change through hover, expansion or name alignment. Names view persists through existing settings/history; retained expansion overrides are transient per atlas session. Atom size is fixed independently of legacy saved diameter preferences and per-node visual sizes. Inspector visual-size editing remains available for actual images/glyphs/Omnic content, not blank atomic carriers. Uniform logical cells remain the content-independent packing footprint; Node cell size controls organization, and visible atom radius is fixed at 0.5 (diameter 1), with no atom-size control. Content/body appearance and existing selection, graph movement, document opening and double-click structural expansion retain their owners.",
       "steps": [
         {
           "do": "Create a node with N on empty atlas space, then move the pointer away.",
@@ -729,6 +729,10 @@
         {
           "do": "Choose Names → Expanded, change it back to All, and reload.",
           "expect": "The names setting persists. Click-retained expansion overrides reset with the atlas session; structural expansion remains authored separately."
+        },
+        {
+          "do": "Open Spatial settings and inspect a blank node; compare an image/glyph node.",
+          "expect": "Atoms are radius 0.5 with no atom-size editor. Content visuals retain their own size controls; logical cell size remains separate."
         }
       ],
       "reference": "docs/WORKER_ONBOARDING.md",
@@ -752,7 +756,7 @@
       "limits": "No unused white lattice or square frames are drawn. One logical cell per node remains for organization; no automatic relocation, content fitting or shrinking. A bounded spatially indexed presentation layout handles ordinary visible expansions; content larger than the viewport or too many expansions can still overlap. No search/filter/contextual summoning system is added here. Name mode and view-local expansion are separate from authored child visibility. Browser interaction, dense-view performance and visual acceptance remain user-tested.",
       "verification": {
         "browser": "Not run; user acceptance pending",
-        "automated": "Expansion-state tests cover independent retention, close/reopen and structural defaults. Layout regressions cover nonoverlap, viewport bounds, determinism and unchanged source sizes/anchors. Historical settings and name-view persistence checked; full model/build/backend checks recorded in delivery."
+        "automated": "Expansion-state tests cover independent retention, close/reopen and structural defaults. Layout regressions cover nonoverlap, viewport bounds, determinism and unchanged source sizes/anchors. Historical settings and name-view persistence checked; full model/build/backend checks recorded in delivery. Fixed atom diameter is enforced by the renderer constant; historical diameter preferences remain stored but unused."
       },
       "related": [
         "graph.create",
