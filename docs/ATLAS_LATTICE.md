@@ -79,7 +79,8 @@ the closest fixed lattice orientation to the camera. Occupied cells, including
 filtered-out nodes, have no empty marker. The field follows panning and is a
 bounded creation aid, not a full infinite or fully drawn 3D volume. Aim at an O
 and use N or Create node here; with the field shown, creation intersects that same
-slice. Blank-space clicking retains existing navigation/selection behavior.
+slice. Plain node click now mounts the navigator driver; an empty-slot click parks
+or relocates it with camera follow. See WORLD_NAVIGATION.md.
 
 ## Existing saves, recovery and persistence
 

@@ -20,6 +20,11 @@ export const radialGroups = {
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 const CORE_FEATURE_ACTIONS = [
+  {id:'world.navigatorCancel',owner:'worldNavigator',scope:'world',category:'World navigator',label:'Cancel node drive',defaultKey:'Esc',description:'Restore the driven node and its branch to their starting placements without saving the preview.'},
+
+  {id:'world.navigatorDepthUp',owner:'worldNavigator',scope:'world',held:true,category:'World navigator',label:'Navigator depth +',defaultKey:'ArrowUp',description:'Move the active world navigator one cell along its local positive Z. Hold repeats through the bounded movement scheduler.'},
+  {id:'world.navigatorDepthDown',owner:'worldNavigator',scope:'world',held:true,category:'World navigator',label:'Navigator depth −',defaultKey:'ArrowDown',description:'Move the active world navigator one cell along its local negative Z. Does not move selected knowledge unless explicitly controlling a node.'},
+
   {id:'document.bold',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Bold',defaultKey:'Ctrl+B',description:'Toggle bold in the active node document using its native editing transaction.'},
   {id:'document.italic',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Italic',defaultKey:'Ctrl+I',description:'Toggle italic in the active node document using its native editing transaction.'},
   {id:'document.orderedList',owner:'nodeDocument',scope:'contentEditing',allowTyping:true,category:'Node document',label:'Numbered list',defaultKey:'',description:'Toggle a native numbered list in the active node document.'},

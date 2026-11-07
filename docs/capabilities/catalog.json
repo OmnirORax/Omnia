@@ -728,7 +728,7 @@
       "id": "graph.create",
       "title": "Create nodes, children, reuse identities and connect",
       "where": "Create menu, node Inspector and context actions; N / New child / Connect from selected.",
-      "behavior": "N creates a node in the nearest unoccupied lattice cell to the cursor projection over the atlas canvas. With Empty lattice cells shown, creation intersects that displayed slice. Current focus/selection still chooses its parent; child coordinates are converted to parent-local XYZ. Explicit cursor and Create node here positions use the shared occupied field, including hidden placements. Invoking creation over UI retains contextual default placement. Shared document history, identity reuse and typed relationships remain unchanged.",
+      "behavior": "N creates a node in the nearest unoccupied lattice cell to the current world navigator position over the atlas canvas. Mouse XY and Up/Down depth use its camera-aligned frame. With Empty lattice cells shown, its displayed slice follows that same navigator frame. Current focus/selection still chooses its parent; child coordinates are converted to parent-local XYZ. Explicit cursor and Create node here positions use the shared occupied field, including hidden placements. After a navigator position exists, UI creation, existing-object insertion, Omnic drafts/copies and library placement use that last world point through one shared parent-local lattice conversion. Before first world interaction, contextual default placement remains. Saved draft locations remain authoritative when completing a draft. Shared document history, identity reuse and typed relationships remain unchanged.",
       "steps": [
         {
           "do": "Move the pointer over empty atlas canvas and press N. Select that node, move to another canvas point and press N again, including with a coarse Snap setting.",
@@ -768,7 +768,8 @@
         "automated": "Exact root/child placement tests cover fractional XYZ, coarse snap, intentional overlap and retained parent/world coordinates. Full delivery checks recorded in PR."
       },
       "related": [
-        "interface.targets"
+        "interface.targets",
+        "world.navigator"
       ],
       "gestures": []
     },
@@ -776,19 +777,19 @@
       "id": "graph.cells",
       "title": "Atomic carriers and adaptive content expansions",
       "where": "Atlas upper-right control stack → Names, directly beneath Focus context only → Expanded / All / Selection. Also Workspace → Settings → Spatial settings → Names, unless relocated through UI customization.",
-      "behavior": "Created nodes appear as uniform glowing atoms without square frames or permanent content. Unoccupied space stays empty. Hover reveals a node’s content. Selecting a node hides only its atomic O carrier and shows full content until deselection, retaining the pulsing selection ring; the invisible picking slot stays available. Click-retained expansion remains independent, and selection keeps content visible even if a repeat click toggles its retained state. Several expansions remain independent. Structurally expanded nodes reveal content by default; an explicit close overrides that default for this view session. Names → All reveals names across the visible atlas, and Selection reveals names for selected nodes, without opening every full visual. Expanded is the default. Open presentations face the camera and arrange together within the viewport while keeping original content sizes. Saved atom coordinates, IDs and parentage never change through hover, expansion or name alignment. Names view persists through existing settings/history; retained expansion overrides are transient per atlas session. Carriers are hollow O's with diameter tied to rendered lattice pitch, independently of legacy sphereDiameter or blank per-node visual size. Lattice scale changes pitch and O diameter together; actual expanded visuals retain independent sizes. Creation lands in the nearest free cell; carriers share one occupied field across all parent/visibility scopes. Content/body appearance, selection, documents and structural expansion retain their owners.",
+      "behavior": "Created nodes appear as uniform glowing atoms without square frames or permanent content. Unoccupied space stays empty. Hover reveals a node’s content. Selecting a node hides only its atomic O carrier and shows full content until deselection, retaining the pulsing selection ring; the invisible picking slot stays available. Plain click now selects/mounts a navigator-driven node rather than toggling retained expansion. Existing independently retained session overrides remain readable; selection keeps its content visible. Right-click retains domain expansion/inspection actions. Several expansions remain independent. Structurally expanded nodes reveal content by default; an explicit close overrides that default for this view session. Names → All reveals names across the visible atlas, and Selection reveals names for selected nodes, without opening every full visual. Expanded is the default. Open presentations face the camera and arrange together within the viewport while keeping original content sizes. Saved atom coordinates, IDs and parentage never change through hover, expansion or name alignment. Names view persists through existing settings/history; retained expansion overrides are transient per atlas session. Carriers are hollow O's with diameter tied to rendered lattice pitch, independently of legacy sphereDiameter or blank per-node visual size. Lattice scale changes pitch and O diameter together; actual expanded visuals retain independent sizes. Creation lands in the nearest free cell; carriers share one occupied field across all parent/visibility scopes. Content/body appearance, selection, documents and structural expansion retain their owners.",
       "steps": [
         {
           "do": "Create a node with N on empty atlas space, then move the pointer away.",
           "expect": "A hollow O carrier appears in the nearest unoccupied lattice cell to the requested point, without a square frame or permanent content."
         },
         {
-          "do": "Hover the atom, click it and move away. Hover/click a second atom.",
+          "do": "Hover an atom, click it to mount, then click an empty slot to park. Select another atom.",
           "expect": "Hover reveals content. Click selects the node: the atomic O disappears, content stays open, and the pulsing ring clearly marks selection after the pointer leaves."
         },
         {
           "do": "Select another node or clear selection, then hover the previous node again.",
-          "expect": "The previous node’s O returns. A separately click-retained expansion may remain open; deselection does not discard it. Hover/Names settings still work."
+          "expect": "The previous node’s O returns. A separately retained/structural expansion may remain open; deselection does not discard it. Hover/Names settings still work."
         },
         {
           "do": "In the upper-right atlas controls beneath Focus context only, choose Names → All; then choose Selection and change selected nodes.",
@@ -833,7 +834,8 @@
       "related": [
         "graph.create",
         "graph.layout",
-        "graph.lattice"
+        "graph.lattice",
+        "world.navigator"
       ]
     },
     {
@@ -978,14 +980,14 @@
       "id": "graph.layout",
       "title": "Expansion, movement, axis constraints and compaction",
       "where": "Node selection; expansion controls; spatial settings and compaction actions.",
-      "behavior": "Expansion shows charted structure within the same occupied field. Arrow movement uses whole fixed-world lattice cells, choosing distinct signed axes nearest the camera orientation once per gesture. Held arrows repeat without fractional glide or catch-up backlog and commit once on release. Occupied landings are rejected, including hidden/filtered nodes and descendant branches; dragging instead finds a nearby legal landing. Scale affects rendered steps and carriers together. Inspectors, compaction and committed layout transforms settle through shared occupancy. Axis constraints and arrangement affect placement, not canonical identity. Hover/selection alone never writes coordinates.",
+      "behavior": "Expansion shows charted structure within the same occupied field. Outside an active navigator depth context, selected-node arrow movement uses whole fixed-world lattice cells, choosing distinct signed axes nearest the camera orientation once per gesture. Held arrows repeat without fractional glide or catch-up backlog and commit once on release. Occupied landings are rejected, including hidden/filtered nodes and descendant branches; dragging instead finds a nearby legal landing. Scale affects rendered steps and carriers together. Inspectors, compaction and committed layout transforms settle through shared occupancy. Axis constraints and arrangement affect placement, not canonical identity. Hover/selection alone never writes coordinates. Over the world, Up/Down now control camera-relative navigator depth, including while driving a selected node; Left/Right cannot begin a second geometry gesture during driving. Plain click mounts a node; empty-slot click parks it. Use right-click actions for inspection/expansion.",
       "steps": [
         {
           "do": "Create a parent/child pair and toggle the selected node and its whole subtree.",
           "expect": "Visibility expands/collapses at the selected scope."
         },
         {
-          "do": "Set Lattice scale to 0.1, select a node and press/release an arrow; hold, release and Undo. Rotate the camera and try again. Aim an arrow landing at an occupied cell.",
+          "do": "Set Lattice scale to 0.1, select a node and press/release Left/Right outside a drive; hold, release and Undo. Rotate the camera and try again. Aim an arrow landing at an occupied cell.",
           "expect": "Steps stay whole fixed-lattice cells, with a camera-near cardinal direction. Holds commit once and Undo restores positions. An occupied destination is rejected rather than overlapping or choosing a different arrow landing."
         },
         {
@@ -1021,7 +1023,8 @@
       },
       "related": [
         "interface.targets",
-        "graph.lattice"
+        "graph.lattice",
+        "world.navigator"
       ],
       "gestures": []
     },
@@ -1064,7 +1067,7 @@
       "id": "camera.navigation",
       "title": "Camera versus object rotation, trackball and axis lock",
       "where": "World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings.",
-      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session.",
+      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator and translate camera plus target together without fitting, rotating or changing zoom. Preview motion stays in the fixed current view until the next mount/park click.",
       "steps": [
         {
           "do": "Drag near a node center, then tangentially near its rim.",
@@ -1093,7 +1096,9 @@
         "browser": "Not recorded",
         "automated": "See subsystem tests and PR checks; not proof of usability"
       },
-      "related": [],
+      "related": [
+        "world.navigator"
+      ],
       "gestures": [
         "world.axisLock"
       ]
@@ -3793,6 +3798,66 @@
         "graph.layout",
         "history.global"
       ]
+    },
+    {
+      "id": "world.navigator",
+      "title": "World navigator, depth stepping and click-to-drive nodes",
+      "where": "Omnium world canvas → move mouse → left-click a node to drive it → mouse and Up/Down → click an empty slot to park; Esc cancels.",
+      "behavior": "A transient cyan navigator ring with centre/diameter and corner orientation mark resolves mouse XY on its own oriented local plane. Its frame matches camera orientation like a compass, initializing at the camera target. Mouse controls camera-facing local XY; positive Z is toward the camera and negative Z away. Independent orientation controls are deferred. Up/Down step local Z by one lattice pitch using the existing bounded held scheduler. Left-click selects and mounts a node, translating camera/target without changing viewing angle or zoom and rebasing the grab offset. Mouse/depth preview the branch; click empty space parks/unmounts through one normal document transaction. Clicking another node parks the old one at its last valid preview and switches control. The driven root does not mask parking targets; descendants and other nodes retain normal detection. Ordinary projected node detection remains; no depth-only selection rule is added. Invalid destinations keep last valid geometry and mark the navigator red; invalid empty parking rejects. Esc/capture/document-context replacement cancels. Creation uses navigator position with existing nearest-free placement. The marker inherits the existing Omnium selection/focus appearance. Its camera-local grab offset is retained after following and rotates with the camera; selected-node appearance/orientation is not rewritten. Creation controls can use its last world position while the pointer is over UI; plain creation, existing-object insertion, Omnic drafts/copies and library placement share parent-local lattice conversion. Before first world interaction they retain contextual defaults.",
+      "steps": [
+        {
+          "do": "Move the pointer over the world and press Up/Down, then hold briefly. Rotate the camera and move the pointer again.",
+          "expect": "The cyan navigator follows camera-facing XY at the chosen depth. Up/Down step one lattice cell toward/away along camera-relative Z, with bounded hold repeat. Rotating the camera updates its compass frame."
+        },
+        {
+          "do": "Left-click a node, move the pointer and step depth, then click an empty slot. Undo once.",
+          "expect": "The node becomes the driven object and camera follows without fitting/rotating. Its branch previews without saving. Parking commits once; Undo restores the node/branch through document history."
+        },
+        {
+          "do": "Drive toward an occupied or hidden-reserved slot, try parking, then press Esc.",
+          "expect": "Invalid targets show a red navigator and preserve the last valid preview. Invalid empty parking is refused; Esc restores starting placements without saving."
+        },
+        {
+          "do": "Drive a node, then click another node. Right-click for inspection/expansion. Create a new node using N at the navigator.",
+          "expect": "The previous car parks at its last valid preview, and the clicked node becomes controlled. Right-click keeps domain actions. Creation uses the navigator’s position followed by normal nearest-free lattice rules."
+        },
+        {
+          "do": "Type arrows in a text field, use another UI surface, blur the tab, and return to the world.",
+          "expect": "Navigator depth does not take text/UI input. Held motion stops on lost ownership and never catches up queued steps. The transient navigator is not a saved entity."
+        }
+      ],
+      "reference": "docs/WORLD_NAVIGATION.md",
+      "sources": [
+        "src/navigation/worldNavigator.ts",
+        "src/navigation/navigatorDrive.ts",
+        "src/worldNavigatorMarker.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/App.tsx",
+        "src/featureActions.ts",
+        "src/ui/useFeatureActions.tsx",
+        "src/ui/heldActions.ts",
+        "src/navigation/nudgeGesture.ts",
+        "tests/navigation.test.mjs",
+        "tests/world-navigator.browser.mjs"
+      ],
+      "actions": [
+        "world.navigatorDepthUp",
+        "world.navigatorDepthDown",
+        "world.navigatorCancel"
+      ],
+      "gestures": [],
+      "related": [
+        "camera.navigation",
+        "graph.lattice",
+        "graph.binders",
+        "history.global"
+      ],
+      "limits": "Camera-aligned navigator orientation; independent navigator rotation controls are deferred. No depth-filtered picking, arbitrary floating-origin precision, persistent navigator identity, camera follow on every preview frame or full 3D lattice-volume renderer. Plain left-click is now drive/park; inspect/expand via domain actions. At most 256 visible driven hosts. Existing lattice occupancy, legacy recovery and document validation limits apply. Camera movement and document placement have separate existing history owners. Other high-priority selection/editing gestures retain input ownership.",
+      "status": "Implemented for review; production and user browser acceptance pending",
+      "verification": {
+        "automated": "All 591 model/architecture tests, preview/type/property/capability build and backend checks pass. Regressions cover oriented plane/local Z, camera-relative depth, camera offset/zoom preservation, hidden branch occupancy, immutable previews, cancellation, single parking commit, failed commit retention, renderer refresh, scopes/rebinding and bounded hold scheduling. Includes shared parent-local creation conversion and synchronous save/reentrancy protection.",
+        "browser": "2026-11-07 user-authorized focused local Chromium check passes five physical-input stages: mount/camera follow, mouse preview without saving, camera-relative depth, empty-slot parking/save and Esc cancellation. First one-pixel movement does not jump; Up advances toward the camera; camera offset/direction/zoom stay intact. No page errors. Synthetic local-only fixture; full workspace/undo/reload/performance acceptance remains user-owned. Opt-in: tests/world-navigator.browser.mjs."
+      }
     }
   ]
 }

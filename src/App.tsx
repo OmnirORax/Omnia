@@ -2,7 +2,7 @@ import { UIAction } from "./ui/UIAction";
 import { editBinderConnection } from "./graph/binderActions";
 import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { reconnectBinder, binderReconnectReason } from "./graph/reconnectBinder";
-import { latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
+import { localLatticePoint, latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
 import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,type WorkspaceUI} from './omnic/workspaceBackup';
 import { ScoreTracker } from './metrics/ScoreTracker';
 import {readWorkspaceSlot,readWorkspaceReplacement,saveWorkspaceSlot} from "./omnic/workspaceStorage";
@@ -60,7 +60,7 @@ import {
   type FrameScope,
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
-import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
+import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, allowsShiftShortcut, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
@@ -329,7 +329,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     clearAtlasContext();
   }
   function placeLibraryObject(entityId: string) {
-    const placed=createPlacement(documentRef.current,entityId,creationParentId(),settings.spatial);
+    const placed=createPlacement(documentRef.current,entityId,creationParentId(),settings.spatial,localLatticePoint(documentRef.current,creationParentId(),creationPointRef.current?.(),settings.spatial.nodeCellSize));
     if(!commitDocument(placed.next))throw Error("Placement failed.");
     setSelection({kind:"node",id:placed.placementId});
   }
@@ -400,7 +400,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     if (omnicEditorId === entityId && omnicNewDraft) return;
     const candidate = { ...documentRef.current, entities: [...documentRef.current.entities,
       { id: entityId, label: "", aliases: [], notes: "", omnic: newOmnicDraft() }] };
-    const placed = createPlacement(candidate, entityId, parentId, settings.spatial);
+    const placed = createPlacement(candidate, entityId, parentId, settings.spatial,localLatticePoint(candidate,parentId,creationPointRef.current?.(),settings.spatial.nodeCellSize));
     const placement = placed.next.placements.find(p => p.id === placed.placementId)!;
     setOmnicNewDraft({ entityId, placementId: placement.id, parentId,
       position: placement.spatialPosition ?? { x: placement.position.x / 100, y: parentId ? -2 : 0, z: placement.position.y / 100 } });
@@ -415,7 +415,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       const parent = next.placements.find(p => p.id === parentId)!;
       next = {...next, compositions:[...next.compositions,{id:newId(),parentId:parent.entityId,childId:entityId}], placements:next.placements.map(p=>p.id===parentId?{...p,collapsed:false}:p)};
     }
-    const placed = createPlacement(next, entityId, parentId, settings.spatial, location?.position);
+    const placed = createPlacement(next, entityId, parentId, settings.spatial, location?.position??localLatticePoint(next,parentId,creationPointRef.current?.(),settings.spatial.nodeCellSize));
     const frame = placed.next.frames.find(f => f.id === placed.next.activeFrameId);
     if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
     if (frame?.locked) placed.next.activeFrameId = null;
@@ -442,10 +442,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         next.compositions.push({ id: newId(), parentId: parent.entityId, childId: entityId });
         parent.collapsed = false;
       }
-      const desired = atWorld && parentId ? (() => {
-        const origin = worldPositions(next).get(parentId)!;
-        return { x: atWorld.x - origin.x, y: atWorld.y - origin.y, z: atWorld.z - origin.z };
-      })() : atWorld;
+      const desired = localLatticePoint(next,parentId,atWorld,settings.spatial.nodeCellSize);
       const placed = createPlacement(next, entityId, parentId, settings.spatial, desired, atWorld ? 'exact' : 'packed');
       const frame = placed.next.frames.find((f) => f.id === placed.next.activeFrameId);
       if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
@@ -658,6 +655,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     ));
   }
   function insertExisting(entityId: string, parentId: string | null = null, atWorld?: { x: number; y: number; z: number }) {
+    atWorld??=creationPointRef.current?.();
     const entity = document.entities.find((e) => e.id === entityId);
     if (!entity) {
       setError("Choose an existing identity.");
@@ -670,10 +668,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         if (!parent) throw new Error("Parent placement missing.");
         parent.collapsed = false;
       }
-      const desired = atWorld && parentId ? (() => {
-        const origin = worldPositions(next).get(parentId)!;
-        return { x: atWorld.x - origin.x, y: atWorld.y - origin.y, z: atWorld.z - origin.z };
-      })() : atWorld;
+      const desired = localLatticePoint(next,parentId,atWorld,settings.spatial.nodeCellSize);
       const placed = createPlacement(next, entityId, parentId, settings.spatial, desired);
       const frame = placed.next.frames.find((f) => f.id === placed.next.activeFrameId);
       if (frame && !frame.locked && !frame.scope.entityIds.includes(entityId)) frame.scope.entityIds.push(entityId);
@@ -1174,6 +1169,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         assignBinding(key); return;
       }
       if (event.defaultPrevented || isTypingTarget(event.target)) { heldNudges.stop(); return; }
+      // Registered scoped owners get first refusal before legacy global actions,
+      // regardless of capture-listener mount order (notably held world arrows).
+      if(preferredFeatureKey(settings.bindings,normalizeKey(event),id=>featureActionRuntime.available(id),false,settingsOpen||!!insertContext))return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
@@ -2268,7 +2266,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           </UIPanel>
           <UIPanel id="help" title="Workspace help" className="help">
             <p>
-              Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a name to move it. Shift-drag it onto another name to nest. Click a binder to edit its operators and appearance.
+              Click a node to drive it with the mouse and Up/Down depth steps; click an empty slot to park, or Esc to cancel. Right-click for node actions. Drag empty space to pan; right-drag to navigate; scroll to zoom. Click a binder for connection and glyph actions.
             </p>
             <FunctionControl id="compactSelected" />
             <FunctionControl id="compactFrame" />
@@ -2328,6 +2326,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               }}
               canReconnectBinder={(binder,end,destination)=>binderReconnectReason(document,binder,end,destination)}
               onReconnectBinder={(binder,end,destination)=>{try{const next=reconnectBinder(documentRef.current,binder,end,destination);if(next!==documentRef.current&&commitDocument(next)&&binder.kind==='variant')setExpandedVariants(previous=>new Set([...previous,end==='source'?destination:binder.source]));}catch(error){setError(message(error));}}}
+              onNavigatorPark={(id,world)=>{try{const current=documentRef.current,scale=latticeScale(settings.spatial.latticeScale),desired={x:world.x/scale,y:world.y/scale,z:world.z/scale},original=latticeWorld(current,id,settings.spatial.nodeCellSize);if(original.x===desired.x&&original.y===desired.y&&original.z===desired.z)return current;return commitDocument(latticeMove(current,id,desired,settings.spatial.nodeCellSize,true))?documentRef.current:null;}catch(error){setError(message(error));return null;}}}
               resolveMove={(id, local, exact) => moveDisplayedNode(id, local, true, exact)}
               onMove={(id, local, exact) => { try { moveDisplayedNode(id, local, false, exact); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}

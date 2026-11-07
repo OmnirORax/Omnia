@@ -1,3 +1,7 @@
+import { brightHex } from "./appearance/resolve";
+import { createWorldNavigator, followNavigator } from "./navigation/worldNavigator";
+import { createNavigatorDrive } from "./navigation/navigatorDrive";
+import { createWorldNavigatorMarker } from "./worldNavigatorMarker";
 import { useUITracked } from "./ui/context";
 import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { analyticSelectionRing } from "./materialCoverage";
@@ -99,6 +103,7 @@ type Props = {
   onReconnectBinder: (binder:DisplayBinder,end:BinderEnd,destination:string)=>void;
   selectedBinderKey?:string;
   onBinderSelect: (binder:DisplayBinder, point: { x: number; y: number }) => void;
+  onNavigatorPark: (id:string,world:XYZ)=>Document|null;
   onMove: (id: string, local: XYZ, exact?: boolean) => void;
   resolveMove: (id: string, local: XYZ, exact?: boolean) => XYZ;
   canNest: (id: string, targetId: string) => string | null;
@@ -107,6 +112,11 @@ type Props = {
 };
 type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; up: THREE.Vector3; contextIds: readonly string[] | null };
 type SceneState = {
+  navigator?:ReturnType<typeof createWorldNavigator>;
+  navigatorCanStep?:()=>boolean;
+  navigatorDepth?:(action:NudgeActionId,input?:KeyboardEvent|MouseEvent)=>void;
+  cancelNavigatorDrive?:()=>boolean;
+  refreshNavigator?:()=>void;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
@@ -149,6 +159,7 @@ export default function SpatialWorkspace(props: Props) {
   const documentEntity = doc.entities.find(e => e.id === doc.placements.find(p => p.id === documentNodeId)?.entityId);
   useEffect(() => { stateRef.current?.requestRender(); }, [documentNodeId]);
   const stateRef = useRef<SceneState | null>(null);
+  const navigatorDriving=useRef(false);
   const latticeFieldRef = useRef<ReturnType<typeof createLatticeField> | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = useMemo(() => {
@@ -198,7 +209,12 @@ export default function SpatialWorkspace(props: Props) {
     return { ...saved, mode: saved.mode === "walk" || saved.mode === "pan" ? saved.mode : "auto" as const, actor: saved.actor === "auto" ? kind === "nodes" ? "object" as const : "camera" as const : saved.actor };
   };
   const [activeNavigation, setActiveNavigation] = useState(() => navigationOptions(settings));
-  const navigationShortcuts = useFeatureActions("worldNavigation", { "world.faceSelection": {enabled: ready && props.selectedIds.size > 0, run: () => stateRef.current?.faceSelection()}, "world.navigate": { enabled: ready,
+  const navigatorShortcuts=useFeatureActions('worldNavigator',{
+    'world.navigatorDepthUp':{enabled:()=>!!stateRef.current?.navigatorCanStep?.(),run:input=>stateRef.current?.navigatorDepth?.('nudgeUp',input)},
+    'world.navigatorDepthDown':{enabled:()=>!!stateRef.current?.navigatorCanStep?.(),run:input=>stateRef.current?.navigatorDepth?.('nudgeDown',input)},
+    'world.navigatorCancel':{enabled:()=>!!navigatorDriving.current,run:()=>stateRef.current?.cancelNavigatorDrive?.()},
+  });
+  const navigationShortcuts = useFeatureActions("worldNavigation", { "world.faceSelection": {enabled: ready && props.selectedIds.size > 0, run: () => {props.heldNudges.stop();stateRef.current?.faceSelection();}}, "world.navigate": { enabled: ready,
     configuration: <NavigationConfiguration bindings={props.bindings} initial={rememberedNavigation} apply={(options, point) => { navigationContexts.current.set(navigationKey(point), { ...options }); setActiveNavigation(options); }}
       preview={(options, point) => navigationEngine.current?.preview(options, point) ?? "Opening 3D workspace…"} />,
     run: input => {
@@ -225,6 +241,12 @@ export default function SpatialWorkspace(props: Props) {
     controls.enableDamping = false; controls.enablePan = true;
     controls.minDistance = 1.2; controls.maxDistance = 100000;
     const content = new THREE.Group(); scene.add(content);
+    const navigator=createWorldNavigator(),navigatorMarker=createWorldNavigatorMarker();scene.add(navigatorMarker.object);
+    let navigatorDriveValid=true,navigatorVisible=false,navigatorDepthHeld=false,navigatorContext=callbacks.current.omnicPreviewContext;
+    const navigatorOffset=new THREE.Vector3();
+    const drive=createNavigatorDrive({hosts:()=>textScene.current?.nodes??new Map(),commit:(id,world)=>callbacks.current.onNavigatorPark(id,world)});
+    const pitch=()=>latticeUnit(callbacks.current.settings.spatial.nodeCellSize)*latticeScale(callbacks.current.settings.spatial.latticeScale);
+
     scene.add(new THREE.AmbientLight(0xffffff, 2.1));
     const light = new THREE.DirectionalLight(0xffffff, 2.2); light.position.set(5, 12, 9); scene.add(light);
     const appearance = createSceneAppearance(renderer, scene, camera);
@@ -261,7 +283,10 @@ export default function SpatialWorkspace(props: Props) {
         const selected = textScene.current?.nodes.get(callbacks.current.selectedId ?? "")?.anchor ?? worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
         if (selectedBackground || hierarchyBackground !== null) applyBackgroundFeedback();
-        latticeFieldRef.current?.update(controls.target,camera,host.clientWidth,host.clientHeight);
+        navigator.orientation.copy(camera.quaternion);
+        const navigatorAppearance=callbacks.current.settings.appearance,navigatorStyle=navigatorAppearance.renderDefaults?.['omnium.selection'];
+        navigatorMarker.update(navigator.position,navigator.orientation,pitch(),navigatorVisible,drive.valid,{color:brightHex(String(navigatorStyle?.color??navigatorAppearance.accent),Number(navigatorStyle?.brightness??1)),opacity:Number(navigatorStyle?.opacity??.85)*navigatorAppearance.opacity,glow:Number(navigatorStyle?.glow??navigatorAppearance.nodes.glow)});
+        latticeFieldRef.current?.update(navigator.initialized?navigator.position:controls.target,camera,host.clientWidth,host.clientHeight,navigator.orientation);
         appearance.render();
       });
     };
@@ -435,7 +460,7 @@ export default function SpatialWorkspace(props: Props) {
         rebindOrbit(); recordView(before); requestRender(); setFeedback("");
       } catch (error) { setFeedback(error instanceof Error ? error.message : String(error)); }
     };
-    stateRef.current = { scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
+    stateRef.current = { navigator, scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
@@ -476,20 +501,36 @@ export default function SpatialWorkspace(props: Props) {
       },
       apply:ids=>callbacks.current.onSelection([...ids]),
     });
-    const cursorWorld = (event: Pick<PointerEvent,"clientX"|"clientY">) => {
-      aim(event);
-      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), controls.target);
-      if(callbacks.current.settings.spatial.showVacantCells){
-        const pitch=latticeUnit(callbacks.current.settings.spatial.nodeCellSize)*latticeScale(callbacks.current.settings.spatial.latticeScale);
-        const center=controls.target.clone().divideScalar(pitch).round().multiplyScalar(pitch);
-        plane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0,0,1).applyQuaternion(latticeFrame(camera.quaternion)),center);
-      }
-      return asXYZ((raycaster.ray.intersectPlane(plane,new THREE.Vector3())??controls.target.clone()).multiplyScalar(1/latticeScale(callbacks.current.settings.spatial.latticeScale)));
+    const navigatorPointer=()=>{const point=cursorSample();return {clientX:point.x,clientY:point.y};};
+    const updateNavigator=(event:Pick<PointerEvent,'clientX'|'clientY'>)=>{
+      navigator.initialize(controls.target);navigator.orientation.copy(camera.quaternion);aim(event);
+      const point=navigator.project(raycaster.ray);if(!point)return false;const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;if(depth<=camera.near||depth>=camera.far)return false;
+      navigator.position.copy(point).add(navigatorOffset.clone().applyQuaternion(navigator.orientation));navigatorVisible=true;
+      if(drive.active){const valid=drive.move(navigator.position);if(valid!==navigatorDriveValid){navigatorDriveValid=valid;setFeedback(valid?'Driving selected node · click an empty slot to park · Esc cancels':'Slot occupied · choose another position, or Esc to cancel');}}
+      requestRender();return true;
     };
-    // Project only on invocation, using the current camera and the same view
-    // plane as Create node here. Never cache world points during pointer motion.
+    const cursorWorld = (event: Pick<PointerEvent,"clientX"|"clientY">) => {
+      if(!navigator.initialized)updateNavigator(event);
+      return asXYZ(navigator.position.clone().multiplyScalar(1/latticeScale(callbacks.current.settings.spatial.latticeScale)));
+    };
+    const relocateCamera=(point:THREE.Vector3)=>{
+      stopAnimation();nativeBefore=null;const before=readView();cameraHistory.push({position:camera.position.clone(),target:controls.target.clone(),up:camera.up.clone(),contextIds:callbacks.current.focusContextIds});
+      navigator.position.copy(point);followNavigator(camera,controls.target,point);controls.update();recordView(before);requestRender();
+    };
+    const rebaseNavigatorPointer=(event:Pick<PointerEvent,'clientX'|'clientY'>)=>{aim(event);const point=navigator.project(raycaster.ray);navigatorOffset.copy(point?navigator.position.clone().sub(point).applyQuaternion(navigator.orientation.clone().invert()):new THREE.Vector3());navigatorOffset.z=0;};
+    const mountNode=(id:string,event:Pick<PointerEvent,'clientX'|'clientY'>,doc=callbacks.current.document)=>{
+      const point=drive.begin(doc,id,callbacks.current.settings.spatial.nodeCellSize,callbacks.current.settings.spatial.latticeScale);
+      navigator.initialize(point);navigatorDriving.current=true;navigatorDriveValid=true;setFeedback("Driving selected node · click an empty slot to park · Esc cancels");relocateCamera(point);rebaseNavigatorPointer(event);controls.enabled=false;callbacks.current.onNodeSelect(id);requestRender();
+    };
+    const cancelDrive=()=>{if(!drive.active)return false;props.heldNudges.stop();const origin=drive.origin;if(origin)navigator.position.set(origin.x,origin.y,origin.z);drive.cancel();setFeedback("");navigatorDriving.current=false;navigatorOffset.set(0,0,0);controls.enabled=!uiPointerActive;requestRender();return true;};
+    stateRef.current!.cancelNavigatorDrive=cancelDrive;
+    stateRef.current!.refreshNavigator=()=>{if(drive.active&&(drive.document!==callbacks.current.document||callbacks.current.selectedId!==drive.id))cancelDrive();if(navigatorContext!==callbacks.current.omnicPreviewContext){cancelDrive();navigatorContext=callbacks.current.omnicPreviewContext;navigator.reset();navigatorOffset.set(0,0,0);navigatorVisible=false;}drive.refresh();};
+    let leftDown:{pointerId:number;x:number;y:number;id?:string;point:THREE.Vector3}|null=null;
+    // Creation reads the navigator position on its local XY plane. The cursor is
+    // transient; no document/settings writes occur during pointer movement.
     const creationPointRef = props.creationPointRef;
     const creationPoint = () => {
+      if(navigator.initialized)return asXYZ(navigator.position.clone().multiplyScalar(1/latticeScale(callbacks.current.settings.spatial.latticeScale)));
       const point = cursorSample();
       if (!point.target || document.elementFromPoint(point.x, point.y) !== renderer.domElement) return;
       return cursorWorld({ clientX: point.x, clientY: point.y });
@@ -532,7 +573,7 @@ export default function SpatialWorkspace(props: Props) {
       renderer.domElement.style.cursor = hovered ? "grab" : "default";
       requestRender();
     };
-    const leaveCanvas = () => paintHover(null);
+    const leaveCanvas = () => {paintHover(null);navigatorVisible=false;props.heldNudges.stop();requestRender();};
     renderer.domElement.addEventListener("pointerleave",leaveCanvas);
     const navigation = createNavigationGesture({ camera, scene, canvas: renderer.domElement,
       target: () => controls.target, nodes: () => textScene.current?.nodes,
@@ -550,7 +591,7 @@ export default function SpatialWorkspace(props: Props) {
     });
     navigationEngine.current = navigation;
     const nudging = createNudgeGesture({ schedule: tick => window.requestAnimationFrame(tick), cancel: id => window.cancelAnimationFrame(id), now: () => performance.now(), snapshot: () => {
-      if (navigation.active || drag || selecting || uiPointerActive) return null;
+      if (drive.active || navigation.active || drag || selecting || uiPointerActive) return null;
       const id = callbacks.current.selectedId;
       const node = graphRef.current.nodes.find(node => node.visible && node.id === id);
       if (!id || !node || !textScene.current?.nodes.has(id)) return null;
@@ -569,7 +610,13 @@ export default function SpatialWorkspace(props: Props) {
       };
     } });
     nudgeEngine.current = nudging;
-    const stopHeldNudges = props.heldNudges.subscribe(() => { try { nudging.update(props.heldNudges.getSnapshot().actions); } catch (error) { nudging.finish(true); props.heldNudges.stop(); setFeedback(error instanceof Error ? error.message : String(error)); } });
+    const depthNudging=createNudgeGesture({schedule:tick=>requestAnimationFrame(tick),cancel:id=>cancelAnimationFrame(id),now:()=>performance.now(),snapshot:()=>{
+      if(!navigator.initialized||uiPointerActive||navigation.active||drag||selecting||binderDown)return null;
+      const origin=navigator.position.clone(),normal=navigator.normal();return {step:pitch(),frame:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),normal),preview:delta=>{const previous=navigator.position.clone();navigator.position.copy(origin).add(delta);if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);},restore:()=>{},commit:()=>{}};
+    }});
+    stateRef.current!.navigatorCanStep=()=>navigatorVisible&&!uiPointerActive&&!navigation.active&&!drag&&!selecting&&!binderDown&&document.elementFromPoint(cursorSample().x,cursorSample().y)===renderer.domElement;
+    stateRef.current!.navigatorDepth=(action,input)=>{navigator.orientation.copy(camera.quaternion);if(input instanceof KeyboardEvent){if(!navigatorDepthHeld){if(input.repeat)return;props.heldNudges.stop();navigatorDepthHeld=true;}props.heldNudges.press(action,input.code||input.key,input.repeat);}else{const previous=navigator.position.clone();navigator.depth((action==='nudgeUp'?1:-1)*pitch());if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);}};
+    const stopHeldNudges = props.heldNudges.subscribe(() => { try { const actions=props.heldNudges.getSnapshot().actions;if(navigatorDepthHeld){depthNudging.update(actions.filter(action=>action==='nudgeUp'||action==='nudgeDown'));if(!actions.length)navigatorDepthHeld=false;}else nudging.update(actions); } catch (error) { nudging.finish(true); props.heldNudges.stop(); setFeedback(error instanceof Error ? error.message : String(error)); } });
 
     const down = (event: PointerEvent) => {
       nativeWheel = false;
@@ -577,7 +624,9 @@ export default function SpatialWorkspace(props: Props) {
       if(binderDown){finishBinder(true);return;}
       nudging.finish(true); props.heldNudges.stop();
       if (!pointerOwner.owns(event)) return;
+      if(event.isPrimary===false){leftDown=null;return;}
       stopAnimation(); setMenu(null);
+      if(event.button===0&&!event.ctrlKey&&!event.shiftKey&&!event.altKey&&!event.metaKey){updateNavigator(event);const node=hits(event).find(hit=>hit.object.userData.nodeId!==drive.id);leftDown={pointerId:event.pointerId,x:event.clientX,y:event.clientY,id:node?.object.userData.nodeId,point:navigator.position.clone()};if(drive.active){controls.enabled=false;renderer.domElement.setPointerCapture(event.pointerId);return;}}
       if (navigationShortcuts.matches("world.navigate", event)) {
         clicks.cancel(); callbacks.current.onDismissOptions();
         if (event.button === 2) rightDown = { x: event.clientX, y: event.clientY, id: null, world: cursorWorld(event) };
@@ -588,6 +637,7 @@ export default function SpatialWorkspace(props: Props) {
         event.preventDefault(); event.stopImmediatePropagation();
         callbacks.current.onAction(event.button === 3 ? callbacks.current.settings.mouse.backButton : callbacks.current.settings.mouse.forwardButton); return;
       }
+      if(event.button===0&&(event.ctrlKey||event.shiftKey||event.altKey||event.metaKey))cancelDrive();
       if (event.button === 0 && subtreeGesture(event, callbacks.current.settings.mouse.selectionModifier)) {
         event.preventDefault(); event.stopImmediatePropagation(); clicks.cancel(); callbacks.current.onDismissOptions();
         const rect = host.getBoundingClientRect();
@@ -608,6 +658,7 @@ export default function SpatialWorkspace(props: Props) {
         const binder = pointerHit.binder;
         const edge=binder&&textScene.current?.connectors.find(edge=>edge.data.key===binder.userData.binderKey);
         if(edge){
+          leftDown=null;
           const a=textScene.current!.nodes.get(edge.data.source)?.anchor,b=textScene.current!.nodes.get(edge.data.target)?.anchor;
           if(!a||!b)return;
           const rect=host.getBoundingClientRect(),screen=(p:THREE.Vector3)=>{const s=p.clone().project(camera);return {x:rect.left+(s.x+1)*rect.width/2,y:rect.top+(1-s.y)*rect.height/2};};
@@ -620,7 +671,7 @@ export default function SpatialWorkspace(props: Props) {
         return;
       }
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
-      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), group.position);
+      const plane = navigator.plane();
       const intersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3()); if (!intersection) return;
       const marker = new THREE.Mesh(new THREE.RingGeometry(0.835, 1.125, 64), new THREE.MeshBasicMaterial({ color: 0x6cdbdf, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }));
       analyticSelectionRing(marker.material);
@@ -635,6 +686,8 @@ export default function SpatialWorkspace(props: Props) {
     const move = (event: PointerEvent) => {
       if (uiPointerActive || (event.buttons !== 0 && !pointerOwner.owns(event))) return;
       if (navigation.move(event)) return;
+      updateNavigator(event);
+      if(drive.active){if(event.buttons===0)paintHover((hits(event).find(hit=>hit.object.userData.nodeId!==drive.id)?.object as LabelMesh)??null);return;}
       if(binderDown){
         const current=binderDown;if(event.pointerId!==current.pointerId)return;
         if(current.doc!==callbacks.current.document){finishBinder(true);return;}
@@ -749,14 +802,29 @@ export default function SpatialWorkspace(props: Props) {
             target: callbacks.current.selectedIds.size > 1 && (!right.id || callbacks.current.selectedIds.has(right.id)) ? { kind: "selection", ids: [...callbacks.current.selectedIds] } : right.id ? { kind: "node", id: right.id } : { kind: "space", world: right.world, screen: { x: event.clientX, y: event.clientY } } });
         }
       }
-      if (event.button === 0) finishDrag(event);
+      if (event.button === 0) {
+        const press=leftDown?.pointerId===event.pointerId?leftDown:null;if(press)leftDown=null;
+        if(press&&Math.hypot(event.clientX-press.x,event.clientY-press.y)<CLICK_THRESHOLD){
+          finishDrag(event,true);if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId);
+          try{
+            if(drive.active){
+              const parkedPoint=drive.position;const doc=drive.park(!!press.id);if(!doc){setFeedback('Choose a free slot before parking. Esc cancels the drive.');return;}
+              navigatorDriving.current=false;setFeedback("");controls.enabled=!uiPointerActive;if(parkedPoint)navigator.position.set(parkedPoint.x,parkedPoint.y,parkedPoint.z);
+              if(press.id)mountNode(press.id,event,doc);else{relocateCamera(navigator.position.clone());navigatorOffset.set(0,0,0);}
+            }else if(press.id)mountNode(press.id,event);else{relocateCamera(press.point);navigatorOffset.set(0,0,0);}
+          }catch(error){setFeedback(error instanceof Error?error.message:String(error));cancelDrive();}
+          return;
+        }
+        finishDrag(event);
+      }
     };
-    const cancel = (event: PointerEvent) => { finishBinder(true); navigation.finish(true); selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
+    const cancel = (event: PointerEvent) => { leftDown=null;cancelDrive(); finishBinder(true); navigation.finish(true); selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
     const pointerOwner = guardCameraPointer(renderer.domElement, (active) => {
       uiPointerActive = active;
       controls.enabled = !active && !drag && !binderDown && !selecting && !navigation.active;
-      if (active) stopAnimation();
+      if (active) {leftDown=null;cancelDrive();stopAnimation();}
     }, () => {
+      leftDown=null;cancelDrive();navigatorVisible=false;
       props.heldNudges.stop();
       navigation.finish(true);
       if (nativeBefore) { applyView(nativeBefore); nativeBefore = null; }
@@ -785,7 +853,7 @@ export default function SpatialWorkspace(props: Props) {
       pendingViewBefore = null;
       stopCameraHistory();
       renderer.domElement.removeEventListener("wheel", noteWheel, true);
-      stopHeldNudges(); nudging.finish(true); nudgeEngine.current = null; props.heldNudges.stop();
+      stopHeldNudges(); depthNudging.finish(true);cancelDrive();navigatorMarker.dispose(); nudging.finish(true); nudgeEngine.current = null; props.heldNudges.stop();
       navigation.dispose(); navigationEngine.current = null;
       if(creationPointRef?.current===creationPoint)creationPointRef.current=null;
       stopSelectionSurface();stopHierarchyHighlight(); hierarchyPulse.dispose();
@@ -803,7 +871,7 @@ export default function SpatialWorkspace(props: Props) {
   }, []);
 
   useEffect(() => {
-    const key = (event: KeyboardEvent) => { if(event.key==='Escape'&&!event.defaultPrevented&&stateRef.current?.cancelBinder?.()){event.preventDefault();event.stopImmediatePropagation();return;} if (navigationShortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
+    const key = (event: KeyboardEvent) => { if(event.key==='Escape'&&!event.defaultPrevented&&stateRef.current?.cancelBinder?.()){event.preventDefault();event.stopImmediatePropagation();return;} if (navigatorShortcuts.handle(event)||navigationShortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
     window.addEventListener("keydown", key, true); return () => window.removeEventListener("keydown", key, true);
   }, []);
 
@@ -822,7 +890,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(()=>{
     const state=stateRef.current;if(!state)return;
     const scale=latticeScale(settings.spatial.latticeScale),ratio=scale/displayedScale.current;
-    if(Number.isFinite(ratio)&&ratio>0&&ratio!==1){const before=state.controls.target.clone();state.controls.target.multiplyScalar(ratio);state.camera.position.add(state.controls.target.clone().sub(before));state.controls.update();}
+    if(Number.isFinite(ratio)&&ratio>0&&ratio!==1){state.cancelNavigatorDrive?.();state.navigator?.rescale(ratio);const before=state.controls.target.clone();state.controls.target.multiplyScalar(ratio);state.camera.position.add(state.controls.target.clone().sub(before));state.controls.update();}
     displayedScale.current=scale;
     const pitch=latticeUnit(settings.spatial.nodeCellSize)*scale;
     state.camera.near=Math.max(Number.MIN_VALUE,Math.min(.05,pitch/1000));
@@ -843,6 +911,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
     nudgeEngine.current?.finish(true); props.heldNudges.stop();
+    state.refreshNavigator?.();
     disposeContent(state.content);
     const visible = graph.nodes.filter((n) => n.visible);
     const visibleIds = new Set(visible.map(n => n.id));
@@ -858,6 +927,7 @@ export default function SpatialWorkspace(props: Props) {
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);
     textScene.current = built;
+    state.refreshNavigator?.();
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
     const pitch=latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale);
@@ -972,6 +1042,7 @@ export default function SpatialWorkspace(props: Props) {
   }, [ready, atlas, doc, settings.appearance, props.colorPreview]);
 
   useEffect(() => {
+    stateRef.current?.refreshNavigator?.();
     textScene.current?.updateSelection(selectedId, props.selectedIds);
     stateRef.current?.requestRender();
   }, [ready, atlas, doc, selectedId, props.selectedIds, props.variantDisplay, settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
@@ -991,7 +1062,7 @@ export default function SpatialWorkspace(props: Props) {
   const menuItems = menu?.target.kind === "selection" ? selectionMenu : menu?.target.kind === "node" ? nodeMenu : spaceMenu;
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
-    <div className="spatial-help">Click: options / variants · double-click: expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "auto" ? "node: object center · selected branch: orbit · no selection: look" : activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
+    <div className="spatial-help">Click node: drive · click empty slot: park/unmount · Up/Down: navigator depth · Esc: cancel drive · Right-click: actions / expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "auto" ? "node: object center · selected branch: orbit · no selection: look" : activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
     {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
       <button data-ui-id="open-node-document" onClick={() => { setDocumentNodeId(props.optionNodeId); props.onDismissOptions(); }}>Document</button>
       {NODE_OPTIONS.map((option) => <div className="node-option" key={option.id}>

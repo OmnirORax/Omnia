@@ -19,13 +19,14 @@ export function createLatticeField(doc:Document,size?:number,scale?:number){
  const geometry=new THREE.RingGeometry(.4,.5,24),material=new THREE.MeshBasicMaterial({color:0x78c9d4,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false});
  const object=new THREE.InstancedMesh(geometry,material,LATTICE_FIELD_CAPACITY);object.frustumCulled=false;object.count=0;
  const matrix=new THREE.Matrix4(),extent=new THREE.Vector3(pitch,pitch,pitch);let stamp='';
- return {object,update(target:THREE.Vector3,camera:THREE.PerspectiveCamera,width=1024,height=width/camera.aspect){
+ return {object,update(target:THREE.Vector3,camera:THREE.PerspectiveCamera,width=1024,height=width/camera.aspect,orientation?:THREE.Quaternion){
   if(!Number.isFinite(pitch)||pitch<=0){object.count=0;return;}
   let base;try{base=cellAt(target,pitch);}catch{object.count=0;return;}
   camera.updateMatrixWorld();
-  const next=[width,height,base.x,base.y,base.z,...camera.matrixWorld.elements,...camera.projectionMatrix.elements].join(',');
+  const next=[...(orientation?.toArray()??[]),width,height,base.x,base.y,base.z,...camera.matrixWorld.elements,...camera.projectionMatrix.elements].join(',');
   if(next===stamp)return;stamp=next;
-  const frame=latticeFrame(camera.quaternion),a=new THREE.Vector3(1,0,0).applyQuaternion(frame).round(),b=new THREE.Vector3(0,1,0).applyQuaternion(frame).round();
+  const frame=orientation??latticeFrame(camera.quaternion),a=new THREE.Vector3(1,0,0).applyQuaternion(frame),b=new THREE.Vector3(0,1,0).applyQuaternion(frame);
+  if(!orientation){a.round();b.round();}
   const origin=new THREE.Vector3(base.x*pitch,base.y*pitch,base.z*pitch);
   const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(a.clone().cross(b),origin);
   // Sample the visible screen, then resolve each sample to a real cell on the

@@ -158,3 +158,10 @@ test('screen sampling covers both screen axes at oblique zoom without an arbitra
  for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix).project(camera);if(p.z< -1||p.z>1)continue;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
  assert.ok(minX<-.9&&maxX>.9&&minY<-.9&&maxY>.9);assert.ok(field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
 });
+
+test('shared navigator creation conversion uses projected parent cells and does not mutate legacy coordinates',async()=>{
+ const {localLatticePoint,latticeWorld}=await import('../src/graph/lattice.ts');
+ const doc=fixture([point(.1),point(.2)]),before=JSON.stringify(doc),world={x:5,y:-2,z:3},parent=latticeWorld(doc,'1');
+ const local=localLatticePoint(doc,'1',world);assert.deepEqual(local,{x:world.x-parent.x,y:world.y-parent.y,z:world.z-parent.z});
+ assert.deepEqual(localLatticePoint(doc,null,world),world);assert.equal(localLatticePoint(doc,'1',undefined),undefined);assert.throws(()=>localLatticePoint(doc,'missing',world),/parent/);assert.equal(JSON.stringify(doc),before);
+});

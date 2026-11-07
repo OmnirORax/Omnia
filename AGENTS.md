@@ -789,3 +789,18 @@ strict canonical validation and atlas-import identity remapping. Source changes
 follow saved shared recipes; no new unsaved binder preview protocol. Preserve old
 asset/character visuals and reject deleting in-use sources. Read ATLAS_BINDERS and
 DATA_EVOLUTION for exact semantics and older-client limits.
+
+World navigator (2026-11-07): its transient internal frame follows camera
+orientation like a compass. Mouse controls camera-facing XY; Up/Down step local
+Z toward/away by one rendered lattice pitch. Reuse registered world-scope held
+commands and the bounded held scheduler; OS repeats never queue. Scoped feature
+owners get first refusal before legacy keys, independent of listener order.
+Plain node click mounts/selects a driven branch; empty-slot click parks/unmounts.
+Use navigatorDrive's prepared occupancy/renderer preview and one normal document
+commit. Another-node click parks the old car at its last valid preview. The driven root
+cannot mask parking hits; descendants retain normal detection. Invalid targets keep last valid geometry; Esc/capture/
+context replacement cancels. Right-click retains actions. Camera follow translates
+camera/target without fit/rotation and rebases the local grab offset. Navigator
+previews/depth never enter data or undo; camera and placement commits retain their
+existing separate history owners. Picking remains ordinary projected hits, not
+plane-only. Independent rotation controls are deferred. Read WORLD_NAVIGATION.md.

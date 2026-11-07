@@ -135,3 +135,10 @@ export function prepareLatticeTransform(doc:Document,ids:readonly string[],size?
   return result;
  };
 }
+
+/** Shared creation adapter: navigator world address to parent-local authored XYZ. */
+export function localLatticePoint(doc:Document,parentId:string|null,world:XYZ|undefined,size?:number):XYZ|undefined {
+ if(!world)return undefined;if(!parentId)return {...world};
+ if(!doc.placements.some(p=>p.id===parentId))throw Error('The creation parent no longer exists.');
+ const parent=latticeWorld(doc,parentId,size);return {x:world.x-parent.x,y:world.y-parent.y,z:world.z-parent.z};
+}

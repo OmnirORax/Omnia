@@ -367,3 +367,21 @@ semantics and can add new-owner occurrences. Candidate validation rejects stale,
 cyclic or conflicting edits before the existing atomic history/save transaction.
 UI menu availability is transient and retains authored menu members/geometry.
 No new storage owner, migration pipeline, cloud protocol or backend deployment.
+
+### World navigator and drive previews (2026-11-07)
+
+No saved entity/placement/format/schema fields are added. Navigator position,
+camera-aligned frame, held depth and driven preview remain transient. The existing
+canonical UUID/name system is unchanged. Parking uses latticeMove and the existing
+document commit/history/autosave/recovery path; previews are renderer-only and
+cancellation restores their captured anchors without saving. Prepared occupancy
+includes hidden descendants. Camera-follow uses existing camera history, separate
+from the one placement transaction. Incompatible document/context replacement
+cancels a preview before replacing renderer objects; compatible visual refresh
+reapplies preview geometry to current hosts. Live scale changes cancel before
+rescaling the cursor. New world-scope commands acquire standard declared binding
+defaults without colliding with authored Composer/content shortcuts; clears and
+rebindings remain authoritative. Plain world click semantics are now drive/park;
+right-click retains inspection/expansion, and selection modifiers retain ownership.
+Older clients keep their older interaction behavior; no load-time coordinate
+rewrite or backend rollout is introduced by the navigator.
