@@ -812,7 +812,7 @@
       "status": "Implemented; browser verification pending",
       "limits": "Empty cells are hidden by default; Empty lattice cells optionally reveals a bounded nearby creation slice. O carriers have unique logical cells; independent expanded content can still overlap in dense/oversized views. No relationship-node authoring, new filters/search or contextual summoning is added. Historical source coordinates stay unchanged on load while their carrier positions are projected onto cells. Browser interaction, visual scale thresholds and performance acceptance remain user-owned.",
       "verification": {
-        "browser": "2026-11-07: user reported the selection pulse disappeared because the previous visibility change incorrectly hid the outline. Follow-up restores the existing selection outline/animation path while keeping only the atomic carrier hidden; visual recheck pending. No browser run performed.",
+        "browser": "2026-11-07: the focused user-authorized local Chromium diagnostic confirms selected O hidden, selection ring visible and the existing pulse function changing ring size. Earlier user report identified the incorrect outline visibility rule, now restored. Full workspace/appearance acceptance remains pending.",
         "automated": "2026-11-07: all 571 model/architecture tests and preview/type/property/capability build checks pass. Render-only correction reuses the existing selection pulse, appearance and reduced-motion paths; no new saved state or animation owner. The delivery pre-push gate requires backend checks. Visual recheck remains pending."
       },
       "related": [
@@ -825,11 +825,11 @@
       "id": "graph.binders",
       "title": "Perpendicular binder labels and drag-to-reconnect",
       "where": "Atlas binder line, marker or label → click to edit; press and drag near an endpoint onto another node to reconnect it.",
-      "behavior": "Binder text starts at the binder and extends perpendicular to its projected tangent into available screen space. Both sides and bounded samples are tested against carriers, expanded node content, other labels and viewport edges; no fallback draws text over a node. Text stays upright, keeps its authored size/style and can attach by either end. Dragging an existing line/marker/label moves the nearer endpoint while keeping the other fixed. Original data stays unchanged during the colored preview. Valid drop updates the actual typed relationship participant, canonical containment, visual parent or variant reference in one shared document/history transaction. IDs, labels, styling and existing node content stay preserved. Live/saved-view XYZ are preserved through shared parent-local rebasing. Normal clicks still open the editor. Empty/invalid drops, Escape, stale data and shared input/capture cancellation discard the preview. Variant materialization can add placements for the new owner while retaining old occurrences as ordinary nodes. Undo/redo, autosave and reload use existing owners. A newly connected visual parent or variant owner is revealed so the branch does not disappear behind a closed visibility gate.",
+      "behavior": "Binder text starts at the binder and extends perpendicular to its projected tangent into available screen space. Both sides and bounded samples are tested against projected carrier circles, expanded node content, the swept selection/hover ring ink, other labels and viewport edges. If the rooted text is blocked, a short perpendicular stem keeps its root at the binder while advancing into clear space. Long phrases wrap at word boundaries without dropping characters; complete rotated bounds are checked so glyphs are not partially clipped. Text stays upright, keeps its authored size/style and can attach by either end. Dragging an existing line/marker/label moves the nearer endpoint while keeping the other fixed. Original data stays unchanged during the colored preview. Valid drop updates the actual typed relationship participant, canonical containment, visual parent or variant reference in one shared document/history transaction. IDs, labels, styling and existing node content stay preserved. Live/saved-view XYZ are preserved through shared parent-local rebasing. Normal clicks still open the editor. Empty/invalid drops, Escape, stale data and shared input/capture cancellation discard the preview. Variant materialization can add placements for the new owner while retaining old occurrences as ordinary nodes. Undo/redo, autosave and reload use existing owners. A newly connected visual parent or variant owner is revealed so the branch does not disappear behind a closed visibility gate.",
       "steps": [
         {
           "do": "Create a short binder between nearby nodes and expand nearby content, then pan/rotate the view.",
-          "expect": "Its text extends perpendicularly from a clear binder attachment without covering a node/content/other label. If no bounded placement fits, the text is omitted while the line/marker stays selectable."
+          "expect": "Its text extends perpendicularly from the binder into clear space; a short rooted stem is used where projected node/ring ink blocks the text. Long phrases wrap intact. Full rotated bounds stay in view. If no complete layout fits even after bounded advances, text is omitted while the line/marker stays selectable."
         },
         {
           "do": "Click a binder normally, close its editor, then press near one end and drag onto another node. Repeat near the opposite end.",
@@ -856,7 +856,9 @@
         "src/textScene.ts",
         "src/SpatialWorkspace.tsx",
         "src/App.tsx",
-        "tests/binders.test.mjs"
+        "tests/binders.test.mjs",
+        "tests/binder-rotation.browser.mjs",
+        "tests/binder-rotation-harness.ts"
       ],
       "actions": [],
       "gestures": [],
@@ -866,11 +868,11 @@
         "graph.lattice",
         "history.global"
       ],
-      "limits": "Seven label attachment samples × two sides are bounded; crowded/oversized views can hide text instead of overlapping nodes. The attached edge may be the text’s far end when needed to stay upright. Four-pixel line hit tolerance applies. Visible node content keeps hit priority; binder ink wins over invisible atomic picking boxes. Actual endpoints must be expanded when collapse projects a binder onto another representative. Typed relationships use the first two displayed participant roles and preserve additional roles. Canonical changes affect all uses; independent visual nesting remains separate. Nested/variant targets with other ownership must be detached first. Variant changes can materialize new placements, not entities. Legacy 2D fallback child constraints can clamp local 2D coordinates; world XYZ and saved XYZ views are preserved. Browser interaction, cancellation and dense-view performance acceptance remain pending.",
+      "limits": "Seven attachment samples × two sides × at most eight clearance advances are bounded; crowded/oversized views can hide text instead of overlapping nodes. The attached edge may be the text’s far end when needed to stay upright. Four-pixel line hit tolerance applies. Visible node content keeps hit priority; binder ink wins over invisible atomic picking boxes. Actual endpoints must be expanded when collapse projects a binder onto another representative. Typed relationships use the first two displayed participant roles and preserve additional roles. Canonical changes affect all uses; independent visual nesting remains separate. Nested/variant targets with other ownership must be detached first. Variant changes can materialize new placements, not entities. Legacy 2D fallback child constraints can clamp local 2D coordinates; world XYZ and saved XYZ views are preserved. Browser interaction, cancellation and dense-view performance acceptance remain pending.",
       "status": "Implemented for review; production deployment and browser acceptance pending",
       "verification": {
-        "browser": "Not run. User should test perpendicular layout around nearby carriers/content, both endpoint drags, invalid drop/Escape, each binder type, Undo and reload.",
-        "automated": "2026-11-07: all 571 model/architecture tests pass, including 13 binder geometry/domain cases. Preview/type/property/capability build and backend type checks pass. Tests cover perpendicular/diagonal free-space placement, rotated footprints, bounded rejection, both endpoints, four binder types, roles/styles/content, stale/cycle/duplicate rejection, variants and saved-view/legacy-coordinate rebasing. Browser gesture/visual acceptance is pending."
+        "browser": "2026-11-07 user-authorized focused local Chromium two-node diagnostic reproduces rotation-dependent whole-label rejection. After the fix, ten fixed-distance rotations render actual label pixels with all four corners within the viewport; selected O stays hidden, the ring stays visible and its pulse path changes size. No renderer/page errors. The component fixture uses the real text/effect renderer; full-app workspace/gesture/performance acceptance remains pending. Opt-in regression: tests/binder-rotation.browser.mjs.",
+        "automated": "2026-11-07: all 574 model/architecture tests, preview/type/property/capability build and backend checks pass. Includes 16 binder cases for rotated packing, rooted clearance stems, real carrier circles, hollow/swept selection ink, full word wrapping, all reconnection types and saved-view rebasing. The separately authorized local Chromium rotation diagnostic passes ten fixed-distance rendered-frame checks; full workspace acceptance remains user-owned."
       }
     },
     {

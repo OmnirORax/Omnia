@@ -21,10 +21,10 @@ test('binder labels start at the edge and run perpendicular into the available s
 test('diagonal label placement uses projected normal and reserves its rotated footprint for other labels',()=>{
  const space=createLabelSpace([],500,400),anchor={x:250,y:200,dx:1,dy:1,width:70,height:14},a=placeBinderText(space,[anchor]),b=placeBinderText(space,[anchor]);
  assert.ok(a&&b);assert.ok(Math.abs(Math.cos(a.angle)+Math.sin(a.angle))<1e-9);assert.equal(screenBoxesOverlap(a,b,space.gap),false);
- assert.equal(placeBinderText(space,[anchor]),undefined);
+ const third=placeBinderText(space,[anchor]);assert.ok(third&&third.leader>0);assert.equal(screenBoxesOverlap(third,a,space.gap),false);assert.equal(screenBoxesOverlap(third,b,space.gap),false);
 });
 test('label packing tries another binder attachment and never falls back over a node or outside viewport',()=>{
- const blocked={x:80,y:80,width:150,height:150},space=createLabelSpace([blocked],400,300);
+ const blocked={x:80,y:150,width:150,height:300},space=createLabelSpace([blocked],400,300);
  const anchors=[{x:80,y:80,dx:1,dy:0,width:60,height:12},{x:270,y:150,dx:1,dy:0,width:60,height:12}];
  assert.equal(placeBinderText(space,anchors).anchor,1);
  assert.equal(placeBinderText(createLabelSpace([{x:100,y:100,width:200,height:200}],200,200),anchors),undefined);
@@ -91,4 +91,27 @@ test('reconnection reveals a closed new parent instead of hiding the connected b
   doc.placements.find(p=>p.id==='c').collapsed=true;
   const next=reconnectBinder(doc,binder(doc,kind),'source','c');assert.equal(next.placements.find(p=>p.id==='c').collapsed,false);positionsEqual(doc,next);
  }
+});
+
+
+test('rooted label stems escape projected carrier bounds while preserving complete rotated text',()=>{
+ const node={x:200,y:150,width:80,height:80,radius:40};
+ const label=placeBinderText(createLabelSpace([node],500,500),[{x:200,y:150,dx:1,dy:0,width:100,height:16}]);
+ assert.ok(label&&label.leader>=40);assert.equal(screenBoxesOverlap(label,node,3),false);
+ assert.equal(Math.abs(label.y-150)-label.width/2,label.leader+3);
+});
+
+test('selection-ring swept ink blocks text crossings without treating its hollow centre as solid',()=>{
+ const ring={x:100,y:100,width:100,height:100,radius:50,innerRadius:40};
+ assert.equal(screenBoxesOverlap({x:100,y:100,width:20,height:10},ring),false);
+ assert.equal(screenBoxesOverlap({x:145,y:100,width:20,height:10},ring),true);
+ assert.equal(screenBoxesOverlap({x:180,y:100,width:20,height:10},ring),false);
+ assert.equal(screenBoxesOverlap({x:145,y:145,width:10,height:10},{...ring,innerRadius:undefined}),false,'circle corners are not an occupied square');
+});
+
+
+test('compact binder wrapping preserves every word without shrinking line height',async()=>{
+ const {labelLines,labelSize}=await import('../src/graph/labels.ts');
+ assert.deepEqual(labelLines('contains inverse',14),['contains','inverse']);
+ const size=labelSize('contains inverse',14);assert.equal(size.height,1);assert.equal(size.width,labelSize('contains').width);
 });

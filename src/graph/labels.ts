@@ -17,9 +17,9 @@ export function labelLines(value: string, columns = 32): string[] {
   }
   return lines;
 }
-export function labelSize(value: string) {
+export function labelSize(value: string,columns=32) {
   if (!value.trim()) return { width: 0, height: 0 };
-  const lines = labelLines(value);
+  const lines = labelLines(value,columns);
   return {
     width: Math.max(1.05, ...lines.map((line) => Array.from(line).length * 0.19 + 0.4)),
     height: lines.length * 0.4 + 0.2,

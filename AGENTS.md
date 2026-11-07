@@ -727,3 +727,10 @@ visual/variant owners, preserving IDs/content/positions and committing only afte
 validation. Reuse coordinates.rebaseParentage for live and saved-view parent
 conversion. Keep source connections intact during preview and honor shared cancel/
 input ownership. Read docs/ATLAS_BINDERS.md for semantics and limits.
+
+Binder rotation correction (2026-11-07): use true projected carrier circles and
+selection-pulse annuli in label packing. If a rooted perpendicular label is
+blocked, keep its binder root and advance a short stem into clear space. Wrap
+long phrases without dropping text; validate complete rotated bounds rather than
+clipping glyphs or disabling depth tests. Preserve the selection pulse. The
+authorized local rotation diagnostic is opt-in, not standing browser permission.
