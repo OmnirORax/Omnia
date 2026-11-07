@@ -12,7 +12,7 @@ export type VisualAsset = {
   dataUrl: string;
   source?: string;
 };
-export type Visual = { assetId?: string; character?: string; showText?: boolean; size?: number };
+export type Visual = { omnicEntityId?: string; assetId?: string; character?: string; showText?: boolean; size?: number };
 export const MAX_ASSET_BYTES = 900_000;
 export function validateAsset(asset: VisualAsset) {
   if (
@@ -52,11 +52,12 @@ export function validateAsset(asset: VisualAsset) {
   if (asset.kind === "glb")
     validateGLB(Uint8Array.from(atob(asset.dataUrl.split(",")[1]), (c) => c.charCodeAt(0)).buffer);
 }
-export function validateVisual(visual: Visual | undefined, assets: VisualAsset[]) {
+export function validateVisual(visual: Visual | undefined, assets: VisualAsset[], glyphIds?:ReadonlySet<string>) {
   if (visual === undefined) return;
   if (
     !visual ||
     typeof visual !== "object" ||
+    (visual.omnicEntityId !== undefined && (typeof visual.omnicEntityId!=="string"||!visual.omnicEntityId||visual.omnicEntityId.length>200||!!glyphIds&&!glyphIds.has(visual.omnicEntityId))) ||
     (visual.character !== undefined &&
       (typeof visual.character !== "string" || visual.character.length > 64)) ||
     (visual.showText !== undefined && typeof visual.showText !== "boolean") ||
@@ -65,7 +66,7 @@ export function validateVisual(visual: Visual | undefined, assets: VisualAsset[]
     (visual.assetId !== undefined && !assets.some((a) => a.id === visual.assetId))
   )
     throw new Error("Invalid visual or missing asset reference.");
-  if (visual.assetId && visual.character)
+  if ([visual.assetId,visual.character,visual.omnicEntityId].filter(Boolean).length>1)
     throw new Error("Choose an asset or a character for a visual.");
 }
 export function validateGLB(buffer: ArrayBuffer) {
@@ -113,7 +114,7 @@ export function validateGLB(buffer: ArrayBuffer) {
     );
 }
 export function visualFootprint(label: { width: number; height: number }, visual?: Visual, sphereDiameter = DEFAULT_SPHERE_DIAMETER) {
-  const hasObject = !!(visual?.assetId || visual?.character),
+  const hasObject = !!(visual?.assetId || visual?.character || visual?.omnicEntityId),
     size = visual?.size ?? (hasObject ? 1.4 : sphereDiameter);
   const showText = label.width > 0 && label.height > 0 && visual?.showText !== false;
   const sphere = !hasObject && !showText;
@@ -124,4 +125,9 @@ export function visualFootprint(label: { width: number; height: number }, visual
     height:
       (hasObject || sphere ? size : 0) + (showText ? label.height : 0) + (hasObject && showText ? 0.3 : 0),
   };
+}
+
+/** Canonical glyph references follow the same import identity mapping as entities. */
+export function remapVisualEntities(visual:Visual|undefined,map:(id:string)=>string):Visual|undefined {
+ return visual?.omnicEntityId?{...visual,omnicEntityId:map(visual.omnicEntityId)}:visual;
 }

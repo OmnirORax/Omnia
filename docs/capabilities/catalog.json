@@ -190,8 +190,12 @@
       "id": "interface.arrange",
       "title": "Move, dock, select and organize UI",
       "where": "UI library; UI edit mode; shared frame/control context actions.",
-      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure. Window/frame drag previews reuse gesture-local target discovery and read-only docking policy results. Visual movement uses the latest pointer position once per animation frame, with geometry reads before transform writes. Release refreshes destination geometry and commits through the existing shared history; cancellation restores the live payload. Active-context shortcuts defer to a held UI gesture, so Esc cancels the drag before a parent minimize action. Pickup snapshots exclude descendants of the held frame/window and read visibility before lifting, reducing the expand-then-drag setup burst. Shared window interaction callbacks now commit on accepted click rather than mouse-down. Dragging a shortcuts window/title or other shared window cannot pin/activate it through onInteract. The existing global drag guard suppresses physical click tails even after source reparenting onto another surface, while keyboard/programmatic clicks remain usable. Normal mode now fixes individual action/field arrangement while complete frames/windows are movable/resizable by default. Explicit saved rigidity policies and pins remain authoritative. Ordinary pointer use, editing, minimize/restore and close never require UI edit mode. The drag activation guard arms only from the nearest genuinely draggable handle or an active resize surface, so pointer drift on a fixed control cannot suppress its click as a nonexistent drag. Real drag tails and keyboard activation retain their existing rules. UI-customization right-click menus and right-click UI label renaming require UI edit mode. This includes controls, frame/tab chrome, backgrounds and selected UI; disabling edit mode dismisses open customization menus/editors. Content-specific right-click commands remain available in either mode, including on moved controls. Movement exceptions do not enable customization menus.",
+      "behavior": "Drag actual frame handles or supported control edges. Docking offers destinations when a dragged header reaches another header. UI selection, alignment, compaction and reset are separate from knowledge structure. Window/frame drag previews reuse gesture-local target discovery and read-only docking policy results. Visual movement uses the latest pointer position once per animation frame, with geometry reads before transform writes. Release refreshes destination geometry and commits through the existing shared history; cancellation restores the live payload. Active-context shortcuts defer to a held UI gesture, so Esc cancels the drag before a parent minimize action. Pickup snapshots exclude descendants of the held frame/window and read visibility before lifting, reducing the expand-then-drag setup burst. Shared window interaction callbacks now commit on accepted click rather than mouse-down. Dragging a shortcuts window/title or other shared window cannot pin/activate it through onInteract. The existing global drag guard suppresses physical click tails even after source reparenting onto another surface, while keyboard/programmatic clicks remain usable. Normal mode now fixes individual action/field arrangement while complete frames/windows are movable/resizable by default. Explicit saved rigidity policies and pins remain authoritative. Ordinary pointer use, editing, minimize/restore and close never require UI edit mode. The drag activation guard arms only from the nearest genuinely draggable handle or an active resize surface, so pointer drift on a fixed control cannot suppress its click as a nonexistent drag. Real drag tails and keyboard activation retain their existing rules. UI-customization right-click menus and right-click UI label renaming require UI edit mode. This includes controls, frame/tab chrome, backgrounds and selected UI; disabling edit mode dismisses open customization menus/editors. Content-specific right-click commands remain available in either mode, including on moved controls. Movement exceptions do not enable customization menus. Omnium empty-space right-click hides Create UI frame when UI edit mode is off, using the shared policy; invocation also rechecks current mode. Content graph actions remain available. Hidden action projection preserves saved context-menu organization and restores it when editing is enabled.",
       "steps": [
+        {
+          "do": "Turn UI edit mode off and right-click empty Omnium space. Turn it on and repeat; customize the frame action placement, then toggle off/on again.",
+          "expect": "Create UI frame appears only in edit mode. Node/entity/layout graph actions remain available. Toggling mode preserves the frame action’s saved menu position and customization; stale invocation after disabling edit mode cannot create a frame."
+        },
         {
           "do": "Turn UI edit mode off. Activate a fixed action while moving the held pointer a few pixels inside its button; minimize/restore a window and use its active Close command. Move a whole window, then turn edit mode on.",
           "expect": "Normal controls, minimize/restore and Close work without edit mode. Whole unpinned frames can move/resize; internal controls remain fixed until edit mode is enabled. Explicit rigidity/pins are still respected, and an actual drag release does not activate its control."
@@ -236,7 +240,10 @@
         "src/ui/contextMenuOwnership.ts",
         "src/ui/NativeActions.tsx",
         "src/ui/useButtonSelection.tsx",
-        "src/ui/EditableLabel.tsx"
+        "src/ui/EditableLabel.tsx",
+        "src/SpatialWorkspace.tsx",
+        "src/ui/EntityMenu.tsx",
+        "src/ui/DockArea.tsx"
       ],
       "actions": [
         "ui:devMode",
@@ -247,7 +254,7 @@
       "limits": "Drag targets use a gesture-local discovery snapshot, refreshed at release. Browser traces are local diagnostics; user hardware smoothness acceptance remains pending. Explicit saved rigidity/pins can still fix a frame; unsaved appearance Apply/Discard/Cancel vetoes still apply. The focused check uses disposable local state and does not establish acceptance of every saved layout.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "2026-11-06: user-authorized focused local Chromium check passes fixed-control pointer-drift activation, edit-off minimize/restore, whole-window movement with suppressed drag tail, ordinary-window Close and edit-on internal-control dragging availability. Baseline reproduced a swallowed fixed-control click after 8px drift. Fresh local data; user saved-layout acceptance pending. Existing appearance draft vetoes and remote-controller context behavior remain unchanged. Follow-up right-click gating awaits user browser verification; no additional browser run performed.",
+        "browser": "Omnium menu availability and organization preservation await user browser acceptance; no additional browser check run.",
         "automated": "2026-11-06: all 524 model/architecture tests, preview/type/property/capability build checks and backend type checks pass. Includes edit-off/on context routing, preserved domain handlers/content ownership, missing legacy flag and movement-exception independence. Rechecked after merging master including PR #52; both documentation conflicts retain both owners’ guidance."
       },
       "related": [
@@ -831,10 +838,26 @@
     },
     {
       "id": "graph.binders",
-      "title": "Perpendicular binder labels and drag-to-reconnect",
-      "where": "Atlas → select/open a downstream node to reveal incoming binders → click a binder to edit; drag near an endpoint onto another node to reconnect.",
-      "behavior": "Incoming binders appear only when their downstream target is selected or explicitly retained open through the existing content toggle. All direct displayed parents of that target reveal together. Selecting/opening a parent does not expose its outgoing child relations. Hover, Names and structural expansion alone do not reveal binders. Hidden lines, markers, labels and hit targets are excluded together. Binder text starts directly at the fixed binder midpoint and extends along its directed projected normal. Camera rotation updates orientation without changing attachment side; hover and nearby content never relocate it. No extra stem, collision search or alternate attachment is used. Text stays upright and long phrases wrap at 14 columns. Dragging an existing line/marker/label moves the nearer endpoint while keeping the other fixed. Original data stays unchanged during the colored preview. Valid drop updates the actual typed relationship participant, canonical containment, visual parent or variant reference in one shared document/history transaction. IDs, labels, styling and existing node content stay preserved. Live/saved-view XYZ are preserved through shared parent-local rebasing. Normal clicks still open the editor. Empty/invalid drops, Escape, stale data and shared input/capture cancellation discard the preview. Variant materialization can add placements for the new owner while retaining old occurrences as ordinary nodes. Undo/redo, autosave and reload use existing owners. A newly connected visual parent or variant owner is revealed so the branch does not disappear behind a closed visibility gate.",
+      "title": "Binder selection, connection actions, live glyphs and reconnection",
+      "where": "Atlas → open/select a downstream node → click/right-click its incoming binder → Binder editor → Binder actions or Binder visual → Omnic glyph.",
+      "behavior": "Incoming binders appear only when their downstream target is selected or explicitly retained open through the existing content toggle. All direct displayed parents of that target reveal together. Selecting/opening a parent does not expose its outgoing child relations. Hover, Names and structural expansion alone do not reveal binders. Hidden lines, markers, labels and hit targets are excluded together. Binder text starts directly at the fixed binder midpoint and extends along its directed projected normal. Camera rotation updates orientation without changing attachment side; hover and nearby content never relocate it. No extra stem, collision search or alternate attachment is used. Text stays upright and long phrases wrap at 14 columns. Dragging an existing line/marker/label moves the nearer endpoint while keeping the other fixed. Original data stays unchanged during the colored preview. Valid drop updates the actual typed relationship participant, canonical containment, visual parent or variant reference in one shared document/history transaction. IDs, labels, styling and existing node content stay preserved. Live/saved-view XYZ are preserved through shared parent-local rebasing. Normal clicks still open the editor. Empty/invalid drops, Escape, stale data and shared input/capture cancellation discard the preview. Variant materialization can add placements for the new owner while retaining old occurrences as ordinary nodes. Undo/redo, autosave and reload use existing owners. A newly connected visual parent or variant owner is revealed so the branch does not disappear behind a closed visibility gate. Click/right-click binder ink selects the exact occurrence, thickens its path and opens the existing editor. The selected binder remains visible independently of node selection. Reverse direction/hierarchy edits the actual domain owner; Delete binder or Delete selection removes the link while retaining entities/content. Focus both endpoints uses existing selection/camera routing. Typed reversal swaps the first two participant entities in their role slots, retaining additional roles/style. Nested reversal rotates visual parentage with preserved XYZ; variant reversal changes the real reference and preserves old occurrences. Live Omnic glyph selection stores a canonical source reference; saved shared source/dependency edits update markers through the existing vector renderer and 32-source scene budget. Imported atlas identities are remapped. Existing symbols/assets/size/text controls remain; choosing a source clears alternatives.",
       "steps": [
+        {
+          "do": "Click or right-click an incoming binder and close/reopen its editor. Choose Focus both endpoints.",
+          "expect": "The exact binder occurrence is selected with a thicker path and remains visible. Focus selects its two endpoints and frames them through existing camera behavior."
+        },
+        {
+          "do": "Select a binder and choose Reverse direction / hierarchy, then Undo. Repeat for relationship, containment, visual nesting and variant.",
+          "expect": "The actual connection reverses in one history transaction, retaining entities/content and live/saved XYZ. Invalid/stale/cyclic candidates reject; a source owned as another variant must be detached first."
+        },
+        {
+          "do": "Select a binder and choose Delete binder (or use Delete selection), then Undo.",
+          "expect": "The actual relationship or ownership link is removed, not its node identities/content. Variant occurrences survive as ordinary placements. Undo restores the prior document through existing history."
+        },
+        {
+          "do": "In Binder editor → Binder visual → Omnic glyph, choose a saved Omnic object. Edit that object and Save shared; reload or import an exported atlas independently.",
+          "expect": "The binder uses the saved source glyph and follows its saved recipe/dependency edits. Reload retains the binding; atlas import remaps it to the imported source identity. Asset/symbol alternatives remain available, and source deletion is rejected while referenced."
+        },
         {
           "do": "Deselect all nodes, select a parent, then select its downstream child with multiple parents. Deselect, explicitly retain the child open, then close it and deselect again.",
           "expect": "Unopened child binders stay hidden. Selecting the child reveals all its displayed incoming parents; outgoing grandchild binders remain hidden until their downstream nodes are opened. Retained open context survives deselection; closed, deselected context hides and cannot be picked. Hover and Names do not reveal it."
@@ -870,7 +893,13 @@
         "src/App.tsx",
         "tests/binders.test.mjs",
         "tests/binder-rotation.browser.mjs",
-        "tests/binder-rotation-harness.ts"
+        "tests/binder-rotation-harness.ts",
+        "src/graph/binderActions.ts",
+        "src/graph/assets.ts",
+        "src/graph/structural.ts",
+        "src/VisualControls.tsx",
+        "src/omnic/presentation.ts",
+        "src/omnic/workspace.ts"
       ],
       "actions": [],
       "gestures": [],
@@ -880,11 +909,11 @@
         "graph.lattice",
         "history.global"
       ],
-      "limits": "Fixed attachment can overlap content or extend outside the viewport; expansion-space realignment is deferred. Four-pixel line hit tolerance applies. Visible node content keeps hit priority; binder ink wins over invisible atomic picking boxes. Actual endpoints must be expanded when collapse projects a binder onto another representative. Typed relationships use the first two displayed participant roles and preserve additional roles. Canonical changes affect all uses; independent visual nesting remains separate. Nested/variant targets with other ownership must be detached first. Variant changes can materialize new placements, not entities. Legacy 2D fallback child constraints can clamp local 2D coordinates; world XYZ and saved XYZ views are preserved. Browser interaction, cancellation and dense-view performance acceptance remain pending.",
+      "limits": "Fixed attachment can overlap content or extend outside the viewport; expansion-space realignment is deferred. Four-pixel line hit tolerance applies. Visible node content keeps hit priority; binder ink wins over invisible atomic picking boxes. Actual endpoints must be expanded when collapse projects a binder onto another representative. Typed relationships use the first two displayed participant roles and preserve additional roles. Canonical changes affect all uses; independent visual nesting remains separate. Nested/variant targets with other ownership must be detached first. Variant changes can materialize new placements, not entities. Legacy 2D fallback child constraints can clamp local 2D coordinates; world XYZ and saved XYZ views are preserved. Browser interaction, cancellation and dense-view performance acceptance remain pending. Live glyphs follow saved shared recipes, not a new unsaved preview protocol. Shared scene preparation budget is 32 sources with existing fallback. Old clients may render a default marker or drop a new binding on visual replacement. Canonical edits affect all uses; variant reversal can materialize new-owner occurrences. Source-owned variants must detach before reversal. Legacy 2D clamp constraints remain while world XYZ are preserved.",
       "status": "Implemented for review; production deployment and browser acceptance pending",
       "verification": {
-        "browser": "Incoming context visibility and fixed-root behavior await user browser acceptance. No additional browser check run.",
-        "automated": "2026-11-07: all 572 model/architecture tests, preview/type/property/capability build and backend checks pass. Includes direct-parent incoming visibility policy, fixed-root geometry and reconnection coverage. Browser acceptance pending."
+        "automated": "Domain regressions cover reverse/delete across all four kinds, source immutability, roles/style, live/saved XYZ, stale/cycle rejection, live recipe rendering, serialization and remapping for every visual owner. All 583 model/architecture tests, preview/type/property/capability build and backend checks pass. User physical-input/visual acceptance remains pending.",
+        "browser": "Selection/actions/glyph rendering and UI-mode menus await user physical-input, undo/reload and visual/performance acceptance. No additional browser check run."
       }
     },
     {

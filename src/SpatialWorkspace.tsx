@@ -1,3 +1,5 @@
+import { useUITracked } from "./ui/context";
+import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { analyticSelectionRing } from "./materialCoverage";
 import type { BinderEnd } from "./graph/reconnectBinder";
 import type { DisplayBinder } from "./graph/binders";
@@ -95,7 +97,8 @@ type Props = {
   onSubtreeClick: (id: string) => void;
   canReconnectBinder: (binder:DisplayBinder,end:BinderEnd,destination:string)=>string|null;
   onReconnectBinder: (binder:DisplayBinder,end:BinderEnd,destination:string)=>void;
-  onBinderSelect: (id: string, kind: "composition" | "relationship" | "variant" | "visual", point: { x: number; y: number }) => void;
+  selectedBinderKey?:string;
+  onBinderSelect: (binder:DisplayBinder, point: { x: number; y: number }) => void;
   onMove: (id: string, local: XYZ, exact?: boolean) => void;
   resolveMove: (id: string, local: XYZ, exact?: boolean) => XYZ;
   canNest: (id: string, targetId: string) => string | null;
@@ -136,6 +139,7 @@ function disposeContent(group: THREE.Group) {
 }
 
 export default function SpatialWorkspace(props: Props) {
+  const ui = useUITracked(ui=>[ui.layout.panels["@devMode"]]);
   const { atlas, selectedId, settings, command, document: doc } = props;
   const retainedExpansions = useRef({atlasId:props.omnicPreviewContext,state:expansionState()});
   if(retainedExpansions.current.atlasId!==props.omnicPreviewContext)retainedExpansions.current={atlasId:props.omnicPreviewContext,state:expansionState()};
@@ -502,7 +506,7 @@ export default function SpatialWorkspace(props: Props) {
       if(renderer.domElement.hasPointerCapture(current.pointerId))renderer.domElement.releasePointerCapture(current.pointerId);
       controls.enabled=!uiPointerActive&&!navigationEngine.current?.active&&!drag&&!selecting;
       setFeedback('');requestRender();
-      if(!cancelled){if(!current.dragged)callbacks.current.onBinderSelect(current.binder.id,current.binder.kind,{x:current.x,y:current.y});else if(current.target&&!current.reason&&current.doc===callbacks.current.document)callbacks.current.onReconnectBinder(current.binder,current.end,current.target);}
+      if(!cancelled){if(!current.dragged)callbacks.current.onBinderSelect(current.binder,{x:current.x,y:current.y});else if(current.target&&!current.reason&&current.doc===callbacks.current.document)callbacks.current.onReconnectBinder(current.binder,current.end,current.target);}
       return true;
     };
     stateRef.current!.cancelBinder=()=>finishBinder(true);
@@ -736,7 +740,9 @@ export default function SpatialWorkspace(props: Props) {
       if (event.button === 2 && rightDown) {
         const right = rightDown; rightDown = null;
         if (Math.hypot(event.clientX - right.x, event.clientY - right.y) < CLICK_THRESHOLD) {
-          right.id = hits({ clientX: right.x, clientY: right.y })[0]?.object.userData.nodeId ?? null;
+          const pointer=pointed({clientX:right.x,clientY:right.y}),binder=pointer.binder&&textScene.current?.connectors.find(b=>b.data.key===pointer.binder!.userData.binderKey);
+          if(binder){setMenu(null);callbacks.current.onBinderSelect(binder.data,{x:event.clientX,y:event.clientY});return;}
+          right.id = pointer.node?.object.userData.nodeId ?? null;
           const rect = host.getBoundingClientRect();
           if (right.id && !(callbacks.current.selectedIds.size > 1 && callbacks.current.selectedIds.has(right.id))) callbacks.current.onSelection([right.id]);
           setMenu({ x: Math.min(event.clientX - rect.left, rect.width - 215), y: Math.min(event.clientY - rect.top, rect.height - 360),
@@ -831,7 +837,7 @@ export default function SpatialWorkspace(props: Props) {
   },[ready,doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale,settings.spatial.showVacantCells]);
 
   const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.nodeCellSize, settings.spatial.latticeScale, settings.spatial.nodeNames,
-    settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay,
+    settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedBinderKey,
     settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
   useEffect(() => {
@@ -847,7 +853,7 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames, latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale));
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames, latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale),props.selectedBinderKey??null);
     state.camera.updateMatrixWorld();
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);
@@ -1003,6 +1009,6 @@ export default function SpatialWorkspace(props: Props) {
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}
     {!!props.selectedIds.size && <div className="selection-status" role="status">{props.selectedIds.size} selected <button onClick={() => props.onAction("focus")}>Focus</button><button onClick={() => props.onAction("deleteSelected")}>Delete</button><button onClick={() => props.onSelection([])}>Clear</button></div>}
     {feedback && <div className="spatial-feedback" role="status">{feedback}</div>}
-    {menu && <EntityMenu kind={menu.target.kind} x={Math.max(0, menu.x)} y={Math.max(0, menu.y)} bounds={{ width: hostRef.current?.clientWidth ?? window.innerWidth, height: hostRef.current?.clientHeight ?? window.innerHeight }} items={menuItems} onDismiss={() => setMenu(null)} onChoose={(action) => { callbacks.current.onContextAction(action, menu.target); setMenu(null); }} />}
+    {menu && <EntityMenu kind={menu.target.kind} x={Math.max(0, menu.x)} y={Math.max(0, menu.y)} bounds={{ width: hostRef.current?.clientWidth ?? window.innerWidth, height: hostRef.current?.clientHeight ?? window.innerHeight }} items={menuItems} hiddenActions={uiContextEnabled(ui.layout)?[]:["createUIFrame"]} onDismiss={() => setMenu(null)} onChoose={(action) => { callbacks.current.onContextAction(action, menu.target); setMenu(null); }} />}
   </div>;
 }

@@ -97,3 +97,58 @@ Model checks cover a full rotation of fixed-root geometry and degenerate tangent
 The earlier authorized browser diagnostic covered the superseded packed layout;
 its viewport-fit assertions do not validate this fixed-root behavior. No new
 browser check was run. Full workspace interaction acceptance remains user-owned.
+
+## Selection and connection actions
+
+Click or right-click visible binder ink, marker or label to select that exact
+occurrence and open Binder editor. The selected line thickens and stays visible
+independently of downstream-node selection. Closing the editor retains selection;
+select another target or clear selection to leave it. Existing dragging still
+reconnects the nearer endpoint. Binder actions are ordinary registered controls:
+
+- Reverse direction / hierarchy swaps the first two typed relationship entity
+  participants while retaining their role slots and additional participants.
+  Containment swaps canonical parent/child. Nested/visual hierarchies rotate the
+  selected parent link, retaining the upstream node's previous visual parent as
+  the new upstream parent's parent. Variant reversal changes the real reference
+  owner/target and preserves old occurrences as ordinary nodes. Variant
+  materialization can create placements for other occurrences of the new owner.
+- Delete binder (or the existing Delete selection action) removes the actual
+  relationship/containment/reference, or detaches a visual nesting link. It keeps
+  entities and their content. Deleting nested containment also detaches that
+  selected visual link; other independent visual nesting stays independent.
+  Deleting a variant clears its owned occurrence links without deleting nodes.
+- Focus both endpoints uses the existing selection and camera focus route.
+
+All edits use one existing document/history transaction, validation and autosave.
+Live/saved-view world XYZ are preserved by shared parent rebasing, including
+protected recovery layouts. Stale/projected endpoints and cycles reject before
+commit. A source already owned as another variant must be detached first before
+hierarchy reversal. Canonical changes affect all uses of that identity. No new
+binding/shortcut layer or parallel undo store is introduced.
+
+## Live Omnic glyphs
+
+Binder editor → Binder visual → Omnic glyph selects a canonical Omnic object from
+the current workspace entity pool. The marker follows its **saved shared** recipe
+and dependency changes; unsaved Composer previews are not a new binder draft
+protocol. Save shared in that object's Composer to update its binder uses. Existing
+size, text visibility, appearance, Iconify, uploads and symbol choices remain.
+Choosing a glyph, asset or character clears the other source choices. Reset returns
+the default arrow. Custom markers face the camera and share the Omnic vector/asset
+renderer and the scene's existing 32-source preparation budget; excess/error cases
+use its existing fallback. Rendered glyph assets are transient, not embedded copies.
+
+The additive visual.omnicEntityId stores the live canonical reference. Validation
+requires a source entity with an Omnic definition and rejects conflicting sources;
+deleting a source still used by a visual is rejected until those references are
+changed. Atlas/workspace saves retain it; independent atlas import remaps it for
+all visual owners (including visual-nesting binders). Existing visuals without the
+field retain their asset/symbol behavior without a load-time conversion. Older
+clients may show a default marker or drop an unrecognized field on visual edits;
+keep a current export before editing these bindings with older versions.
+
+Model regressions cover all four action owners, immutable originals, role/style
+retention, live/saved XYZ, cycle/stale rejection, source revisions, serialization
+and independent import reference remapping. Physical selection/action gestures,
+shared undo/reload flows and glyph appearance remain user browser acceptance.

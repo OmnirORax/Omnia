@@ -109,3 +109,46 @@ test('incoming binders require downstream selection or explicit retained expansi
  toggleContent(state,'child',false);
  assert.equal(incomingBinderVisible('child',false,state),false);
 });
+
+test('reverse and delete edit each binder domain while preserving nodes, XYZ and authored originals',async()=>{
+ const {editBinderConnection}=await import('../src/graph/binderActions.ts');
+ for(const kind of ['relationship','composition','visual','variant']){
+  const doc=kind==='relationship'?relationship():kind==='variant'?variant():composition();if(kind==='visual')doc.compositions=[];
+  const edge=binder(doc,kind),before=JSON.stringify(doc),reversed=editBinderConnection(doc,edge,'reverse');
+  positionsEqual(doc,reversed);assert.deepEqual(reversed.entities,doc.entities);
+  const nextEdge=chartedBinders(reversed,editorView(reversed,new Set(reversed.placements.map(p=>p.id)))).find(b=>b.kind===kind&&b.source===edge.target&&b.target===edge.source);assert.ok(nextEdge,kind);
+  if(kind==='relationship'){assert.equal(reversed.relationships[0].id,edge.id);assert.deepEqual(reversed.relationships[0].participants.map(p=>p.roleId),doc.relationships[0].participants.map(p=>p.roleId));assert.deepEqual(reversed.relationships[0].appearance,doc.relationships[0].appearance);}
+  const deleted=editBinderConnection(doc,edge,'delete');positionsEqual(doc,deleted);assert.deepEqual(deleted.entities,doc.entities);assert.equal(deleted.placements.length,doc.placements.length);
+  assert.equal(chartedBinders(deleted,editorView(deleted,new Set(deleted.placements.map(p=>p.id)))).some(b=>b.kind===kind&&b.id===edge.id),false,kind);
+  assert.equal(JSON.stringify(doc),before);assert.deepEqual(validateDocument(JSON.parse(JSON.stringify(reversed))),reversed);
+ }
+});
+test('reversing hierarchy preserves saved XYZ and rejects stale endpoints or semantic cycles atomically',async()=>{
+ const {editBinderConnection}=await import('../src/graph/binderActions.ts');
+ const doc=composition();doc.layoutViews=[{id:'saved',name:'Saved',rule:'manual',preservePositions:true,positions:[{placementId:'a',position:point(100)},{placementId:'b',position:point(2)},{placementId:'c',position:point(300)}]}];
+ const next=editBinderConnection(doc,binder(doc,'composition'),'reverse'),saved=new Map(next.layoutViews[0].positions.map(p=>[p.placementId,p.position]));
+ const restored={...next,placements:next.placements.map(p=>({...p,spatialPosition:saved.get(p.id)}))};assert.equal(worldPositions(restored).get('b').x,102);assert.equal(worldPositions(restored).get('a').x,100);
+ assert.throws(()=>editBinderConnection(doc,{...binder(doc,'composition'),target:'c'},'reverse'),/actual/);
+ const cyclic=composition();cyclic.compositions.push({id:'ac',parentId:'a',childId:'c'},{id:'cb',parentId:'c',childId:'b'});const before=JSON.stringify(cyclic);
+ assert.throws(()=>editBinderConnection(cyclic,binder(cyclic,'composition'),'reverse'),/cycle/i);assert.equal(JSON.stringify(cyclic),before);
+});
+test('live Omnic binder visuals validate, render source revisions and remap across independent atlas imports',async()=>{
+ const {createRecipe}=await import('../src/omnic/presets.ts');const {omnicAsset,resolveOmnicVisual}=await import('../src/omnic/presentation.ts');const {createWorkspace,importWorkspaceAtlas,activeDocument}=await import('../src/omnic/workspace.ts');
+ const doc=relationship();doc.entities.push({id:'glyph',label:'Glyph',aliases:[],notes:'',omnic:createRecipe('ring')});doc.relationships[0].visual={omnicEntityId:'glyph',size:1.2};doc.placements[0].visual={omnicEntityId:'glyph'};doc.placements[2].nestingBinder={visual:{omnicEntityId:'glyph'}};doc.compositions=[{id:'gc',parentId:'a',childId:'b',visual:{omnicEntityId:'glyph'}}];doc.variants=[{id:'gv',ownerId:'a',entityId:'b',visual:{omnicEntityId:'glyph'}}];
+ validateDocument(doc);assert.equal(resolveOmnicVisual(doc.relationships[0].visual).assetId,'omnic:glyph');const first=omnicAsset(doc,'glyph');assert.ok(first);
+ const changed={...doc,entities:doc.entities.map(e=>e.id==='glyph'?{...e,omnic:{...e.omnic,revision:e.omnic.revision+1,components:e.omnic.components.map(c=>({...c,params:{...c.params,radius:42}}))}}:e)};
+ assert.notEqual(omnicAsset(changed,'glyph').dataUrl,first.dataUrl);
+ assert.throws(()=>validateDocument({...doc,entities:doc.entities.filter(e=>e.id!=='glyph')}),/visual|asset/i);
+ assert.throws(()=>validateDocument({...doc,relationships:doc.relationships.map(r=>({...r,visual:{...r.visual,character:'x'}}))}),/asset|character/i);
+ assert.deepEqual(validateDocument(JSON.parse(JSON.stringify(doc))),doc);
+ let id=0;const imported=activeDocument(importWorkspaceAtlas(createWorkspace(),doc,'Imported',()=>`import-${++id}`)),reference=imported.relationships[0].visual.omnicEntityId;
+ assert.notEqual(reference,'glyph');assert.ok(imported.entities.find(e=>e.id===reference)?.omnic);
+ for(const visual of [imported.placements[0].visual,imported.placements[2].nestingBinder.visual,imported.compositions[0].visual,imported.variants[0].visual])assert.equal(visual.omnicEntityId,reference);
+});
+
+test('variant reversal and deletion preserve other occurrences as ordinary content-bearing placements',async()=>{
+ const {editBinderConnection}=await import('../src/graph/binderActions.ts');const doc=variant();
+ doc.placements.push({id:'a2',entityId:'a',parentId:null,position:{x:28,y:104},spatialPosition:point(50),collapsed:false,hidden:false},{id:'b2',entityId:'b',parentId:'a2',position:{x:28,y:104},spatialPosition:point(2),collapsed:false,hidden:false,variantOwner:{placementId:'a2',variantId:'var'}});
+ const edge=chartedBinders(doc,editorView(doc,new Set(doc.placements.map(p=>p.id)))).find(b=>b.kind==='variant'&&b.target==='b');
+ for(const action of ['reverse','delete']){const next=editBinderConnection(doc,edge,action);positionsEqual(doc,next);assert.deepEqual(next.entities,doc.entities);const old=next.placements.find(p=>p.id==='b2');assert.equal(old.entityId,'b');assert.equal(old.variantOwner,undefined);assert.equal(old.parentId,null);}
+});

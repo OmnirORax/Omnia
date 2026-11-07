@@ -1,3 +1,6 @@
+import { UIAction } from "./ui/UIAction";
+import { editBinderConnection } from "./graph/binderActions";
+import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { reconnectBinder, binderReconnectReason } from "./graph/reconnectBinder";
 import { latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
 import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,type WorkspaceUI} from './omnic/workspaceBackup';
@@ -101,7 +104,7 @@ type ViewConfig = {
   version: 1 | 2;
   atlas: AtlasDocument | Atlas;
 };
-type Selection = { kind: "node" | "relationship" | "composition" | "variantBinder" | "visualBinder"; id: string } | null;
+type Selection = { kind: "node" | "relationship" | "composition" | "variantBinder" | "visualBinder"; id: string; binderKey?:string; binderEndpoints?:{source:string;target:string} } | null;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 type InitialWorkspace={ workspace: WorkspaceSnapshot; error: string };
 async function loadInitial(): Promise<InitialWorkspace> {
@@ -735,6 +738,19 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   }
   const selectedBinder: BinderPresentation | undefined = selection?.kind === "relationship" ? selectedRelationData : selection?.kind === "composition" ? selectedComposition : selection?.kind === "variantBinder" ? document.variants?.find((v) => v.id === selection.id) : selection?.kind === "visualBinder" ? document.placements.find((p) => p.id === selection.id)?.nestingBinder ?? {} : undefined;
   const selectedBinderText = selectedBinder && selection ? chartedBinders(document, atlas).find((b) => b.id === selection.id)?.label ?? "" : "";
+  const selectedBinderEdge=selectedBinder&&selection?chartedBinders(document,atlas).find(b=>b.id===selection.id&&(!selection.binderKey||b.key===selection.binderKey)&&({relationship:'relationship',composition:'composition',visual:'visualBinder',variant:'variantBinder'}[b.kind]===selection.kind)):undefined;
+  const binderGlyphs=useMemo(()=>document.entities.filter(entity=>entity.omnic).map(entity=>({id:entity.id,label:entity.label})),[document.entities]);
+  function binderConnectionAction(action:'reverse'|'delete'){
+    if(!selectedBinderEdge)return;
+    try{
+      if(selection?.binderEndpoints&&(selection.binderEndpoints.source!==selectedBinderEdge.source||selection.binderEndpoints.target!==selectedBinderEdge.target))throw Error('Expand or reselect the actual binder endpoints before editing this connection.');
+      const next=editBinderConnection(documentRef.current,selectedBinderEdge,action);
+      if(!commitDocument(next))return;
+      if(action==='delete'){setSelection(null);setBinderPopup(null);return;}
+      const edge=chartedBinders(next,editorView(next,new Set(next.placements.map(p=>p.id)))).find(b=>b.kind===selectedBinderEdge.kind&&b.source===selectedBinderEdge.target&&b.target===selectedBinderEdge.source&&(b.kind==='visual'||b.id===selectedBinderEdge.id));
+      if(edge){setSelection({kind:edge.kind==='variant'?'variantBinder':edge.kind==='visual'?'visualBinder':edge.kind,id:edge.id,binderKey:edge.key,binderEndpoints:{source:edge.source,target:edge.target}});if(edge.kind==='variant')setExpandedVariants(previous=>new Set([...previous,edge.source]));}
+    }catch(error){setError(message(error));}
+  }
   function editBinder(changes: BinderPresentation, asset?: VisualAsset) {
     if (!selection) return;
     const next = { ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}) };
@@ -1072,7 +1088,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     }
     const id = target.kind === "node" ? target.id : null;
     switch (action) {
-      case "createUIFrame": { const point = target.kind === "space" ? target.screen : undefined; updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: point?.x ?? 120, y: point?.y ?? 180, cellSize: 96, collapsed: false, pinned: false }] })); break; }
+      case "createUIFrame": { const point = target.kind === "space" ? target.screen : undefined; updateUI((layout) => uiContextEnabled(layout)?({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: point?.x ?? 120, y: point?.y ?? 180, cellSize: 96, collapsed: false, pinned: false }] }):layout); break; }
       case "createChild": if (id) addNode(id); break;
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
       case "insertExisting": setInsertQuery(""); setInsertContext({ parentId: id, world: target.kind === "space" ? target.world : undefined }); break;
@@ -1110,7 +1126,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
       case "ui:createFrame": setUICommand(old => ({ action: "createFrame", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
-      case "deleteSelected": deleteSelectedConcepts(); break;
+      case "deleteSelected": if(selectedBinderEdge)binderConnectionAction("delete");else deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
       case "focus": featureActionRuntime.invoke("world.faceSelection"); break;
       case "isolateFocus":
@@ -1706,7 +1722,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             )}
           </UIPanel>
           <UIPanel id="inspector" title="Inspector" className="inspector">
-            {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
+            {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" glyphs={binderGlyphs} value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
             {selectedNode ? (
               <>
                 <div className="omnic-object-actions"><FunctionControl id="omnic.open" mirror /><FunctionControl id="omnic.show" mirror /></div>
@@ -2303,8 +2319,11 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               onNodeClick={nodeClicked}
               onNodeDoubleClick={nodeDoubleClicked}
               onSubtreeClick={nodeSubtreeClicked}
-              onBinderSelect={(id, kind, point) => {
-                setSelection({ kind: kind === "variant" ? "variantBinder" : kind === "visual" ? "visualBinder" : kind, id });
+              selectedBinderKey={selectedBinderEdge?.key}
+              onBinderSelect={(binder, point) => {
+                const {id,kind,key}=binder;
+                setSelectedIds(new Set());
+                setSelection({ kind: kind === "variant" ? "variantBinder" : kind === "visual" ? "visualBinder" : kind, id, binderKey:key, binderEndpoints:{source:binder.source,target:binder.target} });
                 setBinderPopup({ x: Math.min(point.x + 12, window.innerWidth - 370), y: Math.min(point.y + 12, window.innerHeight - 460) });
               }}
               canReconnectBinder={(binder,end,destination)=>binderReconnectReason(document,binder,end,destination)}
@@ -2331,7 +2350,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <button onClick={() => setInsertContext(null)}>Close</button>
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
-      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor">{selectedBinderEdge&&<UISection id="binder-connection-actions" title="Binder actions"><UIAction id="binder:reverse" label="Reverse direction / hierarchy" category="Relationships" onClick={()=>binderConnectionAction('reverse')}/><UIAction id="binder:focus-endpoints" label="Focus both endpoints" category="Relationships" onClick={()=>{selectMany([selectedBinderEdge.source,selectedBinderEdge.target]);navigate('selection');setBinderPopup(null);}}/><UIAction id="binder:delete" label="Delete binder" category="Relationships" onClick={()=>binderConnectionAction('delete')}/></UISection>}<BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" glyphs={binderGlyphs} value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
         <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary onExport={exportWorkspaceBackup} onImport={importWorkspaceBackup} onRecover={recoverWorkspaceBackup} workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
       </FloatingWindow>}

@@ -774,3 +774,18 @@ view zoom even during MS/reference aiming, before selector lens resizing. Shift
 retains explicit selector geometry rotation; Ctrl retains native browser zoom.
 Do not use a Composer CSS exception or another global listener. Lens geometry
 opt-in and wheel ownership are independent. Update docs/VISUAL_SELECTION.md.
+
+Omnium UI-context actions must use shared uiContextEnabled even within content
+menus; recheck the live layout at execution. Hide availability without deleting
+saved menu residents/positions/customization. EntityMenu/DockArea provide this
+transient projection. Graph context actions remain usable outside UI edit mode.
+
+Binder selection/actions use graph/binderActions with real domain owners and
+shared coordinate rebasing/validation/history. Click/right-click visible binder
+ink selects its occurrence key and opens its existing editor; selected ink stays
+visible and thickens. Reverse/Delete/Focus endpoints reuse registered actions.
+Live glyph visuals use optional visual.omnicEntityId, shared Omnic renderer/budget,
+strict canonical validation and atlas-import identity remapping. Source changes
+follow saved shared recipes; no new unsaved binder preview protocol. Preserve old
+asset/character visuals and reject deleting in-use sources. Read ATLAS_BINDERS and
+DATA_EVOLUTION for exact semantics and older-client limits.

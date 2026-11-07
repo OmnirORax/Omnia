@@ -261,8 +261,9 @@ export function validateDocument(doc: Document): Document {
     doc.assets.forEach(validateAsset);
     if (doc.assets.reduce((sum, a) => sum + a.dataUrl.length, 0) > 3_500_000) fail("Embedded assets exceed the 3.5 MB atlas budget.");
   }
-  for (const value of [...doc.placements, ...doc.compositions, ...doc.relationships, ...(doc.variants ?? [])]) validateVisual(value.visual, doc.assets ?? []);
-  for (const p of doc.placements) if (p.nestingBinder) { validatePresentation(p.nestingBinder); validateVisual(p.nestingBinder.visual, doc.assets ?? []); }
+  const visualGlyphIds=new Set(doc.entities.filter(e=>e.omnic).map(e=>e.id));
+  for (const value of [...doc.placements, ...doc.compositions, ...doc.relationships, ...(doc.variants ?? [])]) validateVisual(value.visual, doc.assets ?? [],visualGlyphIds);
+  for (const p of doc.placements) if (p.nestingBinder) { validatePresentation(p.nestingBinder); validateVisual(p.nestingBinder.visual, doc.assets ?? [],visualGlyphIds); }
   for (const [key, list] of [
     ["entity", doc.entities],
     ["placement", doc.placements],

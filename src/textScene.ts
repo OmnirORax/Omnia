@@ -2,7 +2,7 @@ import { placeBinderText } from "./graph/binderLabels";
 import { incomingBinderVisible, contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
 import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
-import { structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
+import { resolveOmnicVisual, structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
 import type { OmnicWorldPreview } from "./omnic/worldPreview";
 import { brightHex, effectsFor } from "./appearance/resolve";
 import { connected } from "./appearance/model";
@@ -182,6 +182,7 @@ export function buildTextScene(
   expansion: ExpansionState = expansionState(),
   names: "expanded" | "all" | "selection" = "expanded",
   carrierDiameter = DEFAULT_SPHERE_DIAMETER,
+  selectedBinderKey: string | null = null,
 ) {
   const sphereDiameter = carrierDiameter;
   const placementExpanded = (id:string) => contentExpanded(expansion,id,placements.get(id)?.collapsed === false);
@@ -286,7 +287,7 @@ export function buildTextScene(
     const textStyle = { ...resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", b.textAppearance), ...(theme.textColor ? { color: theme.textColor } : {}) };
     style.opacity *= theme.opacity; textStyle.opacity *= theme.opacity;
     const color = style.color;
-    const related = incomingBinderVisible(b.target, nodes.get(b.target)!.selected, expansion);
+    const related = selectedBinderKey===b.key || incomingBinderVisible(b.target, nodes.get(b.target)!.selected, expansion);
     const opacity = style.opacity;
     const material = new LineMaterial({ color: new THREE.Color(color).getHex(), linewidth: Number(theme.renderDefaults?.["omnium.binders.path"]?.contourWidth ?? 1.5), worldUnits: false, alphaToCoverage: true, transparent: true, depthWrite: false, opacity, dashed: b.kind === "visual" || b.kind === "variant", dashSize: 0.15, gapSize: 0.1 });
     const line = new Line2(new LineGeometry(), material);
@@ -295,8 +296,11 @@ export function buildTextScene(
       new THREE.ConeGeometry(1, 1, 12),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
     );
-    const custom = !!(b.visual?.assetId || b.visual?.character);
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity }) : defaultArrow;
+    const displayedVisual=resolveOmnicVisual(b.visual);
+    let binderAsset:import('./graph/assets').VisualAsset|undefined;
+    if(displayedVisual?.assetId?.startsWith('omnic:'))binderAsset=omnicPreviews++<OMNIC_SCENE_BUDGET?omnicAsset(doc,displayedVisual.assetId.slice(6)):omnicBudgetAsset;
+    const custom = !!(displayedVisual?.assetId || displayedVisual?.character);
+    const arrow = custom ? visualObject(displayedVisual!, binderAsset?[...(doc.assets??[]),binderAsset.id===displayedVisual!.assetId?binderAsset:{...binderAsset,id:displayedVisual!.assetId!}] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity }) : defaultArrow;
     arrow.userData.glowIntensity = style.glow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
@@ -539,7 +543,8 @@ export function buildTextScene(
       return item.group.position.clone().addScaledVector(direction, Number.isFinite(fraction) ? Math.min(0.45, fraction) : 0);
     };
     for (const b of connectors) {
-      b.related = incomingBinderVisible(b.data.target, nodes.get(b.data.target)!.selected, expansion);
+      b.related = selectedBinderKey===b.data.key || incomingBinderVisible(b.data.target, nodes.get(b.data.target)!.selected, expansion);
+      b.line.material.linewidth=Number(currentTheme.renderDefaults?.["omnium.binders.path"]?.contourWidth??1.5)*(selectedBinderKey===b.data.key?1.8:1);
       b.line.visible = b.related;
       b.arrow.visible = b.related;
       if (b.markerHit) b.markerHit.visible = b.related;
@@ -571,6 +576,8 @@ export function buildTextScene(
       const center = path.getPoint(0.5), tangent = path.getTangent(0.5).normalize();
       const markerSize = operatorSize(b.data.visual);
       if (b.markerHit) {
+        b.arrow.quaternion.copy(camera.quaternion);
+        b.markerHit.quaternion.copy(camera.quaternion);
         b.arrow.scale.setScalar(markerSize);
         b.markerHit.scale.set(markerSize, markerSize, 1);
         b.markerHit.position.copy(center);

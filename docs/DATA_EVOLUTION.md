@@ -345,3 +345,25 @@ this can clamp their local 2D placement without moving actual 3D coordinates.
 Invalid/cyclic/conflicting candidates reject before commit; hover checks never
 write or rebase saved views. Label orientation is transient rendering only.
 No new store, migration, backend rollout or stronger cross-client sync guarantee.
+
+### Live visual glyph references and binder actions (2026-11-07)
+
+Visual adds optional omnicEntityId, referencing an existing canonical entity with
+an Omnic definition, mutually exclusive with assetId/character. Absence retains
+all old visual behavior; no load-time rewrite or schema-version bump. Validation
+checks all placements, nesting binders, relationships, compositions and variants.
+Atlas import remaps references through the existing canonical identity map;
+workspace/atlas export retains the canonical pool, with no generated glyph assets
+persisted. Source removal rejects while a surviving visual references it. Existing
+source dependency/revision resolution owns live saved-recipe updates. Old clients
+can render a default marker and may lose the field if they replace a visual; no
+cross-version concurrent editing guarantee is added. Preserve a current export.
+
+Binder reverse/delete edit existing relationship participants, containment,
+visual parents and variant references, preserving entities and authored content.
+Parent conversions use coordinates.rebaseParentage for live and saved XYZ;
+legacy 2D header constraints still apply. Variant materialization retains existing
+semantics and can add new-owner occurrences. Candidate validation rejects stale,
+cyclic or conflicting edits before the existing atomic history/save transaction.
+UI menu availability is transient and retains authored menu members/geometry.
+No new storage owner, migration pipeline, cloud protocol or backend deployment.

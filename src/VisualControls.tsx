@@ -9,6 +9,7 @@ const encodeSVG = (svg: string) =>
   `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
 export function VisualControls({
   label,
+  glyphs = [],
   value = {},
   assets,
   onChange,
@@ -18,6 +19,7 @@ export function VisualControls({
   sphereDiameter = DEFAULT_SPHERE_DIAMETER,
 }: {
   label: string;
+  glyphs?: readonly {id:string;label:string}[];
   value?: Visual;
   assets: VisualAsset[];
   onChange: (visual: Visual) => void;
@@ -44,8 +46,8 @@ export function VisualControls({
     const current = latest.current,
       existing = current.assets.find((a) => a.dataUrl === asset.dataUrl);
     if (existing)
-      current.onChange({ ...current.value, character: undefined, assetId: existing.id });
-    else current.onAsset(asset, { ...current.value, character: undefined, assetId: asset.id });
+      current.onChange({ ...current.value, omnicEntityId: undefined, character: undefined, assetId: existing.id });
+    else current.onAsset(asset, { ...current.value, omnicEntityId: undefined, character: undefined, assetId: asset.id });
   }
   useEffect(() => {
     if (!picker) return;
@@ -177,10 +179,11 @@ export function VisualControls({
             aria-label={`${label} symbol`}
             maxLength={64}
             value={value.character ?? ""}
-            onChange={(e) => onChange({ ...value, assetId: undefined, character: e.target.value })}
+            onChange={(e) => onChange({ ...value, assetId: undefined, omnicEntityId: undefined, character: e.target.value })}
           />
         </label>
       </UIField>
+      {glyphs.length>0&&<UIField id={`visual:${label}:omnic`} label={`${label} Omnic glyph`} category="Relationships"><label>Omnic glyph<select aria-label={`${label} Omnic glyph`} value={value.omnicEntityId??""} onChange={event=>onChange({...value,omnicEntityId:event.target.value||undefined,assetId:undefined,character:undefined})}><option value="">Default / asset / symbol</option>{glyphs.map(glyph=><option key={glyph.id} value={glyph.id}>{glyph.label||glyph.id}</option>)}</select></label></UIField>}
       <button onClick={() => setPicker(!picker)}>Search Iconify for {label.toLowerCase()}</button>
       {picker && (
         <div className="icon-picker">
