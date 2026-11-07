@@ -448,3 +448,13 @@ fields/defaults/bounds remain unchanged, with no image, assignment or atlas rewr
 Older clients interpret the same preference using the former light-gain response;
 rollback needs no data conversion. Obsolete visual tests are replaced to reflect
 the requested semantics, without claiming the new visual check was run.
+
+
+Audio Light emitter/halo correction (2026-11-07): the user clarified that selected
+image regions should pulse as coloured light sources, rather than saturation
+alone. Existing audioLight RGB selects the source hue/saturation and emitted tint;
+new cached GPU masks are transient and never stored. The six sceneVfx fields,
+defaults, bounds, serializer, image bytes, assignments and atlas formats stay
+unchanged. This deliberately supersedes fixed hue/value saturation semantics.
+Older clients render their earlier response from the same preferences; rollback
+needs no conversion. No stored preferences are overwritten or discarded.

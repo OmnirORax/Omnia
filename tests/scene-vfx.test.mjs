@@ -95,3 +95,22 @@ test('Max FPS is saved, inherits shared editing, and controls scheduler pacing w
  assert.ok(Math.abs(count-fps)<=1,`${fps} cap produced ${count} frames on a 240 Hz clock`);
  }
 });
+
+test('wallpaper spatial light caches image/colour work, bounds GPU buffers and restores renderer state',async()=>{
+ const T=await import('three'),{createWallpaperLight}=await import('../src/scene/wallpaperLight.ts');
+ const originalTarget=new T.WebGLRenderTarget(64,32),viewport=new T.Vector4(3,4,50,20),scissor=new T.Vector4(6,7,8,9);
+ const generated=new Set();
+ let target=originalTarget,currentViewport=viewport.clone(),currentScissor=scissor.clone(),scissorTest=true,draws=0,fail=false;
+ const renderer={xr:{enabled:true},getRenderTarget:()=>target,setRenderTarget:t=>{target=t;if(t&&t!==originalTarget)generated.add(t);},
+ getViewport:v=>v.copy(currentViewport),setViewport:v=>currentViewport.copy(v),getScissor:v=>v.copy(currentScissor),setScissor:v=>currentScissor.copy(v),
+ getScissorTest:()=>scissorTest,setScissorTest:v=>{scissorTest=v;},render:()=>{draws++;if(fail)throw Error('GPU failure');}};
+ const light=createWallpaperLight(renderer),image=new T.Texture({width:4096,height:2048});
+ const restored=()=>{assert.equal(target,originalTarget);assert.deepEqual(currentViewport,viewport);assert.deepEqual(currentScissor,scissor);assert.equal(scissorTest,true);assert.equal(renderer.xr.enabled,true);};
+ try{
+ const first=light.prepare(image,.1,1);assert.equal(draws,5);assert.equal(first.near.image.width,512);assert.equal(first.near.image.height,256);restored();
+ const cached=light.prepare(image,.1,1);assert.equal(draws,5,'audio frames and unrelated settings must not regenerate blur');assert.equal(cached.near,first.near);assert.equal(cached.far,first.far);
+ light.prepare(image,.6,1);assert.equal(draws,10,'new hue regenerates emission map');light.prepare(image,.6,0);assert.equal(draws,15,'neutral versus coloured targets regenerate map');restored();
+ fail=true;assert.throws(()=>light.prepare(image,.2,1),/GPU failure/);restored();fail=false;light.prepare(image,.2,1);assert.equal(draws,21,'failed generation is retried, never cached');
+ let disposed=0;[...generated].find(t=>t.texture===first.near).addEventListener('dispose',()=>disposed++);light.clear();assert.equal(disposed,1);const fresh=light.prepare(image,.2,1);assert.notEqual(fresh.near,first.near);assert.equal(draws,26);restored();
+ }finally{light.dispose();image.dispose();originalTarget.dispose();}
+});

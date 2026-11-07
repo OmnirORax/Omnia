@@ -24,7 +24,7 @@ try{
  const result=await page.evaluate(async()=>{
  const THREE=await import('/node_modules/three/build/three.module.js');const {createWallpaper}=await import('/src/scene/wallpaper.ts');const {DEFAULT_SCENE_VFX,serializeSceneVfx}=await import('/src/scene/vfx.ts');const audio=await import('/src/scene/audio.ts');
  const renderer=new THREE.WebGLRenderer({preserveDrawingBuffer:true});renderer.setSize(256,256);document.body.append(renderer.domElement);const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera();let paints=0;
- const wallpaper=createWallpaper(scene,()=>{paints++;renderer.render(scene,camera);});wallpaper.resize(256,256);
+ const wallpaper=createWallpaper(scene,()=>{paints++;renderer.render(scene,camera);},renderer);wallpaper.resize(256,256);
  const image=document.createElement('canvas');image.width=image.height=128;const ctx=image.getContext('2d');for(let y=0;y<128;y++)for(let x=0;x<128;x++){ctx.fillStyle=`rgb(${x*2},${y*2},${(Math.floor(x/8)+Math.floor(y/8))%2*255})`;ctx.fillRect(x,y,1,1);}
  wallpaper.configure({...DEFAULT_SCENE_VFX,waves:false,distortion:0,glitching:0});await wallpaper.setURL(image.toDataURL());renderer.render(scene,camera);const plain=renderer.domElement.toDataURL();
  wallpaper.configure(DEFAULT_SCENE_VFX);await new Promise(r=>setTimeout(r,350));const effected=renderer.domElement.toDataURL();

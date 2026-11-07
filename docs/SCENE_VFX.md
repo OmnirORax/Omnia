@@ -1,9 +1,10 @@
 # Scene image effects and audio response
 
 Open **Scene → Scene effects** and apply an image through the existing scene
-workflow. Audio Light now means **audio-driven saturation in a selected hue range**.
-The user rejected the earlier brightness/bloom model because it washed colours
-out to white. There is no Audio Light exposure gain or audio-driven bloom.
+workflow. **Audio Light makes image regions near the picked colour pulse as
+coloured light sources, with a soft surrounding glow.** This replaces the
+saturation-only revision, which could not emit light. It also replaces unbounded
+additive gain, which washed the image out to white.
 
 ## Saved controls
 
@@ -23,21 +24,32 @@ MC and save/export mechanisms remain the owners. Old five-field saves acquire
 maxFps 120. Explicit zero/off values survive. No audio files, source handles,
 permissions, spectra, playback position or hidden shader variables serialize.
 
-## Saturation response
+## Coloured light response
 
 The picked colour selects a broad, feathered hue family across the colour wheel.
-Audio drives saturation toward full colour purity in that family. Processing uses
-visible sRGB/HSV: hue and HSV value (the maximum colour channel) stay fixed while
-saturation increases. Already fully saturated pixels remain unchanged, as do
-neutral greys/white and distant hue families. Silence preserves the source pixels.
-Increasing saturation removes neutral components; perceived luminance can decrease
-even though the peak channel value stays fixed. This is a colour-purity adjustment,
-not a brightness/exposure operation.
+Brighter matching pixels supply stronger emission; dark pixels supply less.
+Yellow/gold regions pulse with yellow light when yellow is selected, blue regions
+with blue light when blue is selected, and likewise for other colours. A neutral
+colour selection instead follows neutral highlights. The glow reaches nearby
+pixels, even if those neighbours are outside the selected hue family. Distant
+unrelated regions stay unchanged. Silence restores the source image.
 
-The selected hue is prepared when settings change. The shader converts the source
-into display colour space for saturation and back into linear working space for
-the normal output pipeline. Audio Light contributes black to the shared glow mask;
-it never adds a white/coloured halo. Other world/UI glow retains its existing owner.
+Audio increases core brightness and adds a soft near/far halo around the matching
+regions. Core and halo blend toward the selected hue and saturation at full value,
+using one bounded display-space blend rather than independent RGB addition and
+clipping. At least 15% of the source remains at a peak. Saturation supports this
+coloured-light appearance; hue/value are no longer held fixed. Fully saturated
+dim pixels can now brighten. Already bright, pure pixels have less headroom.
+This is a bounded light approximation, not physical HDR light transport.
+
+The spatial glow is extracted and blurred on the GPU only when the image or
+selected hue/saturation changes, using the existing 512-pixel bloom-edge budget.
+Audio frames sample two cached masks and vary intensity; they never repeat the
+blur or read back image pixels. Masks follow the image's cover/bounce/wave/VHS UVs,
+so the glow remains registered to the image. Radiance is composited inside the
+wallpaper shader before the normal output pipeline, behind world content.
+The wallpaper stays black in the shared additive glow mask, avoiding a second
+bloom addition that could whiten its colour. Other world/UI glow is unchanged.
 
 For a useful colour-only comparison, set **Audio Bounce to 1** temporarily so its
 zoom does not change which parts of the image are in the frame. Waves and VHS
@@ -57,7 +69,7 @@ The readonly **Audio input** meter shows what reaches the analyser. “No audio
 connected” means there is no source. A connected stream with a zero meter can be
 silent or missing music; this is distinct from an effect's visual response. Quiet
 RMS is noise-gated/mapped into the response range before existing audio shaping.
-Bass approximates the 31–65 Hz band for zoom; broadband RMS drives saturation.
+Bass approximates the 31–65 Hz band for zoom; broadband RMS drives the coloured flash.
 
 The app owns audio, media URLs and a hidden media parking host. Closing/reparenting
 controls preserves playback/analysis; reopening reuses the player. **Disconnect
@@ -69,7 +81,7 @@ uploaded; native browser permissions and autoplay policy remain authoritative.
 
 ## Rendering and limits
 
-One existing background shader handles cover sampling, saturation, wave UV
+One existing background shader handles cover sampling, coloured light, wave UV
 movement and shared VHS distortion/tracking. Original image bytes, assignments,
 atlas geometry and camera are unchanged. There is no per-frame image decode,
 geometry refresh, settings write or React audio update. FFT buffers are reused;
@@ -89,10 +101,12 @@ setters, audio lifecycle, quiet signal/silence, no echo, resume/reconnect and FP
 pacing. Local model/type/build/backend success does not establish appearance.
 
 Earlier user-approved browser checks established audio pickup and some limited
-brightness/shadow cases. The user reported those visual results were wrong; they
-do not validate this saturation revision. Obsolete brightness/halo assertions are
-retired in favour of a prepared saturation contract: hue/value fixed, saturation
-increased, no added light through bloom/output, distant hues unchanged and silence
-restoring the source. **That new check has not been run; no fresh approval was
-received.** Actual image appearance and Wallpaper Engine equivalence remain user
-acceptance. No visual success is inferred from the local model/build checks.
+brightness/shadow cases. The user rejected those visual results. Neither those
+checks nor the saturation-only test establishes this revision's appearance.
+The prepared opt-in `tests/scene-light-emission.browser.mjs` checks matching core
+brightness, coloured halos beyond source boundaries, yellow/orange/blue/green/pink,
+neutral selection, distant regions, intensity and silence through the complete
+bloom/output path. **It has not been run; no fresh browser approval was received.**
+A model regression covers cached GPU work, bounded buffers, renderer-state
+restoration after success/failure and resource release; it does not execute GLSL.
+Actual image appearance and interactive performance remain user acceptance.

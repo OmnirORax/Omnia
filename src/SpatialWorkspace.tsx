@@ -291,7 +291,7 @@ export default function SpatialWorkspace(props: Props) {
       });
     };
     const requestRender = () => scheduleRender(true);
-    const wallpaper = createWallpaper(scene, () => scheduleRender(false));
+    const wallpaper = createWallpaper(scene, () => scheduleRender(false), renderer);
     const hierarchyPulse = createGraphHierarchyPulse();
     let hierarchyBackground: number | null = null;
     let selectedBackground: { paint: SceneSelectionPaint; strength: number } | undefined;

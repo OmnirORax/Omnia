@@ -2070,9 +2070,9 @@
     },
     {
       "id": "scene.vfx",
-      "title": "Audio-responsive scene saturation and selected wallpaper effects",
+      "title": "Audio-driven coloured scene light and selected wallpaper effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Audio Light now drives saturation in the selected broad hue family, following the user correction. Visible hue and HSV value (peak channel brightness) stay fixed; fully saturated pixels, neutrals and distant hues remain unchanged. There is no exposure gain or audio bloom. The pictured defaults remain Audio Light #aa3300, Audio Bounce 1.12, Waves on, Distortion 0.4 and Glitching 0.3, plus the requested saved Max FPS cap (60–1000, default 120). Website audio files and explicitly shared tab/system audio reuse the app-owned session, readonly input meter, existing properties/history/persistence and six-field serializer. Closing controls preserves playback; Disconnect/end-share/renderer teardown releases it. Original image bytes and atlas state stay unchanged. Waves/VHS remain approximations pending original source code.",
+      "behavior": "Audio Light makes bright image regions near the chosen colour act as pulsing emitters, with a coloured near/far halo. Matching yellow/gold regions emit yellow light when yellow is chosen; blue and other colours follow the same rule. This replaces saturation-only adjustment and unbounded additive gain. A bounded colour blend retains chroma and source detail. The cached spatial glow follows image effects and does not add a second world-bloom contribution. Existing audio sessions, six saved fields/defaults, Max FPS and history remain unchanged. Waves/VHS remain approximations.",
       "steps": [
         {
           "do": "Open Scene, select a node and apply an imported image, then open Scene effects.",
@@ -2084,7 +2084,7 @@
         },
         {
           "do": "Choose audio file, select a local music file and press its native Play button.",
-          "expect": "Bass changes image scale and sound drives saturation. Audio is played locally without upload."
+          "expect": "Bass changes image scale and sound drives coloured light. Audio is played locally without upload."
         },
         {
           "do": "Click Connect shared audio, select a tab/screen and enable Share audio; then Disconnect audio or end the share.",
@@ -2092,11 +2092,11 @@
         },
         {
           "do": "Play a quiet audio file and inspect Audio input, then close/reopen the Scene controls without pressing Disconnect.",
-          "expect": "The input meter shows the signal, quiet audio can drive saturation, and playback/analysis continues across the view closing. Disconnect ends it; subsequent playback reconnects safely."
+          "expect": "The input meter shows the signal, quiet audio can drive coloured light, and playback/analysis continues across the view closing. Disconnect ends it; subsequent playback reconnects safely."
         },
         {
           "do": "Change a setting, use Undo/Redo, and reload. Inspect/export workspace settings.",
-          "expect": "Shared history/persistence restores choices. The sceneVfx branch contains only audioLight, audioBounce, waves, distortion and glitching; no source/session or hidden shader controls are saved."
+          "expect": "Shared history/persistence restores choices. The sceneVfx branch contains only audioLight, audioBounce, waves, distortion, glitching and maxFps; no source/session or hidden shader controls are saved."
         },
         {
           "do": "Enable system/browser reduced motion or hide the tab, then return.",
@@ -2107,8 +2107,8 @@
           "expect": "The selected cap persists and restores through shared settings history. Values below 60 clamp to 60. Old settings default to 120; audio and other effect settings stay unchanged."
         },
         {
-          "do": "Set Audio Bounce to 1 for a fixed-frame comparison. Choose orange, then blue in Audio Light while playing audio.",
-          "expect": "The selected hue family becomes more saturated. Its hue and peak channel value stay fixed; there is no added white light or audio halo. Already fully saturated pixels do not change; silence restores source colour."
+          "do": "Set Audio Bounce to 1 for a fixed-frame comparison. Choose yellow, orange, blue or another colour in Audio Light while playing audio; pause and resume playback.",
+          "expect": "Matching bright regions pulse as coloured light sources with a soft halo reaching their neighbours. Fully saturated dim colours can brighten; distant unrelated regions stay unchanged. Chosen yellow/orange/blue stays coloured rather than turning into a white flash. Silence restores source colour."
         }
       ],
       "reference": "docs/SCENE_VFX.md",
@@ -2121,7 +2121,8 @@
         "src/scene/ScenePanel.tsx",
         "src/workspaceActions.ts",
         "src/sceneGlow.ts",
-        "tests/scene-light-saturation.browser.mjs"
+        "tests/scene-light-emission.browser.mjs",
+        "src/scene/wallpaperLight.ts"
       ],
       "actions": [
         "scene.audioConnect",
@@ -2133,11 +2134,11 @@
         "scene.manual",
         "scene.api"
       ],
-      "status": "Saturation revision implemented; visual acceptance pending",
-      "limits": "Approximation only: original shaders/assets and exact orange colour were unavailable. No snow or additional extracted settings; Max FPS is the explicit user-requested addition. Shared system audio requires browser/OS support and explicit user permission; no unrestricted desktop audio or microphone fallback. Closing controls preserves audio; explicit Disconnect or scene-renderer teardown releases it. Audio source/session/files are temporary. Max FPS supports 60–1000 and is capped by refresh rate/render capacity, not a performance guarantee. Saturation excludes neutrals/black and cannot further saturate already fully saturated pixels. Peak channel value stays fixed; perceived luminance may decrease when neutral components are removed. Audio Bounce is bounded 1–1.5; motion effects pause under reduced motion/hidden tabs. Real music, capture compatibility and interactive GPU performance remain user-tested.",
+      "status": "Coloured emitter/halo revision implemented; visual acceptance pending",
+      "limits": "Approximation, not a pixel-identical Wallpaper Engine port. Source shaders and exact screenshot orange unavailable. Six saved controls remain; no added shader settings. Audio is temporary and capture needs browser/OS support and explicit permission. Max FPS 60–1000, default 120, is limited by display/render capacity. Halo buffers use the shared 512-pixel edge budget and are cached per image/colour. Broad colour matching can activate multiple image regions; halo reaches nearby nonmatching pixels. No physical scene relighting or world-object illumination. Bright pure colours have less headroom. Audio Bounce remains 1–1.5; hidden/reduced-motion suspension remains. Real imagery and interactive performance await user testing.",
       "verification": {
-        "browser": "Earlier authorised audio/brightness tests were insufficient for appearance and the user rejected the washed-out result. They do not validate the saturation revision. Brightness/halo-specific tests are replaced by a prepared hue/value/saturation/no-added-light contract; it has not been run because no fresh approval was received. Actual image appearance remains user acceptance.",
-        "automated": "Model checks cover five pictured defaults plus Max FPS serialization/defaults, historical settings, shared property setters, audio bounds/smoothing, rejected/late capture cleanup and disconnect. Full local delivery gate recorded in PR. Repair regressions cover quiet input/silence, shared suspended-context resume, app-owned playback across view subscription changes and stop/reconnect/dispose. Frame-pacing models cover 60/120/144/240 Hz clocks and dropping stalled-frame debt at the selected cap; Max FPS default/minimum/shared persistence regressions pass."
+        "browser": "Earlier authorised audio/brightness checks do not validate this coloured-emission revision; the user rejected those visual results. The prepared emission/halo test covers yellow/orange/blue/green/pink, neutral selection, nearby spread, distant regions, pulse intensity and silence through bloom/output. It has not been run; no fresh browser approval. Actual image appearance remains user acceptance.",
+        "automated": "Model checks cover five pictured defaults plus Max FPS serialization/defaults, historical settings, shared property setters, audio bounds/smoothing, rejected/late capture cleanup and disconnect. Full local delivery gate recorded in PR. Repair regressions cover quiet input/silence, shared suspended-context resume, app-owned playback across view subscription changes and stop/reconnect/dispose. Frame-pacing models cover 60/120/144/240 Hz clocks and dropping stalled-frame debt at the selected cap; Max FPS default/minimum/shared persistence regressions pass. Spatial-light regression covers caching across unchanged settings, image/colour invalidation, shared GPU size bounds, state restoration on failure/success, retry and disposal; it does not execute GLSL."
       }
     },
     {
