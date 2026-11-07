@@ -45,7 +45,7 @@ export const SELECTOR_FEEDBACK = {
 } as const;
 /** Inline artwork has its own ink; it never inherits a text target's color. */
 export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]):not([data-omnic-structure]),[role="button"] svg:not([data-range-glyph]):not([data-omnic-structure]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
-const surface = ["color", "brightness", "opacity", "glow"],
+const surface = ["color", "brightness", "opacity", "translucency", "glow"],
   text = [...surface, "font"];
 const entries: RegisteredTarget[] = [];
 const branch = (id: string, parent: string | undefined, label: string, self = false) =>
@@ -112,7 +112,7 @@ const part = (
     parent,
     label,
     ...(entries.find(target=>target.id===parent)?.aliases?{aliases:entries.find(target=>target.id===parent)!.aliases}:{}),
-    properties: [...new Set(properties)],
+    properties: [...new Set(properties.includes("opacity")?[...properties,"translucency"]:properties)],
     binding,
     effectKinds:
       binding.animation?.kind === "surface"
@@ -378,7 +378,7 @@ branch("omnium.nodes", "omnium", "Nodes");
 part("omnium.nodes.body", "omnium.nodes", "Sphere / geometric body", {
   legacy: "nodes.color",
   animation: { kind: "surface", source: "nodes" },
-}, [...surface,"translucency"]);
+}, surface);
 part("omnium.nodes.background", "omnium.nodes", "Label background", {
   role: "background",
   legacy: "background",

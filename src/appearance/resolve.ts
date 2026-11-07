@@ -1,3 +1,4 @@
+import {translucentOpacity} from '../properties/translucency.ts';
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import { boundedNumber } from "../properties/numericRange.ts";
 import type { WorkspaceSettings } from "../workspaceActions";
@@ -79,6 +80,7 @@ export function legacyValue(base: Appearance, target: RegisteredTarget, property
     return map[property] ?? propertyFor(property)?.initial ?? 0;
   }
   if (property === "contourWidth" && target.id === "omnium.binders.path") return 1.5;
+  if (property === "translucency") return (target.instance?.base??target.id)==="omnium.nodes.body"?.82:0;
   if (property === "font") return base.font;
   if (property === "brightness") return 1;
   if (property === "blur") return base.blur;
@@ -226,6 +228,7 @@ export function resolveControllerAppearance(base: Appearance): Appearance {
     const values: Record<string, Value> = {};
     for (const property of target.properties!)
       values[property] = resolve(target, property);
+    if(target.id!=="omnium.nodes.body"&&typeof values.opacity==="number")values.opacity=translucentOpacity(values.opacity,Number(values.translucency??0));
     out.renderDefaults[target.id] = values;
     const custom = state.values[target.id] || !connected(state, targets, target.id, "color", index);
     if (target.id === "workspace.background" && custom)
