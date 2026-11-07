@@ -715,9 +715,10 @@ existing-format protected recovery layout view. Read docs/ATLAS_LATTICE.md befor
 changing atlas placement, scale, empty-field rendering or recovery. This atlas
 rule does not impose a lattice on Omnic construction modes.
 
-Atlas selected presentation (2026-11-07): selection replaces the O carrier and
-its origin ring with full content until deselection. Keep the invisible picking
-slot and existing retained/hover/Names behavior; no coordinate or scale change.
+Atlas selected presentation (2026-11-07): selection hides only the atomic O
+carrier and shows full content until deselection. Preserve the pulsing selection
+ring as the selection indicator, separately from the carrier. Keep the invisible
+picking slot and retained/hover/Names behavior; no coordinate or scale change.
 
 Atlas binders (2026-11-07): labels attach perpendicular to their projected binder
 toward free screen space; shared rotated-label packing never falls back over nodes.

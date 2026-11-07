@@ -794,7 +794,8 @@ interaction acceptance remains pending; model/build checks are separate evidence
 
 The earlier fixed square-frame interpretation was rejected. An atlas placement
 is a small uniform glowing atom. Empty space remains empty; no white lattice
-is drawn. Hover previews content. Selection replaces the O/origin ring with full content;
+is drawn. Hover previews content. Selection hides the atomic O and shows full content while keeping its pulsing
+selection ring;
 deselection restores the carrier. Click-retained expansion remains independent;
 selection keeps content visible even if a repeat click toggles that retained state. Multiple expansions coexist. Structurally expanded nodes
 show content by default, with view-local close overrides. These overrides live
