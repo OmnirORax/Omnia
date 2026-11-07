@@ -580,7 +580,7 @@ Investigative frames scope knowledge references. Variants and coordinate layout 
 
 **Where:** World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings.
 
-Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera.
+Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. The world renderer occupies the full viewport behind the toolbar, sidebar and floating/docked UI. UI layout allocates UI residents without shrinking the world. Transparent UI paint reveals the same scene underneath. UI retains input ownership; transparency does not imply click-through. Existing ResizeObserver updates camera aspect and wallpaper size for the full world host.
 
 **Minimal working test**
 
@@ -588,12 +588,13 @@ Direct node drag turns the object. Empty space with a selection orbits the selec
 2. Select the node, zoom in, and drag empty space vertically through a full turn. **Expected:** Camera orbits the branch without an automatic zoom-out or vertical pole lock.
 3. Hold Ctrl and begin horizontal motion, adding vertical jitter. **Expected:** The initial axis stays locked until Ctrl is released.
 4. Click a node, park it, click empty space and Ctrl-click another node. Then use Frame selected front-on. **Expected:** Clicks leave camera position and target unchanged. Only the explicit framing action moves the camera.
+5. Make toolbar/sidebar backgrounds translucent in MS → Visuals. Resize the browser and open or close a docked panel; then use a UI control and navigate in exposed world space. **Expected:** The same world scene continues behind UI across the full viewport. UI controls still receive input; world navigation uses the full viewport camera. Docks do not resize or crop the world into a smaller column.
 
 **Limits / unavailable behavior:** Camera context choices are session-only. Check the current shortcut binding rather than assuming MB2 when MS is active.
 
-**Verification:** browser — Not recorded. Automated — See subsystem tests and PR checks; not proof of usability.
+**Verification:** browser — Full-viewport scene and UI overlay/input acceptance await user preview test; no browser suite run.. Automated — See subsystem tests and PR checks; not proof of usability.
 
-**Details:** [subsystem guide](WORLD_NAVIGATION.md). **Implementation:** [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [src/navigation/transforms.ts](../src/navigation/transforms.ts).
+**Details:** [subsystem guide](WORLD_NAVIGATION.md). **Implementation:** [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [src/navigation/transforms.ts](../src/navigation/transforms.ts), [src/workbench.css](../src/workbench.css).
 
 **Command IDs:** `world.navigate`.
 

@@ -83,6 +83,13 @@ export function DockWorkspace({ children, projection }: { children: ReactNode; p
       delete workspace.dataset.uiDocks;
     };
   }, [geometry]);
+  // UI homes use the existing dock allocation; the world keeps its full viewport.
+  useLayoutEffect(()=>{
+    const workspace=document.querySelector<HTMLElement>('.workspace');if(!workspace)return;
+    const insets={left:floating.x,top:floating.y,right:Math.max(0,innerWidth-floating.x-floating.width),bottom:Math.max(0,innerHeight-floating.y-floating.height)};
+    for(const [edge,value] of Object.entries(insets))workspace.style.setProperty(`--world-ui-${edge}`,`${value}px`);
+    return()=>{for(const edge of Object.keys(insets))workspace.style.removeProperty(`--world-ui-${edge}`);};
+  },[floating]);
   const value=useMemo(()=>({ ...geometry, source: allocation?.source, floating, placements, register }),[geometry,allocation?.source,floating,placements,register]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

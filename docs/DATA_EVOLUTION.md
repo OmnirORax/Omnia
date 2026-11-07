@@ -397,3 +397,5 @@ Atlas paint strokes use existing entity/placement/composition formats and docume
 Sphere translucency adds an optional property value to the existing version-1 appearance controller settings; no graph/backend schema change. Absence resolves .82, preserving the prior bubble appearance approximately. Explicit 0/1 survive shared validation/serialization. Older clients do not know this property and may discard it when rewriting settings; cross-version retention is not guaranteed. Existing appearance undo/persistence remain authoritative.
 
 UI translucency applicability follow-up: existing controller translucency values are preserved. Missing UI values resolve 0 to preserve historical UI alpha; missing sphere-body values still resolve .82 explicitly. No graph/schema migration. Existing unknown-property rewrite limits on older clients remain.
+
+Full-viewport world composition changes CSS layout only. No saved graph coordinates, camera values, UI arrangement, settings or schemas are rewritten. The visible camera aspect changes with its full viewport host; existing resize/render-budget owners apply.

@@ -123,3 +123,7 @@ without a defined default home remain in place and disable recovery. Pins,
 context-menu scopes, cycles and incompatible destinations remain protected.
 **Reset this frame’s arrangement** remains the separate local cleanup action;
 **Reset to default** in the library resets the whole layout.
+
+Full-viewport world: .workbench > .workspace > .canvas is absolute inset 0 against the viewport-sized positioned workbench, without a stacking context; native toolbar/sidebar are positioned UI layer 1, existing floating overlays retain their layers. UI/dock allocation must not shrink the world host. Existing renderer ResizeObserver, camera aspect, wallpaper and pointer coordinates follow that full host. UI transparency reveals scene, not click-through. Saved graph/camera/UI ownership and arrangement are unchanged; responsive viewport composition is transient. Browser/physical-input acceptance remains user-owned.
+
+Default world UI homes read --world-ui-* insets published by the existing DockWorkspace floating allocation. Only HUD/selection/navigation UI offsets use them; canvas dimensions, pointer projection and world rendering remain viewport-wide. Reuse its measured allocation/observer, never a second sidebar-size listener or hardcoded sidebar width.
