@@ -13,7 +13,9 @@ float carrierLight = 1.0 - smoothstep(0.8 * carrierPixel, 1.5 * carrierPixel, ca
 float carrierRim = 1.0 - smoothstep(2.5 * carrierPixel, 3.5 * carrierPixel, carrierDistance);
 outgoingLight = mix(outgoingLight, mix(vec3(0.012), vec3(1.0), carrierLight), carrierRim);
 float carrierSurface = mix(pow(1.0-carrierTranslucency, 2.15), 1.0, pow(1.0 - carrierFacing, 3.0));
-diffuseColor.a = clamp(diffuseColor.a * mix(carrierSurface, 4.5, carrierRim), 0.0, 1.0);
+// The contrast edge must never exceed authored overall opacity.
+float carrierGain = min(4.5, 1.0 / max(1.0 - carrierTranslucency, 0.0001));
+diffuseColor.a = clamp(diffuseColor.a * mix(carrierSurface, carrierGain, carrierRim), 0.0, 1.0);
 #include <opaque_fragment>`);};
  material.customProgramCacheKey=()=> 'atomic-bubble-contrast-v3';return material;
 }
