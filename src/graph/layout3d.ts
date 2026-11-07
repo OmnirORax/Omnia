@@ -1,7 +1,5 @@
-import { structuralVisual } from "../omnic/presentation.ts";
 import { editorView, ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
-import { labelSize } from "./labels.ts";
-import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./assets.ts";
+import { DEFAULT_NODE_CELL_SIZE, DEFAULT_SPHERE_DIAMETER, nodeFootprint } from "./assets.ts";
 import { contractAlongRay, stopBeforeSphere, enclosingBox, translateBox, type Box3 } from "./packing.ts";
 import { localPosition, worldPositions } from "./coordinates.ts";
 import { chartedBinders, type DisplayBinder } from "./binders.ts";
@@ -10,8 +8,8 @@ export { localPosition, worldPositions } from "./coordinates.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
-export type SpatialSettings = { spacing: GridSpacing; radius: number; sphereDiameter?: number; clearance: number };
-export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, radius: DEFAULT_SPHERE_DIAMETER / 2, sphereDiameter: DEFAULT_SPHERE_DIAMETER, clearance: 0.35 };
+export type SpatialSettings = { spacing: GridSpacing; radius: number; sphereDiameter?: number; nodeCellSize?: number; nodeNames?: "expanded" | "all" | "selection"; clearance: number };
+export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, nodeNames: "expanded", nodeCellSize: DEFAULT_NODE_CELL_SIZE, radius: DEFAULT_SPHERE_DIAMETER / 2, sphereDiameter: DEFAULT_SPHERE_DIAMETER, clearance: 0.35 };
 const origin = (): XYZ => ({ x: 0, y: 0, z: 0 });
 const add = (a: XYZ, b: XYZ): XYZ => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
 const distance = (a: XYZ, b: XYZ) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -24,8 +22,8 @@ export function occupiedRadii(doc: Document, settings: SpatialSettings, worlds =
   const resolve = (id: string): number => {
     const found = cache.get(id); if (found !== undefined) return found;
     const p = doc.placements.find((item) => item.id === id)!;
-    const label = visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), structuralVisual(doc, p), settings.sphereDiameter);
-    let radius = label.sphere ? label.width / 2 : Math.max(settings.radius, Math.hypot(label.width, label.height, label.depth) / 2);
+    const cell = nodeFootprint(settings.nodeCellSize);
+    let radius = Math.max(settings.radius, Math.hypot(cell.width, cell.height, cell.depth) / 2);
     if (!p.collapsed) for (const child of doc.placements.filter((c) => c.parentId === id && !c.hidden && c.variantOwner?.placementId !== id))
       radius = Math.max(radius, distance(worlds.get(id)!, worlds.get(child.id)!) + resolve(child.id) + settings.clearance);
     cache.set(id, radius); return radius;
@@ -40,26 +38,24 @@ export function siblingCollisions(doc: Document, settings: SpatialSettings): [st
   const result: [string, string][] = [];
   for (const group of groups.values()) for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
     const a = group[i], b = group[j];
-    if (overlap(doc, a, worlds.get(a.id)!, b, worlds.get(b.id)!, settings)) result.push([a.id, b.id]);
+    if (overlap(worlds.get(a.id)!, worlds.get(b.id)!, settings)) result.push([a.id, b.id]);
   }
   return result;
 }
-function overlap(doc: Document, a: Placement, ap: XYZ, b: Placement, bp: XYZ, settings: SpatialSettings) {
-  const footprint = (p: Placement) => visualFootprint(labelSize(doc.entities.find((e) => e.id === p.entityId)?.label ?? ""), structuralVisual(doc, p), settings.sphereDiameter);
-  const aa = footprint(a), bb = footprint(b);
-  if (aa.sphere && bb.sphere) return distance(ap, bp) < (aa.width + bb.width) / 2 + settings.clearance - 1e-6;
-  const depth = (p: Placement) => { const size = footprint(p); return size.sphere ? size.depth : Math.max(settings.radius * 2, size.depth); };
-  return Math.abs(ap.x - bp.x) < (aa.width + bb.width) / 2 + settings.clearance - 1e-6 && Math.abs(ap.y - bp.y) < Math.max(settings.radius * 2, (aa.height + bb.height) / 2) + settings.clearance - 1e-6 && Math.abs(ap.z - bp.z) < (depth(a) + depth(b)) / 2 + settings.clearance - 1e-6;
+function overlap(ap: XYZ, bp: XYZ, settings: SpatialSettings) {
+  const cell = nodeFootprint(settings.nodeCellSize);
+  const extent = Math.max(settings.radius * 2, cell.width) + settings.clearance - 1e-6;
+  return Math.abs(ap.x - bp.x) < extent && Math.abs(ap.y - bp.y) < extent && Math.abs(ap.z - bp.z) < extent;
 }
 function preferred(doc: Document, entityId: string, parentId: string | null, settings: SpatialSettings) {
   const parent = doc.placements.find((p) => p.id === parentId);
   if(!parent)return origin();
-  const parentSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===parent.entityId)?.label??''),structuralVisual(doc, parent), settings.sphereDiameter);
-  const childSize=visualFootprint(labelSize(doc.entities.find(e=>e.id===entityId)?.label??''), structuralVisual(doc,{entityId}), settings.sphereDiameter);
+  const parentSize=nodeFootprint(settings.nodeCellSize);
+  const childSize=nodeFootprint(settings.nodeCellSize);
   const composition = doc.compositions.find(c => c.parentId === parent.entityId && c.childId === entityId);
   const binder = composition ? { visual: composition.visual, label: composition.text ?? (composition.operators?.map(o => o.text).join(" · ") || "contains") } : { label: "visual nesting" };
   // Compare the readable XY directions using the binder actually rendered.
-  // Prefer +X on ties, without forcing wide labels far across the workspace.
+  // Prefer +X on ties; node content never changes the cell extent.
   const candidates = [{ x: 1, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }].map(direction => {
     const extent = direction.x ? (parentSize.width + childSize.width) / 2 : (parentSize.height + childSize.height) / 2;
     const minimum = extent + Math.max(settings.clearance, binderGap(binder, direction));
@@ -114,11 +110,11 @@ export function nearestFree(doc: Document, placementId: string, desired: XYZ, se
       const length = distance(from, to);
       if (length < 1e-8) return false;
       const direction = { x: (to.x - from.x) / length, y: (to.y - from.y) / length, z: (to.z - from.z) / length };
-      if (length + 1e-6 < minimumBinderDistance(doc, b, direction, settings.sphereDiameter)) return false;
+      if (length + 1e-6 < minimumBinderDistance(doc, b, direction, settings.nodeCellSize)) return false;
     }
-    // The parent's enclosing subsystem may contain us; its visible label must stay clear.
-    if(parent && overlap(doc,moving,world,parent,parentWorld,settings))return false;
-    if (siblings.some((p) => overlap(doc, moving, world, p, worlds.get(p.id)!, settings))) return false;
+    // The parent's enclosing subsystem may contain us; its cell must stay clear.
+    if(parent && overlap(world,parentWorld,settings))return false;
+    if (siblings.some((p) => overlap(world, worlds.get(p.id)!, settings))) return false;
     const candidate = { ...doc, placements: doc.placements.map((p) => p.id === placementId ? { ...p, spatialPosition: local } : p) };
     return siblingCollisions(candidate, settings).every(([a, b]) => before.has([a, b].sort().join("|")));
   };
@@ -137,7 +133,7 @@ export function movePlacement(doc: Document, id: string, desired: XYZ, settings:
   const local = nearestFree(doc, id, desired, settings);
   return validateDocument({ ...doc, placements: doc.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
 }
-export function createPlacement(doc: Document, entityId: string, parentId: string | null, settings: SpatialSettings, desired?: XYZ): { next: Document; placementId: string } {
+export function createPlacement(doc: Document, entityId: string, parentId: string | null, settings: SpatialSettings, desired?: XYZ,mode:'packed'|'exact'='packed'): { next: Document; placementId: string } {
   if (!doc.entities.some((e) => e.id === entityId)) throw new Error(`Missing identity: ${entityId}`);
   if (parentId && !doc.placements.some((p) => p.id === parentId)) throw new Error(`Missing parent placement: ${parentId}`);
   const placementId = crypto.randomUUID();
@@ -147,7 +143,8 @@ export function createPlacement(doc: Document, entityId: string, parentId: strin
     spatialPosition: desired ?? preferred(doc, entityId, parentId, settings),
     collapsed: true, hidden: false };
   const draft = { ...doc, placements: [...doc.placements, placement] };
-  const local = nearestFree(draft, placementId, placement.spatialPosition!, settings);
+  if(mode==='exact'&&!desired)throw Error('Exact placement requires a position.');
+  const local = mode==='exact'?{...desired!}:nearestFree(draft, placementId, placement.spatialPosition!, settings);
   placement.spatialPosition = local;
   return { next: ensureVariantPlacements(validateDocument(draft), placementId), placementId };
 }
@@ -224,11 +221,10 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
   const bindings = spacingBinders(next);
   const children = new Map<string | null, Placement[]>();
   for (const p of next.placements) children.set(p.parentId, [...(children.get(p.parentId) ?? []), p]);
-  const entities = new Map(next.entities.map(e => [e.id, e]));
   const ownBoxes = new Map<string, Box3>();
   for (const p of next.placements) {
-    const size = visualFootprint(labelSize(entities.get(p.entityId)?.label ?? ""), structuralVisual(doc, p), settings.sphereDiameter);
-    const floor = size.sphere ? 0 : settings.radius * 2;
+    const size = nodeFootprint(settings.nodeCellSize);
+    const floor = settings.radius * 2;
     const x = Math.max(floor, size.width) / 2, y = Math.max(floor, size.height) / 2;
     const z = Math.max(floor, size.depth) / 2;
     ownBoxes.set(p.id, { min: { x: -x, y: -y, z: -z }, max: { x, y, z } });
@@ -268,9 +264,9 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
           if (ids.has(b.source) === ids.has(b.target)) continue;
           const otherId = ids.has(b.source) ? b.target : b.source;
           const other = byId.get(otherId)!;
-          const size = placementFootprint(next, other, settings.sphereDiameter), world = worlds.get(otherId)!;
+          const size = placementFootprint(next, other, settings.nodeCellSize), world = worlds.get(otherId)!;
           const movingId = ids.has(b.source) ? b.source : b.target;
-          const movingSize = placementFootprint(next, byId.get(movingId)!, settings.sphereDiameter);
+          const movingSize = placementFootprint(next, byId.get(movingId)!, settings.nodeCellSize);
           if (size.sphere && movingSize.sphere && (!b.label || b.visual?.showText === false)) {
             radial.push({ moving: worlds.get(movingId)!, fixed: world, radius: (size.width + movingSize.width) / 2 + binderGap(b) });
             continue;
@@ -303,7 +299,7 @@ export function ensureBinderSpacing(doc: Document, settings: SpatialSettings, bi
     const worlds = worldPositions(next), from = worlds.get(b.source)!, to = worlds.get(b.target)!;
     const length = distance(from, to);
     const direction = length > 1e-8 ? { x: (to.x - from.x) / length, y: (to.y - from.y) / length, z: (to.z - from.z) / length } : { x: 1, y: 0, z: 0 };
-    const required = minimumBinderDistance(next, b, direction, settings.sphereDiameter);
+    const required = minimumBinderDistance(next, b, direction, settings.nodeCellSize);
     if (length >= required - 1e-6) continue;
     // Moving a parent would move both endpoints; move the descendant instead.
     const targetContainsSource = subtreeIds(next, b.target).has(b.source);

@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { emptyDocument } from "../src/graph/structural.ts";
 import { DEFAULT_SPATIAL_SETTINGS as settings, createPlacement, movePlacement, reparentStructure, reparentVisual, compactLayout, siblingCollisions, worldPositions } from "../src/graph/layout3d.ts";
 import { ARROW_LENGTH, BINDER_LENGTH_RATIO } from '../src/graph/binderGeometry.ts';
-import { labelSize } from '../src/graph/labels.ts';
+import { nodeFootprint, visualFootprint } from '../src/graph/assets.ts';
+import { placementFootprint, minimumBinderDistance, binderGap } from '../src/graph/binderGeometry.ts';
+import { labelSize, defaultNodeOffset } from '../src/graph/labels.ts';
 
 const entity = (id) => ({ id, label: id, aliases: [], notes: "" });
 test("compaction preserves authored root directions, independent of a coarse drag grid", () => {
@@ -53,7 +55,7 @@ test("new children use the nearest clear grid position beside the parent and avo
   const position = doc.placements.find((p) => p.id === child).spatialPosition;
   assert.equal(Math.hypot(position.x,position.y,position.z),settings.spacing);
   assert.equal(position.z, 0);
-  const labelExtent = (labelSize('system').height + labelSize('part').height) / 2;
+  const labelExtent = nodeFootprint(settings.nodeCellSize).height;
   assert.ok(Math.abs(position.y)-labelExtent >= BINDER_LENGTH_RATIO*ARROW_LENGTH);
   assert.equal(siblingCollisions(doc, settings).length, 0);
   assert.notDeepEqual(doc.placements.find((p) => p.id === other).spatialPosition, position);
@@ -70,18 +72,18 @@ test("snapped movement resolves occupancy without changing charted knowledge", (
   assert.equal(JSON.stringify(moved.compositions), compositions);
   assert.deepEqual(doc.placements.find((p) => p.id === child).spatialPosition, occupied);
 });
-test('default children leave only footprint clearance with snapping off and never occupy their parent label',()=>{
+test('default children leave cell and binder clearance with snapping off',()=>{
   const doc=emptyDocument();doc.entities=[entity('root'),entity('child')];
   const root=createPlacement(doc,'root',null,{...settings,spacing:0},{x:0,y:0,z:0});
   const child=createPlacement(root.next,'child',root.placementId,{...settings,spacing:0});
   const p=child.next.placements.find(p=>p.id===child.placementId).spatialPosition;
-  const gap=Math.hypot(p.x,p.y,p.z)-(labelSize('root').height+labelSize('child').height)/2;
+  const gap=Math.hypot(p.x,p.y,p.z)-nodeFootprint(settings.nodeCellSize).height;
   assert.ok(gap>=BINDER_LENGTH_RATIO*ARROW_LENGTH);
-  assert.ok(Math.hypot(p.x,p.y,p.z)<1.5);assert.equal(p.x,0);assert.equal(p.z,0);
+  assert.equal(Math.hypot(p.x,p.y,p.z),nodeFootprint(settings.nodeCellSize).height+binderGap({label:"visual nesting"},{x:0,y:-1,z:0}));assert.equal(p.x,0);assert.equal(p.z,0);
   const moved=movePlacement(child.next,child.placementId,{x:0,y:0,z:0},settings);
   assert.notDeepEqual(moved.placements.find(p=>p.id===child.placementId).spatialPosition,{x:0,y:0,z:0});
 });
-test('wide labels choose a nearer clear direction instead of forcing a long horizontal binder',()=>{
+test('node labels do not force a long horizontal binder',()=>{
   const doc=emptyDocument();doc.entities=[{...entity('root'),label:'A long system name with many details'},entity('child')];
   const root=createPlacement(doc,'root',null,settings,{x:0,y:0,z:0});
   const child=createPlacement(root.next,'child',root.placementId,settings);
@@ -172,4 +174,41 @@ test('a detached variant occurrence becomes independently visible without deleti
  const placed=createPlacement(doc,'owner',null,settings),withVariant=ensureVariantPlacements(placed.next),occurrence=withVariant.placements.find(p=>p.variantOwner);
  const next=detachPlacement(withVariant,occurrence.id),detached=next.placements.find(p=>p.id===occurrence.id);
  assert.equal(detached.parentId,null);assert.equal(detached.variantOwner,undefined);assert.deepEqual(next.variants,withVariant.variants);assert.deepEqual(worldPositions(next),worldPositions(withVariant));
+});
+
+test('exact cursor placement preserves its requested point despite grid snapping and overlap',()=>{
+ const doc=emptyDocument();doc.entities=[entity('a'),entity('b')];
+ const point={x:1.234,y:-.765,z:3.456},first=createPlacement(doc,'a',null,{...settings,spacing:5},point,'exact');
+ assert.deepEqual(worldPositions(first.next).get(first.placementId),point);
+ const overlapping=createPlacement(first.next,'b',null,{...settings,spacing:5},point,'exact');assert.deepEqual(worldPositions(overlapping.next).get(overlapping.placementId),point,'an explicit pointer target cannot be replaced by a nearby packed/grid point');
+ assert.throws(()=>createPlacement(doc,'a',null,settings,undefined,'exact'),/requires a position/);
+});
+
+test('exact child placement retains its parent and projects back to the requested world point',()=>{
+ const doc=emptyDocument();doc.entities=[entity('parent'),entity('child')];
+ const parent=createPlacement(doc,'parent',null,settings,{x:10,y:20,z:30},'exact'),world={x:12.125,y:18.75,z:33.5},origin=worldPositions(parent.next).get(parent.placementId);
+ const local={x:world.x-origin.x,y:world.y-origin.y,z:world.z-origin.z},child=createPlacement(parent.next,'child',parent.placementId,settings,local,'exact');
+ assert.equal(child.next.placements.find(p=>p.id===child.placementId).parentId,parent.placementId);assert.deepEqual(worldPositions(child.next).get(child.placementId),world);
+ assert.deepEqual(worldPositions(child.next).get(parent.placementId),origin);
+});
+
+
+test('uniform cell geometry and arrangement ignore content while content sizing remains independent',()=>{
+ const {doc,root,child}=fixture(),changed=structuredClone(doc);
+ for(const e of changed.entities)e.label='Very long independent content '.repeat(15);
+ for(const p of changed.placements)p.visual={character:'Ω',size:5,showText:true};
+ const spatial={...settings,spacing:0,nodeCellSize:1.25};
+ const cells=d=>d.placements.map(p=>placementFootprint(d,p,spatial.nodeCellSize));
+ assert.deepEqual(cells(doc),cells(changed));
+ assert.deepEqual(cells(doc)[0],{width:1.25,height:1.25,depth:1.25,sphere:false});
+ assert.notDeepEqual(visualFootprint(labelSize(doc.entities[0].label)),visualFootprint(labelSize(changed.entities[0].label),changed.placements[0].visual),'content retains its independent natural envelope');
+ const positions=d=>d.placements.map(p=>p.spatialPosition);
+ assert.deepEqual(positions(compactLayout(doc,{kind:'all'},spatial)),positions(compactLayout(changed,{kind:'all'},spatial)));
+ assert.deepEqual(siblingCollisions(doc,spatial),siblingCollisions(changed,spatial));
+ const binding={source:root,target:child,label:'',visual:undefined};
+ assert.equal(minimumBinderDistance(doc,binding,{x:1,y:0,z:0},1.25),minimumBinderDistance(changed,binding,{x:1,y:0,z:0},1.25));
+ const add=d=>createPlacement(d,'other',root,spatial).next.placements.at(-1).spatialPosition;
+ assert.deepEqual(add(doc),add(changed));
+ assert.deepEqual(defaultNodeOffset('a','b',2),defaultNodeOffset('long '.repeat(30),'more '.repeat(50),2));
+ assert.deepEqual(positions(changed),positions(doc),'reading cell geometry never repositions authored coordinates');
 });

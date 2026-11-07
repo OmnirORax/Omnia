@@ -253,6 +253,8 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     const spacing = value.spatial?.spacing;
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
     if (spacing !== undefined && permitted.includes(spacing)) defaults.spatial.spacing = spacing;
+    if (["expanded", "all", "selection"].includes(value.spatial?.nodeNames ?? "")) defaults.spatial.nodeNames = value.spatial!.nodeNames;
+    if (typeof value.spatial?.nodeCellSize === "number" && Number.isFinite(value.spatial.nodeCellSize) && value.spatial.nodeCellSize >= 0.1 && value.spatial.nodeCellSize <= 5) defaults.spatial.nodeCellSize = value.spatial.nodeCellSize;
     if (typeof value.spatial?.sphereDiameter === "number" && Number.isFinite(value.spatial.sphereDiameter) && value.spatial.sphereDiameter >= 0.1 && value.spatial.sphereDiameter <= 5) defaults.spatial.sphereDiameter = value.spatial.sphereDiameter;
     if (typeof value.spatial?.radius === "number" && value.spatial.radius >= 0.1 && value.spatial.radius <= 3) defaults.spatial.radius = value.spatial.radius;
     if (typeof value.spatial?.clearance === "number" && value.spatial.clearance >= 0 && value.spatial.clearance <= 2) defaults.spatial.clearance = value.spatial.clearance;

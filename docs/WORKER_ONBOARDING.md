@@ -788,3 +788,42 @@ occurrence releases its visibility gate without deleting the canonical variant.
 `detachPlacement` and `detachNodeConnection` in graph/layout3d.ts own these distinct
 operations. Neither deletes the entity or recreates its subtree. Menu/native
 interaction acceptance remains pending; model/build checks are separate evidence.
+
+
+## Atomic carriers and content presentations (2026-11-07)
+
+The earlier fixed square-frame interpretation was rejected. An atlas placement
+is a small uniform glowing atom. Empty space remains empty; no white lattice
+is drawn. Hover previews content, click retains it, and click again closes its
+retained expansion. Multiple expansions coexist. Structurally expanded nodes
+show content by default, with view-local close overrides. These overrides live
+in `nodePresentation`, scoped per atlas session, independently of graph selection,
+parentage and authored collapse state. Existing double-click structural expansion
+and document commands remain separate.
+
+Names → Expanded / All / Selection uses the existing toolbar/settings owner.
+Bulk names reveal labels without opening full visuals. Open presentations face
+the camera and arrange in screen space; the atomic anchors never move. Shared
+`arrangeExpansions` uses bounded candidates and spatial bins. Oversized or dense
+content may overlap rather than shrink or relocate atoms. Camera/view changes
+update geometry; ordinary selection animation does not rebuild arrangement.
+`nodeFootprint` remains the content-independent logical organizational cell;
+`visualFootprint` measures independently sized presentation content. Atom size
+uses the existing sphere-diameter setting. No square node frame is rendered.
+
+N remains exact cursor projection onto the camera-facing navigation plane, with
+selected/focused parent semantics and contextual fallback over UI. Broader
+search/filter/contextual representation is future direction, not implemented.
+See [walkthrough](CAPABILITIES.md#graph-cells). Browser acceptance pending.
+
+Atlas scale baseline (2026-11-07): one logical cell is 1 world unit by default,
+independent of the small visible atom diameter. Arrow/nudge actions read the
+shared cell size, advance in whole camera-relative cells and bypass drag snap/
+nearest-free displacement on commit. Holds preview discrete repeats and commit
+once on release; cancellation restores. Explicit steps may overlap other atoms.
+
+Atomic radius correction (2026-11-07): visible atoms are fixed at radius 0.5,
+diameter 1. Remove the earlier small/editable-dot interpretation. The renderer
+uses DEFAULT_SPHERE_DIAMETER, never saved sphereDiameter or per-node Visual.size.
+Blank carriers have no size editor; actual expanded visual content retains one.
+Logical cell size remains separately configurable and owns arrow-step size.

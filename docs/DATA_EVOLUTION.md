@@ -248,3 +248,65 @@ including their existing-dictionary shortcut bindings. Default scope/conflict an
 explicit-clear handling come from workspaceActions, with no private aliases.
 Indent/Outdent default to Ctrl+] / Ctrl+[ so the app's Shift configuration rule
 remains intact; Tab retains native focus traversal.
+
+
+### Uniform atlas cells and cursor creation (2026-11-06)
+
+Settings owner: `workspaceActions.normalizeSettings` and existing interface
+state/history/persistence. Additive optional `spatial.nodeCellSize` defaults to 1
+world unit when absent; finite explicit values from 0.1 through 5 survive saves.
+Existing `sphereDiameter`, per-placement `Visual.size`, labels, XYZ coordinates,
+legacy 2D positions, IDs and saved layout-view snapshots retain their meaning.
+The render/layout interpretation now uses a uniform organizational cell instead
+of deriving a node frame/collision envelope from content. Content rendering stays
+independently sized. No load-time movement/repacking or atlas schema conversion
+occurs; only explicit arrange/move actions write changed positions. N/Create node
+here now honor exact explicit view-plane points, including overlaps, via the
+existing validated placement/history owner. No new saved geometry store exists.
+
+Historical settings fixtures verify absence/default, explicit snap/content
+values, custom cell-size roundtrip and invalid-cell-size rejection. Geometry and
+arrangement regressions compare identical coordinates with different labels and
+visual sizes. Old clients ignore the added setting and render with their former
+content-derived frames; saving settings in an older client can lose the new cell
+preference, but not authored node coordinates or content. Rollback requires no
+content conversion. Existing storage/recovery/concurrency limitations still apply;
+no cloud atlas synchronization or stronger settings recovery is added here.
+
+
+### Atomic presentation correction (2026-11-07)
+
+The fixed-square-frame presentation above was rejected. Cells remain logical
+organization footprints, but visible nodes are uniform atoms; content is a
+separate camera-facing expansion. Existing XYZ, IDs, authored child visibility,
+content sizes, assets and document formats are unchanged. Existing showText values
+remain stored; expanded presentations and explicit Names views now reveal node
+names regardless of that visual-only legacy flag. No load-time reflow occurs.
+`spatial.nodeNames` is additive (expanded/all/selection), defaults to expanded for
+historical settings and uses shared settings history/normalization/persistence.
+Older clients ignore it and can omit this preference on resave. Click-retained
+expansion/close overrides are transient per atlas session and never saved into
+canonical knowledge, placement coordinates or authored parentage. Rollback needs
+no authored-data conversion. Historical fixtures stay frozen and explicitly
+verify the new default alongside unchanged existing settings. Dense presentation
+layout can overlap when independent content cannot fit; it never shrinks content.
+
+Names discoverability correction (2026-11-07): the registered control now has a
+native home in the upper-right atlas controls, directly below Focus context only.
+The proposed View-menu home was superseded before preview delivery. Existing
+customized layouts remain intact; no placement/settings migration or reset occurs.
+Names remains available through Spatial settings and shared UI discovery.
+
+Discrete atlas nudge correction (2026-11-07): existing nodeCellSize (default 1)
+now owns arrow step size, independently of drag snap and visible sphere diameter.
+Held gestures emit only integer cell steps and commit exact requested coordinates
+through existing document history/validation. No load-time rescaling, saved-value
+conversion or coordinate rewrite occurs; camera-relative step directions remain.
+
+Fixed atomic carrier radius (2026-11-07): visible atom radius is now 0.5
+(diameter 1), enforced by the renderer constant. The diameter control and blank
+carrier visual-size control are retired. Legacy spatial.sphereDiameter and
+blank Visual.size remain stored for compatibility but cannot alter carriers.
+Actual content visuals retain authored sizes/editors; logical cell size remains
+separate. Defaults now use diameter 1; historical explicit preferences still
+roundtrip, but only older clients apply them. No coordinates or IDs are rewritten.

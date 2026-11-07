@@ -72,7 +72,7 @@ import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { ShortcutDisplay, ShortcutGestures } from "./ShortcutDisplay";
 import { VisualControls } from "./VisualControls";
 import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
-import type { Visual, VisualAsset } from "./graph/assets";
+import { DEFAULT_NODE_CELL_SIZE, type Visual, type VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
@@ -133,6 +133,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     });
   }, [actionHistory]);
   const documentRef = useRef(document); documentRef.current = document;
+  const creationPointRef = useRef<(() => { x: number; y: number; z: number } | undefined) | null>(null);
   const ui = useInterfaceState(() => ({ layout: loadUILayout(validateUILayout(structuredClone(websiteTemplate.layout))), settings: (() => { try { return localStorage.getItem(SETTINGS_KEY) ? loadSettings() : normalizeSettings((websiteTemplate as { settings?: unknown }).settings); } catch { return loadSettings(); } })() }), (text) => setError(text), actionHistory);
   const { layout: savedUILayout, update: updateUI, savedSettings, setSettings } = ui;
   const [searchOpen, setSearchOpen] = useState(false);
@@ -386,7 +387,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     const candidates = selection?.kind === "node" ? [selection.id] : focusContextIds ?? [];
     return candidates.length === 1 && document.placements.some(p => p.id === candidates[0]) ? candidates[0] : null;
   }
-  function createNodeInContext() { addNode(creationParentId()); }
+  function createNodeInContext() { addNode(creationParentId(), creationPointRef.current?.()); }
   function startOmnicDraft() {
     const entityId = unsavedOmnicId(workspace.id, workspace.activeAtlasId), parentId = creationParentId();
     if (omnicEditorId === entityId && omnicNewDraft) return;
@@ -438,7 +439,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         const origin = worldPositions(next).get(parentId)!;
         return { x: atWorld.x - origin.x, y: atWorld.y - origin.y, z: atWorld.z - origin.z };
       })() : atWorld;
-      const placed = createPlacement(next, entityId, parentId, settings.spatial, desired);
+      const placed = createPlacement(next, entityId, parentId, settings.spatial, desired, atWorld ? 'exact' : 'packed');
       const frame = placed.next.frames.find((f) => f.id === placed.next.activeFrameId);
       if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
       if (frame?.locked) placed.next.activeFrameId = null;
@@ -903,14 +904,14 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       setTimeout(() => window.document.querySelector<HTMLInputElement>('[aria-label="Node name"]')?.focus(), 0);
     } catch (e) { setError(message(e)); }
   }
-  function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false) {
+  function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false, exact = false) {
     // Hidden variant branches must not block the active workspace's drag targets.
     const visibleIds = new Set(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id));
     const collisionDoc = { ...document, placements: document.placements.map((p) => ({ ...p, hidden: p.hidden || !visibleIds.has(p.id) })) };
     const placement = document.placements.find(p => p.id === id)!;
     const parent = placement.parentId && !structuralGraph.nodes.find(n => n.id === id)?.parentId ? worldPositions(document).get(placement.parentId) : undefined;
     const desired = parent ? { x: position.x - parent.x, y: position.y - parent.y, z: position.z - parent.z } : position;
-    const local = nearestFree(collisionDoc, id, desired, settings.spatial);
+    const local = exact ? desired : nearestFree(collisionDoc, id, desired, settings.spatial);
     if (!preview) commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
     return parent ? { x: local.x + parent.x, y: local.y + parent.y, z: local.z + parent.z } : local;
   }
@@ -1308,7 +1309,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:viewRule", "New view rule", <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(e) => setLayoutRule(e.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>, true);
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
-  replaceFunction("ui:sphereDiameter", "Node sphere diameter", <label>Node sphere diameter<input aria-label="Node sphere diameter" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.sphereDiameter} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, sphereDiameter: Math.max(0.1, Math.min(5, Number(event.target.value) || 0.2)) } }))} /><small>World units · unnamed spheres; individually sized visuals keep their size.</small></label>, true);
+  replaceFunction("ui:nodeNames", "Node names", <label>Names<select aria-label="Node names" value={settings.spatial.nodeNames ?? "expanded"} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeNames: event.target.value as "expanded" | "all" | "selection" } }))}><option value="expanded">Expanded</option><option value="all">All</option><option value="selection">Selection</option></select></label>, true);
+  replaceFunction("ui:nodeCellSize", "Node cell size", <label>Node cell size<input aria-label="Node cell size" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeCellSize: Math.max(0.1, Math.min(5, Number(event.target.value) || DEFAULT_NODE_CELL_SIZE)) } }))} /><small>World units · one uniform cell per node; content keeps its own size.</small></label>, true);
   replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
@@ -1764,7 +1766,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
                     onChange={(e) => patchNode(selectedNode.id, { label: e.target.value })}
                   />
                 </label>)}
-                <VisualControls key={[...selectedIds].sort().join("|")} label="Node" sphereDiameter={settings.spatial.sphereDiameter} value={selectedPlacement?.visual} assets={document.assets ?? []} onChange={editNodeVisual} onAsset={(asset, visual) => editNodeVisual(visual, asset)} />
+                <VisualControls key={[...selectedIds].sort().join("|")} label="Node" value={selectedPlacement?.visual} assets={document.assets ?? []} onChange={editNodeVisual} onAsset={(asset, visual) => editNodeVisual(visual, asset)} />
                 <AppearanceControls label="Node" value={selectedPlacement?.appearance} defaults={nodeThemeDefaults} onPreview={appearance => setColorPreview({ kind: "node", id: selectedNode.id, color: appearance.color })} onChange={(appearance) => commitDocument({ ...document, placements: document.placements.map((p) => p.id === selectedNode.id ? { ...p, appearance } : p) })} />
                 {field("field:entity-aliases", "Entity aliases", <label>
                   Aliases (comma-separated)
@@ -2267,6 +2269,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               onTransformNodes={(ids, rotation, pivot, layout) => commitDocument(transformPlacements(document, ids, rotation, pivot, layout))}
               wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
+              creationPointRef={creationPointRef}
               document={document}
               saveStatus={saveStatus}
               onSaveText={(entityId, text) => {
@@ -2301,7 +2304,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
                 setBinderPopup({ x: Math.min(point.x + 12, window.innerWidth - 370), y: Math.min(point.y + 12, window.innerHeight - 460) });
               }}
               resolveMove={(id, local) => moveDisplayedNode(id, local, true)}
-              onMove={(id, local) => { try { moveDisplayedNode(id, local); } catch (e) { setError(message(e)); } }}
+              onMove={(id, local, exact) => { try { moveDisplayedNode(id, local, false, exact); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}
               onNest={nest}
               onContextAction={contextAction}
@@ -2351,7 +2354,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <CloudPanel />
         <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
-          {["ui:sphereDiameter", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:nodeNames", "ui:nodeCellSize", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>
         <UISection id="mouse-settings" title="Mouse & gestures">
           <FunctionControl id="ui:subtreeModifier" />

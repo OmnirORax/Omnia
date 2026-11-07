@@ -27,15 +27,13 @@ export function* graphEffectItems(source: TextScene): Generator<GraphEffectItem>
   for (const [id, node] of source.nodes) {
     if (!node.group.visible) continue;
     const base = { id, color: node.color, opacity: node.opacity };
-    if (node.sphere && node.sprite.visible)
-      yield { ...base, target: "omnium.nodes.body", object: node.sprite, kind: "sphere" };
-    if (node.visual?.visible)
+    if (node.cell.visible)
+      yield { ...base, target: "omnium.nodes.body", object: node.cell, kind: "sphere" };
+    if (node.presentation.visible && node.visual?.visible)
       yield { ...base, target: "symbols.nodes", object: node.visual, kind: "icon" };
-    if (node.text.visible) {
+    if (node.presentation.visible && node.text.visible) {
       const text = { ...base, object: node.text, opacity: node.text.material.opacity };
       yield { ...text, target: "text.nodes", kind: "glyph" };
-      yield { ...text, target: "omnium.nodes.background", kind: "surface" };
-      yield { ...text, target: "omnium.nodes.contour", kind: "contour" };
     }
     if (node.outline.visible)
       yield {

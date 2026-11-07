@@ -1,5 +1,10 @@
 /** Portable presentation resources, never concept identities or relationship semantics. */
-export const DEFAULT_SPHERE_DIAMETER = 0.2;
+export const DEFAULT_SPHERE_DIAMETER = 1;
+export const DEFAULT_NODE_CELL_SIZE = 1;
+/** Organizational footprint; independent of labels, visual assets and their sizes. */
+export function nodeFootprint(size = DEFAULT_NODE_CELL_SIZE) {
+  return { width: size, height: size, depth: size, sphere: false };
+}
 export type VisualAsset = {
   id: string;
   name: string;

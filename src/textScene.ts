@@ -1,3 +1,4 @@
+import { contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
 import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
 import { structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
@@ -11,7 +12,7 @@ import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { arrowLength, binderGap, operatorSize } from "./graph/binderGeometry";
-import { labelLines, labelSize } from "./graph/labels";
+import { arrangeExpansions, labelLines, labelSize } from "./graph/labels";
 import type { DisplayBinder } from "./graph/presentation";
 import type { SpatialNode } from "./graph/spatial";
 import { visualObject, disposeVisual } from "./visualScene";
@@ -43,7 +44,7 @@ const symbolStyle=(theme:WorkspaceSettings['appearance'],id:string,authored:stri
 };
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
-export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}) {
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}, contentOnly = false) {
   const lines = labelLines(value),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d")!;
@@ -55,7 +56,7 @@ export function textSprite(value: string, color: string, selected = false, node 
   const ctx = canvas.getContext("2d")!;
   const paint = (border: string, ink: string, glow: number) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
-    if (node) {
+    if (!contentOnly && node) {
       ctx.fillStyle = surface.background ?? (neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb");
       ctx.beginPath();
       ctx.roundRect(1, 1, canvas.width - 2, canvas.height - 2, 12);
@@ -68,7 +69,7 @@ export function textSprite(value: string, color: string, selected = false, node 
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-    } else {
+    } else if (!contentOnly) {
       ctx.fillStyle = surface.background ?? (neon ? "#04121bd9" : "#101927ee");
       ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=(surface.backgroundGlow??0)*10;
       ctx.globalAlpha = surface.opacity ?? 1;
@@ -136,7 +137,10 @@ type NodeItem = {
   hitIndices: number[];
   omnicSlot: boolean;
   group: THREE.Group;
+  presentation: THREE.Group;
   sprite: LabelMesh;
+  cell: LabelMesh;
+  slot: LabelMesh;
   anchor: THREE.Vector3;
   size: { width: number; height: number };
   text: LabelMesh;
@@ -173,10 +177,14 @@ export function buildTextScene(
   requestRender: () => void = () => {},
   selectedIds: ReadonlySet<string> = new Set(),
   theme: WorkspaceSettings["appearance"] = defaultSettings().appearance,
-  sphereDiameter = DEFAULT_SPHERE_DIAMETER,
+  expansion: ExpansionState = expansionState(),
+  names: "expanded" | "all" | "selection" = "expanded",
 ) {
+  const sphereDiameter = DEFAULT_SPHERE_DIAMETER;
+  const placementExpanded = (id:string) => contentExpanded(expansion,id,placements.get(id)?.collapsed === false);
   const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();
+  let hoveredId: string | null = null;
   const placements = new Map(doc.placements.map(p => [p.id, p]));
   const nodeHits: LabelMesh[] = [],
     binderHits: (THREE.Line | THREE.Mesh | THREE.Sprite)[] = [];
@@ -207,8 +215,17 @@ export function buildTextScene(
       glyphFont(theme, 'text.nodes'),
       glyphGlow(theme, 'text.nodes'),
       appearance?.color ?? glyphColor(theme, 'text.nodes', color),
+      {}, true,
     );
     text.material.opacity = style.opacity;
+    const cell: LabelMesh = new THREE.Mesh(new THREE.SphereGeometry(.5, 20, 14), new THREE.MeshPhongMaterial({color, transparent:true, opacity:style.opacity, shininess:35}));
+    cell.scale.setScalar(sphereDiameter);
+    const presentation = new THREE.Group(); group.add(presentation);
+    const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+    slot.scale.setScalar(sphereDiameter);
+    slot.userData.nodeId = node.id; slot.userData.visualProxy = true;
+    group.add(cell, slot);
     const hasVisual = !!(displayedVisual?.assetId || displayedVisual?.character);
     const footprint = visualFootprint(labelSize(node.label), displayedVisual, sphereDiameter);
     const visual = hasVisual ? visualObject(displayedVisual!, derivedAsset ? [derivedAsset] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity,textureOnly:effectsFor(theme,'symbols.nodes').effect==='electric-text' }, derivedAsset ? RENDER_BUDGET.omnicTextureEdge : 512) : undefined;
@@ -224,14 +241,15 @@ export function buildTextScene(
     outline.visible = selected; outline.userData.selected = selected;
     outline.renderOrder = 20;
     sprite.userData.hoverOutline = outline;
+    slot.userData.hoverOutline = outline;
     group.add(outline);
     sprite.userData.nodeId = node.id;
     sprite.userData.visualProxy = hasVisual;
     sprite.userData.baseOpacity = sprite.material.opacity;
     sprite.userData.baseColor = sprite.material.color.clone();
-    group.add(sprite);
-    if (sprite !== text) group.add(text);
-    if (visual) group.add(visual);
+    presentation.add(sprite);
+    if (sprite !== text) presentation.add(text);
+    if (visual) presentation.add(visual);
     content.add(group);
     const hitIndices = [nodeHits.length]; nodeHits.push(sprite);
     // Labels remain node targets when a sphere or visual proxy is the main body.
@@ -242,10 +260,12 @@ export function buildTextScene(
       text.userData.hoverOutline = outline;
       hitIndices.push(nodeHits.length); nodeHits.push(text);
     }
+    // Stable cell picking survives draft content swaps; content remains independently pickable.
+    nodeHits.push(slot);
     nodes.set(node.id, {
       hitIndices, omnicSlot: !!derivedAsset && omnicPreviews <= OMNIC_SCENE_BUDGET,
       group,
-      sprite,
+      sprite, cell, slot, presentation,
       anchor: group.position.clone(),
       size: labelSize(node.label),
       text, visual, visualSize: displayedVisual?.size ?? (hasVisual ? 1.4 : sphereDiameter), showText: !!node.label.trim() && displayedVisual?.showText !== false,
@@ -322,7 +342,7 @@ export function buildTextScene(
     const changed = draftNodes.size > 0;
     draftPlanId = undefined; draftPlan = []; draftBatch = undefined;
     for (const [item, entry] of draftNodes) {
-      for (const object of [entry.pending, entry.current, entry.proxy]) if (object) { item.group.remove(object); disposeVisual(object); }
+      for (const object of [entry.pending, entry.current, entry.proxy]) if (object) { item.presentation.remove(object); disposeVisual(object); }
       Object.assign(item, entry.original);
       item.sprite.visible=entry.spriteVisible;
       if(item.visual&&entry.visualVisible!==undefined)item.visual.visible=entry.visualVisible;
@@ -358,7 +378,7 @@ export function buildTextScene(
         const proxy = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
           new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) as LabelMesh;
         proxy.userData = { ...item.sprite.userData, visualProxy: true };
-        proxy.visible = false; item.group.add(proxy);
+        proxy.visible = false; item.presentation.add(proxy);
         entry = { original: { sprite: item.sprite, visual: item.visual, visualSize: item.visualSize,
           showText: item.showText, sphere: item.sphere, depth: item.depth },
           hits: item.hitIndices.map(index => nodeHits[index]), proxy, spriteVisible:item.sprite.visible, visualVisible:item.visual?.visible };
@@ -366,12 +386,12 @@ export function buildTextScene(
       }
       if (entry.url === asset.dataUrl) continue;
       entry.url = asset.dataUrl;
-      if (entry.pending) { item.group.remove(entry.pending); disposeVisual(entry.pending); }
+      if (entry.pending) { item.presentation.remove(entry.pending); disposeVisual(entry.pending); }
       const currentEntry = entry;
       const visual = visualObject({ assetId: asset.id }, [asset], () => new THREE.Group(), () => {
         if (draftNodes.get(item) !== currentEntry || currentEntry.pending !== visual || item.group.userData.disposed) return;
         const first = !currentEntry.current;
-        if (currentEntry.current) { item.group.remove(currentEntry.current); disposeVisual(currentEntry.current); }
+        if (currentEntry.current) { item.presentation.remove(currentEntry.current); disposeVisual(currentEntry.current); }
         currentEntry.current = visual; currentEntry.pending = undefined;
         if (currentEntry.original.sprite !== item.text) currentEntry.original.sprite.visible = false;
         if (currentEntry.original.visual) currentEntry.original.visual.visible = false;
@@ -389,7 +409,7 @@ export function buildTextScene(
       visual.visible = false;
       visual.scale.setScalar(item.visualSize);
       visual.position.copy(item.visual?.position ?? new THREE.Vector3());
-      currentEntry.pending = visual; item.group.add(visual);
+      currentEntry.pending = visual; item.presentation.add(visual);
       if (performance.now() - start >= RENDER_BUDGET.omnicDraftBatchMs) break;
     }
     return draftBatch.cursor < draftPlan.length;
@@ -404,7 +424,8 @@ export function buildTextScene(
       item.color = style.color; item.opacity = style.opacity * next.opacity;
       item.group.userData.glowIntensity = style.glow;
       item.text.userData.setTextStyle(style.color, override?.color ?? glyphColor(next, 'text.nodes', style.color), override?.glow ?? glyphGlow(next, 'text.nodes'));
-      item.text.userData.setSurfaceStyle(surfaceStyle(next, 'omnium.nodes.background', override?.color));
+      item.cell.material.color.set(style.color);
+      item.cell.material.opacity = item.opacity;
       item.text.material.opacity = item.opacity * Number(next.renderDefaults?.['text.nodes']?.opacity ?? 1);
       const ring=symbolStyle(next,'omnium.selection',override?.color,style.color);
       item.outline.material.color.set(ring.color);item.outline.userData.opacity=ring.opacity;item.outline.userData.glowIntensity=ring.glow;
@@ -453,6 +474,7 @@ export function buildTextScene(
       if (item.selected === next) continue;
       item.selected = next; item.outline.userData.selected = next; item.outline.visible = next;
       item.text.userData.setSelected(next);
+
     }
     for (const item of connectors) {
       const related = !primary || item.data.source === primary || item.data.target === primary;
@@ -467,30 +489,48 @@ export function buildTextScene(
     const unitsPerPixel = (point: THREE.Vector3) =>
       2 * Math.max(camera.near, depth(point)) * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV() / 2)) / Math.max(1, height);
     // Camera changes must never relocate nodes or keep their screen size constant.
-    // Flat visuals live in the world XY plane, alongside ordinary 3D assets.
+    // Presentations face the camera; their atomic anchors retain world coordinates.
     for (const item of nodes.values()) {
       item.group.position.copy(item.anchor);
       item.text.scale.set(item.size.width, item.size.height, 1);
       item.text.position.set(0, 0, 0);
       const front = depth(item.anchor) > camera.near;
-      item.text.visible = item.showText && front;
+      item.cell.visible = front; item.slot.visible = front;
+      const expanded = draftNodes.has(item) || hoveredId === item.sprite.userData.nodeId || placementExpanded(item.sprite.userData.nodeId);
+      const revealName = names === "all" || (names === "selection" && item.selected);
+      const projected = item.anchor.clone().project(camera);
+      item.presentation.visible = (expanded || revealName) && front && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1;
+      item.presentation.position.set(0,0,0);
+      item.presentation.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
+      item.text.visible = item.size.width > 0 && front;
       if (item.visual) {
-        const textHeight = item.showText ? item.size.height : 0, gap = item.showText ? 0.3 : 0;
+        const textHeight = item.size.height, gap = textHeight ? 0.3 : 0;
         item.visual.scale.setScalar(item.visualSize);
         item.visual.position.set(0, (textHeight + gap) / 2, 0);
-        item.visual.visible = front;
-        item.text.position.set(0, -(item.visualSize + gap) / 2, 0);
-        const footprint = visualFootprint(item.size, { character: "visual", size: item.visualSize, showText: item.showText });
+        item.visual.visible = expanded && front;
+        item.text.position.set(0, expanded ? -(item.visualSize + gap) / 2 : 0, 0);
+        const footprint = visualFootprint(item.size, { character: "visual", size: item.visualSize, showText: true });
         item.sprite.scale.set(footprint.width, footprint.height, item.depth);
       }
-      if (item.sphere) { item.sprite.scale.setScalar(item.visualSize); }
+      if (item.sphere) { item.sprite.scale.setScalar(item.visualSize); item.sprite.visible = false; }
       // Text and its picking surface are the same object for text-only nodes.
-      if (item.sprite !== item.text) item.sprite.visible = front;
+      if (item.sprite !== item.text && !item.sphere) item.sprite.visible = expanded && front;
+    }
+    const open = [...nodes].filter(([,item])=>item.presentation.visible);
+    const rects = open.map(([id,item])=>{
+      const p=item.anchor.clone().project(camera),units=unitsPerPixel(item.anchor);
+      const box=visualFootprint(item.size,item.visual?.visible?{character:"visual",size:item.visualSize,showText:true}:undefined,sphereDiameter);
+      return {id,x:(p.x+1)*width/2,y:(1-p.y)*height/2,width:box.width/units,height:box.height/units};
+    });
+    const positions=arrangeExpansions(rects,width,height);
+    const cameraRight=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion),cameraUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+    for(const rect of rects){
+      const item=nodes.get(rect.id)!,point=positions.get(rect.id)!,units=unitsPerPixel(item.anchor);
+      item.presentation.position.copy(cameraRight).multiplyScalar((point.x-rect.x)*units).addScaledVector(cameraUp,(rect.y-point.y)*units).applyQuaternion(item.group.quaternion.clone().invert());
     }
     const edge = (item: NodeItem, other: THREE.Vector3) => {
       const direction = other.clone().sub(item.group.position);
-      if (item.sphere) return item.group.position.clone().addScaledVector(direction.clone().normalize(), item.visualSize / 2);
-      const half = { x: item.sprite.scale.x / 2, y: item.sprite.scale.y / 2, z: item.depth / 2 };
+      const half = { x: sphereDiameter / 2, y: sphereDiameter / 2, z: sphereDiameter / 2 };
       let fraction = Infinity;
       for (const axis of ["x", "y", "z"] as const)
         if (Math.abs(direction[axis]) > 1e-8) fraction = Math.min(fraction, half[axis] / Math.abs(direction[axis]));
@@ -506,7 +546,7 @@ export function buildTextScene(
       const mid = start.clone().lerp(end, 0.5).addScaledVector(perpendicular, b.spread * 0.65);
       let path: THREE.Curve<THREE.Vector3>;
       if (from === to) {
-        const r = Math.max(from.sprite.scale.x, from.sprite.scale.y, binderGap(b.data));
+        const r = Math.max(from.slot.scale.x, from.slot.scale.y, binderGap(b.data));
         path = new THREE.CatmullRomCurve3([
           start.clone().addScaledVector(right, r / 2),
           start.clone().addScaledVector(right, r).addScaledVector(up, r),
@@ -553,15 +593,19 @@ export function buildTextScene(
     for (const item of nodes.values()) {
       const ring = item.outline;
       if (!ring.visible) continue;
-      const footprint = item.sprite.scale;
-      const radius = Math.max(0.65, Math.hypot(footprint.x, footprint.y) / 2 + 0.12);
+      const radius = sphereDiameter * .8;
       // Screen-facing interaction overlay; the represented structure keeps its world orientation.
       ring.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
       ring.scale.setScalar(radius * (item.selected ? 1 + pulse * 0.1 : 1));
       ring.material.opacity = item.opacity * Number(ring.userData.opacity??1) * (item.selected ? 0.45 + pulse * 0.4 : 0.45);
     }
   }
+  const setHovered = (id:string|null) => { if(hoveredId===id)return;hoveredId=id;requestRender(); };
+  const toggleExpansion = (id:string) => {
+    toggleContent(expansion,id,placements.get(id)?.collapsed === false);
+    requestRender();
+  };
   applyTheme(theme);
-  return { nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme, updateSelection,
+  return { setHovered, toggleExpansion, nodes, connectors, nodeHits, binderHits, update, animateSelection, applyTheme, updateSelection,
     applyOmnicDraft, omnicSlotsAvailable };
 }

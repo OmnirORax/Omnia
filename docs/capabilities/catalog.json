@@ -713,11 +713,15 @@
       "id": "graph.create",
       "title": "Create nodes, children, reuse identities and connect",
       "where": "Create menu, node Inspector and context actions; N / New child / Connect from selected.",
-      "behavior": "N resolves creation from the current focus/selection. Placements can share a canonical identity. Typed relationships, structural composition and visual nesting are distinct.",
+      "behavior": "N creates a node centered at the cursor over the atlas canvas, projected onto the camera-facing plane through the navigation target. Current focus/selection still chooses its parent; child coordinates are converted to parent-local XYZ. Explicit cursor and Create node here positions bypass packing and grid displacement. Invoking creation over UI retains contextual default placement. Shared document history, identity reuse and typed relationships remain unchanged.",
       "steps": [
         {
-          "do": "Select a node and press N, then select its child and press N again.",
-          "expect": "Creation follows the current context rather than a hardcoded parent."
+          "do": "Move the pointer over empty atlas canvas and press N. Select that node, move to another canvas point and press N again, including with a coarse Snap setting.",
+          "expect": "Each node appears centered under the pointer. The second remains a child of the selected node; grid/packing does not move the creation point."
+        },
+        {
+          "do": "Undo creation, redo it, then create through the toolbar while the pointer is over UI.",
+          "expect": "Undo/redo restores the node and exact position; toolbar creation uses its contextual default rather than a stale canvas location."
         },
         {
           "do": "Reuse an identity as another placement; rename the identity.",
@@ -731,7 +735,9 @@
       "reference": "docs/WORKER_ONBOARDING.md",
       "sources": [
         "src/App.tsx",
-        "src/graph/structural.ts"
+        "src/graph/structural.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/graph/layout3d.ts"
       ],
       "actions": [
         "selectAll",
@@ -740,11 +746,11 @@
         "newChild",
         "connect"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Projection uses the current view plane, not an arbitrary depth inferred from an object under the pointer. Exact creation can intentionally overlap existing cells. Native text entry still owns N. Cursor routing and visual placement await user browser acceptance.",
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "automated": "Exact root/child placement tests cover fractional XYZ, coarse snap, intentional overlap and retained parent/world coordinates. Full delivery checks recorded in PR."
       },
       "related": [
         "interface.targets"
@@ -752,18 +758,81 @@
       "gestures": []
     },
     {
+      "id": "graph.cells",
+      "title": "Atomic carriers and adaptive content expansions",
+      "where": "Atlas upper-right control stack → Names, directly beneath Focus context only → Expanded / All / Selection. Also Workspace → Settings → Spatial settings → Names, unless relocated through UI customization.",
+      "behavior": "Created nodes appear as uniform glowing atoms without square frames or permanent content. Unoccupied space stays empty. Hover reveals a node’s content; click retains it, and clicking again closes its retained expansion after hover leaves. Several expansions remain independent. Structurally expanded nodes reveal content by default; an explicit close overrides that default for this view session. Names → All reveals names across the visible atlas, and Selection reveals names for selected nodes, without opening every full visual. Expanded is the default. Open presentations face the camera and arrange together within the viewport while keeping original content sizes. Saved atom coordinates, IDs and parentage never change through hover, expansion or name alignment. Names view persists through existing settings/history; retained expansion overrides are transient per atlas session. Atom size is fixed independently of legacy saved diameter preferences and per-node visual sizes. Inspector visual-size editing remains available for actual images/glyphs/Omnic content, not blank atomic carriers. Uniform logical cells remain the content-independent packing footprint; Node cell size controls organization, and visible atom radius is fixed at 0.5 (diameter 1), with no atom-size control. Content/body appearance and existing selection, graph movement, document opening and double-click structural expansion retain their owners.",
+      "steps": [
+        {
+          "do": "Create a node with N on empty atlas space, then move the pointer away.",
+          "expect": "A small glowing atom remains at that exact point, with no square frame or permanently displayed name/content."
+        },
+        {
+          "do": "Hover the atom, click it and move away. Hover/click a second atom.",
+          "expect": "Hover reveals content. A click retains it, and both clicked nodes stay open independently."
+        },
+        {
+          "do": "Click an already retained atom and move away.",
+          "expect": "That presentation closes; other retained expansions stay open. Hover still offers a temporary preview."
+        },
+        {
+          "do": "In the upper-right atlas controls beneath Focus context only, choose Names → All; then choose Selection and change selected nodes.",
+          "expect": "All visible names, or selected names respectively, appear and arrange together. Bulk names do not open all glyphs/images/Omnic visuals."
+        },
+        {
+          "do": "Open several nearby presentations, pan/zoom, then compare node XYZ in Inspector.",
+          "expect": "Names/content adapt to the viewport and each other without resizing or changing the underlying coordinates."
+        },
+        {
+          "do": "Choose Names → Expanded, change it back to All, and reload.",
+          "expect": "The names setting persists. Click-retained expansion overrides reset with the atlas session; structural expansion remains authored separately."
+        },
+        {
+          "do": "Open Spatial settings and inspect a blank node; compare an image/glyph node.",
+          "expect": "Atoms are radius 0.5 with no atom-size editor. Content visuals retain their own size controls; logical cell size remains separate."
+        }
+      ],
+      "reference": "docs/WORKER_ONBOARDING.md",
+      "sources": [
+        "src/graph/assets.ts",
+        "src/graph/layout3d.ts",
+        "src/graph/presentation.ts",
+        "src/graph/binderGeometry.ts",
+        "src/graph/placement.function.ts",
+        "src/textScene.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/appearance/graphEffects.ts",
+        "src/graph/nodePresentation.ts",
+        "src/graph/labels.ts",
+        "src/ui/default-template.json",
+        "src/ui/search.ts"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Implemented; browser verification pending",
+      "limits": "No unused white lattice or square frames are drawn. One logical cell per node remains for organization; no automatic relocation, content fitting or shrinking. A bounded spatially indexed presentation layout handles ordinary visible expansions; content larger than the viewport or too many expansions can still overlap. No search/filter/contextual summoning system is added here. Name mode and view-local expansion are separate from authored child visibility. Browser interaction, dense-view performance and visual acceptance remain user-tested.",
+      "verification": {
+        "browser": "Not run; user acceptance pending",
+        "automated": "Expansion-state tests cover independent retention, close/reopen and structural defaults. Layout regressions cover nonoverlap, viewport bounds, determinism and unchanged source sizes/anchors. Historical settings and name-view persistence checked; full model/build/backend checks recorded in delivery. Fixed atom diameter is enforced by the renderer constant; historical diameter preferences remain stored but unused."
+      },
+      "related": [
+        "graph.create",
+        "graph.layout"
+      ]
+    },
+    {
       "id": "graph.layout",
       "title": "Expansion, movement, axis constraints and compaction",
       "where": "Node selection; expansion controls; spatial settings and compaction actions.",
-      "behavior": "Expansion shows charted structure. Arrow-key movement previews per frame and commits once on release. Axis constraints and graph compaction affect placement, not canonical identity.",
+      "behavior": "Expansion shows charted structure. Arrow movement advances by whole logical node cells (default 1 world unit), in camera-relative axes. Held arrows repeat discrete steps without fractional glide or a catch-up backlog, preview live and commit once on release. Both assigned arrow gestures and explicit nudge actions use Node cell size independently of drag Snap and visible atom diameter. Exact nudge commits preserve their requested coordinates, including intentional overlap, rather than packing to a nearby point. Axis constraints and graph compaction affect placement, not canonical identity.",
       "steps": [
         {
           "do": "Create a parent/child pair and toggle the selected node and its whole subtree.",
           "expect": "Visibility expands/collapses at the selected scope."
         },
         {
-          "do": "Hold a movement arrow, release it, then Undo.",
-          "expect": "Movement stops on release and reverses as one gesture without a queued backlog."
+          "do": "Set Node cell size to 1, choose a different drag Snap, select a node and press/release an arrow. Hold an arrow, release, then Undo.",
+          "expect": "A tap moves exactly one logical cell; a hold advances by whole cells. Release commits once and Undo restores the start. Drag Snap does not quantize the result; the visible dot stays small."
         },
         {
           "do": "Compact the selected subsystem.",
@@ -790,11 +859,11 @@
         "compactFrame",
         "compactAll"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Arrow steps are camera-relative, so rotated cameras can produce fractional world XYZ while each step is a whole cell in the displayed axes. Exact nudges may overlap other atoms. Dense-view performance and browser interaction acceptance remain user-tested.",
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "automated": "Held-nudge tests verify discrete whole steps, bounded stalled-frame behavior, single commit, cancellation and stale-frame protection. Type/build/backend and full model checks recorded in delivery."
       },
       "related": [
         "interface.targets"

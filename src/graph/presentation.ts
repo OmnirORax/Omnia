@@ -1,4 +1,3 @@
-import { structuralVisual } from "../omnic/presentation.ts";
 import {
   validateDocument,
   type Document,
@@ -6,8 +5,7 @@ import {
   type XYZ,
 } from "./structural.ts";
 import { ensureBinderSpacing, DEFAULT_SPATIAL_SETTINGS, compactLayout, localPosition, type SpatialSettings } from "./layout3d.ts";
-import { labelSize } from "./labels.ts";
-import { visualFootprint } from "./assets.ts";
+import { nodeFootprint } from "./assets.ts";
 
 /** Parent-before-child layout. It reads composition but only writes local coordinates. */
 export function hierarchyLayout(doc: Document, settings: SpatialSettings = DEFAULT_SPATIAL_SETTINGS): Document {
@@ -44,14 +42,13 @@ export function hierarchyLayout(doc: Document, settings: SpatialSettings = DEFAU
       .filter((p) => parentOf.get(p.id) === id)
       .sort((a, b) => a.id.localeCompare(b.id));
   const widths = new Map<string, number>();
-  const size = (id: string) =>
-    visualFootprint(labelSize(next.entities.find((e) => e.id === byId.get(id)!.entityId)!.label), structuralVisual(next, byId.get(id)!), settings.sphereDiameter);
+  const cell = nodeFootprint(settings.nodeCellSize);
   const width = (id: string): number => {
     const cached = widths.get(id);
     if (cached) return cached;
     const kids = byId.get(id)!.collapsed ? [] : children(id);
     const result = Math.max(
-      size(id).width + 1.4,
+      cell.width + 1.4,
       kids.reduce((sum, c) => sum + width(c.id), 0),
     );
     widths.set(id, result);
@@ -67,7 +64,7 @@ export function hierarchyLayout(doc: Document, settings: SpatialSettings = DEFAU
       place(
         child.id,
         left + width(child.id) / 2,
-        y - Math.max(3, (size(id).height + size(child.id).height) / 2 + 1.8),
+        y - Math.max(3, cell.height + 1.8),
       );
       left += width(child.id);
     }
@@ -156,12 +153,10 @@ export function flowLayout(doc: Document, ordering: LayoutView["ordering"], sett
     rows.set(y, [...(rows.get(y) ?? []), p]);
   }
   const targets = new Map<string, XYZ>();
-  const rowHeight = Math.max(3.5, ...next.entities.map((e) => labelSize(e.label).height + 1.8));
+  const rowHeight = Math.max(3.5, nodeFootprint(settings.nodeCellSize).height + 1.8);
   for (const [y, row] of rows) {
     row.sort((a, b) => a.id.localeCompare(b.id));
-    const widths = row.map(
-      (p) => labelSize(next.entities.find((e) => e.id === p.entityId)!.label).width + 1.4,
-    );
+    const widths = row.map(() => nodeFootprint(settings.nodeCellSize).width + 1.4);
     let left = -widths.reduce((a, b) => a + b, 0) / 2;
     row.forEach((p, i) => {
       targets.set(p.id, { x: left + widths[i] / 2, y: -y * rowHeight, z: 0 });
