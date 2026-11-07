@@ -814,3 +814,5 @@ camera target at a node without mounting/moving it; cancel an unparked drive. Re
 the selection surface optional modifier-click owner, capture press hit, retain
 Ctrl-drag marquee and fresh geometry validation on release. No new global listener.
 The user chose preview testing for this compass follow-up; no new browser run authorized.
+
+Camera follow retired: node mounting, parking, empty clicks and Ctrl-click navigator positioning must leave camera position/target unchanged. Only explicit navigation/framing actions move the view. Pointer grab rebasing remains; no click writes camera history. This supersedes earlier follow semantics.

@@ -205,3 +205,5 @@ No page errors were reported. Disposable synthetic data, local server and blocke
 external requests only. Opt-in: OMNIA_URL=http://127.0.0.1:5182 node
 tests/world-navigator.browser.mjs. This is not standing browser-suite permission
 or full workspace/undo/reload/performance acceptance.
+
+Camera follow retired: node mounting, parking, empty clicks and Ctrl-click navigator positioning must leave camera position/target unchanged. Only explicit navigation/framing actions move the view. Pointer grab rebasing remains; no click writes camera history. This supersedes earlier follow semantics.

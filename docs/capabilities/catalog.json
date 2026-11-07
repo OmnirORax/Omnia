@@ -1067,7 +1067,7 @@
       "id": "camera.navigation",
       "title": "Camera versus object rotation, trackball and axis lock",
       "where": "World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings.",
-      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator and translate camera plus target together without fitting, rotating or changing zoom. Preview motion stays in the fixed current view until the next mount/park click.",
+      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera.",
       "steps": [
         {
           "do": "Drag near a node center, then tangentially near its rim.",
@@ -1080,6 +1080,10 @@
         {
           "do": "Hold Ctrl and begin horizontal motion, adding vertical jitter.",
           "expect": "The initial axis stays locked until Ctrl is released."
+        },
+        {
+          "do": "Click a node, park it, click empty space and Ctrl-click another node. Then use Frame selected front-on.",
+          "expect": "Clicks leave camera position and target unchanged. Only the explicit framing action moves the camera."
         }
       ],
       "reference": "docs/WORLD_NAVIGATION.md",
@@ -3803,7 +3807,7 @@
       "id": "world.navigator",
       "title": "World navigator, compass, positioning and click-to-drive nodes",
       "where": "Omnium world canvas → move mouse → left-click a node to drive it → mouse and Up/Down → click an empty slot to park; Esc cancels. Ctrl/Meta-click a node to position the navigator without mounting.",
-      "behavior": "A transient cyan navigator ring with centre/diameter and single end-to-end cyan orientation line resolves mouse XY on its own oriented local plane. Its movement frame matches camera orientation, initializing at the camera target. Mouse controls camera-facing local XY; positive Z is toward the camera and negative Z away. The outer ring faces the camera; a single cyan diameter projects world X through the inverse camera rotation. It remains full-length, retaining the last direction when exactly end-on; no XYZ triad is shown. Independent orientation controls are deferred. Up moves forward/away (negative Z); Down moves backward/toward (positive Z). Both step local Z by one lattice pitch using the existing bounded held scheduler. Left-click selects and mounts a node, translating camera/target without changing viewing angle or zoom and rebasing the grab offset. Mouse/depth preview the branch; click empty space parks/unmounts through one normal document transaction. Clicking another node parks the old one at its last valid preview and switches control. The driven root does not mask parking targets; descendants and other nodes retain normal detection. Ordinary projected node detection remains; no depth-only selection rule is added. Invalid destinations keep last valid geometry and mark the navigator red; invalid empty parking rejects. Esc/capture/document-context replacement cancels. Creation uses navigator position with existing nearest-free placement. The line, ring and centre inherit the existing Omnium selection/focus appearance. Its camera-local grab offset is retained after following and rotates with the camera; selected-node appearance/orientation is not rewritten. Creation controls can use its last world position while the pointer is over UI; plain creation, existing-object insertion, Omnic drafts/copies and library placement share parent-local lattice conversion. Before first world interaction they retain contextual defaults. Ctrl/Meta-click positions the navigator and camera target at a node without mounting or moving it, selecting the node as context. Any unparked drive is canceled without saving. Its pointer offset is rebased after camera follow. Ctrl-drag retains marquee; Shift-click retains range; other surfaces keep their membership behavior. This uses the shared surface modifier-click owner and captured press target.",
+      "behavior": "A transient cyan navigator ring with centre/diameter and single end-to-end cyan orientation line resolves mouse XY on its own oriented local plane. Its movement frame matches camera orientation, initializing at the camera target. Mouse controls camera-facing local XY; positive Z is toward the camera and negative Z away. The outer ring faces the camera; a single cyan diameter projects world X through the inverse camera rotation. It remains full-length, retaining the last direction when exactly end-on; no XYZ triad is shown. Independent orientation controls are deferred. Up moves forward/away (negative Z); Down moves backward/toward (positive Z). Both step local Z by one lattice pitch using the existing bounded held scheduler. Left-click selects and mounts a node, keeping the camera fixed and rebasing the grab offset. Mouse/depth preview the branch; click empty space parks/unmounts through one normal document transaction. Clicking another node parks the old one at its last valid preview and switches control. The driven root does not mask parking targets; descendants and other nodes retain normal detection. Ordinary projected node detection remains; no depth-only selection rule is added. Invalid destinations keep last valid geometry and mark the navigator red; invalid empty parking rejects. Esc/capture/document-context replacement cancels. Creation uses navigator position with existing nearest-free placement. The line, ring and centre inherit the existing Omnium selection/focus appearance. Its camera-local grab offset is retained during positioning and rotates with the camera; selected-node appearance/orientation is not rewritten. Creation controls can use its last world position while the pointer is over UI; plain creation, existing-object insertion, Omnic drafts/copies and library placement share parent-local lattice conversion. Before first world interaction they retain contextual defaults. Ctrl/Meta-click positions the navigator at a node without mounting or moving it, selecting the node as context. Any unparked drive is canceled without saving. Its pointer offset is rebased without moving the camera. Ctrl-drag retains marquee; Shift-click retains range; other surfaces keep their membership behavior. This uses the shared surface modifier-click owner and captured press target. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera.",
       "steps": [
         {
           "do": "Move the pointer over the world and press Up/Down, then hold briefly. Rotate the camera and move the pointer again.",
@@ -3811,11 +3815,11 @@
         },
         {
           "do": "Ctrl/Meta-click an existing node, then move the mouse and press Up/Down. Ctrl-drag across multiple nodes.",
-          "expect": "The navigator and camera target move to the clicked node without mounting or changing its saved position. Subsequent movement affects only the navigator. Ctrl-drag still selects a marquee. An unparked drive is canceled rather than saved."
+          "expect": "The navigator moves to the clicked node without mounting or changing its saved position. Subsequent movement affects only the navigator. Ctrl-drag still selects a marquee. An unparked drive is canceled rather than saved."
         },
         {
           "do": "Left-click a node, move the pointer and step depth, then click an empty slot. Undo once.",
-          "expect": "The node becomes the driven object and camera follows without fitting/rotating. Its branch previews without saving. Parking commits once; Undo restores the node/branch through document history."
+          "expect": "The node becomes the driven object and camera stays fixed. Its branch previews without saving. Parking commits once; Undo restores the node/branch through document history."
         },
         {
           "do": "Drive toward an occupied or hidden-reserved slot, try parking, then press Esc.",
@@ -3828,6 +3832,10 @@
         {
           "do": "Type arrows in a text field, use another UI surface, blur the tab, and return to the world.",
           "expect": "Navigator depth does not take text/UI input. Held motion stops on lost ownership and never catches up queued steps. The transient navigator is not a saved entity."
+        },
+        {
+          "do": "Click a node, park it, click empty space and Ctrl-click another node. Then use Frame selected front-on.",
+          "expect": "Clicks leave camera position and target unchanged. Only the explicit framing action moves the camera."
         }
       ],
       "reference": "docs/WORLD_NAVIGATION.md",

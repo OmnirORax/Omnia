@@ -1,5 +1,5 @@
 import { brightHex } from "./appearance/resolve";
-import { createWorldNavigator, followNavigator } from "./navigation/worldNavigator";
+import { createWorldNavigator } from "./navigation/worldNavigator";
 import { createNavigatorDrive } from "./navigation/navigatorDrive";
 import { createWorldNavigatorMarker } from "./worldNavigatorMarker";
 import { useUITracked } from "./ui/context";
@@ -494,7 +494,7 @@ export default function SpatialWorkspace(props: Props) {
         if(mode!=='toggle'||!id)return false;
         try{
           cancelDrive();const point=latticeWorld(callbacks.current.document,id,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),world=new THREE.Vector3(point.x,point.y,point.z).multiplyScalar(scale);
-          navigator.initialize(world);navigatorDriving.current=false;navigatorVisible=true;relocateCamera(world);rebaseNavigatorPointer({clientX:pointer.x,clientY:pointer.y});callbacks.current.onNodeSelect(id);setFeedback('Navigator positioned · node is not mounted');
+          navigator.initialize(world);navigatorDriving.current=false;navigatorVisible=true;positionNavigator(world);rebaseNavigatorPointer({clientX:pointer.x,clientY:pointer.y});callbacks.current.onNodeSelect(id);setFeedback('Navigator positioned · node is not mounted');
         }catch(error){setFeedback(error instanceof Error?error.message:String(error));}
         return true;
       },
@@ -521,14 +521,13 @@ export default function SpatialWorkspace(props: Props) {
       if(!navigator.initialized)updateNavigator(event);
       return asXYZ(navigator.position.clone().multiplyScalar(1/latticeScale(callbacks.current.settings.spatial.latticeScale)));
     };
-    const relocateCamera=(point:THREE.Vector3)=>{
-      stopAnimation();nativeBefore=null;const before=readView();cameraHistory.push({position:camera.position.clone(),target:controls.target.clone(),up:camera.up.clone(),contextIds:callbacks.current.focusContextIds});
-      navigator.position.copy(point);followNavigator(camera,controls.target,point);controls.update();recordView(before);requestRender();
+    const positionNavigator=(point:THREE.Vector3)=>{
+      navigator.initialize(point);navigator.position.copy(point);navigatorVisible=true;requestRender();
     };
     const rebaseNavigatorPointer=(event:Pick<PointerEvent,'clientX'|'clientY'>)=>{aim(event);const point=navigator.project(raycaster.ray);navigatorOffset.copy(point?navigator.position.clone().sub(point).applyQuaternion(navigator.orientation.clone().invert()):new THREE.Vector3());navigatorOffset.z=0;};
     const mountNode=(id:string,event:Pick<PointerEvent,'clientX'|'clientY'>,doc=callbacks.current.document)=>{
       const point=drive.begin(doc,id,callbacks.current.settings.spatial.nodeCellSize,callbacks.current.settings.spatial.latticeScale);
-      navigator.initialize(point);navigatorDriving.current=true;navigatorDriveValid=true;setFeedback("Driving selected node · click an empty slot to park · Esc cancels");relocateCamera(point);rebaseNavigatorPointer(event);controls.enabled=false;callbacks.current.onNodeSelect(id);requestRender();
+      navigator.initialize(point);navigatorDriving.current=true;navigatorDriveValid=true;setFeedback("Driving selected node · click an empty slot to park · Esc cancels");positionNavigator(point);rebaseNavigatorPointer(event);controls.enabled=false;callbacks.current.onNodeSelect(id);requestRender();
     };
     const cancelDrive=()=>{if(!drive.active)return false;props.heldNudges.stop();const origin=drive.origin;if(origin)navigator.position.set(origin.x,origin.y,origin.z);drive.cancel();setFeedback("");navigatorDriving.current=false;navigatorOffset.set(0,0,0);controls.enabled=!uiPointerActive;requestRender();return true;};
     stateRef.current!.cancelNavigatorDrive=cancelDrive;
@@ -818,8 +817,8 @@ export default function SpatialWorkspace(props: Props) {
             if(drive.active){
               const parkedPoint=drive.position;const doc=drive.park(!!press.id);if(!doc){setFeedback('Choose a free slot before parking. Esc cancels the drive.');return;}
               navigatorDriving.current=false;setFeedback("");controls.enabled=!uiPointerActive;if(parkedPoint)navigator.position.set(parkedPoint.x,parkedPoint.y,parkedPoint.z);
-              if(press.id)mountNode(press.id,event,doc);else{relocateCamera(navigator.position.clone());navigatorOffset.set(0,0,0);}
-            }else if(press.id)mountNode(press.id,event);else{relocateCamera(press.point);navigatorOffset.set(0,0,0);}
+              if(press.id)mountNode(press.id,event,doc);else{positionNavigator(navigator.position.clone());navigatorOffset.set(0,0,0);}
+            }else if(press.id)mountNode(press.id,event);else{positionNavigator(press.point);navigatorOffset.set(0,0,0);}
           }catch(error){setFeedback(error instanceof Error?error.message:String(error));cancelDrive();}
           return;
         }
