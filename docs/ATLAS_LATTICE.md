@@ -64,8 +64,14 @@ precision coordinates or GPU/browser acceptance is claimed. Very small scales
 can become invisible or unreliable; this is an experiment to identify those
 boundaries, not a promise that all positive JavaScript numbers render correctly.
 
-**Empty lattice cells** draws at most 625 vacant hollow O's in one instanced draw,
-in a nearby lattice-aligned slice through the camera target. The slice chooses
+**Empty lattice cells** spans the camera viewport in a lattice-aligned slice
+through the camera target. Its extent follows zoom, aspect, panning and rotation
+by intersecting the slice with the camera frustum. One instanced draw holds at
+most 16,384 markers. At dense overview scales, power-of-two sampling of real
+world-anchored cells covers the full span instead of cropping a central patch;
+marker diameter remains one true cell. Unsampled empty cells remain available
+for creation. The render owner updates on camera/projection changes, including
+resize, and reuses unchanged geometry. The slice chooses
 the closest fixed lattice orientation to the camera. Occupied cells, including
 filtered-out nodes, have no empty marker. The field follows panning and is a
 bounded creation aid, not a full infinite or fully drawn 3D volume. Aim at an O

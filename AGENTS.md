@@ -746,3 +746,9 @@ explicit transient open state for every binder kind. Source selection, hover,
 Names and structural expansion alone must not expose outgoing relations. Hide
 all line/marker/text/hit objects together; do not merely dim unrelated binders.
 Reuse nodePresentation expansion state; no saved graph mutation for visibility.
+
+Empty lattice field span follows the viewport/frustum, not a fixed cell radius.
+Reuse the shared render lifecycle for zoom/resize updates and cached camera state.
+Bound overview work with world-anchored sampling of real cells, never enlarged
+fake cells or dense world allocation. Preserve hidden occupancy and creation slice;
+no saved-data or coordinate changes. See docs/ATLAS_LATTICE.md for sampling limits.

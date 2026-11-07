@@ -145,6 +145,7 @@ export default function SpatialWorkspace(props: Props) {
   const documentEntity = doc.entities.find(e => e.id === doc.placements.find(p => p.id === documentNodeId)?.entityId);
   useEffect(() => { stateRef.current?.requestRender(); }, [documentNodeId]);
   const stateRef = useRef<SceneState | null>(null);
+  const latticeFieldRef = useRef<ReturnType<typeof createLatticeField> | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = useMemo(() => {
     const graph=projectSpatial(atlas),index=prepareLattice(doc,settings.spatial.nodeCellSize),scale=latticeScale(settings.spatial.latticeScale);
@@ -256,6 +257,7 @@ export default function SpatialWorkspace(props: Props) {
         const selected = textScene.current?.nodes.get(callbacks.current.selectedId ?? "")?.anchor ?? worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
         if (selectedBackground || hierarchyBackground !== null) applyBackgroundFeedback();
+        latticeFieldRef.current?.update(controls.target,camera);
         appearance.render();
       });
     };
@@ -824,10 +826,8 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(()=>{
     const state=stateRef.current;if(!state||!ready||!settings.spatial.showVacantCells)return;
     const field=createLatticeField(doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale);
-    state.scene.add(field.object);
-    const update=()=>{field.update(state.controls.target,state.camera.quaternion);state.requestRender();};
-    update();state.controls.addEventListener('change',update);
-    return ()=>{state.controls.removeEventListener('change',update);state.scene.remove(field.object);field.dispose();state.requestRender();};
+    state.scene.add(field.object); latticeFieldRef.current=field; state.requestRender();
+    return ()=>{latticeFieldRef.current=null;state.scene.remove(field.object);field.dispose();state.requestRender();};
   },[ready,doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale,settings.spatial.showVacantCells]);
 
   const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.nodeCellSize, settings.spatial.latticeScale, settings.spatial.nodeNames,

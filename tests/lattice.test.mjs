@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {emptyDocument,validateDocument} from '../src/graph/structural.ts';
 import {worldPositions} from '../src/graph/coordinates.ts';
 import {prepareLattice,cellAt,cellPoint,nearestCell,latticeCreatePoint,latticeMove,resolveLatticePoint,reconcileLattice,vacantCells} from '../src/graph/lattice.ts';
-import {createLatticeField,latticeFrame} from '../src/latticeField.ts';
+import {createLatticeField,latticeFrame,LATTICE_FIELD_CAPACITY} from '../src/latticeField.ts';
 import {createPlacement,DEFAULT_SPATIAL_SETTINGS} from '../src/graph/layout3d.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {switchLayoutView} from '../src/graph/presentation.ts';
@@ -69,8 +69,8 @@ test('scale is independent of logical addresses and content; tiny positive scale
 });
 test('empty field is bounded instanced display data; it omits occupied cells and follows a fixed lattice slice',()=>{
  const doc=fixture([point(0),point(1)]),before=JSON.stringify(doc),field=createLatticeField(doc);
- const camera=new THREE.Quaternion();field.update(new THREE.Vector3(),camera);
- assert.ok(field.object.isInstancedMesh);assert.equal(field.object.count,623);
+ const camera=new THREE.PerspectiveCamera(60,1,.1,1000);camera.position.z=10;camera.lookAt(0,0,0);field.update(new THREE.Vector3(),camera);
+ assert.ok(field.object.isInstancedMesh);assert.ok(field.object.count>0&&field.object.count<=LATTICE_FIELD_CAPACITY);
  assert.equal(vacantCells(doc,point(0)).length,623);assert.equal(JSON.stringify(doc),before);
  const matrix=new THREE.Matrix4();for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix);assert.ok(!(p.x===0&&p.y===0)&&!(p.x===1&&p.y===0));}
  field.dispose();
@@ -109,8 +109,8 @@ test('recovery metadata roundtrips and an exhausted view budget rejects before s
 });
 
 test('the empty field hides safely outside exact address range and can recover after camera movement',()=>{
- const field=createLatticeField(fixture([]));const q=new THREE.Quaternion();field.update(new THREE.Vector3(1e30,0,0),q);assert.equal(field.object.count,0);
- field.update(new THREE.Vector3(),q);assert.equal(field.object.count,625);field.dispose();
+ const field=createLatticeField(fixture([]));const q=new THREE.PerspectiveCamera(60,1,.1,1000);q.position.z=10;q.lookAt(0,0,0);field.update(new THREE.Vector3(1e30,0,0),q);assert.equal(field.object.count,0);
+ field.update(new THREE.Vector3(),q);assert.ok(field.object.count>0&&field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
 });
 
 test('layout previews use the same fixed occupancy and reject duplicates and hidden obstacles',async()=>{
@@ -130,4 +130,14 @@ test('navigation adapts displayed coordinates and prepares layout constraints on
  const event={pointerId:1,button:0,clientX:0,clientY:0};assert.equal(gesture.begin(event,{...NAV_DEFAULTS,mode:'layout',pivot:'selection',axis:'z'}),true);
  assert.equal(scene.children[0].position.x,.2);gesture.move({...event,clientX:80});gesture.move({...event,clientX:120});gesture.finish();
  assert.equal(prepared,1);assert.equal(committed,0);assert.equal(anchor.x,.2);gesture.dispose();
+});
+
+test('vacant lattice span follows zoom and aspect without changing real cell size',()=>{
+ const field=createLatticeField(fixture([])),target=new THREE.Vector3(),camera=new THREE.PerspectiveCamera(60,1,.1,10000),matrix=new THREE.Matrix4();
+ const measure=()=>{field.update(target,camera);let x=0,y=0;for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix),scale=new THREE.Vector3().setFromMatrixScale(matrix);assert.ok(Math.abs(scale.x-1)<1e-6);assert.equal(p.x,Math.round(p.x));x=Math.max(x,Math.abs(p.x));y=Math.max(y,Math.abs(p.y));}return {x,y,count:field.object.count};};
+ camera.position.z=5;camera.lookAt(target);const near=measure();
+ camera.position.z=50;const far=measure();assert.ok(far.x>near.x&&far.y>near.y);assert.ok(far.count>near.count);
+ camera.aspect=2;camera.updateProjectionMatrix();const wide=measure();assert.ok(wide.x>far.x);assert.equal(wide.y,far.y);
+ camera.position.z=1000;const overview=measure();assert.ok(overview.x>wide.x);assert.ok(overview.count<=LATTICE_FIELD_CAPACITY);
+ camera.position.set(10,12,14);camera.lookAt(target);assert.ok(measure().count>0);field.dispose();
 });
