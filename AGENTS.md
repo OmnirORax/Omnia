@@ -832,3 +832,5 @@ Full-viewport world: .workbench > .workspace > .canvas is absolute inset 0 again
 Default world UI homes read --world-ui-* insets published by the existing DockWorkspace floating allocation. Only HUD/selection/navigation UI offsets use them; canvas dimensions, pointer projection and world rendering remain viewport-wide. Reuse its measured allocation/observer, never a second sidebar-size listener or hardcoded sidebar width.
 
 Native sidebar clearance is independent of explicit edge-dock activation. DockWorkspace uses clearNativeSidebar for UI/HUD allocation in both modes, bounded to the available area; do not reserve native sidebar space only when geometry.active. The full world host is unaffected.
+
+Contrasting-rim trial rejected by user: restore the smooth shared bubble surface, preserving translucency controls, preview parity and sidebar/HUD fixes. Do not reintroduce the screen-derivative light/dark contour. Busy-background readability remains unresolved; discuss the next direction before another styling experiment.

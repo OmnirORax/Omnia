@@ -137,3 +137,5 @@ Paint preview/saved carrier parity: use atomicCarrier geometry/material for both
 Sphere translucency is a shared numeric property on omnium.nodes.body (MS → Visuals). Range 0–1, absent default .82, independent of opacity. Both saved and preview carriers read renderDefaults; atomicCarrier owns material alpha and live uniform updates. Use existing targeting sets/locks/controller history, not a separate slider or graph field.
 
 Carrier visibility trial: shared atomicCarrier shader adds a thin neutral light outer/dark inner rim, measured using screen derivatives of sphere facing. It strengthens edge alpha while respecting authored opacity and full translucency, retaining coloured translucent centres. Saved and preview materials share it. No background dimming, extra render pass or saved fields; visual acceptance remains user-owned.
+
+Contrasting-rim trial rejected by user: restore the smooth shared bubble surface, preserving translucency controls, preview parity and sidebar/HUD fixes. Do not reintroduce the screen-derivative light/dark contour. Busy-background readability remains unresolved; discuss the next direction before another styling experiment.
