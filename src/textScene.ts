@@ -222,7 +222,7 @@ export function buildTextScene(
       {}, true,
     );
     text.material.opacity = style.opacity;
-    const cell: LabelMesh = new THREE.Mesh(new THREE.RingGeometry(.4,.5,32), new THREE.MeshBasicMaterial({color, transparent:true, opacity:style.opacity, side:THREE.DoubleSide}));
+    const cell: LabelMesh = new THREE.Mesh(new THREE.SphereGeometry(.5,24,16), new THREE.MeshPhongMaterial({color, transparent:true, opacity:style.opacity*.28, depthWrite:false}));
     cell.scale.setScalar(sphereDiameter);
     const presentation = new THREE.Group(); group.add(presentation);
     const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
@@ -431,7 +431,7 @@ export function buildTextScene(
       item.group.userData.glowIntensity = style.glow;
       item.text.userData.setTextStyle(style.color, override?.color ?? glyphColor(next, 'text.nodes', style.color), override?.glow ?? glyphGlow(next, 'text.nodes'));
       item.cell.material.color.set(style.color);
-      item.cell.material.opacity = item.opacity;
+      item.cell.material.opacity = item.opacity*.28;
       item.text.material.opacity = item.opacity * Number(next.renderDefaults?.['text.nodes']?.opacity ?? 1);
       const ring=symbolStyle(next,'omnium.selection',override?.color,style.color);
       item.outline.material.color.set(ring.color);item.outline.userData.opacity=ring.opacity;item.outline.userData.glowIntensity=ring.glow;
@@ -494,8 +494,7 @@ export function buildTextScene(
     // Presentations face the camera; their atomic anchors retain world coordinates.
     for (const item of nodes.values()) {
       item.group.position.copy(item.anchor);
-      item.cell.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
-      item.outline.quaternion.copy(item.cell.quaternion);
+      item.outline.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
       item.text.scale.set(item.size.width, item.size.height, 1);
       item.text.position.set(0, 0, 0);
       const front = depth(item.anchor) > camera.near;
