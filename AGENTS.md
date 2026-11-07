@@ -704,3 +704,13 @@ saving/reload without Undo. Use residentHome's shipped/native-home resolution an
 the existing UI transaction; preserve styling, settings, identities and unrelated
 organization. Unknown custom homes cannot be guessed. Local frame arrangement
 cleanup and whole-layout reset remain separate actions.
+
+
+Atlas lattice (2026-11-07): one sparse occupancy field includes hidden/filtered
+placements across all parents. Use graph/lattice for safe-integer addresses,
+nearest-free creation, fixed-axis whole-cell movement and commit reconciliation.
+Scale changes rendering, not stored coordinates or independently sized content.
+Keep old coordinates read-only on load; first geometry alignment preserves an
+existing-format protected recovery layout view. Read docs/ATLAS_LATTICE.md before
+changing atlas placement, scale, empty-field rendering or recovery. This atlas
+rule does not impose a lattice on Omnic construction modes.

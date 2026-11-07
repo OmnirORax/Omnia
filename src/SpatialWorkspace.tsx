@@ -1,3 +1,5 @@
+import { prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
+import { createLatticeField, latticeFrame } from "./latticeField";
 import { expansionState } from "./graph/nodePresentation";
 import {cursorSample} from './ui/cursorPosition';
 import { selectionSurfaces } from "./appearance/selectionSurfaces";
@@ -35,12 +37,11 @@ import type { AtomnicInteraction } from './omnic/atomnicInteraction';
 import type { ActionId, WorkspaceSettings } from "./workspaceActions";
 import type { Document } from "./graph/structural";
 import { chartedBinders } from "./graph/presentation";
-import { occupiedRadii, worldPositions } from "./graph/layout3d";
 import { buildTextScene, type LabelMesh, type ColorPreview, type TextScene } from "./textScene";
 import { CameraGuide, DEFAULT_CAMERA_FOV, DEFAULT_CAMERA_POSITION, updateCameraGuide } from "./CameraGuide";
 import { createSceneAppearance } from "./sceneAppearance";
 import { labelSize } from "./graph/labels";
-import { DEFAULT_NODE_CELL_SIZE, DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./graph/assets";
+import { DEFAULT_SPHERE_DIAMETER, visualFootprint } from "./graph/assets";
 import { NODE_OPTIONS, type projectVariants } from "./graph/variants";
 import { nodeClicks } from "./nodeClicks";
 import { subtreeGesture } from "./workspaceActions";
@@ -91,13 +92,14 @@ type Props = {
   onSubtreeClick: (id: string) => void;
   onBinderSelect: (id: string, kind: "composition" | "relationship" | "variant" | "visual", point: { x: number; y: number }) => void;
   onMove: (id: string, local: XYZ, exact?: boolean) => void;
-  resolveMove: (id: string, local: XYZ) => XYZ;
+  resolveMove: (id: string, local: XYZ, exact?: boolean) => XYZ;
   canNest: (id: string, targetId: string) => string | null;
   onNest: (id: string, targetId: string) => void;
   onContextAction: (action: ContextAction, target: ContextTarget) => void;
 };
 type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; up: THREE.Vector3; contextIds: readonly string[] | null };
 type SceneState = {
+  scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
   renderer: THREE.WebGLRenderer;
@@ -138,7 +140,10 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => { stateRef.current?.requestRender(); }, [documentNodeId]);
   const stateRef = useRef<SceneState | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
-  const baseGraph = useMemo(() => projectSpatial(atlas), [atlas]);
+  const baseGraph = useMemo(() => {
+    const graph=projectSpatial(atlas),index=prepareLattice(doc,settings.spatial.nodeCellSize),scale=latticeScale(settings.spatial.latticeScale);
+    return {...graph,nodes:graph.nodes.map(node=>{const cell=index.cells.get(node.id);return cell?{...node,world:cellPoint(cell,index.unit*scale)}:node;})};
+  }, [atlas,doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale]);
   const graph = useMemo(() => isolateSpatialContext(baseGraph, settings.isolateFocus ? props.focusContextIds : null), [baseGraph, settings.isolateFocus, props.focusContextIds]);
   const fullGraphRef = useRef(baseGraph); fullGraphRef.current = baseGraph;
   const graphRef = useRef(graph); graphRef.current = graph;
@@ -154,6 +159,7 @@ export default function SpatialWorkspace(props: Props) {
     return () => { guides.current.delete(node); };
   }, []);
   const [ready, setReady] = useState(false);
+  const displayedScale=useRef(latticeScale(settings.spatial.latticeScale));
   const [fontRevision, setFontRevision] = useState(0);
   const nodeFont = normalizeFont(settings.appearance.renderDefaults?.['text.nodes']?.font ?? settings.appearance.font);
   const binderFont = normalizeFont(settings.appearance.renderDefaults?.['text.binders']?.font ?? settings.appearance.font);
@@ -195,7 +201,7 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => {
     const host = hostRef.current; if (!host) return;
     let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+    try { renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true }); }
     catch { setError("3D rendering is unavailable in this browser."); return; }
     renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr));
     renderer.setClearColor(0x101927);
@@ -225,7 +231,7 @@ export default function SpatialWorkspace(props: Props) {
       if (pendingRender) return;
       pendingRender = requestAnimationFrame(() => {
         pendingRender = 0;
-        if (updateGeometry) textScene.current?.update(camera, host.clientWidth, host.clientHeight);
+        if (updateGeometry) { camera.updateMatrixWorld(); textScene.current?.update(camera, host.clientWidth, host.clientHeight); }
         updateGeometry = false;
         const anchorElement = (element: HTMLElement | undefined | null, id: string, below = false) => {
           if (!element) return;
@@ -299,7 +305,7 @@ export default function SpatialWorkspace(props: Props) {
     const stopAnimation = () => { if (animation) cancelAnimationFrame(animation); animation = 0; commitPendingView(); };
     const nativeStart = () => { stopAnimation(); nativeBefore = readView(); };
     const nativeEnd = () => { if (nativeBefore) recordView(nativeBefore, nativeWheel ? "camera.wheel" : undefined); nativeBefore = null; };
-    const noteWheel = () => { nativeWheel = true; };
+    const noteWheel = () => { nativeWheel = true; requestRender(); };
     const stopCameraHistory = callbacks.current.history.register("world.camera", { read: readView, write: value => { stopAnimation(); applyView(value); rebindOrbit(); requestRender(); } });
     // OrbitControls caches its up-axis basis on construction. Rebind through its
     // public API after a discrete roll, without touching private engine fields.
@@ -318,7 +324,7 @@ export default function SpatialWorkspace(props: Props) {
       const fromPosition = camera.position.clone(), fromTarget = controls.target.clone();
       const direction = facing ?? camera.position.clone().sub(controls.target).normalize();
       if (direction.lengthSq() < 0.001) direction.set(1, 0.7, 1).normalize();
-      const toPosition = target.clone().addScaledVector(direction, Math.max(2.8, distance));
+      const toPosition = target.clone().addScaledVector(direction, Math.max(controls.minDistance, distance));
       const start = performance.now();
       const tick = (now: number) => {
         const t = Math.min(1, (now - start) / MOVE_DURATION);
@@ -337,7 +343,7 @@ export default function SpatialWorkspace(props: Props) {
         stopAnimation();
         const horizontal = kind === "nudgeLeft" || kind === "nudgeRight";
         const sign = kind === "nudgeLeft" || kind === "nudgeDown" ? -1 : 1;
-        const delta = new THREE.Vector3(horizontal ? sign : 0, horizontal ? 0 : sign, 0).applyQuaternion(camera.quaternion).multiplyScalar(callbacks.current.settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE);
+        const delta = new THREE.Vector3(horizontal ? sign : 0, horizontal ? 0 : sign, 0).applyQuaternion(latticeFrame(camera.quaternion)).multiplyScalar(latticeUnit(callbacks.current.settings.spatial.nodeCellSize)*latticeScale(callbacks.current.settings.spatial.latticeScale));
         const parent = graphRef.current.nodes.find(parent => parent.id === node.parentId);
         const local = asVector(node.world).add(delta).sub(parent ? asVector(parent.world) : new THREE.Vector3());
         callbacks.current.onMove(node.id, asXYZ(local), true);
@@ -394,13 +400,13 @@ export default function SpatialWorkspace(props: Props) {
       }
       const node = nodes.find((n) => n.id === primary?.id) ?? nodes.find((n) => n.parentId === null) ?? nodes[0];
       const point = asVector(node.world);
-      let radius = callbacks.current.settings.spatial.radius;
+      let radius = latticeUnit(callbacks.current.settings.spatial.nodeCellSize)*latticeScale(callbacks.current.settings.spatial.latticeScale)/2;
       if (kind === "local") {
         const children = nodes.filter((n) => n.parentId === node.id);
         for (const child of children) radius = Math.max(radius, point.distanceTo(asVector(child.world)) + (volumeRadii.current.get(child.id) ?? radius));
       } else radius = volumeRadii.current.get(node.id) ?? radius;
       const fov = THREE.MathUtils.degToRad(camera.fov);
-      animate(point, Math.max(4, radius / Math.tan(fov / 2) * 1.5));
+      animate(point, Math.max(controls.minDistance*2, radius / Math.tan(fov / 2) * 1.5));
       changeFocusContext(contextIds);
     };
     const faceSelection = () => {
@@ -417,7 +423,7 @@ export default function SpatialWorkspace(props: Props) {
         rebindOrbit(); recordView(before); requestRender(); setFeedback("");
       } catch (error) { setFeedback(error instanceof Error ? error.message : String(error)); }
     };
-    stateRef.current = { camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
+    stateRef.current = { scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
@@ -454,7 +460,12 @@ export default function SpatialWorkspace(props: Props) {
     const cursorWorld = (event: Pick<PointerEvent,"clientX"|"clientY">) => {
       aim(event);
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), controls.target);
-      return asXYZ(raycaster.ray.intersectPlane(plane, new THREE.Vector3()) ?? controls.target);
+      if(callbacks.current.settings.spatial.showVacantCells){
+        const pitch=latticeUnit(callbacks.current.settings.spatial.nodeCellSize)*latticeScale(callbacks.current.settings.spatial.latticeScale);
+        const center=controls.target.clone().divideScalar(pitch).round().multiplyScalar(pitch);
+        plane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0,0,1).applyQuaternion(latticeFrame(camera.quaternion)),center);
+      }
+      return asXYZ((raycaster.ray.intersectPlane(plane,new THREE.Vector3())??controls.target.clone()).multiplyScalar(1/latticeScale(callbacks.current.settings.spatial.latticeScale)));
     };
     // Project only on invocation, using the current camera and the same view
     // plane as Create node here. Never cache world points during pointer motion.
@@ -496,7 +507,10 @@ export default function SpatialWorkspace(props: Props) {
     const navigation = createNavigationGesture({ camera, scene, canvas: renderer.domElement,
       target: () => controls.target, nodes: () => textScene.current?.nodes,
       branch: () => callbacks.current.selectedId && callbacks.current.selectedIds.has(callbacks.current.selectedId) ? callbacks.current.selectedId : callbacks.current.focusContextIds?.[0] ?? null,
-      document: () => callbacks.current.document, selection: () => callbacks.current.selectedIds,
+      document: () => callbacks.current.document,
+      coordinates: () => {const settings=callbacks.current.settings.spatial,index=prepareLattice(callbacks.current.document,settings.nodeCellSize);return new Map([...index.cells].map(([id,cell])=>[id,cellPoint(cell,index.unit*latticeScale(settings.latticeScale))]));},
+      prepareLayout: ids => prepareLatticeTransform(callbacks.current.document,ids,callbacks.current.settings.spatial.nodeCellSize,callbacks.current.settings.spatial.latticeScale),
+      selection: () => callbacks.current.selectedIds,
       pointed: point => hits(point)[0]?.object.userData.nodeId,
       request: requestRender, enabled: value => { if (!value) stopAnimation(); controls.enabled = value && !uiPointerActive && !drag && !selecting; },
       rebind: rebindOrbit, feedback: setFeedback,
@@ -518,8 +532,8 @@ export default function SpatialWorkspace(props: Props) {
       });
       if (originals.length > 256) { setFeedback("Move up to 256 visible nodes at once."); return null; }
       stopAnimation(); controls.enabled = false;
-      return { step: callbacks.current.settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE, frame: camera.quaternion.clone(),
-        preview: delta => { for (const original of originals) { original.host.anchor.copy(original.position).add(delta); original.host.group.position.copy(original.host.anchor); } requestRender(); },
+      return { step: latticeUnit(callbacks.current.settings.spatial.nodeCellSize)*latticeScale(callbacks.current.settings.spatial.latticeScale), frame: latticeFrame(camera.quaternion),
+        preview: delta => { try{callbacks.current.resolveMove(id,asXYZ(local.clone().add(delta)),true);}catch{return;} for (const original of originals) { original.host.anchor.copy(original.position).add(delta); original.host.group.position.copy(original.host.anchor); } requestRender(); },
         restore: () => { for (const original of originals) { original.host.anchor.copy(original.position); original.host.group.position.copy(original.position); } controls.enabled = !uiPointerActive && !drag && !selecting && !navigation.active; requestRender(); },
         commit: delta => callbacks.current.onMove(id, asXYZ(local.clone().add(delta)), true),
       };
@@ -746,7 +760,26 @@ export default function SpatialWorkspace(props: Props) {
     state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
-  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.nodeCellSize, settings.spatial.nodeNames,
+  useEffect(()=>{
+    const state=stateRef.current;if(!state)return;
+    const scale=latticeScale(settings.spatial.latticeScale),ratio=scale/displayedScale.current;
+    if(Number.isFinite(ratio)&&ratio>0&&ratio!==1){const before=state.controls.target.clone();state.controls.target.multiplyScalar(ratio);state.camera.position.add(state.controls.target.clone().sub(before));state.controls.update();}
+    displayedScale.current=scale;
+    const pitch=latticeUnit(settings.spatial.nodeCellSize)*scale;
+    state.camera.near=Math.max(Number.MIN_VALUE,Math.min(.05,pitch/1000));
+    state.camera.updateProjectionMatrix();state.controls.minDistance=Math.min(.2,pitch/4);state.requestRender();
+  },[ready,settings.spatial.nodeCellSize,settings.spatial.latticeScale]);
+
+  useEffect(()=>{
+    const state=stateRef.current;if(!state||!ready||!settings.spatial.showVacantCells)return;
+    const field=createLatticeField(doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale);
+    state.scene.add(field.object);
+    const update=()=>{field.update(state.controls.target,state.camera.quaternion);state.requestRender();};
+    update();state.controls.addEventListener('change',update);
+    return ()=>{state.controls.removeEventListener('change',update);state.scene.remove(field.object);field.dispose();state.requestRender();};
+  },[ready,doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale,settings.spatial.showVacantCells]);
+
+  const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.nodeCellSize, settings.spatial.latticeScale, settings.spatial.nodeNames,
     settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay,
     settings.appearance.font, nodeFont, binderFont, fontRevision, settings.appearance.theme]);
 
@@ -763,15 +796,16 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames, latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale));
     state.camera.updateMatrixWorld();
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);
     textScene.current = built;
     meshes.current = built.nodeHits;
     groups.current = new Map([...built.nodes].map(([id, node]) => [id, node.group]));
-    volumeRadii.current = occupiedRadii(doc, settings.spatial);
-    worldCoordinates.current = worldPositions(doc);
+    const pitch=latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale);
+    volumeRadii.current=new Map(graph.nodes.map(node=>[node.id,pitch/2]));
+    worldCoordinates.current = new Map(baseGraph.nodes.map(node=>[node.id,node.world]));
     state.requestRender();
   }, [sceneStructure]);
 
@@ -912,7 +946,7 @@ export default function SpatialWorkspace(props: Props) {
       <NodeDocument key={documentEntity.id} entity={documentEntity} entities={doc.entities} saveStatus={props.saveStatus} onSave={props.onSaveText} onLibrary={props.onOpenLibrary} onClose={() => setDocumentNodeId(null)} />
     </>}
     <div className="spatial-controls">
-      <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="ui:nodeNames" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
+      <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="ui:nodeNames" /><FunctionControl id="ui:nodeCellSize" /><FunctionControl id="ui:vacantCells" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
     </div>
     <div className="camera-guide-home"><CameraGuide attach={attachGuide} /></div>
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}

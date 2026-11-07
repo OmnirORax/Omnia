@@ -116,3 +116,16 @@ New node uses the shared current-context creation path for its catalog command
 and clickable control: a selected placement is its parent; otherwise a single
 focused branch is its parent. With no unambiguous parent it creates at root.
 Explicit Create node here remains a world-position/root action.
+
+
+## Atlas lattice movement (2026-11-07)
+
+Atlas arrow axes now choose the nearest distinct signed fixed-world axes at the
+start of a gesture. They do not rotate the lattice with the camera. Each repeat
+moves one rendered cell (legacy coordinate unit × Lattice scale); occupied branch
+landings are rejected and hidden/filtered nodes still reserve their cells. The
+held gesture keeps one commit/cancel lifecycle, including sub-microunit rendered
+steps without a fixed world-distance completion epsilon. Node orientation remains
+separate from lattice occupancy. Layout rotation previews snap to cells and reject occupied/duplicate targets
+through a prepared shared gesture adapter; commits use the same lattice owner. See
+[ATLAS_LATTICE.md](ATLAS_LATTICE.md) for placement, scale and precision limits.

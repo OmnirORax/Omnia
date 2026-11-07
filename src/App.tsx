@@ -1,3 +1,4 @@
+import { latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
 import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,type WorkspaceUI} from './omnic/workspaceBackup';
 import { ScoreTracker } from './metrics/ScoreTracker';
 import {readWorkspaceSlot,readWorkspaceReplacement,saveWorkspaceSlot} from "./omnic/workspaceStorage";
@@ -55,7 +56,7 @@ import {
   type FrameScope,
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
-import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
+import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, allowsShiftShortcut, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
@@ -72,7 +73,7 @@ import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { ShortcutDisplay, ShortcutGestures } from "./ShortcutDisplay";
 import { VisualControls } from "./VisualControls";
 import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
-import { DEFAULT_NODE_CELL_SIZE, type Visual, type VisualAsset } from "./graph/assets";
+import { type Visual, type VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
@@ -330,7 +331,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   }
   function commitDocument(next: AtlasDocument, copied?:{entityId:string;sourceId:string}) {
     try {
-      const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
+      const viewChanged=next.activeLayoutViewId!==documentRef.current.activeLayoutViewId;
+      if(!viewChanged)next = reconcileLattice(documentRef.current, next, settings.spatial.nodeCellSize);
+      const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId && !view.preservePositions && !viewChanged ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
       const validated = validateDocument({ ...synced, revision: document.revision + 1 });
       let nextWorkspace = withActiveDocument(workspaceRef.current, validated);
       if(copied)nextWorkspace={...nextWorkspace,library:{...nextWorkspace.library,items:[...nextWorkspace.library.items,{entityId:copied.entityId,tags:[],collections:[],preset:false,derivedFrom:copied.sourceId}]}};
@@ -905,16 +908,15 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     } catch (e) { setError(message(e)); }
   }
   function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false, exact = false) {
-    // Hidden variant branches must not block the active workspace's drag targets.
-    const visibleIds = new Set(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id));
-    const collisionDoc = { ...document, placements: document.placements.map((p) => ({ ...p, hidden: p.hidden || !visibleIds.has(p.id) })) };
-    const placement = document.placements.find(p => p.id === id)!;
-    const parent = placement.parentId && !structuralGraph.nodes.find(n => n.id === id)?.parentId ? worldPositions(document).get(placement.parentId) : undefined;
-    const desired = parent ? { x: position.x - parent.x, y: position.y - parent.y, z: position.z - parent.z } : position;
-    const local = exact ? desired : nearestFree(collisionDoc, id, desired, settings.spatial);
-    if (!preview) commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
-    return parent ? { x: local.x + parent.x, y: local.y + parent.y, z: local.z + parent.z } : local;
+    const scale=latticeScale(settings.spatial.latticeScale),unit=settings.spatial.nodeCellSize;
+    const displayParent=structuralGraph.nodes.find(n=>n.id===id)?.parentId;
+    const parent=displayParent?latticeWorld(document,displayParent,unit):{x:0,y:0,z:0};
+    const desired={x:position.x/scale+parent.x,y:position.y/scale+parent.y,z:position.z/scale+parent.z};
+    const resolved=resolveLatticePoint(document,id,desired,unit,exact);
+    if(!preview)commitDocument(latticeMove(document,id,desired,unit,exact));
+    return {x:(resolved.x-parent.x)*scale,y:(resolved.y-parent.y)*scale,z:(resolved.z-parent.z)*scale};
   }
+
   function compact(scope: ReflowScope) {
     try { commitDocument(compactLayout(document, scope, settings.spatial)); }
     catch (e) { setError(message(e)); }
@@ -1310,7 +1312,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:nodeNames", "Node names", <label>Names<select aria-label="Node names" value={settings.spatial.nodeNames ?? "expanded"} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeNames: event.target.value as "expanded" | "all" | "selection" } }))}><option value="expanded">Expanded</option><option value="all">All</option><option value="selection">Selection</option></select></label>, true);
-  replaceFunction("ui:nodeCellSize", "Node cell size", <label>Node cell size<input aria-label="Node cell size" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeCellSize: Math.max(0.1, Math.min(5, Number(event.target.value) || DEFAULT_NODE_CELL_SIZE)) } }))} /><small>World units · one uniform cell per node; content keeps its own size.</small></label>, true);
+  replaceFunction("ui:nodeCellSize", "Lattice scale", <label>Lattice scale<input key={settings.spatial.latticeScale??1} aria-label="Lattice scale" type="number" step="any" defaultValue={settings.spatial.latticeScale ?? 1} onBlur={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>0)setSettings(old=>({...old,spatial:{...old.spatial,latticeScale:value}}));else event.target.value=String(settings.spatial.latticeScale??1);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}if(event.key==='Escape'){event.preventDefault();event.stopPropagation();event.currentTarget.value=String(settings.spatial.latticeScale??1);event.currentTarget.blur();}}} title="Positive scale, including scientific notation. Enter applies. Scales cells and O carriers together; content keeps its size." /></label>, true);
+  replaceFunction("ui:vacantCells", "Show empty lattice cells", <label><input type="checkbox" checked={!!settings.spatial.showVacantCells} onChange={event=>setSettings(old=>({...old,spatial:{...old.spatial,showVacantCells:event.target.checked}}))}/>Empty lattice cells</label>, true);
   replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
@@ -2266,7 +2269,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               omnicPreviewContext={omnicPreviewContext}
               bindings={propertyBindings}
               history={actionHistory}
-              onTransformNodes={(ids, rotation, pivot, layout) => commitDocument(transformPlacements(document, ids, rotation, pivot, layout))}
+              onTransformNodes={(ids, rotation, pivot, layout) => {const scale=latticeScale(settings.spatial.latticeScale);commitDocument(transformPlacements(layout?latticeDocument(document,settings.spatial.nodeCellSize):document, ids, rotation, layout?{x:pivot.x/scale,y:pivot.y/scale,z:pivot.z/scale}:pivot, layout));}}
               wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
               creationPointRef={creationPointRef}
@@ -2303,7 +2306,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
                 setSelection({ kind: kind === "variant" ? "variantBinder" : kind === "visual" ? "visualBinder" : kind, id });
                 setBinderPopup({ x: Math.min(point.x + 12, window.innerWidth - 370), y: Math.min(point.y + 12, window.innerHeight - 460) });
               }}
-              resolveMove={(id, local) => moveDisplayedNode(id, local, true)}
+              resolveMove={(id, local, exact) => moveDisplayedNode(id, local, true, exact)}
               onMove={(id, local, exact) => { try { moveDisplayedNode(id, local, false, exact); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}
               onNest={nest}
@@ -2354,7 +2357,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <CloudPanel />
         <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
-          {["ui:nodeNames", "ui:nodeCellSize", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:nodeNames", "ui:nodeCellSize", "ui:vacantCells", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>
         <UISection id="mouse-settings" title="Mouse & gestures">
           <FunctionControl id="ui:subtreeModifier" />

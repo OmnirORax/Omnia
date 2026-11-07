@@ -310,3 +310,22 @@ blank Visual.size remain stored for compatibility but cannot alter carriers.
 Actual content visuals retain authored sizes/editors; logical cell size remains
 separate. Defaults now use diameter 1; historical explicit preferences still
 roundtrip, but only older clients apply them. No coordinates or IDs are rewritten.
+
+
+### Atlas lattice compatibility (2026-11-07)
+
+The exact-overlap/camera-relative-nudge/fixed-radius interpretations above are
+superseded by [ATLAS_LATTICE.md](ATLAS_LATTICE.md). `latticeScale` and
+`showVacantCells` are additive settings defaults, independent of historical
+`nodeCellSize`, radius, clearance and visual sizes. Logical addresses are derived
+as safe integers from existing coordinates; scale never resizes stored coordinates.
+Reads project historical overlaps without writing. An explicit geometry edit
+settles the shared lattice and preserves pre-alignment local XYZ in an ordinary
+manual view with additive `preservePositions: true`. The existing validation,
+autosave, history, atlas/workspace export and ID remapping owners remain in use.
+Protected snapshots are not overwritten by view switching/active autosnapshot;
+view-budget exhaustion fails the edit before originals are discarded. View
+switching itself keeps the old view's coordinates. Frozen fixtures are unchanged;
+assertions cover added defaults. Older clients can ignore/drop these settings or
+overwrite protected snapshots, so concurrent old-client editing is not guaranteed.
+No schema-version bump, new data store, cloud synchronization or backend deployment.

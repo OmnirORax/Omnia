@@ -179,8 +179,9 @@ export function buildTextScene(
   theme: WorkspaceSettings["appearance"] = defaultSettings().appearance,
   expansion: ExpansionState = expansionState(),
   names: "expanded" | "all" | "selection" = "expanded",
+  carrierDiameter = DEFAULT_SPHERE_DIAMETER,
 ) {
-  const sphereDiameter = DEFAULT_SPHERE_DIAMETER;
+  const sphereDiameter = carrierDiameter;
   const placementExpanded = (id:string) => contentExpanded(expansion,id,placements.get(id)?.collapsed === false);
   const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();
@@ -218,20 +219,19 @@ export function buildTextScene(
       {}, true,
     );
     text.material.opacity = style.opacity;
-    const cell: LabelMesh = new THREE.Mesh(new THREE.SphereGeometry(.5, 20, 14), new THREE.MeshPhongMaterial({color, transparent:true, opacity:style.opacity, shininess:35}));
+    const cell: LabelMesh = new THREE.Mesh(new THREE.RingGeometry(.4,.5,32), new THREE.MeshBasicMaterial({color, transparent:true, opacity:style.opacity, side:THREE.DoubleSide}));
     cell.scale.setScalar(sphereDiameter);
     const presentation = new THREE.Group(); group.add(presentation);
     const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
     slot.scale.setScalar(sphereDiameter);
     slot.userData.nodeId = node.id; slot.userData.visualProxy = true;
+    cell.userData.carrier = true;
     group.add(cell, slot);
     const hasVisual = !!(displayedVisual?.assetId || displayedVisual?.character);
     const footprint = visualFootprint(labelSize(node.label), displayedVisual, sphereDiameter);
     const visual = hasVisual ? visualObject(displayedVisual!, derivedAsset ? [derivedAsset] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity,textureOnly:effectsFor(theme,'symbols.nodes').effect==='electric-text' }, derivedAsset ? RENDER_BUDGET.omnicTextureEdge : 512) : undefined;
-    const sprite: LabelMesh = footprint.sphere
-      ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
-      : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
+    const sprite: LabelMesh = hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
     // Picking volumes remain fully invisible, even while hovered or selected.
     const outline = new THREE.Mesh(
       new THREE.RingGeometry(0.835, 1.125, 64),
@@ -239,7 +239,7 @@ export function buildTextScene(
     );
     analyticSelectionRing(outline.material);
     outline.visible = selected; outline.userData.selected = selected;
-    outline.renderOrder = 20;
+    outline.renderOrder = 20; outline.scale.setScalar(sphereDiameter*.8);
     sprite.userData.hoverOutline = outline;
     slot.userData.hoverOutline = outline;
     group.add(outline);
@@ -492,6 +492,8 @@ export function buildTextScene(
     // Presentations face the camera; their atomic anchors retain world coordinates.
     for (const item of nodes.values()) {
       item.group.position.copy(item.anchor);
+      item.cell.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
+      item.outline.quaternion.copy(item.cell.quaternion);
       item.text.scale.set(item.size.width, item.size.height, 1);
       item.text.position.set(0, 0, 0);
       const front = depth(item.anchor) > camera.near;

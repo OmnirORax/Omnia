@@ -82,7 +82,7 @@ export type WorkspaceSettings = {
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS, latticeScale: 1, showVacantCells: false }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
     functionValues: {}, buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -254,6 +254,8 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
     const permitted: GridSpacing[] = [0, 0.25, 0.5, 1, 2, 5];
     if (spacing !== undefined && permitted.includes(spacing)) defaults.spatial.spacing = spacing;
     if (["expanded", "all", "selection"].includes(value.spatial?.nodeNames ?? "")) defaults.spatial.nodeNames = value.spatial!.nodeNames;
+    if (typeof value.spatial?.latticeScale === "number" && Number.isFinite(value.spatial.latticeScale) && value.spatial.latticeScale > 0) defaults.spatial.latticeScale = value.spatial.latticeScale;
+    if (typeof value.spatial?.showVacantCells === "boolean") defaults.spatial.showVacantCells = value.spatial.showVacantCells;
     if (typeof value.spatial?.nodeCellSize === "number" && Number.isFinite(value.spatial.nodeCellSize) && value.spatial.nodeCellSize >= 0.1 && value.spatial.nodeCellSize <= 5) defaults.spatial.nodeCellSize = value.spatial.nodeCellSize;
     if (typeof value.spatial?.sphereDiameter === "number" && Number.isFinite(value.spatial.sphereDiameter) && value.spatial.sphereDiameter >= 0.1 && value.spatial.sphereDiameter <= 5) defaults.spatial.sphereDiameter = value.spatial.sphereDiameter;
     if (typeof value.spatial?.radius === "number" && value.spatial.radius >= 0.1 && value.spatial.radius <= 3) defaults.spatial.radius = value.spatial.radius;

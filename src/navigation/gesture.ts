@@ -11,7 +11,10 @@ type Host = {
 type Environment = {
   camera: THREE.PerspectiveCamera; scene: THREE.Scene; canvas: HTMLCanvasElement;
   target: () => THREE.Vector3; nodes: () => ReadonlyMap<string, Host> | undefined;
-  document: () => Document; selection: () => ReadonlySet<string>;
+  document: () => Document;
+  coordinates?: () => Map<string,XYZ>;
+  prepareLayout?: (ids:readonly string[]) => (targets:ReadonlyMap<string,XYZ>)=>ReadonlyMap<string,XYZ>|undefined;
+  selection: () => ReadonlySet<string>;
   branch?: () => string | null;
   pointed: (point: { clientX: number; clientY: number }) => string | undefined;
   request: () => void; enabled: (value: boolean) => void; rebind: () => void;
@@ -37,7 +40,7 @@ export function createNavigationGesture(env: Environment) {
     let worlds: Map<string, XYZ> | undefined, pointed: string | undefined, checkedPoint = false;
     cached = { doc, selection, point, cameraKey, branch, targets: new Map(),
       get pointed() { if (!checkedPoint) { pointed = env.pointed({ clientX: point.x, clientY: point.y }); checkedPoint = true; } return pointed; },
-      get worlds() { return worlds ??= worldPositions(doc); } }; return cached;
+      get worlds() { return worlds ??= env.coordinates?.() ?? worldPositions(doc); } }; return cached;
   };
   const kind = (snapshot: Snapshot) => snapshot.pointed ? "nodes" : snapshot.selection.size ? "graph" : "space";
   const anchor = (snapshot: Snapshot) => {
@@ -91,7 +94,7 @@ export function createNavigationGesture(env: Environment) {
     marker.position.copy(pivot); marker.scale.setScalar(Math.max(.02, env.camera.position.distanceTo(pivot) * .035)); env.request();
   };
   type Gesture = { pointer: number; button: number; start: { x: number; y: number }; pose: CameraPose; before: CameraPose; options: NavigationOptions; ids: string[]; pivot: THREE.Vector3;
-    originals: { id: string; position: THREE.Vector3; rotation: THREE.Quaternion; host?: Host }[]; rotation: THREE.Quaternion; dragged: boolean; trackball?: Trackball; constraint: DragConstraint };
+    originals: { id: string; position: THREE.Vector3; rotation: THREE.Quaternion; host?: Host }[]; rotation: THREE.Quaternion; dragged: boolean; trackball?: Trackball; layoutPreview?:ReturnType<NonNullable<Environment["prepareLayout"]>>; constraint: DragConstraint };
   let gesture: Gesture | null = null;
   const restore = (current: Gesture) => {
     env.camera.position.copy(current.before.position); env.camera.up.copy(current.before.up); env.target().copy(current.before.target); env.camera.lookAt(env.target());
@@ -116,6 +119,7 @@ export function createNavigationGesture(env: Environment) {
         const placements = new Map(ids.length ? snapshot.doc.placements.map(p => [p.id, p] as const) : []);
         gesture = { pointer: event.pointerId, button: event.button, start, pose: cameraPose(), before: cameraPose(), options: { ...options }, ids, pivot, rotation: new THREE.Quaternion(), dragged: false, constraint: {raw:{...start},point:{...start}},
           originals: ids.map(id => { const orientation = placements.get(id)?.orientation ?? identityRotation(); return { id, position: vector(snapshot.worlds.get(id)!), rotation: new THREE.Quaternion(orientation.x, orientation.y, orientation.z, orientation.w), host: env.nodes()?.get(id) }; }) };
+        if(options.mode==="layout")gesture.layoutPreview=env.prepareLayout?.(ids);
         if ((options.mode === "orient" || options.mode === "layout") && options.axis === "free") {
           const rect = env.canvas.getBoundingClientRect?.();
           if (rect && rect.width > 0 && rect.height > 0) {
@@ -143,10 +147,14 @@ export function createNavigationGesture(env: Environment) {
       gesture.dragged = true;
       const { pose, options, pivot } = gesture;
       if (options.mode === "orient" || options.mode === "layout") {
+        const previous=gesture.rotation.clone();
         gesture.rotation.copy(gesture.trackball ? moveTrackball(gesture.trackball, point, options.speed, !!event.ctrlKey) : navigationRotation(pose, options, dx, dy, pivot));
+        const targets=options.mode==='layout'?new Map(gesture.originals.map(original=>[original.id,xyz(original.position.clone().sub(pivot).applyQuaternion(gesture!.rotation).add(pivot))])):undefined;
+        const resolved=targets&&gesture.layoutPreview?gesture.layoutPreview(targets):targets;
+        if(targets&&!resolved){gesture.rotation.copy(previous);env.feedback('That lattice rotation would occupy an existing cell.');env.request();return true;}
         for (const original of gesture.originals) if (original.host) {
           if (options.mode === "orient") original.host.group.quaternion.copy(gesture.rotation).multiply(original.rotation).normalize();
-          else original.host.anchor.copy(original.position).sub(pivot).applyQuaternion(gesture.rotation).add(pivot);
+          else original.host.anchor.copy(vector(resolved!.get(original.id)!));
         }
       } else {
         const next = navigateCamera(pose, options, dx, dy, pivot);

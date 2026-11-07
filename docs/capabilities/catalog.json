@@ -761,11 +761,11 @@
       "id": "graph.cells",
       "title": "Atomic carriers and adaptive content expansions",
       "where": "Atlas upper-right control stack → Names, directly beneath Focus context only → Expanded / All / Selection. Also Workspace → Settings → Spatial settings → Names, unless relocated through UI customization.",
-      "behavior": "Created nodes appear as uniform glowing atoms without square frames or permanent content. Unoccupied space stays empty. Hover reveals a node’s content; click retains it, and clicking again closes its retained expansion after hover leaves. Several expansions remain independent. Structurally expanded nodes reveal content by default; an explicit close overrides that default for this view session. Names → All reveals names across the visible atlas, and Selection reveals names for selected nodes, without opening every full visual. Expanded is the default. Open presentations face the camera and arrange together within the viewport while keeping original content sizes. Saved atom coordinates, IDs and parentage never change through hover, expansion or name alignment. Names view persists through existing settings/history; retained expansion overrides are transient per atlas session. Atom size is fixed independently of legacy saved diameter preferences and per-node visual sizes. Inspector visual-size editing remains available for actual images/glyphs/Omnic content, not blank atomic carriers. Uniform logical cells remain the content-independent packing footprint; Node cell size controls organization, and visible atom radius is fixed at 0.5 (diameter 1), with no atom-size control. Content/body appearance and existing selection, graph movement, document opening and double-click structural expansion retain their owners.",
+      "behavior": "Created nodes appear as uniform glowing atoms without square frames or permanent content. Unoccupied space stays empty. Hover reveals a node’s content; click retains it, and clicking again closes its retained expansion after hover leaves. Several expansions remain independent. Structurally expanded nodes reveal content by default; an explicit close overrides that default for this view session. Names → All reveals names across the visible atlas, and Selection reveals names for selected nodes, without opening every full visual. Expanded is the default. Open presentations face the camera and arrange together within the viewport while keeping original content sizes. Saved atom coordinates, IDs and parentage never change through hover, expansion or name alignment. Names view persists through existing settings/history; retained expansion overrides are transient per atlas session. Carriers are hollow O's with diameter tied to rendered lattice pitch, independently of legacy sphereDiameter or blank per-node visual size. Lattice scale changes pitch and O diameter together; actual expanded visuals retain independent sizes. Creation lands in the nearest free cell; carriers share one occupied field across all parent/visibility scopes. Content/body appearance, selection, documents and structural expansion retain their owners.",
       "steps": [
         {
           "do": "Create a node with N on empty atlas space, then move the pointer away.",
-          "expect": "A small glowing atom remains at that exact point, with no square frame or permanently displayed name/content."
+          "expect": "A hollow O carrier appears in the nearest unoccupied lattice cell to the requested point, without a square frame or permanent content."
         },
         {
           "do": "Hover the atom, click it and move away. Hover/click a second atom.",
@@ -788,8 +788,8 @@
           "expect": "The names setting persists. Click-retained expansion overrides reset with the atlas session; structural expansion remains authored separately."
         },
         {
-          "do": "Open Spatial settings and inspect a blank node; compare an image/glyph node.",
-          "expect": "Atoms are radius 0.5 with no atom-size editor. Content visuals retain their own size controls; logical cell size remains separate."
+          "do": "Change Lattice scale below Names in the upper-right atlas controls, then inspect a blank node and an image/glyph node.",
+          "expect": "Cell spacing, O diameter, picking boxes and outlines scale together. Expanded content keeps its own size. The old fixed radius 0.5 and exact-overlap creation paths are retired."
         }
       ],
       "reference": "docs/WORKER_ONBOARDING.md",
@@ -810,29 +810,84 @@
       "actions": [],
       "gestures": [],
       "status": "Implemented; browser verification pending",
-      "limits": "No unused white lattice or square frames are drawn. One logical cell per node remains for organization; no automatic relocation, content fitting or shrinking. A bounded spatially indexed presentation layout handles ordinary visible expansions; content larger than the viewport or too many expansions can still overlap. No search/filter/contextual summoning system is added here. Name mode and view-local expansion are separate from authored child visibility. Browser interaction, dense-view performance and visual acceptance remain user-tested.",
+      "limits": "Empty cells are hidden by default; Empty lattice cells optionally reveals a bounded nearby creation slice. O carriers have unique logical cells; independent expanded content can still overlap in dense/oversized views. No relationship-node authoring, new filters/search or contextual summoning is added. Historical source coordinates stay unchanged on load while their carrier positions are projected onto cells. Browser interaction, visual scale thresholds and performance acceptance remain user-owned.",
       "verification": {
         "browser": "Not run; user acceptance pending",
-        "automated": "Expansion-state tests cover independent retention, close/reopen and structural defaults. Layout regressions cover nonoverlap, viewport bounds, determinism and unchanged source sizes/anchors. Historical settings and name-view persistence checked; full model/build/backend checks recorded in delivery. Fixed atom diameter is enforced by the renderer constant; historical diameter preferences remain stored but unused."
+        "automated": "New lattice model regressions and required delivery checks are recorded in graph.lattice; existing expansion/name regressions remain."
       },
       "related": [
         "graph.create",
-        "graph.layout"
+        "graph.layout",
+        "graph.lattice"
       ]
+    },
+    {
+      "id": "graph.lattice",
+      "title": "Shared atlas lattice, scale experiment and empty-cell field",
+      "where": "Upper-right atlas controls below Focus context only/Names → Lattice scale / Empty lattice cells. Also Spatial settings and shared UI discovery. N or Create node here creates at the requested point’s nearest free cell.",
+      "behavior": "One sparse fixed XYZ field assigns safe-integer cell addresses to every placement, including hidden/filtered nodes and all parent scopes. Empty cells are implicit. Nearest-free creation uses actual point distance; a hidden occupant still blocks its cell. O diameter, pitch, picking boxes, outlines and arrow steps share the rendered scale, while text and expanded visuals remain independently sized. Lattice scale accepts positive finite scientific notation and applies on Enter/blur, without changing logical addresses or stored coordinates. Camera target follows the same logical area; zoom remains independent, with pitch-aware near clipping/minimum dolly and wheel redraw. Empty lattice cells shows at most 625 vacant hollow O’s in one instanced draw, on a nearby fixed-lattice slice through the camera target. N/Create node here uses that same slice when shown. Reads project old off-grid/overlapping coordinates without overwriting them. First geometry alignment saves original local XYZ in a protected Before lattice alignment manual view; normal view switching and active autosnapshot preserve it. Geometry commits freeze stationary projected cells so deleting/moving an old overlap does not shuffle unrelated carriers. Existing validation/autosave/history/export owners remain; no second knowledge store.",
+      "steps": [
+        {
+          "do": "Show Empty lattice cells and aim at a vacant O. Press N; then request another node at that same point.",
+          "expect": "Only real created nodes enter the document. The first takes the target cell; the second takes the nearest available cell. No two carriers occupy one cell."
+        },
+        {
+          "do": "Hide or filter out an occupied node and request creation at its former visible location.",
+          "expect": "Its cell stays reserved. Parent/child or filter membership does not create another occupancy space."
+        },
+        {
+          "do": "Enter 0.1, then 0.001 or 1e-6 in Lattice scale, pressing Enter each time. Zoom in to inspect. Restore scale 1.",
+          "expect": "Pitch and O diameter change together; addresses/content sizes remain independent. No fixed 0.1 lower bound or radius 0.5 is imposed. Report the first rendering/interaction failure and the scale used."
+        },
+        {
+          "do": "Drag a node with descendants, then try arrow movement into another occupied cell. Reload.",
+          "expect": "Dragging finds a legal group landing; arrows reject an occupied landing. Hidden descendants remain included. Committed positions and scale persist."
+        },
+        {
+          "do": "Open an older overlapping/off-grid atlas, inspect it without editing, then make one geometry edit. Open the Layout view list.",
+          "expect": "Loading alone does not rewrite coordinates. The edit saves original local positions as Before lattice alignment before persisting the cell organization. The snapshot stays stored on reload/view switching."
+        }
+      ],
+      "reference": "docs/ATLAS_LATTICE.md",
+      "sources": [
+        "src/graph/lattice.ts",
+        "src/latticeField.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/App.tsx",
+        "src/textScene.ts",
+        "src/graph/structural.ts",
+        "src/graph/presentation.ts",
+        "src/workspaceActions.ts",
+        "tests/lattice.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "graph.cells",
+        "graph.layout",
+        "camera.navigation",
+        "library.persistence"
+      ],
+      "limits": "The empty field is one bounded nearby slice, not the infinite 3D volume. Carrier occupancy is per active atlas document; other atlases are not merged. Same-atlas parent/filter scopes share occupancy. Layout previews snap to cells and reject occupied/duplicate targets. Safe-integer addresses, bounded nearest-free search, GPU/depth precision and numerical underflow/overflow still limit use. No floating-origin/arbitrary-precision renderer or universal minimum scale is claimed. At extreme scales rendering/interaction can fail; this is a user-run experiment. The recovery view preserves original source positions but the current renderer still projects them onto cells. Older clients can ignore/drop added settings or overwrite recovery snapshots. No new filter system, relationship-node authoring, cloud sync or backend deployment.",
+      "status": "Implemented for review; production deployment and browser acceptance pending",
+      "verification": {
+        "browser": "Not run. User owns empty-field creation, filtered occupancy, save/reload recovery, interaction/performance and scale-threshold acceptance.",
+        "automated": "2026-11-07: all 558 model/architecture tests pass, including 16 lattice regressions. Preview/type/property/capability build and backend type checks pass. Coverage includes global hidden occupancy, nearest distance, safe addresses, serialized recovery, protected snapshots, budget rejection, nongeometry source preservation, fixed-axis/tiny-step nudges, dense overlaps, bounded fields, layout collision previews and prepared navigation coordinate adapters. Browser/performance acceptance is not inferred."
+      }
     },
     {
       "id": "graph.layout",
       "title": "Expansion, movement, axis constraints and compaction",
       "where": "Node selection; expansion controls; spatial settings and compaction actions.",
-      "behavior": "Expansion shows charted structure. Arrow movement advances by whole logical node cells (default 1 world unit), in camera-relative axes. Held arrows repeat discrete steps without fractional glide or a catch-up backlog, preview live and commit once on release. Both assigned arrow gestures and explicit nudge actions use Node cell size independently of drag Snap and visible atom diameter. Exact nudge commits preserve their requested coordinates, including intentional overlap, rather than packing to a nearby point. Axis constraints and graph compaction affect placement, not canonical identity.",
+      "behavior": "Expansion shows charted structure within the same occupied field. Arrow movement uses whole fixed-world lattice cells, choosing distinct signed axes nearest the camera orientation once per gesture. Held arrows repeat without fractional glide or catch-up backlog and commit once on release. Occupied landings are rejected, including hidden/filtered nodes and descendant branches; dragging instead finds a nearby legal landing. Scale affects rendered steps and carriers together. Inspectors, compaction and committed layout transforms settle through shared occupancy. Axis constraints and arrangement affect placement, not canonical identity. Hover/selection alone never writes coordinates.",
       "steps": [
         {
           "do": "Create a parent/child pair and toggle the selected node and its whole subtree.",
           "expect": "Visibility expands/collapses at the selected scope."
         },
         {
-          "do": "Set Node cell size to 1, choose a different drag Snap, select a node and press/release an arrow. Hold an arrow, release, then Undo.",
-          "expect": "A tap moves exactly one logical cell; a hold advances by whole cells. Release commits once and Undo restores the start. Drag Snap does not quantize the result; the visible dot stays small."
+          "do": "Set Lattice scale to 0.1, select a node and press/release an arrow; hold, release and Undo. Rotate the camera and try again. Aim an arrow landing at an occupied cell.",
+          "expect": "Steps stay whole fixed-lattice cells, with a camera-near cardinal direction. Holds commit once and Undo restores positions. An occupied destination is rejected rather than overlapping or choosing a different arrow landing."
         },
         {
           "do": "Compact the selected subsystem.",
@@ -859,14 +914,15 @@
         "compactFrame",
         "compactAll"
       ],
-      "limits": "Arrow steps are camera-relative, so rotated cameras can produce fractional world XYZ while each step is a whole cell in the displayed axes. Exact nudges may overlap other atoms. Dense-view performance and browser interaction acceptance remain user-tested.",
+      "limits": "The lattice stays fixed in world space; camera orientation only selects arrow direction. Collapsed/hidden descendants remain part of branch movement and occupancy. Object-layout rotation previews snap through a prepared shared adapter and reject duplicate/occupied targets; commits use the same lattice owner. Dense-view interaction and performance acceptance remain user-tested.",
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Not recorded",
-        "automated": "Held-nudge tests verify discrete whole steps, bounded stalled-frame behavior, single commit, cancellation and stale-frame protection. Type/build/backend and full model checks recorded in delivery."
+        "automated": "Lattice tests cover fixed signed axes, blocked/hidden occupancy and tiny-scale completion; existing held-gesture lifecycle tests remain. Full delivery checks are recorded in graph.lattice."
       },
       "related": [
-        "interface.targets"
+        "interface.targets",
+        "graph.lattice"
       ],
       "gestures": []
     },
