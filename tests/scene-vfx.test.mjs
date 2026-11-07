@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import {DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
-test('scene effects save exactly the pictured controls and screenshot defaults',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','waves'];
+test('scene effects save exactly the pictured controls plus requested FPS cap and defaults',()=>{
+ const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves'];
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
- assert.deepEqual(normalizeSceneVfx(undefined),{audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3});
+ assert.deepEqual(normalizeSceneVfx(undefined),{audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
  assert.deepEqual(normalizeSettings({}).sceneVfx,DEFAULT_SCENE_VFX);
- const explicit={audioLight:'#123456',audioBounce:1,waves:false,distortion:0,glitching:0};
+ const explicit={audioLight:'#123456',audioBounce:1,waves:false,distortion:0,glitching:0,maxFps:90};
  assert.deepEqual(normalizeSettings({sceneVfx:explicit}).sceneVfx,explicit);
  assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(normalizeSettings({sceneVfx:explicit})))).sceneVfx,explicit);
  assert.equal(normalizeSceneVfx({audioLight:'url(x)',audioBounce:NaN,waves:'false',distortion:Infinity,glitching:-4}).glitching,0);
@@ -81,4 +81,17 @@ test('wallpaper pacing targets 120 on faster displays and drops stalled-frame de
  assert.ok(Math.abs(count-Math.min(refresh,120))<=1,`${refresh} Hz display rendered ${count} frames`);
  }
  const delayed=nextVfxDeadline(100,5000);assert.ok(delayed>5000&&delayed<=5000+1000/120+.001);
+});
+
+
+test('Max FPS is saved, inherits shared editing, and controls scheduler pacing with a minimum of 60',()=>{
+ assert.equal(normalizeSceneVfx({}).maxFps,120);
+ assert.equal(normalizeSceneVfx({maxFps:30}).maxFps,60);
+ assert.equal(normalizeSceneVfx({maxFps:NaN}).maxFps,120);
+ const settings=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.maxFps'].write(defaultSettings(),144);
+ assert.equal(normalizeSettings(JSON.parse(JSON.stringify(settings))).sceneVfx.maxFps,144);
+ for(const fps of [60,90,120,144,240]){
+ let deadline=0,count=0;for(let frame=0;frame<240;frame++){const now=frame*1000/240;if(deadline&&now+.1<deadline)continue;count++;deadline=nextVfxDeadline(deadline,now,fps);}
+ assert.ok(Math.abs(count-fps)<=1,`${fps} cap produced ${count} frames on a 240 Hz clock`);
+ }
 });

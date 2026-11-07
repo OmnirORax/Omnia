@@ -10,7 +10,7 @@ try{
  await page.addInitScript(value=>{window.testTone=value;},tone().toString('base64'));
  await page.goto(origin);await page.getByRole('button',{name:'Scene effects',exact:true}).waitFor();
  const defaults=await page.evaluate(async()=>{const {defaultSettings}=await import('/src/workspaceActions.ts');return defaultSettings().sceneVfx;});
- assert.deepEqual(defaults,{audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3});
+ assert.deepEqual(defaults,{audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.ok((await page.locator('body').innerText()).includes('Audio Light'));
  const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose audio file',exact:true}).click();await(await chooser).setFiles({name:'disposable-55hz.wav',mimeType:'audio/wav',buffer:tone()});
  await page.locator('audio').click({position:{x:25,y:27}});await page.locator('audio').evaluate(element=>element.play());await page.getByText('Audio file connected',{exact:true}).waitFor();
@@ -34,6 +34,6 @@ try{
  local.pause();audio.disconnectSceneAudio();URL.revokeObjectURL(local.src);wallpaper.dispose();const disposedPaints=paints;await new Promise(r=>setTimeout(r,100));renderer.dispose();
  return {plain,effected,restored,reactive,disposedPaints,paints,programs:renderer.info.programs?.length,serialized:JSON.parse(serializeSceneVfx({...DEFAULT_SCENE_VFX,privateSource:'must-not-save'}))};
  });
- assert.notEqual(result.plain,result.effected,'wave/VHS shader changes patterned image');assert.equal(result.plain,result.restored,'zero effects restores original image');assert.notEqual(result.plain,result.reactive,'actual test-tone audio changes the rendered wallpaper');assert.equal(result.paints,result.disposedPaints,'disposed wallpaper stops animation');assert.deepEqual(Object.keys(result.serialized).sort(),['audioBounce','audioLight','distortion','glitching','waves']);assert.deepEqual(errors,[]);
+ assert.notEqual(result.plain,result.effected,'wave/VHS shader changes patterned image');assert.equal(result.plain,result.restored,'zero effects restores original image');assert.notEqual(result.plain,result.reactive,'actual test-tone audio changes the rendered wallpaper');assert.equal(result.paints,result.disposedPaints,'disposed wallpaper stops animation');assert.deepEqual(Object.keys(result.serialized).sort(),['audioBounce','audioLight','distortion','glitching','maxFps','waves']);assert.deepEqual(errors,[]);
  console.log('Focused scene VFX browser check passed: defaults, local audio spectrum, shader compilation, displacement, audio response, original restoration, exact five-field serialization and disposal.');
 }finally{await browser.close();}

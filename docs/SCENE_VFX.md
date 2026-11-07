@@ -7,7 +7,7 @@ This is an approximation from the user's `wallpaper_selected_vfx.json` extract;
 the original shader files, particle preset and personalized override JSON were
 not provided. Extracted script strings are reference data and are never executed.
 
-Exactly five effect settings persist in `WorkspaceSettings.sceneVfx`:
+The five pictured effects plus the subsequently requested Max FPS control persist in `WorkspaceSettings.sceneVfx`:
 
 | Field | Control | Default | Bounds |
 | --- | --- | --- | --- |
@@ -16,15 +16,16 @@ Exactly five effect settings persist in `WorkspaceSettings.sceneVfx`:
 | waves | Waves | true | On/off |
 | distortion | Distortion | 0.4 | 0–1 |
 | glitching | Glitching | 0.3 | 0–1 |
+| maxFps | Max FPS | 120 | 60–1000, whole frames/sec |
 
 These screenshot values override the different extract-time values. There are no
 separate serialized frequency/smoothing, tint-low/high, wave-speed/direction,
 particle, shader or audio-source settings. `normalizeSceneVfx` and
-`serializeSceneVfx` whitelist exactly these five fields. Shared property discovery,
+`serializeSceneVfx` whitelist exactly these six fields. Shared property discovery,
 MC, UI-field customization and settings history use one registered `scene.vfx`
 consumer. Audio Light reuses the existing Color property with a contextual caption;
 there is no second colour property/picker. Existing settings/export mechanisms
-carry this five-field branch; other pre-existing workspace settings are unchanged.
+carry this six-field branch; other pre-existing workspace settings are unchanged.
 
 ## Audio
 
@@ -61,7 +62,7 @@ emission, with live time/audio/image uniforms, instead of the whole image. The e
 blend implementation and frequency mapping cannot be reproduced from references.
 Snow and every unpictured setting/effect are excluded.
 
-Animation targets up to 120 fps, uses existing renderer invalidation (no geometry
+Animation uses the saved Max FPS cap (default 120, minimum 60), uses existing renderer invalidation (no geometry
 refresh or React/settings updates per sample), and shares the existing scene pixel
 budget. FFT buffers are reused. It pauses when hidden or reduced motion is enabled;
 reduced motion renders undistorted static imagery. No animation is scheduled when
@@ -73,7 +74,7 @@ Interactive/dense-scene GPU performance still needs user acceptance.
 
 ## Verification
 
-The model suite covers defaults, the exact five-field serializer, explicit zero/off
+The model suite covers defaults, the exact six-field serializer, explicit zero/off
 values, historical settings, shared setters, bounded response and stream lifecycle
 (rejection, cancelled requests, stopped tracks). The opt-in
 `tests/scene-vfx.browser.mjs` is a focused synthetic-tone/shader/control check,
@@ -127,7 +128,7 @@ an emission-only mask, with live shared uniforms so cached bloom cannot freeze a
 old audio/texture state. Existing scene glow strength/quality still governs halo
 appearance. No additional effect setting is serialized.
 
-Wallpaper pacing targets 120 fps through the display's animation clock. It
+Wallpaper pacing uses Max FPS (default 120, minimum 60) through the display's animation clock. It
 retains phase on high-refresh displays and discards missed-frame debt. A 60 Hz
 display remains 60 Hz; GPU/renderer load can reduce the delivered rate. Existing
 resolution budgets, reduced-motion and hidden-tab suspension remain in force.
@@ -145,3 +146,18 @@ GPU patch tests passed orange and lighter-orange response, unchanged distant
 blue/green pixels, switching the target to blue, emission-only bloom and live
 cached-mask response. Shader/page errors were absent. Actual original Wave/VHS
 shader matching remains deferred until the effect sources are supplied.
+
+
+## Editable maximum frame rate (2026-11-07)
+
+Scene → Scene effects → **Max FPS** sets a whole-number cap, minimum 60,
+default 120 (supported numeric range 60–1000). It uses the existing registered
+numeric editor, shared settings history/persistence, MC and serializer. Changing
+it resets pacing without changing image/wave phase, source audio or other values.
+The actual rate cannot exceed display refresh or rendering capacity. Old five-field
+settings acquire maxFps 120 while retaining every existing choice. This sixth
+serialized setting was explicitly requested after the original screenshot-only
+scope; audio internals and source/session data remain excluded. Model regressions
+cover historical default, lower bound, persistence/shared setter and selected caps
+on a fast display clock. Earlier focused colour/audio browser evidence remains;
+no new browser suite was run for this standard numeric-control addition.

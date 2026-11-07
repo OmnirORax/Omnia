@@ -420,3 +420,11 @@ requested, instead of global tinting. No conversion or image rewrite occurs.
 Older clients apply the same saved colour globally; rollback needs no data
 conversion. The 120 fps target, glow-mask capability and app-owned hidden media
 parking host are runtime-only; exactly five sceneVfx fields remain serialized.
+
+Editable scene FPS cap (2026-11-07): the user explicitly extended the earlier
+five-field screenshot-only scope with maxFps. SceneVfx now serializes six fields;
+old five-field settings acquire 120, values below 60 clamp to 60, and finite values
+are rounded/bounded to 60–1000. Existing explicit effect choices remain intact.
+The registered settings owner, shared history and export/import paths carry the
+additive field. Older clients omit only the cap on resave; source images/assignments
+and audio/session exclusion remain unchanged. No atlas or backend format changes.

@@ -68,7 +68,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
   const tick=(now:number)=>{
     frame=0;if(!alive||!mesh.visible||document.hidden||reduced.matches)return;
     if(deadline&&now+.1<deadline){schedule();return;}
-    deadline=nextVfxDeadline(deadline,now);
+    deadline=nextVfxDeadline(deadline,now,settings.maxFps);
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
     const audio=sampleSceneAudio();bass=smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;

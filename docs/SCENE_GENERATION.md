@@ -201,7 +201,7 @@ code, provider secrets, hosted settings and deployment workflows are unchanged.
 
 ## Selected image effects (2026-11-07)
 
-The same screen-space wallpaper renderer now supports five selected audio/VFX
-controls without changing image bytes or node assignments. See
+The same screen-space wallpaper renderer now supports the pictured audio/VFX
+controls and the requested Max FPS cap without changing image bytes or node assignments. See
 [SCENE_VFX.md](SCENE_VFX.md) for defaults, permitted audio sources, shared settings,
 reduced-motion/performance limits and the Wallpaper Engine approximation boundary.
