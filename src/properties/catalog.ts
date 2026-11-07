@@ -10,6 +10,7 @@ const builtins: Property[] = [
   {id:"adaptiveBlendCoverage",label:"Body coverage",kind:"number",min:0,max:1,step:.01,initial:1,neutral:0},
   {id:"adaptiveBlend",label:"Adaptive blending",kind:"toggle",initial:false,neutral:false},
   {id:"adaptiveBlendStrength",label:"Blend strength",kind:"number",min:0,max:1,step:.01,initial:.65,neutral:0},
+  {id:"translucencyRadius",label:"Translucency radius",kind:"number",min:0,max:1,step:.01,initial:1,neutral:1},
   {id:"translucency",label:"Translucency",kind:"number",min:0,max:1,step:.01,initial:0,neutral:0},
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },
   {
