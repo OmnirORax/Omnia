@@ -122,8 +122,8 @@ is deferred until the original effect code is supplied.
 
 Audio Light now selects a broad, feathered hue range around any chosen chromatic
 colour, including adjacent hues and light/dark variants. Neutral/black pixels are
-excluded from hue lighting. Matching source pixels emit coloured light; the image
-is not globally tinted. The shared SceneGlow capability `sceneGlowPass` supplies
+excluded from hue lighting. Matching source radiance is boosted with highlight weighting; dark shadows retain
+their original levels and the image is not globally tinted. The shared SceneGlow capability `sceneGlowPass` supplies
 an emission-only mask, with live shared uniforms so cached bloom cannot freeze an
 old audio/texture state. Existing scene glow strength/quality still governs halo
 appearance. No additional effect setting is serialized.
@@ -161,3 +161,23 @@ scope; audio internals and source/session data remain excluded. Model regression
 cover historical default, lower bound, persistence/shared setter and selected caps
 on a fast display clock. Earlier focused colour/audio browser evidence remains;
 no new browser suite was run for this standard numeric-control addition.
+
+
+## Shadow-preserving flash correction (2026-11-07)
+
+The user clarified the comparison: image 1 is the original, image 2 is this app's
+washed-out output, image 3 is the desired vivid blue flash. The prior shader
+normalised source chroma and added an emission floor even to dark matching pixels.
+That lifted shadows and lowered the apparent contrast. Audio Light now multiplies
+source radiance with a highlight-weighted gain. It does not recolour matching
+pixels toward the picked RGB value or add an arbitrary floor to their shadows.
+The broad hue selector and emission-only bloom remain; brighter matching details
+flash strongly while near-black cloth/space and unrelated hues retain their base.
+
+The user-approved `scene-light-contrast.browser.mjs` check exercises the actual
+SceneAppearance → SceneGlow → OutputPass stack. It reproduced the old dark-blue
+lift (source blue 26 became 95), then verified the new peak leaves that patch at
+26, black at zero and non-target gold unchanged, while bright blue/cyan becomes
+stronger. No-audio base and restored source patches match exactly. No page/shader
+errors were observed. This controlled evidence is not a claim of exact Wallpaper
+Engine visual equivalence; actual-image acceptance remains with the user.

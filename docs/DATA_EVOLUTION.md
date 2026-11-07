@@ -428,3 +428,9 @@ are rounded/bounded to 60–1000. Existing explicit effect choices remain intact
 The registered settings owner, shared history and export/import paths carry the
 additive field. Older clients omit only the cap on resave; source images/assignments
 and audio/session exclusion remain unchanged. No atlas or backend format changes.
+
+Scene flash contrast correction (2026-11-07): Audio Light emission now weights
+source radiance/highlights and removes the chroma-normalized shadow floor. No
+saved values, defaults, ranges, image bytes or scene assignments change. Six-field
+serialization, selected hue ranges and Max FPS remain intact. Older clients render
+the former shadow-lifting response from the same preferences; no data conversion.

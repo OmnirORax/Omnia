@@ -44,9 +44,10 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
         // The colour picker selects a broad hue family; the source image stays intact.
         float match=affinity(color),value=max(color.r,max(color.g,color.b));
-        vec3 chroma=color/max(.025,value);
-        vec3 chosen=lightColor/max(.025,max(lightColor.r,max(lightColor.g,lightColor.b)));
-        vec3 emission=mix(chroma,chosen,.25)*match*light*(.2+.8*value)*1.6;
+        // Boost source radiance, never add a colour-normalized floor to shadows.
+        // This keeps dark fabric/space dark while bright coloured details flash.
+        float highlights=smoothstep(.025,.55,value);
+        vec3 emission=color*match*light*highlights*3.0;
         vec3 outputColor=sceneGlowPass==0.0?mix(color+emission,feedbackColor,feedbackStrength):
           (sceneGlowPass>0.0?emission*sceneGlowPass:vec3(0.0));
         gl_FragColor = vec4(outputColor, 1.0);
