@@ -1,5 +1,5 @@
 import { placeBinderText } from "./graph/binderLabels";
-import { contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
+import { incomingBinderVisible, contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
 import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
 import { structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
@@ -286,7 +286,7 @@ export function buildTextScene(
     const textStyle = { ...resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", b.textAppearance), ...(theme.textColor ? { color: theme.textColor } : {}) };
     style.opacity *= theme.opacity; textStyle.opacity *= theme.opacity;
     const color = style.color;
-    const related = !selectedId || b.source === selectedId || b.target === selectedId;
+    const related = incomingBinderVisible(b.target, nodes.get(b.target)!.selected, expansion);
     const opacity = style.opacity;
     const material = new LineMaterial({ color: new THREE.Color(color).getHex(), linewidth: Number(theme.renderDefaults?.["omnium.binders.path"]?.contourWidth ?? 1.5), worldUnits: false, alphaToCoverage: true, transparent: true, depthWrite: false, opacity, dashed: b.kind === "visual" || b.kind === "variant", dashSize: 0.15, gapSize: 0.1 });
     const line = new Line2(new LineGeometry(), material);
@@ -478,11 +478,7 @@ export function buildTextScene(
       item.text.userData.setSelected(next);
 
     }
-    for (const item of connectors) {
-      const related = !primary || item.data.source === primary || item.data.target === primary;
-      if (related === item.related) continue;
-      item.related = related; applyConnectorTheme(item, currentTheme, currentPreview);
-    }
+
   }
 
   function update(camera: THREE.PerspectiveCamera, width: number, height: number) {
@@ -543,6 +539,11 @@ export function buildTextScene(
       return item.group.position.clone().addScaledVector(direction, Number.isFinite(fraction) ? Math.min(0.45, fraction) : 0);
     };
     for (const b of connectors) {
+      b.related = incomingBinderVisible(b.data.target, nodes.get(b.data.target)!.selected, expansion);
+      b.line.visible = b.related;
+      b.arrow.visible = b.related;
+      if (b.markerHit) b.markerHit.visible = b.related;
+      if (!b.related) { if (b.label) b.label.visible = false; continue; }
       const from = nodes.get(b.data.source)!, to = nodes.get(b.data.target)!;
       const start = edge(from, to.group.position), end = edge(to, from.group.position);
       const direction = end.clone().sub(start).normalize();

@@ -740,3 +740,9 @@ start directly at the fixed binder midpoint and extend along its directed screen
 normal. No leader line, obstacle packing, side/sample switching or hover-driven
 relocation. Upright glyph rotation preserves attachment side. Expansion-space
 realignment is deferred; overlap/viewport clipping is possible for now.
+
+Atlas incoming binder visibility: use the downstream placement's selection or
+explicit transient open state for every binder kind. Source selection, hover,
+Names and structural expansion alone must not expose outgoing relations. Hide
+all line/marker/text/hit objects together; do not merely dim unrelated binders.
+Reuse nodePresentation expansion state; no saved graph mutation for visibility.

@@ -93,3 +93,19 @@ test('compact binder wrapping preserves every word without shrinking line height
  assert.deepEqual(labelLines('contains inverse',14),['contains','inverse']);
  const size=labelSize('contains inverse',14);assert.equal(size.height,1);assert.equal(size.width,labelSize('contains').width);
 });
+
+test('incoming binders require downstream selection or explicit retained expansion',async()=>{
+ const {incomingBinderVisible,expansionState,toggleContent}=await import('../src/graph/nodePresentation.ts');
+ const state=expansionState();
+ // Parent content, hover and names do not participate in this policy.
+ assert.equal(incomingBinderVisible('child',false,state),false);
+ toggleContent(state,'parent',false);
+ assert.equal(incomingBinderVisible('child',false,state),false);
+ assert.equal(incomingBinderVisible('child',true,state),true);
+ toggleContent(state,'child',false);
+ const edges=[{source:'parent',target:'child'},{source:'other-parent',target:'child'},{source:'child',target:'grandchild'}];
+ assert.deepEqual(edges.filter(edge=>incomingBinderVisible(edge.target,false,state)),edges.slice(0,2));
+ assert.equal(incomingBinderVisible('grandchild',false,state),false);
+ toggleContent(state,'child',false);
+ assert.equal(incomingBinderVisible('child',false,state),false);
+});

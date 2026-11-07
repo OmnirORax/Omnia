@@ -1,5 +1,19 @@
 # Atlas binder labels and reconnection
 
+## Incoming context visibility
+
+Binders are hidden until their downstream (target) placement is selected or
+explicitly retained open by the existing content toggle. All its incoming parent
+binders then appear together. Selecting/opening a source does not reveal every
+outgoing child relation; open each downstream node to continue. Hover, Names,
+and a structurally expanded parent alone do not expose relations. Hidden lines,
+markers and labels are also excluded from pointer picking. Deselecting hides
+incoming context unless explicitly retained open. Closing that retained content
+hides it after deselection. This rule is shared by relationship, containment,
+visual-nesting and variant binders. It covers direct displayed parents; ancestry
+is explored incrementally. Existing structural filters still determine which
+nodes/endpoints are available. No saved state, identity or migration changes.
+
 ## Perpendicular labels
 
 All binder types share camera-facing text anchored directly at the binder midpoint.
@@ -76,7 +90,7 @@ committed connection. Hover/label layout never changes saved data.
 
 ## Verification route
 
-Try a short relationship, rotate the view and hover nearby text: the label stays
+Select its downstream node to reveal the binder first. Try a short relationship, rotate the view and hover nearby text: the label stays
 rooted directly at its midpoint without a leader or obstacle-driven relocation.
 Then test normal editing, both reconnect endpoints, cancellation and Undo/reload.
 Model checks cover a full rotation of fixed-root geometry and degenerate tangents.
