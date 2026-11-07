@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel} from '../src/scene/vfx.ts';
+import {DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects save exactly the pictured controls and screenshot defaults',()=>{
@@ -57,7 +57,7 @@ test('quiet audible input survives light shaping while digital silence stays sti
 test('file playback session survives control subscriptions and reconnects with a fresh media element',async()=>{
  const audio=await import('../src/scene/audio.ts'),previousAudio=globalThis.Audio,previousContext=globalThis.AudioContext;
  const contexts=[];
- class Media{paused=true;controls=false;listeners=new Map();constructor(src){this.src=src;}pause(){this.paused=true;}addEventListener(name,fn){this.listeners.set(name,fn);}removeEventListener(name){this.listeners.delete(name);}}
+ class Media{paused=true;controls=false;listeners=new Map();constructor(src){this.src=src;}pause(){this.paused=true;}remove(){}addEventListener(name,fn){this.listeners.set(name,fn);}removeEventListener(name){this.listeners.delete(name);}}
  class Node{connect(){}disconnect(){}}
  class Context{state='running';closed=false;constructor(){contexts.push(this);}resume(){return Promise.resolve();}close(){this.closed=true;return Promise.resolve();}createMediaElementSource(){return new Node();}createAnalyser(){return Object.assign(new Node(),{frequencyBinCount:1024});}}
  globalThis.Audio=Media;globalThis.AudioContext=Context;
@@ -70,4 +70,15 @@ test('file playback session survives control subscriptions and reconnects with a
  await audio.connectSceneAudioElement(second);assert.equal(audio.isSceneAudioConnected(),true);
  audio.disposeSceneAudio();assert.equal(audio.sceneAudioSnapshot().player,null);assert.ok(contexts.at(-1).closed);
  }finally{audio.disposeSceneAudio();globalThis.Audio=previousAudio;globalThis.AudioContext=previousContext;}
+});
+
+
+test('wallpaper pacing targets 120 on faster displays and drops stalled-frame debt',()=>{
+ assert.equal(SCENE_VFX_FPS,120);
+ for(const refresh of [60,120,144,240]){
+ let deadline=0,count=0;
+ for(let frame=0;frame<refresh;frame++){const now=frame*1000/refresh;if(deadline&&now+.1<deadline)continue;count++;deadline=nextVfxDeadline(deadline,now);}
+ assert.ok(Math.abs(count-Math.min(refresh,120))<=1,`${refresh} Hz display rendered ${count} frames`);
+ }
+ const delayed=nextVfxDeadline(100,5000);assert.ok(delayed>5000&&delayed<=5000+1000/120+.001);
 });

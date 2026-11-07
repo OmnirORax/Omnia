@@ -37,6 +37,12 @@ export class SceneGlow extends Pass {
     material.visible = original.visible;
     const color = (material as Colored).color;
     if (color) color.copy((original as Colored).color ?? new THREE.Color("white")).multiplyScalar(intensity);
+    // Shaders declaring this capability supply their own emission-only bloom mask.
+    // Share live uniforms so audio/time/texture changes cannot freeze in a cached clone.
+    if (material instanceof THREE.ShaderMaterial && original instanceof THREE.ShaderMaterial && original.uniforms.sceneGlowPass) {
+      for (const key in original.uniforms) if(key!=='sceneGlowPass') material.uniforms[key]=original.uniforms[key];
+      material.uniforms.sceneGlowPass.value=intensity>0?intensity:-1;
+    }
     if (material instanceof THREE.ShaderMaterial && original instanceof THREE.ShaderMaterial && material.uniforms.resolution && original.uniforms.resolution) material.uniforms.resolution.value.copy(original.uniforms.resolution.value);
     return material;
   }

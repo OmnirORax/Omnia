@@ -1,4 +1,4 @@
-import {normalizeSceneVfx,smoothAudio,audioScale,type SceneVfx} from './vfx';
+import {normalizeSceneVfx,smoothAudio,audioScale,nextVfxDeadline,type SceneVfx} from './vfx';
 import {sampleSceneAudio,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio';
 import * as THREE from 'three';
 
@@ -7,14 +7,26 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,
     uniforms: { image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      time: {value:0}, bounce:{value:1}, light:{value:0}, lightColor:{value:new THREE.Color('#aa3300')},
+      sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightColor:{value:new THREE.Color('#aa3300')},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
     vertexShader: 'varying vec2 imageUV; void main() { imageUV = uv; gl_Position = vec4(position.xy, 1.0, 1.0); }',
     fragmentShader: `uniform sampler2D image; uniform float imageAspect; uniform float viewportAspect;
-      uniform float time; uniform float bounce; uniform float light; uniform vec3 lightColor;
+      uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light; uniform vec3 lightColor;
       uniform float waves; uniform float distortion; uniform float glitching;
       float hash(float n){return fract(sin(n*127.1)*43758.5453);}
+      vec3 hsv(vec3 c){
+        vec4 K=vec4(0.0,-1.0/3.0,2.0/3.0,-1.0);
+        vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
+        vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));
+        float d=q.x-min(q.w,q.y),e=1.e-10;
+        return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)),d/(q.x+e),q.x);
+      }
+      float affinity(vec3 sampleColor){
+        vec3 a=hsv(sampleColor),b=hsv(lightColor);
+        float distance=abs(a.x-b.x);distance=min(distance,1.0-distance);
+        return (1.0-smoothstep(.04,.14,distance))*smoothstep(.06,.22,a.y)*smoothstep(.001,.025,a.z);
+      }
       uniform vec3 feedbackColor; uniform float feedbackStrength; varying vec2 imageUV;
       void main() {
         vec2 uv=(imageUV-.5)/bounce+.5;
@@ -30,18 +42,24 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
         if (viewportAspect > imageAspect) coverUV.y *= imageAspect / viewportAspect;
         else coverUV.x *= viewportAspect / imageAspect;
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
-        color*=mix(vec3(1.0),lightColor*1.2,light);
-        gl_FragColor = vec4(mix(color, feedbackColor, feedbackStrength), 1.0);
+        // The colour picker selects a broad hue family; the source image stays intact.
+        float match=affinity(color),value=max(color.r,max(color.g,color.b));
+        vec3 chroma=color/max(.025,value);
+        vec3 chosen=lightColor/max(.025,max(lightColor.r,max(lightColor.g,lightColor.b)));
+        vec3 emission=mix(chroma,chosen,.25)*match*light*(.2+.8*value)*1.6;
+        vec3 outputColor=sceneGlowPass==0.0?mix(color+emission,feedbackColor,feedbackStrength):
+          (sceneGlowPass>0.0?emission*sceneGlowPass:vec3(0.0));
+        gl_FragColor = vec4(outputColor, 1.0);
         #include <colorspace_fragment>
       }`,
   });
   const geometry = new THREE.PlaneGeometry(2, 2), mesh = new THREE.Mesh(geometry, material);
-  mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
+  mesh.userData.glowIntensity = 1; mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
   scene.add(mesh);
   let texture: THREE.Texture | null = null, epoch = 0, alive = true;
-  let settings=normalizeSceneVfx(undefined),frame=0,last=0,bass=0,level=0,elapsed=0;
+  let settings=normalizeSceneVfx(undefined),frame=0,last=0,deadline=0,bass=0,level=0,elapsed=0;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
-  const cancel=()=>{if(frame)cancelAnimationFrame(frame);frame=0;last=0;};
+  const cancel=()=>{if(frame)cancelAnimationFrame(frame);frame=0;last=0;deadline=0;};
   const schedule=()=>{
     if(frame||!alive||!mesh.visible||document.hidden||reduced.matches)return;
     if(!settings.waves&&!settings.distortion&&!settings.glitching&&!isSceneAudioConnected()&&bass<.0001&&level<.0001)return;
@@ -49,7 +67,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
   };
   const tick=(now:number)=>{
     frame=0;if(!alive||!mesh.visible||document.hidden||reduced.matches)return;
-    if(last&&now-last<1000/30){schedule();return;}
+    if(deadline&&now+.1<deadline){schedule();return;}
+    deadline=nextVfxDeadline(deadline,now);
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
     const audio=sampleSceneAudio();bass=smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;

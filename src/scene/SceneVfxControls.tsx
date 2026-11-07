@@ -4,13 +4,13 @@ import {UISection} from '../ui/UISection';
 import {UIField} from '../ui/UIField';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useFeatureActions} from '../ui/useFeatureActions';
-import {connectSharedSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio} from './audio';
+import {connectSharedSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,parkSceneAudioPlayer} from './audio';
 export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  const file=useRef<HTMLInputElement>(null),host=useRef<HTMLDivElement>(null),meter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
  const audio=useSyncExternalStore(subscribeSceneAudio,sceneAudioSnapshot);
  useLayoutEffect(()=>{
    const player=audio.player;if(!player||!host.current)return;
-   host.current.appendChild(player);return()=>{player.remove();};
+   host.current.appendChild(player);return()=>{parkSceneAudioPlayer(player);};
  },[audio.player]);
  useEffect(()=>{let frame=0,last=0;const tick=(now:number)=>{if(now-last>=100){last=now;if(meter.current)meter.current.value=sampleSceneAudio().level;}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[]);
  const fail=(error:unknown)=>setError(error instanceof Error?error.message:'Audio connection failed');

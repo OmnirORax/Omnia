@@ -4,7 +4,7 @@ let context:AudioContext|null=null,analyser:AnalyserNode|null=null,source:AudioN
 let activeMedia:HTMLMediaElement|null=null;
 let cleanupMedia:(()=>void)|undefined;
 let bytes=new Uint8Array(0),epoch=0,status='No audio connected',connected=false;
-let player:HTMLAudioElement|null=null,playerURL='';
+let player:HTMLAudioElement|null=null,playerURL='',parking:HTMLDivElement|null=null;
 let snapshot:{status:string;player:HTMLAudioElement|null}={status,player};
 const listeners=new Set<()=>void>();
 const publish=(message:string)=>{status=message;snapshot={status,player};listeners.forEach(fn=>fn());};
@@ -76,5 +76,14 @@ export function stopSceneAudio(){
  publish('No audio connected');
 }
 export function disposeSceneAudio(){
- disconnectSceneAudio();player?.pause();player=null;if(playerURL)URL.revokeObjectURL(playerURL);playerURL='';publish('No audio connected');
+ disconnectSceneAudio();player?.pause();player?.remove();player=null;parking?.remove();parking=null;if(playerURL)URL.revokeObjectURL(playerURL);playerURL='';publish('No audio connected');
+}
+
+/** Keep the media element in the document while its settings view is closed.
+ * Browsers can pause a playing element after it is detached, even if JS retains it. */
+export function parkSceneAudioPlayer(media:HTMLAudioElement|null=player){
+ if(!media)return;
+ if(media!==player){media.remove();return;}
+ if(!parking){parking=document.createElement('div');parking.hidden=true;parking.dataset.sceneAudioSession='';document.body.appendChild(parking);}
+ parking.appendChild(media);
 }

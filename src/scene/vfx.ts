@@ -19,3 +19,10 @@ export function audioScale(bass:number,maximum:number) { return 1+Math.max(0,Mat
 export function normalizeAudioLevel(rms:number) {
  return Math.sqrt(Math.min(1,Math.max(0,rms-.002)*8));
 }
+
+export const SCENE_VFX_FPS = 120;
+/** Retain pacing phase on fast displays, discard elapsed debt after a slow frame. */
+export function nextVfxDeadline(previous:number,now:number){
+ const interval=1000/SCENE_VFX_FPS,next=(previous||now)+interval;
+ return next<now?now+interval:next;
+}

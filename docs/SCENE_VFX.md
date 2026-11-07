@@ -11,7 +11,7 @@ Exactly five effect settings persist in `WorkspaceSettings.sceneVfx`:
 
 | Field | Control | Default | Bounds |
 | --- | --- | --- | --- |
-| audioLight | Audio Light | `#aa3300` (orange, estimated from screenshot) | RGB colour |
+| audioLight | Audio Light colour-range target | `#aa3300` (orange, estimated from screenshot) | RGB colour |
 | audioBounce | Audio Bounce, maximum scale multiplier | 1.12 | 1–1.5 |
 | waves | Waves | true | On/off |
 | distortion | Distortion | 0.4 | 0–1 |
@@ -54,12 +54,14 @@ Reference fixed internals are wave scale 10, speed 5 and strength .025, VHS slow
 speed .5 and strip tracking, and audio smoothing 25. Bass is approximated by the
 31–65 Hz FFT band for bounce from scale 1 to Audio Bounce. Broadband RMS is noise-gated and mapped to an audible 0–1 response range before
 driving the coloured light pulse, using the reference exponent 4 and amount 1.2. Unlike the
-extract's separate low/high tint controls, the requested single colour is the pulse
-tint and the unconnected image remains untinted. The exact original shaders,
+extract's separate low/high tint controls, the requested single colour selects a broad, softly blended hue family. Lighter
+and darker variants retain their source colour and receive local audio-driven
+emission; distant hues stay unchanged. The shared bloom pass receives only this
+emission, with live time/audio/image uniforms, instead of the whole image. The exact original shaders,
 blend implementation and frequency mapping cannot be reproduced from references.
 Snow and every unpictured setting/effect are excluded.
 
-Animation is capped at 30 fps, uses existing renderer invalidation (no geometry
+Animation targets up to 120 fps, uses existing renderer invalidation (no geometry
 refresh or React/settings updates per sample), and shares the existing scene pixel
 budget. FFT buffers are reused. It pauses when hidden or reduced motion is enabled;
 reduced motion renders undistorted static imagery. No animation is scheduled when
@@ -109,7 +111,37 @@ updates its DOM at 10 Hz without React/settings writes, and is never serialized.
 
 New model evidence covers quiet audible input, silence, shared-context resume,
 source cleanup/no echo, view subscriptions retaining playback, stop/reconnect and
-final disposal. The newly requested quiet/shared-stream browser extension is
-pending explicit approval; the earlier browser result is historical evidence,
-not acceptance of this repair or the user's capture path. Actual effect matching
+final disposal. The user approved the quiet/shared-stream browser extension and subsequently
+confirmed that audio response works. The focused result below covers the repair;
+real OS/browser capture compatibility remains user-tested. Actual effect matching
 is deferred until the original effect code is supplied.
+
+
+## Colour-range lighting and 120 fps (2026-11-07)
+
+Audio Light now selects a broad, feathered hue range around any chosen chromatic
+colour, including adjacent hues and light/dark variants. Neutral/black pixels are
+excluded from hue lighting. Matching source pixels emit coloured light; the image
+is not globally tinted. The shared SceneGlow capability `sceneGlowPass` supplies
+an emission-only mask, with live shared uniforms so cached bloom cannot freeze an
+old audio/texture state. Existing scene glow strength/quality still governs halo
+appearance. No additional effect setting is serialized.
+
+Wallpaper pacing targets 120 fps through the display's animation clock. It
+retains phase on high-refresh displays and discards missed-frame debt. A 60 Hz
+display remains 60 Hz; GPU/renderer load can reduce the delivered rate. Existing
+resolution budgets, reduced-motion and hidden-tab suspension remain in force.
+No unrelated profiling/benchmark suite was run.
+
+The approved focused Chromium regression passed quiet local website playback
+through an actually imported scene and quiet real WebAudio tracks through the
+shared-audio command (only the OS picker was simulated). Both reached the actual
+wallpaper light and bounce uniforms. The live input meter agreed with the signal.
+A real DOM retention check found that browsers can pause a media element removed
+from the document. Closing/reparenting its view now parks it in an app-owned hidden
+DOM host; reopening reuses that element and final disposal removes the host.
+
+GPU patch tests passed orange and lighter-orange response, unchanged distant
+blue/green pixels, switching the target to blue, emission-only bloom and live
+cached-mask response. Shader/page errors were absent. Actual original Wave/VHS
+shader matching remains deferred until the effect sources are supplied.

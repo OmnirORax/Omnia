@@ -413,3 +413,10 @@ ownership and input normalization. The sceneVfx object remains exactly five fiel
 with unchanged defaults/bounds. The readonly input meter, media element, stream,
 context state and playback URL never enter settings, graph/history or exports.
 No stored image, assignment, audio bytes or existing preference is converted.
+
+Scene colour-range correction and pacing (2026-11-07): Audio Light retains its
+stored RGB value but now selects a broad soft source-image hue range, as explicitly
+requested, instead of global tinting. No conversion or image rewrite occurs.
+Older clients apply the same saved colour globally; rollback needs no data
+conversion. The 120 fps target, glow-mask capability and app-owned hidden media
+parking host are runtime-only; exactly five sceneVfx fields remain serialized.
