@@ -1,4 +1,4 @@
-import { createLabelSpace, placeBinderText } from "./graph/binderLabels";
+import { placeBinderText } from "./graph/binderLabels";
 import { contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
 import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
@@ -162,7 +162,6 @@ type BinderItem = {
   arrow: THREE.Mesh | THREE.Group;
   markerHit?: LabelMesh;
   label: LabelMesh | null;
-  labelStem: Line2 | null;
   opacity: number;
   textOpacity: number;
   related: boolean;
@@ -302,10 +301,7 @@ export function buildTextScene(
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
     const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, glyphFont(theme, 'text.binders'), glyphGlow(theme, 'text.binders'), b.textAppearance?.color ?? glyphColor(theme, 'text.binders', textStyle.color), {}, false, 14) : null;
-    const labelStem=label?new Line2(new LineGeometry().setPositions([0,0,0,0,0,0]),new LineMaterial({color:new THREE.Color(color).getHex(),linewidth:1,worldUnits:false,transparent:true,opacity,depthWrite:false})):null;
-    if(labelStem){labelStem.visible=false;labelStem.userData.glowIntensity=style.glow;}
-    if (label) label.userData.glowIntensity = textStyle.glow;
-    for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label,labelStem!] : [])]) {
+    for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;
       object.userData.binderKey = b.key;
       object.userData.binderKind = b.kind;
@@ -321,7 +317,7 @@ export function buildTextScene(
       line,
       arrow,
       markerHit,
-      label, labelStem,
+      label,
       opacity,
       textOpacity: textStyle.opacity,
       related,
@@ -459,7 +455,6 @@ export function buildTextScene(
       const text = resolveAppearance(next.nodes, fallback, b.textAppearance);
       item.opacity = style.opacity * next.opacity; item.textOpacity = (b.textAppearance?.opacity ?? Number(next.renderDefaults?.['text.binders']?.opacity ?? text.opacity)) * next.opacity;
       item.line.material.linewidth = Number(next.renderDefaults?.["omnium.binders.path"]?.contourWidth ?? 1.5);
-      if(item.labelStem){item.labelStem.material.color.set(style.color);item.labelStem.material.opacity=style.opacity;item.labelStem.userData.glowIntensity=style.glow;}
       item.line.material.color.set(style.color); item.line.userData.glowIntensity = style.glow;
       const operator=symbolStyle(next,'symbols.binders',b.color,style.color);
       item.arrow.userData.glowIntensity = b.glow??operator.glow;
@@ -539,9 +534,6 @@ export function buildTextScene(
       const item=nodes.get(rect.id)!,point=positions.get(rect.id)!,units=unitsPerPixel(item.anchor);
       item.presentation.position.copy(cameraRight).multiplyScalar((point.x-rect.x)*units).addScaledVector(cameraUp,(rect.y-point.y)*units).applyQuaternion(item.group.quaternion.clone().invert());
     }
-    const carrierBoxes=[...nodes.values()].filter(item=>item.cell.visible).map(item=>{const p=item.anchor.clone().project(camera),extent=sphereDiameter/unitsPerPixel(item.anchor);return {x:(p.x+1)*width/2,y:(1-p.y)*height/2,width:extent,height:extent,radius:extent/2};});
-    const ringBoxes=[...nodes.values()].filter(item=>item.outline.visible).map(item=>{const p=item.anchor.clone().project(camera),units=unitsPerPixel(item.anchor),radius=sphereDiameter*(item.selected ? .88 : .8)/units;return {x:(p.x+1)*width/2,y:(1-p.y)*height/2,width:radius*2,height:radius*2,radius,innerRadius:sphereDiameter*.768/units};});
-    const labelSpace=createLabelSpace([...carrierBoxes,...ringBoxes,...rects.map(rect=>({...rect,...positions.get(rect.id)!}))],width,height);
     const edge = (item: NodeItem, other: THREE.Vector3) => {
       const direction = other.clone().sub(item.group.position);
       const half = { x: sphereDiameter / 2, y: sphereDiameter / 2, z: sphereDiameter / 2 };
@@ -595,19 +587,15 @@ export function buildTextScene(
       if (b.label) {
         const size = labelSize(b.data.label,b.label.userData.wrapColumns??32);
         b.label.scale.set(size.width * 0.7, size.height * 0.7, 1);
-        const samples=[.5,.35,.65,.2,.8,.1,.9];
-        const anchors=samples.map(t=>{
-          const world=path.getPoint(t),p=world.clone().project(camera),a=path.getPoint(Math.max(0,t-.01)).project(camera),z=path.getPoint(Math.min(1,t+.01)).project(camera),units=unitsPerPixel(world);
-          return {x:(p.x+1)*width/2,y:(1-p.y)*height/2,dx:(z.x-a.x)*width/2,dy:(a.y-z.y)*height/2,world,units};
-        });
-        const placed=b.related&&b.label.scale.y/unitsPerPixel(center)>=5?placeBinderText(labelSpace,anchors.map(a=>({...a,width:b.label!.scale.x/a.units,height:b.label!.scale.y/a.units}))):undefined;
-        if(placed){const anchor=anchors[placed.anchor];b.label.position.copy(anchor.world).addScaledVector(cameraRight,(placed.x-anchor.x)*anchor.units).addScaledVector(cameraUp,(anchor.y-placed.y)*anchor.units);b.label.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-placed.angle!));}
+        // One authored binder midpoint, one directed normal. Hover/content
+        // obstacles never select a different attachment or push the text away.
+        const p=center.clone().project(camera),a=path.getPoint(.49).project(camera),z=path.getPoint(.51).project(camera),units=unitsPerPixel(center);
+        const anchor={x:(p.x+1)*width/2,y:(1-p.y)*height/2,dx:(z.x-a.x)*width/2,dy:(a.y-z.y)*height/2,width:b.label.scale.x/units,height:b.label.scale.y/units};
+        const placed=b.related?placeBinderText(anchor):undefined;
+        if(placed){b.label.position.copy(center).addScaledVector(cameraRight,(placed.x-anchor.x)*units).addScaledVector(cameraUp,(anchor.y-placed.y)*units);b.label.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-placed.angle));}
         b.label.material.opacity = b.textOpacity;
         b.label.visible = !!placed && depth(b.label.position) > camera.near && b.label.scale.y / unitsPerPixel(b.label.position) >= 5;
-        if(b.labelStem){
-          b.labelStem.visible=b.label.visible&&!!placed&&placed.leader>0;
-          if(b.labelStem.visible&&placed){const anchor=anchors[placed.anchor],near=b.label.position.clone().sub(anchor.world).multiplyScalar((placed.leader+labelSpace.gap)/(placed.width/2+placed.leader+labelSpace.gap)).add(anchor.world);b.labelStem.geometry.setPositions([...anchor.world.toArray(),...near.toArray()]);b.labelStem.material.resolution.set(width,height);b.labelStem.material.opacity=b.opacity*fade;}
-        }
+
       }
     }
     content.updateMatrixWorld(true);

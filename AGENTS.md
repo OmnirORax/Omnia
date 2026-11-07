@@ -734,3 +734,9 @@ blocked, keep its binder root and advance a short stem into clear space. Wrap
 long phrases without dropping text; validate complete rotated bounds rather than
 clipping glyphs or disabling depth tests. Preserve the selection pulse. The
 authorized local rotation diagnostic is opt-in, not standing browser permission.
+
+Atlas binder anchoring correction (supersedes packing/stem rules above): labels
+start directly at the fixed binder midpoint and extend along its directed screen
+normal. No leader line, obstacle packing, side/sample switching or hover-driven
+relocation. Upright glyph rotation preserves attachment side. Expansion-space
+realignment is deferred; overlap/viewport clipping is possible for now.

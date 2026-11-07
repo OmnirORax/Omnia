@@ -2,30 +2,13 @@
 
 ## Perpendicular labels
 
-All typed relationships, containment, visual nesting and variant binders use the
-same camera-facing text renderer. A label attaches to its binder and extends
-perpendicular to the projected local tangent, rather than sitting horizontally
-between its endpoints. The label's root stays at the binder. When projected ink obstructs the text, a
-short perpendicular stem reaches the first clear position instead of dropping
-the label. Text stays upright; its other end can be attached on the opposite side.
-Long phrases wrap at word boundaries (14 columns) without dropping characters.
-
-The shared screen-space owner tries both sides of seven samples along the binder,
-starting at its midpoint. A single spatial index contains visible carrier bounds,
-expanded node content and accepted labels. Rotated text/expanded-content rectangles use separating axes; carriers use circle
-bounds and selection/hover rings use their swept annular ink rather than solid
-squares. Full rotated text bounds stay inside the viewport. Each side has at most
-eight clearance advances, and the swept selection pulse is reserved so it does
-not cross the text. No node, binder path or stored
-coordinate is moved, and labels retain their authored size/style. If no candidate
-fits, the text is omitted rather than drawn over a node; the line/marker remains
-selectable and its existing editor retains the label. Very small labels retain
-the existing visibility threshold. This does not promise that every label fits
-in an arbitrarily crowded view.
-
-The work runs inside the existing coalesced camera/layout update, with bounded
-candidates and indexed local obstacles. No DOM measurement or new global pointer
-listener is added. Browser visual/performance acceptance remains user-owned.
+All binder types share camera-facing text anchored directly at the binder midpoint.
+Text extends perpendicular to its directed projected tangent. It keeps that side
+and root as the camera rotates; upright glyph orientation does not switch sides.
+There is no extra stem, obstacle search, alternate sample or hover-driven packing.
+Long phrases wrap at 14 columns. Nearby content can overlap text and viewport
+edges can cut it off; expansion-space realignment is deferred. Existing depth,
+relationship visibility and minimum readable size checks remain.
 
 ## Drag to reconnect
 
@@ -93,21 +76,10 @@ committed connection. Hover/label layout never changes saved data.
 
 ## Verification route
 
-Try a short relationship between close nodes: its label should stand out from
-the binder toward a clear side instead of falling inside a carrier. Pan/rotate
-and expand nearby content; text should reorient or choose another attachment.
-Then click the line normally, drag near each endpoint to another node, cancel
-with Escape and try an invalid/empty drop. Reload after a valid rewire, then test
-Undo in a fresh session edit. Repeat for containment, visual nesting and variants.
-2026-11-07: the user authorized one focused local Chromium rotation diagnostic.
-It reproduced whole-label rejection as projected node bounds changed; no visible
-case showed a depth-test difference. After the correction, ten fixed-distance
-camera rotations render real label pixels with all four text corners in view,
-including selected/hovered rings. It also checks O-hidden/ring-visible selection
-and advances the existing pulse function. Run the opt-in
-`OMNIA_URL=http://127.0.0.1:5181 node tests/binder-rotation.browser.mjs` with the
-local dev server. Its static two-node fixture uses the actual text/effect renderer;
-no workspace/account data is loaded and HMR is unnecessary. This is not full-app
-acceptance, a performance profile or proof that arbitrarily large text fits any
-viewport. Tight/fully occupied views can still omit text when no complete layout
-fits. User workspace visual/gesture acceptance remains pending.
+Try a short relationship, rotate the view and hover nearby text: the label stays
+rooted directly at its midpoint without a leader or obstacle-driven relocation.
+Then test normal editing, both reconnect endpoints, cancellation and Undo/reload.
+Model checks cover a full rotation of fixed-root geometry and degenerate tangents.
+The earlier authorized browser diagnostic covered the superseded packed layout;
+its viewport-fit assertions do not validate this fixed-root behavior. No new
+browser check was run. Full workspace interaction acceptance remains user-owned.
