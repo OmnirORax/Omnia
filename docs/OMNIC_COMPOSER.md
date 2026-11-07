@@ -1157,3 +1157,5 @@ without changing the original. The detached object draws independently after the
 receiver's top-level component; overlap compositing can change when splitting one
 opacity group. This does not change containment or geometric contact relations.
 Browser acceptance for this feature remains pending.
+
+Alt-left-drag atlas painting inherits the Composer-owned paintStroke sampler; do not duplicate sampling policy. Start empty for blanks or on a node for independent content/visual copies (no subtree/relationship copy). Atlas adapters own camera-plane conversion, sparse occupancy, transient instanced outline preview (256 max), and one existing document/history commit on release. Skip occupied/hidden/repeated cells. Esc, capture loss and document replacement cancel. Camera stays fixed. No browser acceptance inferred.

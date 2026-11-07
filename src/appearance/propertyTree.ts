@@ -17,6 +17,8 @@ export const PROPERTY_TREE: PropertyNode[] = [
     children: [leaf("brightness", "Brightness"), leaf("glow", "Glow")],
   },
   leaf("opacity", "Opacity"),
+  {...leaf("translucency", "Translucency"),children:[{...leaf("translucencyRadius","Translucency radius"),tooltip:"1: transmission over the whole sphere. Lower values keep a transparent centre with a stronger outer shell."}]},
+  {...leaf("adaptiveBlend","Adaptive blending"),children:[leaf("adaptiveBlendMode","Blend mode"),leaf("adaptiveBlendStrength","Blend strength"),leaf("adaptiveBlendCoverage","Body coverage")]},
   leaf("blur", "Blur"),
   {
     ...leaf("font", "Font"),

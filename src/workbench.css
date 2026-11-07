@@ -305,11 +305,14 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 .workbench {
+  position: relative;
   height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 .toolbar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -459,6 +462,8 @@ textarea:focus-visible {
 }
 .workspace[data-ui-docks="true"] > .sidebar { width: min(300px, 35%); flex-basis: min(300px, 35%); }
 .sidebar {
+  position: relative;
+  z-index: 1;
   width: 300px;
   flex: 0 0 300px;
   overflow-y: auto;
@@ -568,10 +573,12 @@ button.active,
   color: #2456a0;
   background: #eaf0fb;
 }
-.canvas {
-  flex: 1;
+/* The world fills the viewport; native UI and docks overlay it. Their layout
+ * still allocates UI residents, never the renderer/camera viewport. */
+.workbench > .workspace > .canvas {
+  position: absolute;
+  inset: 0;
   min-width: 0;
-  position: relative;
 }
 .empty-state {
   position: absolute;
@@ -1287,3 +1294,10 @@ input,textarea,[contenteditable]:not([contenteditable="false"]){caret-color:auto
 
 /* A contrast edge keeps the selector readable over its own accent-colored ink. */
 .tool-cursor.visual-selector-cursor .tool-cursor-icon{filter:drop-shadow(1px 0 0 #07131e) drop-shadow(-1px 0 0 #07131e) drop-shadow(0 1px 0 #07131e) drop-shadow(0 -1px 0 #07131e)}
+
+/* Reserve room for default UI homes only; these insets never constrain the world. */
+.workbench .camera-guide-home { left: calc(var(--world-ui-left, 0px) + 14px); bottom: calc(var(--world-ui-bottom, 0px) + 14px); }
+.workbench .spatial-controls { top: calc(var(--world-ui-top, 0px) + 14px); right: calc(var(--world-ui-right, 0px) + 14px); }
+.workbench .selection-status { top: calc(var(--world-ui-top, 0px) + 18px); left: calc(var(--world-ui-left, 0px) + 18px); }
+.workbench .spatial-help { left: calc(var(--world-ui-left, 0px) + 14px); bottom: calc(var(--world-ui-bottom, 0px) + 14px); }
+.workbench .spatial-feedback { left: calc(var(--world-ui-left, 0px) + 14px); bottom: calc(var(--world-ui-bottom, 0px) + 48px); }

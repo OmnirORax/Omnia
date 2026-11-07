@@ -1,3 +1,5 @@
+import {SPHERE_VISUAL_DEFAULTS} from './sphereVisualDefaults.ts';
+import {SPHERE_BLEND_MODES} from './sphereBlendModes.ts';
 import { EFFECT_KINDS } from "../graph/effects.ts";
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
 import { createPropertyRegistry, validateValue, type PropertyDefinition, type PropertyValue as Value } from "./registry.ts";
@@ -5,6 +7,12 @@ export type Property = PropertyDefinition;
 /** Existing shared definitions. New feature inputs define unique properties at
  * their source; discovery adds them to this same pool automatically. */
 const builtins: Property[] = [
+  {id:"adaptiveBlendMode",label:"Blend mode",kind:"select",initial:"contrast",neutral:"normal",options:SPHERE_BLEND_MODES},
+  {id:"adaptiveBlendCoverage",label:"Body coverage",kind:"number",min:0,max:1,step:.01,initial:1,neutral:0},
+  {id:"adaptiveBlend",label:"Adaptive blending",kind:"toggle",initial:false,neutral:false},
+  {id:"adaptiveBlendStrength",label:"Blend strength",kind:"number",min:0,max:1,step:.01,initial:.65,neutral:0},
+  {id:"translucencyRadius",label:"Translucency radius",kind:"number",min:0,max:1,step:.01,initial:SPHERE_VISUAL_DEFAULTS.translucencyRadius,neutral:1},
+  {id:"translucency",label:"Translucency",kind:"number",min:0,max:1,step:.01,initial:0,neutral:0},
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },
   {
     id: "brightness",

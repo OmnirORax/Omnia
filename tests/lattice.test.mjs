@@ -165,3 +165,23 @@ test('shared navigator creation conversion uses projected parent cells and does 
  const local=localLatticePoint(doc,'1',world);assert.deepEqual(local,{x:world.x-parent.x,y:world.y-parent.y,z:world.z-parent.z});
  assert.deepEqual(localLatticePoint(doc,null,world),world);assert.equal(localLatticePoint(doc,'1',undefined),undefined);assert.throws(()=>localLatticePoint(doc,'missing',world),/parent/);assert.equal(JSON.stringify(doc),before);
 });
+
+
+test('Composer stroke sampling is bounded and includes the endpoint in 2D and 3D',async()=>{
+ const {paintSamples}=await import('../src/omnic/paintStroke.ts');
+ const samples=paintSamples(point(0),point(10,5,2),1);assert.deepEqual(samples.at(-1),point(10,5,2));assert.equal(paintSamples(point(0),point(10000),1).length,64);
+ assert.deepEqual(paintSamples({x:0,y:0},{x:1,y:0},1),[{x:.5,y:0},{x:1,y:0}]);
+});
+test('painting copies source content independently, skips occupied/repeated cells and commits an immutable batch',async()=>{
+ const {paintNodes}=await import('../src/graph/paintNodes.ts');const doc=fixture([point(0),point(3)]);doc.entities[0].notes='template';doc.placements[1].hidden=true;const before=JSON.stringify(doc);
+ const next=paintNodes(doc,[point(0),point(1),point(1),point(3),point(2)],'0',null,settings);
+ assert.equal(next.placements.length,4);assert.equal(next.entities.length,4);assert.equal(JSON.stringify(doc),before);assert.equal(next.entities.at(-1).notes,'template');assert.notEqual(next.entities.at(-1).id,'0');validateDocument(next);
+ assert.equal(paintNodes(doc,[point(0),point(3)],undefined,null,settings),doc);
+ const blank=paintNodes(doc,[point(4)],undefined,null,settings);assert.equal(blank.entities.at(-1).label,'');assert.throws(()=>paintNodes(doc,[point(4)],'missing',null,settings));
+});
+
+test('paint confirmation retains exact preview cells under an off-grid parent',async()=>{
+ const {paintNodes}=await import('../src/graph/paintNodes.ts');const doc=fixture([point(.2),point(.3)]),targets=[point(4),point(5),point(6)];
+ const next=reconcileLattice(doc,paintNodes(doc,targets,undefined,'1',settings));const worlds=worldPositions(next);
+ assert.deepEqual(next.placements.slice(2).map(p=>worlds.get(p.id)),targets);
+});

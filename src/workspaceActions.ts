@@ -1,3 +1,4 @@
+import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
 import { contextTargets } from './ui/contextTargets.ts';
 import { uiPointerHeld, eventPathMatches } from './ui/pointerOwnership.ts';
 import { validateValue } from "./properties/registry.ts";
@@ -82,7 +83,7 @@ export type WorkspaceSettings = {
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS, latticeScale: 1, showVacantCells: false }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { opacity: 1, glow: 1 }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
+  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS, latticeScale: 1, showVacantCells: false }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { color: SPHERE_VISUAL_DEFAULTS.color, opacity: SPHERE_VISUAL_DEFAULTS.opacity, glow: SPHERE_VISUAL_DEFAULTS.glow }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
     functionValues: {}, buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
 }
 export function normalizeKey(event: KeyboardEvent): string {

@@ -1,5 +1,10 @@
+import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
+import {createSphereBackground,configureSphereBlend} from './scene/sphereBlend.ts';
+import {atomicCarrierGeometry,atomicCarrierMaterial} from './atomicCarrier.ts';
+import {resolveAppearance} from './graph/appearance.ts';
+import {paintSamples} from './omnic/paintStroke.ts';
 import { brightHex } from "./appearance/resolve";
-import { createWorldNavigator, followNavigator } from "./navigation/worldNavigator";
+import { createWorldNavigator } from "./navigation/worldNavigator";
 import { createNavigatorDrive } from "./navigation/navigatorDrive";
 import { createWorldNavigatorMarker } from "./worldNavigatorMarker";
 import { useUITracked } from "./ui/context";
@@ -7,7 +12,7 @@ import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { analyticSelectionRing } from "./materialCoverage";
 import type { BinderEnd } from "./graph/reconnectBinder";
 import type { DisplayBinder } from "./graph/binders";
-import { latticeWorld, prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
+import { cellAt, latticeWorld, prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
 import { createLatticeField, latticeFrame } from "./latticeField";
 import { expansionState } from "./graph/nodePresentation";
 import {cursorSample} from './ui/cursorPosition';
@@ -95,6 +100,7 @@ type Props = {
   onFocusContextChange: (ids: readonly string[] | null) => void;
   command: NavigationCommand | null;
   constraintAxis: "x" | "y" | "z" | null;
+  onPaintNodes:(base:Document,points:XYZ[],source?:string)=>boolean;
   onNodeSelect: (id: string) => void;
   onNodeClick: (id: string) => void;
   onNodeDoubleClick: (id: string) => void;
@@ -112,6 +118,7 @@ type Props = {
 };
 type CameraPose = { position: THREE.Vector3; target: THREE.Vector3; up: THREE.Vector3; contextIds: readonly string[] | null };
 type SceneState = {
+  sphereBackground:ReturnType<typeof createSphereBackground>;
   navigator?:ReturnType<typeof createWorldNavigator>;
   navigatorCanStep?:()=>boolean;
   navigatorDepth?:(action:NudgeActionId,input?:KeyboardEvent|MouseEvent)=>void;
@@ -240,6 +247,7 @@ export default function SpatialWorkspace(props: Props) {
     let controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false; controls.enablePan = true;
     controls.minDistance = 1.2; controls.maxDistance = 100000;
+    const sphereBackground=createSphereBackground();
     const content = new THREE.Group(); scene.add(content);
     const navigator=createWorldNavigator(),navigatorMarker=createWorldNavigatorMarker();scene.add(navigatorMarker.object);
     let navigatorDriveValid=true,navigatorVisible=false,navigatorDepthHeld=false,navigatorContext=callbacks.current.omnicPreviewContext;
@@ -287,11 +295,12 @@ export default function SpatialWorkspace(props: Props) {
         const navigatorAppearance=callbacks.current.settings.appearance,navigatorStyle=navigatorAppearance.renderDefaults?.['omnium.selection'];
         navigatorMarker.update(navigator.position,navigator.orientation,pitch(),navigatorVisible,drive.valid,{color:brightHex(String(navigatorStyle?.color??navigatorAppearance.accent),Number(navigatorStyle?.brightness??1)),opacity:Number(navigatorStyle?.opacity??.85)*navigatorAppearance.opacity,glow:Number(navigatorStyle?.glow??navigatorAppearance.nodes.glow)});
         latticeFieldRef.current?.update(navigator.initialized?navigator.position:controls.target,camera,host.clientWidth,host.clientHeight,navigator.orientation);
+        if(scene.background instanceof THREE.Color)sphereBackground.plain.value.copy(scene.background);
         appearance.render();
       });
     };
     const requestRender = () => scheduleRender(true);
-    const wallpaper = createWallpaper(scene, () => scheduleRender(false));
+    const wallpaper = createWallpaper(scene, () => scheduleRender(false),sphereBackground);
     const hierarchyPulse = createGraphHierarchyPulse();
     let hierarchyBackground: number | null = null;
     let selectedBackground: { paint: SceneSelectionPaint; strength: number } | undefined;
@@ -460,10 +469,11 @@ export default function SpatialWorkspace(props: Props) {
         rebindOrbit(); recordView(before); requestRender(); setFeedback("");
       } catch (error) { setFeedback(error instanceof Error ? error.message : String(error)); }
     };
-    stateRef.current = { navigator, scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
+    stateRef.current = { sphereBackground,navigator, scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
       camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
+      renderer.getDrawingBufferSize(sphereBackground.resolution.value);
       appearance.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
       wallpaper.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
     };
@@ -488,13 +498,23 @@ export default function SpatialWorkspace(props: Props) {
       const binder=!node||node.object.userData.atomicSlot?raycaster.intersectObjects(textScene.current?.binderHits.filter(object=>object.visible)??[],false)[0]?.object:undefined;
       return {node:binder?undefined:node,binder};
     };
+    let paintStroke:{pointerId:number;base:Document;source?:string;last:XYZ;points:XYZ[];occupied:Set<string>;unit:number;marker:THREE.InstancedMesh}|null=null;
+    const finishPaint=(cancelled=false)=>{const stroke=paintStroke;if(!stroke)return;paintStroke=null;navigatorDriving.current=false;scene.remove(stroke.marker);stroke.marker.geometry.dispose();(stroke.marker.material as THREE.Material).dispose();controls.enabled=!uiPointerActive;
+      if(renderer.domElement.hasPointerCapture(stroke.pointerId))renderer.domElement.releasePointerCapture(stroke.pointerId);
+      if(!cancelled&&stroke.base===callbacks.current.document)callbacks.current.onPaintNodes(stroke.base,stroke.points,stroke.source);setFeedback('');requestRender();};
+    const paintAt=(event:PointerEvent)=>{const stroke=paintStroke;if(!stroke||stroke.pointerId!==event.pointerId)return;if(stroke.base!==callbacks.current.document){finishPaint(true);return;}if(!updateNavigator(event))return;
+      const scale=latticeScale(callbacks.current.settings.spatial.latticeScale),point=asXYZ(navigator.position.clone().multiplyScalar(1/scale));
+      for(const sample of paintSamples(stroke.last,point,stroke.unit)){
+        const cell=cellAt(sample,stroke.unit),key=`${cell.x},${cell.y},${cell.z}`;if(stroke.occupied.has(key)||stroke.points.length>=256)continue;stroke.occupied.add(key);
+        const p={x:cell.x*stroke.unit,y:cell.y*stroke.unit,z:cell.z*stroke.unit};stroke.points.push(p);const matrix=new THREE.Matrix4().compose(new THREE.Vector3(p.x,p.y,p.z).multiplyScalar(scale),camera.quaternion,new THREE.Vector3(1,1,1));stroke.marker.setMatrixAt(stroke.points.length-1,matrix);
+      }stroke.last=point;stroke.marker.count=stroke.points.length;stroke.marker.instanceMatrix.needsUpdate=true;setFeedback(`Painting ${stroke.points.length} nodes · release to save · Esc cancels`);requestRender();};
     const stopSelectionSurface=selectionSurfaces.register({
       element:()=>renderer.domElement,context:()=>callbacks.current.omnicPreviewContext,nativePicking:true,
       onModifierClick:(pointer,mode,id)=>{
         if(mode!=='toggle'||!id)return false;
         try{
           cancelDrive();const point=latticeWorld(callbacks.current.document,id,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),world=new THREE.Vector3(point.x,point.y,point.z).multiplyScalar(scale);
-          navigator.initialize(world);navigatorDriving.current=false;navigatorVisible=true;relocateCamera(world);rebaseNavigatorPointer({clientX:pointer.x,clientY:pointer.y});callbacks.current.onNodeSelect(id);setFeedback('Navigator positioned · node is not mounted');
+          navigator.initialize(world);navigatorDriving.current=false;navigatorVisible=true;positionNavigator(world);rebaseNavigatorPointer({clientX:pointer.x,clientY:pointer.y});callbacks.current.onNodeSelect(id);setFeedback('Navigator positioned · node is not mounted');
         }catch(error){setFeedback(error instanceof Error?error.message:String(error));}
         return true;
       },
@@ -521,18 +541,17 @@ export default function SpatialWorkspace(props: Props) {
       if(!navigator.initialized)updateNavigator(event);
       return asXYZ(navigator.position.clone().multiplyScalar(1/latticeScale(callbacks.current.settings.spatial.latticeScale)));
     };
-    const relocateCamera=(point:THREE.Vector3)=>{
-      stopAnimation();nativeBefore=null;const before=readView();cameraHistory.push({position:camera.position.clone(),target:controls.target.clone(),up:camera.up.clone(),contextIds:callbacks.current.focusContextIds});
-      navigator.position.copy(point);followNavigator(camera,controls.target,point);controls.update();recordView(before);requestRender();
+    const positionNavigator=(point:THREE.Vector3)=>{
+      navigator.initialize(point);navigator.position.copy(point);navigatorVisible=true;requestRender();
     };
     const rebaseNavigatorPointer=(event:Pick<PointerEvent,'clientX'|'clientY'>)=>{aim(event);const point=navigator.project(raycaster.ray);navigatorOffset.copy(point?navigator.position.clone().sub(point).applyQuaternion(navigator.orientation.clone().invert()):new THREE.Vector3());navigatorOffset.z=0;};
     const mountNode=(id:string,event:Pick<PointerEvent,'clientX'|'clientY'>,doc=callbacks.current.document)=>{
       const point=drive.begin(doc,id,callbacks.current.settings.spatial.nodeCellSize,callbacks.current.settings.spatial.latticeScale);
-      navigator.initialize(point);navigatorDriving.current=true;navigatorDriveValid=true;setFeedback("Driving selected node · click an empty slot to park · Esc cancels");relocateCamera(point);rebaseNavigatorPointer(event);controls.enabled=false;callbacks.current.onNodeSelect(id);requestRender();
+      navigator.initialize(point);navigatorDriving.current=true;navigatorDriveValid=true;setFeedback("Driving selected node · click an empty slot to park · Esc cancels");positionNavigator(point);rebaseNavigatorPointer(event);controls.enabled=false;callbacks.current.onNodeSelect(id);requestRender();
     };
-    const cancelDrive=()=>{if(!drive.active)return false;props.heldNudges.stop();const origin=drive.origin;if(origin)navigator.position.set(origin.x,origin.y,origin.z);drive.cancel();setFeedback("");navigatorDriving.current=false;navigatorOffset.set(0,0,0);controls.enabled=!uiPointerActive;requestRender();return true;};
+    const cancelDrive=()=>{if(paintStroke){finishPaint(true);return true;}if(!drive.active)return false;props.heldNudges.stop();const origin=drive.origin;if(origin)navigator.position.set(origin.x,origin.y,origin.z);drive.cancel();setFeedback("");navigatorDriving.current=false;navigatorOffset.set(0,0,0);controls.enabled=!uiPointerActive;requestRender();return true;};
     stateRef.current!.cancelNavigatorDrive=cancelDrive;
-    stateRef.current!.refreshNavigator=()=>{if(drive.active&&(drive.document!==callbacks.current.document||callbacks.current.selectedId!==drive.id))cancelDrive();if(navigatorContext!==callbacks.current.omnicPreviewContext){cancelDrive();navigatorContext=callbacks.current.omnicPreviewContext;navigator.reset();navigatorOffset.set(0,0,0);navigatorVisible=false;}drive.refresh();};
+    stateRef.current!.refreshNavigator=()=>{if(paintStroke&&paintStroke.base!==callbacks.current.document)finishPaint(true);if(drive.active&&(drive.document!==callbacks.current.document||callbacks.current.selectedId!==drive.id))cancelDrive();if(navigatorContext!==callbacks.current.omnicPreviewContext){cancelDrive();navigatorContext=callbacks.current.omnicPreviewContext;navigator.reset();navigatorOffset.set(0,0,0);navigatorVisible=false;}drive.refresh();};
     let leftDown:{pointerId:number;x:number;y:number;id?:string;point:THREE.Vector3}|null=null;
     // Creation reads the navigator position on its local XY plane. The cursor is
     // transient; no document/settings writes occur during pointer movement.
@@ -622,7 +641,7 @@ export default function SpatialWorkspace(props: Props) {
       if(!navigator.initialized||uiPointerActive||navigation.active||drag||selecting||binderDown)return null;
       const origin=navigator.position.clone(),normal=navigator.forward();return {step:pitch(),frame:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),normal),preview:delta=>{const previous=navigator.position.clone();navigator.position.copy(origin).add(delta);if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);},restore:()=>{},commit:()=>{}};
     }});
-    stateRef.current!.navigatorCanStep=()=>navigatorVisible&&!uiPointerActive&&!navigation.active&&!drag&&!selecting&&!binderDown&&document.elementFromPoint(cursorSample().x,cursorSample().y)===renderer.domElement;
+    stateRef.current!.navigatorCanStep=()=>navigatorVisible&&!paintStroke&&!uiPointerActive&&!navigation.active&&!drag&&!selecting&&!binderDown&&document.elementFromPoint(cursorSample().x,cursorSample().y)===renderer.domElement;
     stateRef.current!.navigatorDepth=(action,input)=>{navigator.orientation.copy(camera.quaternion);if(input instanceof KeyboardEvent){if(!navigatorDepthHeld){if(input.repeat)return;props.heldNudges.stop();navigatorDepthHeld=true;}props.heldNudges.press(action,input.code||input.key,input.repeat);}else{const previous=navigator.position.clone();navigator.depth((action==='nudgeUp'?-1:1)*pitch());if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);}};
     const stopHeldNudges = props.heldNudges.subscribe(() => { try { const actions=props.heldNudges.getSnapshot().actions;if(navigatorDepthHeld){depthNudging.update(actions.filter(action=>action==='nudgeUp'||action==='nudgeDown'));if(!actions.length)navigatorDepthHeld=false;}else nudging.update(actions); } catch (error) { nudging.finish(true); props.heldNudges.stop(); setFeedback(error instanceof Error ? error.message : String(error)); } });
 
@@ -634,6 +653,12 @@ export default function SpatialWorkspace(props: Props) {
       if (!pointerOwner.owns(event)) return;
       if(event.isPrimary===false){leftDown=null;return;}
       stopAnimation(); setMenu(null);
+      if(event.button===0&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){
+        event.preventDefault();event.stopImmediatePropagation();cancelDrive();props.heldNudges.stop();leftDown=null;clicks.cancel();const source=hits(event)[0]?.object.userData.nodeId as string|undefined;
+        navigatorOffset.set(0,0,0);if(source)positionNavigator(new THREE.Vector3(...Object.values(latticeWorld(callbacks.current.document,source,callbacks.current.settings.spatial.nodeCellSize)) as [number,number,number]).multiplyScalar(latticeScale(callbacks.current.settings.spatial.latticeScale)));if(!updateNavigator(event))return;
+        const index=prepareLattice(callbacks.current.document,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),theme=callbacks.current.settings.appearance,template=source?callbacks.current.document.placements.find(p=>p.id===source):undefined,style=resolveAppearance(theme.nodes,theme.theme==='neon'?theme.accent:'#dce9fa',template?.appearance),marker=new THREE.InstancedMesh(atomicCarrierGeometry(index.unit*scale),atomicCarrierMaterial(style.color,style.opacity*theme.opacity,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucency??SPHERE_VISUAL_DEFAULTS.translucency),style.glow,sphereBackground,Number(theme.renderDefaults?.["omnium.nodes.body"]?.translucencyRadius??SPHERE_VISUAL_DEFAULTS.translucencyRadius)),256);marker.userData.glowIntensity=style.glow;marker.count=0;marker.frustumCulled=false;scene.add(marker);
+        paintStroke={pointerId:event.pointerId,base:callbacks.current.document,source,last:asXYZ(navigator.position.clone().multiplyScalar(1/scale)),points:[],occupied:new Set(index.occupied.keys()),unit:index.unit,marker};navigatorDriving.current=true;controls.enabled=false;renderer.domElement.setPointerCapture(event.pointerId);paintAt(event);return;
+      }
       if(event.button===0&&!event.ctrlKey&&!event.shiftKey&&!event.altKey&&!event.metaKey){updateNavigator(event);const node=hits(event).find(hit=>hit.object.userData.nodeId!==drive.id);leftDown={pointerId:event.pointerId,x:event.clientX,y:event.clientY,id:node?.object.userData.nodeId,point:navigator.position.clone()};if(drive.active){controls.enabled=false;renderer.domElement.setPointerCapture(event.pointerId);return;}}
       if (navigationShortcuts.matches("world.navigate", event)) {
         clicks.cancel(); callbacks.current.onDismissOptions();
@@ -693,6 +718,7 @@ export default function SpatialWorkspace(props: Props) {
     };
     const move = (event: PointerEvent) => {
       if (uiPointerActive || (event.buttons !== 0 && !pointerOwner.owns(event))) return;
+      if(paintStroke){paintAt(event);return;}
       if (navigation.move(event)) return;
       updateNavigator(event);
       if(drive.active){if(event.buttons===0)paintHover((hits(event).find(hit=>hit.object.userData.nodeId!==drive.id)?.object as LabelMesh)??null);return;}
@@ -768,6 +794,7 @@ export default function SpatialWorkspace(props: Props) {
       requestRender();
     };
     const up = (event: PointerEvent) => {
+      if(paintStroke&&event.pointerId===paintStroke.pointerId){event.preventDefault();event.stopImmediatePropagation();paintAt(event);finishPaint();return;}
       if (uiPointerActive) return;
       if (navigation.acceptsRelease(event)) {
         const dragged = navigation.finish();
@@ -818,8 +845,8 @@ export default function SpatialWorkspace(props: Props) {
             if(drive.active){
               const parkedPoint=drive.position;const doc=drive.park(!!press.id);if(!doc){setFeedback('Choose a free slot before parking. Esc cancels the drive.');return;}
               navigatorDriving.current=false;setFeedback("");controls.enabled=!uiPointerActive;if(parkedPoint)navigator.position.set(parkedPoint.x,parkedPoint.y,parkedPoint.z);
-              if(press.id)mountNode(press.id,event,doc);else{relocateCamera(navigator.position.clone());navigatorOffset.set(0,0,0);}
-            }else if(press.id)mountNode(press.id,event);else{relocateCamera(press.point);navigatorOffset.set(0,0,0);}
+              if(press.id)mountNode(press.id,event,doc);else{positionNavigator(navigator.position.clone());navigatorOffset.set(0,0,0);}
+            }else if(press.id)mountNode(press.id,event);else{positionNavigator(press.point);navigatorOffset.set(0,0,0);}
           }catch(error){setFeedback(error instanceof Error?error.message:String(error));cancelDrive();}
           return;
         }
@@ -892,6 +919,8 @@ export default function SpatialWorkspace(props: Props) {
   }, [ready, settings.mouse.leftEmpty, settings.mouse.rightEmpty]);
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;
+    const values=settings.appearance.renderDefaults?.["omnium.nodes.body"];
+    configureSphereBlend(state.sphereBackground,values);
     state.appearance.configure(settings.appearance); state.requestPaint();
   }, [ready, settings.appearance]);
 
@@ -930,7 +959,7 @@ export default function SpatialWorkspace(props: Props) {
       if (!visibleIds.has(from.representative) || !visibleIds.has(to.representative)) return [];
       return [{ ...b, source: from.representative, target: to.representative }];
     });
-    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames, latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale),props.selectedBinderKey??null);
+    const built = buildTextScene(state.content, visible, binders, doc, selectedId, state.requestRender, props.selectedIds, settings.appearance, retainedExpansions.current.state, settings.spatial.nodeNames, latticeUnit(settings.spatial.nodeCellSize)*latticeScale(settings.spatial.latticeScale),props.selectedBinderKey??null,state.sphereBackground);
     state.camera.updateMatrixWorld();
     built.update(state.camera, hostRef.current?.clientWidth ?? 1, hostRef.current?.clientHeight ?? 1);
     state.content.updateMatrixWorld(true);

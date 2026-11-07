@@ -205,3 +205,11 @@ No page errors were reported. Disposable synthetic data, local server and blocke
 external requests only. Opt-in: OMNIA_URL=http://127.0.0.1:5182 node
 tests/world-navigator.browser.mjs. This is not standing browser-suite permission
 or full workspace/undo/reload/performance acceptance.
+
+Camera follow retired: node mounting, parking, empty clicks and Ctrl-click navigator positioning must leave camera position/target unchanged. Only explicit navigation/framing actions move the view. Pointer grab rebasing remains; no click writes camera history. This supersedes earlier follow semantics.
+
+Alt-left-drag atlas painting inherits the Composer-owned paintStroke sampler; do not duplicate sampling policy. Start empty for blanks or on a node for independent content/visual copies (no subtree/relationship copy). Atlas adapters own camera-plane conversion, sparse occupancy, transient instanced outline preview (256 max), and one existing document/history commit on release. Skip occupied/hidden/repeated cells. Esc, capture loss and document replacement cancel. Camera stays fixed. No browser acceptance inferred.
+
+Paint preview/saved carrier parity: use atomicCarrier geometry/material for both. Bubble surface alpha ranges from .0045 at centre to .18 at rim times authored opacity; supersedes flat .28 opacity. Commit world points against stored parent worldPositions, not projected latticeWorld parent cells, before shared reconciliation; otherwise off-grid historical parents shift confirmed strokes. Existing recovery remains intact.
+
+Full-viewport world: .workbench > .workspace > .canvas is absolute inset 0 against the viewport-sized positioned workbench, without a stacking context; native toolbar/sidebar are positioned UI layer 1, existing floating overlays retain their layers. UI/dock allocation must not shrink the world host. Existing renderer ResizeObserver, camera aspect, wallpaper and pointer coordinates follow that full host. UI transparency reveals scene, not click-through. Saved graph/camera/UI ownership and arrangement are unchanged; responsive viewport composition is transient. Browser/physical-input acceptance remains user-owned.
