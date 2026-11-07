@@ -1,3 +1,5 @@
+import type { BinderEnd } from "./graph/reconnectBinder";
+import type { DisplayBinder } from "./graph/binders";
 import { prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
 import { createLatticeField, latticeFrame } from "./latticeField";
 import { expansionState } from "./graph/nodePresentation";
@@ -90,6 +92,8 @@ type Props = {
   onNodeClick: (id: string) => void;
   onNodeDoubleClick: (id: string) => void;
   onSubtreeClick: (id: string) => void;
+  canReconnectBinder: (binder:DisplayBinder,end:BinderEnd,destination:string)=>string|null;
+  onReconnectBinder: (binder:DisplayBinder,end:BinderEnd,destination:string)=>void;
   onBinderSelect: (id: string, kind: "composition" | "relationship" | "variant" | "visual", point: { x: number; y: number }) => void;
   onMove: (id: string, local: XYZ, exact?: boolean) => void;
   resolveMove: (id: string, local: XYZ, exact?: boolean) => XYZ;
@@ -109,6 +113,7 @@ type SceneState = {
   requestPaint: () => void;
   wallpaper: ReturnType<typeof createWallpaper>;
   faceSelection: () => void;
+  cancelBinder?:()=>boolean;
   focus: (kind: NavigationCommand["kind"], id?: string) => void;
 };
 type Menu = { x: number; y: number; target: ContextTarget };
@@ -349,7 +354,7 @@ export default function SpatialWorkspace(props: Props) {
         callbacks.current.onMove(node.id, asXYZ(local), true);
         return;
       }
-      if (kind === "cancel") { selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
+      if (kind === "cancel") { finishBinder(true); selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); stopAnimation(); setMenu(null); setFeedback(""); return; }
       if (kind === "rollLeft" || kind === "rollRight") {
         stopAnimation(); rememberCamera();
         camera.up.applyAxisAngle(camera.getWorldDirection(new THREE.Vector3()), kind === "rollLeft" ? Math.PI / 2 : -Math.PI / 2).normalize();
@@ -444,6 +449,13 @@ export default function SpatialWorkspace(props: Props) {
       aim(event);
       return raycaster.intersectObjects(meshes.current.filter((mesh) => mesh.visible && mesh.parent?.visible !== false), false).filter((hit) => hit.object.userData.nodeId !== except);
     };
+    const pointed=(event:Pick<PointerEvent,'clientX'|'clientY'>)=>{
+      const node=hits(event)[0];
+      // Actual binder ink beats an invisible cell picking box; visible content
+      // keeps priority. Otherwise touching lattice cells make lines ungrabbable.
+      const binder=!node||node.object.userData.atomicSlot?raycaster.intersectObjects(textScene.current?.binderHits.filter(object=>object.visible)??[],false)[0]?.object:undefined;
+      return {node:binder?undefined:node,binder};
+    };
     const stopSelectionSurface=selectionSurfaces.register({
       element:()=>renderer.domElement,context:()=>callbacks.current.omnicPreviewContext,nativePicking:true,
       snapshot:()=>{
@@ -480,10 +492,21 @@ export default function SpatialWorkspace(props: Props) {
       startX: number; startY: number; startWorld: THREE.Vector3; local: XYZ | null; nestTarget: string | null;
       marker: THREE.Mesh; } | null = null;
     let rightDown: { x: number; y: number; id: string | null; world: XYZ } | null = null;
-    let binderDown: { id: string; kind: "composition" | "relationship" | "variant" | "visual"; x: number; y: number } | null = null;
+    let binderDown: { binder:DisplayBinder; end:BinderEnd; pointerId:number; doc:Document; x:number;y:number; dragged:boolean; target?:string; reason?:string|null; line:THREE.Line<THREE.BufferGeometry,THREE.LineBasicMaterial>; fixed:THREE.Vector3; plane:THREE.Plane } | null = null;
+    const finishBinder=(cancelled:boolean)=>{
+      const current=binderDown;if(!current)return false;binderDown=null;
+      scene.remove(current.line);current.line.geometry.dispose();current.line.material.dispose();
+      if(renderer.domElement.hasPointerCapture(current.pointerId))renderer.domElement.releasePointerCapture(current.pointerId);
+      controls.enabled=!uiPointerActive&&!navigationEngine.current?.active&&!drag&&!selecting;
+      setFeedback('');requestRender();
+      if(!cancelled){if(!current.dragged)callbacks.current.onBinderSelect(current.binder.id,current.binder.kind,{x:current.x,y:current.y});else if(current.target&&!current.reason&&current.doc===callbacks.current.document)callbacks.current.onReconnectBinder(current.binder,current.end,current.target);}
+      return true;
+    };
+    stateRef.current!.cancelBinder=()=>finishBinder(true);
     let selecting: { x: number; y: number; clientX: number; clientY: number; id?: string; additive: boolean } | null = null;
     let uiPointerActive = false;
     raycaster.params.Line.threshold = 0.08;
+    raycaster.params.Line2 = { threshold: 4 };
     let hovered: LabelMesh | null = null;
     const paintHover = (mesh: LabelMesh | null) => {
       if (hovered === mesh) return;
@@ -544,6 +567,7 @@ export default function SpatialWorkspace(props: Props) {
     const down = (event: PointerEvent) => {
       nativeWheel = false;
       if (navigation.active) return;
+      if(binderDown){finishBinder(true);return;}
       nudging.finish(true); props.heldNudges.stop();
       if (!pointerOwner.owns(event)) return;
       stopAnimation(); setMenu(null);
@@ -570,12 +594,22 @@ export default function SpatialWorkspace(props: Props) {
         return;
       }
       if (event.button !== 0) return;
-      const hit = hits(event)[0];
+      const pointerHit=pointed(event),hit=pointerHit.node;
       if (!hit) {
         clicks.cancel();
         callbacks.current.onDismissOptions();
-        const binder = raycaster.intersectObjects(textScene.current?.binderHits.filter((object) => object.visible) ?? [], false)[0]?.object;
-        if (binder && ["composition", "relationship", "variant", "visual"].includes(binder.userData.binderKind)) binderDown = { id: binder.userData.binderId, kind: binder.userData.binderKind, x: event.clientX, y: event.clientY };
+        const binder = pointerHit.binder;
+        const edge=binder&&textScene.current?.connectors.find(edge=>edge.data.key===binder.userData.binderKey);
+        if(edge){
+          const a=textScene.current!.nodes.get(edge.data.source)?.anchor,b=textScene.current!.nodes.get(edge.data.target)?.anchor;
+          if(!a||!b)return;
+          const rect=host.getBoundingClientRect(),screen=(p:THREE.Vector3)=>{const s=p.clone().project(camera);return {x:rect.left+(s.x+1)*rect.width/2,y:rect.top+(1-s.y)*rect.height/2};};
+          const sa=screen(a),sb=screen(b),distance=(p:{x:number;y:number})=>(p.x-event.clientX)**2+(p.y-event.clientY)**2;
+          const end:BinderEnd=distance(sa)<distance(sb)?'source':'target',fixed=(end==='source'?b:a).clone();
+          const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([fixed,fixed]),new THREE.LineBasicMaterial({color:0x6cdbdf,transparent:true,opacity:.8,depthTest:false}));line.visible=false;line.renderOrder=100;
+          scene.add(line);binderDown={binder:{...edge.data},end,pointerId:event.pointerId,doc:callbacks.current.document,x:event.clientX,y:event.clientY,dragged:false,reason:'Drop on another node.',line,fixed,plane:new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),fixed)};
+          controls.enabled=false;event.preventDefault();event.stopImmediatePropagation();renderer.domElement.setPointerCapture(event.pointerId);
+        }
         return;
       }
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
@@ -593,11 +627,26 @@ export default function SpatialWorkspace(props: Props) {
     const move = (event: PointerEvent) => {
       if (uiPointerActive || (event.buttons !== 0 && !pointerOwner.owns(event))) return;
       if (navigation.move(event)) return;
+      if(binderDown){
+        const current=binderDown;if(event.pointerId!==current.pointerId)return;
+        if(current.doc!==callbacks.current.document){finishBinder(true);return;}
+        if(!current.dragged&&Math.hypot(event.clientX-current.x,event.clientY-current.y)<CLICK_THRESHOLD)return;
+        const first=!current.dragged;current.dragged=true;clicks.cancel();event.preventDefault();
+        const node=hits(event)[0]?.object.userData.nodeId as string|undefined;
+        if(first||node!==current.target){current.target=node;current.reason=node?callbacks.current.canReconnectBinder(current.binder,current.end,node):'Drop on another node.';
+          const placement=node&&callbacks.current.document.placements.find(p=>p.id===node),name=placement&&callbacks.current.document.entities.find(e=>e.id===placement.entityId)?.label;
+          setFeedback(current.reason??`Reconnect ${current.end} → ${name??'node'}`);
+        }
+        const point=node?textScene.current?.nodes.get(node)?.anchor:raycaster.ray.intersectPlane(current.plane,new THREE.Vector3());
+        if(point){const positions=current.line.geometry.getAttribute('position') as THREE.BufferAttribute;positions.setXYZ(0,current.fixed.x,current.fixed.y,current.fixed.z);positions.setXYZ(1,point.x,point.y,point.z);positions.needsUpdate=true;current.line.geometry.computeBoundingSphere();current.line.visible=true;}
+        current.line.material.color.setHex(current.reason?0xe46868:0x6cdbdf);
+        requestRender();return;
+      }
       if (selecting) {
         const rect = host.getBoundingClientRect(), x = event.clientX - rect.left, y = event.clientY - rect.top;
         setSelectionRect({ x: Math.min(x, selecting.x), y: Math.min(y, selecting.y), width: Math.abs(x - selecting.x), height: Math.abs(y - selecting.y) }); return;
       }
-      if (!drag) { if (event.buttons === 0) paintHover((hits(event)[0]?.object as LabelMesh) ?? null); return; }
+      if (!drag) { if (event.buttons === 0) paintHover((pointed(event).node?.object as LabelMesh) ?? null); return; }
       if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) >= CLICK_THRESHOLD) clicks.cancel();
       aim(event);
       const intersection = raycaster.ray.intersectPlane(drag.plane, new THREE.Vector3()); if (!intersection) return;
@@ -677,8 +726,8 @@ export default function SpatialWorkspace(props: Props) {
         callbacks.current.onSelection([...ids]); return;
       }
       if (event.button === 0 && binderDown) {
-        const b = binderDown; binderDown = null;
-        if (Math.hypot(event.clientX - b.x, event.clientY - b.y) < CLICK_THRESHOLD) callbacks.current.onBinderSelect(b.id, b.kind, { x: event.clientX, y: event.clientY });
+        if(binderDown.dragged){const target=hits(event)[0]?.object.userData.nodeId as string|undefined;binderDown.target=target;binderDown.reason=target?callbacks.current.canReconnectBinder(binderDown.binder,binderDown.end,target):'Drop on another node.';}
+        finishBinder(false); return;
       }
       if (event.button === 2 && rightDown) {
         const right = rightDown; rightDown = null;
@@ -692,17 +741,17 @@ export default function SpatialWorkspace(props: Props) {
       }
       if (event.button === 0) finishDrag(event);
     };
-    const cancel = (event: PointerEvent) => { navigation.finish(true); selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
+    const cancel = (event: PointerEvent) => { finishBinder(true); navigation.finish(true); selecting = null; setSelectionRect(null); controls.enabled = !uiPointerActive; clicks.cancel(); finishDrag(event, true); };
     const pointerOwner = guardCameraPointer(renderer.domElement, (active) => {
       uiPointerActive = active;
-      controls.enabled = !active && !drag && !selecting && !navigation.active;
+      controls.enabled = !active && !drag && !binderDown && !selecting && !navigation.active;
       if (active) stopAnimation();
     }, () => {
       props.heldNudges.stop();
       navigation.finish(true);
       if (nativeBefore) { applyView(nativeBefore); nativeBefore = null; }
       clicks.cancel(); stopAnimation();
-      selecting = null; rightDown = null; binderDown = null; setSelectionRect(null);
+      finishBinder(true); selecting = null; rightDown = null; setSelectionRect(null);
       if (drag) {
         const marker = drag.marker; drag = null;
         scene.remove(marker); marker.geometry.dispose(); (marker.material as THREE.Material).dispose();
@@ -732,7 +781,7 @@ export default function SpatialWorkspace(props: Props) {
       stopSelectionSurface();stopHierarchyHighlight(); hierarchyPulse.dispose();
       renderer.domElement.removeEventListener("pointerleave",leaveCanvas);
       pointerOwner.dispose();
-      clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
+      finishBinder(true); clicks.cancel(); stopAnimation(); cancelAnimationFrame(pendingRender);
       renderer.domElement.removeEventListener("pointerdown", down, true);
       renderer.domElement.removeEventListener("auxclick", preventMenu);
       renderer.domElement.removeEventListener("pointermove", move);
@@ -744,7 +793,7 @@ export default function SpatialWorkspace(props: Props) {
   }, []);
 
   useEffect(() => {
-    const key = (event: KeyboardEvent) => { if (navigationShortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
+    const key = (event: KeyboardEvent) => { if(event.key==='Escape'&&!event.defaultPrevented&&stateRef.current?.cancelBinder?.()){event.preventDefault();event.stopImmediatePropagation();return;} if (navigationShortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
     window.addEventListener("keydown", key, true); return () => window.removeEventListener("keydown", key, true);
   }, []);
 

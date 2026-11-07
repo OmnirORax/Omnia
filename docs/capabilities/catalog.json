@@ -713,15 +713,15 @@
       "id": "graph.create",
       "title": "Create nodes, children, reuse identities and connect",
       "where": "Create menu, node Inspector and context actions; N / New child / Connect from selected.",
-      "behavior": "N creates a node centered at the cursor over the atlas canvas, projected onto the camera-facing plane through the navigation target. Current focus/selection still chooses its parent; child coordinates are converted to parent-local XYZ. Explicit cursor and Create node here positions bypass packing and grid displacement. Invoking creation over UI retains contextual default placement. Shared document history, identity reuse and typed relationships remain unchanged.",
+      "behavior": "N creates a node in the nearest unoccupied lattice cell to the cursor projection over the atlas canvas. With Empty lattice cells shown, creation intersects that displayed slice. Current focus/selection still chooses its parent; child coordinates are converted to parent-local XYZ. Explicit cursor and Create node here positions use the shared occupied field, including hidden placements. Invoking creation over UI retains contextual default placement. Shared document history, identity reuse and typed relationships remain unchanged.",
       "steps": [
         {
           "do": "Move the pointer over empty atlas canvas and press N. Select that node, move to another canvas point and press N again, including with a coarse Snap setting.",
-          "expect": "Each node appears centered under the pointer. The second remains a child of the selected node; grid/packing does not move the creation point."
+          "expect": "Each node takes the nearest free lattice cell to the cursor projection. The second keeps its selected/focused parent, while hidden and other-parent occupants still reserve their cells."
         },
         {
           "do": "Undo creation, redo it, then create through the toolbar while the pointer is over UI.",
-          "expect": "Undo/redo restores the node and exact position; toolbar creation uses its contextual default rather than a stale canvas location."
+          "expect": "Undo/redo restores the committed node/cell placement; toolbar creation uses its contextual default rather than a stale canvas location."
         },
         {
           "do": "Reuse an identity as another placement; rename the identity.",
@@ -746,7 +746,7 @@
         "newChild",
         "connect"
       ],
-      "limits": "Projection uses the current view plane, not an arbitrary depth inferred from an object under the pointer. Exact creation can intentionally overlap existing cells. Native text entry still owns N. Cursor routing and visual placement await user browser acceptance.",
+      "limits": "Projection uses the current view plane, or the displayed empty-field slice, not arbitrary object depth. Occupied cells cannot be bypassed by exact cursor creation. Native text entry still owns N. Cursor routing and visual placement await user browser acceptance.",
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Not recorded",
@@ -820,6 +820,58 @@
         "graph.layout",
         "graph.lattice"
       ]
+    },
+    {
+      "id": "graph.binders",
+      "title": "Perpendicular binder labels and drag-to-reconnect",
+      "where": "Atlas binder line, marker or label → click to edit; press and drag near an endpoint onto another node to reconnect it.",
+      "behavior": "Binder text starts at the binder and extends perpendicular to its projected tangent into available screen space. Both sides and bounded samples are tested against carriers, expanded node content, other labels and viewport edges; no fallback draws text over a node. Text stays upright, keeps its authored size/style and can attach by either end. Dragging an existing line/marker/label moves the nearer endpoint while keeping the other fixed. Original data stays unchanged during the colored preview. Valid drop updates the actual typed relationship participant, canonical containment, visual parent or variant reference in one shared document/history transaction. IDs, labels, styling and existing node content stay preserved. Live/saved-view XYZ are preserved through shared parent-local rebasing. Normal clicks still open the editor. Empty/invalid drops, Escape, stale data and shared input/capture cancellation discard the preview. Variant materialization can add placements for the new owner while retaining old occurrences as ordinary nodes. Undo/redo, autosave and reload use existing owners.",
+      "steps": [
+        {
+          "do": "Create a short binder between nearby nodes and expand nearby content, then pan/rotate the view.",
+          "expect": "Its text extends perpendicularly from a clear binder attachment without covering a node/content/other label. If no bounded placement fits, the text is omitted while the line/marker stays selectable."
+        },
+        {
+          "do": "Click a binder normally, close its editor, then press near one end and drag onto another node. Repeat near the opposite end.",
+          "expect": "A click edits as before. The nearer end follows the drag; a valid drop replaces that endpoint while preserving binder identity/style and node positions."
+        },
+        {
+          "do": "Start another reconnect, hover an invalid destination, release over empty space, and try Escape during a drag.",
+          "expect": "The preview gives validity feedback; invalid/empty drop or cancellation leaves the original connection intact and does not open its editor on release."
+        },
+        {
+          "do": "Reconnect a typed relationship, a nested Contains link, a visual nesting link and a variant reference; reload after valid drops.",
+          "expect": "Each updates its own domain, not a cosmetic line. Canonical changes apply to shared identities; visual parentage stays distinct. Variant old occurrences/content survive. Nested/variant targets already owned elsewhere require explicit detachment first."
+        },
+        {
+          "do": "After a valid reconnection, Undo once and inspect a saved layout view.",
+          "expect": "One Undo restores the connection. Existing live/saved-view world XYZ remain unchanged after parent rebasing; authored identities/content are retained."
+        }
+      ],
+      "reference": "docs/ATLAS_BINDERS.md",
+      "sources": [
+        "src/graph/binderLabels.ts",
+        "src/graph/reconnectBinder.ts",
+        "src/graph/coordinates.ts",
+        "src/textScene.ts",
+        "src/SpatialWorkspace.tsx",
+        "src/App.tsx",
+        "tests/binders.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "graph.create",
+        "graph.cells",
+        "graph.lattice",
+        "history.global"
+      ],
+      "limits": "Seven label attachment samples × two sides are bounded; crowded/oversized views can hide text instead of overlapping nodes. The attached edge may be the text’s far end when needed to stay upright. Four-pixel line hit tolerance applies. Visible node content keeps hit priority; binder ink wins over invisible atomic picking boxes. Actual endpoints must be expanded when collapse projects a binder onto another representative. Typed relationships use the first two displayed participant roles and preserve additional roles. Canonical changes affect all uses; independent visual nesting remains separate. Nested/variant targets with other ownership must be detached first. Variant changes can materialize new placements, not entities. Legacy 2D fallback child constraints can clamp local 2D coordinates; world XYZ and saved XYZ views are preserved. Browser interaction, cancellation and dense-view performance acceptance remain pending.",
+      "status": "Implemented for review; production deployment and browser acceptance pending",
+      "verification": {
+        "browser": "Not run. User should test perpendicular layout around nearby carriers/content, both endpoint drags, invalid drop/Escape, each binder type, Undo and reload.",
+        "automated": "2026-11-07: all 570 model/architecture tests pass, including 12 binder geometry/domain cases. Preview/type/property/capability build and backend type checks pass. Tests cover perpendicular/diagonal free-space placement, rotated footprints, bounded rejection, both endpoints, four binder types, roles/styles/content, stale/cycle/duplicate rejection, variants and saved-view/legacy-coordinate rebasing. Browser gesture/visual acceptance is pending."
+      }
     },
     {
       "id": "graph.lattice",

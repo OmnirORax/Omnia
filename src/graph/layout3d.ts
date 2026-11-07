@@ -2,7 +2,7 @@ import { latticeCreatePoint, resolveLatticePoint, latticeMove } from "./lattice.
 import { editorView, ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { DEFAULT_NODE_CELL_SIZE, DEFAULT_SPHERE_DIAMETER, nodeFootprint } from "./assets.ts";
 import { contractAlongRay, stopBeforeSphere, enclosingBox, translateBox, type Box3 } from "./packing.ts";
-import { localPosition, worldPositions } from "./coordinates.ts";
+import { localPosition, worldPositions, rebaseParentage } from "./coordinates.ts";
 import { chartedBinders, type DisplayBinder } from "./binders.ts";
 import { binderGap, minimumBinderDistance, placementFootprint } from "./binderGeometry.ts";
 export { localPosition, worldPositions } from "./coordinates.ts";
@@ -199,11 +199,8 @@ export function reparentVisual(doc: Document, id: string, parentId: string | nul
 export function detachPlacement(doc:Document,id:string):Document {
  const moving=doc.placements.find(p=>p.id===id);if(!moving)throw Error('Missing placement for detachment.');
  if(!moving.parentId&&!moving.variantOwner)return doc;
- const spatialPosition=worldPositions(doc).get(id)!,position={...moving.position};
- let parent=moving.parentId;while(parent){const item=doc.placements.find(p=>p.id===parent)!;position.x+=item.position.x;position.y+=item.position.y;parent=item.parentId;}
- const byId=new Map(doc.placements.map(p=>[p.id,p]));
- const layoutViews=doc.layoutViews?.map(view=>{const saved=new Map(view.positions.map(p=>[p.placementId,p.position]));let world=saved.get(id)??localPosition(moving),parent=moving.parentId;while(parent){const item=byId.get(parent)!;world=add(saved.get(parent)??localPosition(item),world);parent=item.parentId;}return {...view,positions:[...view.positions.filter(p=>p.placementId!==id),{placementId:id,position:world}]};});
- return validateDocument({...doc,...(layoutViews?{layoutViews}:{}),placements:doc.placements.map(p=>{if(p.id!==id)return p;const {variantOwner,...rest}=p;return {...rest,parentId:null,spatialPosition,position};})});
+ const next=rebaseParentage(doc,new Map([[id,null]]));
+ return validateDocument({...next,placements:next.placements.map(p=>{if(p.id!==id)return p;const {variantOwner,...rest}=p;return rest;})});
 }
 /** Remove the current authored containment edge and detach this occurrence.
  * Other placements, typed relationships and the child's own subtree are retained. */

@@ -825,3 +825,11 @@ original positions in a protected **Before lattice alignment** layout view befor
 settling cells; ordinary metadata edits and switching views do not rewrite saved
 positions. See [the owner, compatibility path and limits](ATLAS_LATTICE.md) and
 [walkthrough](CAPABILITIES.md#graph-lattice). Browser acceptance pending.
+
+
+Binder labels now extend perpendicular from the binder into indexed free screen
+space. Existing lines/markers/labels support drag-to-reconnect of the nearer
+endpoint through shared domain validation/history; normal clicks still edit.
+Canonical links, visual nesting and variant references keep their own owners.
+Live and saved-view XYZ rebase through coordinates.rebaseParentage, also used by
+Detach. See [ATLAS_BINDERS.md](ATLAS_BINDERS.md); browser acceptance pending.

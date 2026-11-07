@@ -718,3 +718,11 @@ rule does not impose a lattice on Omnic construction modes.
 Atlas selected presentation (2026-11-07): selection replaces the O carrier and
 its origin ring with full content until deselection. Keep the invisible picking
 slot and existing retained/hover/Names behavior; no coordinate or scale change.
+
+Atlas binders (2026-11-07): labels attach perpendicular to their projected binder
+toward free screen space; shared rotated-label packing never falls back over nodes.
+Drag-to-reconnect uses graph/reconnectBinder's actual relationship/containment/
+visual/variant owners, preserving IDs/content/positions and committing only after
+validation. Reuse coordinates.rebaseParentage for live and saved-view parent
+conversion. Keep source connections intact during preview and honor shared cancel/
+input ownership. Read docs/ATLAS_BINDERS.md for semantics and limits.

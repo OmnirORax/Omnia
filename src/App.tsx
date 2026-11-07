@@ -1,3 +1,4 @@
+import { reconnectBinder, binderReconnectReason } from "./graph/reconnectBinder";
 import { latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
 import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,type WorkspaceUI} from './omnic/workspaceBackup';
 import { ScoreTracker } from './metrics/ScoreTracker';
@@ -2306,6 +2307,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
                 setSelection({ kind: kind === "variant" ? "variantBinder" : kind === "visual" ? "visualBinder" : kind, id });
                 setBinderPopup({ x: Math.min(point.x + 12, window.innerWidth - 370), y: Math.min(point.y + 12, window.innerHeight - 460) });
               }}
+              canReconnectBinder={(binder,end,destination)=>binderReconnectReason(document,binder,end,destination)}
+              onReconnectBinder={(binder,end,destination)=>{try{const next=reconnectBinder(documentRef.current,binder,end,destination);if(next!==documentRef.current)commitDocument(next);}catch(error){setError(message(error));}}}
               resolveMove={(id, local, exact) => moveDisplayedNode(id, local, true, exact)}
               onMove={(id, local, exact) => { try { moveDisplayedNode(id, local, false, exact); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}

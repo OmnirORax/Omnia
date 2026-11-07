@@ -329,3 +329,19 @@ switching itself keeps the old view's coordinates. Frozen fixtures are unchanged
 assertions cover added defaults. Older clients can ignore/drop these settings or
 overwrite protected snapshots, so concurrent old-client editing is not guaranteed.
 No schema-version bump, new data store, cloud synchronization or backend deployment.
+
+
+### Binder reconnection and parent rebasing (2026-11-07)
+
+No schema/version changes: reconnectBinder edits the existing canonical relation,
+composition, visual-parent or variant-reference fields with stable binder IDs and
+existing validation/history/autosave/export owners. No entity is replaced. Variant
+reference changes preserve prior node content as ordinary detached occurrences;
+existing variant materialization can create additional placements for new owners.
+coordinates.rebaseParentage preserves live and saved-view world XYZ by converting
+local coordinates when parentage changes, including protected recovery views.
+Legacy 2D fallbacks convert too, with existing child-header minimums enforced;
+this can clamp their local 2D placement without moving actual 3D coordinates.
+Invalid/cyclic/conflicting candidates reject before commit; hover checks never
+write or rebase saved views. Label orientation is transient rendering only.
+No new store, migration, backend rollout or stronger cross-client sync guarantee.

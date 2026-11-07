@@ -1,3 +1,4 @@
+import { createLabelSpace, placeBinderText } from "./graph/binderLabels";
 import { contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
 import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
@@ -225,7 +226,7 @@ export function buildTextScene(
     const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
     slot.scale.setScalar(sphereDiameter);
-    slot.userData.nodeId = node.id; slot.userData.visualProxy = true;
+    slot.userData.nodeId = node.id; slot.userData.visualProxy = true; slot.userData.atomicSlot = true;
     cell.userData.carrier = true;
     group.add(cell, slot);
     const hasVisual = !!(displayedVisual?.assetId || displayedVisual?.character);
@@ -302,6 +303,7 @@ export function buildTextScene(
     if (label) label.userData.glowIntensity = textStyle.glow;
     for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;
+      object.userData.binderKey = b.key;
       object.userData.binderKind = b.kind;
       object.userData.label = b.label;
       content.add(object);
@@ -532,6 +534,8 @@ export function buildTextScene(
       const item=nodes.get(rect.id)!,point=positions.get(rect.id)!,units=unitsPerPixel(item.anchor);
       item.presentation.position.copy(cameraRight).multiplyScalar((point.x-rect.x)*units).addScaledVector(cameraUp,(rect.y-point.y)*units).applyQuaternion(item.group.quaternion.clone().invert());
     }
+    const carrierBoxes=[...nodes.values()].filter(item=>item.cell.visible).map(item=>{const p=item.anchor.clone().project(camera),extent=sphereDiameter/unitsPerPixel(item.anchor);return {x:(p.x+1)*width/2,y:(1-p.y)*height/2,width:extent,height:extent};});
+    const labelSpace=createLabelSpace([...carrierBoxes,...rects.map(rect=>({...rect,...positions.get(rect.id)!}))],width,height);
     const edge = (item: NodeItem, other: THREE.Vector3) => {
       const direction = other.clone().sub(item.group.position);
       const half = { x: sphereDiameter / 2, y: sphereDiameter / 2, z: sphereDiameter / 2 };
@@ -585,9 +589,15 @@ export function buildTextScene(
       if (b.label) {
         const size = labelSize(b.data.label);
         b.label.scale.set(size.width * 0.7, size.height * 0.7, 1);
-        b.label.position.copy(center).addScaledVector(up, b.label.scale.y / 2 + 0.22);
+        const samples=[.5,.35,.65,.2,.8,.1,.9];
+        const anchors=samples.map(t=>{
+          const world=path.getPoint(t),p=world.clone().project(camera),a=path.getPoint(Math.max(0,t-.01)).project(camera),z=path.getPoint(Math.min(1,t+.01)).project(camera),units=unitsPerPixel(world);
+          return {x:(p.x+1)*width/2,y:(1-p.y)*height/2,dx:(z.x-a.x)*width/2,dy:(a.y-z.y)*height/2,world,units};
+        });
+        const placed=b.related&&b.label.scale.y/unitsPerPixel(center)>=5?placeBinderText(labelSpace,anchors.map(a=>({...a,width:b.label!.scale.x/a.units,height:b.label!.scale.y/a.units}))):undefined;
+        if(placed){const anchor=anchors[placed.anchor];b.label.position.copy(anchor.world).addScaledVector(cameraRight,(placed.x-anchor.x)*anchor.units).addScaledVector(cameraUp,(anchor.y-placed.y)*anchor.units);b.label.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-placed.angle!));}
         b.label.material.opacity = b.textOpacity;
-        b.label.visible = b.related && depth(b.label.position) > camera.near && b.label.scale.y / unitsPerPixel(b.label.position) >= 5;
+        b.label.visible = !!placed && depth(b.label.position) > camera.near && b.label.scale.y / unitsPerPixel(b.label.position) >= 5;
       }
     }
     content.updateMatrixWorld(true);
