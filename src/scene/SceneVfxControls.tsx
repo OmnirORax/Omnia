@@ -1,5 +1,6 @@
 import {useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {CoupledField,type PropertyBindings} from '../properties/CoupledProperties';
+import {SCENE_LIGHT_CONTROLS} from './vfx';
 import {UISection} from '../ui/UISection';
 import {UIField} from '../ui/UIField';
 import {FunctionControl} from '../ui/UIWorkspace';
@@ -21,6 +22,9 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  });
  return <UISection id="scene-vfx" title="Scene effects">
  {([['color','Audio Light','color'],['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
+ <UISection id="scene-light-tuning" title="Light tuning" defaultExpanded={false}>
+ {SCENE_LIGHT_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ </UISection>
  <FunctionControl id="scene.audioConnect"/><FunctionControl id="scene.audioFile"/><FunctionControl id="scene.audioDisconnect"/>
  <input ref={file} type="file" accept="audio/*" hidden onChange={event=>{const selected=event.target.files?.[0];event.target.value='';if(selected){setError('');loadSceneAudioFile(selected);}}}/>
  <div ref={host}/>

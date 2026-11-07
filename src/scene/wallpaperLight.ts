@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
+import {DEFAULT_SCENE_VFX,SCENE_LIGHT_CONTROLS,type SceneVfx} from './vfx.ts';
 import {bloomSize} from '../renderBudget.ts';
+
+export const wallpaperLightUniformGLSL=SCENE_LIGHT_CONTROLS.map(({key})=>`uniform float ${key};`).join('\n');
+export const wallpaperLightUniforms=()=>Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial})=>[key,{value:Number(initial)}]));
 
 /** Shared extraction in display space: neutral pixels emit only for a neutral target. */
 export const wallpaperColourGLSL = `
@@ -23,11 +27,13 @@ export const wallpaperColourGLSL = `
   }
   float affinity(vec3 a){
     float distance=abs(a.x-lightHue);distance=min(distance,1.0-distance);
-    float chromatic=(1.0-smoothstep(.04,.14,distance))*smoothstep(.06,.22,a.y);
+    float inner=min(lightHueInner,lightHueOuter)/360.0;
+    float outer=max(max(lightHueInner,lightHueOuter)/360.0,inner+.00001);
+    float chromatic=(1.0-smoothstep(inner,outer,distance))*smoothstep(.06,.22,a.y);
     float neutral=1.0-smoothstep(.03,.2,a.y);
     return mix(neutral,chromatic,smoothstep(.02,.15,lightSaturation))*smoothstep(.001,.025,a.z);
   }
-  float emitter(vec3 a){return affinity(a)*a.z*a.z;}
+  float emitter(vec3 a){return affinity(a)*pow(a.z,lightSourcePower);}
 `;
 
 /** Static spatial bloom, rebuilt only for a new image/colour, never on audio frames.
@@ -37,8 +43,9 @@ export function createWallpaperLight(renderer: THREE.WebGLRenderer) {
   const vertexShader='varying vec2 uv0;void main(){uv0=uv;gl_Position=vec4(position.xy,0.0,1.0);}';
   const extraction=new THREE.ShaderMaterial({
     depthTest:false,depthWrite:false,toneMapped:false,
-    uniforms:{image:{value:null},lightHue:{value:0},lightSaturation:{value:1}},vertexShader,
+    uniforms:{...wallpaperLightUniforms(),image:{value:null},lightHue:{value:0},lightSaturation:{value:1}},vertexShader,
     fragmentShader:`uniform sampler2D image;uniform float lightHue;uniform float lightSaturation;varying vec2 uv0;
+      ${wallpaperLightUniformGLSL}
       ${wallpaperColourGLSL}
       void main(){float e=emitter(hsv(displayColour(texture2D(image,uv0).rgb)));gl_FragColor=vec4(e,e,e,1.0);}`,
   });
@@ -53,20 +60,22 @@ export function createWallpaperLight(renderer: THREE.WebGLRenderer) {
   });
   const quad=new FullScreenQuad(extraction);
   let targets:THREE.WebGLRenderTarget[]=[];
-  let previous:THREE.Texture|null=null,previousHue=NaN,previousSaturation=NaN;
-  const clear=()=>{for(const target of targets)target.dispose();targets=[];previous=null;previousHue=NaN;previousSaturation=NaN;extraction.uniforms.image.value=null;blur.uniforms.image.value=null;};
+  let previous:THREE.Texture|null=null,previousKey='';
+  const clear=()=>{for(const target of targets)target.dispose();targets=[];previous=null;previousKey='';extraction.uniforms.image.value=null;blur.uniforms.image.value=null;};
   return {
-    prepare(image:THREE.Texture,hue:number,saturation:number){
-      if(previous===image&&previousHue===hue&&previousSaturation===saturation&&targets.length)return {near:targets[2].texture,far:targets[3].texture};
+    prepare(image:THREE.Texture,hue:number,saturation:number,tuning:SceneVfx=DEFAULT_SCENE_VFX){
+      const key=[hue,saturation,tuning.lightHueInner,tuning.lightHueOuter,tuning.lightSourcePower,tuning.lightNearRadius,tuning.lightFarRadius].join('/');
+      if(previous===image&&previousKey===key&&targets.length)return {near:targets[2].texture,far:targets[3].texture};
       const source=image.image as {width:number;height:number};
       const {width,height}=bloomSize(source.width,source.height);
       if(!targets.length)targets=Array.from({length:4},()=>new THREE.WebGLRenderTarget(width,height,{depthBuffer:false,stencilBuffer:false}));
       for(const target of targets)target.setSize(width,height);
       const savedTarget=renderer.getRenderTarget(),viewport=renderer.getViewport(new THREE.Vector4()),scissor=renderer.getScissor(new THREE.Vector4()),scissorTest=renderer.getScissorTest(),xr=renderer.xr.enabled;
-      previous=null;previousHue=NaN;previousSaturation=NaN;
+      previous=null;previousKey='';
       try{
         renderer.xr.enabled=false;renderer.setScissorTest(false);
         extraction.uniforms.image.value=image;extraction.uniforms.lightHue.value=hue;extraction.uniforms.lightSaturation.value=saturation;
+        for(const {key} of SCENE_LIGHT_CONTROLS)extraction.uniforms[key].value=tuning[key];
         quad.material=extraction;renderer.setRenderTarget(targets[0]);quad.render(renderer);
         quad.material=blur;
         const pass=(input:THREE.WebGLRenderTarget,output:THREE.WebGLRenderTarget,x:number,y:number)=>{
@@ -75,9 +84,9 @@ export function createWallpaperLight(renderer: THREE.WebGLRenderer) {
         };
         // Two image-relative radii; no readback or repeated blur during playback.
         const radius=Math.max(width,height);
-        pass(targets[0],targets[1],.0035*radius/width,0);pass(targets[1],targets[2],0,.0035*radius/height);
-        pass(targets[2],targets[1],.012*radius/width,0);pass(targets[1],targets[3],0,.012*radius/height);
-        previous=image;previousHue=hue;previousSaturation=saturation;
+        pass(targets[0],targets[1],tuning.lightNearRadius/100*radius/width,0);pass(targets[1],targets[2],0,tuning.lightNearRadius/100*radius/height);
+        pass(targets[2],targets[1],tuning.lightFarRadius/100*radius/width,0);pass(targets[1],targets[3],0,tuning.lightFarRadius/100*radius/height);
+        previous=image;previousKey=key;
         return {near:targets[2].texture,far:targets[3].texture};
       }finally{
         renderer.xr.enabled=xr;renderer.setRenderTarget(savedTarget);renderer.setViewport(viewport);renderer.setScissor(scissor);renderer.setScissorTest(scissorTest);

@@ -458,3 +458,27 @@ defaults, bounds, serializer, image bytes, assignments and atlas formats stay
 unchanged. This deliberately supersedes fixed hue/value saturation semantics.
 Older clients render their earlier response from the same preferences; rollback
 needs no conversion. No stored preferences are overwritten or discarded.
+
+
+### Editable scene light tuning (2026-11-07)
+
+The user explicitly extended the earlier screenshot-only scope to serialize the
+parameters being tuned. SceneVfx adds 13 numeric preferences: lightCoreStrength,
+lightNearStrength, lightFarStrength, lightNearRadius, lightFarRadius, lightGain,
+lightMix, lightTintSaturation, lightHueInner, lightHueOuter, lightSourcePower,
+lightAudioGain and lightAudioPower. `SCENE_LIGHT_CONTROLS` in scene/vfx.ts owns their
+defaults/bounds and supplies the shared numeric property editors and UI. The same
+normalizer/serializer, WorkspaceSettings, history, UI templates and workspace
+exports carry them. No new store or saved-schema version is introduced for this
+additive change. Missing fields acquire the preceding shader constants (radii in
+percent, hue bounds in degrees); explicit finite values, including zero, survive
+within bounds. Nonfinite/malformed values use those defaults. The historical
+six-field fixture is retained and verifies the original choices stay unchanged.
+
+Exactly 19 fields now serialize. Session/media state and GPU masks remain transient;
+image bytes, assignments, atlas identities and backend contracts do not change.
+Older clients can discard these additive tuning fields when resaving, while
+keeping the original six controls. Export current settings before using an older
+preview if the tuned preferences need preserving. Rollback needs no image/data
+conversion; it restores the older renderer's fixed parameters. No stored source
+assets or authored geometry are replaced by parameter defaults.

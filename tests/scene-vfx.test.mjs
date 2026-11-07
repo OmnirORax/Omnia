@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
+import {SCENE_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
-test('scene effects save exactly the pictured controls plus requested FPS cap and defaults',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves'];
+test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
+ const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves',...SCENE_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
- assert.deepEqual(normalizeSceneVfx(undefined),{audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
+ assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
  assert.deepEqual(normalizeSettings({}).sceneVfx,DEFAULT_SCENE_VFX);
- const explicit={audioLight:'#123456',audioBounce:1,waves:false,distortion:0,glitching:0,maxFps:90};
+ const explicit={...DEFAULT_SCENE_VFX,audioLight:'#123456',audioBounce:1,waves:false,distortion:0,glitching:0,maxFps:90};
  assert.deepEqual(normalizeSettings({sceneVfx:explicit}).sceneVfx,explicit);
  assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(normalizeSettings({sceneVfx:explicit})))).sceneVfx,explicit);
  assert.equal(normalizeSceneVfx({audioLight:'url(x)',audioBounce:NaN,waves:'false',distortion:Infinity,glitching:-4}).glitching,0);
@@ -112,5 +112,34 @@ test('wallpaper spatial light caches image/colour work, bounds GPU buffers and r
  light.prepare(image,.6,1);assert.equal(draws,10,'new hue regenerates emission map');light.prepare(image,.6,0);assert.equal(draws,15,'neutral versus coloured targets regenerate map');restored();
  fail=true;assert.throws(()=>light.prepare(image,.2,1),/GPU failure/);restored();fail=false;light.prepare(image,.2,1);assert.equal(draws,21,'failed generation is retried, never cached');
  let disposed=0;[...generated].find(t=>t.texture===first.near).addEventListener('dispose',()=>disposed++);light.clear();assert.equal(disposed,1);const fresh=light.prepare(image,.2,1);assert.notEqual(fresh.near,first.near);assert.equal(draws,26);restored();
+ light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightGain:4,lightMix:.5,lightAudioGain:2});assert.equal(draws,26,'intensity-only edits reuse masks');
+ light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightNearRadius:2});assert.equal(draws,31,'radius edits regenerate spatial masks');
+ light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightHueOuter:90});assert.equal(draws,36,'colour-range edits regenerate masks');
+ light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightSourcePower:1});assert.equal(draws,41,'emitter weighting edits regenerate masks');restored();
  }finally{light.dispose();image.dispose();originalTarget.dispose();}
+});
+
+
+test('historical scene settings acquire tunable light defaults without overwriting earlier choices',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const old=JSON.parse(readFileSync(new URL('./fixtures/scene-vfx-six-fields.json',import.meta.url),'utf8'));
+ const normalized=normalizeSceneVfx(old);
+ for(const [key,value]of Object.entries(old))assert.equal(normalized[key],value);
+ for(const {key,initial} of SCENE_LIGHT_CONTROLS)assert.equal(normalized[key],initial);
+ assert.equal(normalized.lightCoreStrength,1.1);assert.equal(normalized.lightNearRadius,.35);assert.equal(normalized.lightMix,.85);
+ const settings=defaultSettings(),channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ for(const {key,initial,min,max}of SCENE_LIGHT_CONTROLS){
+  const changed=channels[`scene.${key}`].write(settings,min);
+  assert.equal(changed.sceneVfx[key],min);assert.equal(settings.sceneVfx[key],initial);
+  assert.equal(changed.appearance,settings.appearance);assert.equal(changed.spatial,settings.spatial);
+  const roundtrip=normalizeSettings(JSON.parse(JSON.stringify(changed)));assert.equal(roundtrip.sceneVfx[key],min);
+  assert.equal(normalizeSceneVfx({...old,[key]:-Infinity})[key],initial);
+  assert.equal(normalizeSceneVfx({...old,[key]:-999})[key],min);
+  assert.equal(normalizeSceneVfx({...old,[key]:999})[key],max);
+ }
+ const zeros=Object.fromEntries(SCENE_LIGHT_CONTROLS.filter(c=>c.min===0).map(c=>[c.key,0]));
+ const saved=JSON.parse(serializeSceneVfx({...old,...zeros,privateAudio:'excluded',privateUniform:44}));
+ for(const key of Object.keys(zeros))assert.equal(saved[key],0);
+ assert.equal('privateAudio'in saved,false);assert.equal('privateUniform'in saved,false);
+ assert.deepEqual(normalizeSceneVfx(saved),saved);
 });

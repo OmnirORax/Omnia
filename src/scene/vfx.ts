@@ -1,13 +1,32 @@
-/** Pictured effects plus the requested FPS cap; no capture/session data. */
+/** Scene effects and user-adjustable light tuning; no capture/session data. */
 export const SCENE_VFX_FPS = 120;
 export const MIN_SCENE_VFX_FPS = 60;
 export const MAX_SCENE_VFX_FPS = 1000;
-export type SceneVfx = { audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number };
-export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS});
+/** One definition supplies saved defaults, validation and shared numeric editors. */
+export const SCENE_LIGHT_CONTROLS = [
+ {key:'lightCoreStrength',label:'Core strength',initial:1.1,min:0,max:8,step:.05},
+ {key:'lightNearStrength',label:'Near glow strength',initial:.9,min:0,max:8,step:.05},
+ {key:'lightFarStrength',label:'Far glow strength',initial:1.2,min:0,max:8,step:.05},
+ {key:'lightNearRadius',label:'Near glow radius (%)',initial:.35,min:0,max:5,step:.05},
+ {key:'lightFarRadius',label:'Far glow radius (%)',initial:1.2,min:0,max:10,step:.1},
+ {key:'lightGain',label:'Light gain',initial:2,min:0,max:12,step:.1},
+ {key:'lightMix',label:'Maximum colour mix',initial:.85,min:0,max:1,step:.01},
+ {key:'lightTintSaturation',label:'Light saturation',initial:1,min:0,max:2,step:.05},
+ {key:'lightHueInner',label:'Full colour range (°)',initial:14.4,min:0,max:180,step:1},
+ {key:'lightHueOuter',label:'Outer colour range (°)',initial:50.4,min:0,max:180,step:1},
+ {key:'lightSourcePower',label:'Bright-source emphasis',initial:2,min:.25,max:8,step:.1},
+ {key:'lightAudioGain',label:'Audio sensitivity',initial:1.2,min:0,max:8,step:.1},
+ {key:'lightAudioPower',label:'Audio response curve',initial:4,min:.25,max:8,step:.1},
+] as const;
+export type SceneLightKey = typeof SCENE_LIGHT_CONTROLS[number]['key'];
+export type SceneVfx = { audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number } & Record<SceneLightKey,number>;
+const LIGHT_DEFAULTS=Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial})=>[key,initial])) as Record<SceneLightKey,number>;
+export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,...LIGHT_DEFAULTS});
 export function normalizeSceneVfx(raw: unknown): SceneVfx {
  const r=(raw&&typeof raw==='object'?raw:{}) as Partial<SceneVfx>;
  const number=(v:unknown,f:number,min:number,max:number)=>typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):f;
- return {audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
+ const light=Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial,min,max})=>[key,number(r[key],initial,min,max)])) as Record<SceneLightKey,number>;
+ return {...light,audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
  audioBounce:number(r.audioBounce,1.12,1,1.5),waves:typeof r.waves==='boolean'?r.waves:true,
  distortion:number(r.distortion,.4,0,1),glitching:number(r.glitching,.3,0,1),maxFps:Math.round(number(r.maxFps,SCENE_VFX_FPS,MIN_SCENE_VFX_FPS,MAX_SCENE_VFX_FPS))};
 }
