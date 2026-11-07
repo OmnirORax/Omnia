@@ -1,3 +1,5 @@
+import {atomicCarrierGeometry,atomicCarrierMaterial} from './atomicCarrier.ts';
+import {resolveAppearance} from './graph/appearance.ts';
 import {paintSamples} from './omnic/paintStroke.ts';
 import { brightHex } from "./appearance/resolve";
 import { createWorldNavigator } from "./navigation/worldNavigator";
@@ -648,7 +650,7 @@ export default function SpatialWorkspace(props: Props) {
       if(event.button===0&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){
         event.preventDefault();event.stopImmediatePropagation();cancelDrive();props.heldNudges.stop();leftDown=null;clicks.cancel();const source=hits(event)[0]?.object.userData.nodeId as string|undefined;
         navigatorOffset.set(0,0,0);if(source)positionNavigator(new THREE.Vector3(...Object.values(latticeWorld(callbacks.current.document,source,callbacks.current.settings.spatial.nodeCellSize)) as [number,number,number]).multiplyScalar(latticeScale(callbacks.current.settings.spatial.latticeScale)));if(!updateNavigator(event))return;
-        const index=prepareLattice(callbacks.current.document,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),marker=new THREE.InstancedMesh(new THREE.RingGeometry(index.unit*scale*.42,index.unit*scale*.5,32),new THREE.MeshBasicMaterial({color:0x40dcff,transparent:true,opacity:.7,side:THREE.DoubleSide,depthWrite:false}),256);marker.count=0;marker.frustumCulled=false;scene.add(marker);
+        const index=prepareLattice(callbacks.current.document,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),theme=callbacks.current.settings.appearance,template=source?callbacks.current.document.placements.find(p=>p.id===source):undefined,style=resolveAppearance(theme.nodes,theme.theme==='neon'?theme.accent:'#dce9fa',template?.appearance),marker=new THREE.InstancedMesh(atomicCarrierGeometry(index.unit*scale),atomicCarrierMaterial(style.color,style.opacity*theme.opacity),256);marker.userData.glowIntensity=style.glow;marker.count=0;marker.frustumCulled=false;scene.add(marker);
         paintStroke={pointerId:event.pointerId,base:callbacks.current.document,source,last:asXYZ(navigator.position.clone().multiplyScalar(1/scale)),points:[],occupied:new Set(index.occupied.keys()),unit:index.unit,marker};navigatorDriving.current=true;controls.enabled=false;renderer.domElement.setPointerCapture(event.pointerId);paintAt(event);return;
       }
       if(event.button===0&&!event.ctrlKey&&!event.shiftKey&&!event.altKey&&!event.metaKey){updateNavigator(event);const node=hits(event).find(hit=>hit.object.userData.nodeId!==drive.id);leftDown={pointerId:event.pointerId,x:event.clientX,y:event.clientY,id:node?.object.userData.nodeId,point:navigator.position.clone()};if(drive.active){controls.enabled=false;renderer.domElement.setPointerCapture(event.pointerId);return;}}

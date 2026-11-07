@@ -131,3 +131,5 @@ transient renderer change; saved coordinates, formats and history are unaffected
 Visual confirmation is user-owned.
 
 Atomic carrier visual update: actual translucent SphereGeometry (.5 radius before the existing diameter scale), Phong material using existing lights, opacity .28 times authored opacity, depthWrite false. Do not billboard spheres; selection ring and text still face camera. Existing picking, occupancy, selection/content replacement, data and paint previews remain unchanged. No new rendering/depth pipeline in this first pass.
+
+Paint preview/saved carrier parity: use atomicCarrier geometry/material for both. Bubble surface alpha ranges from .0045 at centre to .18 at rim times authored opacity; supersedes flat .28 opacity. Commit world points against stored parent worldPositions, not projected latticeWorld parent cells, before shared reconciliation; otherwise off-grid historical parents shift confirmed strokes. Existing recovery remains intact.

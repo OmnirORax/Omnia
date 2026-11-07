@@ -179,3 +179,9 @@ test('painting copies source content independently, skips occupied/repeated cell
  assert.equal(paintNodes(doc,[point(0),point(3)],undefined,null,settings),doc);
  const blank=paintNodes(doc,[point(4)],undefined,null,settings);assert.equal(blank.entities.at(-1).label,'');assert.throws(()=>paintNodes(doc,[point(4)],'missing',null,settings));
 });
+
+test('paint confirmation retains exact preview cells under an off-grid parent',async()=>{
+ const {paintNodes}=await import('../src/graph/paintNodes.ts');const doc=fixture([point(.2),point(.3)]),targets=[point(4),point(5),point(6)];
+ const next=reconcileLattice(doc,paintNodes(doc,targets,undefined,'1',settings));const worlds=worldPositions(next);
+ assert.deepEqual(next.placements.slice(2).map(p=>worlds.get(p.id)),targets);
+});
