@@ -1,3 +1,4 @@
+import {createCarrierBackdrop} from './scene/carrierBackdrop.ts';
 import { sceneSampleCount } from "./renderBudget";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
@@ -20,6 +21,7 @@ export function createSceneAppearance(
   scene: THREE.Scene,
   camera: THREE.PerspectiveCamera,
 ) {
+  const carrierBackdrop=createCarrierBackdrop(scene);
   let composer: EffectComposer | null = null,
     bloom: SceneGlow | null = null,
     output: OutputPass | null = null;
@@ -132,6 +134,7 @@ export function createSceneAppearance(
       if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
     },
     render() {
+      carrierBackdrop.update();
       const now = performance.now();
       if (moving()) phase += Math.min(0.1, previousTime ? (now - previousTime) / 1000 : 0);
       previousTime = now;
@@ -179,6 +182,7 @@ export function createSceneAppearance(
       reducedMotion.removeEventListener("change", resume);
       redraw = undefined;
       disposeBloom();
+      carrierBackdrop.dispose();
       structural.dispose();
       lightning.dispose();
       electricText.dispose();

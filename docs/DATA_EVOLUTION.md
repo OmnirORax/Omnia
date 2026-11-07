@@ -399,3 +399,5 @@ Sphere translucency adds an optional property value to the existing version-1 ap
 UI translucency applicability follow-up: existing controller translucency values are preserved. Missing UI values resolve 0 to preserve historical UI alpha; missing sphere-body values still resolve .82 explicitly. No graph/schema migration. Existing unknown-property rewrite limits on older clients remain.
 
 Full-viewport world composition changes CSS layout only. No saved graph coordinates, camera values, UI arrangement, settings or schemas are rewritten. The visible camera aspect changes with its full viewport host; existing resize/render-budget owners apply.
+
+Carrier wallpaper isolation is transient render composition only: no graph, camera, settings or saved schema changes. The existing sphere material/translucency values remain authoritative; backing geometry is derived from current visible carrier transforms and never participates in picking or exports.
