@@ -482,3 +482,23 @@ keeping the original six controls. Export current settings before using an older
 preview if the tuned preferences need preserving. Rollback needs no image/data
 conversion; it restores the older renderer's fixed parameters. No stored source
 assets or authored geometry are replaced by parameter defaults.
+
+
+### User-selected light defaults and All colours (2026-11-07)
+
+The user selected new numeric defaults in a screenshot. `SCENE_LIGHT_CONTROLS`
+now supplies core 8, near 8, far 1, near radius 0.2%, far radius 0%, gain 12,
+maximum mix 0.12, saturation 2, hue inner 180°/outer 0°, source power 2.78,
+audio gain 8 and audio power 8. Missing fields acquire these defaults; explicit
+previous values (including zero) are preserved. The frozen 19-field fixture from
+the preceding revision verifies the earlier tuning remains unchanged. Hue bounds
+keep the existing sorted rendering interpretation; their saved values are intact.
+
+`lightAllColors` is an additive boolean defaulting false: true bypasses selected
+hue matching and uses source-image hues for cores and cached RGB halos. The existing
+settings/property/history/export boundary carries all 20 fields. Turning off
+retains the selective colour and ranges. Six-field clients can drop all 14 newer
+preferences; 19-field clients can drop only All colours on resave. Preserve a current
+export before using older clients. Older runtime rendering remains its previous
+selective model. No asset, assignment, atlas, permission or backend schema changes;
+RGB masks remain transient and reuse the existing bounded GPU allocation.

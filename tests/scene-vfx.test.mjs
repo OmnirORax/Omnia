@@ -4,7 +4,7 @@ import {SCENE_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneV
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves',...SCENE_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors',...SCENE_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -116,6 +116,8 @@ test('wallpaper spatial light caches image/colour work, bounds GPU buffers and r
  light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightNearRadius:2});assert.equal(draws,31,'radius edits regenerate spatial masks');
  light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightHueOuter:90});assert.equal(draws,36,'colour-range edits regenerate masks');
  light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightSourcePower:1});assert.equal(draws,41,'emitter weighting edits regenerate masks');restored();
+ light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightAllColors:true});assert.equal(draws,46,'all-colour activation regenerates RGB emission masks');
+ light.prepare(image,.2,1,{...DEFAULT_SCENE_VFX,lightAllColors:true});assert.equal(draws,46,'all-colour audio frames reuse masks');restored();
  }finally{light.dispose();image.dispose();originalTarget.dispose();}
 });
 
@@ -126,7 +128,7 @@ test('historical scene settings acquire tunable light defaults without overwriti
  const normalized=normalizeSceneVfx(old);
  for(const [key,value]of Object.entries(old))assert.equal(normalized[key],value);
  for(const {key,initial} of SCENE_LIGHT_CONTROLS)assert.equal(normalized[key],initial);
- assert.equal(normalized.lightCoreStrength,1.1);assert.equal(normalized.lightNearRadius,.35);assert.equal(normalized.lightMix,.85);
+ assert.equal(normalized.lightCoreStrength,8);assert.equal(normalized.lightNearRadius,.2);assert.equal(normalized.lightMix,.12);
  const settings=defaultSettings(),channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
  for(const {key,initial,min,max}of SCENE_LIGHT_CONTROLS){
   const changed=channels[`scene.${key}`].write(settings,min);
@@ -142,4 +144,21 @@ test('historical scene settings acquire tunable light defaults without overwriti
  for(const key of Object.keys(zeros))assert.equal(saved[key],0);
  assert.equal('privateAudio'in saved,false);assert.equal('privateUniform'in saved,false);
  assert.deepEqual(normalizeSceneVfx(saved),saved);
+});
+
+
+test('requested screenshot defaults and saved all-colour activation preserve earlier explicit tuning',async()=>{
+ const expected={lightCoreStrength:8,lightNearStrength:8,lightFarStrength:1,lightNearRadius:.2,lightFarRadius:0,lightGain:12,lightMix:.12,lightTintSaturation:2,lightHueInner:180,lightHueOuter:0,lightSourcePower:2.78,lightAudioGain:8,lightAudioPower:8};
+ for(const [key,value]of Object.entries(expected))assert.equal(DEFAULT_SCENE_VFX[key],value,key);
+ assert.equal(DEFAULT_SCENE_VFX.lightAllColors,false);assert.equal(normalizeSceneVfx({lightAllColors:'true'}).lightAllColors,false);
+ const {readFileSync}=await import('node:fs'),old=JSON.parse(readFileSync(new URL('./fixtures/scene-vfx-tuning-v1.json',import.meta.url),'utf8'));
+ const restored=normalizeSceneVfx(old);for(const [key,value]of Object.entries(old))assert.equal(restored[key],value,key);
+ assert.equal(restored.lightAllColors,false);
+ const settings=normalizeSettings({sceneVfx:old}),changed=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.lightAllColors'].write(settings,true);
+ assert.equal(changed.sceneVfx.lightAllColors,true);assert.equal(settings.sceneVfx.lightAllColors,false);
+ assert.equal(changed.sceneVfx.audioLight,old.audioLight);assert.equal(changed.appearance,settings.appearance);
+ const saved=JSON.parse(serializeSceneVfx(changed.sceneVfx));assert.equal(Object.keys(saved).length,20);assert.equal(saved.lightAllColors,true);
+ assert.deepEqual(normalizeSettings({sceneVfx:saved}).sceneVfx,saved);
+ const off=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.lightAllColors'].write(changed,false);
+ assert.deepEqual(off.sceneVfx,settings.sceneVfx,'turning off restores selective settings without changing the saved colour/tuning');
 });

@@ -9,12 +9,12 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,
     uniforms: { ...wallpaperLightUniforms(),image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      nearLight:{value:null},farLight:{value:null},sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightHue:{value:.05},lightSaturation:{value:1},
+      nearLight:{value:null},farLight:{value:null},sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightHue:{value:.05},lightSaturation:{value:1},lightAllColors:{value:0},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
     vertexShader: 'varying vec2 imageUV; void main() { imageUV = uv; gl_Position = vec4(position.xy, 1.0, 1.0); }',
     fragmentShader: `uniform sampler2D image; uniform float imageAspect; uniform float viewportAspect;
-      uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light; uniform float lightHue;uniform float lightSaturation;
+      uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light; uniform float lightHue;uniform float lightSaturation;uniform float lightAllColors;
       uniform float waves; uniform float distortion; uniform float glitching;
       uniform sampler2D nearLight;uniform sampler2D farLight;
       float hash(float n){return fract(sin(n*127.1)*43758.5453);}
@@ -40,12 +40,14 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         if(light>0.0){
           vec2 lightUV=clamp(coverUV+.5,vec2(.001),vec2(.999));
           vec3 visible=displayColour(color),source=hsv(visible);
-          float energy=emitter(source)*lightCoreStrength+texture2D(nearLight,lightUV).r*lightNearStrength+texture2D(farLight,lightUV).r*lightFarStrength;
+          vec3 emission=emissionColour(source)*emitter(source)*lightCoreStrength+texture2D(nearLight,lightUV).rgb*lightNearStrength+texture2D(farLight,lightUV).rgb*lightFarStrength;
+          float energy=max(emission.r,max(emission.g,emission.b));
           // A bounded coloured-light blend, not independent RGB gain/clipping.
-          // Highlight cores and the surrounding halo approach the selected hue.
+          // Selective mode uses the picked tint; All colours uses source/halo hues.
           // Existing source detail remains; no repeated-frame accumulation.
           float pulse=lightMix*(1.0-exp(-light*lightGain*energy));
-          vec3 radiance=rgbFromHSV(vec3(lightHue,clamp(lightSaturation*lightTintSaturation,0.0,1.0),1.0));
+          vec3 tint=hsv(emission/max(energy,.000001));
+          vec3 radiance=rgbFromHSV(vec3(tint.x,clamp(tint.y*lightTintSaturation,0.0,1.0),1.0));
           if(pulse>0.0)enhanced=linearColour(mix(visible,radiance,pulse));
         }
         vec3 outputColor=mix(enhanced,feedbackColor,feedbackStrength);
@@ -92,6 +94,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       selected.getHSL(chosen,THREE.SRGBColorSpace);
       const rgb=selected.getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace),peak=Math.max(rgb.r,rgb.g,rgb.b);
       material.uniforms.lightHue.value=chosen.h;
+      material.uniforms.lightAllColors.value=Number(settings.lightAllColors);
       material.uniforms.lightSaturation.value=peak?(peak-Math.min(rgb.r,rgb.g,rgb.b))/peak:0;
       for(const {key} of SCENE_LIGHT_CONTROLS)material.uniforms[key].value=settings[key];
       prepareLight();motion();

@@ -6,7 +6,7 @@ import {bloomSize} from '../renderBudget.ts';
 export const wallpaperLightUniformGLSL=SCENE_LIGHT_CONTROLS.map(({key})=>`uniform float ${key};`).join('\n');
 export const wallpaperLightUniforms=()=>Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial})=>[key,{value:Number(initial)}]));
 
-/** Shared extraction in display space: neutral pixels emit only for a neutral target. */
+/** Shared extraction in display space: neutral pixels emit for a neutral target or All colours. */
 export const wallpaperColourGLSL = `
   vec3 hsv(vec3 c){
     vec4 K=vec4(0.0,-1.0/3.0,2.0/3.0,-1.0);
@@ -26,12 +26,16 @@ export const wallpaperColourGLSL = `
     return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));
   }
   float affinity(vec3 a){
+    if(lightAllColors>.5)return smoothstep(.001,.025,a.z);
     float distance=abs(a.x-lightHue);distance=min(distance,1.0-distance);
     float inner=min(lightHueInner,lightHueOuter)/360.0;
     float outer=max(max(lightHueInner,lightHueOuter)/360.0,inner+.00001);
     float chromatic=(1.0-smoothstep(inner,outer,distance))*smoothstep(.06,.22,a.y);
     float neutral=1.0-smoothstep(.03,.2,a.y);
     return mix(neutral,chromatic,smoothstep(.02,.15,lightSaturation))*smoothstep(.001,.025,a.z);
+  }
+  vec3 emissionColour(vec3 a){
+    return rgbFromHSV(lightAllColors>.5?vec3(a.xy,1.0):vec3(lightHue,lightSaturation,1.0));
   }
   float emitter(vec3 a){return affinity(a)*pow(a.z,lightSourcePower);}
 `;
@@ -43,11 +47,11 @@ export function createWallpaperLight(renderer: THREE.WebGLRenderer) {
   const vertexShader='varying vec2 uv0;void main(){uv0=uv;gl_Position=vec4(position.xy,0.0,1.0);}';
   const extraction=new THREE.ShaderMaterial({
     depthTest:false,depthWrite:false,toneMapped:false,
-    uniforms:{...wallpaperLightUniforms(),image:{value:null},lightHue:{value:0},lightSaturation:{value:1}},vertexShader,
-    fragmentShader:`uniform sampler2D image;uniform float lightHue;uniform float lightSaturation;varying vec2 uv0;
+    uniforms:{...wallpaperLightUniforms(),image:{value:null},lightHue:{value:0},lightSaturation:{value:1},lightAllColors:{value:0}},vertexShader,
+    fragmentShader:`uniform sampler2D image;uniform float lightHue;uniform float lightSaturation;uniform float lightAllColors;varying vec2 uv0;
       ${wallpaperLightUniformGLSL}
       ${wallpaperColourGLSL}
-      void main(){float e=emitter(hsv(displayColour(texture2D(image,uv0).rgb)));gl_FragColor=vec4(e,e,e,1.0);}`,
+      void main(){vec3 source=hsv(displayColour(texture2D(image,uv0).rgb));gl_FragColor=vec4(emissionColour(source)*emitter(source),1.0);}`,
   });
   const blur=new THREE.ShaderMaterial({
     depthTest:false,depthWrite:false,toneMapped:false,
@@ -64,7 +68,7 @@ export function createWallpaperLight(renderer: THREE.WebGLRenderer) {
   const clear=()=>{for(const target of targets)target.dispose();targets=[];previous=null;previousKey='';extraction.uniforms.image.value=null;blur.uniforms.image.value=null;};
   return {
     prepare(image:THREE.Texture,hue:number,saturation:number,tuning:SceneVfx=DEFAULT_SCENE_VFX){
-      const key=[hue,saturation,tuning.lightHueInner,tuning.lightHueOuter,tuning.lightSourcePower,tuning.lightNearRadius,tuning.lightFarRadius].join('/');
+      const key=[hue,saturation,tuning.lightAllColors,tuning.lightHueInner,tuning.lightHueOuter,tuning.lightSourcePower,tuning.lightNearRadius,tuning.lightFarRadius].join('/');
       if(previous===image&&previousKey===key&&targets.length)return {near:targets[2].texture,far:targets[3].texture};
       const source=image.image as {width:number;height:number};
       const {width,height}=bloomSize(source.width,source.height);
@@ -74,7 +78,7 @@ export function createWallpaperLight(renderer: THREE.WebGLRenderer) {
       previous=null;previousKey='';
       try{
         renderer.xr.enabled=false;renderer.setScissorTest(false);
-        extraction.uniforms.image.value=image;extraction.uniforms.lightHue.value=hue;extraction.uniforms.lightSaturation.value=saturation;
+        extraction.uniforms.image.value=image;extraction.uniforms.lightHue.value=hue;extraction.uniforms.lightSaturation.value=saturation;extraction.uniforms.lightAllColors.value=Number(tuning.lightAllColors);
         for(const {key} of SCENE_LIGHT_CONTROLS)extraction.uniforms[key].value=tuning[key];
         quad.material=extraction;renderer.setRenderTarget(targets[0]);quad.render(renderer);
         quad.material=blur;

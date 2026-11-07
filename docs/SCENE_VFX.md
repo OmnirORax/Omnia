@@ -16,13 +16,14 @@ additive gain, which washed the image out to white.
 | distortion | Distortion | 0.4 | 0–1 |
 | glitching | Glitching | 0.3 | 0–1 |
 | maxFps | Max FPS | 120 | 60–1000, whole frames/sec |
+| lightAllColors | All colours | false | On/off; each source hue reacts independently |
 
 `normalizeSceneVfx` and `serializeSceneVfx` whitelist these six fields plus the
-13 light-tuning fields below, explicitly requested for experimentation. The FPS
+13 numeric light-tuning fields below and the saved **All colours** toggle. The FPS
 control was explicitly added after the original five-field screenshot request.
 The existing property registry, Color picker, numeric controls, settings history,
 MC and save/export mechanisms remain the owners. Old five-field saves acquire
-maxFps 120; five/six-field saves acquire the light-tuning defaults without changing
+maxFps 120; five/six-field saves acquire the current light-tuning defaults without changing
 their existing choices. Explicit zero/off values survive. No audio files, source handles,
 permissions, spectra, playback position or hidden shader variables serialize.
 
@@ -31,28 +32,30 @@ permissions, spectra, playback position or hidden shader variables serialize.
 Open **Scene → Scene effects → Light tuning** (initially collapsed). These are the
 actual shader/audio parameters previously fixed in code. Changes apply live and
 use existing settings save/reload, Undo/Redo and workspace/UI-template exports.
+The pictured values are now defaults for missing settings; existing explicit tuning is preserved.
 The light model stays the same; this exposes its parameters rather than adding a
 new additive-light algorithm. No new browser test was run for these controls.
 
 | Saved field | Control | Default | Range / meaning |
 | --- | --- | --- | --- |
-| lightCoreStrength | Core strength | 1.1 | 0–8; contribution at matching source pixels |
-| lightNearStrength | Near glow strength | 0.9 | 0–8; tight halo contribution |
-| lightFarStrength | Far glow strength | 1.2 | 0–8; broad halo contribution |
-| lightNearRadius | Near glow radius (%) | 0.35 | 0–5; blur sampling radius as % of image long edge |
-| lightFarRadius | Far glow radius (%) | 1.2 | 0–10; additional broad blur radius as % of image long edge |
-| lightGain | Light gain | 2 | 0–12; how quickly the colour blend grows toward its maximum |
-| lightMix | Maximum colour mix | 0.85 | 0–1; peak replacement with the selected bright tint; 0 disables light |
-| lightTintSaturation | Light saturation | 1 | 0–2; multiplier of picked colour saturation; 0 gives white light, 1 uses picked saturation, result capped at full saturation |
-| lightHueInner | Full colour range (°) | 14.4 | 0–180; hue distance receiving full matching weight |
-| lightHueOuter | Outer colour range (°) | 50.4 | 0–180; hue distance where matching fades to zero |
-| lightSourcePower | Bright-source emphasis | 2 | 0.25–8; higher values favour bright sources, lower values include darker ones |
-| lightAudioGain | Audio sensitivity | 1.2 | 0–8; multiplier before the bounded audio pulse |
-| lightAudioPower | Audio response curve | 4 | 0.25–8; lower values make quiet input more responsive, higher values favour peaks |
+| lightCoreStrength | Core strength | 8 | 0–8; contribution at matching source pixels |
+| lightNearStrength | Near glow strength | 8 | 0–8; tight halo contribution |
+| lightFarStrength | Far glow strength | 1 | 0–8; broad halo contribution |
+| lightNearRadius | Near glow radius (%) | 0.2 | 0–5; blur sampling radius as % of image long edge |
+| lightFarRadius | Far glow radius (%) | 0 | 0–10; additional broad blur radius as % of image long edge |
+| lightGain | Light gain | 12 | 0–12; how quickly the colour blend grows toward its maximum |
+| lightMix | Maximum colour mix | 0.12 | 0–1; peak replacement with the selected bright tint; 0 disables light |
+| lightTintSaturation | Light saturation | 2 | 0–2; multiplier of picked colour saturation; 0 gives white light, 1 uses picked saturation, result capped at full saturation |
+| lightHueInner | Full colour range (°) | 180 | 0–180; hue distance receiving full matching weight |
+| lightHueOuter | Outer colour range (°) | 0 | 0–180; hue distance where matching fades to zero |
+| lightSourcePower | Bright-source emphasis | 2.78 | 0.25–8; higher values favour bright sources, lower values include darker ones |
+| lightAudioGain | Audio sensitivity | 8 | 0–8; multiplier before the bounded audio pulse |
+| lightAudioPower | Audio response curve | 8 | 0.25–8; lower values make quiet input more responsive, higher values favour peaks |
 
 Hue thresholds are interpreted smaller → larger even if entered in reverse; equal
 values use a tiny nonzero feather to avoid undefined smoothstep behavior. Radii
-change sampling distance, not GPU buffer allocation. Editing hue thresholds,
+change sampling distance, not GPU buffer allocation. Zero far radius means no
+additional broad blur; the far-strength contribution still uses the near mask. Editing hue thresholds,
 source emphasis or radii regenerates the cached spatial mask; intensity, mix,
 saturation and audio curve edits reuse it. GPU work remains bounded at 512 pixels
 on the long edge. Large radii can show soft/banded halos at this resolution.
@@ -65,11 +68,27 @@ mix or all three strengths to 0 switches off the colour effect; settings are kep
 These controls still tune a bounded colour blend, so they do not create physically
 additive scene lighting. Raising maximum mix toward 1 can erase source detail.
 
-The serializer now contains exactly 19 whitelisted fields. Audio files, permissions,
-media/session handles and cached GPU masks remain excluded. Older clients keep the
-original six fields but can drop the 13 new preferences when resaving; export your
+The serializer now contains exactly 20 whitelisted fields. Audio files, permissions,
+media/session handles and cached GPU masks remain excluded. Older six-field clients can drop the 13 numeric tunings and All colours;
+the preceding 19-field clients can drop All colours when resaving; export your
 settings from this revision before experimenting in an older preview. Original
 image bytes/assignments stay intact.
+
+## All colours
+
+Click **Scene → Scene effects → All colours**, beside Audio Light. On enables
+response from every source colour instead of the selected hue range: reds pulse
+red, blues blue, yellows yellow, and neutral highlights stay neutral. Core colours
+and cached RGB halos derive from the image, not a single globally applied tint.
+Neighbouring colours can blend where their halos overlap. Source emphasis, audio
+curve, core/glow strengths, radii, mix and saturation still apply. The selected
+colour and hue-range controls are retained for switching back to selective mode.
+All colours defaults off and uses the shared toggle/property, history and exports.
+
+The same four bounded GPU targets and five preparation draws are reused. Mode
+changes regenerate RGB masks; playback reuses them. There is no new per-frame
+blur or CPU pixel readback. Silence restores the image in both modes. This is
+still the bounded blend model, not physical relighting of world objects.
 
 ## Coloured light response
 
@@ -77,21 +96,22 @@ The picked colour selects a broad, feathered hue family across the colour wheel.
 Brighter matching pixels supply stronger emission; dark pixels supply less.
 Yellow/gold regions pulse with yellow light when yellow is selected, blue regions
 with blue light when blue is selected, and likewise for other colours. A neutral
-colour selection instead follows neutral highlights. The glow reaches nearby
+colour selection instead follows neutral highlights. All colours bypasses this
+selection rule and uses each image region’s own colour. The glow reaches nearby
 pixels, even if those neighbours are outside the selected hue family. Distant
 unrelated regions stay unchanged. Silence restores the source image.
 
 Audio increases core brightness and adds a soft near/far halo around the matching
 regions. Core and halo blend toward the selected hue and saturation at full value,
 using one bounded display-space blend rather than independent RGB addition and
-clipping. At the default maximum colour mix, at least 15% of the source remains at a peak;
+clipping. At the default maximum colour mix, at least 88% of the source remains at a peak;
 the user can now change that limit. Saturation supports this
 coloured-light appearance; hue/value are no longer held fixed. Fully saturated
 dim pixels can now brighten. Already bright, pure pixels have less headroom.
 This is a bounded light approximation, not physical HDR light transport.
 
 The spatial glow is extracted and blurred on the GPU only when the image,
-selected hue/saturation or spatial tuning changes, using the existing 512-pixel bloom-edge budget.
+selected hue/saturation, activation mode or spatial tuning changes, using the existing 512-pixel bloom-edge budget.
 Audio frames sample two cached masks and vary intensity; they never repeat the
 blur or read back image pixels. Masks follow the image's cover/bounce/wave/VHS UVs,
 so the glow remains registered to the image. Radiance is composited inside the
@@ -159,3 +179,10 @@ Model regressions cover historical six-field settings, all 13 shared setters,
 serialization, bounds, explicit zero values and round trips. A model regression covers cached GPU work, bounded buffers, renderer-state
 restoration after success/failure and resource release; it does not execute GLSL.
 Actual image appearance and interactive performance remain user acceptance.
+
+
+The default update and All colours have not had a browser run. Model regressions
+check the screenshot defaults, preservation of earlier 19-field explicit tuning,
+mode toggling/round trips, retained selective colour and cache invalidation/reuse.
+The prepared emission browser check includes multi-hue All colours coverage; it
+remains opt-in and unrun for this revision.

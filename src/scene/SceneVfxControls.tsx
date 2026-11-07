@@ -21,7 +21,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  'scene.audioFile':{enabled:true,run:()=>file.current?.click()},
  });
  return <UISection id="scene-vfx" title="Scene effects">
- {([['color','Audio Light','color'],['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
+ {([['color','Audio Light','color'],['scene.lightAllColors','All colours','allColors'],['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
  <UISection id="scene-light-tuning" title="Light tuning" defaultExpanded={false}>
  {SCENE_LIGHT_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
  </UISection>
